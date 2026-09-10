@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L02
-phase: regression_repair
+phase: integrated_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: b0ac00f47
@@ -11,10 +11,10 @@ pending_gates: [L02_semantic_validation, U01_replay, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: U01
 next_selection: Resume U01 after L02 validated baseline.
-next_action: Repair per-activation initial edge history, add permanent regression, then rerun all required gates before U01 replay.
-next_command: "cat ../evidence/campaign-20260908/u01-loop/event-history.sv ../evidence/campaign-20260908/u01-loop/event-history.log"
+next_action: Await full JSON and UVM, then checkpoint validated semantic source before replaying U01.
+next_command: "tail -12 ../evidence/campaign-20260908/u01-loop/history-json.log ../evidence/campaign-20260908/u01-loop/history-uvm.log"
 next_command_cwd: repository root
-candidate_state: Uncommitted elab_scope.cc frame patch and vvp/event.cc partial routing repair; do not use as validated baseline.
-installed_tools: Frame patch only; installed runtime predates event.cc repair. Built vvp/vvp includes partial event repair.
-validation_state: Frame-only focus 69 legacy / 48 JSON and make check pass; integrated fails automatic_events2; full JSON diagnostic 1556/0; UVM session 34962 running on installed frame-only tools.
-next_validation: After complete repair, rebuild/install consistently and rerun focus, integrated, full JSON, real-DPI UVM, make check, review, then fresh U01.
+candidate_state: Uncommitted frame selection plus scalar ancestor-history repair; required integrated gates pending.
+installed_tools: Coherent compiler a90ef338a4fe and runtime 875c35bd2ba2 match build outputs.
+validation_state: Focus 93 legacy / 50 JSON and make check pass; independent review no actionable finding. Integrated passed 4666 total / 4661 pass / 0 fail / 2 NI / 3 EF; VPI103, negative149, runtime15 pass. Full JSON session 88801 running; real-DPI UVM session 61703 running.
+next_validation: Full JSON after integrated; all local gates before fresh U01 replay. Remote CI required before merge.

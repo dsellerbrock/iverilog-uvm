@@ -1,7 +1,7 @@
 id: L02
 title: Restore automatic block storage on each entry
 status: awaiting_validation
-phase: regression_repair
+phase: integrated_validation
 base_revision: e0dab7221
 parent: U01
 standards:
@@ -17,6 +17,7 @@ allowed_scope:
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
+  - docs/conformance/DISCOVERED_DEBT.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
 non_goals:
@@ -33,5 +34,5 @@ required_gates:
 completion: Bounded automatic block reentry scope only; U01 requires checked normal application completion separately.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-remaining_failure: event-history.sv observes 2,2 instead of 2,3; descendant probe initialization copies shared history rather than the owning activation's current value.
-implementation_state: Uncommitted frame-selection patch plus partial scalar routing repair; no qualified semantic checkpoint yet.
+implementation_state: Frame selection and scalar ancestor-history repair pass focused tests; full integrated gates pending.
+validation: Final coherent focus 93 legacy / 50 JSON and make check pass; independent review has no actionable finding.

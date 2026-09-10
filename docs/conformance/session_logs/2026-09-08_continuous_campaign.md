@@ -448,3 +448,33 @@ The installed runtime is frame-only; built vvp/vvp contains partial routing
 repair. Rebuild/install coherently only after correcting the remaining
 mechanism, then rerun required gates and review. Last fully validated source
 revision remains b0ac00f47. Remote CI and U01 checked completion remain pending.
+
+L02 regression repair: retain distinct block frames, with scalar source
+activation routing and sparse history cached in existing ancestor activation
+hooks. Reset/reuse follows the existing context lifecycle; there is no map
+of stale context pointers. Native/ancestor/static samples use ordered stamps.
+History is seeded before comparison and the current ancestor sample is saved
+after live fanout, without firing synthetic events. Static cache writes guard
+against newer reentrant stamps. Object mutation fanout is unchanged.
+
+Both original failures now pass: automatic_events2 exact gold and history
+reducer 2,3. Permanent paired controls cover fixed selects, event-or, two
+activations, reused frames, real/string histories, default positive-edge
+partial write, and static broadcast. Review found no actionable defect.
+DD-003 Boolean expression context loss and DD-004 unchanged-partial-write
+default negedge are recorded with original-frame-layout evidence, not folded
+into the L02 qualification claim.
+
+Fresh baseline compiler construction exposed one-second make timestamp
+granularity during restoration: restore-build said up to date and initial
+focus accidentally used the original compiler. Forced make -W elab_scope.cc
+rebuilt candidate, reinstalled, and confirmed matching build/install hashes
+(a90ef338a4fe compiler, 875c35bd2ba2 runtime). Final focus93/50 and make check
+pass. Old frame-only UVM completed355/0/0 and JSON1556/0, but are superseded
+for qualification by fresh history-integrated/session7745 and
+history-uvm/session61703. Full JSON and U01 replay still follow those gates.
+
+L02 history-integrated gate exited0: 4666 total, 4661 passed, zero failed,
+2 not implemented, 3 expected failures; name-diff clean. VPI103/103,
+negative149/149, runtime15/15. Full JSON now running; real-DPI UVM still
+pending. No semantic baseline checkpoint or U01 replay until both pass.

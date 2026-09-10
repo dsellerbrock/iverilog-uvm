@@ -229,9 +229,9 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### L02 — Automatic block locals retain values across loop entries
 
 - **Area / edition:** Lifetime / IEEE 1800-2017 and 2023 6.21, 6.8.
-- **State:** AWAITING_VALIDATION (regression repair)
+- **State:** AWAITING_VALIDATION (integrated gates)
 - **Confidence:** REPRODUCED and ROOT_CAUSED
 - **Parent:** U01; preserved contract and two-edition reducer in evidence/campaign-20260908/u01-loop.
 - **Evidence:** Class-task for-loop bit local returns 1 on entry 2 instead of default 0. Emitted autobegin.shared stores it in the task frame. Same driver structure leaves rsp_done set after the first response.
 - **Closure requirements:** Fresh per-entry storage/defaults with static and capture controls; required local gates, review and U01 replay.
-- **Last verified revision:** e0dab7221 red in both editions. Candidate passes paired/default controls, but automatic_events2 exposes cross-activation delivery; partial repair restores that test while event-history.sv still fails (2,2 instead of 2,3). Required gates remain pending.
+- **Last verified revision:** e0dab7221 red in both editions. Candidate now passes 93 legacy / 50 JSON focus and make check, including automatic_events2 and ancestor history 2,3. Independent review has no actionable finding. Required integrated gates and U01 replay remain pending.

@@ -791,11 +791,17 @@ All required local gates and review pass; remote CI/merge remain pending.
 See campaign evidence.
 
 
-L01: AWAITING VALIDATION for selected-prefix procedural member foreach
+L01: IMPLEMENTED (bounded local qualification; unmerged) for selected-prefix procedural member foreach
 (2017/2023 12.7.3). The selected prefix is no longer redeclared and iterated;
 only terminal loop variables are introduced. Both-edition lookup and traversal
 controls pass, along with 53 legacy/34 JSON focused cases and unchanged Bison
-automaton. All local semantic gates and review passed; application replay
-remains pending. DD-002 associative string
-index typing remains a separate unqualified gap. U01 requires a fresh replay
-after local semantic validation; no xbar application pass is yet established.
+automaton. All local semantic gates and review passed; fresh unmodified U01
+replay confirms corrected routing and three checked responses. DD-002
+associative string index typing remains a separate unqualified gap. U01 is
+still open for the fourth-response stall; no application pass is established.
+
+L02: AWAITING VALIDATION for automatic block reentry and scalar event history
+(2017/2023 6.21, 6.8 and 9.4.2). Candidate preserves distinct block frames
+and ancestor-owned scalar history; focus and review pass. Integrated gates
+and U01 replay remain pending. General Boolean event-expression context
+(DD-003) and silent-default edge initialization remain unqualified.
