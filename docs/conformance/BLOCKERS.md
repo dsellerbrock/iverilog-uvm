@@ -282,7 +282,8 @@ seed set was drawn from, and for the complete excluded/reconciled list.
   the per-start implication verdict required when several endpoints match.
 - **Closure:** Preserve each endpoint evaluation, aggregate truth and required
   action semantics, clock timing, sampling and cancellation for the exact
-  claimed bounded subset. Initial action-count expectation awaits verification.
+  claimed bounded subset. Corrected expectation is two failures for two starts,
+  rather than three failures for three endpoints.
 
 S02 coordination boundary: scalar cross-clock request counts erase the parent
 identity needed for one verdict per starting attempt. A local count-only fix is
@@ -295,7 +296,7 @@ architecture expansion is not authorized by this suspension.
 ### S03 — NFA implication verdicts are emitted per endpoint
 
 - **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7.
-- **State:** ACTIVE — reproduced and specification grounded.
+- **State:** ACTIVE — patched, awaiting required validation.
 - **Evidence:** `../evidence/campaign-20260908/s03/attempt-verdict.sv` fails
   both editions at `2be79b2c0`: one start with two failing consequences emits
   two failure actions instead of one. Independent semantic review confirms.

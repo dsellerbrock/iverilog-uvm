@@ -787,3 +787,8 @@ actions across fail/EOS properties. Independent review confirms; VPI2/2green.
 JSON56004 and UVM58507 live. Repeat integrated after JSON releases sharedlogs.
 No semantic source changes after the original candidate build; only clarified
 source comments and strengthened/reviewed tests. Source remains uncommitted.
+
+S03 JSON56004 completed1584/0. Final integrated65557 now runs against the
+corrected reviewed VPI oracle and final strengthened tests; UVM58507 remains
+live. No semantic implementation edits during validation. Current last validated
+revision remains2be79b2c0 until both required gates finish. No new blocker selected.
