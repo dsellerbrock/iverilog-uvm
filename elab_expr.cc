@@ -2919,6 +2919,74 @@ static const netclass_t* scoped_class_current_specialization_(
       return current_scope->class_def();
 }
 
+ivl_type_t PEIdent::resolve_scoped_type_actual(Design*des, NetScope*scope) const
+{
+      if (!has_scoped_type_prefix() || has_dotted_suffix() || path_.name.size() < 2)
+            return nullptr;
+      for (const auto&comp : path_.name)
+            if (!comp.index.empty()) return nullptr;
+
+      NetScope*search_scope = scope;
+      if (path_.package)
+            search_scope = des->find_package(path_.package->pscope_name());
+      if (!search_scope) return nullptr;
+
+      const netclass_t*class_type = nullptr;
+      bool first = true;
+      for (auto comp = path_.name.begin(); comp != path_.name.end(); ++comp) {
+            auto next = comp;
+            ++next;
+            typedef_t*member = nullptr;
+            NetScope*owner = nullptr;
+            if (!first) {
+                  search_scope = const_cast<NetScope*>(class_type->class_scope());
+                  if (!search_scope) return nullptr;
+                  member = search_scope->find_typedef(des, comp->name);
+                  if (!member) return nullptr;
+                  owner = search_scope->find_typedef_scope(des, member);
+
+                  // Ordinary typedef lookup also searches enclosing scopes.
+                  // Class::member must belong to this class or a superclass.
+                  const netclass_t*base = class_type;
+                  while (base && base->class_scope() != owner)
+                        base = base->get_super();
+                  if (!base) return nullptr;
+            }
+            if (next == path_.name.end()) {
+                  if (!member) return nullptr;
+                  ivl_type_t type = member->elaborate_type(des, owner);
+                  return specialize_bare_class_at_concrete_use(
+                        des, owner, member->get_data_type(), type, true);
+            }
+
+            scoped_class_name_result_t resolved =
+                  resolve_scoped_class_type_name_(des, search_scope, comp->name);
+            class_type = resolved.class_type;
+            // Some :: expression productions retain the package as the
+            // first name component instead of path_.package.
+            if (first && !path_.package && resolved.kind == SCOPED_CLASS_NAME_NONE) {
+                  if (NetScope*package = des->find_package(comp->name)) {
+                        search_scope = package;
+                        continue;
+                  }
+            }
+            if (!class_type) return nullptr;
+            if (first && leading_type_args()) {
+                  class_type = elaborate_specialized_class_type(
+                        des, scope, class_type, leading_type_args(), false);
+            } else if (resolved.kind == SCOPED_CLASS_NAME_DIRECT) {
+                  if (const netclass_t*current =
+                        scoped_class_current_specialization_(scope, class_type))
+                        class_type = current;
+                  else if (scoped_class_is_unspecialized_parameterized_(class_type))
+                        return nullptr;
+            }
+            if (!class_type) return nullptr;
+            first = false;
+      }
+      return nullptr;
+}
+
 static void report_bare_parameterized_class_scope_(Design*des,
 						    const LineInfo*li,
 						    perm_string name)
@@ -9366,6 +9434,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 			: new PEIdent(new_name, UINT_MAX);
 		  cp->set_borrowed_leading_type_args(act->leading_type_args());
 		  cp->set_scoped_type_prefix(act->has_scoped_type_prefix());
+                  cp->set_dotted_suffix(act->has_dotted_suffix() || path.name.size() > 1);
 		  cp->set_clocking_access(act->clocking_access());
 		  cp->set_line(*e);
 		  return cp;
@@ -9387,6 +9456,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		  : new PEIdent(new_name, id->lexical_pos());
 	    cp->set_borrowed_leading_type_args(id->leading_type_args());
 	    cp->set_scoped_type_prefix(id->has_scoped_type_prefix());
+            cp->set_dotted_suffix(id->has_dotted_suffix());
 	    cp->set_clocking_access(id->clocking_access());
 	    cp->set_line(*e);
 	    return cp;

@@ -688,10 +688,12 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L08 — UVM2020.1 resource-queue typing frontier
 
-- **Area / edition:** Type elaboration / editions to be verified against reducer.
-- **State:** OPEN, selected for bounded triage; implementation not yet authorized.
+- **Area / edition:** Class-scoped type actuals, IEEE1800-2017/2023 6.20.3 and8.23.
+- **State:** OPEN, candidate awaiting required integrated validation.
 - **Evidence:** DD-011; original2020.1.0/1.1 compile logs in the pinned release
   matrix stop at nested resource-queue type/assignment errors.
 - **Closure:** First causal reducer, applicable IEEE semantics and minimal
   implementation scope before any patch; permanent regression, required gates
   and review. No release-wide or application qualification by implication.
+
+- **L08 candidate evidence:** Scoped resource-queue actual fails in both editions on the validated baseline; explicit equivalent type passes. Type-only class-member lookup and resolved specialization keys now pass ten permanent paired regressions in legacy and JSON runners, related17/15 controls and make check. Independent review clear after preserving dotted-path provenance through SVA cloning. Integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA remain required; no closure yet.

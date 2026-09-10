@@ -1,7 +1,7 @@
 id: L08
 title: Reduce the UVM2020.1 resource-queue compile frontier
 status: in_progress
-phase: spec_grounded
+phase: "awaiting_validation"
 base_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 standards:
   - IEEE1800-2017 and2023 6.20.3 requires a type actual and forbids hierarchical names;8.23 permits class scope type names.2023 explicitly permits type-parameter assignment with incomplete/type-parameter prefixes; preserve edition distinctions.
@@ -10,12 +10,14 @@ observed_behavior: Scoped typedef reducer fails exactly one not-a-type diagnosti
 reproducer: scripts/uvm_release_matrix.py probes and third_party/uvm-releases/results-jdbvlt0_/results.json; select only the first causal diagnostic.
 selection_reason: User-requested major UVM release qualification remains blocked; a potentially legal type compatibility failure affects reusable verification libraries. Do not treat earlier legacy member-delay syntax as mandatory IEEE syntax without proof.
 allowed_scope:
-  - Read-only original UVM2020.1 sources and current compiler implementation.
+  - Read-only original UVM2020.1 sources.
+  - PExpr.h, PExpr.cc, pform.cc, elab_expr.cc, elab_scope.cc and net_design.cc for scoped type-actual resolution using existing class identity helpers.
+  - Permanent paired ivtest scoped-type regressions, golds and registry entries.
   - Fresh evidence/campaign-20260908/l08 reducers, logs and primary-source notes.
   - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
   - docs/conformance/BLOCKERS.md and session log.
 non_goals:
-  - No compiler source changes until failing reducer, expected semantics and causal scope are established in this contract.
+  - No grammar-precedence changes, value-type inference, hierarchy-as-type acceptance, or unrelated type-system redesign.
   - No original library edits, broad release fixes, parent-feature closure, or unrelated discoveries beyond record-only.
 invariants:
   - One active blocker; U01 preserved under u01-after-p04, B01 remote gate remains separate.
@@ -28,11 +30,19 @@ completion: Close only the exact validated causal subcase; release-wide and appl
 last_validated_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 discovery_policy: Unrelated findings record-only.
 stop_after_completion: false
-next_action: "Finalize bounded type-only scoped lookup using existing class resolution; refresh allowed implementation scope before edits. Preserve parsed :: provenance, specialization identity and exact member shadowing; reject value/property/indexed/hierarchical actuals."
-next_command: "sed -n '2948,3052p' elab_expr.cc"
+next_action: "Run required integrated gates on the L08 candidate; focused10/10 legacy and JSON, neighbors17/15 and make check passed. Do not close before all gates and review."
+next_command: "tail -5 ../evidence/campaign-20260908/l08/integrated.log"
 root_cause: "Parser deliberately resolves ambiguous TYPE::member as PEIdent; NetScope::evaluate_type_parameter_ only resolves single unqualified PEIdent names. has_scoped_type_prefix distinguishes :: from dotted value paths. Existing scoped class resolvers preserve specialization/typedef provenance, but ordinary find_typedef may escape to enclosing scopes and needs an owner boundary for selected members."
 review_note: Read-only design review recommends elaboration-time type-only resolution, no grammar precedence change and no value-type inference. Include explicit value/property/hierarchy negatives and specialization/shadowing controls.
 evidence:
   - ../evidence/campaign-20260908/l08/scoped_type_argument.sv and scoped-type-2017.log/scoped-type-2023.log.
   - ../evidence/campaign-20260908/l08/explicit_type_control.sv and explicit-control-2017.log/explicit-control-2023.log.
   - third_party/uvm-releases/results-x3bxo9km/results.json original pinned release compile failure, complete and baseline_valid to verify on closure.
+
+implementation_plan: Add a type-only PEIdent resolver guarded by parsed class-scope provenance; reuse class identity/specialization helpers and reject typedef lookup escaping the selected class/superclass. Call it only for a type parameter before existing unqualified fallback.
+
+scope_refinement: Scoped type actuals must enter specialization keys by resolved type identity; otherwise qualifier arguments are lost in PEIdent textual fallback and9/17bit actuals collide. This is required by the active positive specialization control, not unrelated work.
+
+l08_live_gates: [integrated9062, NFA81089, UVM7325]
+l08_unstarted_gates: [full_JSON_after_integrated]
+l08_final_review: Clear after SVA clone provenance fix; required gates pending.

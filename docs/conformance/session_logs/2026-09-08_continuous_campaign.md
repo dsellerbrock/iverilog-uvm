@@ -1651,3 +1651,7 @@ The existing :: provenance marker and scoped-class resolver should be reused;
 value-type inference would wrongly accept values as types. Design review flags
 specialization identity and outer-scope typedef fallback as required controls.
 No compiler source changes yet; last validated baseline remains53b58890c.
+
+### L08 candidate: class-scoped type actuals
+
+IEEE1800-2017/2023 6.20.3 and8.23 ground the resource-queue reducer. Resolve only selected class typedefs, preserve specialized type identity in cache keys, reject values and dotted paths, and keep cloned syntax provenance. Ten paired permanent regressions pass both runners; related17legacy/15JSON controls and make check pass. Independent review found a missing SVA clone flag, now fixed and reviewed clear. Required integrated gates are pending; no feature or release qualification claim. Evidence: `evidence/campaign-20260908/l08/`.

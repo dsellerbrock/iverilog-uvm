@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_scoped_type_actual_specializations.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_scoped_type_actual_specializations"
+}

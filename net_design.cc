@@ -1709,6 +1709,11 @@ void NetScope::evaluate_type_parameter_(Design *des, param_ref_t cur)
       if (!type_expr) {
 	    const PEIdent*ident_expr = dynamic_cast<const PEIdent*>(cur->second.val_expr);
 	    if (ident_expr) {
+		  NetScope*actual_scope = cur->second.val_scope ? cur->second.val_scope : this;
+		  if (ivl_type_t type = ident_expr->resolve_scoped_type_actual(des, actual_scope)) {
+			cur->second.ivl_type = type;
+			return;
+		  }
 		  const pform_scoped_name_t&ident_path = ident_expr->path();
 		  if (ident_path.package == 0 && ident_path.name.size() == 1
 		      && ident_path.name.front().index.empty()) {
