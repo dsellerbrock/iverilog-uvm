@@ -13,17 +13,17 @@ module sv_string_byte_signed;
     s = "\377\200A"; array[1] = s;
     idx = 0; calls = 0;
     actual = s[0];
-    if (actual != -1 || s[0] != s.getc(0)) $fatal(1, "constant signed byte");
+    if (actual !== -1 || s[0] !== s.getc(0)) $fatal(1, "constant signed byte");
     actual = s[idx];
-    if (actual != -1 || s[idx] + 2 != 1) $fatal(1, "variable arithmetic");
-    if (echo(s[1]) != -128 || !(s[1] < 0)) $fatal(1, "formal and comparison");
-    if (s[select_index()] != -1 || calls != 1) $fatal(1, "single index evaluation");
-    if (array[1][idx] != -1) $fatal(1, "string array element");
-    if (s[2] != 65 || $bits(s[0]) != 8) $fatal(1, "ASCII and width");
+    if (actual !== -1 || s[idx] + 2 !== 1) $fatal(1, "variable arithmetic");
+    if (echo(s[1]) !== -128 || !(s[1] < 0)) $fatal(1, "formal and comparison");
+    if (s[select_index()] !== -1 || calls !== 1) $fatal(1, "single index evaluation");
+    if (array[1][idx] !== -1) $fatal(1, "string array element");
+    if (s[2] !== 65 || $bits(s[0]) !== 8) $fatal(1, "ASCII and width");
     idx = -1;
-    if (s[idx] != 0 || s[3] != 0) $fatal(1, "out of range");
+    if (s[idx] !== 0 || s[3] !== 0) $fatal(1, "out of range");
     s = "";
-    if (s[0] != 0) $fatal(1, "empty");
+    if (s[0] !== 0) $fatal(1, "empty");
     $display("PASSED");
   end
 endmodule

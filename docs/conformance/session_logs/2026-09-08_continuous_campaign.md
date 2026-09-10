@@ -1892,3 +1892,20 @@ NFA58/58 and makecheck passed. Full integrated77859,UVM67427 and release
 sweep76597 running. JSON follows integrated, isolated frontend last.
 Class-property string character dispatch remains separately recordedDD025;
 L12 must resume only after all L13 required gates complete.
+
+
+### L13 parameter-width correction before closure
+
+Additional constant probes found typed string parameters routed through the
+packed one-bit parameter selector. Initial candidate produced-1 for every
+character of octal200,A,377; signed extension masked the issue for377 alone.
+Integrated77859,UVM67427 and release76597 were deliberately stopped143;
+no pass claim. All were confirmed terminal before further compiler changes.
+Typed string parameters now use NetECString plus signed byte select, with
+getc-int index conversion after preserved real-index rejection. Constant
+folding selects left-to-right bytes and returns zero out of range.
+Both-edition permanent constant/runtime/highbit/ASCII/bounds and untyped
+packed-parameter controls pass. FinalfocusedJSON6/0,legacy6/0,neighbors42/0,
+independent review clear. Fullrequiredgates restart on the final source.
+Constant function string-argument evaluation returningX is priorDD026,
+separate from direct typed-parameter selection; no broad qualification claim.

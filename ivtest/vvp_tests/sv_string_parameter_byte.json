@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_string_parameter_byte.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_string_parameter_byte"
+    ],
+    "gold": "sv_string_parameter_byte"
+}

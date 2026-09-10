@@ -23956,6 +23956,17 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 	    return 0;
       }
 
+      if (par_type && par_type->base_type() == IVL_VT_STRING) {
+	    // 6.16: character indexing is equivalent to getc(int), not a bit select.
+	    sel = cast_to_int2(sel, 32);
+	    sel->cast_signed(true);
+	    NetECString*value = new NetECString(par_ex->value());
+	    value->set_line(*this);
+	    NetESelect*res = new NetESelect(value, sel, 8);
+	    res->set_line(*this);
+	    return res;
+      }
+
       if (debug_elaborate)
 	    cerr << get_fileline() << ": debug: Calculate bit select "
 		 << name << "[" << *sel << "] from range "

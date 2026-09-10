@@ -364,3 +364,12 @@ returns whole string instead of character. Exact reducer `evidence/l13/class_con
 and L12 byte_type probe retained. Distinct property dispatch defect, not
 introduced by signed-byte typing; record-only, no class-property character
 qualification claimed by L13.
+
+### DD026 — Constant function string argument character result unknown
+
+L13 `constant_probe.sv` contains automatic int function get_value(input string s)
+returning s[0], evaluated for a localparam. Both saved L10 and L13 candidates
+produce X for that constant-function result; direct typed parameter selection
+is a distinct L13 width issue now in scope. Evidence/l13/constant_probe_results.json.
+Record-only for constant-function argument/evaluation classification; no
+constant-function string qualification claim.
