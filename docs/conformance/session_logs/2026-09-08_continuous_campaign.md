@@ -1176,3 +1176,19 @@ Focused paired10/10+10/10, foreach neighbors53/34,makecheck and independent
 review already passed on the frozen source/tools. Checkpoint only selected
 member index typing. DD-009 invalid header selection and other residuals stay
 separate. Remote CI remains required before merge; campaign continues.
+
+
+Publication catch-up complete through L05: nine cohesive dependent draft PRs,
+263 through271, cover all18 locally validated implementation increments. PR267
+covers S03/S04,268 S05/S06,269 S07,270 L04/L03,271 L05. Exact semantic and
+publication heads/dependencies are recorded in CAMPAIGN.yaml. Every historical
+publication tree adds only the inherited AGENTS.md policy; final L05 publication
+tree021aca3b9 is identical to validated59e5e07c7. No working tree, submodule,
+installed tool, application source or implementation was changed by publication.
+All drafts await required remote CI/review and separately authorized merging.
+No new worktrees were created; preserved dirty/nonancestor trees remain.
+
+Coordinator selection now resumes from59e5e07c7. Assess the existing V01
+wide-total saturation obligation with a targeted graph query/source trace;
+no new implementation contract or code edit is authorized until the concrete
+next scope is established. L05 completed contract is preserved in evidence/l05.

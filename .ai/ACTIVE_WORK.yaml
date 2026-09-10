@@ -26,7 +26,7 @@ completion: Qualify only exact repaired member-key type resolution; broader fore
 discovery_policy: Unrelated discoveries are record-only; proven prerequisites require explicit suspension with preserved work.
 stop_after_completion: false
 last_validated_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
-next_action: Integrated66792 passed (4765/4770, zero failures; VPI105, negative149, runtime checks); NFA93662 passed58/58. FullJSON84561 terminated0 with1662 tests/0failed. Await real-DPIUVM42794. Source/tests/tools frozen.
+next_action: L05 checkpointed; return to coordinator selection and publish remaining validated increments.
 
 causal_trace: Both selected-member parser actions discard selector structure for declaration typing (null target for expression selector, unindexed path for identifier selector); declaration helper also rejects indexed paths. Existing selected-path helper consequently cannot traverse the array element to its class member.
 planned_fix: Preserve selected member target through both parser actions and foreach_index_type_t; reuse PEIdent::test_type_of_ident from enclosing scope without evaluating selectors, then resolve terminal array index type. Keep established unselected route and selected-array non-member production unchanged.
@@ -39,3 +39,5 @@ residual_scope: Selected-array non-member production and invalid header index va
 
 final_validation: UVM42794 terminated0 with355 passed,0 failed,0 skipped and real DPI loaded. FullJSON1662/0, integrated4765/4770 with zero failures, NFA58/58 and all focused/neighbor/check/review gates pass. Remote CI remains required before merge.
 next_checkpoint_action: Commit the exact reviewed L05 source/tests and bounded qualification; return to campaign selection without another user message.
+
+implementation_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
