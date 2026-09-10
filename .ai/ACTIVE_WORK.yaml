@@ -38,3 +38,6 @@ compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campa
 next_triage: Native --uvm-home diagnostic with original application sources and correct matrix cwd fails first at uvm_component.svh3616 (#setting.offset), then legacy macro invocations. Check applicable delay grammar and macro semantics before classifying any compiler defect or selecting a prerequisite; do not edit corpus or suppress diagnostics.
 
 current_action: Replay the same original xbar smoke with the unchanged bundled UVM first, on validated L07 tools, in a fresh native output root. Do not substitute a library or suppress sequence-parent warnings.
+
+replay_handle: 24296
+next_command: tail -20 ../evidence/campaign-20260908/u01-after-l07/replay.log

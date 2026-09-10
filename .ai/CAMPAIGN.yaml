@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: U01
-phase: awaiting_validation
+phase: fresh_application_replay
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
+last_integrated_good_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [B01_Windows_CI, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: Complete L07 validation, then reassess the unmodified application and remaining release blockers at a deliberate selection boundary.
-next_action: Await L07 UVM33056; fullJSON98943 passed1729/0, integrated27702 and NFA58/58 passed.
-next_command: "tail -20 ../evidence/campaign-20260908/l07/uvm.log"
+next_action: Await U01 replay24296; inspect exact traffic, scoreboard and teardown diagnostics before selecting a causal prerequisite.
+next_command: "tail -20 ../evidence/campaign-20260908/u01-after-l07/replay.log"
 next_command_cwd: repository root
-candidate_state: L06 pform.cc candidate passes14/14focused,27/26neighbors,makecheck and finalreview. UVM2020.3.2 reaches preexisting q[$] lvalue crash (bothbaseline/candidate reproduce).
+candidate_state: L07 locally validated and published; U01 has no active compiler patch.
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: L06 integrated48575 passed4827total4822pass0fail2NI3EF; fullJSON25806 passed1719/0; NFA58/58; UVM55602 passed355/0/0 with real DPI. B01 review and Windows CI required.
+next_validation: Strict original xbar smoke verdict from replay24296; no warning suppression or source edits.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -148,7 +148,7 @@ consolidated_main_pr:
   outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
-last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
 validated_increments_since_publication: 0
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
