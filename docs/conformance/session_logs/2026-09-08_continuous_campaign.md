@@ -742,3 +742,350 @@ remote CI remain open. Worktree audit unchanged, unrelated changes preserved.
 Return to selection and verify existing S01 cross-clock overlapping implication
 against current implementation and LRM rather than assuming old boundary notes
 still describe present behavior. No broad audit or parallel implementation.
+
+S01 verified as superseded for fixed-chain cross-clock overlapping implication:
+0ff77277c already implements the boundary. Twelve fresh runs (three reducers,
+both editions, default/legacy SVA) pass at2be79b2c0; independent review agrees.
+Corrected only the stale blanket R12 exclusions. Worktree audit unchanged.
+S02 candidate rejects bounded variable-length antecedents in both editions.
+Before fixing it, distinguish per-endpoint consequent evaluation from the
+per-start implication verdict (16.12.7); the initial three-failure expectation
+is provisional and must not become a gold without resolving that distinction.
+
+S02 semantic review rejects the provisional three-failure oracle: two starts
+require two failures. Corrected retained reducer; compile rejection unchanged.
+Cross-clock request counts cannot preserve parent truth with a local bump edit;
+recorded design boundary and suspended S02 without implementation changes.
+At the coordination boundary, selected S03 on fresh paired wrong-result evidence:
+single-clock one start/two failing endpoints produces2 failures instead of1.
+Existing NFA verdict dispatch is the causal mechanism. Preserve endpoint/local
+state while aggregating parent truth; no multiclock architecture change in S03.
+Last validated implementation2be79b2c0; all new implementation gates pending.
+
+S03 candidate retains parent identity across consequence records, aggregates
+child failure once and waits for antecedent closure/all-child success. Tracks
+vacuous actions separately from nonvacuous callbacks; retains endpoint locals,
+kill/disable and owner recycling. Independent review supports capacities and
+EOS aggregation; corrected the unbounded antecedent oracle to remain pending.
+Paired minimal red2fail/green1fail, eight mixed overlap/nonoverlap controls and
+cancellation pass. Focus55legacy/20JSON passes. Old fanout golds were wrong:
+reviewed per-parent expectations include vacuity and distinct-start counts.
+Added single-parent/two-child strong EOS and cover-count controls. Final NFA97660,
+integrated1023 and real-DPI UVM58507 pending; make check45947 passed. Full JSON
+must run after integrated. Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c,
+runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+Candidate source/tests uncommitted; last fully validated revision2be79b2c0.
+
+S03 final NFA97660 completed58/0; paired cover/EOS controls pass both editions.
+Extended mixed test to16 modes including forbidden consequences and exact
+same-tick failed-owner recycling. Final focus25578 passed55/20. Integrated1023
+completed1: legacy4692/4687/0/2/3, negative149/runtime15 pass, VPI102/103.
+The failing VPI endpoint oracle expected success before the second antecedent
+closed and omitted vacuous user actions. Preserved vpi-red.log; corrected test
+timing to45,5user pass actions/2nonvacuous callbacks,2fail actions and6vacuous
+actions across fail/EOS properties. Independent review confirms; VPI2/2green.
+JSON56004 and UVM58507 live. Repeat integrated after JSON releases sharedlogs.
+No semantic source changes after the original candidate build; only clarified
+source comments and strengthened/reviewed tests. Source remains uncommitted.
+
+S03 JSON56004 completed1584/0. Final integrated65557 now runs against the
+corrected reviewed VPI oracle and final strengthened tests; UVM58507 remains
+live. No semantic implementation edits during validation. Current last validated
+revision remains2be79b2c0 until both required gates finish. No new blocker selected.
+
+S03 final integrated65557 completed0:4692/4687/0/2/3,VPI103,negative149,
+runtime15. UVM58507 completed354/1: recursive consequent test expected1pass
+for nested/throughout paths despite17 enabled starts. Reviewed stimulus has
+one nonvacuous success and16vacuous successes for each; corrected only those
+two expectations to17. Paired red/green and real-DPI focus5567 pass2/0.
+DD005 records unchanged nonfanout paths still omitting vacuity; not repaired
+opportunistically. Full real-DPI UVM14116 launched as the sole pending localgate.
+No semantic implementation changes; preserve installed candidate and last
+validated baseline2be79b2c0 until final UVM passes. Next poll14116, then review
+final evidence and checkpoint S03 before returning to selection.
+
+S03 full real-DPI UVM14116 completed0:355pass/0fail/0skip. All required local
+gates and independent review now pass. Installed compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c
+and runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec
+remained unchanged throughout final validation. Only source-comment clarifications
+followed the candidate build; no semantic code changes. Worktree audit unchanged,
+unrelated changes preserved. Checkpoint exact S03 parent aggregation; retain
+remote CI before merge, finite cyclic limits, S02 and DD005. Return to selection.
+
+S03 committed61ca5f336, qualification checkpointc4851435b. Returned to selection
+and reproduced DD005 with a minimal false-antecedent implication:0pass/0fail in
+both editions/default+legacy modes, required1pass/0fail. Activated S04 contract.
+IEEE16.12.7 defines vacuous success and16.14.1 executes the successful assertion's
+pass action. Trace NFA dead-before-obligation and legacy match-only injection,
+including specialized callers; no implementation edits yet. S02 remains at its
+recorded cross-clock identity design boundary, and unrelated work stays preserved.
+
+
+### S04 partial implementation checkpoint (2026-09-09)
+
+At contract HEAD `30d518c06`, dirty `pform.cc` now uses one detached Reactive
+pass dispatcher for NFA, fixed legacy and genvar-delay implications. Separate
+monotonic request counts preserve nonvacuous callbacks while also executing
+vacuous user actions. Fixed antecedents retain enabled starting attempts,
+advance oldest first, and count each first failure once; startup history does
+not create fictitious attempts. Arbitrary user actions retain one AST owner.
+
+The original reducer passes both editions/default and legacy. An NFA-specific
+forbidden-consequence reducer passes both editions. `progress.sv` proves two
+vacuous attempts can resolve together and delayed actions do not stall later
+attempts (both editions/modes). Genvar delays 1..3 were red before that slice
+and green afterwards. The permanent `sv_assert_vacuous_action` pair passes
+focused legacy 2/2 and JSON 2/2. Independent read-only partial review found no
+actionable finding. These are partial checks, not qualification of S04.
+
+The NFA sweep reports 52 passes/6 output mismatches: impl_window_goto,
+local_var_window, midchain_unbounded, midchain_window, overlap_midchain and
+window_goto_isolation (all `_nfa_only`). New vacuous actions account for visible
+extra outputs, but each timing/count must be reviewed before any gold update.
+No golden output has been changed at this checkpoint.
+
+Parameter-repeat/window paths remain unfinished. Repetition vacuity can use
+existing age bits below `lo`: on a failed keep, count all source ages minus
+source ages shifted right by `lo`; false enabled prefixes are separate.
+Already matched/mature ages must not become vacuous. Parameter-window
+normalization must preserve original fixed antecedent progress and suppress
+synthetic `[*1]` vacuity. Equal-span OR/AND trees require whole-tree continuation
+state, not independent branch-failure actions. This is the next implementation
+action; no dependent blocker is selected.
+
+Evidence: `../evidence/campaign-20260908/s04/` including source reducers,
+red/green logs, build/install logs, `nfa-partial.log`, `focus-partial.log` and
+partial-change snapshot. Installed compiler SHA256
+`949afd48c853bb41b4ecf21c6ea69e2a03b4437dab58e495a31f02a243c1d6eb`, runtime
+`7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec`.
+All launched processes completed. Worktree list audited; sibling states
+preserved. Last fully validated implementation remains `61ca5f336`.
+Required focused-neighbor, integrated ivtest/VPI/negative/runtime, full JSON,
+real-DPI UVM, make check and final review gates remain pending, as does remote
+CI before merge. Resume with `sed -n '21370,21820p' pform.cc` in the campaign
+tree, retaining this partial patch and reducers. Do not repeat a broad audit.
+
+
+### S04 parameter repetition and reviewed NFA oracles (2026-09-09)
+
+The parameter-repeat producer now adds vacuity only for failed source ages
+below the minimum length, plus false enabled prefixes. Existing mature ages
+are excluded. Its user pass action uses the shared dispatcher. The window
+normalizer passes `endpoint_only=true` to prevent fictitious synthetic-repeat
+vacuity while its original antecedent progress remains unfinished.
+`parameter-vacuity.sv` was red0/0, now green4/0 in both editions/modes.
+Permanent paired parameter controls cover false prefixes, matched-age exclusion
+and empty-repeat independence from keep (not complete empty-repeat timing).
+Current focused legacy and JSON gates both pass4/4.
+
+Independent stimulus enumeration resolved six NFA oracle mismatches:
+impl_window_goto33starts gives32passes for each assertion; local_var_window
+18starts gives17vac+1tagged pass; midchain_unbounded has9passes;
+midchain_window9passes/failure85; overlap_midchain12m1passes/failures125and85;
+window_goto_isolation16vacpasses/1failure. Exact times and unchanged cover/
+pending diagnostics were preserved. Current NFA sweep passes58/58.
+
+Next reducer `s04/window-vacuity.sv` compiles its flat and named equal-span
+OR/AND antecedents and fails with0/0/0 versus1/1/1 at time6. Preserve original
+antecedent structure before normalization. Track branch continuation and
+combine with original OR/AND topology; only whole-parent loss is vacuity.
+Feed enabled endpoint matches to symbolic consequence machinery and do not
+count the synthetic[*1] as a separate starting attempt. Preserve asynchronous
+disable and kill resets. This remains active S04, not a new blocker.
+
+Compiler SHA256 b4791cfe0d7e19b7b9e171a75f3a71126aa03e827ff8435c5b08544d2006f486;
+runtime unchanged. All builds/test handles terminal; worktrees audited and
+preserved. Dirty implementation/tests retained. Last fully validated revision
+61ca5f336; full integrated/JSON/UVM/check/final-review gates remain pending.
+Evidence includes build/install-parameter, parameter red/green, window-red,
+nfa-parameter and focus-parameter logs. Resume window lowering at
+`sed -n '21845,22035p' pform.cc`; do not repeat the broad audit.
+
+
+### S04 window completion and cancellation validation checkpoint (2026-09-09)
+
+Window normalization now retains the original antecedent tree. Fixed branch
+states advance by age, then OR/AND viability is combined and the existing
+parent tracker emits first-loss vacuity or enabled endpoint matches. Captured
+expressions retain one owner; residual tree fields are freed after lowering.
+Independent review found no actionable issue. Flat/OR/AND startup red0/0/0 is
+green1/1/1 in both editions/modes. Permanent window coverage adds overlap,
+branch survival, Off, asynchronous disable, Kill/On and parameterized named
+sequence reuse with distinct arguments. Direct reuse passes; nested aliases
+fail identically on rebuilt61ca5f336 and are parked as DD-006.
+
+All three initial permanent reducers were explicitly red with baseline61ca5f336.
+A new VPI test reuses the existing callback plugin: six implication paths each
+execute five vacuous user actions, including delayed NFA actions, but report no
+nonvacuous success callbacks. The standalone true control supplies exactly five
+callbacks. Both editions pass. Initial window NFA58/58 and make check pass.
+
+Initial integrated session24071 completed with legacy4698total/4684pass/9fail/
+2NI/3EF; VPI104/104, negative149/149, runtime15/15 all pass. The nine legacy
+failures were independently traced to old pass counts and updated without
+changing failure expectations or the allowlist. Corrected focus15/15legacy and
+6/6JSON passes. Symbolic range/unbounded per-endpoint verdicts remain pre-existing
+DD-007; override/smoke totals are explicitly compatibility checks, not complete
+per-attempt qualification.
+
+New cancellation controls then exposed in-scope errors: same-tick NBA disable
+produced actions1/1/0/0/1 for legacy/NFA/repeat/window/genvar versus allzero;
+between-clock disable pulse gave3/3/2 actions and1failure versus2/2/2 and0.
+NFA/legacy/genvar now enter Observed before checking unsampled disable and use
+a shared asynchronous abort process matching the parameter engine's existing
+edge pattern. The rebuilt compiler8d49346e19bf4f6a85a8036409596e16e65ec0f057d2447defb89cdc08ffede8
+passes both reducers in both editions/modes via isolated `s04/disable-tools`.
+A fourth permanent paired reducer passes both editions. This compiler is NOT
+installed yet: UVM session50563 remains live on window compiler
+bd499c9703c00632cffaafe63349860e4bef3a14c66ddd2168dfb97d2fb3118f. Preserve the
+installed tools until that exact handle is terminal. Then install current build
+and run expanded focus17legacy/8JSON, VPI, NFA, integrated, full JSON, real-DPI
+UVM, make check and final review. Last fully validated implementation61ca5f336.
+
+Ponytail full and using-agent-skills were explicitly re-invoked; the correction
+reuses dispatch/cancellation patterns, with unrelated discoveries record-only.
+Graphify query on the canonical shared graph identified the same pform lowering
+functions; no graph rebuild or worktree mutation occurred. All builds and other
+test sessions are terminal; only UVM50563 remains live. Evidence is under
+`s04/`, including reducer sources/logs, baseline-tools, disable-tools,
+integrated-failures, focus-oracles, nfa-window and check-window logs.
+
+
+### S04 final candidate installed; full gates running (2026-09-09)
+
+Independent review found a wide-disable gap in the first abort helper: raw
+`disable === 1` missed nonunit true values. Both shared and parameter abort
+paths now normalize logical truth before exact-one edge detection. The
+permanent cancellation pair covers10 and1x pulses that cancel, and0x that does
+not, including symbolic repetition/window paths. Both editions pass. Final
+code review found no remaining blocking defect; shared helpers retain existing
+AST/process architecture. This is code clearance, not full qualification.
+
+Initial UVM50563 terminated346pass/9fail/0skip. All nine failures were old
+vacuity expectations independently derived from enabled clocks and antecedents:
+m6b4 one vacuous pass; m9 algebra18 (16vac+2nonvac); contextual constants each6;
+fixed-uarray4; nonoverlap window5; inside-property12 across4assertions;
+signedness3; typed-past stable/changed6each; recursive not/until16/1,
+eventual17, alwaysfailure1, nested/throughout17/0 unchanged. Expectations were
+corrected without weakening failure checks; focused real-DPI UVM66913 passes9/9.
+
+After the initial UVM became terminal, compiler
+5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116 was installed.
+Focus17/17legacy and8/8JSON, NFA58/58 and make check exit0 pass. Final integrated
+session1309 and full real-DPI UVM11066 are live against this exact installation;
+do not replace binaries. Full JSON remains pending and must run after1309 ends,
+because both ivtest harnesses share log files. Review/gates must all support the
+exact S04 scope before implementation checkpoint/selection. DD-007 symbolic
+per-endpoint behavior remains explicitly separate and unqualified.
+
+Only comment placement changed after the final build; no compiler semantics
+changed. Last fully validated implementation remains61ca5f336. Resume by polling
+1309 and11066, then full JSON after the integrated handle is terminal. Current
+logs: integrated-cancellation.log,uvm-cancellation.log,focus-cancellation.log,
+nfa-cancellation.log,uvm-focus-cancellation.log,check-cancellation.log under s04.
+
+
+### S04 integrated retry after transient editing error (2026-09-09)
+
+All four permanent reducers additionally pass explicit legacy mode under both
+editions against installed5dbb2dc7. Integrated1309 then ended4700total/4694pass/
+1fail/2NI/3EF; VPI104/104,negative149/149,runtime15/15 passed. The sole failure
+was a transient syntax error in sv_assert_repeat_parameter_override while its
+DD-007 comment was moved: a text insertion matched `module` inside a comment.
+The source was immediately corrected and its isolated compile/run gives the
+reviewed14/0 and11/1 compatibility counts. This is an editing error, not evidence
+of a compiler defect, and the failed gate does not qualify the candidate.
+
+Sources/tests are now frozen. Integrated24044 reruns into integrated-final.log;
+UVM11066 remains live on the same installed compiler. Await both terminal,
+then ensure FPGA install prerequisite and run full JSON. No new blocker,
+allowlist relaxation, implementation commit or qualification claim was made.
+
+
+### S04 required local qualification complete (2026-09-09)
+
+All final processes terminated successfully on installed compiler
+5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116 and runtime
+7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec:
+- Integrated24044:4700total,4695pass,0fail,2NI,3EF; VPI104/104,
+  negative149/149,runtime15/15 (integrated-final.log).
+- Full JSON74365:1592tests,0fail (json-final.log). Previously installed FPGA
+  target/config were verified byte-identical to the current build before this
+  run; target SHA2565b62952431824671d43ba36b385316d7919de32d1d53c86dab7090c50674a6ae.
+- Full real-DPI UVM11066:355pass,0fail,0skip (uvm-cancellation.log).
+- Focus17/17legacy and8/8JSON, explicit legacy2017/2023 for all four permanent
+  reducers, NFA58/58, affected real-DPI UVM9/9, make check0 and independent final
+  code review pass. git diff --check clean; worktree list audited and preserved.
+
+The qualified scope is previously omitted vacuous user actions in the selected
+single-clock lowering paths, including proper cancellation and callback
+separation. DD-007 symbolic nonvacuous per-endpoint verdicts, S02 multiclock,
+U01 teardown/application qualification and broader standards/UVM/formal
+obligations remain open. Required remote CI and merge permissions remain
+unchanged. This ends the S04 patch, not the continuous campaign; selection
+resumes from current evidence after the implementation checkpoint.
+
+
+### Selection after S04: S05 symbolic parent verdicts
+
+S04 implementation2cdaec5bc is locally validated, with completed contract saved
+under s04/completed-contract.yaml. DD-007 is selected next for standards and
+parameterized-application correctness. Canonical Graphify query identifies the
+symbolic repeat/window lowerers; shared graph unchanged. Fresh parent-verdict
+reducer on2cdaec5bc fails in2017 and2023: early good1/0,bad0/1, then final
+good2/0,bad0/2 for one start. LRM16.12.7 in both editions requires all consequent
+matches to satisfy one implication evaluation;16.14.1 attaches the action to
+that property truth. Exact new ACTIVE_WORK contract includes all accepted
+symbolic caller shapes, cancellation and empty/nonempty match timing; no source
+edit yet. Trace the actual age/endpoint mechanism before choosing parent state.
+No new worktree, install, merge or dependent unvalidated baseline was introduced.
+
+
+### S05 parent correction — 2026-09-10, awaiting full validation
+
+Validated baseline remains2cdaec5bc; current branchHEADd3f7b492c plus uncommitted S05 patch. IEEE2017/2023 16.12.7 and16.14.1 require one parent verdict across all antecedent endpoints;16.12.22 distinguishes legal mixed empty/nonempty overlap from illegal empty-only overlap. Independent review confirmed contiguous matches allow the existing age bits and mature count to identify delayed owners. Terminal r_due retains only a final delayed child after HI retirement. Parents fail once before any further extension; successful parents wait for closure. Cover endpoint counting and exact-window single endpoints remain separate. Direct empty |=> windows start now; prefixed zero repetitions end on the nonempty prefix and retain next-tick |=> timing. Empty-start enable gating corrected.
+
+Both editions reproduced early/duplicate parent verdicts and empty-window timing defects; corrected reducers pass. Permanent paired cases cover fixed/delayed, direct/prefixed, bounded/unbounded, LO0, overlapping failures/new starts, X/Z, empty nonzero-window offsets, per-instance illegal-empty rejection, async/NBA/kill mature cancellation, and Off preservation. Focus14/14 legacy+JSON passes in both default and explicit legacy engines. Neighbor focus17/17+8/8 passes after independently derived old override totals10/0,9/1 and smoke68/2,68/0; smoke now explicitly closes two remaining unbounded parents and checks70/0. VPI callback/delayed-action control1/1 passes (one nonvacuous success, one failure, vacuous action separate).
+
+One initial focus run overlapped the VPI harness and read its shared a.out result (the failed parent's log contained the callback PASS line). Both harnesses rerun serially and pass; no semantic failure inferred from that invalid concurrent run. Initial negative gold formatting was corrected for legacy ./ivltests vs JSON ivltests and VPI compiler banner; diagnostics and callback values unchanged. DD-008 records an independent symbolic consequent-delay override defect, not repaired here.
+
+Compiler SHA256cd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d, runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Source/tests frozen for integrated74997 and real-DPIUVM66260. Full JSON, NFA, make check, final review and remote CI remain required; S05 is not CLOSED. Worktree audit leaves all prior dirty/nonancestor trees preserved.
+
+S05 full integrated session74997 terminated0:4714total4709pass0fail2NI3EF, VPI105/105, negative149/149, runtime15/15. NFA58/58, make check0 and final independent source/test review also pass. Full JSON session52285 now running separately from the terminal integrated harness; real-DPIUVM66260 remains live. No compiler/test edits during these gates. S05 remains awaiting validation.
+
+S05 full JSON session52285 terminated0,1606tests/0failures. Only real-DPIUVM66260 remains among required local gates; remote CI remains required before merge.
+
+S05 real-DPIUVM session66260 terminated0:355passed,0failed,0skipped with the real DPI umbrella loaded. All required local gates and final review now pass. No semantic source/test edits occurred during the full runs; installed fingerprints match. S05 is locally validated in the exact scope recorded in the matrix and blocker entry; remote CI remains required before merge. Continue campaign selection after checkpointing this increment.
+
+
+### S06 selection after validated S05
+
+S05 implementation a76c9f67a and checkpoint8de0e3c88 are committed; completed S05 contract preserved in evidence/s05. S06 promotes DD-008 because freezing a legal instance delay override silently misses the specified consequence failure. Both2017/2023 fresh reducers on S05 print EARLY1/0 then1/0 where no early pass and final0/1 are required. Graph-guided navigation led to the delay normalization path; source shows single delays fold via pform_sva_const_long before genvar handling, while symbolic range bounds already retain expressions. Exact S06 contract is active; no S06 implementation edit yet. Continue standards and causal tracing, without broad audit or another worktree.
+
+S06 standards grounding: both LRMs16.7 Syntax16-4 define nonnegative integral cycle delays and their tick timing;23.10.2 assigns values to particular instances (with dependent-parameter updates), supported by6.20.2.16.9.1 is operator precedence, not the cycle-delay timing clause. Existing literal ##2 and preserved ##[D:D] reject ranged symbolic antecedents, so parser preservation alone cannot implement the full selected timing contract.
+
+Reviewed representation reuses packed state instead of a pending-owner matrix: delay sampled antecedent inputs to align each endpoint with current q; for positive lag, the following original keep sample is already available and identifies the final endpoint. A separate unmatched-only real-time tracker preserves vacuity. Direct |=> maps to a synthetic prefix at start+D, with keep replay lagD+1; prefixed |=> delays both inputs byD+1. OverlapD0 retains S05 closure timing. Independent explicit per-parent child-list reference vs packed-age model passes9450traces/999810tick-by-tick comparisons, including D0/1/2/3/8, bounded/unbounded, direct/prefixed, empty-only legal cases, enable and resets. Independent review found no counterexample. Implementation and all actual compiler validation remain pending; models are design evidence, not conformance qualification.
+
+
+S06 partial implementation checkpoint: uncommitted parse.y/pform.cc/pform.h implement delayed replay plus real-time vacuity, and preserve single-delay parameter expressions as exact sentinel-6 through shared normalization. Original reducer now reports0/1 without early pass in both editions. Generated explicit-reference controls pass76cases x52ticks for literals (2017) and overrides (2017/2023); model covers9450traces/999810tick comparisons. Replay-only S04 neighbor17/17+8/8 passed; current parser+replay S05 focus14/14+14/14 passes. Bison563SR/1122RR and exact conflict-state signature match S05. Builds65118/93157, installs/focus32282/92814 and Bison8903 are terminal.
+
+Compiler fingerprinta3f662e2c3ace1dd26288fc8440785964484ce5695be46eb70baa421d4c2d45b, runtimeunchanged7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Ranged cover property with ##D remains rejected after normalization (s06/cover-delay-override.sv/.log); this is an in-scope sibling gap to repair, not grounds to qualify the patch. Permanent S06 regressions, invalid-bound/override controls, final source review and all full gates remain pending. No live processes. Last fully locally validated revisiona76c9f67a. Preserve partial diff and resume cover-path repair; no new selection or broad audit.
+
+
+S06 cover sibling now shares delayed input replay but counts each true consequence endpoint and retains parents after false consequences. Independent endpoint-count reference passes76cases in both editions. Added permanent paired override, direct empty/nonempty timing, cancellation/Off and cover controls; negative/unknown instance bounds, grouped negative delay and unsupported multi-step consequence controls bring focus to16/16 legacy and16/16 JSON. Initial negative-wrapper include and JSON manifest formatting errors corrected; expected semantic diagnostics unchanged. Review found missing -6 late refusal (repaired before legacy arithmetic) and reproduced ##D (##2 q), D=-1 incorrectly accepted; shared offset normalization now preserves invalid original operands as X for existing instance-bound validation. This does not qualify unsupported broader compositions.
+
+Build94435/install terminal, source/test freeze compiler201b7e4a2f1fc689a18dc6d2e98a1e7daffdff8a4b455f716bad10d7bede6176/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Integrated94110,NFA68316,real-DPIUVM6626 launched; full JSON waits for integrated to avoid shared harness files. Final source/test review and remaining neighbor/model/check gates pending. Worktree audit preserves prior dirty/nonancestor trees. S06 awaits validation; last validated revision remainsa76c9f67a.
+
+
+S06 review exposed an additional reachable operand-width defect: a property formal colliding with a module parameter is preserved and later receives an arithmetic actual. Grouped and plain ##D wrappers widened4-bit actual arithmetic before evaluation (unsigned15+1 yielded delayed16 rather than0). Added native $bits(operand)'(operand) self-sizing before every preserved-offset path; signedness remains native. Grouped and plain |->/|=> signed/unsigned timing controls now in the permanent operand-width regression. First grouped-only correction passed18/18 focused tests but review identified zero-offset bypass before qualification; moved cast ahead of that return. Integrated94110/UVM6626 and40586/61236 stopped143 before each mutation; these are incomplete gates, not passes. NFA68316/61282 passed58/58 only on preceding candidates. Build22386 and final review active; all full gates must restart after focused green/review clearance.
+
+
+S06 final shared-helper review cleared grouped/plain self-sizing, signedness, ownership, replay and -6 guards. Current focus18/18 legacy+JSON passes in both default and explicit legacy engines; S05neighbors14/14+14/14, S04neighbors17/17+8/8, generated76assertion+76cover cases in both editions,makecheck all pass. Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec frozen for integrated55376,NFA8748,real-DPIUVM91338. Full JSON must run after integrated. Broader arbitrary delay-expression parsing, formal lookup behavior and maximal-width delay arithmetic remain unqualified. No full-pass claim; S06 remains awaiting validation.
+
+S06 integrated55376 terminated0:4732total4727pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15. NFA8748 terminated0,58/58. FullJSON95717 launched only after integrated completion; real-DPIUVM91338 remains live. No source/test mutation. S06 awaits these remaining local gates and remote CI before merge.
+
+S06 fullJSON95717 terminated0:1624tests/0failures. Only real-DPIUVM91338 remains among required local gates; remote CI still required before merge.
+
+S06 real-DPIUVM91338 terminated0:355passed,0failed,0skipped with real DPI umbrella loaded. All required local gates and independent review pass on frozen compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Final fingerprints match. Qualify only the exact scope in the blocker/matrix; checkpoint then continue selection. Remote CI remains required before merge.
+
+S06 implementation6f49fe1eb checkpointed; completed contract preserved in evidence/s06. Resume U01 application teardown qualification after S03-S06 assertion increments: existing115requests/230checked scoreboard items do not overcome SEQPRTZMB warnings. Retained reducer and suspended contract avoid another broad audit. No application mutation or new worktree. Worktree audit preserves prior dirty/nonancestor trees.

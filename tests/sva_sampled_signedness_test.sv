@@ -19,7 +19,7 @@ module sva_sampled_signedness_test;
     trig = 0;
     signed_value = 8'sd3;
     repeat (2) @(negedge clk);
-    if (passes != 1 || failures != 0)
+    if (passes != 3 || failures != 0)
       $fatal(1, "$past lost signedness: %0d/%0d", passes, failures);
     $display("PASS: sampled-value history preserves signedness");
     $finish;

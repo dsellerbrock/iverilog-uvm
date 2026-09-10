@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_cover_cycle_delay_override.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_cover_cycle_delay_override"
+}

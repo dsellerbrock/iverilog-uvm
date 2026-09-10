@@ -101,19 +101,19 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 
 ### S01 — Cross-clock overlapping implication (SVA boundary)
 
-- **Area / edition:** Assertions/SVA / edition-agnostic
-- **State:** OPEN
-- **Confidence:** RECORDED
-- **Evidence / reproducer:** `docs/conformance/ROADMAP.md` /
-  `docs/conformance/matrices/ieee1800_2017_clause_matrix.md` record
-  overlapping implication across different clock domains as explicitly
-  excluded by the current lowering strategy.
-- **What it blocks:** Multi-clock-domain SVA properties, common in
-  real DUTs with independent clock/reset trees.
-- **Closure requirements:** Coincident-edge-aware lowering with
-  source-order-independent antecedent/consequent start behavior; positive
-  and negative tests across at least two independent clocks.
-- **Last verified revision:** not re-verified since the audit.
+- **Area / edition:** Assertions/SVA / IEEE 1800-2017 and 1800-2023 16.13.3.
+- **State:** SUPERSEDED (bounded fixed-chain boundary already implemented).
+- **Confidence:** VERIFIED
+- **Evidence / reproducer:** Commit `0ff77277c` implements the fixed-chain
+  overlapping boundary. Fresh `../evidence/campaign-20260908/s01/` runs cover
+  coincident edges in both source orders, strictly later consequent ticks,
+  positive/negative outcomes, preponed sampling and nested clock flow.
+  Three reducers pass in both editions with default and legacy SVA modes
+  (12 runs); independent review confirms this bounded classification.
+- **Residual scope:** Variable-length antecedents and broader multiclock
+  properties remain separate obligations; this is not complete SVA qualification.
+- **Last verified revision:** `2be79b2c0`; existing clock-flow/nested-flow
+  regressions also pass the required integrated suite. No implementation change.
 
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 
@@ -269,3 +269,136 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Closure requirements:** Exact group-level type weights, default/zero/eligibility controls, valid constant conversion, all required local gates and independent review.
 - **Limits:** Coverpoint/cross type weights and procedural static option access remain separate obligations.
 - **Last verified revision:** 2be79b2c0 implements group-level declared type weights in overall coverage. Focus75/65, integrated4690/4685/0/2/3, VPI103, negative149, runtime15, full JSON1582/0, real-DPI UVM355/0/0, make check and independent review pass. Separate type-weight tag preserves old bytecode/property ordering.
+
+### S02 — Bounded variable-length multiclock antecedents
+
+- **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7, 16.13.3.
+- **State:** SUSPENDED — attempt-identity design boundary; reducer retained.
+- **Confidence:** REPRODUCED compile rejection at `2be79b2c0` in both editions.
+- **Evidence:** `../evidence/campaign-20260908/s02/antecedent.sv` and paired
+  compile logs; legal `a[*1:2] |=> @(posedge c2) b` is rejected.
+- **Mechanism:** Two-domain and N-domain callers of `sva_mc_expand_chain_`
+  require fixed antecedents. Mere request-count expansion does not establish
+  the per-start implication verdict required when several endpoints match.
+- **Closure:** Preserve each endpoint evaluation, aggregate truth and required
+  action semantics, clock timing, sampling and cancellation for the exact
+  claimed bounded subset. Corrected expectation is two failures for two starts,
+  rather than three failures for three endpoints.
+
+S02 coordination boundary: scalar cross-clock request counts erase the parent
+identity needed for one verdict per starting attempt. A local count-only fix is
+incorrect. Reusing NFA endpoint bookkeeping first requires correcting its
+existing per-consequence verdict dispatch; S03 is selected independently on a
+fresh wrong-result reducer. A future S02 design must preserve attempt identity,
+open antecedent status and outstanding consequences across clock domains;
+architecture expansion is not authorized by this suspension.
+
+### S03 — NFA implication verdicts are emitted per endpoint
+
+- **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7.
+- **State:** LOCALLY VALIDATED — remote CI required before merge.
+- **Evidence:** `../evidence/campaign-20260908/s03/attempt-verdict.sv` fails
+  both editions at `2be79b2c0`: one start with two failing consequences emits
+  two failure actions instead of one. Independent semantic review confirms.
+- **Mechanism:** `pform_sva_nfa_try_assertion` dispatches each consequence
+  verdict directly and releases antecedent slots without retaining parent
+  verdict identity. Existing endpoint-fanout golds encode this defect.
+- **Closure:** Aggregate consequence outcomes per attempt, including early
+  failure, delayed success, vacuity, cancellation and end-of-simulation;
+  retain independent endpoints and local snapshots. Correct affected golds
+  only from reviewed semantics and run required gates.
+
+S03 result: existing NFA endpoint fanout retains parent identity through all
+consequences; one child failure terminates the parent once, and success waits
+for antecedent closure and all child successes. Vacuous user actions, distinct
+nonvacuous callbacks, local snapshots, same-tick slot reuse, disable/kill,
+cover counts and parent-counted strong EOS are covered. All required local
+gates/review pass: NFA58, focus55/20, integrated4692/4687/0/2/3,VPI103,
+negative149,runtime15,JSON1584,real-DPI UVM355,make check. Finite cyclic-pool
+limits, DD005 nonfanout vacuity, S02 multiclock identity and broader SVA/formal
+qualification remain open. Evidence: campaign-20260908/s03.
+
+### S04 — Missing vacuous user pass actions in single-clock implications
+
+- **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.12.7,16.14.1.
+- **State:** LOCALLY VALIDATED — required local gates and independent review pass; remote CI remains required before merge.
+- **Evidence:** At locally validated61ca5f336, false antecedent `a |-> b`
+  produces0pass/0fail instead of1pass/0fail in2017/2023, default/legacy modes.
+  Four compile/runtime logs and reducer in campaign-20260908/s04.
+- **Mechanism:** Nonfanout NFA dead-before-obligation path suppresses pass
+  dispatch; legacy match-only injection loses vacuous attempts. Specialized
+  callers use the same pass dispatcher; fixed/OR/AND progress and symbolic
+  pre-match ages preserve first-loss vacuity. Unsampled and asynchronous
+  cancellation includes nonunit integral true values.
+- **Validated so far:** Four paired reducers, VPI callback distinction,
+  focused legacy17/17, JSON8/8, NFA58/58, affected real-DPI UVM9/9, make check
+  and independent code review. Full integrated4700/4695/0/2/3, VPI104/104,
+  negative149/149, runtime15/15, JSON1592/0 and real-DPI UVM355/0/0 pass.
+- **Limits:** DD-007 symbolic nonvacuous per-endpoint verdict behavior remains
+  separate and unqualified; no complete parent-feature claim.
+- **Closure:** Correct vacuous user actions per attempt while preserving sampling,
+  cancellation, multiplicity, callback distinctions and S03 parent semantics;
+  all required local gates and independent review, then remote CI before merge.
+
+
+### S05 — Symbolic repetition implication parent verdicts
+
+- **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.9.2,16.12.7,16.14.1.
+- **State:** LOCALLY VALIDATED — reviewed S05 parent correction; remote CI required before merge.
+- **Evidence:** One enabled start of a[*LO:HI] with overridden LO2/HI3 produces
+  good1/0 and bad0/1 at length2, then good2/0 and bad0/2 at length3 in both
+  editions. Correct parent results are early good0/0,bad0/1 and final
+  good1/0,bad0/1. Reducer/logs: campaign-20260908/s05.
+- **Mechanism:** Symbolic r_end/r_fire counts publish consequent endpoint
+  actions directly, rather than retiring failed parents and waiting for
+  antecedent closure before success. Current packed ages/mature counts must
+  retain the necessary ownership without an arbitrary new cap.
+- **Selection:** Standards correctness and parameterized application assertion
+  relevance; this is a distinct symbolic engine from S03's qualified NFA path.
+- **Scope:** Accepted symbolic consecutive-repetition implication paths,
+  existing cancellation/sampling/Reactive behavior, empty/nonempty timing and
+  repetition-bound overrides. DD-006, symbolic consequent-delay overrides DD-008,
+  and S02 remain separate.
+- **Closure:** Reviewed parent-verdict semantics with permanent regressions and
+  all required local gates; remote CI remains required before merge.
+
+- **S05 current validation:** Paired focus14/14 legacy+JSON in both engines;
+  neighbor17/17+8/8, callback1/1, NFA58/58, make check0 and independent review
+  pass. Full integrated4714/4709/0/2/3, VPI105, negative149, runtime15,
+  JSON1606/0 and real-DPI UVM355/0/0 pass. This qualifies accepted symbolic
+  consecutive repetitions with fixed ##0/##1 Boolean consequences and tested
+  exact-window empty timing, not all SVA or symbolic consequent-delay overrides.
+
+
+### S06 — Overridden symbolic SVA cycle delay is frozen to its default
+
+- **Area / edition:** SVA and parameter elaboration / IEEE1800-2017 and1800-2023.
+- **State:** LOCALLY VALIDATED — reviewed S06 delay correction; remote CI required before merge.
+- **Evidence:** On validated a76c9f67a, LO1/HI2/D0 defaults with D1 override
+  pass at tick2 and ignore a false final child at tick3 in both editions.
+  Literal ##1 controls pass. Reducer and paired logs: campaign-20260908/s06.
+- **Hypothesis:** Single-delay grammar folds a parameter default through
+  pform_sva_const_long and deletes its expression; range-delay syntax already
+  retains overridable expressions for ordinary instance elaboration.
+- **Selection:** Silent timing miscompilation, ordinary parameter override
+  correctness and parameterized application assertion relevance.
+- **Scope:** Shared single-delay normalization and necessary instance-sized
+  lowering; exact parent, cancellation, sampling and empty timing preserved.
+  No new arbitrary delay cap or broader multiclock architecture.
+- **Closure:** Paired semantic regressions, override/boundary controls,
+  required full gates and independent review. Remote CI before merge.
+
+- **S06 repaired scope:** Single named parameter/localparam cycle delays retain
+  per-instance values. Delayed sampled histories align symbolic repetition
+  endpoints with the current consequent; unmatched real-time ages retain
+  vacuity. Direct/prefixed overlap/nonoverlap, bounded/unbounded parents,
+  empty timing, cancellation and cover endpoint counts have paired controls.
+  Shared self-sizing preserves substituted operand width/sign; invalid
+  original negative grouped delays and unknown bounds reject per instance.
+- **S06 remaining scope:** Arbitrary delay-expression parsing, broader formal
+  lookup, unsupported composed/multiclock shapes and maximal-width arithmetic
+  remain unqualified. A rejection control does not implement a legal shape.
+- **S06 current validation:** Focus18/18 legacy+JSON in both engines;
+  S05neighbors14/14+14/14,S04neighbors17/17+8/8; NFA58/58;
+  integrated4732total4727pass0fail2NI3EF,VPI105,negative149,runtime15;
+  JSON1624/0,real-DPIUVM355/0/0,makecheck and final source/test review pass.

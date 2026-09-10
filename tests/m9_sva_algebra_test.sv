@@ -8,7 +8,7 @@
 //   4. not(seq): fails exactly when the sequence matches.
 //   5. first_match(seq): transparent in match-existence positions.
 //   6. Pass actions: `assert property (P) pass_stmt;` executes on
-//      each match.
+//      each success, including vacuity.
 //   7. Regression probe: plain bit-selects inside assertion booleans
 //      still parse (v[1] vs the new [* rules).
 
@@ -50,7 +50,7 @@ module m9_sva_algebra_test;
   // 5: first_match is transparent.
   assert property (@(posedge clk) a5 |-> first_match(##1 b5)) else e5++;
 
-  // 6: pass action fires per match.
+  // 6: pass action fires on nonvacuous and vacuous successes.
   assert property (@(posedge clk) p6 |-> 1'b1) pass6++;
 
   // 7: bit-select in an assertion boolean.
@@ -114,7 +114,7 @@ module m9_sva_algebra_test;
     @(posedge clk); #1;      // t=165
     @(posedge clk); #1;      // t=175
     p6 = 0;
-    check(pass6 == 2, "6: pass action fired once per match");
+    check(pass6 == 18, "6: sixteen vacuous and two nonvacuous pass actions");
 
     // ---- 7: selects fine; v7=4'b0010 -> v7[1]=1, v7[0]=0: holds ----
     @(posedge clk); #1;

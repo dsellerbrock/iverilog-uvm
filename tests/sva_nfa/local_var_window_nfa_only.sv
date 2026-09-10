@@ -15,8 +15,9 @@ module local_var_window_nfa_only;
   // (2) unbounded wait: capture then eventually match
   w2: cover property (@(posedge clk) (a, v = d) ##[1:$] (b && (c == v)));
   // (3) implication, unbounded: request tags, eventually ack with matching id
+  // 18 starts: 17 vacuous passes and the tagged success at time 165.
   w3: assert property (@(posedge clk) (req, t = tag) |-> ##[1:$] (ack && (id == t)))
-        $display("W3 MATCH id=%h", id);
+        $display("W3 PASS id=%h", id);
 
   initial begin
     // B1: capture A5; match at offset 1 -> w1++, w2++
@@ -31,7 +32,7 @@ module local_var_window_nfa_only;
     @(negedge clk) c=8'h33;
     @(negedge clk) b=0; c=0;
     @(negedge clk);
-    // R1: request tag=AA; ack with id=AA after an unbounded wait -> W3 MATCH
+    // R1: request tag=AA; ack with id=AA after an unbounded wait -> W3 PASS
     @(negedge clk) req=1; tag=8'hAA;
     @(negedge clk) req=0; tag=0;
     repeat(3) @(negedge clk);

@@ -94,10 +94,10 @@ module sv_assert_unpacked_struct_parameter_delay;
 
     if (check_if.value_failures != 0)
       $display("FAILED -- aggregate localparam member values");
-    else if (check_if.range_passes != 1 || check_if.range_failures != 0)
+    else if (check_if.range_passes != 13 || check_if.range_failures != 0)
       $display("FAILED -- selected range bounds: %0d/%0d",
                check_if.range_passes, check_if.range_failures);
-    else if (check_if.repeat_passes != 1 || check_if.repeat_failures != 0)
+    else if (check_if.repeat_passes != 13 || check_if.repeat_failures != 0)
       $display("FAILED -- selected repetition/difference bounds: %0d/%0d",
                check_if.repeat_passes, check_if.repeat_failures);
     else

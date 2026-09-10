@@ -70,10 +70,10 @@ module sv_assert_named_parameter_repeat_window;
     drive(0, 0, 0, 0); // c15 / flush
     @(negedge clk);
 
-    if (one.passes != 1 || one.failures != 1)
+    if (one.passes != 15 || one.failures != 1)
       $display("FAILED -- RiseMin/Max=1/2 got %0d/%0d",
                one.passes, one.failures);
-    else if (three.passes != 1 || three.failures != 1)
+    else if (three.passes != 15 || three.failures != 1)
       $display("FAILED -- RiseMin/Max=3/5 got %0d/%0d",
                three.passes, three.failures);
     else

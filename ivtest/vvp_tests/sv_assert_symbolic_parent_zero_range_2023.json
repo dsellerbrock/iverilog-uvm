@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_assert_symbolic_parent_zero_range.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_assert_symbolic_parent_zero_range"
+}

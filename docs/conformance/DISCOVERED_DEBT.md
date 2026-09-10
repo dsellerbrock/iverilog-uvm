@@ -84,3 +84,49 @@ requires parking. Use the format above for the next agent's discoveries.
   candidate runtime; native probe path has no ancestor history to seed.
 - Reproducer status: reproduced; triage: pending. No default-negated-edge
   qualification claim is made by L02's passing positive-edge control.
+
+### DD-005 — Non-fanout assertion paths omit vacuous user pass actions
+
+- Active blocker: S03; record-only outside the endpoint aggregation path.
+- Observation: `tests/sva_recursive_consequent_test.sv` executes17 enabled
+  starts; the fixed negated consequence has one nonvacuous success and one
+  failure, but reports only1pass rather than16 including vacuity. Existing
+  until/eventual controls similarly count only nonvacuous successes.
+- Mechanism: unchanged non-endpoint NFA/legacy implication handling suppresses
+  vacuous pass dispatch. S03 repairs only the split endpoint parent path.
+- Authority: IEEE1800-2017/2023 16.12.7; a no-match antecedent succeeds.
+- Evidence: campaign-20260908/s03/recursive-red-2017.log and2023.log;
+  old baseline test already expects1pass, and the unaffected source path
+  omits its vacuous action. Nested/throughout parent paths now report17.
+- Reproducer status: observed in both editions; triage pending. Do not infer
+  general vacuity qualification from the S03 endpoint-path controls.
+
+### DD-006 — nested parameterized sequence alias does not expand
+
+- **Discovered while working:** S04.
+- **Observation:** Pair(x,y) defined as x ##2 y works when reused directly with distinct actuals in OR/AND antecedents. Wrapping Pair(a,b) and Pair(c,d) in named Left/Right aliases instead reports No function named Pair during elaboration.
+- **File/function:** pform.cc sequence splicing / parameter-window antecedent normalization; causal triage pending.
+- **Possible clause:** IEEE 1800-2017/2023 sequence declarations and argument binding; exact clause pending triage.
+- **Evidence:** evidence/campaign-20260908/s04/window-nested-alias.sv and window-nested-alias.log. Same four errors with compiler rebuilt from validated61ca5f336: window-nested-baseline.log. Current source/build restored afterwards; installed candidate tools unchanged during running gates.
+- **Reproducer status:** confirmed before S04; direct parameterized reuse is a passing control.
+- **Triage status:** untriaged, record-only; no repair included in S04.
+
+### DD-007 — symbolic repetition still reports consequent endpoint verdicts
+
+- **Discovered while working:** S04 oracle review.
+- **Observation:** Symbolic ranged/unbounded antecedent lowering retains per-endpoint consequent pass/fail actions, rather than aggregating one parent assertion verdict. S03 repaired the NFA parent model, not this separate symbolic engine. S04 only repairs previously missing vacuity for ages that never matched.
+- **File/function:** pform.cc sva_parameter_repeat_try_assertion_ r_pass_req/r_fail_req and endpoint counts.
+- **Possible clause:** IEEE 1800-2017/2023 16.12.7 and 16.14.1.
+- **Evidence:** Existing validated sv_assert_repeat_parameter_override and sv_assert_repeat_parameter_smoke tests explicitly expected multiple endpoint actions before S04. Independent S04 review derived their new totals by adding vacuity; these remain compatibility checks, not per-attempt standards qualification. No new regression inferred from those totals.
+- **Reproducer status:** existing regression stimuli retained; parent-verdict reducer needs a deliberate selection boundary.
+- **Triage status:** resolved within S05 locally validated fixed ##0/##1 symbolic repetition scope. Broader symbolic consequent-delay overrides remain DD-008 and are not covered by this qualification.
+
+### DD-008 — symbolic consequent delay override uses the default
+
+- **Discovered while working:** S05 boundary reducer construction.
+- **Observation:** `a[*LO:HI] |-> ##D q` with defaults LO1/HI2/D0 and instance D1 passes at the second tick instead of awaiting the final child at tick3; making q false at tick3 produces no failure. Explicit literal ##1 is a passing control in the S05 paired reducers.
+- **File/function:** pform.cc cycle-delay normalization and symbolic repetition probe; causal triage pending.
+- **Possible clause:** IEEE1800-2017/2023 6.20.2,16.9,16.12.7; exact delay-normalization cause unverified.
+- **Evidence:** campaign-20260908/s05/parameter-delay-override.sv and .log; current candidate produces EARLY1/0 then1/0. First observed before the S05 parent edit; no retained pre-S05 isolated reducer result, so baseline comparison remains required.
+- **Reproducer status:** reduced current failure; literal-delay control passes.
+- **Triage status:** resolved within the reviewed, locally validated S06 single named parameter/localparam delay scope. Broader delay-expression syntax, composed/multiclock shapes, formal lookup and maximal-width arithmetic remain unqualified.
