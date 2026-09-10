@@ -442,7 +442,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L04 — Automatic integral defaults do not seed event history
 
 - **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.8,6.21,9.4.2.
-- **State:** IN_PROGRESS — DD-004 is a proven L03 initialization prerequisite.
+- **State:** LOCALLY VALIDATED — reviewed integral initialization prerequisite; remote CI before merge.
 - **Evidence:** Paired current4a879babc default-negedge reducer fires at1 on
   unchanged partial zero write instead of actual negedge at3; evidence/l04.
 - **Mechanism:** Integral slot reset sets storage without initial publication;
@@ -451,3 +451,11 @@ qualification remain open. Evidence: campaign-20260908/s03.
   automatic integral initial-value propagation, all allocation callers audited.
 - **Closure:** Paired default/lifetime controls and all required gates/review;
   resume L03 only after validated baseline. Remote CI before merge.
+
+- **L04 validation:** Paired focus4/4 legacy+JSON,L02neighbors93/93+50/50,
+  mixedlifetime7/7+7/7,eventcontrols14/14+14/14,NFA58/58;
+  integrated4748total4743pass0fail2NI3EF,VPI105,negative149,runtime15;
+  JSON1640/0,real-DPIUVM355/0/0,makecheck and final review pass.
+- **L04 residuals:** Qualification covers integral signal default publication;
+  derived Boolean contexts (L03),other value types and broader initialization
+  obligations remain separate.

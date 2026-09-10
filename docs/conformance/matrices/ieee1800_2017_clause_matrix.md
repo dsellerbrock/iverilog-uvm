@@ -923,3 +923,24 @@ actual scope, mutual/branching/actual-self cycles. Evidence: campaign-20260908/s
 Complete global dependency-graph validation across separate instances,
 pre-existing parameterized declaration-owned lookup and broader sequence
 composition remain unqualified. Remote CI is required before merge.
+
+
+L04: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.8 Table6-7,6.21,9.4.2. Automatic integral signal defaults
+are published after all activation items exist, ownership is live and applicable
+stack linkage is established, before argument/user writes. The optional
+initialization hook covers ordinary allocations, virtual override calls,
+DPI exports and continuous automatic function calls. Root frames remain roots.
+Slot reset/default values are unchanged; native signal publication seeds
+activation-specific event history, so unchanged partial zero writes no longer
+manufacture negedges. Default X and real subsequent transitions are preserved.
+
+Qualification: paired focus4/4 legacy+JSON; lifetime neighbors93/93+50/50,
+mixedlifetime7/7+7/7,eventcontrols14/14+14/14; NFA58/58; integrated4748total
+4743pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1640/0;
+real-DPIUVM355/0/0,makecheck and final independent review. Tests cover whole/
+partial unchanged writes,0/X defaults,pos/negedges,concurrent/recursive frames
+and reuse. Evidence: campaign-20260908/l04.
+
+Derived Boolean activation state remains L03; other value types and broader
+initialization obligations are not qualified here. Remote CI before merge.

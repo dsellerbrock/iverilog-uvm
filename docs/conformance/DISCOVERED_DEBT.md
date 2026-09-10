@@ -82,8 +82,7 @@ requires parking. Use the format above for the next agent's discoveries.
 - Evidence: u01-loop/default-negedge.sv and baseline/candidate logs, both
   fail at t1. Original e0dab7221 compiler frame layout also fails with the
   candidate runtime; native probe path has no ancestor history to seed.
-- Reproducer status: reproduced; triage: pending. No default-negated-edge
-  qualification claim is made by L02's passing positive-edge control.
+- Reproducer status: resolved within L04 reviewed locally validated automatic integral default publication. Broader types and derived Boolean contexts remain unqualified.
 
 ### DD-005 — Non-fanout assertion paths omit vacuous user pass actions
 

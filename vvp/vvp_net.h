@@ -174,6 +174,9 @@ struct automatic_hooks_s {
 
       virtual void alloc_instance(vvp_context_t context) = 0;
       virtual void reset_instance(vvp_context_t context) = 0;
+      // Called after every item exists and the activation is live, with
+      // its applicable stack linkage established.
+      virtual void initialize_instance(vvp_context_t) {}
 #ifdef CHECK_WITH_VALGRIND
       virtual void free_instance(vvp_context_t context) = 0;
 #endif

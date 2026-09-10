@@ -1,0 +1,4 @@
+sv_automatic_integral_default_events normal,-g2017 ivltests gold=sv_automatic_integral_default_events.gold
+sv_automatic_integral_default_events_2023 normal,-g2023 ivltests gold=sv_automatic_integral_default_events.gold
+sv_automatic_integral_default_recursive normal,-g2017 ivltests gold=sv_automatic_integral_default_recursive.gold
+sv_automatic_integral_default_recursive_2023 normal,-g2023 ivltests gold=sv_automatic_integral_default_recursive.gold
