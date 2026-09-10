@@ -321,7 +321,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### S04 — Missing vacuous user pass actions in single-clock implications
 
 - **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.12.7,16.14.1.
-- **State:** ACTIVE — specification grounded; selected from DD005.
+- **State:** ACTIVE — partial implementation; specialized parameter paths and required validation remain pending (not closed).
 - **Evidence:** At locally validated61ca5f336, false antecedent `a |-> b`
   produces0pass/0fail instead of1pass/0fail in2017/2023, default/legacy modes.
   Four compile/runtime logs and reducer in campaign-20260908/s04.

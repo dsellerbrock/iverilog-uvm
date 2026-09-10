@@ -1,7 +1,7 @@
 id: S04
 title: Execute vacuous user pass actions in single-clock implications
 status: active
-phase: spec_grounded
+phase: implementing
 base_revision: 61ca5f336
 standards:
   - IEEE1800-2017 and IEEE1800-2023 16.12.7 and 16.14.1.
@@ -35,4 +35,22 @@ completion: Qualify exact repaired implication paths; retain unsupported paths a
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 61ca5f336
-next_action: Trace every implicated pass-action consumer and antecedent representation before choosing the smallest complete shared correction.
+next_action: Reproduce and repair parameter-repeat/window vacuity using original antecedent progress; then review six NFA output changes and run all required gates.
+partial_implementation:
+  - Shared detached Reactive pass dispatcher keeps vacuous actions separate from nonvacuous callbacks.
+  - NFA, general fixed legacy and genvar delay producers now publish vacuous pass requests.
+  - Fixed antecedent tracking resolves each attempt at its first failed sample without startup ghosts.
+partial_validation:
+  - Original reducer green in both editions and default/legacy modes; NFA-specific green in both editions.
+  - Delayed-action and simultaneous-first-failure reducer green in both editions and modes.
+  - Genvar red reproduced, then green in both editions and modes.
+  - Permanent initial regression passes focused legacy 2/2 and JSON 2/2.
+  - NFA sweep 52 passed and 6 output mismatches; expected counts require individual review.
+  - Independent partial implementation review found no actionable findings.
+outstanding:
+  - Parameter repetition no-match detection below first eligible length and false prefix detection.
+  - Parameter windows must retain original fixed/OR/AND antecedent continuation before synthetic repetition normalization.
+  - Complete cancellation, callback, specialized-path and permanent paired coverage.
+  - Resolve NFA output mismatches by standards-grounded oracle review; no blind gold refresh.
+  - Focused neighboring, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check, final review and remote CI before merge.
+implementation_checkpoint: Dirty pform.cc and permanent regression files are partial S04 work, not a validated semantic baseline.

@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S04
-phase: spec_grounded
+phase: implementing
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 61ca5f336
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [S04_complete_implementation_and_required_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S04 selected from reproduced DD005; S02 remains at its documented design boundary.
-next_action: Trace NFA, legacy and specialized implication antecedent/pass-action paths before editing implementation.
-next_command: "sed -n '23130,23595p' pform.cc"
+next_action: Finish S04 parameter repetition/window antecedent progress and vacuity; inspect six NFA output mismatches before updating expectations.
+next_command: "sed -n '21370,21820p' pform.cc"
 next_command_cwd: repository root
-candidate_state: S04 red in both editions and both engines at validated61ca5f336; no implementation changes.
-installed_tools: Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: All S03 local gates/review pass; final UVM14116 completed355/0/0. No running validation processes.
-next_validation: Implement only after causal trace; all S04 implementation gates pending.
+candidate_state: Partial dirty S04 NFA/general legacy/genvar implementation plus initial permanent regression; specialized parameter paths unfinished. No S04 implementation commit or closure.
+installed_tools: Compiler949afd48c853bb41b4ecf21c6ea69e2a03b4437dab58e495a31f02a243c1d6eb; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: S04 initial focus2/2 legacy and2/2 JSON; NFA52pass6mismatches. All launched S04 builds/tests terminal, no running validation processes. S03 remains last fully validated implementation.
+next_validation: Add parameter-path red/green and cancellation/callback controls, resolve NFA oracle mismatches, then required focused/integrated/JSON/UVM/check/review gates.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

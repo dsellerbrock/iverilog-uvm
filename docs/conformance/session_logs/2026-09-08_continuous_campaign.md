@@ -819,3 +819,48 @@ IEEE16.12.7 defines vacuous success and16.14.1 executes the successful assertion
 pass action. Trace NFA dead-before-obligation and legacy match-only injection,
 including specialized callers; no implementation edits yet. S02 remains at its
 recorded cross-clock identity design boundary, and unrelated work stays preserved.
+
+
+### S04 partial implementation checkpoint (2026-09-09)
+
+At contract HEAD `30d518c06`, dirty `pform.cc` now uses one detached Reactive
+pass dispatcher for NFA, fixed legacy and genvar-delay implications. Separate
+monotonic request counts preserve nonvacuous callbacks while also executing
+vacuous user actions. Fixed antecedents retain enabled starting attempts,
+advance oldest first, and count each first failure once; startup history does
+not create fictitious attempts. Arbitrary user actions retain one AST owner.
+
+The original reducer passes both editions/default and legacy. An NFA-specific
+forbidden-consequence reducer passes both editions. `progress.sv` proves two
+vacuous attempts can resolve together and delayed actions do not stall later
+attempts (both editions/modes). Genvar delays 1..3 were red before that slice
+and green afterwards. The permanent `sv_assert_vacuous_action` pair passes
+focused legacy 2/2 and JSON 2/2. Independent read-only partial review found no
+actionable finding. These are partial checks, not qualification of S04.
+
+The NFA sweep reports 52 passes/6 output mismatches: impl_window_goto,
+local_var_window, midchain_unbounded, midchain_window, overlap_midchain and
+window_goto_isolation (all `_nfa_only`). New vacuous actions account for visible
+extra outputs, but each timing/count must be reviewed before any gold update.
+No golden output has been changed at this checkpoint.
+
+Parameter-repeat/window paths remain unfinished. Repetition vacuity can use
+existing age bits below `lo`: on a failed keep, count all source ages minus
+source ages shifted right by `lo`; false enabled prefixes are separate.
+Already matched/mature ages must not become vacuous. Parameter-window
+normalization must preserve original fixed antecedent progress and suppress
+synthetic `[*1]` vacuity. Equal-span OR/AND trees require whole-tree continuation
+state, not independent branch-failure actions. This is the next implementation
+action; no dependent blocker is selected.
+
+Evidence: `../evidence/campaign-20260908/s04/` including source reducers,
+red/green logs, build/install logs, `nfa-partial.log`, `focus-partial.log` and
+partial-change snapshot. Installed compiler SHA256
+`949afd48c853bb41b4ecf21c6ea69e2a03b4437dab58e495a31f02a243c1d6eb`, runtime
+`7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec`.
+All launched processes completed. Worktree list audited; sibling states
+preserved. Last fully validated implementation remains `61ca5f336`.
+Required focused-neighbor, integrated ivtest/VPI/negative/runtime, full JSON,
+real-DPI UVM, make check and final review gates remain pending, as does remote
+CI before merge. Resume with `sed -n '21370,21820p' pform.cc` in the campaign
+tree, retaining this partial patch and reducers. Do not repeat a broad audit.
