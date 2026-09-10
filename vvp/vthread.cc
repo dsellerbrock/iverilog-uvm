@@ -8029,7 +8029,25 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			     << " is disabled: " << failure << "." << endl;
 		  continue;
 	    }
+            // IEEE 19.11.3: a cross name is the ordered tuple of source
+            // bin names. Terms are fixed metadata identities; logical_idx
+            // is a value for unsized arrays and an index for fixed arrays.
+            // Publish only after the complete plan has passed validation.
+            state.type_bins.resize(state.auto_total);
+            for (const covgrp_cross_route_t&route : state.routes) {
+                  if (route.auto_bin == UINT64_MAX) continue;
+                  std::vector<std::pair<unsigned,uint64_t>> name;
+                  name.reserve(meta.n_dims);
+                  for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+                        const covgrp_cross_choice_t&choice =
+                              state.dimensions[dim][route.choices[dim]];
+                        name.emplace_back(choice.term_idx, choice.logical_idx);
+                  }
+                  state.type_bins[route.auto_bin] =
+                        defn->cross_type_register_bin(meta.family, name);
+            }
 	    state.named_props.assign(active_named.begin(), active_named.end());
+            defn->cross_type_register_named(meta.family, state.named_props);
 	    state.enabled = true;
       }
       cobj->cov_cross_resolve(out, true);
@@ -8641,7 +8659,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 			auto_hits.insert(route.auto_bin);
 	    }
 	    for (unsigned prop : named_hits) covgrp_bump_count_(cobj, prop);
-	    for (uint64_t bin : auto_hits) cobj->cov_dyn_bump(entry.first, bin);
+            for (uint64_t bin : auto_hits)
+                  cobj->cov_dyn_bump(entry.first, bin, state.type_bins[bin]);
 	    if (!named_hits.empty() || !auto_hits.empty())
 		  item_matched[state.meta->item_idx] = true;
       }

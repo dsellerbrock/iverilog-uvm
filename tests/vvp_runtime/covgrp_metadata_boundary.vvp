@@ -26,6 +26,11 @@ C0x92 .class "old_options_before_property" "top.old_options_before_property" [1]
  .covgrp_options 0 1 0 0 0
    0: "value", "q0:sb32"
  ;
+C0x93 .class "item_type_weight_boundary" "top.item_type_weight_boundary" [1]
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_item_type_weight 0 2147483647
+   0: "after_tag", "q0:sb32"
+ ;
 T_0 ;
     %covgrp/get_all;
     %pop/real 1;

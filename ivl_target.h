@@ -2777,6 +2777,7 @@ extern unsigned ivl_type_covgrp_get_inst_coverage(ivl_type_t net);
 extern int ivl_type_covgrp_weight_prop(ivl_type_t net);
 extern int ivl_type_covgrp_get_inst_coverage_prop(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_item_type_weight(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
   /* Hidden per-instance scalar slots for the supported mutable item options
      (-1 for legacy metadata without materialized runtime state). */

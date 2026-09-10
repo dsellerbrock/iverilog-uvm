@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_covergroup_item_type_weight_group_compound_fail.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_covergroup_item_type_weight_group_compound_fail"
+}

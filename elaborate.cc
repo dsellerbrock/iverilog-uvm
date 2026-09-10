@@ -30992,25 +30992,52 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
-            auto type_weight_it = cgdef->options.find(
-                  perm_string::literal("type_option.weight"));
-            if (type_weight_it != cgdef->options.end()) {
+            auto type_weight = [&](const std::map<perm_string,PExpr*>&options,
+                                   const char*where) -> unsigned {
+                  auto it = options.find(perm_string::literal("type_option.weight"));
+                  if (it == options.end()) return 1;
+                  // Covergroup formals are object properties, so ordinary
+                  // constant lookup needs typed aliases even when called
+                  // before/after the coverpoint expression binding interval.
+                  struct alias_t { perm_string name; NetNet*net; NetNet*previous; };
+                  std::vector<alias_t> aliases;
+                  auto bind_formal = [&](perm_string name, ivl_type_t type) {
+                        NetNet*net = new NetNet(class_scope_, class_scope_->local_symbol(),
+                                               NetNet::REG, type);
+                        net->local_flag(true);
+                        aliases.push_back({name, net,
+                              class_scope_->set_signal_alias(name, net)});
+                  };
+                  for (size_t fi = 0; fi < cgdef->ctor_formals.size(); ++fi)
+                        bind_formal(cgdef->ctor_formals[fi],
+                                    cg_class->covgrp_ctor_formal_type(fi));
+                  for (size_t fi = 0; fi < cgdef->sample_formals.size(); ++fi)
+                        bind_formal(cgdef->sample_formals[fi],
+                                    cg_class->covgrp_sample_formal_type(fi));
                   // 19.10 declares an int member; use ordinary assignment
-                  // sizing/conversion before enforcing table19-3's domain.
-                  NetExpr*value = is_direct_ctor_formal(type_weight_it->second) ? nullptr
+                  // conversion before enforcing table 19-3's domain.
+                  NetExpr*value = is_direct_ctor_formal(it->second) ? nullptr
                         : elaborate_rval_expr(des, class_scope_, &netvector_t::atom2s32,
-                                              type_weight_it->second, true);
+                                              it->second, true);
                   NetEConst*constant = dynamic_cast<NetEConst*>(value);
+                  unsigned result = 1;
                   if (constant && constant->value().is_defined()
                         && constant->value().as_ulong64() <= INT32_MAX)
-                        group_options.type_weight = constant->value().as_ulong64();
+                        result = constant->value().as_ulong64();
                   else {
-                        cerr << type_weight_it->second->get_fileline()
-                             << ": error: covergroup type_option.weight requires a non-negative integral constant." << endl;
+                        cerr << it->second->get_fileline()
+                             << ": error: " << where
+                             << " type_option.weight requires a non-negative integral constant." << endl;
                         des->errors += 1;
                   }
                   delete value;
-            }
+                  for (auto alias = aliases.rbegin(); alias != aliases.rend(); ++alias) {
+                        class_scope_->restore_signal_alias(alias->name, alias->previous);
+                        delete alias->net;
+                  }
+                  return result;
+            };
+            group_options.type_weight = type_weight(cgdef->options, "covergroup");
             auto merge_it = cgdef->options.find(
                   perm_string::literal("type_option.merge_instances"));
             if (merge_it != cgdef->options.end()) {
@@ -31237,7 +31264,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  std::pair<int,int> cp_option_props =
 				add_option_props("__covgrp_item_" + std::to_string(cp_idx));
 			  cg_class->add_covgrp_item(cp_at_least,
-						cp_weight.first, false,
+						cp_weight.first, type_weight(cp.options, "coverpoint"), false,
 						cp.label, cp_weight.second,
 						nullptr, -1,
 						cp_option_props.first,
@@ -32399,6 +32426,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  std::pair<int,int> x_option_props =
 				add_option_props("__covgrp_item_" + std::to_string(item_idx));
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
+                                                type_weight(cross.options, "cross"),
 						true, cross.label,
 						x_weight.second,
 						cross.iff_expr, x_guard_src,

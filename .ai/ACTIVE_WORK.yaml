@@ -1,43 +1,45 @@
-id: L05
-title: Preserve associative class-member foreach index type
-status: locally_validated
+id: V06
+title: Honor declared coverpoint and cross type weights in merged coverage
+status: done
 phase: documented
-base_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
+base_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
+last_validated_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 12.7.3 and associative array rules; verify primary text before implementation.
-expected_behavior: foreach over a selected class member associative array declares the index with the array key type and visits every existing entry in the required order.
-observed_behavior: Retained DD-002 foreach(boxes[selector].values[key]) for values[string] declares key as int and visits zero entries; reverify on current validated tools.
-reproducer: ../evidence/campaign-20260908/l01/typed.sv
-selection_reason: Incorrect key typing silently skips checking/data traversal in ordinary class-based DV. Concrete pre-existing reducer and L01 selected-prefix evidence justify this independent blocker while U01 teardown lacks a proven compiler fix.
+  - IEEE1800-2017 and IEEE1800-2023 19.7.1 Table19-3 and19.11.3.
+expected_behavior: Declared coverpoint/cross type_option.weight defaults to1 independently of option.weight and weights merged item coverage; ordinary instance and merge_instances0 calculations retain their instance weights.
+observed_behavior: A50-percent and B0-percent with type weights3/1 and instance weights1/3 return12.5percent for both type and instance, where merged type must37.5percent. Both editions reproduce on validated59d8f345a.
+reproducer: ../evidence/campaign-20260908/v06/type-weight.sv
+selection_reason: Explicit residual after V03 and V05; incorrect weights distort routine coverage completion reports even with correct bin counts. This is a direct remaining standard obligation, not a broad audit or selection by ease.
 allowed_scope:
-  - Foreach implicit-index type resolution for selected class-member associative arrays and directly necessary elaboration.
-  - Permanent paired regressions, required focused/full gates, review and conformance records.
+  - Declared integral constant type-weight validation and propagation for coverpoints and crosses through existing class IR, target metadata and runtime merged aggregation.
+  - Preserve older VVP metadata compatibility and validate new metadata; reuse existing group type-weight mechanisms where appropriate.
+  - Paired permanent weight/default/zero/mode/constructor interaction and invalid-value controls; correct existing item-isolation fixtures to declare both type and instance weights, with standards-based evidence rather than weakening their bin assertions.
 non_goals:
-  - No application cleanup, warning suppression, unrelated expression drivers, randomization or formal architecture changes.
+  - Procedural static type-option assignment, goals/strobe, unsupported topology or transition cardinality redesign.
+  - No application edits, formal architecture changes or unrelated cleanup.
 invariants:
-  - Preserve selected prefix evaluation, declared key type and ordering, nested scopes, side effects and existing iteration semantics.
-  - No zero-iteration fallback, fabricated key or container substitution.
+  - Type and instance weights remain independent; group weights do not become lower-level defaults.
+  - No silent acceptance of nonconstant, negative, unknown or otherwise unrepresentable new type-weight metadata.
+  - Preserve merge_instances0 weighted-instance semantics, bin identity/count/threshold logic and older bytecode readability.
 required_gates:
-  - Fresh paired red reducer and applicable primary LRM semantics, actual source trace before patch.
-  - Permanent string/integral key, selection and lifetime controls; focused legacy/JSON plus relevant foreach neighbors.
-  - NFA, integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
-  - Remote CI before merge.
-completion: Qualify only exact repaired member-key type resolution; broader foreach/container and application status remain separate.
-discovery_policy: Unrelated discoveries are record-only; proven prerequisites require explicit suspension with preserved work.
+  - Primary2017 and2023 Table19-3 plus19.11.3, paired baseline failure, causal source trace and independent design review of metadata extension.
+  - Paired permanent positive/negative/default/mode controls and malformed/legacy metadata checks; coverage neighbors and V04/V05 regression controls.
+  - Integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent final review; remote CI before separately authorized merge.
+completion: Close exact declaration-time item type-weight scope only after all required local gates and review pass; other parentV01 and type-option obligations remain open.
 stop_after_completion: false
-last_validated_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
-next_action: L05 checkpointed; return to coordinator selection and publish remaining validated increments.
+discovery_policy: Unrelated discoveries record-only; any proven prerequisite requires preserved parent work and a deliberate coordination boundary.
+next_action: Checkpoint V06 exact locally validated scope, then return to coordinator selection.
 
-causal_trace: Both selected-member parser actions discard selector structure for declaration typing (null target for expression selector, unindexed path for identifier selector); declaration helper also rejects indexed paths. Existing selected-path helper consequently cannot traverse the array element to its class member.
-planned_fix: Preserve selected member target through both parser actions and foreach_index_type_t; reuse PEIdent::test_type_of_ident from enclosing scope without evaluating selectors, then resolve terminal array index type. Keep established unselected route and selected-array non-member production unchanged.
+candidate: Declared item type weights propagated through class IR/API and new tagged metadata; merged aggregation uses independent type weights; old bytecode retains prior untagged interpretation.
+focused_status: All22 paired cases pass in legacy and JSON; group/point/cross compound-formal rejection and legal type queries verified. V04 neighbors2/2,V05 13/13,coverage75/65,metadata bounds/compatibility and makecheck pass. Final review and full gates pending.
+parser_status: VVP grammar conflict profile unchanged at14 shift/reduce and5 reduce/reduce; new tag parses before following numeric property declarations.
+standards_resolution: Retain existing typed int conversion; reviewer visually verified2023PDF page110 and both edition6.11.2 extracts, plus official Accellera committee discussion. No unknown-weight semantic change authorized by contrary recollection.
 
-semantic_review: Same-name selector/loop-key positive control withdrawn. IEEE12.7.3 references12.7.1 implicit declarations before wholeloop; both Slang editions bind header key to newstringindex and reject it. Runtime target binding remains unchanged.
+binding_correction: Shared validator temporarily installs typed ctor then sample aliases, runs normal typed constant evaluation, deletes expression, restores aliases in reverse order. Reuses existing alias/cache invalidation machinery; no AST blacklist or constructor-scope guessing.
+active_sessions: none; integrated95424,JSON87219,UVM26530,NFA50661 all completed0.
 
-focused_validation: Paired10/10legacy+JSON; foreach neighbors53/53legacy+34/34JSON; makecheck and final independent review pass.
-current_toolchain: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Comment-only rebuild produced identical fingerprints.
-residual_scope: Selected-array non-member production and invalid header index validation DD-009 remain unqualified by this increment; no runtime target-binding change.
+final_review: No remaining V06 blocker after permanent outer-function lexical-scope control; all full gates still required. DD010 eligibility defect is separately recorded and unchanged.
 
-final_validation: UVM42794 terminated0 with355 passed,0 failed,0 skipped and real DPI loaded. FullJSON1662/0, integrated4765/4770 with zero failures, NFA58/58 and all focused/neighbor/check/review gates pass. Remote CI remains required before merge.
-next_checkpoint_action: Commit the exact reviewed L05 source/tests and bounded qualification; return to campaign selection without another user message.
-
-implementation_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+resolved_scope: Declaration-time coverpoint/cross type weights with independent defaults and typed constants, correct formal binding/type queries and outer constant-function scope, new/legacy metadata interpretation. Procedural static assignment, uninstantiated-type eligibility DD010 and broader coverage obligations remain separate.
+final_local_gates: Focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime checks,fullJSON1699/0,real-DPIUVM355/0/0 in-g2012,NFA58/58,makecheck and independent final review all pass.
+validated_fingerprints: Compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a; runtimef38e482bc738cc9f7ce84ff4817e59143aa99f7501cd4aae297b8addc194ce8e.

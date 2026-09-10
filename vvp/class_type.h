@@ -256,6 +256,7 @@ class class_type : public __vpiHandle {
       struct cov_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
+            unsigned type_weight = 1;
 	    std::string weight_ir;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
@@ -315,11 +316,17 @@ class class_type : public __vpiHandle {
       { cov_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
+        it.type_weight = weight; // compatibility for untagged older VVP
+
 	it.weight_ir = weight_ir;
 	it.is_cross = is_cross;
 	it.name = name;
 	it.iff_src = iff_src;
 	covgrp_items_.push_back(it); }
+      bool set_covgrp_item_type_weight(uint64_t idx, unsigned weight)
+      { if (idx >= covgrp_items_.size()) return false;
+        covgrp_items_[static_cast<size_t>(idx)].type_weight = weight;
+        return true; }
       bool set_covgrp_item_option_props(size_t idx, int at_least_prop,
 					 int weight_prop)
       { if (idx >= covgrp_items_.size()) return false;
@@ -420,6 +427,10 @@ class class_type : public __vpiHandle {
         if (logical > slot) slot = logical; }
       void dyn_type_register_ranges(unsigned family,
             const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
+      uint64_t cross_type_register_bin(unsigned family,
+            const std::vector<std::pair<unsigned,uint64_t>>&name) const;
+      void cross_type_register_named(unsigned family,
+            const std::vector<unsigned>&props) const;
       unsigned __int128 dyn_type_total(unsigned family) const
       { auto it = covgrp_dyn_type_totals_.find(family);
 	return it == covgrp_dyn_type_totals_.end()
@@ -480,6 +491,11 @@ class class_type : public __vpiHandle {
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
       mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
             covgrp_dyn_type_ranges_;
+      struct cov_cross_type_t {
+            std::map<std::vector<std::pair<unsigned,uint64_t>>,uint64_t> bins;
+            std::set<unsigned> named_props;
+      };
+      mutable std::map<unsigned,cov_cross_type_t> covgrp_cross_type_;
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;

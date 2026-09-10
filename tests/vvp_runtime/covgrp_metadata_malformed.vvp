@@ -207,6 +207,25 @@ C0x35 .class "bad_group_type_weight" "top.bad_group_type_weight" [1]
    0: "weight", "q0:sb32"
  .covgrp_type_weight 2147483648
  ;
+C0x36 .class "bad_item_type_weight_0" "top.bad_item_type_weight_0" [0]
+ .covgrp_item_type_weight 0 1
+ ;
+C0x37 .class "bad_item_type_weight_1" "top.bad_item_type_weight_1" [0]
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_item_type_weight 1 1
+ ;
+C0x38 .class "bad_item_type_weight_2" "top.bad_item_type_weight_2" [0]
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_item_type_weight 18446744073709551615 1
+ ;
+C0x39 .class "bad_item_type_weight_3" "top.bad_item_type_weight_3" [0]
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_item_type_weight 0 2147483648
+ ;
+C0x3a .class "bad_item_type_weight_4" "top.bad_item_type_weight_4" [0]
+ .covgrp_item 1 1 0 "cp" "" 0
+ .covgrp_item_type_weight 0 4294967296
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";

@@ -4591,6 +4591,14 @@ extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
       return 1;
 }
 
+extern "C" unsigned ivl_type_covgrp_item_type_weight(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0 && (size_t)idx < class_type->covgrp_item_count())
+            return class_type->covgrp_item((size_t)idx).type_weight;
+      return 1;
+}
+
 extern "C" const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

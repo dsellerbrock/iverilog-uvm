@@ -1205,3 +1205,211 @@ base branches. These are distinct from landing on main. PR263 CI was still
 running at inspection; no CI pass or merge authorization is inferred.
 Exact observed remote states are preserved in pr-publication/remote-state.json
 and CAMPAIGN.yaml. No merge or ready-state operation was performed by this task.
+
+
+V04 paired baseline reducer reproduced on59e5e07c7: two distinct named full64-bit
+value-bin families, one sample, require2/2^65 coverage. Both editions return
+1.084202e-17 instead5.421011e-18, exactly2x; get_inst_coverage returns the right
+value. Both primary19.11.3 clauses require union by bin name. Root shared
+class_type::type_coverage narrows exact128-bit family totals and saturates sums
+before division. Proposed local128-bit accumulators preserve exact counts to
+floating ratio conversion; transition-family cardinality remains outside scope.
+Independent bounded design review requested. No runtime source edits yet.
+Canonical main was fast-forwarded to3fe277c25; shared graph update completed
+48419nodes91990edges, with existing HTML size limit leaving visualization stale.
+
+
+V04 candidate uses local128-bit merged total/hit maps and per-item sums,
+removing only downstream narrowing/saturation. No helper or persistent data
+model change; transition-family size remains unchanged. Permanent paired test
+fails saved validated runtime at2x and passes candidate, with disjoint unsampled
+and retired universes, three unequal families, threshold2/0, static+dynamic bins,
+unequal weighted items, empty and small domains. Relative oracle rejects zero
+and NaN. Focus2/2legacy+JSON, coverage neighbors75/65,makecheck and final
+independent review pass. Compiler unchanged98664d54; candidate runtimee094574e.
+Integrated7488,UVM36614,NFA98267 now running. FullJSON must follow integrated.
+Source/tests/tools frozen; no semantic checkpoint or new PR while pending.
+
+
+Latest GitHub snapshot: all PR263–271 externally merged, but only263 targeted
+main; later merges target stack base branches. CI remains queued/running,
+not passed. A future substantial milestone should consolidate publication,
+not repeat a rapid PR stack. No more publication during current V04 increment.
+V04 NFA98267 completed0 with58/58; integrated7488 and UVM36614 remain live.
+
+
+User explicitly requested one PR to main containing the earlier campaign work.
+Created PR272 (open, ready for review, mergeable), branch
+agent/campaign-consolidated-main-20260910, headd77b03d2363c58591666a9bd3c1097f30809bc50.
+Its implementation/test files are identical to validated59e5e07c7 and to the
+last published stack tree; only policy/docs use later pre-V04 snapshotbfb4f1802.
+All earlier publication heads and currentmain3fe277c25 are retained as ancestry.
+No V04 implementation is included. Required CI is pending; no agent merge.
+The user's slower milestone cadence still governs future ordinary publication.
+
+V04 integrated7488 terminated0:4772total4767pass0fail2NI3EF, VPI105/105,
+negative149/149,runtime checks. FullJSON starts serially after that completion;
+real-DPIUVM36614 remains running. V04 is not yet a validated semantic baseline.
+
+
+Continuation classification: prior turn made concrete progress (direct-main
+PR272 created and checkpointed). Current authoritative check confirms PR272
+externally merged to main9821855164b179e1a1f7fb0298320f576646bc15. Its implementation
+and test tree matches validated59e5e07c7 exactly. Canonical main update/graph
+refresh proceeds independently of frozen V04 installed tools.
+V04 fullJSON96126 terminated0 with1664 tests,zero failures. UVM36614 is
+confirmed live and remains the final required local gate. No new PR.
+
+
+V04 final UVM36614 terminated0 with355passed0failed0skipped and real DPI loaded.
+All required local gates/review pass: focus2/2legacy+JSON,coverage neighbors75/65,
+integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
+JSON1664/0,NFA58/58,makecheck. Frozen compiler98664d54/runtimee094574e unchanged.
+Checkpoint exact merged aggregate arithmetic only; transition-family sizes and
+parentV01 remain separate. This is one validated increment since publication;
+no new PR under the user's slower cadence. Worktree audit unchanged; canonical
+main982185516/shared graph48779nodes92604edges updated, unrelated trees retained.
+
+
+V04 checkpoint27c1672d6 is now the locally validated semantic baseline;
+completed contract preserved in evidence/v04. Coordinator assessed the next
+existing parentV01 obligation using the canonical graph and current source.
+V05 paired reducer reproduces automatic cross omission: constructor domains
+[0:1]x[0:1] and[0:2]x[0:1],two distinct hits, expected2/6 type coverage;
+actual0 in both editions, while first instance correctly reports1/4.
+Cross state builds per-instance route/auto_total, but type aggregation does
+not include it; local auto-bin ordinals cannot serve as cross-instance identity.
+V05 is the sole active blocker; no source edits yet. Next trace full choice/name
+mapping and existing count machinery before proposing the minimal correction.
+No new PR under the user's milestone cadence.
+
+
+V05 root trace: source descriptors have stable per-dimension term_idx;
+unsized dynamic logical_idx is the resolved value, fixed arrays retain index,
+static/transition choices use stable metadata. Existing per-instance auto_bin
+is dense and is incorrectly reused by shared type-hit counters. Type coverage
+omits both automatic products and resolved active named cross properties.
+Both primary19.11.3 clauses require full component-name tuples. Independent
+design review accepts per-class/family tuple interning and requires union of
+existing active named property IDs for mixed crosses. That direct aggregation
+support expands neither selection grammar nor precedence. No source edit yet;
+next implement minimal registration/mapped-count path and permanent controls.
+
+
+V05 candidate now interns full cross tuples per class/family after successful
+plan validation, maps local automatic hits to those canonical IDs, and unions
+already-resolved active named properties for type aggregation. No parser,
+selector precedence, domain bound or transition-cardinality change.
+Permanent focus13/13 passes in legacy and JSON, covering union, overlapping
+names, thresholds, dimensions, named/ignore bins, retirement, deferred parent
+capture,2023 retention and named/arrayed transition sources. Transition paired
+baseline fails0 versus1/9; candidate reaches1/9,2/9,3/9 while local counts stay
+below threshold. Nine malformed plans now assert no published denominator via
+zero-weight sources and zero cross threshold; making the first selector valid
+triggers the assertion. Independent final review confirms both gaps resolved.
+Coverage neighbors75/65,V04 neighbors2/2,makecheck and NFA58/58 pass.
+Installed V05 runtime6e4f2e37/compiler98664d54 frozen; integrated13242 and real-DPI
+UVM55560 running. FullJSON must follow integrated serially. Candidate remains
+unvalidated pending required gates; last validated revision27c1672d6.
+Previous response only verified already-known PR272 merge status (no campaign
+implementation progress); this continuation added executable review controls
+and launched the remaining gates. No new PR at this two-increment milestone.
+
+V05 integrated13242 completed0:4785total4780pass0unexpected2NI3EF,
+VPI105/105,negative149/149 and all runtime invariants, including strengthened
+malformed cross fixture. FullJSON63211 started only after terminal integrated;
+installed FPGA target already present and byte-identical to current build.
+Real-DPIUVM55560 remains live. PR272 current six remote checks remain QUEUED;
+external merge is not remote-validation evidence. No new PR.
+
+V05 fullJSON63211 completed0 with1677tests,zero failures. Compiler98664d54
+and runtime6e4f2e37 remain unchanged; diff whitespace check passes. Real-DPI
+UVM55560 is the final required local gate and remains confirmed live.
+
+V05 UVM55560 completed0:355passed,zero failures/skips,real DPI umbrella loaded,
+actual-g2012. All required local gates and independent review pass. Runtime
+6e4f2e37/compiler98664d54 fingerprints remain unchanged. Close only supported
+constructed-cross type union/count scope; parentV01, unsupported topology,
+transition cardinality and unqualified options remain open. Completed contract
+preserved in evidence/v05. Worktree audit unchanged; unrelated dirty and
+non-ancestor trees retained. This is the second validated increment since
+publication272; no new PR. Return to coordinator selection after checkpoint.
+
+V05 checkpoint59d8f345a completed; coordinator selected V06 after canonical
+Graphify query and bounded assessment of the remaining item type-weight
+obligation. Primary2017/2023 Table19-3 requires independent type weights
+(default1),and19.11.3 preserves instance weighting for merge_instances0.
+Paired reducer returns12.5 instead37.5 for merged type while instance12.5 is
+correct. Existing item-isolation tests using only option.weight0 will require
+explicit type_option.weight0 to preserve their intended bin-count oracle.
+This correction must not weaken bin assertions. V06 contract is now active;
+no implementation source edits yet. Next trace existing metadata and validate
+minimal backward-compatible extension. No new PR after two increments.
+
+V06 candidate propagates item type weights through IR/API and tagged VVP
+metadata, with old-record fallback and independent defaults for all newly
+compiled items. Serial build27393/install2980 completed0; VVP grammar retains
+14SR/5RR conflict profile. Four positive controls pass in both editions; native
+new/legacy weights and five malformed-tag cases pass. Existing V04/V05
+isolation tests now explicitly set matching type weights without changing
+bin-count assertions. Three invalid-weight controls reject as expected.
+Compound constructor shadow arg+0 incorrectly binds an outer constant and is
+accepted; this must be corrected before focused/full validation. Test manifest
+generation intentionally stopped at that failed negative assertion, so only
+sources and three negative gold pairs currently exist. Independent reviewer
+requested to identify proper binding scope while preserving legal $bits(arg).
+The initial int-state recollection was contradicted by supplied primary2023PDF
+page110 and both edition6.11.2 extracts; retain existing typed conversion.
+Installed candidate compiler700d3cb6/runtimef38e482b; saved validated V05 tools
+in evidence/v06. No full V06 gates and no source checkpoint yet. No new PR.
+
+V06 compound binding root identified: group validation precedes temporary
+formal aliases; cross validation follows their removal. Shared type-weight
+validator now installs typed ctor then sample aliases for its own evaluation,
+deletes the expression and restores aliases in reverse order. This reuses
+existing cache-aware binding; legal $bits(ctor/sample) works and compound
+runtime-value references reject at group/point/cross levels. Serial rebuild32192
+and install19700 completed0. All22 permanent entries now pass in both harnesses,
+including exact negative diagnostics. V04 neighbors2/2,V05 13/13,coverage75/65,
+metadata bounds/compatibility and makecheck pass. Full integrated95424,
+real-DPIUVM26530,NFA50661 started; JSON must wait until integrated terminates.
+Final independent review requested. Frozen compiler07b302c2/runtimef38e482b.
+V06 remains uncommitted and unvalidated until all required gates/review pass;
+last validated baseline59d8f345a. No new PR yet.
+V06 final review's outer-function discriminator passes both editions and is
+now permanent in the scope test. Temporary aliases preserve lexical function
+constants despite same-name constructor formals; type-query widths3/5 and
+group/item function weight3 are jointly checked. Standalone final-scope logs
+pass. Adding an uninstantiated merged type exposed separate pre-existing
+eligibility bug DD-010; candidate and saved V05 runtime both return50 vs100
+in an isolated reducer. Recorded only; V06 scope test constructs all groups
+before its explicit aggregate oracle. Full gates continue on frozen tools.
+
+V06 NFA50661 completed0 with58/58. Independent final review cleared outer
+function scope and all current source/metadata controls; no remaining review
+blocker. Integrated95424 and UVM26530 re-polled and confirmed live, no failure
+reported so far. FullJSON remains unstarted and must follow integrated.
+Checkpoint exact pending gates and frozen fingerprints; do not restart live
+sessions or claim candidate completion. Source/test changes remain uncommitted;
+validated semantic baseline59d8f345a. DD010 record-only. No new PR.
+
+Continuation classification: previous turn made implementation/test progress,
+closed V05 and implemented V06 with focused validation and recorded gate handles.
+Current authoritative polls confirm integrated95424 terminal0:4807total4802pass,
+zero unexpected failures,2NI3EF,VPI105,negative149 and runtime checks. Manifest
+check verifies all22 V06 entries exactly once with valid sources/golds. FullJSON
+87219 launched only after terminal integrated; installed FPGA target matches
+current build. UVM26530 remains live. No semantic checkpoint until both finish.
+
+V06 fullJSON87219 completed0 with1699tests,zero failures. Compiler07b302c2 and
+runtimef38e482b fingerprints unchanged. UVM26530 remains confirmed live and is
+the final required local gate; no semantic closure/checkpoint yet.
+
+V06 UVM26530 terminated0:355passed,zero failures/skips,real DPI loaded,actual
+-g2012. All required local gates/review pass; frozen compiler07b302c2/runtime
+f38e482b fingerprints verified unchanged. Checkpoint exact declaration-time
+item type-weight/formal-binding scope; DD010,procedural static assignments and
+other coverage obligations remain separate. Worktree audit unchanged; dirty
+and non-ancestor sibling trees preserved. Three locally validated increments
+since PR272; next coordinator boundary assesses DD010 before the next coherent
+coverage publication. No per-blocker PR and no merge authorization inferred.

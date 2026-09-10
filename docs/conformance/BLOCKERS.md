@@ -488,3 +488,66 @@ qualification remain open. Evidence: campaign-20260908/s03.
   VPI105, negative149, runtime checks, fullJSON1662/0 and real-DPI UVM355/0/0 pass.
 - **L05 residuals:** Invalid same-name header selectors (DD-009), selected-array
   non-member typing and broader container obligations are not qualified here.
+
+### V04 — Merged type coverage saturates wide bin totals before division
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.11.3.
+- **State:** LOCALLY VALIDATED — reviewed merged aggregate arithmetic; remote CI before merge.
+- **Evidence:** class_type::type_coverage narrows exact dynamic cardinality
+  to UINT64_MAX and saturates per-item sums; instance coverage already uses
+  unsaturated real aggregation. Multiple named wide families can exceed64 bits.
+- **Scope:** Preserve supported merged totals through percentage calculation,
+  retaining bin identity, thresholds, weights and mode dispatch.
+- **Closure:** Paired relative-error reducer/controls, all required local gates
+  and independent review; remote CI before separately authorized merge.
+- **Residuals:** ParentV01, transition-family cardinality and cross-bin universe
+  obligations remain separate. No per-blocker PR under updated cadence.
+
+- **V04 candidate:** Local128-bit merged total/hit accumulation; individual
+  transition-family cardinality unchanged. Focus2/2+2/2, coverage neighbors75/65,
+  makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
+  fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.
+
+### V05 — Constructed cross bins are omitted or misidentified in merged type coverage
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.6,19.11.3.
+- **State:** LOCALLY VALIDATED — exact supported constructed-cross union/count scope; remote CI before merge.
+- **Evidence:** campaign-20260908/v05/cross.sv: two dynamic cross instances,
+  six-bin union and two hits; type coverage0 instead33.333333, instance25 correct.
+- **Scope:** Register supported automatic cross-bin names/counts for merged
+  type coverage and union already-resolved active named properties, preserving
+  per-instance topology and full product identity.
+- **Closure:** Paired canonical identity/union controls, required full gates
+  and independent review; remote CI before merge. ParentV01 remains open.
+
+- **V05 candidate evidence:** Ordered component-name tuples registered only
+  after successful topology validation; local counts map to canonical type
+  counters, with active named-property union. Focus13/13 legacy+JSON,
+  coverage neighbors75/65,V04 neighbors2/2,NFA58/58 and independent review pass.
+  Includes named/arrayed transition identities and malformed-plan denominator
+  assertions. Integrated4785total4780pass0fail2NI3EF,VPI105,negative149,
+  runtime checks,fullJSON1677/0,real-DPIUVM355/0/0 and makecheck all pass.
+  ParentV01 remains open; unsupported topologies, transition cardinality and
+  unqualified options are not closed. No immediate PR under milestone cadence.
+
+
+### V06 — Merged item coverage uses instance weights instead of type weights
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.7.1,19.11.3.
+- **State:** LOCALLY VALIDATED — exact declaration-time item type-weight scope; remote CI before merge.
+- **Evidence:** v06/type-weight.sv has coverpoint scores50/0,type weights3/1,
+  instance weights1/3. Type returns12.5 rather than37.5; instance12.5 is correct.
+- **Scope:** Declared coverpoint/cross type-weight validation, metadata and merged
+  aggregation. Preserve independent defaults, instance modes and old bytecode.
+- **Closure:** Paired semantic/invalid-value controls, scoped regression oracle
+  corrections for item isolation, all required local gates and independent review.
+  Procedural static assignment and other type-option obligations remain separate.
+
+- **V06 evidence:** Typed constant validator handles independent defaults,
+  zero weights, group noninheritance, static/dynamic/implicit crosses and
+  merge0/instance isolation. Temporary typed aliases preserve constructor and
+  sample scope, including legal type queries and outer constant functions.
+  Old bytecode fallback and new tagged metadata bounds are controlled.
+  Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
+  zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
+  NFA58/58,makecheck and independent final review all pass. DD010 remains open.

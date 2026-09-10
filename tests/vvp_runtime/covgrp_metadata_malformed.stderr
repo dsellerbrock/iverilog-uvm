@@ -36,3 +36,8 @@ tests/vvp_runtime/covgrp_metadata_malformed.vvp:196: invalid .covgrp_options met
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:200: invalid .covgrp_options metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:204: invalid .covgrp_options metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:208: invalid .covgrp_type_weight metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:211: invalid .covgrp_item_type_weight metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:215: invalid .covgrp_item_type_weight metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:219: invalid .covgrp_item_type_weight metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:223: invalid .covgrp_item_type_weight metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:227: invalid .covgrp_item_type_weight metadata value

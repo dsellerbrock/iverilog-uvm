@@ -1,0 +1,2 @@
+sv_covergroup_merged_wide_totals normal,-g2017 ivltests gold=sv_covergroup_merged_wide_totals.gold
+sv_covergroup_merged_wide_totals_2023 normal,-g2023 ivltests gold=sv_covergroup_merged_wide_totals.gold
