@@ -1,51 +1,29 @@
-id: U06
-title: Reduce original UVM2020.1 phase-execution gap
-status: closed
-phase: validated
-base_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
+id: L09
+title: Preserve caller-local output copy-out during nested argument calls
+status: in_progress
+phase: reproducing
+base_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
-selection_reason: Both original2020.1 releases compile and pass direct ABI checks after L08/U04/U05, but full smoke exits before intended traffic/checking; qualification must not count this as a pass.
-reproducer: third_party/uvm-releases/results-rqcthqwn/2020.1.0 and2020.1.1 smoke.vvp/runtime.log; complete/baseline_valid allrelease report.
-expected_behavior: release_test run_phase raises objection,creates/clones/compares independent objects,checks regex,advances through #1,reads HDL value13579bdf,sets checked,and drops objection. report_phase must reject missing checks or emit UVM_RELEASE_SMOKE_PASSED.
-observed_behavior: Both versions finish at time0 with zero warning/error/fatal counts and neither completion marker nor TRAFFIC fatal; both remain RUNTIME_FAIL.
+selection_reason: DD018 is a reproducible automatic-argument correctness defect, observed independently before and after U06; caller outputs silently remain unchanged. Repair after validated input-context baseline.
+reproducer: ../evidence/campaign-20260908/u06/copyout_control.sv and paired copyout-baseline.log/copyout-candidate.log
+expected_behavior: A nested function output actual naming a caller automatic local receives the assigned output at return, even while an enclosing recursive call is preparing its arguments.
+observed_behavior: Nested get_child(output seen) writes a staged recursive callee frame; original caller seen remains unchanged and assertion fails on both pre-U06 and validated U06 runtimes.
 allowed_scope:
-  - Read-only original2020.1.0/1.1 phase/component source and comparison with the passing2020.2.0 release.
-  - Existing compiled replay with phase/objection trace, evidence-only diagnostic test copies and minimized reducers.
-  - Applicable LRM/UVM semantics, scoped compiler/runtime tracing once reducer identifies mechanism.
-  - vvp/vthread.cc allocation-associated saved caller-read staging and matching free/handoff restoration; preserve existing context ownership and copy-out.
-  - Permanent ivtest regression fixtures and legacy/JSON registration; focused runtime controls and integrated gates.
-  - Active/campaign/blocker/session records.
+  - Minimized reducers and scoped read-only tracing of draw_copy_out_function_argument and vthread_get_wt_context_item_scoped.
+  - Applicable IEEE2017/2023 argument direction, automatic lifetime and return-copy semantics.
+  - ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT and existing session log.
+  - Expand exact implementation scope only after causal mechanism and smallest correct repair are established.
 non_goals:
-  - No original library or smoke weakening, warning waivers,synthetic marker,or application pass at time0.
-  - No unrelated compiler/runtime fixes or broad audit.
+  - No UVM/application source edits, weakened assertions, or unrelated context redesign.
+  - No broad audit or claims that U06 qualified output arguments.
 invariants:
-  - One active blocker; all U04 required gates complete before selection.
-  - Native ARM64 serial build,300second CPU guard,no RSS cap; preserve unrelated worktrees and merge permissions.
+  - One implementation blocker; U06 fully validated before this selection.
+  - NativeARM64 serial build,300second CPU guard,no RSS cap; preserve worktrees and merge permissions.
 required_gates:
-  - Reproduce absence of intended task/function phase callbacks and establish exact causal reducer.
-  - Verify expected semantics in applicable IEEE edition before semantic changes.
-  - Permanent regression,focused and required integrated validation,independent review and original-source replay before closure.
-completion: Close exact validated causal scope only; original-release/application qualification remains separate unless intended checking demonstrably executes.
+  - Failing permanent regression and applicable IEEE semantics before implementation.
+  - Focused recursion,input/output/inout/ref/default/return controls and independent review.
+  - Required integrated legacy,JSON,VPI,negative,runtime,UVM,NFA,makecheck and relevant frontend validation.
+completion: Close only exact validated output-copying scope; dependent application and standards qualification stay separate.
 stop_after_completion: false
-next_action: "Await live JSON77801; first JSON run only lacked the new test golden-output file, corrected at aad6fe22b. UVM11401 completed0 with355pass0fail0skip. Run frontend alone after JSON terminates; no installs."
-next_command: "tail -8 ../evidence/campaign-20260908/u06/json.log"
-
-u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
-
-u06_reducer_evidence: ../evidence/campaign-20260908/u06/recursive_args.sv, recursive_args_direct.sv, recursive_args-results.json and recursive_args.trace
-u06_standards: IEEE 1800-2017 and 1800-2023 clauses 8.6 automatic class-method lifetime and 13.5.1 independent pass-by-value argument copies, read from canonical local PDFs.
-u06_causal_finding: Nested get_child allocation clears the single staged_alloc_rd_context. After nested free, scoped reads select the outer uninitialized callee write-head, copying null phase and zero state instead of caller values37 and19. Direct child property avoids nested allocation and passes.
-u06_review: Independent review agrees; preserve allocation identity, delay enclosing staging restoration until nested result copy-out/free, and cover same-scope calls, first/middle arguments, defaults, ref/output and fork handoff. No production changes yet.
-
-implementation_hypothesis: Save an existing staged caller-read override against the exact nested allocation that displaces it. Restore only when that allocation is released or handed off; shared scopes do not displace a real allocation. Keep ref delegated-access scalar save/restore and callee result reads unchanged.
-
-u06_focused: Permanent test fails baseline and passes candidate in both editions; 12 paired default/ref/fork/constructor neighboring controls pass unchanged. Original2020.1.0 smoke now runs through time1 with exact marker and zero warning/error/fatal counts. Required integrated gates remain pending.
-
-candidate_revision: "fe4e949b8"
-
-next_validation: "JSON77801 running. Integrated60637,real-DPIUVM355/0/0,makecheck,NFA58,review,full15release matrix and four original2017/2023 smokes complete. Isolated frontend pending."
-
-u06_final_review: Independent review clear; terminal-only cleanup source guards and baseline/candidate nonlocal exit plus frame reuse control resolve lifetime concern. No additional code changes requested.
-u06_release_matrix: results-mseshk7y complete and baseline_valid; 6SMOKE_PASS9COMPILE_FAIL, both2020.1 releases execute original smoke through time1 with exact checks and zero warnings/errors/fatals. Matrix exit1 reflects remaining compile failures, not incomplete execution.
-
-closure_evidence: All required gates passed; integrated4855total4850pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1747/0,real-DPIUVM355/0/0,NFA58/58,makecheck,review,frontendS1-S10. Original2020.1.0/1.1 smoke4/4 in2017/2023; fullmatrix6SMOKE_PASS9COMPILE_FAIL. Tool fingerprints unchanged and installed root restored. DD018 copy-out remains open.
+next_action: Minimize preserved output-copying reducer on validated U06, verify both IEEE editions and trace the wrong write destination.
+next_command: sed -n '10811,10865p' vvp/vthread.cc
