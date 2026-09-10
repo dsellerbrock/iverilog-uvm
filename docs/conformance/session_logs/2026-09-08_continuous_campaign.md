@@ -1539,3 +1539,27 @@ follow integratedtermination. Last validated semanticbaseline03caa64c8 remains.
 L06 NFA5788 terminated0:58passed,0failed. Integrated48575 and UVM55602
 re-polled and confirmedlive. Compiler9915d687/runtime3b162fd9 unchanged.
 FullJSON remains unstarted until integrated terminates. No semantic closure.
+
+
+### L06 closure, UVM release picker, and L07 validation
+
+L06 is locally validated at `4965219df`: all original required gates passed,
+including JSON 1719/0, NFA 58/58, and real-DPI UVM 355/0/0. Its closure covers
+empty queue-container initialization only. U03 is validated at `c35d2ef36`:
+release selection and registration controls, installed frontend, real-DPI smoke,
+independent review, integrated 4827 total with zero unexpected failures, and
+JSON 1719/0 passed. Fifteen pinned releases can be registered for the picker.
+
+L07 is the sole active implementation blocker. Its direct queue-variable
+lvalue paths reuse NetELast; whole/bit/part/indexed-part assignments, compound
+updates and NBA index capture pass paired tests. Focused legacy/JSON 10/10,
+neighbors 21/13, make check, review and NFA 58/58 pass. Official unmodified
+UVM2020.3.2 passes the smoke test with zero warnings/errors/fatals; the report
+is complete and baseline-valid at results-23s62a5a. This is not full UVM or
+application qualification. Integrated session27702 and real-DPI UVM33056 are
+live; full JSON must follow integrated termination. Installed compiler SHA256
+809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c is frozen.
+
+B01 remains safely suspended awaiting remote Windows gates on PR273 at
+c189df5b8. UCRT64 Build and self-check passed; regression remains live. The
+publication-only executable-mode mistake was corrected; no gate was waived.

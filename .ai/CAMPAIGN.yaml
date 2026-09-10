@@ -10,7 +10,7 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [B01_Windows_CI, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: Resume suspended L06 after B01 required Windows CI and L06 UVM gates pass; then select user-requested U03 version picker before discretionary DD013.
+next_selection: Complete L07 validation, then reassess the unmodified application and remaining release blockers at a deliberate selection boundary.
 next_action: Await L07 integrated27702 and UVM33056; run full JSON after integrated terminal. NFA88696 passed58/58.
 next_command: "tail -20 ../evidence/campaign-20260908/l07/integrated.log"
 next_command_cwd: repository root
@@ -190,3 +190,5 @@ u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VP
 u03_closure: c35d2ef36 all required local gates passed; fullJSON31236 terminal0,1719/0.
 l07_selection: DD013 queue-last lvalue crash on validated c35d2ef36; sole active implementation. B01 remote CI still pending.
 l07_candidate: elab_lval.cc and ten paired regressions; focus10/10each,neighbors21/13,makecheck,review,NFA58/58 pass; unmodifiedUVM2020.3.2 smoke passes. Integrated27702/UVM33056 running; JSON unstarted.
+
+b01_latest_evidence: UCRT64 Build and self-check passed on c189df5b8; regression and full job still live. Required Windows gate remains pending.
