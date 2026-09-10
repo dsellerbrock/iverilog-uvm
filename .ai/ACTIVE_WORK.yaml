@@ -19,11 +19,11 @@ required_gates:
   - Integrated ivtest,VPI,negative,runtime,fullJSON,NFA,real-DPI UVM,makecheck and independent review.
   - Official UVM2020.3.2 replay; progress is not a release pass.
 suspended_work: B01 remote Windows correction at PR273/c189df5b8 remains awaiting CI; no merge authorization or waiver.
-next_action: Await integrated27702 and UVM33056; start full JSON only after integrated terminates. NFA88696 passed58/58. Preserve frozen tools.
+next_action: Await fullJSON98943 and UVM33056; integrated27702 passed4837total4832pass0fail2NI3EF,VPI105,negative149,runtime15/15; NFA58/58. Preserve frozen tools.
 stop_after_completion: false
 
 causal_patch: elab_lval.cc reuses NetELast through a shared direct-container index helper; whole, bit, part and indexed-part stores retain existing runtime operations. Class-member last selectors remain outside this bounded direct-variable scope.
 focused_validation: 10paired legacy and JSON tests pass;21legacy/13JSON neighbors and makecheck pass; final independent review clear.
 release_replay: Official unmodified2020.3.2 SMOKE_PASS, complete and baseline_valid true; results-23s62a5a/results.json. No broader qualification claim.
 installed_tools: Driver75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad/compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337.
-next_command: tail -20 ../evidence/campaign-20260908/l07/integrated.log
+next_command: tail -20 ../evidence/campaign-20260908/l07/full-json.log
