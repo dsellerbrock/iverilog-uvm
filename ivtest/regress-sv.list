@@ -2826,3 +2826,14 @@ sv_ustruct_queue_defaults_shape_boundary_fail CE,-g2017 ivltests gold=sv_ustruct
 sv_ustruct_queue_defaults_shape_boundary_fail_2023 CE,-g2023 ivltests gold=sv_ustruct_queue_defaults_shape_boundary_fail.gold
 sv_ustruct_queue_defaults_shapes normal,-g2017 ivltests gold=sv_ustruct_queue_defaults_shapes.gold
 sv_ustruct_queue_defaults_shapes_2023 normal,-g2023 ivltests gold=sv_ustruct_queue_defaults_shapes.gold
+
+sv_queue_last_lvalue normal,-g2017 ivltests gold=sv_queue_last_lvalue.gold
+sv_queue_last_lvalue_2023 normal,-g2023 ivltests gold=sv_queue_last_lvalue.gold
+sv_queue_last_lvalue_parts normal,-g2017 ivltests gold=sv_queue_last_lvalue_parts.gold
+sv_queue_last_lvalue_parts_2023 normal,-g2023 ivltests gold=sv_queue_last_lvalue_parts.gold
+sv_queue_last_lvalue_empty normal,-g2017 ivltests gold=sv_queue_last_lvalue_empty.gold
+sv_queue_last_lvalue_empty_2023 normal,-g2023 ivltests gold=sv_queue_last_lvalue_empty.gold
+sv_queue_last_lvalue_nba normal,-g2017 ivltests gold=sv_queue_last_lvalue_nba.gold
+sv_queue_last_lvalue_nba_2023 normal,-g2023 ivltests gold=sv_queue_last_lvalue_nba.gold
+sv_queue_last_lvalue_invalid CE,-g2017 ivltests gold=sv_queue_last_lvalue_invalid.gold
+sv_queue_last_lvalue_invalid_2023 CE,-g2023 ivltests gold=sv_queue_last_lvalue_invalid.gold
