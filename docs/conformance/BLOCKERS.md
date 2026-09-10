@@ -101,19 +101,19 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 
 ### S01 — Cross-clock overlapping implication (SVA boundary)
 
-- **Area / edition:** Assertions/SVA / edition-agnostic
-- **State:** OPEN
-- **Confidence:** RECORDED
-- **Evidence / reproducer:** `docs/conformance/ROADMAP.md` /
-  `docs/conformance/matrices/ieee1800_2017_clause_matrix.md` record
-  overlapping implication across different clock domains as explicitly
-  excluded by the current lowering strategy.
-- **What it blocks:** Multi-clock-domain SVA properties, common in
-  real DUTs with independent clock/reset trees.
-- **Closure requirements:** Coincident-edge-aware lowering with
-  source-order-independent antecedent/consequent start behavior; positive
-  and negative tests across at least two independent clocks.
-- **Last verified revision:** not re-verified since the audit.
+- **Area / edition:** Assertions/SVA / IEEE 1800-2017 and 1800-2023 16.13.3.
+- **State:** SUPERSEDED (bounded fixed-chain boundary already implemented).
+- **Confidence:** VERIFIED
+- **Evidence / reproducer:** Commit `0ff77277c` implements the fixed-chain
+  overlapping boundary. Fresh `../evidence/campaign-20260908/s01/` runs cover
+  coincident edges in both source orders, strictly later consequent ticks,
+  positive/negative outcomes, preponed sampling and nested clock flow.
+  Three reducers pass in both editions with default and legacy SVA modes
+  (12 runs); independent review confirms this bounded classification.
+- **Residual scope:** Variable-length antecedents and broader multiclock
+  properties remain separate obligations; this is not complete SVA qualification.
+- **Last verified revision:** `2be79b2c0`; existing clock-flow/nested-flow
+  regressions also pass the required integrated suite. No implementation change.
 
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 

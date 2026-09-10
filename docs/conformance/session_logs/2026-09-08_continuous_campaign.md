@@ -742,3 +742,12 @@ remote CI remain open. Worktree audit unchanged, unrelated changes preserved.
 Return to selection and verify existing S01 cross-clock overlapping implication
 against current implementation and LRM rather than assuming old boundary notes
 still describe present behavior. No broad audit or parallel implementation.
+
+S01 verified as superseded for fixed-chain cross-clock overlapping implication:
+0ff77277c already implements the boundary. Twelve fresh runs (three reducers,
+both editions, default/legacy SVA) pass at2be79b2c0; independent review agrees.
+Corrected only the stale blanket R12 exclusions. Worktree audit unchanged.
+S02 candidate rejects bounded variable-length antecedents in both editions.
+Before fixing it, distinguish per-endpoint consequent evaluation from the
+per-start implication verdict (16.12.7); the initial three-failure expectation
+is provisional and must not become a gold without resolving that distinction.
