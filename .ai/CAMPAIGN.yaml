@@ -11,8 +11,8 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "NFA6429 passed58/58 terminal0. Await U04 integrated88113 and UVM73729; start fullJSON only after integrated terminates. Original2020.1.0/1.1 direct ABI checks pass both editions, but fullsmoke lacks its completion marker at time0 and remains RUNTIME_FAIL."
-next_command: "tail -5 ../evidence/campaign-20260908/u04/integrated.log ../evidence/campaign-20260908/u04/uvm.log"
+next_action: "Await U04 JSON60095 and UVM73729; integrated88113 passed4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. All15release matrix complete/baseline_valid:4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL."
+next_command: "tail -5 ../evidence/campaign-20260908/u04/full-json.log ../evidence/campaign-20260908/u04/uvm.log"
 next_command_cwd: repository root
 candidate_state: "Legacy C ABI adapter built/installed; strict POSIX matching plus safe glob expansion and actual UVM errors pass both editions and relocated frontend. Review clear including requestedboundarytests. Full gates pending."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
@@ -231,8 +231,8 @@ u05_candidate_revision: a5eb76ebb
 
 u05_nfa: Terminal71460 exit0;58passed0failed.
 
-u04_live_gates: [integrated88113, UVM73729]
-u04_unstarted_gates: [full_JSON_after_integrated]
+u04_live_gates: [JSON60095, UVM73729]
+u04_unstarted_gates: []
 u04_candidate_revision: aa172f5f9
 u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
 
