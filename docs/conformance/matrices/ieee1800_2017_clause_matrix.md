@@ -1025,3 +1025,14 @@ required local gates and independent review pass. UVM evidence is actual-g2012
 with real DPI; it does not qualify either language edition or IEEE1800.2.
 ParentV01, remaining type options and broader application/formal obligations
 remain open. Required remote CI precedes any separately authorized merge.
+
+
+L09: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 8.6 and13.5. Automatic function copy-out loads formal values
+from the callee and evaluates actual destinations in the caller activation,
+even while recursive calls stage other frames. Paired scalar,indexed,property
+receiver,real,string,object,queue,fixed-array,inout/ref and virtual-call controls
+pass; all required local gates pass at3c44fd13b. This does not qualify all
+argument forms; scalar output into a fixed-array class-property element
+remains DD019. UVM regression is actual-g2012 with real DPI, not IEEE1800.2
+qualification. Required remote CI and merge permissions remain separate.

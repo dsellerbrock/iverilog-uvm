@@ -280,6 +280,9 @@ scoped write-context selection. Original smoke has no such output actual.
 Record-only, not a U06 regression or a qualified subcase; preserve reducer
 for deliberate selection after validating the input-context increment.
 
+DD018 resolved by L09 at 3c44fd13b after required local validation.
+Caller actual context and formal source context are now selected separately.
+
 ### DD019 — Scalar output into fixed-array class property element
 
 L09 probe fixed_property_output.sv (evidence/campaign-20260908/l09) produces

@@ -1796,3 +1796,8 @@ complete/baseline_valid with6SMOKE_PASS9knownCOMPILE_FAIL. Evidence under
 `../evidence/campaign-20260908/l09/`; frozen hashes in candidate-sha256.txt.
 L09 remains awaiting validation. PR273 remains open at1357ae803; Ubuntu22/24
 passed, macOS and three Windows jobs still running at this checkpoint.
+
+
+### L09 closure at 3c44fd13b
+
+legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged. All gate processes terminal0; full release probe terminal1 reflects nine recorded compile gaps, with all six smoke passes retained. Bounded copy-out scope closed, DD019 and parent language/UVM/application obligations remain open. Two validated increments since publication; keep milestone cadence.

@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: "L09"
-phase: "awaiting_validation"
+current_blocker: null
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "aad6fe22bd7cdcb54dccb2ba5d152b094bf67634"
+last_integrated_good_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["L09_integrated", "L09_JSON", "L09_UVM", "L09_frontend", "U01_application_qualification", "PR273_remote_CI_before_merge"]
+pending_gates: ["U01_application_qualification", "PR273_remote_CI_before_merge"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U06 required validation and exact closure, consider DD018 caller-local output copy-out: paired evidence proves remaining automatic-argument correctness gap. Preserve U01 application scope; do not implement on unvalidated U06."
-next_action: "Await integrated and UVM terminal results; run full JSON after integrated, then frontend alone after all gates terminal. No implementation or installs during validation."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l09/integrated.log ../evidence/campaign-20260908/l09/uvm.log"
+next_action: "Select DD019 fixed-array class-property output copy-out, preserve L09 baseline and establish minimal reducer."
+next_command: "graphify query \"draw_copy_out_function_argument indexed class property output\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: "L09 implemented, focused38/0 and malformed6/6 pass; independent review clear pending required gates."
+candidate_state: "L09 closed after all required local gates; select DD019 as next concrete output-copying gap."
 installed_tools: "Frozen L09 vvp448929b960a25ee12740f331e68f4206e9e8f79719286e7ba75b550124d814e0, vvp.tgt0cc9c2f67660b0e880a6d9a3171858d5a414fcb9018d8fb2435fe3ef478b2a59; ivl and DPI unchanged from validated U06."
-validation_state: "U06 all required gates passed: legacy4855/0,VPI105,negative149,runtime15/15,JSON1747/0,real-DPIUVM355/0/0,NFA58/58,makecheck,review,frontendS1-S10. Fullmatrix6pass9compilefail; original2020.1 smoke4/4 in2017/2023. Frozen fingerprints unchanged."
-next_validation: "Integrated17224,UVM9469 running; NFA85815 exit0,58/58; makecheck exit0. JSON then isolated frontend unstarted."
+validation_state: "L09 all required local gates passed: legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
+next_validation: "Next blocker failing reducer before implementation."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-validated_increments_since_publication: 1
+validated_increments_since_publication: 2
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -184,7 +184,7 @@ b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores ex
 
 u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
 u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
-last_locally_validated_semantic_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
+last_locally_validated_semantic_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 
 l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
 u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
@@ -244,10 +244,13 @@ u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2
 
 candidate_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 
-l09_live_gates: {UVM: 9469}
+l09_live_gates: {}
 l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."
 l09_review: Clear subject to required gates; typed,indexed,virtual-output and malformed-bytecode coverage inspected; DD019 separate.
 
 l09_integrated_terminal: "17224 exit0; legacy4861total4856pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. FullJSON37094 now running; UVM9469 live; isolated frontend unstarted."
 
 l09_json_terminal: "37094 exit0;1753tests0failures. UVM9469 remains live; isolated frontend unstarted."
+
+l09_uvm_terminal: "9469 exit0; real-DPI UVM355passed0failed0skipped. Frontend41521 now running alone; do not use installed root until terminal and restoration verified."
+l09_closure: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d; legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"

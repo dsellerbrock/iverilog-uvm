@@ -1,7 +1,7 @@
 id: L09
 title: Preserve caller-local output copy-out during nested argument calls
-status: in_progress
-phase: "awaiting_validation"
+status: closed
+phase: documented
 base_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 selection_reason: DD018 is a reproducible automatic-argument correctness defect, observed independently before and after U06; caller outputs silently remain unchanged. Repair after validated input-context baseline.
@@ -44,10 +44,14 @@ implementation_contract: Copy-out destination expressions and stores use caller 
 l09_candidate: Three permanent test families fail baseline and pass candidate in both editions;38focused JSON cases pass;6malformed-bytecode checks pass. Explicit copy-out enter/context/leave distinguishes formal loads from caller destination expressions. Nonlocal abort/reuse and non-nested controls pass both editions. Independent review clear; full required gates pending.
 candidate_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 
-l09_live_gates: {UVM: 9469}
+l09_live_gates: {frontend: 41521}
 l09_completed_gates: "NFA85815 exit0,58/58; makecheck exit0; release matrix95523 terminal1 with complete/baseline_valid report6SMOKE_PASS9knownCOMPILE_FAIL."
 l09_release_results: third_party/uvm-releases/results-p31gasib/results.json
 
 l09_integrated_terminal: "17224 exit0; legacy4861total4856pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. FullJSON37094 now running; UVM9469 live; isolated frontend unstarted."
 
 l09_json_terminal: "37094 exit0;1753tests0failures. UVM9469 remains live; isolated frontend unstarted."
+
+l09_uvm_terminal: "9469 exit0; real-DPI UVM355passed0failed0skipped. Frontend41521 now running alone; do not use installed root until terminal and restoration verified."
+
+l09_closure: "legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
