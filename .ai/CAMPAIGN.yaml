@@ -219,3 +219,8 @@ u01_post_p04: Fresh run plus2repeats all115requests/230items,4guardwarnings,0err
 l08_live_gates: [integrated9062, NFA81089, UVM7325]
 l08_unstarted_gates: [full_JSON_after_integrated]
 l08_final_review: Clear after SVA clone provenance fix; required gates pending.
+
+l08_candidate_revision: 47e6c87b3
+l08_nfa: Passed58/58, terminal81089 exit0.
+l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
+pr273_latest_checks: Ubuntu22.04,Ubuntu24.04,CLANG64 passed; MINGW64,UCRT64 running,macOS queued.

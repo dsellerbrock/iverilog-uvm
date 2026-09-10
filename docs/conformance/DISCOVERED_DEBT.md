@@ -191,6 +191,9 @@ requires parking. Use the format above for the next agent's discoveries.
   before any semantic fix. No archived library or application source patched.
 
 
+- **L08 candidate follow-up:** Original2020.1.0/1.1 now compile at47e6c87b3, but both are RUNTIME_FAIL in results-gizcr5j0 (complete=true,baseline_valid=true). Runtime logs report unresolved uvm_re_match/uvm_glob_to_re DPI symbols followed by command-line UVM errors and BUILDERR. Record-only pending L08 validation; release-specific DPI loading/ABI and runtime semantics are not qualified. No library edits.
+
+
 ### DD-012 — L06 mixed-array and class-qualified declaration boundaries
 
 - **Discovered while working:** L06 expanded initialization controls.
