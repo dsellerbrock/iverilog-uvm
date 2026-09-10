@@ -30,5 +30,5 @@ causal_trace: pform_make_struct_member_defaults rejects all nonscalar shapes; pf
 candidate: pform.cc shared declaration-shape helper gives outer dimensions precedence; four initialization paths skip empty queues while preserving separate type validation.
 focused_validation: Fourteen permanent paired entries pass legacy and JSON;neighbors27legacy/26JSON andmakecheck pass; final independent review clear.
 release_replay: OfficialUVM2020.3.2 passes the former declaration error but crashes at queue[$] assignment. Independent reducer crashes savedbaseline andcandidate in2017/2023; preexisting DD013, no release pass.
-pending_local_gates: integrated48575,UVM55602,NFA5788; fullJSON must start only after integrated terminates.
+pending_local_gates: integrated48575,UVM55602;NFA5788 passed58/58; fullJSON must start only after integrated terminates.
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3 and runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337.

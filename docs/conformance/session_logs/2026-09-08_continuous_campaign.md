@@ -1535,3 +1535,7 @@ abort on savedbaseline andcandidate inboth editions;DD013recordonly,not a releas
 pass. DD012records independentmixedarray/classqualifiedparserboundaries.
 Integrated48575,real-DPIUVM55602,NFA5788 started on frozen tools;fullJSON must
 follow integratedtermination. Last validated semanticbaseline03caa64c8 remains.
+
+L06 NFA5788 terminated0:58passed,0failed. Integrated48575 and UVM55602
+re-polled and confirmedlive. Compiler9915d687/runtime3b162fd9 unchanged.
+FullJSON remains unstarted until integrated terminates. No semantic closure.
