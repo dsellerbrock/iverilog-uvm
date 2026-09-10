@@ -1,0 +1,17 @@
+sv_assert_vacuous_action normal,-g2017 ivltests gold=sv_assert_vacuous_action.gold
+sv_assert_vacuous_action_2023 normal,-g2023 ivltests gold=sv_assert_vacuous_action.gold
+sv_assert_parameter_vacuous_action normal,-g2017 ivltests gold=sv_assert_parameter_vacuous_action.gold
+sv_assert_parameter_vacuous_action_2023 normal,-g2023 ivltests gold=sv_assert_parameter_vacuous_action.gold
+sv_assert_window_vacuous_action normal,-g2017 ivltests gold=sv_assert_window_vacuous_action.gold
+sv_assert_window_vacuous_action_2023 normal,-g2023 ivltests gold=sv_assert_window_vacuous_action.gold
+sv_assert_genvar_cycle_delay normal,-g2012 ivltests
+sv_assert_struct_parameter_delay normal,-g2012 ivltests
+sv_assert_unpacked_struct_parameter_delay normal,-g2012 ivltests
+sv_assert_named_parameter_repeat_window normal,-g2012 ivltests
+sv_assert_parameter_window_fixed_tree normal,-g2012 ivltests
+sv_assert_repeat_parameter_smoke normal,-g2012 ivltests
+sv_assert_repeat_parameter_override normal,-g2012 ivltests
+sv_assert_repeat_parameter_direct normal,-g2012 ivltests
+sva_paren_seq_conseq normal,-g2012 ivltests
+sv_assert_vacuous_disable normal,-g2017 ivltests gold=sv_assert_vacuous_disable.gold
+sv_assert_vacuous_disable_2023 normal,-g2023 ivltests gold=sv_assert_vacuous_disable.gold

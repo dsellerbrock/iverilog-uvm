@@ -26,7 +26,7 @@ module sva_param_inside_property_test;
     req = 0;
     we = 0;
     repeat (2) @(negedge clk);
-    if (passes != 4 || failures != 0)
+    if (passes != 12 || failures != 0)
       $fatal(1, "parameterized inside property counters %0d/%0d",
              passes, failures);
     $display("PASS: parameterized property clones inside expressions");

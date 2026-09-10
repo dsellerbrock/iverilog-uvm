@@ -42,9 +42,9 @@ module sva_paren_seq_conseq;
     $display("par   pass=%0d fail=%0d", par_pass,  par_fail);
     $display("par2  pass=%0d fail=%0d", par2_pass, par2_fail);
 
-    if (bare_pass === 1 && bare_fail === 1 &&
-        par_pass  === 1 && par_fail  === 1 &&
-        par2_pass === 1 && par2_fail === 1)
+    if (bare_pass === 6 && bare_fail === 1 &&
+        par_pass  === 6 && par_fail  === 1 &&
+        par2_pass === 6 && par2_fail === 1)
       $display("PASSED");
     else
       $display("FAILED");

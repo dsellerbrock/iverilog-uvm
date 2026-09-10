@@ -1000,3 +1000,27 @@ Sources/tests are now frozen. Integrated24044 reruns into integrated-final.log;
 UVM11066 remains live on the same installed compiler. Await both terminal,
 then ensure FPGA install prerequisite and run full JSON. No new blocker,
 allowlist relaxation, implementation commit or qualification claim was made.
+
+
+### S04 required local qualification complete (2026-09-09)
+
+All final processes terminated successfully on installed compiler
+5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116 and runtime
+7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec:
+- Integrated24044:4700total,4695pass,0fail,2NI,3EF; VPI104/104,
+  negative149/149,runtime15/15 (integrated-final.log).
+- Full JSON74365:1592tests,0fail (json-final.log). Previously installed FPGA
+  target/config were verified byte-identical to the current build before this
+  run; target SHA2565b62952431824671d43ba36b385316d7919de32d1d53c86dab7090c50674a6ae.
+- Full real-DPI UVM11066:355pass,0fail,0skip (uvm-cancellation.log).
+- Focus17/17legacy and8/8JSON, explicit legacy2017/2023 for all four permanent
+  reducers, NFA58/58, affected real-DPI UVM9/9, make check0 and independent final
+  code review pass. git diff --check clean; worktree list audited and preserved.
+
+The qualified scope is previously omitted vacuous user actions in the selected
+single-clock lowering paths, including proper cancellation and callback
+separation. DD-007 symbolic nonvacuous per-endpoint verdicts, S02 multiclock,
+U01 teardown/application qualification and broader standards/UVM/formal
+obligations remain open. Required remote CI and merge permissions remain
+unchanged. This ends the S04 patch, not the continuous campaign; selection
+resumes from current evidence after the implementation checkpoint.

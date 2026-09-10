@@ -11386,6 +11386,13 @@ static Statement* sva_cover_action_(const struct vlltype&loc,
 static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
 			      Statement*action);
 static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
+static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
+                               Statement*clear);
+
+static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
+				 perm_string req, perm_string vac_req,
+				 Statement*action);
+
 
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
    (sva_rewrite_sampled_) expands into an explicit history chain. d<=0
@@ -16884,10 +16891,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
-      perm_string vacuous;
-      if (endpoint_fanout && !cover) {
+      perm_string vacuous, pass_req, vac_req;
+      if (implication && !cover) {
 	    vacuous = sva_make_reg_(loc, inst, "vac", 0, true);
+	    pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
+	    vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
 	    init_zero.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
+	    init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
+	    init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
       }
 
 	/* Rewrite sampled-value functions in the already-Preponed action
@@ -16926,20 +16937,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  pass_stmt = sva_block_(loc, ordered);
 		  match_action = nullptr;
 	    }
-	    if (endpoint_fanout) {
-		  std::vector<Statement*> action;
-		  action.push_back(sva_reactive_wait_(loc));
-		  PExpr*dec = new PEBinary('-', sva_id_(loc, vacuous),
-					  sva_num32_(loc, 1));
-		  FILE_NAME(dec, loc);
-		  action.push_back(sva_if_(loc, sva_id_(loc, vacuous),
-			    sva_assign_(loc, vacuous, dec),
-			    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
-		  if (pass_stmt) action.push_back(pass_stmt);
-		  pass_stmt = sva_block_(loc, action);
-	    } else {
+	    if (!implication)
 		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
-	    }
       }
 
 	/* disable iff: own, else the module default (cloned). */
@@ -17173,7 +17172,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
       perm_string r_p;
       if (!negated && !cover) {
-	    r_p = sva_make_reg_(loc, inst, "p", 0, endpoint_fanout);
+	    r_p = sva_make_reg_(loc, inst, "p", 0, implication);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
 	// M12-1: per-tick STEP flags — set by the slot advance when an
@@ -17245,7 +17244,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (endpoint_fanout)
 		  for (long k = 0 ; k < OK ; k += 1)
 			clear_obligation(k, clr);
-	    if (endpoint_fanout && !cover)
+	    if (implication && !cover)
 		  clr.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
 	    if (!cover) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
@@ -17261,7 +17260,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* cbAssertionStart: an attempt launches every evaluated tick
 	   while this directive is enabled (inside the disable guard, like the
 	   legacy engine). Existing slots continue advancing after $assertoff. */
-      body.push_back(sva_observed_wait_(loc));
       body.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_attempt_state()));
       body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
@@ -17481,6 +17479,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					      sva_bit_(loc, 1));
 		  FILE_NAME(add, loc);
 		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
+	    } else if (implication && !forbidden) {
+		  acc_v.push_back(increment_verdict(r_p));
 	    } else {
 		  acc_v.push_back(sva_assign_(loc,
 					       (negated || forbidden) ? r_f : r_p,
@@ -17493,10 +17493,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 
 	    if (track_ob) {
+		  std::vector<Statement*> vac;
+		  vac.push_back(increment_verdict(r_p));
+		  vac.push_back(increment_verdict(vacuous));
+		  Statement*nonvacuous = forbidden ? increment_verdict(r_p)
+			: sva_assign_(loc, r_f, sva_bit_(loc, 1));
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
-					  sva_assign_(loc, forbidden ? r_p : r_f,
-						      sva_bit_(loc, 1)),
-					  nullptr));
+					  nonvacuous, sva_block_(loc, vac)));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 	    } else if (!negated && !cover && !endpoint_fanout) {
 		  die_v.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
@@ -17710,10 +17713,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   has neither — the counter is the record. */
       if (!negated && !cover) {
 	    std::vector<Statement*> hit;
-	    if (endpoint_fanout)
-		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_p), pass_stmt));
-	    else
+	    if (implication) {
+		  PExpr*nonvacuous = new PEBinary('-', sva_id_(loc, r_p),
+						 sva_id_(loc, vacuous));
+		  hit.push_back(sva_assign_(loc, pass_req,
+			new PEBinary('+', sva_id_(loc, pass_req), nonvacuous)));
+		  hit.push_back(sva_assign_(loc, vac_req,
+			new PEBinary('+', sva_id_(loc, vac_req), sva_id_(loc, vacuous))));
+		  hit.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
+		  sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
+	    } else {
 		  hit.push_back(pass_stmt);
+	    }
 	    hit.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_p),
 				   sva_block_(loc, hit), nullptr));
@@ -17778,6 +17789,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
       std::vector<Statement*> full = pre;
+      full.push_back(sva_observed_wait_(loc));
       Statement*core = sva_block_(loc, body);
 	    if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
@@ -17788,6 +17800,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
       for (size_t i = 0 ; i < post.size() ; i += 1)
 	    full.push_back(post[i]);
+
+      if (disable) sva_disable_abort_(loc, disable, clear_attempt_state());
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
@@ -18416,6 +18430,137 @@ static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
       PRepeat*rep = new PRepeat(count, action);
       FILE_NAME(rep, loc);
       return rep;
+}
+
+/* One owner for arbitrary user pass statements. The checker publishes
+   monotonic counts in Observed; callbacks exclude vacuity, while detached
+   Reactive user actions include it. Snapshot before dispatch so delayed
+   actions cannot stall the checker or lose a subsequent request edge. */
+static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
+				 perm_string req, perm_string vac_req,
+				 Statement*action)
+{
+      perm_string ack = sva_make_reg_(loc, inst, "passack", 0, true);
+      perm_string vac_ack = sva_make_reg_(loc, inst, "vacack", 0, true);
+      perm_string due = sva_make_reg_(loc, inst, "passdue", 0, true);
+      perm_string vac_due = sva_make_reg_(loc, inst, "vacdue", 0, true);
+      std::vector<PEEvent*> evs;
+      evs.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, req)));
+      evs.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, vac_req)));
+      PEventStatement*wait = new PEventStatement(evs);
+      FILE_NAME(wait, loc);
+      PExpr*idle = sva_logic_(loc, 'a',
+	    new PEBComp('e', sva_id_(loc, req), sva_id_(loc, ack)),
+	    new PEBComp('e', sva_id_(loc, vac_req), sva_id_(loc, vac_ack)));
+      std::vector<Statement*> loop;
+      loop.push_back(sva_if_(loc, idle, wait, nullptr));
+      loop.push_back(sva_assign_(loc, due,
+	    new PEBinary('-', sva_id_(loc, req), sva_id_(loc, ack))));
+      loop.push_back(sva_assign_(loc, vac_due,
+	    new PEBinary('-', sva_id_(loc, vac_req), sva_id_(loc, vac_ack))));
+      loop.push_back(sva_assign_(loc, ack, sva_id_(loc, req)));
+      loop.push_back(sva_assign_(loc, vac_ack, sva_id_(loc, vac_req)));
+      loop.push_back(sva_reactive_wait_(loc));
+      loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
+	    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+      if (action) {
+	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+	    FILE_NAME(spawn, loc);
+	    std::vector<Statement*> one;
+	    one.push_back(sva_gate_(loc, action));
+	    spawn->set_statement(one);
+	    loop.push_back(sva_repeat_(loc,
+		  new PEBinary('+', sva_id_(loc, due), sva_id_(loc, vac_due)),
+		  spawn));
+      }
+      PForever*forever = new PForever(sva_block_(loc, loop));
+      FILE_NAME(forever, loc);
+      std::vector<Statement*> start;
+      start.push_back(sva_reactive_process_(loc));
+      start.push_back(forever);
+      PDelayStatement*after_init = new PDelayStatement(
+	    sva_num32_(loc, 0), sva_block_(loc, start));
+      FILE_NAME(after_init, loc);
+      std::vector<Statement*> init;
+      init.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, vac_ack, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, due, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, vac_due, sva_num32_(loc, 0)));
+      init.push_back(after_init);
+      PProcess*dispatcher = pform_make_behavior(
+	    IVL_PR_INITIAL, sva_block_(loc, init), nullptr);
+      FILE_NAME(dispatcher, loc);
+}
+
+/* A pulse between assertion clocks still cancels live attempts. Observe
+   the exact-false-to-exact-true transition independently of the clocked
+   Observed-region level check, as in the parameter-repeat engine. */
+static void sva_disable_abort_(const struct vlltype&loc, PExpr*disable,
+                               Statement*clear)
+{
+      PExpr*copy = sva_clone_expr_(disable);
+      if (!copy) {
+            cerr << loc << ": sorry: cannot preserve asynchronous disable iff "
+                 << "for this expression." << endl;
+            error_count += 1;
+            delete clear;
+            return;
+      }
+      PExpr*truth = new PEBComp('E', sva_not_(loc, sva_not_(loc, copy)),
+            sva_bit_(loc, 1));
+      FILE_NAME(truth, loc);
+      std::vector<PEEvent*> events;
+      events.push_back(new PEEvent(PEEvent::POSEDGE, truth));
+      PEventStatement*abort = new PEventStatement(events);
+      FILE_NAME(abort, loc);
+      abort->set_statement(clear);
+      PProcess*process = pform_make_behavior(IVL_PR_ALWAYS, abort, nullptr);
+      FILE_NAME(process, loc);
+}
+
+/* Track each fixed antecedent from its enabled start to its first failed
+   sample or successful endpoint. Descending updates preserve old ages and
+   do not manufacture failed attempts from zero-filled startup history. */
+static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst,
+	    const std::vector<std::vector<perm_string> >&checks,
+	    perm_string vac_req, std::vector<Statement*>&init,
+	    std::vector<Statement*>&body, std::vector<perm_string>&state)
+{
+      assert(!checks.empty());
+      perm_string match = sva_make_reg_(loc, inst, "avmatch", 0);
+      init.push_back(sva_assign_(loc, match, sva_bit_(loc, 0)));
+      for (size_t k = 1; k < checks.size(); ++k) {
+	    perm_string reg = sva_make_reg_(loc, inst, "avlive", k);
+	    state.push_back(reg);
+	    init.push_back(sva_assign_(loc, reg, sva_bit_(loc, 0)));
+      }
+      for (size_t k = checks.size(); k-- > 0;) {
+	    auto gate = [&]() -> PExpr* {
+		  return k ? (PExpr*)sva_id_(loc, state[k-1])
+			   : sva_enabled_expr_(loc, inst);
+	    };
+	    auto truth = [&]() -> PExpr* {
+		  PExpr*value = sva_bit_(loc, 1);
+		  for (size_t j = 0; j < checks[k].size(); ++j) {
+			PExpr*term = new PEBComp('E', sva_id_(loc, checks[k][j]),
+						sva_bit_(loc, 1));
+			FILE_NAME(term, loc);
+			value = sva_logic_(loc, 'a', value, term);
+		  }
+		  return value;
+	    };
+	    if (!checks[k].empty()) {
+		  PExpr*dead = sva_logic_(loc, 'a', gate(), sva_not_(loc, truth()));
+		  PExpr*add = new PEBinary('+', sva_id_(loc, vac_req), sva_num32_(loc, 1));
+		  FILE_NAME(add, loc);
+		  body.push_back(sva_if_(loc, dead,
+			    sva_assign_(loc, vac_req, add), nullptr));
+	    }
+	    body.push_back(sva_assign_(loc,
+		  k+1 == checks.size() ? match : state[k],
+		  sva_logic_(loc, 'a', gate(), truth())));
+      }
+      return match;
 }
 
 /* M9-7: expand a FIXED-length sequence chain (constant ##N delays, no
@@ -21031,6 +21176,65 @@ static bool sva_parameter_checker_preflight_(
       return true;
 }
 
+/* Preserve each fixed branch's viability at every start age. Combining
+   branch states before testing parent loss makes OR/AND vacuity a property
+   of the whole antecedent, not of an individual failed branch. */
+template <typename Capture>
+static std::vector<perm_string> sva_fixed_branch_progress_(
+      const struct vlltype&loc, unsigned inst, sva_stree_t*tree,
+      Capture&capture, unsigned&serial, std::vector<Statement*>&init,
+      std::vector<Statement*>&body, std::vector<perm_string>&state)
+{
+      std::vector<perm_string> result;
+      if (tree->kind != sva_stree_t::LEAF) {
+            std::vector<perm_string> left = sva_fixed_branch_progress_(
+                  loc, inst, tree->a, capture, serial, init, body, state);
+            std::vector<perm_string> right = sva_fixed_branch_progress_(
+                  loc, inst, tree->b, capture, serial, init, body, state);
+            assert(left.size() == right.size());
+            assert(tree->kind == sva_stree_t::SEQ_OR
+                  || tree->kind == sva_stree_t::SEQ_AND);
+            for (size_t k = 0; k < left.size(); ++k) {
+                  perm_string reg = sva_make_reg_(loc, inst, "avbranch", serial++);
+                  init.push_back(sva_assign_(loc, reg, sva_bit_(loc, 0)));
+                  body.push_back(sva_assign_(loc, reg, sva_logic_(loc,
+                        tree->kind == sva_stree_t::SEQ_OR ? 'o' : 'a',
+                        sva_id_(loc, left[k]), sva_id_(loc, right[k]))));
+                  result.push_back(reg);
+            }
+            return result;
+      }
+      assert(tree->chain);
+      sva_splice_sequences_(loc, *tree->chain);
+      std::vector<std::vector<perm_string> > checks(1);
+      size_t age = 0;
+      for (size_t k = 0; k < tree->chain->size(); ++k) {
+            sva_seq_step_t&step = (*tree->chain)[k];
+            age += step.delay_lo;
+            checks.resize(age+1);
+            checks[age].push_back(capture(step.expr));
+            step.expr = nullptr; // captured assignment now owns the expression
+      }
+      for (size_t k = 0; k < checks.size(); ++k) {
+            perm_string reg = sva_make_reg_(loc, inst, "avbranch", serial++);
+            result.push_back(reg);
+            state.push_back(reg);
+            init.push_back(sva_assign_(loc, reg, sva_bit_(loc, 0)));
+      }
+      for (size_t k = checks.size(); k-- > 0;) {
+            PExpr*live = k ? (PExpr*)sva_id_(loc, result[k-1])
+                          : sva_bit_(loc, 1);
+            for (size_t j = 0; j < checks[k].size(); ++j) {
+                  PExpr*truth = new PEBComp('E', sva_id_(loc, checks[k][j]),
+                        sva_bit_(loc, 1));
+                  FILE_NAME(truth, loc);
+                  live = sva_logic_(loc, 'a', live, truth);
+            }
+            body.push_back(sva_assign_(loc, result[k], live));
+      }
+      return result;
+}
+
 /* IEEE 1800-2017 16.9.2: an overridable-parameter consecutive repetition
  * in the variable-length antecedent shape used by OpenTitan's
  * prim_esc_rxtx_assert_fpv:
@@ -21058,7 +21262,7 @@ static bool sva_parameter_repeat_try_assertion_(
 				sva_property_t*prop,
 				Statement*fail_stmt,
 				Statement*pass_stmt,
-				int kind)
+				int kind, sva_stree_t*fixed_ante = nullptr)
 {
       bool cover = kind == 2;
       bool standalone_cover_rewrite = false;
@@ -21231,19 +21435,9 @@ static bool sva_parameter_repeat_try_assertion_(
       unsigned capture_idx = 0;
       if (prefix)
 	    r_prefix = capture(prefix->expr, capture_idx++);
-      perm_string r_keep = capture(repeat.expr, capture_idx++);
+      perm_string r_keep;
+      if (!fixed_ante) r_keep = capture(repeat.expr, capture_idx++);
       perm_string r_cons = capture(cons.expr, capture_idx++);
-
-      for (std::map<std::string, pform_name_t>::const_iterator it =
-		 prep_sampled.begin() ; it != prep_sampled.end() ; ++it)
-	    init_zero.push_back(sva_hist_on_stmt_(loc, it->second));
-      if (prep_live_operands > 0)
-	    cerr << loc << ": warning: this assertion has "
-		 << prep_live_operands << " operand(s) that are read live "
-		 << "instead of sampled in the Preponed region (IEEE "
-		 << "1800-2017 16.5.1); a blocking write to one of them in "
-		 << "the clock time slot can be visible to the assertion."
-		 << endl;
 
       perm_string pipe = sva_make_parameter_pipe_(
 		loc, inst, sva_clone_expr_(top_src));
@@ -21252,8 +21446,7 @@ static bool sva_parameter_repeat_try_assertion_(
       perm_string r_end = sva_make_reg_(loc, inst, "rend", 0, true);
       perm_string r_count;
       perm_string r_pass_req;
-      perm_string r_pass_ack;
-      perm_string r_pass_due;
+      perm_string r_vac_req;
       perm_string r_fail_req;
       perm_string r_fail_ack;
       perm_string r_fail_due;
@@ -21261,8 +21454,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	    r_count = sva_make_reg_(loc, inst, "cnt", 0, true);
       } else {
 	    r_pass_req = sva_make_reg_(loc, inst, "rpreq", 0, true);
-	    r_pass_ack = sva_make_reg_(loc, inst, "rpack", 0, true);
-	    r_pass_due = sva_make_reg_(loc, inst, "rpdue", 0, true);
+	    r_vac_req = sva_make_reg_(loc, inst, "rvreq", 0, true);
 	    r_fail_req = sva_make_reg_(loc, inst, "rfreq", 0, true);
 	    r_fail_ack = sva_make_reg_(loc, inst, "rfack", 0, true);
 	    r_fail_due = sva_make_reg_(loc, inst, "rfdue", 0, true);
@@ -21283,9 +21475,7 @@ static bool sva_parameter_repeat_try_assertion_(
       } else {
 	    init_zero.push_back(sva_assign_(loc, r_pass_req,
 				      sva_bit_(loc, 0)));
-	    init_zero.push_back(sva_assign_(loc, r_pass_ack,
-				      sva_bit_(loc, 0)));
-	    init_zero.push_back(sva_assign_(loc, r_pass_due,
+	    init_zero.push_back(sva_assign_(loc, r_vac_req,
 				      sva_bit_(loc, 0)));
 	    init_zero.push_back(sva_assign_(loc, r_fail_req,
 				      sva_bit_(loc, 0)));
@@ -21314,7 +21504,7 @@ static bool sva_parameter_repeat_try_assertion_(
       auto age_source = [&]() -> PExpr* {
 	    if (!direct_repeat) return sva_id_(loc, pipe);
 	    PEBinary*inject = new PEBinary('|', sva_id_(loc, pipe),
-				      sva_enabled_expr_(loc, inst));
+				      fixed_ante ? sva_bit_(loc, 1) : sva_enabled_expr_(loc, inst));
 	    FILE_NAME(inject, loc);
 	    return inject;
       };
@@ -21356,6 +21546,60 @@ static bool sva_parameter_repeat_try_assertion_(
       };
 
       std::vector<Statement*> body;
+      std::vector<perm_string> fixed_state;
+      if (fixed_ante) {
+            unsigned serial = 0;
+            std::vector<perm_string> branch_state;
+            auto capture_fixed = [&](PExpr*expr) -> perm_string {
+                  return capture(expr, capture_idx++);
+            };
+            std::vector<perm_string> viable = sva_fixed_branch_progress_(
+                  loc, inst, fixed_ante, capture_fixed, serial,
+                  init_zero, body, branch_state);
+            std::vector<std::vector<perm_string> > checks(viable.size());
+            for (size_t k = 0; k < viable.size(); ++k)
+                  checks[k].push_back(viable[k]);
+            r_keep = sva_fixed_antecedent_(loc, inst, checks, r_vac_req,
+                  init_zero, body, fixed_state);
+            fixed_state.insert(fixed_state.end(), branch_state.begin(),
+                  branch_state.end());
+            delete repeat.expr;
+            repeat.expr = nullptr;
+      }
+      for (std::map<std::string, pform_name_t>::const_iterator it =
+		 prep_sampled.begin() ; it != prep_sampled.end() ; ++it)
+	    init_zero.push_back(sva_hist_on_stmt_(loc, it->second));
+      if (prep_live_operands > 0)
+	    cerr << loc << ": warning: this assertion has "
+		 << prep_live_operands << " operand(s) that are read live "
+		 << "instead of sampled in the Preponed region (IEEE "
+		 << "1800-2017 16.5.1); a blocking write to one of them in "
+		 << "the clock time slot can be visible to the assertion."
+		 << endl;
+
+      if (!cover && !fixed_ante) {
+            /* Only ages below lo have never produced an antecedent
+               endpoint. A later failed extension is not vacuity. */
+            PExpr*old = new PEBShift('r', age_source(),
+                  sva_clone_expr_(repeat.rep_lo_expr));
+            FILE_NAME(old, loc);
+            PExpr*unmatched = new PEBinary('-', countones(age_source()),
+                  countones(old));
+            FILE_NAME(unmatched, loc);
+            PExpr*add = new PEBinary('+', sva_id_(loc, r_vac_req), unmatched);
+            FILE_NAME(add, loc);
+            body.push_back(sva_if_(loc,
+                  sva_not_(loc, exact_true(sva_id_(loc, r_keep))),
+                  sva_assign_(loc, r_vac_req, add), nullptr));
+            if (prefix) {
+                  PExpr*dead = sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
+                        sva_not_(loc, exact_true(sva_id_(loc, r_prefix))));
+                  PExpr*one = new PEBinary('+', sva_id_(loc, r_vac_req), number32(1));
+                  FILE_NAME(one, loc);
+                  body.push_back(sva_if_(loc, dead,
+                        sva_assign_(loc, r_vac_req, one), nullptr));
+            }
+      }
       body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
@@ -21575,6 +21819,8 @@ static bool sva_parameter_repeat_try_assertion_(
 
       auto clear_state = [&]() -> Statement* {
 	    std::vector<Statement*> clear;
+            for (size_t k = 0; k < fixed_state.size(); ++k)
+                  clear.push_back(sva_assign_(loc, fixed_state[k], sva_bit_(loc, 0)));
 	    clear.push_back(sva_assign_(loc, pipe, sva_bit_(loc, 0)));
 	    clear.push_back(sva_assign_(loc, r_due, sva_bit_(loc, 0)));
 	    clear.push_back(sva_assign_(loc, r_fire, sva_bit_(loc, 0)));
@@ -21615,7 +21861,7 @@ static bool sva_parameter_repeat_try_assertion_(
 
       if (disable_event) {
 	    PEBComp*disable_became_true = new PEBComp(
-		  'E', disable_event, sva_bit_(loc, 1));
+		  'E', sva_not_(loc, sva_not_(loc, disable_event)), sva_bit_(loc, 1));
 	    FILE_NAME(disable_became_true, loc);
 	    std::vector<PEEvent*> abort_evs;
 	    abort_evs.push_back(new PEEvent(PEEvent::POSEDGE,
@@ -21685,8 +21931,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	    FILE_NAME(dispatcher, loc);
       };
       if (!cover) {
-	    make_dispatcher(r_pass_req, r_pass_ack, r_pass_due,
-			    pass_stmt, SVA_CB_SUCCESS);
+	    sva_pass_dispatcher_(loc, inst, r_pass_req, r_vac_req, pass_stmt);
 	    pass_stmt = nullptr;
 	    make_dispatcher(r_fail_req, r_fail_ack, r_fail_due,
 			    fail_action, SVA_CB_FAILURE);
@@ -21849,15 +22094,18 @@ static bool sva_parameter_window_try_assertion_(
       }
 
 	/* Commit only after the complete endpoint match has been cloned. */
+      sva_stree_t*fixed_ante = nullptr;
       if (tree_form) {
-	    sva_tree_delete_(prop->ante_tree, true);
+            if (kind != 2) fixed_ante = prop->ante_tree;
+            else sva_tree_delete_(prop->ante_tree, true);
 	    prop->ante_tree = nullptr;
 	    prop->tree->chain = nullptr;
 	    sva_tree_delete_(prop->tree, true);
 	    prop->tree = nullptr;
 	    prop->seq = cons_seq;
       } else {
-	    pform_sva_destroy_sequence(prop->antecedent);
+            if (kind != 2) fixed_ante = sva_chain_take_tree_(prop->antecedent);
+            else pform_sva_destroy_sequence(prop->antecedent);
       }
       prop->antecedent = new std::vector<sva_seq_step_t>;
       sva_seq_step_t repeat;
@@ -21869,7 +22117,8 @@ static bool sva_parameter_window_try_assertion_(
       prop->antecedent->push_back(repeat);
 
       bool lowered = sva_parameter_repeat_try_assertion_(
-	    loc, prop, fail_stmt, pass_stmt, kind);
+	    loc, prop, fail_stmt, pass_stmt, kind, fixed_ante);
+      sva_tree_delete_(fixed_ante, true);
 	/* Every fallible prerequisite was checked before mutation. If a future
 	   change adds a new decline path, the normalized property is still
 	   self-contained and owns `match`; consume it loudly instead of
@@ -21958,7 +22207,14 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
 
-      pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+      perm_string pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
+      perm_string vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
+      init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
+      init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
+      Statement*user_pass = pass_stmt;
+      PExpr*add_pass = new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1));
+      FILE_NAME(add_pass, loc);
+      pass_stmt = sva_assign_(loc, pass_req, add_pass);
       Statement*fail_action = fail_stmt;
       if (!fail_action) {
 	    std::list<named_pexpr_t> no_args;
@@ -22016,18 +22272,22 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
 
       std::vector<Statement*> body;
-      body.push_back(sva_observed_wait_(loc));
       body.push_back(sva_kill_reset_stmt_(loc, inst, r_kill,
 	    sva_assign_(loc, pipe, sva_bit_(loc, 0))));
       body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
+      std::vector<std::vector<perm_string> > ante_checks(1);
+      ante_checks[0].push_back(r_ante);
+      std::vector<perm_string> ante_state;
+      perm_string ante_match = sva_fixed_antecedent_(loc, inst, ante_checks,
+            vac_req, init_zero, body, ante_state);
+
       PENumber*one_shift = new PENumber(new verinum((uint64_t)1, 32));
       FILE_NAME(one_shift, loc);
       PEBShift*aged = new PEBShift('l', sva_id_(loc, pipe), one_shift);
       FILE_NAME(aged, loc);
-      PEBLogic*start = new PEBLogic(
-	    'a', sva_id_(loc, r_ante), sva_enabled_expr_(loc, inst));
+      PExpr*start = sva_id_(loc, ante_match);
       FILE_NAME(start, loc);
       PEBinary*inject = new PEBinary('|', aged, start);
       FILE_NAME(inject, loc);
@@ -22040,6 +22300,7 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       body.push_back(sva_if_(loc, due, verdict, nullptr));
 
       std::vector<Statement*> full = pre;
+      full.push_back(sva_observed_wait_(loc));
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    Statement*clear = sva_assign_(loc, pipe, sva_bit_(loc, 0));
@@ -22051,6 +22312,8 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       }
       for (size_t k = 0 ; k < post.size() ; k += 1)
 	    full.push_back(post[k]);
+
+      if (disable) sva_disable_abort_(loc, disable, sva_assign_(loc, pipe, sva_bit_(loc, 0)));
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
@@ -22065,6 +22328,8 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
+
+      sva_pass_dispatcher_(loc, inst, pass_req, vac_req, user_pass);
 
       /* Expressions now belong to the synthesized assignments.  Match the
 	 other assertion engines' shallow vector cleanup. */
@@ -22951,6 +23216,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Negated properties (op 3) and plain sequences (op 0) attempt
 	   every cycle. */
       bool negated = (prop->op_type == 3);
+      bool track_vacuity = kind != 2 && (prop->op_type == 1 || prop->op_type == 2);
       if (kind == 2 && negated) {
 	    cerr << loc << ": sorry: `cover property (not ...)` is not "
 		 << "supported; the cover is dropped." << endl;
@@ -23076,7 +23342,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   match by folding the report into the pass action (which the
 	   match machinery below fires). This also makes the match block
 	   run when the user gave no pass statement. */
-      if (kind != 2 && !negated) {
+      perm_string pass_req, vac_req;
+      Statement*user_pass = nullptr;
+      if (track_vacuity) {
+	    pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
+	    vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
+	    init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
+	    init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
+	    user_pass = pass_stmt;
+	    pass_stmt = sva_assign_(loc, pass_req,
+		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));
+      } else if (kind != 2 && !negated) {
 	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
       }
 
@@ -23137,7 +23413,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Rewrite sampled-value functions, then capture every step
 	   boolean (and the antecedent) into 1-bit sample registers at
 	   the top of the checker. */
-      if (ante) {
+      std::vector<std::vector<perm_string> > ante_checks(ante_span+1);
+      if (track_vacuity) {
+	    long offset = 0;
+	    for (size_t j = 0; j < prop->antecedent->size(); ++j) {
+		  const sva_seq_step_t&step = (*prop->antecedent)[j];
+		  offset += step.delay_lo;
+		  perm_string cap = sva_make_reg_(loc, inst, "avsample", j);
+		  pre.push_back(sva_assign_(loc, cap, rewrite_guard(step.expr)));
+		  ante_checks[offset].push_back(cap);
+	    }
+      } else if (ante) {
 	    ante = rewrite_guard(ante);
       } else {
 	      /* Fixed-delay sequence antecedent: match(now) is the AND
@@ -23181,7 +23467,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    ante = conj;
       }
       perm_string r_ante = sva_make_reg_(loc, inst, "b", 999);
-      pre.push_back(sva_assign_(loc, r_ante, ante));
+      if (!track_vacuity)
+	    pre.push_back(sva_assign_(loc, r_ante, ante));
       std::vector<perm_string> r_b (seq.size());
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
 	    PExpr*be = rewrite_guard(seq[j].expr);
@@ -23239,8 +23526,16 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
 
+      std::vector<Statement*> ante_body;
+      std::vector<perm_string> ante_state;
+      perm_string ante_match;
+      if (track_vacuity)
+	    ante_match = sva_fixed_antecedent_(loc, inst, ante_checks,
+		  vac_req, init_zero, ante_body, ante_state);
       auto clear_attempt_state = [&]() -> Statement* {
 	    std::vector<Statement*> clr;
+	    for (size_t k = 0; k < ante_state.size(); ++k)
+		  clr.push_back(sva_assign_(loc, ante_state[k], sva_bit_(loc, 0)));
 	    for (long p = 0 ; p < P ; p += 1)
 		  clr.push_back(sva_assign_(loc, t_regs[p], sva_bit_(loc, 0)));
 	    for (long q = 0 ; q < wregs_n ; q += 1)
@@ -23257,12 +23552,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       };
 
 	/* The per-clock checker body. */
-      std::vector<Statement*> body;
+      std::vector<Statement*> body = ante_body;
 
 	/* g is the current tick's newly launched attempt. Off suppresses only
 	   this injection; older pipeline/window tokens continue to mature. */
 	body.push_back(sva_assign_(loc, r_g,
-	      sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
+	      track_vacuity ? (PExpr*)sva_id_(loc, ante_match)
+		: sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
 			 sva_id_(loc, r_ante))));
       for (size_t j = 0 ; j < nfixed ; j += 1) {
 	    if (offs[j] != 0) continue;
@@ -23543,6 +23839,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Any pass action not consumed by a match site above (cover,
 	   negated) is dropped. */
       delete pass_stmt;
+      if (track_vacuity)
+	    sva_pass_dispatcher_(loc, inst, pass_req, vac_req, user_pass);
 
 	/* M12B-rest: cbAssertionStart -- an attempt starts at every
 	   sampled clock tick the checker evaluates (IEEE 1800-2017
@@ -23556,11 +23854,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       body.insert(body.begin(), sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_attempt_state()));
-      body.insert(body.begin(), sva_observed_wait_(loc));
 
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */
       std::vector<Statement*> full = pre;
+      full.push_back(sva_observed_wait_(loc));
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
@@ -23571,6 +23869,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
       for (size_t k = 0 ; k < post.size() ; k += 1)
 	    full.push_back(post[k]);
+
+      if (disable) sva_disable_abort_(loc, disable, clear_attempt_state());
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);

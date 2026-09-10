@@ -321,7 +321,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### S04 — Missing vacuous user pass actions in single-clock implications
 
 - **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.12.7,16.14.1.
-- **State:** AWAITING VALIDATION — all selected producers implemented and code reviewed; full required gates remain pending (not closed).
+- **State:** LOCALLY VALIDATED — required local gates and independent review pass; remote CI remains required before merge.
 - **Evidence:** At locally validated61ca5f336, false antecedent `a |-> b`
   produces0pass/0fail instead of1pass/0fail in2017/2023, default/legacy modes.
   Four compile/runtime logs and reducer in campaign-20260908/s04.
@@ -332,7 +332,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
   cancellation includes nonunit integral true values.
 - **Validated so far:** Four paired reducers, VPI callback distinction,
   focused legacy17/17, JSON8/8, NFA58/58, affected real-DPI UVM9/9, make check
-  and independent code review. Full integrated/JSON/UVM outcomes pending.
+  and independent code review. Full integrated4700/4695/0/2/3, VPI104/104,
+  negative149/149, runtime15/15, JSON1592/0 and real-DPI UVM355/0/0 pass.
 - **Limits:** DD-007 symbolic nonvacuous per-endpoint verdict behavior remains
   separate and unqualified; no complete parent-feature claim.
 - **Closure:** Correct vacuous user actions per attempt while preserving sampling,

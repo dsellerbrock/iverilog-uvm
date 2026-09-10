@@ -28,7 +28,7 @@ module sva_fixed_uarray_equality_test;
     @(negedge clk);
     if (arrays_equal) $fatal(1, "live whole-array equality is wrong");
     repeat (2) @(negedge clk);
-    if (passes != 1 || failures != 0)
+    if (passes != 4 || failures != 0)
       $fatal(1, "fixed-array SVA equality counters %0d/%0d",
              passes, failures);
     $display("PASS: fixed unpacked-array equality and per-element $past");

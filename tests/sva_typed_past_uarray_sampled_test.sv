@@ -48,7 +48,7 @@ module sva_typed_past_uarray_sampled_test;
     data_words[1][120] = ~data_words[1][120];
     repeat (2) @(negedge clk);
 
-    if (stable_passes != 1 || changed_passes != 1 || failures != 0)
+    if (stable_passes != 6 || changed_passes != 6 || failures != 0)
       $fatal(1, "typed $past / unpacked sampled functions: %0d/%0d/%0d",
              stable_passes, changed_passes, failures);
     $display("PASS: typed $past and whole-array $stable/$changed");

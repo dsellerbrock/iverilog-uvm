@@ -99,7 +99,8 @@ module window_goto_isolation_nfa_only;
              _ivl_sva0_cnt0, _ivl_sva1_cnt0, _ivl_sva2_cnt0);
     $display("cv4=%0d (exp 0) cv5=%0d (exp 1) cv6=%0d (exp 1)",
              _ivl_sva3_cnt0, _ivl_sva4_cnt0, _ivl_sva5_cnt0);
-    $display("ap pass=%0d (exp 0) fail=%0d (exp 1)", passes, fails);
+    // 17 starts: 16 vacuous passes and one required nonvacuous failure.
+    $display("ap pass=%0d (exp 16) fail=%0d (exp 1)", passes, fails);
     $finish(0);
   end
 endmodule

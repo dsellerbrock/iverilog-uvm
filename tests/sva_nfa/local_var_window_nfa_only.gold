@@ -1,2 +1,19 @@
-W3 MATCH id=aa
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=00
+W3 PASS id=aa
+W3 PASS id=aa
+W3 PASS id=00
 w1=2 w2=2 (each expect 2)
