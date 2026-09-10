@@ -20,7 +20,7 @@ validation_state: V04 paired2/2legacy+JSON, coverage neighbors75/65,makecheck an
 next_validation: V04 fullJSON after integrated completes; all remaining required local gates before checkpointing semantic baseline. Remote CI/review before merging.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
-publication_policy_checkpoint: 61001162b
+publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
 published_batches:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
@@ -147,3 +147,6 @@ consolidated_main_pr:
   state_at_creation: open, ready for review, mergeable
   outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
+
+last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+validated_increments_since_publication: 0
