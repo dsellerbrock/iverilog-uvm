@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_auto_block_reentry.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "main"
+    ],
+    "gold": "sv_auto_block_reentry"
+}

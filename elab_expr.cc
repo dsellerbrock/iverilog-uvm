@@ -247,18 +247,16 @@ NetESFunc* make_randomize_with_expr(
                         delete object_slots.back();
                         object_slots.pop_back();
                   }
-		    // A top-level `with' constraint item this pass could not
-		    // translate to solver IR is silently dropped -- the
-		    // randomize() call still succeeds, just without that
-		    // constraint in effect. That is a real behavioral gap
-		    // (the LRM has no notion of a partially-applied
-		    // constraint), so make it loud instead of silent.
+                  // IEEE 1800 18.7 requires every inline item to apply.
+                  // Keep the normal ownership path, but prevent code generation
+                  // for a call whose requested constraints cannot be lowered.
 		  if (des->errors == errors_before) {
 			ostringstream item_text;
 			wc->dump(item_text);
-			cerr << wc->get_fileline() << ": warning: constraint `"
+			cerr << wc->get_fileline() << ": error: constraint `"
 			     << item_text.str() << "' could not be translated and "
-			     << "is being ignored (compile-progress fallback)." << endl;
+			     << "the randomize call cannot be compiled." << endl;
+                        des->errors += 1;
 		  }
 		  continue;
 	    }
@@ -13101,6 +13099,17 @@ static covgrp_item_option_path_t rewrite_covergroup_item_option_component_(
 	  || !component.index.empty())
 	    return COVGRP_ITEM_OPTION_NOT_PSEUDO;
 
+      if (component.name == perm_string::literal("option")) {
+            auto member = std::next(cur);
+            if (member == end || !member->index.empty())
+                  return COVGRP_ITEM_OPTION_NOT_PSEUDO;
+            int property = class_type->covgrp_option_prop(member->name);
+            if (property < 0) return COVGRP_ITEM_OPTION_NOT_PSEUDO;
+            cur = member;
+            component.name = lex_strings.make(class_type->get_prop_name(property));
+            return COVGRP_ITEM_OPTION_SUPPORTED;
+      }
+
       pform_name_t::const_iterator option = std::next(cur);
       if (option == end)
 	    return COVGRP_ITEM_OPTION_NOT_PSEUDO;
@@ -25934,6 +25943,72 @@ unsigned PENewClass::test_width(Design*, NetScope*, width_mode_t&)
  * The derived argument is the type of the class derived from the
  * current one. This is used to get chained constructor arguments, if necessary.
  */
+// Compile option initializers as ordinary assignments. Constructor actuals
+// have already been captured in the object, so an initializer never evaluates
+// an actual argument again and retains normal four-state expression semantics.
+static NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
+                                        const netclass_t*type, NetExpr*object,
+                                        const LineInfo&loc)
+{
+      if (!type->is_covergroup()) return object;
+      const auto&options = type->covgrp_options();
+      if (!options.weight_expr && !options.get_inst_coverage_expr) return object;
+      NetScope*declaration = options.declaration_scope;
+      ivl_assert(loc, declaration);
+      NetScope*wrapper = new NetScope(declaration, hname_t(declaration->local_symbol()),
+                                     NetScope::FUNC);
+      wrapper->is_auto(true);
+      wrapper->set_line(&loc);
+      wrapper->set_elab_stage(3);
+      NetNet*receiver = new NetNet(wrapper, wrapper->local_symbol(), NetNet::REG, type);
+      receiver->port_type(NetNet::PINPUT);
+      vector<NetNet*> ports(1, receiver);
+      vector<NetExpr*> args(1, object);
+      if (!type->class_scope()) {
+            NetNet*parent = find_implicit_this_handle(des, caller);
+            if (!parent) {
+                  cerr << loc.get_fileline()
+                       << ": error: embedded covergroup option initializer requires its enclosing object." << endl;
+                  des->errors += 1;
+                  return object;
+            }
+            NetNet*this_arg = new NetNet(wrapper, perm_string::literal(THIS_TOKEN),
+                                        NetNet::REG, parent->net_type());
+            this_arg->port_type(NetNet::PINPUT);
+            ports.push_back(this_arg);
+            args.push_back(new NetESignal(parent));
+      }
+      vector<NetExpr*> defaults(ports.size(), nullptr);
+      NetFuncDef*def = new NetFuncDef(wrapper, receiver, ports, defaults);
+      wrapper->set_func_def(def);
+      NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+      body->set_line(loc);
+      for (size_t idx = 0; idx < type->covgrp_ctor_formal_count(); ++idx) {
+            NetNet*formal = new NetNet(wrapper, type->covgrp_ctor_formal_name(idx),
+                                      NetNet::REG, type->covgrp_ctor_formal_type(idx));
+            NetExpr*value = new NetEProperty(new NetESignal(receiver),
+                                            type->covgrp_ctor_formal_prop(idx), nullptr);
+            body->append(new NetAssign(new NetAssign_(formal), value));
+      }
+      auto assign_option = [&](int prop, PExpr*expr) {
+            if (!expr) return;
+            NetExpr*value = elaborate_rval_expr(des, wrapper, type->get_prop_type(prop),
+                                                expr, false);
+            if (!value) return;
+            NetAssign_*lval = new NetAssign_(receiver);
+            lval->set_property(lex_strings.make(type->get_prop_name(prop)), prop);
+            NetAssign*assignment = new NetAssign(lval, value);
+            assignment->set_line(*expr);
+            body->append(assignment);
+      };
+      assign_option(options.weight_prop, options.weight_expr);
+      assign_option(options.get_inst_coverage_prop, options.get_inst_coverage_expr);
+      def->set_proc(body);
+      NetEUFunc*call = new NetEUFunc(caller, wrapper, new NetESignal(receiver), args, true);
+      call->set_line(loc);
+      return call;
+}
+
 NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 						 const netclass_t*ctype,
 						 NetExpr*obj, unsigned /*flags*/) const
@@ -26039,7 +26114,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		  delete obj;
 		  NetENew*cg_new = new NetENew(ctype, nullptr, inits);
 		  cg_new->set_line(*this);
-		  return cg_new;
+		  return elaborate_covgrp_options(des, scope, ctype, cg_new, *this);
 	    }
             if (gn_system_verilog()
                 && ctype->get_name() == perm_string::literal("mailbox")) {
@@ -26087,7 +26162,7 @@ NetExpr* PENewClass::elaborate_expr_constructor_(Design*des, NetScope*scope,
 		       << " has no constructor, but you passed " << parms_.size()
 		       << " arguments to the new operator (arguments ignored)." << endl;
 	    }
-	    return obj;
+	    return elaborate_covgrp_options(des, scope, ctype, obj, *this);
       }
 
 

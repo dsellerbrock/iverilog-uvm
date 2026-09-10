@@ -21,7 +21,7 @@ module sva_nonoverlap_unbounded_window_test;
     done = 0;
     repeat (2) @(negedge clk);
 
-    if (passes != 1 || failures != 0)
+    if (passes != 5 || failures != 0)
       $fatal(1, "nonoverlap unbounded window failed: %0d/%0d",
              passes, failures);
     $display("PASS: nonoverlap preserves the unbounded delay sentinel");

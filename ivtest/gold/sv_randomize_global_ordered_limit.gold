@@ -1,0 +1,6 @@
+ERROR: global constraint sampling failed: joint solve-before with dist is not yet supported.
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.
+PASSED

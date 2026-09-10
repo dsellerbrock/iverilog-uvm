@@ -1,0 +1,2 @@
+ivltests/sv_constraint_foreach_hierarchical.v:20: error: constraint `foreach (lookup[...].size[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+1 error(s) during elaboration.

@@ -7248,8 +7248,11 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  const covgrp_dyn_state_t&state = entry.second;
 		  if (!state.valid || !state.meta) continue;
 		  if ((state.meta->kind & 7) != 0) continue;
-		  defn->dyn_type_register_total(entry.first,
-					   covgrp_dyn_logical_count_(state));
+		  if (state.meta->array_size == 0)
+                        defn->dyn_type_register_ranges(entry.first, state.ranges);
+                  else
+                        defn->dyn_type_register_total(entry.first,
+                              covgrp_dyn_logical_count_(state));
 	    }
       }
 
@@ -8825,15 +8828,22 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/get_all — $get_coverage (19.9): the mean of the type
- * coverage over all covergroup types in the design. */
+/* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
+ * scores weighted by their covergroup-level type_option.weight. */
 bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
 {
       const std::vector<const class_type*>&reg = class_type::covgrp_registry();
-      double sum = 0.0;
-      for (const class_type*ct : reg)
-	    sum += ct->type_coverage();
-      thr->push_real(reg.empty() ? 100.0 : sum / (double)reg.size());
+      long double sum = 0.0, weights = 0.0;
+      for (const class_type*ct : reg) {
+            unsigned weight = ct->covgrp_type_weight();
+            if (weight == 0) continue;
+            bool contributes = false;
+            double score = ct->type_coverage(nullptr, &contributes);
+            if (!contributes) continue;
+            sum += (long double)weight * score;
+            weights += weight;
+      }
+      thr->push_real(weights == 0 ? 100.0 : (double)(sum / weights));
       return true;
 }
 
@@ -8844,12 +8854,9 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * Ignore records have no counter; illegal and default bins are
  * excluded from both numerator and denominator (19.11 option model).
  */
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-
+      if (contributes) *contributes = false;
       double result = 0.0;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -8952,10 +8959,24 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  wsum += (double)weight;
 		  wcov += (double)weight * icov;
 	    }
-	    if (wsum > 0.0)
-		  result = wcov / wsum;
+	    if (wsum > 0.0) {
+                  result = wcov / wsum;
+                  if (contributes) *contributes = true;
+            } else if (defn->covgrp_weight(cobj) == 0) {
+                  result = 100.0;
+            }
       }
-      thr->push_real(result);
+      return result;
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+            ? cobj->get_defn()->type_coverage(cobj)
+            : vvp_covgrp_instance_coverage(cobj));
       return true;
 }
 
@@ -9202,6 +9223,24 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       live_automatic_contexts.insert(context);
 
       return context;
+}
+
+// Initial values must reach probes only after all state items exist and
+// activation recovery can identify the new frame (possibly a root).
+static vvp_context_t initializing_context = nullptr;
+
+bool vthread_context_is_initializing(vvp_context_t context)
+{
+      return context && context == initializing_context;
+}
+
+static void vthread_initialize_context(__vpiScope*scope, vvp_context_t context)
+{
+      vvp_context_t saved = initializing_context;
+      initializing_context = context;
+      for (unsigned idx = 0; idx < scope->nitem; ++idx)
+            scope->item[idx]->initialize_instance(context);
+      initializing_context = saved;
 }
 
 /*
@@ -11413,6 +11452,7 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
       thr->pending_alloc_prev_wt = prev_wt;
       thr->pending_alloc_prev_rd = prev_rd;
 
+      vthread_initialize_context(ctx_scope, child_context);
       trace_context_event_("alloc", thr, ctx_scope, child_context);
 
       return true;
@@ -12800,6 +12840,7 @@ static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
       }
 
       vvp_context_t override_context = vthread_alloc_context(override_scope);
+      vthread_initialize_context(override_scope, override_context);
       if (!write_handle_object_to_context_(override_this, this_obj, override_context)) {
             restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
             if (virtual_dispatch_trace_enabled_())
@@ -18314,6 +18355,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    child->rd_context = exp_context;
 	    child->owns_automatic_context = 1;
 	    child->owned_context = exp_context;
+            vthread_initialize_context(scope, exp_context);
       }
 
 	/* Marshal the C arguments into the subroutine's argument nets. */
@@ -30870,6 +30912,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
             child_context = vthread_alloc_context(ctx_scope);
             thr->wt_context = child_context;
             thr->rd_context = child_context;
+            vthread_initialize_context(ctx_scope, child_context);
       }
 
       child->wt_context = child_context;

@@ -80,13 +80,13 @@ module sv_assert_parameter_window_fixed_tree;
     drive(0,0,0, 0,0,0, 0,0,0,0,0); // c10 / flush
     @(negedge clk);
 
-    if (check_if.zero_passes != 1 || check_if.zero_failures != 1)
+    if (check_if.zero_passes != 10 || check_if.zero_failures != 1)
       $display("FAILED -- [0:P] got %0d/%0d",
                check_if.zero_passes, check_if.zero_failures);
-    else if (check_if.nonzero_passes != 1 || check_if.nonzero_failures != 0)
+    else if (check_if.nonzero_passes != 11 || check_if.nonzero_failures != 0)
       $display("FAILED -- [P+1:P+2] got %0d/%0d",
                check_if.nonzero_passes, check_if.nonzero_failures);
-    else if (check_if.tree_passes != 1 || check_if.tree_failures != 0)
+    else if (check_if.tree_passes != 11 || check_if.tree_failures != 0)
       $display("FAILED -- sequence-or window got %0d/%0d",
                check_if.tree_passes, check_if.tree_failures);
     else

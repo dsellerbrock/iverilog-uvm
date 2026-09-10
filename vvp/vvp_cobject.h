@@ -346,4 +346,7 @@ class vvp_cobject : public vvp_object {
       bool union_member_read_ok_(size_t pid) const;
 };
 
+// Raw per-instance score, independent of get_inst_coverage mode selection.
+double vvp_covgrp_instance_coverage(vvp_cobject*obj, bool*contributes = nullptr);
+
 #endif /* IVL_vvp_cobject_H */

@@ -1,0 +1,6 @@
+ivltests/sv_constraint_inline_reject.v:11: error: constraint `foreach (devices[...].ranges[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_inline_reject.v:16: error: constraint `foreach (devices[...].ranges[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_inline_reject.v:27: error: constraint `foreach (devices[...].ranges[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_inline_reject.v:30: error: constraint `foreach (devices[...].ranges[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+ivltests/sv_constraint_inline_reject.v:33: error: constraint `foreach (devices[...].ranges[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+5 error(s) during elaboration.

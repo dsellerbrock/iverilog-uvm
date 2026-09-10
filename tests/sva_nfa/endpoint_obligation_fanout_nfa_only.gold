@@ -1,9 +1,10 @@
-fanout counts 1/1 1/1 1/1 1/1 1/1 1/1 1/1 1/1
-combinator counts 1/1 1/1 1/1 1/1
-local fanout counts 2/0 2/0
-consequence-local counts 2/0 2/0
-coincident counts 2/0 0/2 2/0 0/2
-dependent local counts 2/0 2/0
-nonzero local counts 1/0 1/0 1/0 1/0
+fanout counts 8/1 8/1 8/1 8/1 8/1 8/1 8/1 8/1
+combinator counts 8/1 8/1 8/1 8/1
+local fanout counts 9/0 9/0
+consequence-local counts 9/0 9/0
+coincident counts 9/0 7/2 9/0 7/2
+dependent local counts 9/0 9/0
+nonzero local counts 9/0 8/0 9/0 9/0
 PASSED
 EOS_FAILURE 2
+EOS_FAILURE 1

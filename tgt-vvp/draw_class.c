@@ -568,6 +568,17 @@ void draw_class_in_scope(ivl_type_t classtype)
 				ivl_type_covgrp_cross_bin_name(classtype, idx)),
 			  ivl_type_covgrp_cross_bin_select_ir(classtype, idx));
 	    }
+      /* Additive tagged record; no ambiguity with class property rows. */
+      if (ivl_type_covgrp_weight_prop(classtype) >= 0) {
+      fprintf(vvp_out, " .covgrp_options %u %u %d %u %d\n",
+            ivl_type_covgrp_merge_instances(classtype),
+            ivl_type_covgrp_weight(classtype),
+            ivl_type_covgrp_weight_prop(classtype) + 1,
+            ivl_type_covgrp_get_inst_coverage(classtype),
+            ivl_type_covgrp_get_inst_coverage_prop(classtype) + 1);
+      fprintf(vvp_out, " .covgrp_type_weight %u\n",
+            ivl_type_covgrp_type_weight(classtype));
+      }
 	    int ni = ivl_type_covgrp_items(classtype);
 	    for (idx = 0 ; idx < ni ; idx += 1) {
 		    /* M12-7: the strings carry the coverpoint/cross label and

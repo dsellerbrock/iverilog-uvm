@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_foreach_hierarchical.v",
+    "iverilog-args": [
+        "-g2012"
+    ],
+    "gold": "sv_constraint_foreach_hierarchical"
+}

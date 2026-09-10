@@ -58,7 +58,8 @@ module main;
       $fatal(1, "unsupported fixed size silently clamped");
     if (!w.randomize() || w.child.value > w.value)
       $fatal(1, "supported weighted graph failed or broke its hard relation");
-    if (o.randomize()) $fatal(1, "ordered graph silently used uniform tuples");
+    if (!o.randomize() || o.child.value > o.other || o.other > o.value)
+      $fatal(1, "supported ordered graph failed or broke its hard relation");
     $display("PASSED");
   end
 endmodule

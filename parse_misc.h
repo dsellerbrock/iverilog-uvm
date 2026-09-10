@@ -89,6 +89,7 @@ struct sva_seq_step_t {
       perm_string delay_genvar; // delay_lo/hi == -4: per-generate fixed ##n
       // delay_lo/hi == -5: bounded ##[lo:hi] expressions that depend on
       // overridable parameters and must be resolved per instance.
+      // -6 preserves an exact symbolic ##delay for the same boundary.
       PExpr* delay_lo_expr = nullptr;
       PExpr* delay_hi_expr = nullptr;
       long rep_tail = 0;    // e[*m:n] expands to [*m]; the final

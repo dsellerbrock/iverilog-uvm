@@ -54,9 +54,9 @@ module sva_contextual_constants_clock_test;
     long_done = 0;
     repeat (2) @(negedge clk);
 
-    if (past_pass != 1 || past_fail != 0 ||
-        param_pass != 1 || param_fail != 0 ||
-        long_pass != 1 || long_fail != 0)
+    if (past_pass != 6 || past_fail != 0 ||
+        param_pass != 6 || param_fail != 0 ||
+        long_pass != 6 || long_fail != 0)
       $fatal(1, "contextual SVA counters p=%0d/%0d c=%0d/%0d l=%0d/%0d",
              past_pass, past_fail, param_pass, param_fail,
              long_pass, long_fail);

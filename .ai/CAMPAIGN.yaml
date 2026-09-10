@@ -1,14 +1,129 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: P02
-phase: coordinator_selection
+current_blocker: L05
+phase: coordination
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: P02 checkpoint (this commit; p02-fingerprints.txt)
-next_selection: Verify Z01 against current source and LRM
+last_integrated_good_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: []
+pending_gates: [ U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-next_command: graphify query "joint solve before order_pairs" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json
-suspended_parent: none
+suspended_parent: S02 design boundary retained.
+next_selection: Assess existing V01 wide-total saturation obligation; L05 is locally validated.
+next_action: Reconcile external merges and canonical main; resume bounded V01 assessment without new PR creation.
+next_command: "rg -n 'dyn_type_total|UINT_MAX|numeric_limits' vvp/class_type.cc vvp/vthread.cc"
+next_command_cwd: repository root
+candidate_state: L05 checkpointed in59e5e07c7; all local gates and review pass.
+installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
+validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; NFA58/58 and integrated4765/4770 with zero unexpected failures pass; fullJSON1662/0 pass; real-DPIUVM355/0/0 pass.
+next_validation: Required remote CI/review before merging; all L05 local gates passed.
+completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
+
+publication_policy_checkpoint: 61001162b
+publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
+published_batches:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
+    scope: P03/P01/P02 fork process identity and scheduling; continuous campaign and publication policies.
+    branch: agent/campaign-fork-processes-20260910
+    semantic_revision: b9de0be7f7702b7aba7d07d24f76c439322d3773
+    publication_revision: a3744e5b7647bad0854b2ea59a47412d75d24f27
+    base: main
+    state: merged
+    outstanding: Required remote CI and review before any separately authorized merge.
+    external_merge_revision: 3fe277c253412ddf7686e4ab15db7c1516a580c3
+    external_merge_base: main
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/264
+    scope: Z01A bounded joint stages and C01 silent inline-constraint omission.
+    branch: agent/campaign-constraints-20260910
+    semantic_revision: c57fbe3c5
+    publication_revision: 0bac0a8511ac8d11a414786420008ea490968358
+    base: agent/campaign-fork-processes-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/263
+    state: merged
+    outstanding: Required remote CI/review; retarget and revalidate after prerequisite lands; no merge authorization.
+    external_merge_revision: 656bb041b21cef686e7a2845112975a1595759e0
+    external_merge_base: agent/campaign-fork-processes-20260910
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/265
+    scope: L01 selected foreach and L02 automatic activation history.
+    branch: agent/campaign-foreach-activation-20260910
+    semantic_revision: 9218751e2
+    qualification_documentation_revision: 20b7aee6d
+    publication_revision: 4175060234aaed865e7713d8d1e474bf05f3301d
+    base: agent/campaign-constraints-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/264
+    state: merged
+    outstanding: Required remote CI/review; retarget and revalidate after prerequisites land; no merge authorization.
+    external_merge_revision: fab276b0adf860328d86dac743d5e1165b10c26e
+    external_merge_base: agent/campaign-constraints-20260910
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/266
+    scope: V01A exact value-bin union, V02 instance averaging, V03 group type weights.
+    branch: agent/campaign-coverage-20260910
+    semantic_revision: 2be79b2c0
+    qualification_documentation_revision: 2394da653
+    publication_revision: 2193f80c0f171558a40fb90148d2122bee82220e
+    base: agent/campaign-foreach-activation-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/265
+    state: merged
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    external_merge_revision: 7093c085a9b5104cae220a5e39f4533ef059a131
+    external_merge_base: agent/campaign-foreach-activation-20260910
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/267
+    scope: S03/S04 parent assertion verdicts and vacuous actions.
+    branch: agent/campaign-sva-verdicts-20260910
+    semantic_revision: 2cdaec5bc
+    qualification_documentation_revision: 074968a58
+    publication_revision: be78334feb6b80e34adbf537c7f48ebe567543fa
+    base: agent/campaign-coverage-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/266
+    state: open
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/268
+    scope: S05/S06 symbolic assertion parent verdicts and instance delay.
+    branch: agent/campaign-sva-timing-20260910
+    semantic_revision: 6f49fe1eb
+    qualification_documentation_revision: 3552524b6
+    publication_revision: 23cce38e9448acda1d72bfc98d457e119fd9e5fc
+    base: agent/campaign-sva-verdicts-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/267
+    state: merged
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    external_merge_revision: 68b54eb0ee8087f2a62555da6341ada9b0547496
+    external_merge_base: agent/campaign-sva-verdicts-20260910
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/269
+    scope: S07 nested sequence alias expansion.
+    branch: agent/campaign-sequence-aliases-20260910
+    semantic_revision: 4a879babc
+    qualification_documentation_revision: 6850914ed
+    publication_revision: ea5ab6c6b2cf2576823b626ec905c5b5ca1ac8e4
+    base: agent/campaign-sva-timing-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/268
+    state: merged
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    external_merge_revision: d47784a1f455c0520798c5c84ca8dc5596fd1bd4
+    external_merge_base: agent/campaign-sva-timing-20260910
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/270
+    scope: L04 automatic integral defaults and L03 Boolean activation state.
+    branch: agent/campaign-automatic-events-20260910
+    semantic_revision: 4bcbd9c7b
+    qualification_documentation_revision: 84fa5be50
+    publication_revision: 53236d900fdd305b337ea4782681f59430cb7088
+    base: agent/campaign-sequence-aliases-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/269
+    state: open
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/271
+    scope: L05 selected member foreach key typing.
+    branch: agent/campaign-foreach-key-types-20260910
+    semantic_revision: 59e5e07c7
+    publication_revision: 021aca3b9862f8fc20954d2da7d98a9262d581fb
+    base: agent/campaign-automatic-events-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/270
+    state: merged
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
+    external_merge_base: agent/campaign-automatic-events-20260910
+publication_queue: []
+publication_next_action: Publication catch-up stopped at user request. No new PR until a substantial subsequent milestone; reconcile externally changed PR state without merging.
+
+remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.

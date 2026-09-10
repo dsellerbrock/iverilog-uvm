@@ -545,15 +545,17 @@ an unvalidated semantic baseline.
 Commit at a coherent tested boundary. Push/open a draft PR when
 authorized and ready.
 
-During this user-authorized continuous campaign, periodically publish validated
-work to GitHub: create or update a draft PR at each coherent locally validated
-checkpoint, before proceeding indefinitely with more local-only increments.
-Keep PRs reviewable; use cohesive batches or explicitly dependent stacked PRs.
-At resume/checkpoint boundaries, inspect existing PRs and work through any
-unpublished validated backlog. Record PR URLs, published semantic revisions,
-stack dependencies and outstanding CI in `.ai/CAMPAIGN.yaml`. Reuse an existing
-PR for the same scope. This authorizes publication, not merging, and does not
-waive required validation, CI, worktree safeguards or merge permissions.
+During this user-authorized continuous campaign, publish validated work at
+substantial milestones, normally after roughly 3–5 sequential validated
+blockers with a coherent review scope. Do not create a PR for every blocker
+or rapidly drain historical work into a stack of PRs. Keep local implementation
+checkpoints separate and frequent. Prefer updating an existing PR when its
+scope fits; use a new PR when the next milestone warrants separate review.
+At coordination boundaries inspect existing PRs and record URLs, published
+semantic revisions, dependencies and outstanding CI in `.ai/CAMPAIGN.yaml`.
+The user's latest cadence request takes precedence over earlier per-checkpoint
+publication instructions. Publication does not authorize merging or waive
+required validation, CI, worktree safeguards or merge permissions.
 
 Follow `.github/pull_request_template.md`. Include:
 

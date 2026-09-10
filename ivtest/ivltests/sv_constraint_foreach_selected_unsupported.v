@@ -1,6 +1,6 @@
 // IEEE 1800-2017/2023 18.7.1: target declarations precede caller lookup.
-// Unsupported target roots/selectors retain a warning; scope randomization
-// must issue a hard diagnostic rather than dropping the constraint.
+// Unsupported target roots/selectors in class and scope randomization
+// must issue hard diagnostics rather than dropping constraints.
 package unsupported_map;
   typedef struct { int lo; } region_t;
   typedef struct { region_t ranges[$]; } device_t;

@@ -391,7 +391,7 @@ class class_type : public __vpiHandle {
 			  uint64_t&value, unsigned&width,
 			  bool&is_signed) const;
       bool is_covergroup() const
-      { return !covgrp_items_.empty() || !covgrp_bins_.empty()
+      { return covgrp_options_present_ || !covgrp_items_.empty() || !covgrp_bins_.empty()
 	    || !covgrp_dyn_bins_.empty() || !covgrp_crosses_.empty()
 	    || !covgrp_cross_terms_.empty() || !covgrp_cross_bins_.empty(); }
 
@@ -412,32 +412,34 @@ class class_type : public __vpiHandle {
 		if (entry.first.first == family && entry.second >= at_least)
 		      hits += 1;
 	  return hits; }
-	// Type-level DENOMINATOR for constructor-dependent value-bin
-	// families. How many logical bins a family has is a per-INSTANCE
-	// property: `bins b[] = {[1:hi]}' resolves a different set for hi=4
-	// than for hi=8, so unlike a static bin there is no single count the
-	// type view can read off the definition. Each instance registers the
-	// count it resolved and the widest one is kept.
-	//
-	// IEEE 1800-2017/2023 19.9 defines type coverage over the counters
-	// merged across every instance. The exact merge is the union of the
-	// resolved bin sets, which cannot be enumerated for a wide range
-	// (`[0:2**32-1]' is one legal family), so the widest resolved set
-	// stands in for it. dyn_type_hits() is a true union of distinct hit
-	// bins, so callers raise the denominator to the hit count when
-	// instances resolved disjoint sets and the union genuinely exceeds
-	// the widest single set.
+      // IEEE 1800-2017/2023 19.11.3: unsized value bins merge by value;
+      // scalar and fixed-array bins merge by name/index.
       void dyn_type_register_total(unsigned family,
-				    unsigned __int128 logical) const
+                                    unsigned __int128 logical) const
       { unsigned __int128&slot = covgrp_dyn_type_totals_[family];
-	if (logical > slot) slot = logical; }
+        if (logical > slot) slot = logical; }
+      void dyn_type_register_ranges(unsigned family,
+            const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
       unsigned __int128 dyn_type_total(unsigned family) const
       { auto it = covgrp_dyn_type_totals_.find(family);
 	return it == covgrp_dyn_type_totals_.end()
 	      ? (unsigned __int128)0 : it->second; }
 	uint64_t covgrp_trans_family_size(unsigned family) const;
 	unsigned covgrp_trans_family_item(unsigned family) const;
-      double type_coverage(class vvp_cobject*context = 0) const;
+      struct covgrp_options_t {
+            // Old VVP without this record retains its previous query modes.
+            bool merge_instances = true;
+            unsigned weight = 1, get_inst_coverage = 1;
+            int weight_prop = -1, get_inst_coverage_prop = -1;
+      };
+      void set_covgrp_options(const covgrp_options_t&options)
+      { covgrp_options_ = options; covgrp_options_present_ = true; }
+      unsigned covgrp_type_weight() const { return covgrp_type_weight_; }
+      void covgrp_type_weight(unsigned weight) { covgrp_type_weight_ = weight; }
+      unsigned covgrp_weight(vvp_cobject*obj) const;
+      bool covgrp_get_inst_coverage(vvp_cobject*obj) const;
+      double type_coverage(class vvp_cobject*context = 0,
+                           bool*contributes = nullptr) const;
 
 	// M11: registry of covergroup types for $get_coverage and the
 	// end-of-simulation report.
@@ -476,9 +478,15 @@ class class_type : public __vpiHandle {
       mutable std::map<std::pair<unsigned,uint64_t>,uint32_t>
 	    covgrp_dyn_type_counts_;
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
+      mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
+            covgrp_dyn_type_ranges_;
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;
+      covgrp_options_t covgrp_options_;
+      unsigned covgrp_type_weight_ = 1;
+      bool covgrp_options_present_ = false;
+      mutable long double covgrp_retired_weight_ = 0, covgrp_retired_weighted_ = 0;
       mutable std::vector<class vvp_cobject*> covgrp_live_;
       mutable std::vector<unsigned> covgrp_retired_at_least_;
       mutable bool covgrp_has_retired_options_ = false;

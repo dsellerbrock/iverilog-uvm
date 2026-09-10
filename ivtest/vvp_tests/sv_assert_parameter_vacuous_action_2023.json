@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_assert_parameter_vacuous_action.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_assert_parameter_vacuous_action"
+}

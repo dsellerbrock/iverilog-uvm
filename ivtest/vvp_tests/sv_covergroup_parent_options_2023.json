@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_parent_options.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_covergroup_parent_options"
+}

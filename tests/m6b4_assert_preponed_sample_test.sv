@@ -35,8 +35,8 @@ module m6b4_assert_preponed_sample_test;
   int past_fails = 0, past_passes = 0;
 
   // 1. Antecedent written blocking in the same slot as the edge. The
-  //    preponed value of `a' is 0, so the attempt is vacuous: neither a
-  //    pass nor a fail. Reading `a' live saw 1 and reported a failure.
+  //    preponed value of `a' is 0, so the attempt succeeds vacuously.
+  //    Reading `a' live saw 1 and reported a failure instead.
   ap_vac: assert property (@(posedge clk) a |-> b)
             vac_passes++; else vac_fails++;
 
@@ -75,8 +75,8 @@ module m6b4_assert_preponed_sample_test;
     #5 clk = 0;
     #5;
 
-    if (vac_fails != 0 || vac_passes != 0) begin
-      $display("FAIL antecedent not vacuous: fails=%0d passes=%0d (expected 0/0)",
+    if (vac_fails != 0 || vac_passes != 1) begin
+      $display("FAIL antecedent not vacuous: fails=%0d passes=%0d (expected 0/1)",
                vac_fails, vac_passes);
       errors++;
     end

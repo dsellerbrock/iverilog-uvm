@@ -46,13 +46,13 @@ module sv_assert_genvar_cycle_delay;
     drive(0, 0, 0, 0); // c7 / flush
     @(negedge clk);
 
-    if (G[1].passes != 3 || G[1].failures != 0)
+    if (G[1].passes != 8 || G[1].failures != 0)
       $display("FAILED -- n=1 passes=%0d failures=%0d",
                G[1].passes, G[1].failures);
-    else if (G[2].passes != 3 || G[2].failures != 0)
+    else if (G[2].passes != 8 || G[2].failures != 0)
       $display("FAILED -- n=2 passes=%0d failures=%0d",
                G[2].passes, G[2].failures);
-    else if (G[3].passes != 3 || G[3].failures != 0)
+    else if (G[3].passes != 8 || G[3].failures != 0)
       $display("FAILED -- n=3 passes=%0d failures=%0d",
                G[3].passes, G[3].failures);
     else

@@ -5,7 +5,7 @@
 // already declined it. Pass counting is pinned; note a weak
 // implication whose consequent holds a still-waiting goto can never
 // definitively FAIL in finite time (a match stays possible), so the
-// discriminating negative here is "no spurious pass", with fail=0
+// discriminating negative is no spurious nonvacuous pass, with fail=0
 // throughout.
 module impl_window_goto_nfa_only;
   logic clk = 0, req = 0, a = 0, c = 0;
@@ -61,8 +61,9 @@ module impl_window_goto_nfa_only;
     @(negedge clk) begin req2 = 0; b2 = 1; end
     @(negedge clk) b2 = 0;
     repeat (3) @(negedge clk);
-    $display("ig pass=%0d (exp 2) fail=%0d (exp 0)", pass_n, fail_n);
-    $display("ig2 pass=%0d (exp 1) fail=%0d (exp 0)", pass2_n, fail2_n);
+    // 33 starts: ig has 30 vacuous + 2 nonvacuous passes; ig2 has 31 + 1.
+    $display("ig pass=%0d (exp 32) fail=%0d (exp 0)", pass_n, fail_n);
+    $display("ig2 pass=%0d (exp 32) fail=%0d (exp 0)", pass2_n, fail2_n);
     $finish(0);
   end
 endmodule

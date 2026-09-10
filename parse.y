@@ -6028,18 +6028,17 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	pform_make_foreach_declarations(@1, 0, $10);
+        index_component_t itmp;
+        itmp.sel = index_component_t::SEL_BIT;
+        itmp.msb = $5;
+        itmp.lsb = nullptr;
+        $3->back().index.push_back(itmp);
+        $3->splice($3->end(), *$8);
+        pform_make_foreach_declarations(@1, $3, $10);
       }
     statement_or_null
       { /* paths[0].slices[i] — hierarchical target with a selected prefix */
 	pform_name_t*tmp_name = $3;
-	name_component_t&tail = tmp_name->back();
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = $5;
-	itmp.lsb = 0;
-	tail.index.push_back(itmp);
-	tmp_name->splice(tmp_name->end(), *$8);
 	delete $8;
 
 	PForeach*tmp_for = pform_make_foreach(@1, *tmp_name, $10, $14);
@@ -6054,16 +6053,9 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
-      // foreach(a[k1,...].b[i1,...]): IEEE 1800-2017 11.7 extended to a
-      // hierarchical target. Lowered to nested foreach statements --
-      // foreach (a[k1,...]) foreach (a[k1,...].b[i1,...]) BODY -- so
-      // each level reuses the already-correct single-target
-      // elaboration path (pform_make_foreach/PForeach) rather than
-      // adding a second one. This used to be a stub: it built no
-      // PForeach node at all and discarded the loop body outright,
-      // with no diagnostic in the common case (pform_requires_sv() is
-      // a silent no-op once SystemVerilog mode is active, which it is
-      // for virtually all real input).
+      // A bare selected-prefix identifier reduces through loop_variables
+      // because of the foreach header ambiguity. It is a selector expression,
+      // not an additional loop-variable declaration (12.7.3).
   | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
@@ -6074,54 +6066,33 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	  // Outer loop variables (one per dimension of $3) take their
-	  // index type from $3's own declared dimensions.
-	pform_make_foreach_declarations(@1, $3, $5);
-
-	  // Inner loop variables (one per dimension of the hierarchical
-	  // member $8) take their index type from the combined,
-	  // UNINDEXED path $3.$8 -- a dimension's shape does not depend
-	  // on which element of $3 is selected.
-	pform_name_t inner_shape_path(*$3);
-	inner_shape_path.splice(inner_shape_path.end(), pform_name_t(*$8));
-	pform_make_foreach_declarations(@1, &inner_shape_path, $10);
+        if ($5->size() == 1 && !$5->front().nil()) {
+              index_component_t itmp;
+              itmp.sel = index_component_t::SEL_BIT;
+              itmp.msb = new PEIdent($5->front(), @5.lexical_pos);
+              FILE_NAME(itmp.msb, @5);
+              itmp.lsb = nullptr;
+              $3->back().index.push_back(itmp);
+              $3->splice($3->end(), *$8);
+              pform_make_foreach_declarations(@1, $3, $10);
+        } else {
+              pform_make_foreach_declarations(@1, nullptr, $10);
+        }
       }
     statement_or_null
-      { bool prefix_ok = true;
-	for (std::list<perm_string>::const_iterator cur = $5->begin()
-		   ; cur != $5->end() ; ++cur) {
-	      if (cur->nil()) {
-		    yyerror(@5, "error: Errors in foreach loop variables list.");
-		    prefix_ok = false;
-	      }
-	}
+      { bool prefix_ok = $5->size() == 1 && !$5->front().nil();
+        if (!prefix_ok)
+              yyerror(@1, "error: A selected foreach prefix requires one index expression.");
 
 	PForeach*tmp_for = 0;
 	if (prefix_ok) {
-		// Inner target path: a copy of $3 with one SEL_BIT index
-		// component per outer loop variable (referencing that
-		// variable, declared above), followed by $8's components.
-	      pform_name_t*inner_path = new pform_name_t(*$3);
-	      name_component_t&inner_tail = inner_path->back();
-	      for (std::list<perm_string>::const_iterator cur = $5->begin()
-			 ; cur != $5->end() ; ++cur) {
-		    index_component_t itmp;
-		    itmp.sel = index_component_t::SEL_BIT;
-		    itmp.msb = new PEIdent(*cur, 0);
-		    itmp.lsb = 0;
-		    inner_tail.index.push_back(itmp);
-	      }
-	      inner_path->splice(inner_path->end(), pform_name_t(*$8));
+	      tmp_for = pform_make_foreach(@1, *$3, $10, $14);
 
-	      PForeach*inner_for = pform_make_foreach(@1, *inner_path, $10, $14);
-	      delete inner_path;
-
-	      tmp_for = pform_make_foreach(@1, *$3, $5, inner_for);
 	} else {
-	      delete $5;
 	      delete $10;
 	      delete $14;
 	}
+	delete $5;
 	delete $8;
 	delete $3;
 
@@ -8166,21 +8137,8 @@ sva_seq_expr
       }
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
   | K_CYCLE_DELAY delay_value_simple sva_seq_atom
-      { long val = 0;
-	perm_string genvar_name;
-	sva_seq_step_t&f0 = (*$3)[0];
-	if (pform_sva_const_long($2, val) && f0.delay_lo >= 0) {
-	      f0.delay_lo += val;
-	      f0.delay_hi += val;
-	} else if (pform_sva_deferred_genvar($2, genvar_name)
-		   && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -4; f0.delay_hi = -4;
-	      f0.delay_genvar = genvar_name;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	delete $2;
-	$$ = $3; }
+      { pform_sva_single_delay(@2, (*$3)[0], $2);
+        $$ = $3; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
       { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$7)[0];
@@ -8230,23 +8188,10 @@ sva_seq_expr
 	}
 	$$ = $5; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
-      { long val = 0;
-	perm_string genvar_name;
-	sva_seq_step_t&f0 = (*$4)[0];
-	if (pform_sva_const_long($3, val) && f0.delay_lo >= 0) {
-	      f0.delay_lo += val;
-	      f0.delay_hi += val;
-	} else if (pform_sva_deferred_genvar($3, genvar_name)
-		   && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -4; f0.delay_hi = -4;
-	      f0.delay_genvar = genvar_name;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	delete $3;
-	$1->insert($1->end(), $4->begin(), $4->end());
-	delete $4;
-	$$ = $1; }
+      { pform_sva_single_delay(@3, (*$4)[0], $3);
+        $1->insert($1->end(), $4->begin(), $4->end());
+        delete $4;
+        $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
       { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$8)[0];

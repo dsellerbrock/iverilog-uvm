@@ -45,6 +45,8 @@ module top;
   // Two instances of one type resolving DIFFERENT bin sets. The merged view
   // takes the widest resolved set (8) against the union of hit bins (2).
   covergroup cg_merge(int hi) with function sample(int v);
+    type_option.merge_instances = 1;
+    option.get_inst_coverage = 1;
     option.per_instance = 1;
     cp: coverpoint v { bins b[] = {[1:hi]}; }
   endgroup
