@@ -1517,3 +1517,21 @@ const guards and nested-member recursion. Outer declaration dimensions must
 precede typedef dimensions; element-default legality must still be checked even
 when no elements exist. No implementation edits yet. Next expand shape/const/
 lifetime and invalid-default controls before the smallest shared correction.
+
+L06 candidate pform.cc reuses shape classification with correct outer-dimension
+precedence, skipping nonexistent queue elements in four initializer paths.
+Type-default validation remains independent. Build77896/install39204 complete0;
+frozen compiler9915d687/runtime3b162fd9. Paired lifecycle controls pass. Added
+14permanent entries coveringconst/class/static/automatic/alias/nestedqueue-only
+wrappers,scalar defaults,copy,explicit queue initializer and invalid defaults.
+Mixedarray boundaries remain unsupported,accurately tested as diagnostics.
+Focused14/14 each runner,neighbors27/26 andmakecheck pass. Legacy static-lifetime
+warning fixed by explicitstatic test declaration; JSON2023 configs use base
+sources to retain identical diagnostic paths. Existinggold only loses the newly
+legal queue_items error. Final independent review clear.
+
+OfficialUVM2020.3.2 now reaches q[$] lvalue abort. Minimal reducer proves same
+abort on savedbaseline andcandidate inboth editions;DD013recordonly,not a release
+pass. DD012records independentmixedarray/classqualifiedparserboundaries.
+Integrated48575,real-DPIUVM55602,NFA5788 started on frozen tools;fullJSON must
+follow integratedtermination. Last validated semanticbaseline03caa64c8 remains.

@@ -189,3 +189,26 @@ requires parking. Use the format above for the next agent's discoveries.
   Do not label nonstandard library syntax a mandatory IEEE compiler defect.
 - **Triage:** Record-only during U02; select and ground one causal mechanism
   before any semantic fix. No archived library or application source patched.
+
+
+### DD-012 — L06 mixed-array and class-qualified declaration boundaries
+
+- **Discovered while working:** L06 expanded initialization controls.
+- **Evidence:** evidence/campaign-20260908/l06/class-qualified-module-declaration.sv
+  and queue-of-fixed-array.sv plus compile logs; no fixes included.
+- **Observed:** Module-level class-qualified declarations hit parser errors;
+  the supported procedural class-qualified form is covered positively. Queues
+  of fixed-array elements hit the existing netuarray_t unsupported boundary.
+- **Triage:** Record-only. Permanent array boundary tests guard against wrong
+  dimension classification but do not qualify those legal unimplemented shapes.
+
+### DD-013 — Last-element queue lvalue crashes elaboration
+
+- **Discovered while working:** L06 officialUVM2020.3.2 replay after queue-default fix.
+- **Evidence:** UVM uvm_field_op.svh112 assigns msg_queue[$]; minimal
+  evidence/campaign-20260908/l06/queue-last-lvalue.sv creates stringq, pushes
+  one element and assigns q[$]. Expected replacement of the last element.
+- **Observed:** Saved validated03caa64c8 compiler and L06 candidate both abort
+  at elab_lval.cc1335 use_sel==SEL_NONE in2017/2023. Four logs preserve proof.
+- **Triage:** Proven preexisting next-blocker candidate; not caused by L06,
+  not repaired in its patch. UVM2020.3.2 is still COMPILE_FAIL/unqualified.
