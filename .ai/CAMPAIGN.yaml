@@ -1,20 +1,20 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S05
-phase: checkpointing
+phase: selection
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 2cdaec5bc73f646107d19ed5bf908930a9908089
+last_integrated_good_revision: a76c9f67ae854d415043de9b7c5a9052a705c913
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: S05 selected from DD-007 after S04 local qualification; early pass and duplicate failure confirmed in both editions.
-next_action: Checkpoint S05, record its validated revision, and return to selection.
+next_selection: Assess DD-008 symbolic consequent-delay override against validated S05; prioritize silent parameter miscompilation and application relevance.
+next_action: Select the next justified blocker after S05; preserve completed contract in evidence/s05.
 next_command: "tail -n 20 ../evidence/campaign-20260908/s05/json.log ../evidence/campaign-20260908/s05/uvm.log"
 next_command_cwd: repository root
-candidate_state: S05 implementation and permanent regressions locally validated; checkpoint pending.
+candidate_state: S05 committed at a76c9f67ae854d415043de9b7c5a9052a705c913; all local gates pass; no active implementation edits.
 installed_tools: Compilercd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 validation_state: S05 focus14/14 legacy+JSON in both engines, neighbors17/17+8/8, VPI1/1. Integrated74997 terminal0 (4714/4709/0/2/3,VPI105,negative149,runtime15), NFA58/58, make check0, final review pass. JSON52285 terminal0,1606/0; UVM66260 terminal0,355/0/0 real DPI. All required S05 local gates pass.
 next_validation: S05 all local gates pass; remote CI remains required before merge.
