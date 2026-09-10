@@ -1,44 +1,31 @@
-id: S07
-title: Expand nested parameterized sequence aliases
+id: L03
+title: Preserve automatic activation identity in Boolean event expressions
 status: in_progress
-phase: awaiting_validation
-base_revision: 6f49fe1eb
+phase: reproduce
+base_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 16.8 sequence declaration/argument binding and cyclic-instantiation rules.
-expected_behavior: A named sequence alias containing a parameterized sequence invocation has the same temporal meaning as the directly expanded sequence, with each invocation binding its own actuals.
-observed_behavior: Retained S04 reducer Left/Right aliases containing Pair(a,b)/Pair(c,d) report No function named Pair; direct invocations work. Reverify on current validated source.
-reproducer: ../evidence/campaign-20260908/s04/window-nested-alias.sv
-selection_reason: Reusable assertion sequence composition is a standards obligation and common DV pattern; existing direct-versus-nested reducer isolates an implementation gap without redesigning multiclock architecture.
+  - IEEE1800-2017 and IEEE1800-2023 6.21 and9.4.2; verify exact expression event and automatic lifetime rules before implementation.
+expected_behavior: Concurrent automatic task invocations observe transitions of their own Boolean event expression, not another invocation's operand.
+observed_behavior: Retained DD-003 reducer posedge(value[2] | 1'b0) fires both invocations at time2 instead of times2,3; reverify on current validated source.
+reproducer: ../evidence/campaign-20260908/u01-loop/history-expression-preexisting.sv
+selection_reason: Shared automatic Boolean driver state can corrupt ordinary concurrent DV event waits; concrete pre-existing reducer and prior L02 mechanism give a justified next blocker beyond SVA composition.
 allowed_scope:
-  - Shared sequence declaration expansion, actual binding and directly affected normalizers in pform.cc and necessary declarations.
-  - Permanent paired regressions, exact conformance records and required focused/integrated validation.
+  - Shared Boolean expression event driver automatic-context preservation and directly necessary compile/lowering selection.
+  - Existing runtime automatic activation mechanisms, without a new scheduler architecture.
+  - Permanent paired regressions and required focused/full validation, review and conformance records.
 non_goals:
-  - No unrelated SVA operators, multiclock S02, general formal lookup redesign or application source changes.
+  - No unrelated default-negedge DD-004, foreach type DD-002, application teardown changes or formal architecture work.
 invariants:
-  - Preserve lexical binding, independent actuals, recursion safeguards, expression ownership and temporal semantics.
-  - Preserve existing sampling, cancellation and one parent verdict; no dropped calls or fallback default operands.
+  - Each activation has its own operand state and event history; propagate source activation identity through the actual expression computation.
+  - Preserve scheduler-region ordering, reset/free lifetime hooks, static scope behavior and cancellation.
+  - Preserve unrelated worktrees and required toolchain/permission gates.
 required_gates:
-  - Current paired failing reducer and direct expansion controls; applicable edition semantics verified.
-  - Causal trace, minimal fix and permanent paired binding/timing/negative controls.
-  - Focused legacy/JSON both engines, affected neighbors,NFA,integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
+  - Fresh paired red reducer plus direct-signal and Boolean-expression controls; standards and causal trace before patch.
+  - Permanent concurrent activation, expression polarity, lifetime and static controls.
+  - Focused legacy/JSON, relevant lifetime neighbors,NFA,integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
   - Remote CI required before merge.
-completion: Close only the reproduced nested sequence expansion scope; broader SVA and formal/application qualification remain separate.
-discovery_policy: Unrelated findings record-only; prerequisite tickets require deliberate boundary and preserved parent work.
+completion: Qualify only the exact repaired automatic Boolean event-expression scope; broader event operators and application/formal status remain separate.
+discovery_policy: Unrelated findings record-only; proven prerequisites require a deliberate boundary with preserved reducer and work.
 stop_after_completion: false
-last_validated_revision: 6f49fe1eb
-next_action: Await integrated82704,NFA32199,UVM10750; run fullJSON serially after integrated. Preserve source/test freeze.
-
-causal_mechanism: Shared splicer recursively expanded parameterized calls but copied bare alias bodies without recursively resolving their contents; Pair calls reached ordinary function elaboration.
-implementation:
-  - Recursively expand cloned bare alias body before insertion and release replaced identifier.
-  - Bare alias nested sequence lookup uses declaration generate scope; parameterized substituted actual lookup retains caller scope.
-  - Active declaration path rejects reentry before cloning; newly detected errors stop sibling expansion, preserving depth safeguard and avoiding exponential branching cycles.
-focused_validation: Paired12/12 legacy+JSON both engines; S06neighbors18/18+18/18,S04neighbors17/17+8/8,makecheck pass. Original/deep nested,shadow,actual-scope and cycle controls pass both editions.
-qualification_limits:
-  - Complete global dependency-graph validation across independent instances is not established by active-path detection.
-  - Pre-existing parameterized declaration-owned name lookup and other sequence argument forms remain unqualified.
-remaining_gates: [NFA,integrated,full_JSON,real_DPI_UVM,remote_CI_before_merge]
-
-final_review: Independent source/test review clear; no blocking findings in bounded scope.
-current_sessions: Integrated82704,NFA32199,real-DPIUVM10750 running.
-current_toolchain: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+last_validated_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
+next_action: Reproduce DD-003 on current tools; graph-guided trace of Boolean expression propagation and existing automatic functors.

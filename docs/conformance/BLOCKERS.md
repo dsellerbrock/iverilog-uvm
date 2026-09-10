@@ -426,3 +426,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **S07 residuals:** Full dependency-graph validation across independent
   instances and pre-existing parameterized declaration-owned lookup remain
   unqualified; no general sequence-composition completion claim.
+
+### L03 — Automatic Boolean event expressions share activation state
+
+- **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.21,9.4.2.
+- **State:** IN_PROGRESS — DD-003 selected after S07 local qualification.
+- **Evidence:** u01-loop/history-expression-preexisting.sv; two automatic
+  invocations of posedge(value[2] | 1'b0) both trigger at2 instead of2,3.
+  Previously reproduced before L02; fresh current check pending.
+- **Scope:** Shared Boolean driver activation state/context and directly
+  necessary selection, preserving existing runtime lifetime mechanisms.
+- **Closure:** Paired reducer and lifetime/static controls, all required
+  local gates and review; remote CI before merge.

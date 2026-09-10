@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: S07
-phase: awaiting_validation
+current_blocker: L03
+phase: reproduce
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
+last_integrated_good_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: DD-006 promoted to S07 after U01 fresh replay still fails teardown checks without a proven simulator mechanism.
-next_action: Await frozen S07 integrated82704,NFA32199,UVM10750; full JSON after integrated.
-next_command: "tail -30 ../evidence/campaign-20260908/s07/integrated.log"
+next_selection: DD-003 promoted to L03 for concurrent automatic event-expression correctness after S07 local qualification.
+next_action: Reproduce retained Boolean expression activation reducer and trace shared driver state.
+next_command: "cat ../evidence/campaign-20260908/u01-loop/history-expression-preexisting.sv"
 next_command_cwd: repository root
-candidate_state: S07 pform.cc shared-splicer patch and12paired permanent tests; focused green, full gates pending.
+candidate_state: S07 implemented in 4a879babc833c052cc3b5b80e7e03aacbc2c05aa with all local gates passed; L03 investigation only.
 installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: S07 focused/neighbor/check and finalreview green; integrated82704,NFA32199,UVM10750 live. Last fully validated6f49fe1eb.
-next_validation: FullJSON serially after integrated; required full gates before S07 closure.
+validation_state: Last fully validated 4a879babc833c052cc3b5b80e7e03aacbc2c05aa; all sessions terminal. U01 still unqualified with4teardown warnings.
+next_validation: Fresh paired L03 reducer/direct controls before implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
