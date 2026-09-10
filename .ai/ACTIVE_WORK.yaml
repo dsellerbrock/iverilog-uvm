@@ -1,7 +1,7 @@
 id: V07
 title: Exclude never-instantiated covergroup types from cumulative coverage
 status: in_progress
-phase: root_caused
+phase: focused_tested
 base_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 last_validated_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 standards:
@@ -29,4 +29,4 @@ required_gates:
 completion: Close never-instantiated-type eligibility only after all required local gates and review; parentV01 and broader qualification remain open.
 stop_after_completion: false
 discovery_policy: Unrelated discoveries record-only; preserve parent work before any deliberate prerequisite switch.
-next_action: Add the shared population guard using existing live/retired state, prove paired lifecycle controls, then run all required gates.
+next_action: Await integrated26646, UVM53589 and NFA91909; run full JSON only after integrated terminates. Close only after all required gates pass.

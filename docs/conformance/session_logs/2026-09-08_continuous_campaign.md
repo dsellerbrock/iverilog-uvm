@@ -1424,3 +1424,15 @@ never/live/retired distinction even for zero instance weight and empty items;
 reuse it rather than add another lifetime flag. V07 sole active contract set.
 After a validated V07 increment, publish one coherent V04-V07 batch under the
 user's slower cadence. No immediate PR or parentV01 completion claim.
+
+V07 candidate runtime3b162fd9/compiler07b302c2 frozen. Paired standalone
+population/cross tests fail on saved V06 runtime and pass candidate; mode
+controls pass both. Focus6/6 legacy and JSON, V04 neighbors2/2,V05 13/13,
+V06 22/22,coverage75/65 and makecheck pass. Independent review clear on
+shared guard, lifecycle and weight-independent retirement. Integrated26646,
+real-DPIUVM53589 and NFA91909 running; fullJSON must follow integrated
+completion. V07 is not closed; validated baseline remains421b50abd. User
+requested publication boundary produced one coherent direct-main PR273 for
+validated V04-V06, exact tree421b50abd with preserved campaign ancestry.
+Publication8f50344c0 is mergeable with six CI checks queued at observation;
+no agent merge. Active V07 source/tests remain preserved and unpublished.
