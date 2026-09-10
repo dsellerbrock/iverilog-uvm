@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V03
-phase: semantic_trace
+phase: bytecode_compatibility_repair
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: ac60732f3
@@ -11,11 +11,11 @@ pending_gates: [V03_semantics_and_required_validation, U01_teardown_qualificatio
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
 next_selection: V03 selected from paired current-source evidence; U01 and broader V01 remain open.
-next_action: Trace V03 group type-weight constant conversion and metadata; implement only after precise typed nonnegative semantics are established.
-next_command: "sed -n '30985,31015p' elaborate.cc; sed -n '8830,8852p' vvp/vthread.cc"
+next_action: Await tagged build/install14218; verify preserved old-options-before-property reducer, rerun focus and metadata/check, then integrated/full JSON/UVM gates.
+next_command: "tail -12 ../evidence/campaign-20260908/v03/tagged-build.log"
 next_command_cwd: repository root
-candidate_state: No V03 implementation edits yet. Paired type-weight.sv returns75 instead of87.5 on validatedac60732f3.
-installed_tools: Compiler 0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a; runtime 7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
-validation_state: V02 fully locally qualified onac60732f3; V03 paired reducer red. No live processes.
-next_validation: Establish type-weight conversion semantics, implement bounded metadata/aggregation and permanent regressions, then required gates.
+candidate_state: V03 numeric sixth-field draft replaced with separate .covgrp_type_weight tag after review reproduced old-bytecode property-row ambiguity. Tagged rebuild14218 pending.
+installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7ffe60f0eb39167b80d62ad7868e91423be1e686b6767db7be51e6dc770cc5a4.
+validation_state: Pre-tag V03 focus75/65 and metadata/check passed. Review then found/reproduced old five-field record before property failing syntax; separate tag implemented, not yet validated. Last fully validatedac60732f3.
+next_validation: Paired old-bytecode compatibility replay, focus75/65, metadata/check, final review, then integrated/full JSON/real-DPI UVM.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

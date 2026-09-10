@@ -690,3 +690,28 @@ $get_coverage overall score. Sourceof_COVGRP_GET_ALL adds each eligible type
 once; no type-weight metadata exists. Exact contract activated, no implementation
 edits yet. Next settle typed constant conversion and extend existing metadata/
 aggregation minimally; no parentV01/U01 completion claim. No active test handles.
+
+V03 implementation adds group type_weight(default1), extends numeric metadata
+with an optional sixth field preserving old five-field input, and weights the
+existing eligible type scores in GET_ALL. Zero total weight still returns100.
+Declaration conversion uses ordinary elaborate_rval_expr with int target before
+checking converted value0..INT32_MAX; initial low-level typed helper call skipped
+scalar sizing and was corrected after -1/X controls caught it. No generic
+elaborator changes. Paired exact original reducer now87.5, normal/zero and
+negative/nonconstant/signed-domain controls pass. Main includes64-bit truncation,
+X-to-zero conversion, INT32_MAX, unused/empty types, retirement and independent
+individual type scores. Runtime old/new metadata boundary fixtures and malformed
+upper bound pass; make check passes. Focus75 legacy passed; six JSON CE golds
+needed only the harness-specific path prefix correction; rerun95619 live.
+No integrated/full JSON/UVM gate started yet; implementation remains uncommitted.
+
+V03 focused rerun95619 completed75 legacy/65 JSON pass. Independent review
+then identified optional numeric field ambiguity: an old five-field options row
+before a numbered property consumes the property index as the new weight.
+Preserved reducerold-options-before-property.vvp reproduces syntax error.
+Replaced sixth-field extension with separate .covgrp_type_weight tag; original
+five-field grammar unchanged and runtime weight stored independently so tag
+ordering does not reset it. Added permanent old-record-before-property boundary
+fixture. Tagged rebuild/install14218 pending; all focus/metadata/check evidence
+must be refreshed for final tagged candidate before integrated gates. No V03
+integrated/full JSON/UVM run yet; last validated baselineac60732f3.

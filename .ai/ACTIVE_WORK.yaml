@@ -1,7 +1,7 @@
 id: V03
 title: Honor covergroup type weight in overall coverage
 status: in_progress
-phase: semantic_trace
+phase: bytecode_compatibility_repair
 base_revision: ac60732f3
 standards:
   - IEEE1800-2017 and IEEE1800-2023 19.7.1 table19-3, 19.9 and 19.11.
@@ -11,7 +11,7 @@ reproducer: ../evidence/campaign-20260908/v03/type-weight.sv
 causal_hypothesis: Group type weight has no runtime metadata; of_COVGRP_GET_ALL adds each eligible type once without consulting a weight.
 allowed_scope:
   - elaborate.cc and netclass.h covergroup type-option declaration metadata and constant semantics.
-  - ivl_target.h, t-dll-api.cc, tgt-vvp/draw_class.c and vvp parse/compile/class_type metadata as required by the actual trace.
+  - ivl_target.h, t-dll-api.cc, tgt-vvp/draw_class.c and vvp lexer/parse/compile/class_type metadata as required by the actual trace.
   - vvp/vthread.cc overall coverage aggregation using existing eligibility and type coverage computations.
   - Paired ivtest type-weight regressions and existing malformed runtime metadata fixture.
   - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
@@ -35,4 +35,4 @@ completion: Close only the exact qualified group-level type-weight scope after a
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: ac60732f3
-next_action: Trace existing type-option constant lowering and metadata; settle typed nonnegative weight conversion before minimal implementation.
+next_action: Finish tagged rebuild14218; verify old five-field record before a property, rerun focus75/65 and metadata/check, then required integrated/full JSON/UVM gates.
