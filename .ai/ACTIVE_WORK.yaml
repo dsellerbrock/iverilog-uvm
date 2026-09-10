@@ -1,35 +1,35 @@
-id: V01A
-title: Exact merged constructor-dependent value-bin universe
-status: closed
-phase: completed
-base_revision: 9218751e2
+id: V02
+title: Honor default instance-averaged type coverage
+status: in_progress
+phase: root_cause_trace
+base_revision: 6eee0480c
 standards:
-  - IEEE 1800-2017 and IEEE 1800-2023 19.11.3, with value-bin identity in 19.5.1.
-expected_behavior: With merge_instances=1, bins b[] over [0:1] and [1:2] form three type bins; sampling 0 and 1 covers two, yielding 66.666667 percent.
-observed_behavior: Both editions return100 percent on the LRM overlapping-range example.
-reproducer: ../evidence/campaign-20260908/v01/union.sv
-causal_hypothesis: type_coverage uses maximum registered family size raised to hit count rather than the complete union of registered bin identities.
+  - IEEE 1800-2017 and IEEE 1800-2023 19.11.3 and type-option table19-3.
+expected_behavior: Default merge_instances=0 computes the weighted average of instance coverage; two half-covered equal-weight instances return50 percent even when their union is fully hit.
+observed_behavior: Both editions return100 percent; merge_instances is accepted but current type_coverage always uses merged counters.
+reproducer: ../evidence/campaign-20260908/v02/average.sv
+causal_hypothesis: Type-option mode is not represented in runtime metadata, and the type query computes only the merged item-counter model.
 allowed_scope:
-  - vvp/class_type.cc and class_type.h dynamic value-bin universe registration and merged denominator
-  - vvp/vthread.cc covgrp_dyn_states_ registration call (sole caller currently passes only count)
-  - ivtest paired merged-bin regression coverage and lists
+  - Trace covergroup option lowering/metadata in elaborate.cc, netclass.h, t-dll-api.cc, ivl_target.h and tgt-vvp/class_type.c only as actually needed; identify exact existing path before edits.
+  - vvp class_type, vthread and vvp_cobject coverage query/options/instance lifecycle; parse/compile metadata only if required by traced path.
+  - Paired ivtest type-coverage option regressions and corrections to historical test expectations demonstrated inconsistent with the LRM.
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
 non_goals:
-  - No general coverage architecture redesign, unrelated options, transition/cross extension, or application edits.
-  - Default merge_instances weighted averaging is a separate observed obligation; do not claim it implemented by correcting a union denominator.
+  - No arbitrary coverage redesign, unrelated goal/strobe/cross options, or application changes.
+  - No claim that V01 parent or complete functional coverage is qualified.
 invariants:
-  - Preserve bin-name identity, ignored/illegal exclusions, unsampled instance contributions, cumulative instance lifetime and hit thresholds.
-  - Never grow coverage universe only from observed hits or enumerate unbounded integral domains.
+  - Preserve explicit merged mode, option.weight semantics, zero-weight handling, unsampled and retired instance accounting.
+  - Reuse existing instance coverage computation and registration where possible.
+  - A discovered prerequisite requires preserved reducer/work and separate coordination before implementation.
 required_gates:
-  - Paired red/green reducers for overlapping and disjoint partial domains, existing controls, and lifetime/threshold boundaries.
-  - Applicable LRM semantics, causal trace and independent review.
+  - Paired edition red/green default and explicit mode tests; unequal instance weights, empty/unsampled/lifetime and merged controls.
+  - Applicable IEEE semantics and causal source trace; independent review.
   - Focused coverage, required integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
   - Remote CI before merge.
-completion: Bounded explicit merged value-bin universe only; broader type-option model remains unqualified.
+completion: Only exact supported default/explicit instance averaging scope with reviewed evidence; no closure while required gates remain pending.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-validation: Paired permanent test green and previous-runtime red; focus53 legacy/43 JSON, make check and independent review pass. Integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0 and real-DPI UVM355/0/0 pass. Remote CI before merge.

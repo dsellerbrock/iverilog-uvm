@@ -576,3 +576,12 @@ Name this completed increment V01A to preserve the parent V01 broader scope.
 Checkpoint exact constructor-dependent value-bin union, then return to selection.
 Worktree audit unchanged; no unrelated files touched, no running gates. Remote
 CI remains required before merge; U01 teardown qualification remains open.
+
+V01A implementation checkpoint6eee0480c is the latest validated baseline.
+Continue with V02: default merge_instances=false must average instance coverage
+in both LRMs19.11.3 (table19-3 default0). Two separate50-percent instances with
+complementary hits currently return100; paired reducer confirms false completion.
+V02 contract activated, no implementation edits yet. Next trace existing
+instance query and retention plus metadata path; reuse those rather than add a
+parallel coverage engine. Remote CI and U01 teardown qualification stay open.
+No live test sessions. Current exact next commands preserved in CAMPAIGN.yaml.

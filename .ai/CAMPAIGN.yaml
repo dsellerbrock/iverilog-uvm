@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: V01A
-phase: selection
+current_blocker: V02
+phase: root_cause_trace
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 9218751e2
+last_integrated_good_revision: 6eee0480c
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V02_reducer_and_required_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
-next_selection: V01 correctness of coverage denominator; U01 preserved for later teardown qualification.
-next_action: Checkpoint V01A validated implementation; select next concrete standards blocker without closing parent coverage scope.
-next_command: "tail -12 ../evidence/campaign-20260908/v01/integrated.log ../evidence/campaign-20260908/v01/uvm.log"
+next_selection: V02 default type coverage correctness; U01 preserved for later teardown qualification.
+next_action: Trace merge_instances metadata and existing instance coverage/lifetime accounting before the smallest semantically correct V02 patch.
+next_command: "sed -n '3310,3390p' vvp/class_type.cc; sed -n '8790,8970p' vvp/vthread.cc"
 next_command_cwd: repository root
-candidate_state: V01A bounded merged value-bin universe passed all local gates and review; parent V01 remains open.
+candidate_state: V02 paired reducer returns100 instead of50; no implementation changes yet. V01A checkpoint6eee0480c passed all local gates.
 installed_tools: Coherent compiler a90ef338a4fe and runtime 2de024fb402d match build outputs.
 validation_state: Focus53/43, make check, integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0 and real-DPI UVM355/0/0 passed.
-next_validation: Next blocker requires its own exact contract and failing reducer.
+next_validation: Establish V02 exact lowering/instance query path and supported contract before implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

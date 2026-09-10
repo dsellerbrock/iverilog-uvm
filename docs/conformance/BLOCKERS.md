@@ -246,3 +246,13 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Implementation:** Register and merge resolved intervals for unsized value bins; preserve name/index identity for scalar/fixed bins. Unsampled and retired instances remain represented.
 - **Validation:** Focus53/43, integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0, real-DPI UVM355/0/0, make check and independent review passed.
 - **Limits:** Default merge_instances weighted averaging and downstream huge-total saturation remain unqualified.
+
+### V02 — Default type coverage silently merges instances
+
+- **Area / edition:** Coverage / IEEE1800-2017 and2023 19.11.3, table19-3.
+- **State:** IN_PROGRESS
+- **Confidence:** REPRODUCED
+- **Evidence:** evidence/campaign-20260908/v02/average.sv, both editions on6eee0480c return100 rather than50 for two equal-weight half-covered instances.
+- **What it blocks:** Trustworthy default type coverage; current result falsely reports complete coverage.
+- **Closure requirements:** Respect default/explicit merge mode and instance weighting with paired controls, complete required gates and independent review.
+- **Last verified revision:** 6eee0480c, paired failing reducer; source trace pending, no implementation edits.
