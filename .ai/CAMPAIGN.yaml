@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: V02
-phase: required_validation
+current_blocker: null
+phase: selection
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 6eee0480c
+last_integrated_good_revision: ac60732f3
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V02_real_DPI_UVM_9300, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
-next_selection: V02 default type coverage correctness; U01 preserved for later teardown qualification.
-next_action: Await real-DPI UVM9300; resolve failures before checkpointing and closing exact V02 scope.
-next_command: "tail -20 ../evidence/campaign-20260908/v02/native-full-json.log ../evidence/campaign-20260908/v02/native-uvm-final.log"
+next_selection: Assess type_option.weight aggregate coverage correctness; keep U01 and broader V01 open.
+next_action: Verify unqualified overall type-weighted coverage against current source and LRM, then select one justified blocker.
+next_command: "graphify query 'global get_coverage type weights' --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: Uncommitted V02 averaging and native typed initializer implementation; permanent paired scope/four-state/lifetime/option regressions pass. Required gates running.
+candidate_state: V02 locally qualified and checkpointed atac60732f3; no active implementation blocker.
 installed_tools: Compiler 0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a; runtime 7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
-validation_state: Native final focus65 legacy/55 JSON, metadata bounds and make check pass. Integrated55247 passed4680/4675/0/2/3, VPI103, negative149, runtime15. Full JSON56399 passed1572/0; First real-DPI UVM11766 ended354/1 due to a historical implicit-merge expectation. Test explicitly requests merged mode now and passes10/10 in both editions; bounded review passed. Full UVM9300 rerun live. Last fully validated revision6eee0480c.
-next_validation: Await real-DPI UVM9300 using unchanged installed tools.
+validation_state: All required V02 local gates pass; final real-DPI UVM9300 completed355/0/0. No test processes running.
+next_validation: Establish next exact reducer and semantics before implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

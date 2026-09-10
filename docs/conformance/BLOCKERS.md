@@ -250,9 +250,10 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### V02 — Default type coverage silently merges instances
 
 - **Area / edition:** Coverage / IEEE1800-2017 and2023 19.11.3, table19-3.
-- **State:** AWAITING_VALIDATION
+- **State:** CLOSED (bounded local scope; remote CI before merge)
 - **Confidence:** REPRODUCED
 - **Evidence:** evidence/campaign-20260908/v02/average.sv, both editions on6eee0480c return100 rather than50 for two equal-weight half-covered instances.
 - **What it blocks:** Trustworthy default type coverage; current result falsely reports complete coverage.
 - **Closure requirements:** Respect default/explicit merge mode and instance weighting with paired controls, complete required gates and independent review.
-- **Last verified revision:** Last complete local baseline6eee0480c. Uncommitted candidate uses default weighted instance averaging, explicit merged/public-instance dispatch and ordinary typed option initializers. Paired mode/weight/lifetime/empty/four-state/scope controls and focus65/55, metadata bounds, make check and final independent review pass. Integrated55247 and full JSON1572/0 pass. First real-DPI UVM354/1 exposed historical implicit-merge expectation; explicit mode correction preserves10assertions and passes paired direct replay/review. Full UVM9300 rerun remains required; no closure yet.
+- **Last verified revision:** ac60732f3 implements default weighted instance averaging and explicit merged/public-instance dispatch with native typed option initialization. Focus65/55, integrated4680/4675/0/2/3, VPI103, negative149, runtime15, full JSON1572/0, real-DPI UVM355/0/0, make check and independent review pass.
+- **Limits:** Parent V01 remains open. General type_option weighting, procedural static type-option assignment, goals/strobe and arbitrary cross/transition universes are not qualified by this increment.

@@ -1,7 +1,7 @@
 id: V02
 title: Honor default instance-averaged type coverage
-status: in_progress
-phase: required_validation
+status: completed_local
+phase: selection
 base_revision: 6eee0480c
 standards:
   - IEEE 1800-2017 and IEEE 1800-2023 19.11.3 and type-option table19-3.
@@ -39,6 +39,6 @@ completion: Only exact supported default/explicit instance averaging scope with 
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 
-current_failure: Integrated/full JSON/focus/metadata/check/review pass. First UVM sweep354/1 exposed historical implicit-merge expectation; explicit mode test correction passes10/10 in both editions. Full real-DPI UVM9300 rerun pending.
-current_reproducer: ../evidence/campaign-20260908/v02/four-state-option.sv
-last_validated_revision: 6eee0480c
+implementation_revision: ac60732f3
+validation: Focus65/55, integrated4680/4675/0/2/3, VPI103, negative149, runtime15, JSON1572/0, real-DPI UVM355/0/0, make check and review pass.
+remaining_merge_gate: Remote CI before merge.

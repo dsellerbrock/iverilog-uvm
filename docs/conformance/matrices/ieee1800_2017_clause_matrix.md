@@ -811,5 +811,14 @@ V01A: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.11.3:
 constructor-dependent unsized value bins contribute their exact registered
 interval union to merged type coverage, including unsampled/retired instances.
 Partial overlap/disjoint, threshold, signed and fixed/scalar controls pass all
-required local gates. Parent V01, default merge_instances averaging and general
-huge-total percentage calculations remain unqualified.
+required local gates. Parent V01 and general huge-total percentage calculations remain unqualified.
+Default merge_instances averaging is separately qualified by V02 below.
+
+V02: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.7/19.11.3:
+default type coverage averages eligible instances using option.weight, including
+unsampled and retired objects; explicit merge mode and get_inst_coverage query
+selection retain separate semantics. Native typed initializer assignments preserve
+four-state conversion, lexical scope, parent methods and once-only constructor
+actuals. Procedural get_inst writes are rejected per19.7; weight stays mutable.
+All required local gates and review pass onac60732f3. Global type_option weights,
+goals/strobe and remaining parentV01 obligations remain unqualified.
