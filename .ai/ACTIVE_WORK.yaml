@@ -29,14 +29,14 @@ required_gates:
   - makecheck, required integrated legacy/VPI/negative/runtime, JSON, real-DPI UVM, NFA and independent review before closure.
 completion: Close standalone report dispatch only after all gates; then resume U04 legacy ABI scope.
 stop_after_completion: false
-next_action: "NFA71460 passed58/58 terminal0. Wait for U05 integrated68370 and UVM71712; run full JSON only after integrated68370 terminates. Do not install or change semantic baseline while gates run."
-next_command: "tail -5 ../evidence/campaign-20260908/u05/integrated.log ../evidence/campaign-20260908/u05/uvm.log"
+next_action: "Await U05 JSON30199 and UVM71712. Integrated68370 terminal0: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. Other required gates passed. No closure before both remaining gates pass."
+next_command: "tail -5 ../evidence/campaign-20260908/u05/full-json.log ../evidence/campaign-20260908/u05/uvm.log"
 baseline_evidence: Four paired baseline tests compile0 and fail runtime1; report_bridge checks six arguments/count, report_server checks real UVM severity and ID counters.
 source_authority: IEEE2017 and2023 H.9.2/H.9.3 context/export text verified; Table H.1 int/string C mappings agree. Generated smoke.dpiexport.c and vthread.cc union/dispatcher are authoritative existing internal ABI.
 focused_validation: Frontend74657 terminal0; all S1-S10 passed including four paired reporting tests. Install root restored and candidate installed. Independent review clear.
 
-u05_live_gates: [integrated68370, UVM71712]
-u05_unstarted_gates: [full_JSON_after_integrated]
+u05_live_gates: [JSON30199, UVM71712]
+u05_unstarted_gates: []
 u05_candidate_revision: a5eb76ebb
 
 u05_nfa: Terminal71460 exit0;58passed0failed.

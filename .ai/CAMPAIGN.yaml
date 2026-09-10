@@ -11,8 +11,8 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "NFA71460 passed58/58 terminal0. Wait for U05 integrated68370 and UVM71712; run full JSON only after integrated68370 terminates. Do not install or change semantic baseline while gates run."
-next_command: "tail -5 ../evidence/campaign-20260908/u05/integrated.log ../evidence/campaign-20260908/u05/uvm.log"
+next_action: "Await U05 JSON30199 and UVM71712. Integrated68370 terminal0: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. Other required gates passed. No closure before both remaining gates pass."
+next_command: "tail -5 ../evidence/campaign-20260908/u05/full-json.log ../evidence/campaign-20260908/u05/uvm.log"
 next_command_cwd: repository root
 candidate_state: "U05 candidatea5eb76ebb; paired baseline4fail, relocated frontend S1-S10 allpass,makecheck passed,independent review clear. Integrated/UVM/NFA pending; JSON unstarted."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
@@ -225,8 +225,8 @@ l08_nfa: Passed58/58, terminal81089 exit0.
 l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
 pr273_latest_checks: "Ubuntu22.04,Ubuntu24.04,MINGW64,UCRT64,CLANG64 passed; macOS queued. PR remains open; no merge."
 
-u05_live_gates: [integrated68370, UVM71712]
-u05_unstarted_gates: [full_JSON_after_integrated]
+u05_live_gates: [JSON30199, UVM71712]
+u05_unstarted_gates: []
 u05_candidate_revision: a5eb76ebb
 
 u05_nfa: Terminal71460 exit0;58passed0failed.
