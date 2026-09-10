@@ -1,6 +1,38 @@
-id: selection
+id: S05
+title: Aggregate symbolic repetition implication verdicts per starting attempt
 status: active
-phase: selection
-last_validated_revision: 2cdaec5bc73f646107d19ed5bf908930a9908089
-next_action: Verify DD-007 symbolic repetition parent verdicts as next candidate; preserve S02 and U01 suspended scopes.
+phase: spec_grounded
+base_revision: 2cdaec5bc
+standards:
+  - IEEE1800-2017 and IEEE1800-2023 16.9.2,16.12.7,16.14.1.
+expected_behavior: Each starting implication fails once if any consequent fails; success waits until its antecedent is closed and every consequent succeeds. A failed parent cannot spawn further visible verdicts. Preserve vacuity and the specified start timing of empty and nonempty antecedent matches.
+observed_behavior: One a[*LO:HI] start with LO2/HI3 reports early pass at length2 and a second pass at length3; false consequence reports duplicate failures. Both editions reproduce on validated S04.
+reproducer: ../evidence/campaign-20260908/s05/parent-verdict.sv
+causal_hypothesis: Symbolic lowering counts each endpoint in r_end/r_fire and publishes pass/fail requests directly; bounded age bits and the unbounded mature count do not retire failed parents or defer successful parent completion.
+allowed_scope:
+  - pform.cc accepted parameter-valued consecutive-repetition implication lowering and directly shared parent bookkeeping.
+  - Existing direct and prefixed, bounded and unbounded, fixed/delayed and accepted windowed consequent paths; audit every affected caller before selecting representation.
+  - Preserve accepted empty-match timing per LRM and exact parameter overrides; do not silently reduce supported semantics.
+  - Permanent paired regressions, focused manifests, VPI controls and reviewed affected prior oracles.
+  - Active contract, blocker/debt registry, clause matrix, campaign checkpoint and focused session evidence.
+non_goals:
+  - No multiclock architecture expansion or S02 implementation.
+  - No named-sequence alias DD-006 repair, unrelated operators, unsupported assertion controls or full SVA/formal claim.
+  - No arbitrary finite cap for previously uncapped symbolic repetitions.
+invariants:
+  - One parent verdict per enabled starting attempt; retain exact multiplicity across overlapping starts.
+  - Preserve S04 vacuous user actions and separate nonvacuous callbacks.
+  - Preserve Preponed sampling, Observed unsampled disable checks, asynchronous logical-truth cancellation and Off/Kill semantics.
+  - Preserve arbitrary user action ownership and detached Reactive execution.
+  - Existing cover endpoint counting remains distinct from assertion parent truth.
+required_gates:
+  - Paired baseline red/current green including early-pass, mixed consequence and repeated-failure discrimination.
+  - Bounded/unbounded and direct/prefixed repetitions, parameter overrides, simultaneous parents, cancellation and delayed actions.
+  - Applicable empty/nonempty match timing and neighboring exact/windowed controls.
+  - Focused legacy/JSON, NFA, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
+  - Independent standards/implementation review; remote CI before merge.
+completion: Qualify the exact repaired symbolic implication scope; retain any unresolved parent-feature obligations explicitly rather than declaring the parent feature complete.
+discovery_policy: Unrelated discoveries are record-only; regressions from this patch remain in scope.
 stop_after_completion: false
+last_validated_revision: 2cdaec5bc
+next_action: Trace endpoint/age ownership through all symbolic callers and verify empty-match semantics before implementing the smallest complete parent-state correction.

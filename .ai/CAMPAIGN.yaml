@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: selection
-phase: selection
+current_blocker: S05
+phase: spec_grounded
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 2cdaec5bc73f646107d19ed5bf908930a9908089
@@ -10,12 +10,12 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: Verify DD-007 symbolic repetition parent verdicts; high correctness/application relevance after S04.
-next_action: Reproduce early success and duplicate failure in parameter-valued ranged antecedents before activating S05.
-next_command: "graphify query 'sva_parameter_repeat_try_assertion parent verdicts' --graph ../graphify-out/graph.json"
+next_selection: S05 selected from DD-007 after S04 local qualification; early pass and duplicate failure confirmed in both editions.
+next_action: Trace symbolic repetition endpoint/age ownership and all accepted caller shapes, including empty-match timing, before implementing S05.
+next_command: "sed -n '21310,21950p' pform.cc"
 next_command_cwd: repository root
-candidate_state: S04 committed and locally validated at 2cdaec5bc73f646107d19ed5bf908930a9908089; no active implementation patch.
+candidate_state: S05 reducer red in both editions on validated2cdaec5bc; no implementation changes.
 installed_tools: Compiler5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 validation_state: All S04 final local gates and review pass; integrated4700/4695/0/2/3,VPI104,negative149,runtime15,JSON1592,UVM355. All sessions terminal.
-next_validation: Establish red evidence and standards contract for the next selected blocker.
+next_validation: Establish full S05 parent-state contract and focused semantic controls; required implementation gates remain pending.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

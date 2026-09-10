@@ -1024,3 +1024,18 @@ U01 teardown/application qualification and broader standards/UVM/formal
 obligations remain open. Required remote CI and merge permissions remain
 unchanged. This ends the S04 patch, not the continuous campaign; selection
 resumes from current evidence after the implementation checkpoint.
+
+
+### Selection after S04: S05 symbolic parent verdicts
+
+S04 implementation2cdaec5bc is locally validated, with completed contract saved
+under s04/completed-contract.yaml. DD-007 is selected next for standards and
+parameterized-application correctness. Canonical Graphify query identifies the
+symbolic repeat/window lowerers; shared graph unchanged. Fresh parent-verdict
+reducer on2cdaec5bc fails in2017 and2023: early good1/0,bad0/1, then final
+good2/0,bad0/2 for one start. LRM16.12.7 in both editions requires all consequent
+matches to satisfy one implication evaluation;16.14.1 attaches the action to
+that property truth. Exact new ACTIVE_WORK contract includes all accepted
+symbolic caller shapes, cancellation and empty/nonempty match timing; no source
+edit yet. Trace the actual age/endpoint mechanism before choosing parent state.
+No new worktree, install, merge or dependent unvalidated baseline was introduced.

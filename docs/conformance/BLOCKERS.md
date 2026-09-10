@@ -339,3 +339,24 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Closure:** Correct vacuous user actions per attempt while preserving sampling,
   cancellation, multiplicity, callback distinctions and S03 parent semantics;
   all required local gates and independent review, then remote CI before merge.
+
+
+### S05 — Symbolic repetition implication parent verdicts
+
+- **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.9.2,16.12.7,16.14.1.
+- **State:** ACTIVE — specification grounded; DD-007 promoted after S04 qualification.
+- **Evidence:** One enabled start of a[*LO:HI] with overridden LO2/HI3 produces
+  good1/0 and bad0/1 at length2, then good2/0 and bad0/2 at length3 in both
+  editions. Correct parent results are early good0/0,bad0/1 and final
+  good1/0,bad0/1. Reducer/logs: campaign-20260908/s05.
+- **Mechanism:** Symbolic r_end/r_fire counts publish consequent endpoint
+  actions directly, rather than retiring failed parents and waiting for
+  antecedent closure before success. Current packed ages/mature counts must
+  retain the necessary ownership without an arbitrary new cap.
+- **Selection:** Standards correctness and parameterized application assertion
+  relevance; this is a distinct symbolic engine from S03's qualified NFA path.
+- **Scope:** Accepted symbolic consecutive-repetition implication paths,
+  existing cancellation/sampling/Reactive behavior, empty/nonempty timing and
+  parameter overrides. DD-006 and S02 remain separate.
+- **Closure:** Reviewed parent-verdict semantics with permanent regressions and
+  all required local gates; remote CI remains required before merge.

@@ -119,4 +119,4 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Possible clause:** IEEE 1800-2017/2023 16.12.7 and 16.14.1.
 - **Evidence:** Existing validated sv_assert_repeat_parameter_override and sv_assert_repeat_parameter_smoke tests explicitly expected multiple endpoint actions before S04. Independent S04 review derived their new totals by adding vacuity; these remain compatibility checks, not per-attempt standards qualification. No new regression inferred from those totals.
 - **Reproducer status:** existing regression stimuli retained; parent-verdict reducer needs a deliberate selection boundary.
-- **Triage status:** untriaged, record-only. Parent symbolic repetition remains partially qualified.
+- **Triage status:** promoted to S05 after S04 local qualification; parent symbolic repetition remains partially qualified.
