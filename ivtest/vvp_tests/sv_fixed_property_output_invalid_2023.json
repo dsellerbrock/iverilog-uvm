@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_fixed_property_output_invalid.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_fixed_property_output_invalid"
+    ],
+    "gold": "sv_fixed_property_output_invalid"
+}

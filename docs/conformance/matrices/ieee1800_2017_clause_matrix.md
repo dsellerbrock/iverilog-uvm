@@ -1025,3 +1025,36 @@ required local gates and independent review pass. UVM evidence is actual-g2012
 with real DPI; it does not qualify either language edition or IEEE1800.2.
 ParentV01, remaining type options and broader application/formal obligations
 remain open. Required remote CI precedes any separately authorized merge.
+
+
+L09: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 8.6 and13.5. Automatic function copy-out loads formal values
+from the callee and evaluates actual destinations in the caller activation,
+even while recursive calls stage other frames. Paired scalar,indexed,property
+receiver,real,string,object,queue,fixed-array,inout/ref and virtual-call controls
+pass; all required local gates pass at3c44fd13b. This does not qualify all
+argument forms; scalar output into a fixed-array class-property element
+remains DD019. UVM regression is actual-g2012 with real DPI, not IEEE1800.2
+qualification. Required remote CI and merge permissions remain separate.
+
+
+L11: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 13.5,13.4.2 and default initialization rules. Native scalar
+function output actuals are evaluated for return copying only. Automatic
+formals use existing typed frame initialization/reset; static formals retain
+their values. Return-time index side effects, repeated typed automatic defaults
+and static retention pass in both editions. All required local gates pass at
+b32df9a29. DPI import setup and input/inout/ref paths remain separate; this
+does not qualify every argument form or the suspended L10 property-element case.
+
+
+L10: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 13.5,7.4.6,6.16 and6.22.3. Function output/inout values reach
+fixed-array class-property elements using caller-context receiver/index
+evaluation and typed stores. Numeric width/sign,two/four-state and real/integer
+conversions, same-type strings/class handles, nonzero/multidimensional indices
+and invalid-index effects are covered. Invalid writes are ignored with exact
+diagnostics; string/non-string output variables require explicit casts through
+temporaries and are rejected. All required local gates pass at051aeee8e after
+L11. No general dynamic/associative element or complete argument qualification
+is inferred; broader language/UVM/application/formal obligations remain open.

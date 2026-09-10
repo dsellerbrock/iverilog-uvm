@@ -718,3 +718,34 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **U05 closure evidence:** Four paired baseline failures become four passes in relocated frontend S10; S1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed. No legacy regex compatibility claim from this reporting fix.
 
 - **U04 closure:** All required local gates passed: paired ABI/error controls,original2020.1.0/1.1 ABI4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,legacy4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrix remains4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; no release-wide qualification inferred.
+
+### U06 — Original UVM2020.1 phase execution
+
+- **State:** CLOSED at aad6fe22b (semantic patch fe4e949b8), after all required gates.
+- **Evidence:** Both original releases finish at time0 without the smoke marker or expected missing-traffic fatal, despite successful direct ABI checks.
+- **Resolved scope:** Preserve recursive caller input context across nested argument calls; IEEE2017/2023 8.6 and13.5.1. Original sources unchanged; both2020.1 releases now execute intended smoke checks through time1.
+- **Validation:** legacy4855/0,VPI105,negative149,runtime15/15,JSON1747/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,relocated frontendS1-S10. Paired reducer fails baseline/passes candidate in both editions. Full15release matrix6SMOKE_PASS9COMPILE_FAIL; original2020.1 smoke4/4 in2017/2023. DD018 output-copying scope was subsequently resolved by L09.
+
+### L09 — Nested argument output copy-out loses caller automatic destination
+
+- **State:** CLOSED at 3c44fd13b after all required local gates.
+- **Evidence:** Preserved nested output control fails identically before/after U06; caller local remains unchanged.
+- **Scope:** Explicit automatic copy-out phases select callee formal loads and caller destination reads/writes, preserving frame ownership and existing typed copying. IEEE2017/2023 8.6 and13.5.
+- **Evidence at candidate:** Three permanent regression families fail baseline and pass both editions; focused JSON38/0, malformed bytecode6/6, NFA58/58, makecheck and independent review pass. Full legacy4861/0,JSON1753/0,real-DPIUVM355/0/0,VPI105,negative149,runtime15/15 and frontendS1-S10 passed; restored tools match frozen fingerprints. Class fixed-array property scalar output (DD019) was resolved separately by L10.
+
+
+### L10 — Fixed-array class-property element output copy-out
+
+- **State:** CLOSED at 051aeee8e after validated prerequisite L11 and all required local gates.
+- **Evidence:** Legal scalar output actual holder.slots[index] emits a skipping warning and remains unchanged.
+- **Scope:** Existing fixed property slot checks and typed property stores; preserve receiver/index context and invalid-index semantics. No unrelated container expansion.
+
+- **L10 validation:** legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints. Fixed property elements only; broader output/array support remains separately scoped.
+
+### L11 — Scalar output actuals must not be copied in
+
+- **State:** CLOSED at b32df9a29 after all required local gates.
+- **Scope:** Native output argument setup must skip caller reads, initialize automatic formals to defaults, retain static formals and preserve DPI open-array handling.
+
+- **L11 validation:** legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged.
+

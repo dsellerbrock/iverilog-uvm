@@ -1,47 +1,35 @@
-id: U04
-title: Qualify DPI regex loading for original UVM2020.1 releases
-status: "complete"
+id: "L10"
+title: "Copy output values into fixed-array class-property elements"
+status: "closed"
 phase: "documented"
-base_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
-last_validated_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-selection_reason: Original2020.1.0/1.1 compile after L08 but missing DPI regex symbols prevent meaningful runtime smoke; this directly advances user-requested historical UVM support.
-reproducer: third_party/uvm-releases/results-gizcr5j0/results.json and both original release runtime.log files; complete and baseline_valid true.
-expected_behavior: Original pinned release regex imports resolve with correct signatures, matching and nonmatching cases execute correctly, and command-line parsing is not corrupted by unavailable DPI calls.
-observed_behavior: Missing uvm_re_match and uvm_glob_to_re symbols precede five UVM command-line errors and BUILDERR; no runtime pass despite exit0.
-standards:
-  - Establish applicable IEEE DPI import and exact official release declarations before any semantic or ABI patch; do not infer equivalence from symbol spelling.
-allowed_scope:
-  - Read-only pinned release DPI declarations and runtime source.
-  - Trace installed UVM DPI loading, driver selection and existing native wrappers.
-  - Evidence reducers and active contract, campaign, blocker and session records.
-  - uvm_dpi/uvm_dpi_iverilog.cc legacy C entry points with strict POSIX matching and bounded-input glob conversion.
-  - tests/uvm_releases legacy ABI fixtures and .github/uvm_frontend_test.sh integration.
-  - docs/conformance/uvm_release_matrix.md qualification evidence.
-non_goals:
-  - No original library modifications, regex substitution shortcuts, ignored missing imports, warning waivers or release-wide qualification by compilation alone.
-  - No unrelated compiler/runtime repairs during this blocker.
-invariants:
-  - One active blocker; L08 all required local gates passed before selection.
-  - Native ARM64, serial builds,300second CPU guard, no RSS cap; preserve unrelated worktrees and merge permissions.
-required_gates:
-  - Reproduce exact unresolved imports and compare original declaration signatures to loaded exports.
-  - Verify matching and nonmatching regex semantics plus glob conversion with permanent coverage for any code change.
-  - Run required focused and integrated gates and independent review before closure.
-completion: Close only the exact validated DPI loading or ABI subcase; historical releases and application qualification remain separate.
+base_revision: "b32df9a29"
+last_validated_revision: "b32df9a29"
+selection_reason: "DD019 silently skips legal output actuals at a shared emitter path; concrete correctness gap discovered during L09, now independently selected after validated baseline."
+reproducer: "../evidence/campaign-20260908/l09/fixed_property_output.sv"
+expected_behavior: "A legal scalar output/inout actual naming a fixed-array class-property element receives the formal value on return; preserve caller receiver/index, bounds, types and exactly-once evaluation."
+observed_behavior: "Compiler warns Skipping indexed property copy-out; destination remains unchanged."
+standards: "IEEE1800-2017/2023 13.5 output/inout actuals are procedural assignment lvalues; returned values update corresponding actual variables. Class properties and fixed-array indexing retain applicable bounds and value semantics."
+allowed_scope: ["Minimize reducers, standards and causal trace.", "tgt-vvp/draw_ufunc.c indexed fixed-property copy-out using existing typed property store operations and slot checks, only after root cause and red proof.", "Permanent ivtest regression families and required validation.", "Existing ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT,matrix and session log."]
+non_goals: ["No UVM/application edits; no dynamic/associative array feature expansion or ref redesign.", "No runtime architecture change; record unrelated discoveries."]
+required_gates: ["Baseline red/candidate green in both editions; scalar types, bounds/index/receiver controls.", "Focused regression, independent review, integrated legacy/JSON/VPI/negative/runtime,real-DPIUVM,NFA,makecheck,isolated frontend."]
+completion: "Close only validated fixed-property element output scope; retain all broader obligations."
 stop_after_completion: false
-next_action: "Publish the four validated increments to existing PR273, then select DD-017 phase-execution reducer as next evidence-backed candidate."
-next_command: "git diff --stat abcfdf7fb HEAD"
-prerequisite_resolution: U05 validated at a5eb76ebb; standalone m__uvm_report_dpi dispatches six arguments through existing runtime ABI, all required local gates passed.
-root_cause: Selected legacy SV sources import C uvm_re_match and uvm_glob_to_re; installed modern UVM umbrella exports lower-level uvm_re APIs because modern SV implements those names as wrappers. No legacy symbols exist in installed library.
-design_review: Blind delegation changes strict invalid-regex behavior and return codes; use strict POSIX matching outside existing glob-retry macro, preserve singleton-slash and empty-regex semantics, and verify report severity counts. Modern glob helper needs explicit length/bracket/error boundary treatment; upstream bugs are not normative. DD-016 records source-only edge findings.
+next_action: "Await integrated30122 and UVM16983; full JSON after integrated terminal, then frontend alone after every other gate terminal. No source/install changes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l10/integrated.log ../evidence/campaign-20260908/l10/uvm.log"
 
-abi_contract: Official2020.1 declarations are context int uvm_re_match(string,string) and context string uvm_glob_to_re(string), mapped to C int/const char pointers by IEEE2017/2023 TableH.1. Match uses strict POSIX ERE, optional paired slash delimiters, zero for match and nonzero for mismatch/invalid regex; invalid regex increments UVM_ERROR. Explicit ^$ matches only the empty string; raw empty ERE is delegated to the native implementation (Darwin returns14), not given an invented portable result. Singleton slash is literal. Glob empty/slash becomes /^$/, bracketed regex remains bracketed per documented intent; preserve2040 input limit and reportoversize returning original input. Allocate enough conversion storage for worst-case expansion instead of reproducing old buffer overflow.
-implementation_decision: Modern combined matcher changes error codes and retries invalid patterns as globs. Modern deglob helper has different length accounting. Implement legacy entry points directly using POSIX and std::string, retaining native caller signatures and U05 reporting; original vendor sources untouched.
+root_cause: "Value-returning function emitter only enters fixed property slot path for runtime-container-valued elements. Scalar typed element copies fall to warning/return; void calls use ordinary typed assignment and pass. Both modes baseline compile0/run1 for nonvoid; void control pass."
 
-u04_live_gates: []
-u04_unstarted_gates: []
-u04_candidate_revision: aa172f5f9
-u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
+prerequisite: "L11 closed at b32df9a29 after all required gates; resume exact preserved L10 patch."
 
-u04_nfa: Passed58/58 terminal6429 exit0.
-closure: All required local gates passed; paired legacy ABI/error controls and originalrelease4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,integrated4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Frozen fingerprints unchanged. Full15release matrix4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; DD-017 remains separate.
+l10_candidate: "Resumed after validated L11; fixed-property scalar typed stores reuse slot checks and L09 context phases. Destination numeric conversion includes width/sign,two-state,real/int. String/non-string outputs rejected (6.16,6.22.3). Three positive families red on L11 baseline/pass both editions; paired CE mismatch cases,JSON50/0,legacy8/0. Full gates and final review pending."
+candidate_revision: "051aeee8e"
+l10_live_gates: {}
+
+l10_integrated_terminal: "30122 exit0;4873total4868pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON39499 running after terminal; UVM16983 live; releaseprobe49747 live; frontendunstarted."
+
+l10_json_terminal: "39499 exit0;1765tests0failures. UVM16983 remains live; frontendunstarted."
+l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json complete/baseline_valid;6SMOKE_PASS9knownCOMPILE_FAIL,terminal49747 exit1 due compile gaps."
+
+l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
+
+l10_closure: "legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"

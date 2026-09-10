@@ -78,7 +78,7 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
-static int function_port_is_container_output_(ivl_signal_t port)
+static int function_port_is_native_output_(ivl_signal_t port)
 {
       ivl_type_t type;
 
@@ -102,7 +102,12 @@ static int function_port_is_container_output_(ivl_signal_t port)
 
       type = ivl_signal_net_type(port);
       return type && (ivl_type_base(type) == IVL_VT_DARRAY
-	  || ivl_type_base(type) == IVL_VT_QUEUE);
+	  || ivl_type_base(type) == IVL_VT_QUEUE
+	  || ivl_type_base(type) == IVL_VT_BOOL
+	  || ivl_type_base(type) == IVL_VT_LOGIC
+	  || ivl_type_base(type) == IVL_VT_REAL
+	  || ivl_type_base(type) == IVL_VT_STRING
+	  || ivl_type_base(type) == IVL_VT_CLASS);
 }
 
 /* Bind one `ref' formal (IEEE 1800-2017 13.5.2). An actual that cannot
@@ -138,9 +143,10 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 
 	/* An output argument is copy-out only (IEEE 1800-2017/2023 13.5).
 	 * Evaluating the caller here would copy in a value that is not an input and
-	 * would evaluate an indexed actual twice. Automatic output storage receives
-	 * its default in the send pass; static output storage retains its value. */
-      if (function_port_is_container_output_(port))
+	 * would evaluate an indexed actual twice. Automatic scalar storage receives
+	 * its default from context allocation/reset; the send pass initializes
+	 * containers. Static output storage retains its value. */
+      if (function_port_is_native_output_(port))
 	    return;
 
 	/* An unpacked fixed-array formal can retain its element data type
@@ -219,13 +225,18 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 	 * storage. Do not reset a static output between calls. Automatic output
 	 * storage is initialized on each entry; materialize its declared container
 	 * default here because the ordinary argument stack has no copy-in value. */
-      if (function_port_is_container_output_(port)) {
+      if (function_port_is_native_output_(port)) {
 	    ivl_type_t port_type = ivl_signal_net_type(port);
 
 	    if (ivl_signal_dimensions(port) > 0)
 		  return;
 
 	    if (!ivl_scope_is_auto(ivl_signal_scope(port)))
+		  return;
+
+	    /* Scalar automatic storage is initialized by the existing context
+	       alloc/reset hooks. Do not overwrite it with the caller's value. */
+	    if (dtype != IVL_VT_DARRAY && dtype != IVL_VT_QUEUE)
 		  return;
 
 	    if (ivl_type_base(port_type) == IVL_VT_QUEUE
@@ -387,7 +398,7 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 	                        continue;
 	                  if (vif_copyback
 			      && ivl_signal_port(port) == IVL_SIP_OUTPUT
-			      && !function_port_is_container_output_(port))
+			      && !function_port_is_native_output_(port))
 				continue;
 	                  if (ivl_signal_port(port) == IVL_SIP_REF) {
                         draw_bind_function_ref_argument(port, argv[idx]);
@@ -405,7 +416,7 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 	                  continue;
 	            if (vif_copyback
 			&& ivl_signal_port(port) == IVL_SIP_OUTPUT
-			&& !function_port_is_container_output_(port))
+			&& !function_port_is_native_output_(port))
 			  continue;
 	            draw_eval_function_argument(port, argv[idx]);
       }
@@ -416,7 +427,7 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 	                  continue;
 	            if (vif_copyback
 			&& ivl_signal_port(port) == IVL_SIP_OUTPUT
-			&& !function_port_is_container_output_(port))
+			&& !function_port_is_native_output_(port))
 			  continue;
 	            draw_send_function_argument(port, argv[idx - 1]);
       }
@@ -612,7 +623,29 @@ static void draw_copy_out_container_value_(ivl_signal_t port,
 	      "    %%pop/obj 1, 1; discard output formal storage alias\n");
 }
 
-static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual)
+/* Output addresses belong to the caller; the copied value belongs to the
+ * returned callee. Keep these roles explicit even in same-scope recursion. */
+static void draw_copy_out_context(ivl_signal_t port, unsigned source)
+{
+      if (ivl_scope_is_auto(ivl_signal_scope(port)))
+            fprintf(vvp_out, "    %%copyout/context %u;\n", source);
+}
+
+static void draw_copy_out_load(ivl_signal_t port, const char*kind)
+{
+      draw_copy_out_context(port, 1);
+      fprintf(vvp_out, "    %%load/%s v%p_0;\n", kind, port);
+      draw_copy_out_context(port, 0);
+}
+
+static void draw_copy_out_load_array(ivl_signal_t port, unsigned kind)
+{
+      draw_copy_out_context(port, 1);
+      emit_load_arr_dar_(port, kind);
+      draw_copy_out_context(port, 0);
+}
+
+static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t actual)
 {
       static int warned_unsupported_copy_out = 0;
       ivl_signal_t sig = 0;
@@ -639,9 +672,9 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  if (!uarray_container_kind_(port, &pkind,
 			ivl_expr_file(actual), ivl_expr_lineno(actual)))
 			return;
-		  emit_load_arr_dar_(port, pkind);
+		  draw_copy_out_load_array(port, pkind);
 	    } else {
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  draw_copy_out_load(port, "obj");
 	    }
 
 	    emit_store_arr_dar_slice_(
@@ -669,7 +702,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		&& uarray_container_kind_(asig, &akind,
 					 ivl_expr_file(actual),
 					 ivl_expr_lineno(actual))) {
-		  emit_load_arr_dar_(port, pkind);
+		  draw_copy_out_load_array(port, pkind);
 		  emit_store_arr_dar_(asig, akind);
 	    }
 	    return;
@@ -737,16 +770,16 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  switch (dtype) {
 		      case IVL_VT_BOOL:
 		      case IVL_VT_LOGIC:
-			fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+			draw_copy_out_load(port, "vec4");
 			fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind,
 				ivl_signal_width(port));
 			break;
 		      case IVL_VT_REAL:
-			fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+			draw_copy_out_load(port, "real");
 			fprintf(vvp_out, "    %%aa/store/r/%s;\n", key_kind);
 			break;
 		      case IVL_VT_STRING:
-			fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+			draw_copy_out_load(port, "str");
 			fprintf(vvp_out, "    %%aa/store/str/%s;\n", key_kind);
 			break;
 		      case IVL_VT_CLASS:
@@ -754,7 +787,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		      case IVL_VT_QUEUE:
 		      case IVL_VT_NO_TYPE:
 		      default:
-			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			draw_copy_out_load(port, "obj");
 			draw_copy_out_container_value_(port, actual);
 			fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
 			break;
@@ -787,12 +820,25 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 			    || (ivl_type_base(prop_type) == IVL_VT_QUEUE
 				&& !ivl_type_queue_assoc_compat(prop_type)))
 			&& type_is_runtime_container_(actual_type);
-		  int fixed_container_slot =
-			type_is_fixed_uarray_property_(prop_type)
-			&& type_is_runtime_container_(actual_type);
+		  int fixed_property_slot =
+			type_is_fixed_uarray_property_(prop_type);
+
+		  /* A returned formal is a variable, not a string literal. String
+		     and non-string assignments require an explicit cast (6.16). */
+		  if (fixed_property_slot
+		      && ((ivl_type_base(ivl_type_element(prop_type)) == IVL_VT_STRING)
+			  != (ivl_signal_data_type(port) == IVL_VT_STRING))) {
+			fprintf(stderr, "%s:%u: error: fixed property output %s "
+				"requires matching string types; use an explicit cast "
+				"through a temporary.\n",
+				ivl_expr_file(actual), ivl_expr_lineno(actual),
+				ivl_signal_basename(port));
+			vvp_errors += 1;
+			return;
+		  }
 
 		  if (assoc_container_value || positional_container_value
-		      || fixed_container_slot) {
+		      || fixed_property_slot) {
 			int pidx = (int)ivl_expr_property_idx(actual);
 
 			if (base_sig) {
@@ -818,7 +864,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 				      pidx);
 			      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 			      key_kind = draw_eval_assoc_key_(idx_expr, 0);
-			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			      draw_copy_out_load(port, "obj");
 			      draw_copy_out_container_value_(port, actual);
 			      fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
 			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -833,7 +879,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 				      "    %%prop/obj %d, 0; output positional container property\n",
 				      pidx);
 			      fprintf(vvp_out, "    %%pop/obj 1, 1; keep output container property\n");
-			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			      draw_copy_out_load(port, "obj");
 			      draw_copy_out_container_value_(port, actual);
 			      fprintf(vvp_out,
 				      "    %%set/dar/obj/obj %d; output positional container element\n",
@@ -861,11 +907,50 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 					    "    %%jmp/0xz T_%u.%u, %d; output fixed property slot OOB\n",
 					    thread_count, lab_bad_slot,
 					    slot_in_range_flag);
-			      fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
-			      draw_copy_out_container_value_(port, actual);
-			      fprintf(vvp_out,
-				      "    %%store/prop/obj %d, %d; output fixed container slot\n",
-				      pidx, slot_word);
+			      ivl_type_t leaf_type = ivl_type_element(prop_type);
+			      switch (ivl_type_base(leaf_type)) {
+				case IVL_VT_BOOL:
+				case IVL_VT_LOGIC: {
+				  unsigned width = ivl_type_packed_width(leaf_type);
+				  if (ivl_signal_data_type(port) == IVL_VT_REAL) {
+					draw_copy_out_load(port, "real");
+					fprintf(vvp_out, "    %%cvt/vr %u;\n", width);
+				  } else {
+					draw_copy_out_load(port, "vec4");
+					fprintf(vvp_out, "    %%pad/%s %u;\n",
+						ivl_signal_signed(port) ? "s" : "u", width);
+				  }
+				  if (ivl_type_base(leaf_type) == IVL_VT_BOOL)
+					fprintf(vvp_out, "    %%cast2;\n");
+				  fprintf(vvp_out,
+					  "    %%store/prop/v/i %d, %d, %u;\n",
+					  pidx, slot_word, width);
+				  break;
+				}
+				case IVL_VT_REAL:
+				  if (ivl_signal_data_type(port) == IVL_VT_REAL) {
+					draw_copy_out_load(port, "real");
+				  } else {
+					draw_copy_out_load(port, "vec4");
+					fprintf(vvp_out, "    %%cvt/rv%s;\n",
+						ivl_signal_signed(port) ? "/s" : "");
+				  }
+				  fprintf(vvp_out, "    %%store/prop/r/i %d, %d;\n",
+					  pidx, slot_word);
+				  break;
+				case IVL_VT_STRING:
+				  draw_copy_out_load(port, "str");
+				  fprintf(vvp_out, "    %%store/prop/str/i %d, %d;\n",
+					  pidx, slot_word);
+				  break;
+				default:
+				  draw_copy_out_load(port, "obj");
+				  draw_copy_out_container_value_(port, actual);
+				  fprintf(vvp_out,
+					  "    %%store/prop/obj %d, %d; output fixed property slot\n",
+					  pidx, slot_word);
+				  break;
+			      }
 			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			      fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
 				      thread_count, lab_slot_done);
@@ -932,9 +1017,9 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			      return;
 			}
-			emit_load_arr_dar_(port, kind);
+			draw_copy_out_load_array(port, kind);
 		  } else {
-			fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+			draw_copy_out_load(port, "obj");
 			draw_copy_out_container_value_(port, actual);
 		  }
 		  fprintf(vvp_out, "    %%store/prop/arr/dar %d;\n", pidx);
@@ -945,18 +1030,18 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    switch (dtype) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
-		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+		  draw_copy_out_load(port, "vec4");
 		  fprintf(vvp_out, "    %%store/prop/v %d, %u;\n", pidx,
 		          ivl_signal_width(port));
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 		case IVL_VT_REAL:
-		  fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+		  draw_copy_out_load(port, "real");
 		  fprintf(vvp_out, "    %%store/prop/r %d;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
 		case IVL_VT_STRING:
-		  fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+		  draw_copy_out_load(port, "str");
 		  fprintf(vvp_out, "    %%store/prop/str %d;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 		  break;
@@ -966,7 +1051,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
 		default:
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  draw_copy_out_load(port, "obj");
 		  draw_copy_out_container_value_(port, actual);
 		  fprintf(vvp_out, "    %%store/prop/obj %d, 0;\n", pidx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -997,7 +1082,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 		  unsigned port_wid = ivl_signal_width(port);
 		  unsigned sig_wid  = ivl_signal_width(under_sig);
 		  if (udtype == IVL_VT_BOOL || udtype == IVL_VT_LOGIC) {
-			fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+			draw_copy_out_load(port, "vec4");
 			if (sig_wid != port_wid) {
 			      const char*pad = ivl_signal_signed(under_sig)
 				    ? "%pad/s" : "%pad/u";
@@ -1031,7 +1116,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    unsigned kind;
 	    if (uarray_container_kind_(asig, &kind, ivl_expr_file(actual),
 				       ivl_expr_lineno(actual))) {
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  draw_copy_out_load(port, "obj");
 		  note_array_signal_use(asig);
 		  emit_store_arr_dar_(asig, kind);
 	    }
@@ -1077,22 +1162,22 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    switch (dtype) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
-		  fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+		  draw_copy_out_load(port, "vec4");
 		  fprintf(vvp_out, "    %%store/vec4a v%p, %u, 0;\n", sig, ix);
 		  break;
 		case IVL_VT_REAL:
-		  fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+		  draw_copy_out_load(port, "real");
 		  fprintf(vvp_out, "    %%store/reala v%p, %u;\n", sig, ix);
 		  break;
 		case IVL_VT_STRING:
-		  fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+		  draw_copy_out_load(port, "str");
 		  fprintf(vvp_out, "    %%store/stra v%p, %u;\n", sig, ix);
 		  break;
 		case IVL_VT_CLASS:
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
 		case IVL_VT_NO_TYPE:
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+		  draw_copy_out_load(port, "obj");
 		  draw_copy_out_container_value_(port, actual);
 		  fprintf(vvp_out, "    %%store/obja v%p, %u;\n", sig, ix);
 		  break;
@@ -1113,7 +1198,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
       switch (dtype) {
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
-	    fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", port);
+	    draw_copy_out_load(port, "vec4");
 	    if (signal_is_return_value(sig))
 		  fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n",
 			  ivl_signal_width(sig));
@@ -1122,14 +1207,14 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 			  sig, ivl_signal_width(sig));
 	    break;
 	  case IVL_VT_REAL:
-	    fprintf(vvp_out, "    %%load/real v%p_0;\n", port);
+	    draw_copy_out_load(port, "real");
 	    if (signal_is_return_value(sig))
 		  fprintf(vvp_out, "    %%ret/real 0;\n");
 	    else
 		  fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
 	    break;
 	  case IVL_VT_STRING:
-	    fprintf(vvp_out, "    %%load/str v%p_0;\n", port);
+	    draw_copy_out_load(port, "str");
 	    if (signal_is_return_value(sig))
 		  fprintf(vvp_out, "    %%ret/str 0;\n");
 	    else
@@ -1139,7 +1224,7 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
-	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", port);
+	    draw_copy_out_load(port, "obj");
 	    draw_copy_out_container_value_(port, actual);
 	    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
 	    break;
@@ -1153,6 +1238,16 @@ static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual
 	    }
 	    break;
       }
+}
+
+static void draw_copy_out_function_argument(ivl_signal_t port, ivl_expr_t actual)
+{
+      ivl_scope_t scope = ivl_signal_scope(port);
+      if (ivl_scope_is_auto(scope))
+            fprintf(vvp_out, "    %%copyout/enter S_%p;\n", scope);
+      draw_copy_out_function_argument_impl(port, actual);
+      if (ivl_scope_is_auto(scope))
+            fprintf(vvp_out, "    %%copyout/leave;\n");
 }
 
 /* Finish one receiver-selected virtual-interface task branch.  The frontend

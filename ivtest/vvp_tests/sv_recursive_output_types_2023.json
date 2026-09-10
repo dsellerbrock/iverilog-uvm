@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_recursive_output_types.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_recursive_output_types"
+    ],
+    "gold": "sv_recursive_output_types"
+}
