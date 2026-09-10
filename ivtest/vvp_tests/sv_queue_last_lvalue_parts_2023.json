@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_queue_last_lvalue_parts.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_queue_last_lvalue_parts"
+}

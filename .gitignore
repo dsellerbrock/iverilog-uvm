@@ -131,3 +131,6 @@ __pycache__/
 
 # Local licensed standards references. Keep PDFs out of Git.
 /docs/standards/local/
+
+# Reproducible UVM release downloads, extracted sources and probe outputs.
+/third_party/uvm-releases/

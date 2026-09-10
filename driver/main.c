@@ -46,9 +46,12 @@ const char HELP[] =
 "                [-s topmodule] [-t target] [-T min|typ|max]\n"
 "                [-W class] [-y dir] [-Y suf] [-l file] source_file(s)\n"
 "                [-uvm] [--uvm-home=dir] [--uvm-no-dpi] [--uvm-version]\n"
+"                [--uvm=version] [--uvm-list]\n"
 "\n"
 "  -uvm            Enable the supported UVM environment: add the installed\n"
 "                  UVM sources and DPI runtime automatically.\n"
+"  --uvm=version   Select an acquired UVM release.\n"
+"  --uvm-list      List available UVM releases and exit.\n"
 "  --uvm-home=dir  Use the UVM library at dir instead of the bundled one.\n"
 "  --uvm-no-dpi    Compile UVM's pure-SystemVerilog fallbacks (no DPI).\n"
 "  --uvm-version   Print the bundled UVM version and exit.\n"
@@ -62,6 +65,7 @@ const char HELP[] =
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
 #include <assert.h>
 
 #include <sys/types.h>
@@ -215,6 +219,8 @@ int verbose_flag = 0;
    module so vvp needs no -M/-m/-d from the user. See configure_uvm_frontend. */
 static int uvm_flag = 0;           /* -uvm / --uvm given */
 static int uvm_no_dpi_flag = 0;    /* --uvm-no-dpi: use UVM's pure-SV fallbacks */
+static int uvm_list_flag = 0;
+static const char*uvm_release = 0;
 static int uvm_version_flag = 0;   /* --uvm-version: print version and exit */
 static const char*uvm_home = 0;    /* --uvm-home=PATH / $IVERILOG_UVM_HOME */
 static int uvm_pkg_user_supplied = 0; /* user already listed uvm_pkg.sv */
@@ -1169,6 +1175,8 @@ static int is_uvm_pkg_name(const char*name)
  * argv here. Recognized:
  *
  *    -uvm, --uvm            enable the supported UVM environment
+ *    --uvm=VERSION          select an acquired release
+ *    --uvm-list             list available releases and exit
  *    --uvm-home=PATH        use PATH instead of the bundled UVM (implies -uvm)
  *    --uvm-home PATH        (two-argument form)
  *    --uvm-no-dpi           compile UVM's pure-SystemVerilog fallbacks
@@ -1177,6 +1185,13 @@ static int is_uvm_pkg_name(const char*name)
  * argv is compacted in place; *argc is updated. Any remaining tokens keep
  * their original relative order for getopt() and the trailing file scan.
  */
+static int valid_uvm_release(const char*name)
+{
+      const char*alnum = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+      return *name && strchr(alnum, *name) &&
+            strspn(name, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._-") == strlen(name);
+}
+
 static void preparse_uvm_args(int*argc, char**argv)
 {
       int rd, wr = 1;               /* argv[0] stays in place */
@@ -1184,7 +1199,12 @@ static void preparse_uvm_args(int*argc, char**argv)
 	    const char*a = argv[rd];
 	    if (strcmp(a, "-uvm") == 0 || strcmp(a, "--uvm") == 0) {
 		  uvm_flag = 1;
-	    } else if (strcmp(a, "--uvm-no-dpi") == 0) {
+	    } else if (strncmp(a, "--uvm=", 6) == 0) {
+                  uvm_flag = 1;
+                  uvm_release = a + 6;
+            } else if (strcmp(a, "--uvm-list") == 0) {
+                  uvm_list_flag = 1;
+            } else if (strcmp(a, "--uvm-no-dpi") == 0) {
 		  uvm_flag = 1;
 		  uvm_no_dpi_flag = 1;
 	    } else if (strcmp(a, "--uvm-version") == 0) {
@@ -1202,13 +1222,70 @@ static void preparse_uvm_args(int*argc, char**argv)
 		  argv[wr++] = argv[rd];
 	    }
       }
+      if (uvm_release && uvm_home) {
+            fprintf(stderr, "iverilog: cannot combine --uvm=VERSION and --uvm-home.\n");
+            exit(1);
+      }
+      if (uvm_release && !valid_uvm_release(uvm_release)) {
+            fprintf(stderr, "iverilog: invalid UVM release '%s'.\n", uvm_release);
+            exit(1);
+      }
       *argc = wr;
       argv[wr] = 0;
 }
 
+/* The acquisition script registers release directories here. */
+static char* uvm_release_root(void)
+{
+      const char*override = getenv("IVERILOG_UVM_RELEASES");
+      char*path;
+      if (override && *override)
+            return strdup(override);
+      path = malloc(strlen(base) + 32);
+      sprintf(path, "%s%cuvm%creleases", base, sep, sep);
+      return path;
+}
+
+static int list_uvm_releases(void)
+{
+      char*root = uvm_release_root();
+      DIR*dir = opendir(root);
+      struct dirent*entry;
+      char path[MAXSIZE];
+      int result = 0;
+      if (!dir) {
+            result = errno == ENOENT ? 0 : 1;
+            if (result) perror(root);
+            free(root);
+            return result;
+      }
+      for (;;) {
+            errno = 0;
+            entry = readdir(dir);
+            if (!entry) {
+                  if (errno) { perror(root); result = 1; }
+                  break;
+            }
+            if (!valid_uvm_release(entry->d_name)) continue;
+            if (snprintf(path, sizeof path, "%s%c%s%csrc%cuvm_pkg.sv",
+                         root, sep, entry->d_name, sep, sep) >= (int)sizeof path)
+                  continue;
+            if (access(path, R_OK) != 0) {
+                  snprintf(path, sizeof path, "%s%c%s%cuvm_pkg.sv",
+                           root, sep, entry->d_name, sep);
+                  if (access(path, R_OK) != 0) continue;
+            }
+            puts(entry->d_name);
+      }
+      closedir(dir);
+      free(root);
+      return result;
+}
+
 /*
  * Resolve the installed UVM source directory (the one holding uvm_pkg.sv).
- * Priority: --uvm-home, then $IVERILOG_UVM_HOME, then the bundled tree under
+ * Priority: --uvm=VERSION or --uvm-home, then $IVERILOG_UVM_HOME,
+ * then the bundled tree under
  * the toolchain install root (<base>/uvm/src). A home may point either at a
  * directory that directly contains uvm_pkg.sv or at a checkout whose src/
  * subdirectory does. Returns a malloc'd path, or 0 if none was found; when
@@ -1218,8 +1295,23 @@ static char* resolve_uvm_src_dir(void)
 {
       const char*home = uvm_home ? uvm_home : getenv("IVERILOG_UVM_HOME");
       char path[MAXSIZE];
+      char selected[MAXSIZE];
 
+      if (uvm_release) {
+            char*root = uvm_release_root();
+            int length = snprintf(selected, sizeof selected, "%s%c%s", root, sep, uvm_release);
+            free(root);
+            if (length < 0 || length >= (int)sizeof selected) {
+                  fprintf(stderr, "iverilog: UVM release path is too long.\n");
+                  return 0;
+            }
+            home = selected;
+      }
       if (home && *home) {
+            if (strlen(home) + 16 >= sizeof path) {
+                  fprintf(stderr, "iverilog: UVM source path is too long.\n");
+                  return 0;
+            }
 	    snprintf(path, sizeof path, "%s%cuvm_pkg.sv", home, sep);
 	    if (access(path, R_OK) == 0)
 		  return strdup(home);
@@ -1228,6 +1320,8 @@ static char* resolve_uvm_src_dir(void)
 		  snprintf(path, sizeof path, "%s%csrc", home, sep);
 		  return strdup(path);
 	    }
+            if (uvm_release)
+                  fprintf(stderr, "iverilog: UVM release '%s' is unavailable; fetch/register it with scripts/uvm_release_matrix.py --fetch-only --register.\n", uvm_release);
 	    fprintf(stderr, "iverilog: UVM home '%s' does not contain "
 		    "uvm_pkg.sv (looked in '%s' and '%s%csrc').\n",
 		    home, home, home, sep);
@@ -1367,7 +1461,7 @@ int main(int argc, char **argv)
 	/* Create another temporary file for passing configuration
 	   information to ivl. */
 
-      if ( (iconfig_path = getenv("IVERILOG_ICONFIG")) ) {
+      if (!uvm_list_flag && (iconfig_path = getenv("IVERILOG_ICONFIG"))) {
 	    fprintf(stderr, "%s: IVERILOG_ICONFIG=%s\n",
 		    argv[0], iconfig_path);
 
@@ -1566,6 +1660,17 @@ int main(int argc, char **argv)
 	   resolved and any generation bump lands before generation is written
 	   to the iconfig file, and so uvm_pkg.sv is injected ahead of the
 	   user's positional/command-file sources below. */
+      if (uvm_list_flag) {
+            int result = list_uvm_releases();
+            fclose(source_file);
+            fclose(defines_file);
+            fclose(iconfig_file);
+            remove(source_path);
+            remove(defines_path);
+            remove(iconfig_path);
+            remove(compiled_defines_path);
+            return result;
+      }
       if (uvm_flag)
 	    configure_uvm_frontend();
 

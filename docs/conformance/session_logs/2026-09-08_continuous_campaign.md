@@ -1413,3 +1413,153 @@ other coverage obligations remain separate. Worktree audit unchanged; dirty
 and non-ancestor sibling trees preserved. Three locally validated increments
 since PR272; next coordinator boundary assesses DD010 before the next coherent
 coverage publication. No per-blocker PR and no merge authorization inferred.
+
+V06 checkpoint421b50abd is the validated semantic baseline. Coordinator
+selected DD010 as V07 after canonical Graphify query and current source trace.
+Both primary19.11 clauses explicitly require overall100 for no instances;
+19.11.3 merges actual instance bins. Paired fresh reducer returns0 before
+construction and50 instead100 after one of two types is fully covered.
+Existing live registry plus covgrp_has_retired_options_ preserves exact
+never/live/retired distinction even for zero instance weight and empty items;
+reuse it rather than add another lifetime flag. V07 sole active contract set.
+After a validated V07 increment, publish one coherent V04-V07 batch under the
+user's slower cadence. No immediate PR or parentV01 completion claim.
+
+V07 candidate runtime3b162fd9/compiler07b302c2 frozen. Paired standalone
+population/cross tests fail on saved V06 runtime and pass candidate; mode
+controls pass both. Focus6/6 legacy and JSON, V04 neighbors2/2,V05 13/13,
+V06 22/22,coverage75/65 and makecheck pass. Independent review clear on
+shared guard, lifecycle and weight-independent retirement. Integrated26646,
+real-DPIUVM53589 and NFA91909 running; fullJSON must follow integrated
+completion. V07 is not closed; validated baseline remains421b50abd. User
+requested publication boundary produced one coherent direct-main PR273 for
+validated V04-V06, exact tree421b50abd with preserved campaign ancestry.
+Publication8f50344c0 is mergeable with six CI checks queued at observation;
+no agent merge. Active V07 source/tests remain preserved and unpublished.
+
+V07 NFA91909 terminated0 with58passed,0failed. Integrated26646 and UVM53589
+re-polled and confirmed live. FullJSON remains unstarted. Worktree audit
+unchanged; preserve all unrelated dirty/non-ancestor siblings.
+
+V07 integrated26646 terminated0:4813total4808pass,zero unexpected failures,
+2NI3EF,VPI105,negative149 and runtime invariants pass. Six new manifest
+entries each registered exactly once; source/gold presence verified. Frozen
+compiler07b302c2/runtime3b162fd9 unchanged. Installed FPGA target/config
+byte-identical to current build. FullJSON48473 started after integrated
+termination; UVM53589 remains confirmed live. Both required gates remain
+pending. PR273 still open/mergeable with six queued checks at observation.
+
+V07 fullJSON48473 terminated0:1705tests,zero failures. Frozen compiler
+07b302c2/runtime3b162fd9 fingerprints verified unchanged. UVM53589 remains
+confirmed live and is the final required local gate. No semantic closure
+or dependent implementation until it passes. Last validated baseline421b50abd.
+
+V07 UVM53589 terminated0:355passed,0failed,0skipped; real DPI umbrella loaded,
+actual-g2012. All required local gates and independent review pass, tools
+compiler07b302c2/runtime3b162fd9 unchanged. Close only never-instantiated-type
+eligibility. Completed contract preserved in evidence/v07. Worktree audit
+unchanged; all unrelated dirty/non-ancestor siblings retained. This is one
+validated increment since PR273; no new PR. Return to coordinator selection
+with U01 unmodified application teardown as the next evidence-driven candidate.
+
+V07 checkpoint03caa64c832a9c1b22b82a5692fda7764c94ebc9 complete. Coordinator resumed U01 from preserved
+teardown contract after canonical Graphify query and scoped current-source
+inspection. Pinned UVM explicitly warns on parent process termination without
+sequence.kill; prior reduced controls distinguish caller.kill from sequence.kill.
+Fresh unmodified replay is required before attributing a simulator defect.
+No compiler edits authorized in this read-only qualification/reduction phase.
+
+U01 replay73724 terminated1 at harness level: compile/runtime both0,115requests,
+230scoreboarditems,0errors/0fatals,4SEQPRTZMBwarnings and TEST FAILED CHECKS.
+All360exportedinputs match post-L03; warning count variation alone is not a
+regression claim. Paired guard controls61219 pass in2017/2023 (parent.kill1,
+sequence.kill0). Pinned VCS/Questa tool configs explicitly select UVM1.2;
+clean local UVM1.2 c68f035f lacks the newer process guard. Diagnostic compile
+using native --uvm-home, original exports and corrected matrix cwd fails at
+uvm_component.svh3616 #setting.offset and legacy macro invocations. Earlier
+manual invocation had option-order/cwd setup errors and is not defect evidence.
+Classify the corrected first syntax/macro frontier against primary standards
+before any prerequisite implementation. No UVM library install, corpus edit,
+warning suppression, application pass or DPI compatibility claim. V07 remains
+last validated implementation03caa64c8; U01 is active read-only triage.
+
+User requested older/all major UVM revisions downloaded, compiled and kept in
+repo, then specified pinned submodules with downloader for archive-only releases.
+U01 preserved in u01-after-v07/suspended-before-uvm-matrix.yaml; U02 active.
+Official Accellera inventory supplies15archives, including2017.0.9prerelease and
+2020.3.2. Added exact official Git pins for2020.2.0/.3.0 and reused unchanged
+uvm-core78c06547 for official2020.3.1; other releases use checksum-pinned
+archive extraction. No third-party source patch or installed-tool mutation.
+
+Final matrix10357 completed1 as intended for observed compile failures:
+15acquired,3SMOKE_PASS(2020.2.0/.3.0/.3.1),12COMPILE_FAIL. Machine-readable
+results-pv87b5yu records complete/baseline_valid true with exact input/tool
+fingerprints, commands, source hashes and logs. Actual-g2012 smoke checks
+factory/clone/field independence,phase/objections,regex and HDL read using the
+installed real Icarus DPI backend; not per-release ABI or full qualification.
+Independent review found and prompted fixes for summary false passes and
+machine-readable drift invalidation; final source review clear. Six permanent
+offline checks pass, including dirty/divergent Git preservation and process-tree
+timeout. DD011 records compile families without authorizing semantic fixes.
+U02 tooling scope complete; restore U01 triage after checkpoint. No new PR at
+this two-increment milestone; retain the user's less-frequent publication cadence.
+
+Post-U02 coordinator: both supplied IEEE editions AnnexA delay_value permits
+numbers,ps_identifier,time_literal,1step; ps_identifier is optional package
+scope plus identifier. Legacy #setting.offset therefore is not established as
+a mandatory IEEE syntax defect; no extension or corpus edit performed. U01
+compatibility remains open. DD011 newestUVM2020.3.2 queue frontier instead
+contradicts explicit7.10 empty-queue initialization. Select L06 with exact
+contract and preserve U01 in evidence/l06. queue-default.sv fails both2017/2023
+on validated03caa64c8 with the unsupported struct-member-default diagnostic.
+Graph-guided/source trace identifies shared pform_make defaults plus implicit
+const guards and nested-member recursion. Outer declaration dimensions must
+precede typedef dimensions; element-default legality must still be checked even
+when no elements exist. No implementation edits yet. Next expand shape/const/
+lifetime and invalid-default controls before the smallest shared correction.
+
+L06 candidate pform.cc reuses shape classification with correct outer-dimension
+precedence, skipping nonexistent queue elements in four initializer paths.
+Type-default validation remains independent. Build77896/install39204 complete0;
+frozen compiler9915d687/runtime3b162fd9. Paired lifecycle controls pass. Added
+14permanent entries coveringconst/class/static/automatic/alias/nestedqueue-only
+wrappers,scalar defaults,copy,explicit queue initializer and invalid defaults.
+Mixedarray boundaries remain unsupported,accurately tested as diagnostics.
+Focused14/14 each runner,neighbors27/26 andmakecheck pass. Legacy static-lifetime
+warning fixed by explicitstatic test declaration; JSON2023 configs use base
+sources to retain identical diagnostic paths. Existinggold only loses the newly
+legal queue_items error. Final independent review clear.
+
+OfficialUVM2020.3.2 now reaches q[$] lvalue abort. Minimal reducer proves same
+abort on savedbaseline andcandidate inboth editions;DD013recordonly,not a release
+pass. DD012records independentmixedarray/classqualifiedparserboundaries.
+Integrated48575,real-DPIUVM55602,NFA5788 started on frozen tools;fullJSON must
+follow integratedtermination. Last validated semanticbaseline03caa64c8 remains.
+
+L06 NFA5788 terminated0:58passed,0failed. Integrated48575 and UVM55602
+re-polled and confirmedlive. Compiler9915d687/runtime3b162fd9 unchanged.
+FullJSON remains unstarted until integrated terminates. No semantic closure.
+
+
+### L06 closure, UVM release picker, and L07 validation
+
+L06 is locally validated at `4965219df`: all original required gates passed,
+including JSON 1719/0, NFA 58/58, and real-DPI UVM 355/0/0. Its closure covers
+empty queue-container initialization only. U03 is validated at `c35d2ef36`:
+release selection and registration controls, installed frontend, real-DPI smoke,
+independent review, integrated 4827 total with zero unexpected failures, and
+JSON 1719/0 passed. Fifteen pinned releases can be registered for the picker.
+
+L07 is the sole active implementation blocker. Its direct queue-variable
+lvalue paths reuse NetELast; whole/bit/part/indexed-part assignments, compound
+updates and NBA index capture pass paired tests. Focused legacy/JSON 10/10,
+neighbors 21/13, make check, review and NFA 58/58 pass. Official unmodified
+UVM2020.3.2 passes the smoke test with zero warnings/errors/fatals; the report
+is complete and baseline-valid at results-23s62a5a. This is not full UVM or
+application qualification. Integrated session27702 and real-DPI UVM33056 are
+live; full JSON must follow integrated termination. Installed compiler SHA256
+809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c is frozen.
+
+B01 remains safely suspended awaiting remote Windows gates on PR273 at
+c189df5b8. UCRT64 Build and self-check passed; regression remains live. The
+publication-only executable-mode mistake was corrected; no gate was waived.

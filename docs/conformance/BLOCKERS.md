@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** 4bcbd9c7b fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but2SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match prior replay. Earlier four-warning teardown frontier and reduced parent-kill mechanism are preserved; warning-count change does not qualify the application. Evidence: campaign-20260908/u01-after-l03.
+- **Last verified revision:** 03caa64c8 fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but4SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match post-L03 replay. Paired parent.kill/sequence.kill controls still distinguish1/0 warnings. Pinned OpenTitan tool configs select UVM1.2; current-library compatibility and teardown remain unqualified. UVM1.2 diagnostic compile frontier is being classified without corpus edits. Evidence: campaign-20260908/u01-after-v07.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -551,3 +551,122 @@ qualification remain open. Evidence: campaign-20260908/s03.
   Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
   zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
   NFA58/58,makecheck and independent final review all pass. DD010 remains open.
+
+
+### V07 — Never-instantiated covergroup types lower cumulative coverage
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.9,19.11,19.11.3.
+- **State:** LOCALLY VALIDATED — never-instantiated type eligibility only; remote CI before merge.
+- **Evidence:** v07/uninstantiated-type.sv reports0 before any instance and50
+  after constructing one fully covered type; expected100 in both situations.
+- **Root:** Compilation registers types whose static metadata merge1 scores
+  without checking whether an instance ever existed. Existing live registry
+  and retired-options marker already preserve the required population state.
+- **Scope:** Shared type-coverage eligibility, preserving constructed/retired
+  populations and independent type/instance weights; no new metadata or registry.
+- **Closure:** Paired lifecycle controls, full required local gates and review.
+  Broader parentV01 and other coverage obligations remain open.
+
+- **V07 validation:** Six permanent lifecycle entries pass both harnesses,
+  with paired baseline failures and zero-weight/retirement controls. V04/V05/V06
+  and coverage neighbors pass; integrated4813total4808pass0fail2NI3EF,VPI105,
+  negative149,runtime,JSON1705/0,NFA58/58,UVM355/0/0 realDPI actual-g2012,
+  makecheck and independent review pass. Existing live/retired state suffices;
+  no metadata, ABI or scheduler changes. Broader qualification remains open.
+
+
+### U02 — Published UVM revision compatibility matrix
+
+- **Area:** UVM release compatibility / qualification tooling.
+- **State:** LOCALLY VALIDATED — requested acquisition/probe tooling complete; release compatibility remains partial.
+- **Evidence:** Accellera official downloads lists 1.0/1.1/1.2,2017 and2020 families; current U01 encounters a UVM-version boundary.
+- **Scope:** Pin official sources, keep releases available locally, run isolated unmodified-library compile/smoke probes and record exact failures.
+- **Closure:** Reproducible acquisition and honest per-release evidence. Does not require all versions to pass or establish IEEE1800.2/application qualification; discovered compiler gaps are record-only during U02.
+
+- **U02 result:** 15 releases available;2020.2.0/2020.3.0/2020.3.1 compile and
+  execute factory/copy/phase/regex/HDL smoke with zero warnings/errors/fatals.
+  Twelve versions fail compilation; see `uvm_release_matrix.md`. Official Git
+  releases use pinned submodules, others verified archive downloads. Six offline
+  evidence-integrity/source-preservation controls pass. No compiler fix or
+  broad UVM/application/ABI qualification is included in this tooling closure.
+
+
+### L06 — Empty queues of structs with member defaults are rejected
+
+- **Area / edition:** Data types / IEEE1800-2017 and1800-2023 7.10,7.2.2.
+- **State:** CLOSED for empty queue-container initialization at `4965219df`; broader structure defaults remain open.
+- **Evidence:** OfficialUVM2020.3.2 uvm_reg_map.svh2058 declares
+  uvm_reg_bus_op accesses[$]; the element has data=0. Compiler emits an
+  unsupported-default diagnostic for the queue declaration.
+- **Expected:** An uninitialized queue is empty; no nonexistent element gets
+  member initialization. Preserve valid scalar defaults and invalid-type errors.
+- **Validation:** Fourteen paired legacy/JSON regressions, 27/26 neighbors,
+  integrated 4827 total / 4822 pass / 0 unexpected failures / 2 NI / 3 EF,
+  VPI 105, negative 149, runtime invariants, JSON 1719/0, NFA 58/58,
+  real-DPI UVM 355/0/0, make check and independent review passed.
+- **Release replay:** Unmodified UVM2020.3.2 passes the former declaration
+  failure, then reaches the independently preexisting DD013 queue-last lvalue
+  assertion. This is not a release/application pass. Unsupported array shapes
+  and invalid member-default diagnostics remain explicitly covered.
+- **Publication:** Local semantic qualification is complete. Separate B01
+  Windows export correction and required remote merge gates remain pending.
+
+
+### B01 — Windows coverage API import-library exports missing
+
+- **Area:** Build/API ABI export map, no language-semantic change.
+- **State:** IN_PROGRESS — prerequisite discovered in PR273 required UCRT64 CI.
+- **Evidence:** job102955775883 link of vvp.tgt reports seven missing coverage
+  API symbols; all are declared in ivl_target.h and implemented in t-dll-api.cc.
+- **Root:** Missing ivl.def entries prevent Windows import-library linkage.
+- **Closure:** Old/new invariant proof, exact exports, independent review and
+  required Windows CI. Update existing PR273; no new PR or agent merge.
+
+
+### U03 — Select a pinned UVM release from the iverilog command line
+
+- **Area:** User-requested driver and release acquisition integration.
+- **State:** CLOSED at `c35d2ef36` — focused, registration, selected real-DPI smoke, installed frontend, review, integrated and full JSON gates passed.
+- **Authorization:** User requests a UVM version picker in iverilog similar to VCS.
+- **Gap:** The driver accepts --uvm-home but has no release-ID selector or
+  available-release listing. Existing --uvm-version reports the bundled version.
+- **Contract:** Add --uvm=<release> and --uvm-list, using acquired pinned sources;
+  preserve -uvm, --uvm-home and reporting-only --uvm-version behavior. Connect
+  the downloader to discovery without downloading during a compiler invocation.
+  Diagnose unknown/missing versions and conflicting path/version options clearly.
+- **Validation:** Driver parsing/resolution tests for valid, missing, invalid and
+  conflicting selectors; listing; path with spaces; existing-option controls;
+  real-DPI compile/run smoke using a known passing pinned release. Required
+  repository gates and independent review remain in force. Selecting a release
+  does not qualify its language support or turn current compile failures into passes.
+- **Boundary:** B01 is safely suspended awaiting external Windows CI; U03 is
+  independent of the export-map correction. L06 passed all local gates before
+  installing the candidate driver. U03 is the sole active implementation task.
+
+- **Final validation:** Integrated 4827 total / 4822 pass / 0 unexpected
+  failures / 2 NI / 3 EF; VPI105, negative149, runtime15/15; JSON1719/0.
+  Availability is separate from compatibility and IEEE1800.2 qualification.
+
+### L07 — Queue-last element assignment aborts elaboration
+
+- **Area / editions:** Queue lvalues, IEEE1800-2017 and IEEE1800-2023 7.10/7.10.1.
+- **State:** CLOSED at `9a1b6beb3` for direct queue-variable element lvalues; class-member and other parent forms remain unqualified.
+- **Evidence:** Unmodified UVM2020.3.2 uvm_field_op.svh112 assigns msg_queue[$].
+  Minimal string queue assignment aborts both saved baseline and L06 candidate.
+- **Root candidate:** Plain queue lvalue dispatch handles SEL_BIT but omits
+  SEL_BIT_LAST and reaches the SEL_NONE assertion. Trace all related consumers
+  before correcting the shared lowering path.
+- **Scope:** Runtime last-element selection for direct queue variables and
+  affected ordinary element assignment paths; retain empty/bounded queue,
+  element-type, index evaluation and existing member-selection semantics.
+  Any unsupported parent shapes remain explicitly scoped and recorded.
+- **Closure:** Standards evidence, baseline red, permanent paired regressions,
+  smallest causal patch, required integrated validation and official release
+  replay. Removing the assertion alone is not implementation.
+
+- **Final evidence:** Baseline aborts in both editions. Ten paired legacy/JSON
+  tests, neighbors21/13, make check, independent review, integrated4837 total
+  with zero unexpected failures, VPI105, negative149, runtime15/15, JSON1729/0,
+  NFA58/58 and real-DPI UVM355/0/0 pass. Full 15-release replay is complete and
+  baseline-valid: four smoke passes, eleven compile failures. No broad queue,
+  UVM, application or formal-program completion claim is made.

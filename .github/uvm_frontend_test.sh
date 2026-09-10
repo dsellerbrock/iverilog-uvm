@@ -98,7 +98,7 @@ DPIVPI="$BASE/uvm_dpi.vpi"
 # $PFX; if that failed, even the ivl backend would be unreachable and S1 would
 # not compile — so a passing S1 is itself the relocation proof.
 export PATH="$PFX/bin:$PATH"
-unset IVERILOG_VPI_MODULE_PATH IVERILOG_UVM_HOME 2>/dev/null || true
+unset IVERILOG_VPI_MODULE_PATH IVERILOG_UVM_HOME IVERILOG_UVM_RELEASES 2>/dev/null || true
 
 # The effective runtime tree must also carry the UVM resources; missing DPI
 # here is a hard failure (real DPI is required, not a silent fallback).
@@ -211,6 +211,14 @@ if [ -n "$ver" ] && echo "$ver" | grep -qi 'uvm'; then
     pass "--uvm-version -> $ver"
 else
     fail "--uvm-version produced nothing useful: '$ver'"
+fi
+
+# --------------------------------------------------------------------------
+say "S9: pinned release picker and existing option controls"
+if python3 "$SRCROOT/tests/uvm_releases/test_picker.py" "$IVERILOG" "$BASE"; then
+    pass "release picker controls"
+else
+    fail "release picker controls"
 fi
 
 # --------------------------------------------------------------------------

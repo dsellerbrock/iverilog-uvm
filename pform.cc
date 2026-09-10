@@ -5445,6 +5445,15 @@ struct pform_struct_default_type_t {
       pform_struct_default_shape_t shape = PFORM_STRUCT_DEFAULT_SCALAR;
 };
 
+static pform_struct_default_shape_t
+pform_struct_variable_shape_(const pform_struct_default_type_t&info,
+                             const decl_assignment_t*variable)
+{
+      // Declaration dimensions enclose any dimensions supplied by a typedef.
+      const auto shape = pform_struct_default_shape_(&variable->index);
+      return shape == PFORM_STRUCT_DEFAULT_SCALAR ? info.shape : shape;
+}
+
 /*
  * Resolve typedef chains without taking ownership of any of the shared pform
  * type nodes. An unpacked-array typedef is classified so callers can reject
@@ -5678,6 +5687,9 @@ pform_struct_has_member_defaults_(const struct_type_t*struct_type,
 
                   const pform_struct_default_type_t nested =
                         pform_find_struct_default_type_(mbrp->type.get());
+                  if (pform_struct_variable_shape_(nested, mname) ==
+                      PFORM_STRUCT_DEFAULT_QUEUE)
+                        continue;
                   if (nested.type &&
                       pform_struct_has_member_defaults_(nested.type, active)) {
                         has_defaults = true;
@@ -5707,6 +5719,9 @@ bool pform_has_implicit_struct_member_defaults(
 
       const pform_struct_default_type_t info =
             pform_find_struct_default_type_(data_type);
+      if (pform_struct_variable_shape_(info, variable) ==
+          PFORM_STRUCT_DEFAULT_QUEUE)
+            return false;
       return info.type && pform_struct_has_member_defaults_(info.type);
 }
 
@@ -5734,10 +5749,7 @@ pform_append_struct_member_defaults_(const vlltype&li,
                   const pform_struct_default_type_t member_info =
                         pform_find_struct_default_type_(mbrp->type.get());
                   pform_struct_default_shape_t member_shape =
-                        member_info.shape;
-                  if (member_shape == PFORM_STRUCT_DEFAULT_SCALAR)
-                        member_shape =
-                              pform_struct_default_shape_(&mname->index);
+                        pform_struct_variable_shape_(member_info, mname);
 
                   if (PExpr*default_expr = mname->expr.get()) {
                         if (member_shape != PFORM_STRUCT_DEFAULT_SCALAR) {
@@ -5766,6 +5778,8 @@ pform_append_struct_member_defaults_(const vlltype&li,
                   }
 
                   const pform_struct_default_type_t&nested = member_info;
+                  if (member_shape == PFORM_STRUCT_DEFAULT_QUEUE)
+                        continue;
                   if (!nested.type ||
                       !pform_struct_has_member_defaults_(nested.type))
                         continue;
@@ -5835,6 +5849,12 @@ void pform_make_struct_member_defaults(const vlltype&li,
       if (variable->expr)
             return;
 
+      const auto shape = pform_struct_variable_shape_(info, variable);
+      // IEEE 7.10: an uninitialized queue is empty, so there are no element
+      // defaults to apply. Declaration-time type validation is independent.
+      if (shape == PFORM_STRUCT_DEFAULT_QUEUE)
+            return;
+
       if (!pform_struct_default_typedef_scope_resolvable_(
                 info.defining_typedef)) {
             cerr << li.get_fileline()
@@ -5847,10 +5867,6 @@ void pform_make_struct_member_defaults(const vlltype&li,
             error_count += 1;
             return;
       }
-
-      pform_struct_default_shape_t shape = info.shape;
-      if (shape == PFORM_STRUCT_DEFAULT_SCALAR)
-            shape = pform_struct_default_shape_(&variable->index);
 
       if (shape != PFORM_STRUCT_DEFAULT_SCALAR) {
             cerr << li.get_fileline()

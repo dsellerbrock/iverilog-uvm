@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_queue_last_lvalue_invalid.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_queue_last_lvalue_invalid"
+}

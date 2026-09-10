@@ -1,0 +1,1 @@
+ivltests/sv_ustruct_queue_defaults_kind_fail.v:3: error: individual member defaults are not allowed in packed struct variable `queue_of_bad'.

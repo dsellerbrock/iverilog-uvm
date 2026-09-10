@@ -3603,6 +3603,9 @@ void class_type::cross_type_register_named(unsigned family,
 double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 {
       if (contributes) *contributes = false;
+      // A declaration alone contributes no bins. Retired instances still
+      // belong to the cumulative population, even with zero instance weight.
+      if (covgrp_live_.empty() && !covgrp_has_retired_options_) return 0.0;
       if (!covgrp_options_.merge_instances) {
             long double weights = covgrp_retired_weight_;
             long double weighted = covgrp_retired_weighted_;

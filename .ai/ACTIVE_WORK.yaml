@@ -1,45 +1,33 @@
-id: V06
-title: Honor declared coverpoint and cross type weights in merged coverage
-status: done
-phase: documented
-base_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
-last_validated_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
-standards:
-  - IEEE1800-2017 and IEEE1800-2023 19.7.1 Table19-3 and19.11.3.
-expected_behavior: Declared coverpoint/cross type_option.weight defaults to1 independently of option.weight and weights merged item coverage; ordinary instance and merge_instances0 calculations retain their instance weights.
-observed_behavior: A50-percent and B0-percent with type weights3/1 and instance weights1/3 return12.5percent for both type and instance, where merged type must37.5percent. Both editions reproduce on validated59d8f345a.
-reproducer: ../evidence/campaign-20260908/v06/type-weight.sv
-selection_reason: Explicit residual after V03 and V05; incorrect weights distort routine coverage completion reports even with correct bin counts. This is a direct remaining standard obligation, not a broad audit or selection by ease.
+id: L07
+title: Implement queue-last element assignment without elaborator abort
+status: complete
+phase: locally_validated
+base_revision: c35d2ef36
+last_validated_revision: c35d2ef36
+standards: IEEE1800-2017 and IEEE1800-2023 7.10 and7.10.1.
+selection_reason: Unmodified official UVM2020.3.2 now reaches msg_queue[$] assignment; DD013 reducer aborts before runtime on both previous baseline and current compiler.
+expected_behavior: Dollar selects the current last queue element at lvalue evaluation; legal assignments update exactly that element. Preserve all other elements, bounds, type conversion, lifetime and assignment scheduling semantics.
 allowed_scope:
-  - Declared integral constant type-weight validation and propagation for coverpoints and crosses through existing class IR, target metadata and runtime merged aggregation.
-  - Preserve older VVP metadata compatibility and validate new metadata; reuse existing group type-weight mechanisms where appropriate.
-  - Paired permanent weight/default/zero/mode/constructor interaction and invalid-value controls; correct existing item-isolation fixtures to declare both type and instance weights, with standards-based evidence rather than weakening their bin assertions.
+  - Queue last-index lvalue dispatch and shared elaboration helpers; causal callers only.
+  - Permanent paired regressions for types, lifetime, size changes, existing ordinary indices and supported member paths; expose empty/bounded behavior honestly.
+  - Full standards/source trace, required local gates, independent review and official UVM2020.3.2 replay.
 non_goals:
-  - Procedural static type-option assignment, goals/strobe, unsupported topology or transition cardinality redesign.
-  - No application edits, formal architecture changes or unrelated cleanup.
-invariants:
-  - Type and instance weights remain independent; group weights do not become lower-level defaults.
-  - No silent acceptance of nonconstant, negative, unknown or otherwise unrepresentable new type-weight metadata.
-  - Preserve merge_instances0 weighted-instance semantics, bin identity/count/threshold logic and older bytecode readability.
+  - No blanket parser rewrite, duplicate evaluation, library edits, unrelated type/array redesign or broad queue qualification claim.
+  - No suppression of diagnostics or silent success for unsupported legal shapes.
 required_gates:
-  - Primary2017 and2023 Table19-3 plus19.11.3, paired baseline failure, causal source trace and independent design review of metadata extension.
-  - Paired permanent positive/negative/default/mode controls and malformed/legacy metadata checks; coverage neighbors and V04/V05 regression controls.
-  - Integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent final review; remote CI before separately authorized merge.
-completion: Close exact declaration-time item type-weight scope only after all required local gates and review pass; other parentV01 and type-option obligations remain open.
+  - Paired baseline red and exact standards semantics; focused positive/negative/boundary regressions and affected neighbors.
+  - Integrated ivtest,VPI,negative,runtime,fullJSON,NFA,real-DPI UVM,makecheck and independent review.
+  - Official UVM2020.3.2 replay; progress is not a release pass.
+suspended_work: B01 remote Windows correction at PR273/c189df5b8 remains awaiting CI; no merge authorization or waiver.
+next_action: Await UVM33056; fullJSON98943 passed1729/0; integrated27702 passed4837total4832pass0fail2NI3EF,VPI105,negative149,runtime15/15; NFA58/58. Preserve frozen tools.
 stop_after_completion: false
-discovery_policy: Unrelated discoveries record-only; any proven prerequisite requires preserved parent work and a deliberate coordination boundary.
-next_action: Checkpoint V06 exact locally validated scope, then return to coordinator selection.
 
-candidate: Declared item type weights propagated through class IR/API and new tagged metadata; merged aggregation uses independent type weights; old bytecode retains prior untagged interpretation.
-focused_status: All22 paired cases pass in legacy and JSON; group/point/cross compound-formal rejection and legal type queries verified. V04 neighbors2/2,V05 13/13,coverage75/65,metadata bounds/compatibility and makecheck pass. Final review and full gates pending.
-parser_status: VVP grammar conflict profile unchanged at14 shift/reduce and5 reduce/reduce; new tag parses before following numeric property declarations.
-standards_resolution: Retain existing typed int conversion; reviewer visually verified2023PDF page110 and both edition6.11.2 extracts, plus official Accellera committee discussion. No unknown-weight semantic change authorized by contrary recollection.
+causal_patch: elab_lval.cc reuses NetELast through a shared direct-container index helper; whole, bit, part and indexed-part stores retain existing runtime operations. Class-member last selectors remain outside this bounded direct-variable scope.
+focused_validation: 10paired legacy and JSON tests pass;21legacy/13JSON neighbors and makecheck pass; final independent review clear.
+release_replay: Official unmodified2020.3.2 SMOKE_PASS, complete and baseline_valid true; results-23s62a5a/results.json. No broader qualification claim.
+installed_tools: Driver75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad/compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337.
+next_command: tail -20 ../evidence/campaign-20260908/l07/uvm.log
 
-binding_correction: Shared validator temporarily installs typed ctor then sample aliases, runs normal typed constant evaluation, deletes expression, restores aliases in reverse order. Reuses existing alias/cache invalidation machinery; no AST blacklist or constructor-scope guessing.
-active_sessions: none; integrated95424,JSON87219,UVM26530,NFA50661 all completed0.
-
-final_review: No remaining V06 blocker after permanent outer-function lexical-scope control; all full gates still required. DD010 eligibility defect is separately recorded and unchanged.
-
-resolved_scope: Declaration-time coverpoint/cross type weights with independent defaults and typed constants, correct formal binding/type queries and outer constant-function scope, new/legacy metadata interpretation. Procedural static assignment, uninstantiated-type eligibility DD010 and broader coverage obligations remain separate.
-final_local_gates: Focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime checks,fullJSON1699/0,real-DPIUVM355/0/0 in-g2012,NFA58/58,makecheck and independent final review all pass.
-validated_fingerprints: Compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a; runtimef38e482bc738cc9f7ce84ff4817e59143aa99f7501cd4aae297b8addc194ce8e.
+validated_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+final_validation: All required local gates passed; UVM33056 terminal0,355/0/0. Full15release replay39227 terminal1 reflects11compile failures and4smoke passes; complete and baseline_valid true.
+coordination_next_action: Publish five-increment milestone in existing PR273, then resume the unmodified application qualification frontier.

@@ -47,6 +47,26 @@
 
 using namespace std;
 
+/* Reuse the live last-index expression used by queue reads. Ordinary indices
+ * still use assignment-context elaboration for associative-array keys. */
+static NetExpr* elab_lval_container_index_(Design*des, NetScope*scope,
+      const LineInfo&loc, const index_component_t&index, NetNet*sig)
+{
+      if (index.sel == index_component_t::SEL_BIT_LAST) {
+            const netqueue_t*queue = sig->queue_type();
+            if (!queue || queue->assoc_compat()) {
+                  cerr << loc.get_fileline()
+                       << ": error: `$' requires a positional queue l-value." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            NetELast*last = new NetELast(sig);
+            last->set_line(loc);
+            return last;
+      }
+      return elab_assoc_index(des, scope, index.msb, sig->queue_type());
+}
+
 static string stream_int128_text_(__int128 value)
 {
       if (value == 0) return "0";
@@ -1254,9 +1274,12 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (use_sel == index_component_t::SEL_PART ||
           use_sel == index_component_t::SEL_PART_LAST) {
 	    NetAssign_*lv = new NetAssign_(reg);
-	    if (reg->darray_type())
-		  elaborate_lval_darray_part_(des, scope, lv, is_force);
-	    else
+            if (reg->darray_type()) {
+                  if (!elaborate_lval_darray_part_(des, scope, lv, is_force)) {
+                        delete lv;
+                        return nullptr;
+                  }
+            } else
 		  elaborate_lval_net_part_(des, scope, lv, is_force);
 	    return lv;
       }
@@ -1286,13 +1309,16 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 			if (we && eval_as_long(w, we) && w > 0) {
 			      delete we;
 			      NetAssign_*lv = new NetAssign_(reg);
-			      NetExpr*key = elab_assoc_index(des, scope,
-							   nt.index.front().msb,
-							   reg->queue_type());
+			      NetExpr*key = elab_lval_container_index_(
+                                    des, scope, *this, nt.index.front(), reg);
 			      NetExpr*base = elab_and_eval(des, scope,
 							   pidx.msb, -1);
-			      if (!key || !base)
-				    return 0;
+                              if (!key || !base) {
+                                    delete key;
+                                    delete base;
+                                    delete lv;
+                                    return nullptr;
+                              }
 			      lv->set_word(key);
 			      long blsb = ev->packed_dims()[0].get_lsb();
 			      if (blsb != 0)
@@ -1320,10 +1346,14 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       }
 
 
-      if (use_sel == index_component_t::SEL_BIT) {
-	    if (reg->darray_type()) {
+      if (use_sel == index_component_t::SEL_BIT
+          || use_sel == index_component_t::SEL_BIT_LAST) {
+	    if (reg->darray_type() || use_sel == index_component_t::SEL_BIT_LAST) {
 		  NetAssign_*lv = new NetAssign_(reg);
-		  elaborate_lval_darray_bit_(des, scope, lv, is_force);
+                  if (!elaborate_lval_darray_bit_(des, scope, lv, is_force)) {
+                        delete lv;
+                        return nullptr;
+                  }
 		  return lv;
 	    } else {
 		  NetAssign_*lv = new NetAssign_(reg);
@@ -2125,7 +2155,8 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
       ivl_assert(*this, !name_tail.index.empty());
 
       const index_component_t&word_index = name_tail.index.front();
-      ivl_assert(*this, word_index.msb != 0);
+      ivl_assert(*this, word_index.msb != 0
+                 || word_index.sel == index_component_t::SEL_BIT_LAST);
       ivl_assert(*this, word_index.lsb == 0);
 
       if ((lv->sig()->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
@@ -2137,8 +2168,9 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 
 	// First index always selects the darray word. Associative-array keys
 	// are assignment-context expressions of the declared index type.
-      NetExpr*mux = elab_assoc_index(des, scope, word_index.msb,
-				     lv->sig()->queue_type());
+      NetExpr*mux = elab_lval_container_index_(
+            des, scope, *this, word_index, lv->sig());
+      if (!mux) return false;
 
       lv->set_word(mux);
 
@@ -2196,7 +2228,8 @@ bool PEIdent::elaborate_lval_darray_part_(Design*des,
       ivl_assert(*this, !name_tail.index.empty());
 
       const index_component_t&word_index = name_tail.index.front();
-      ivl_assert(*this, word_index.msb != 0);
+      ivl_assert(*this, word_index.msb != 0
+                 || word_index.sel == index_component_t::SEL_BIT_LAST);
 
       if ((lv->sig()->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 	    ivl_assert(*this, lv->sig()->coerced_to_uwire());
@@ -2206,8 +2239,9 @@ bool PEIdent::elaborate_lval_darray_part_(Design*des,
       }
 
 	// First index selects the darray word.
-      NetExpr*mux = elab_assoc_index(des, scope, word_index.msb,
-				     lv->sig()->queue_type());
+      NetExpr*mux = elab_lval_container_index_(
+            des, scope, *this, word_index, lv->sig());
+      if (!mux) return false;
       lv->set_word(mux);
 
       if (name_tail.index.size() != 2) {

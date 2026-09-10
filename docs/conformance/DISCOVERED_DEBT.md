@@ -168,3 +168,49 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Triage status:** record-only during V06. V06 function-scope test instantiates
   all intended groups before checking their weighted aggregate; its bin/type
   weight assertions remain explicit and independently checked.
+
+- **DD-010 resolution:** V07 locally validates the shared population guard with
+  paired lifecycle controls and full required local gates. Never-instantiated
+  types are excluded; zero-weight retired merged instances remain represented.
+  Remote CI and broader coverage qualification remain separate.
+
+
+### DD-011 — UVM release-matrix compile frontiers
+
+- **Discovered while working:** U02 user-requested release acquisition/probes.
+- **Evidence:** `docs/conformance/uvm_release_matrix.md` and local
+  `third_party/uvm-releases/results-pv87b5yu/results.json`; unmodified releases,
+  compiler/runtime implementation03caa64c8, actual-g2012.
+- **Observed:** Legacy1.x/2017 libraries encounter member-delay syntax (1.0p1
+  also reports process class lookup);2020.1.0/1.1 encounter nested resource
+  queue type/assignment errors;2020.3.2 rejects default-initialized unpacked
+  struct queue `accesses` in uvm_reg_map.svh2058. Later diagnostics may cascade.
+- **Classification:** Reproduced compile gaps, not yet reduced/standards-classified.
+  Do not label nonstandard library syntax a mandatory IEEE compiler defect.
+- **Triage:** Record-only during U02; select and ground one causal mechanism
+  before any semantic fix. No archived library or application source patched.
+
+
+### DD-012 — L06 mixed-array and class-qualified declaration boundaries
+
+- **Discovered while working:** L06 expanded initialization controls.
+- **Evidence:** evidence/campaign-20260908/l06/class-qualified-module-declaration.sv
+  and queue-of-fixed-array.sv plus compile logs; no fixes included.
+- **Observed:** Module-level class-qualified declarations hit parser errors;
+  the supported procedural class-qualified form is covered positively. Queues
+  of fixed-array elements hit the existing netuarray_t unsupported boundary.
+- **Triage:** Record-only. Permanent array boundary tests guard against wrong
+  dimension classification but do not qualify those legal unimplemented shapes.
+
+### DD-013 — Last-element queue lvalue crashes elaboration
+
+- **Discovered while working:** L06 officialUVM2020.3.2 replay after queue-default fix.
+- **Evidence:** UVM uvm_field_op.svh112 assigns msg_queue[$]; minimal
+  evidence/campaign-20260908/l06/queue-last-lvalue.sv creates stringq, pushes
+  one element and assigns q[$]. Expected replacement of the last element.
+- **Observed:** Saved validated03caa64c8 compiler and L06 candidate both abort
+  at elab_lval.cc1335 use_sel==SEL_NONE in2017/2023. Four logs preserve proof.
+- **Triage:** Proven preexisting next-blocker candidate; not caused by L06,
+  not repaired in its patch. UVM2020.3.2 is still COMPILE_FAIL/unqualified.
+
+- **L07 follow-up:** Direct queue-variable element assignment fixed and locally validated at `9a1b6beb3`. Unmodified2020.3.2 now passes the release smoke. Class-property/root-member last-index forms remain outside the resolved scope.
