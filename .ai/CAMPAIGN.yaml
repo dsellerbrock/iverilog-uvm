@@ -7,7 +7,7 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [B01_review, B01_Windows_CI, L06_UVM_55602, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [B01_Windows_CI, L06_UVM_55602, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: L06 empty queue initialization of default-initialized struct element types; DD011 source-backed legal requirement.
@@ -157,7 +157,7 @@ coverage_milestone_pr:
   url: https://github.com/dsellerbrock/iverilog-uvm/pull/273
   base: main
   branch: agent/campaign-coverage-v04-v06-main-20260910
-  publication_revision: 8f50344c0852c86f1ecfd2460eb473e5880316b4
+  publication_revision: 08b86b94931f62958d1f4441a7fb90a7e5c48318
   validated_semantic_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
   scope: V04, V05, V06; exact validated tree and retained campaign ancestry. V07 excluded pending validation.
   authorization: User requested one PR directly to main with completed commits.
@@ -167,3 +167,5 @@ v07_latest_checkpoint: Candidate built and installed; paired standalone tests pa
 
 uvm_release_matrix: docs/conformance/uvm_release_matrix.md; official Git pins plus archive-only downloads,15releases,3smoke passes,12compile failures.
 uvm_release_results: third_party/uvm-releases/results-pv87b5yu/results.json; complete and baseline_valid true.
+
+b01_checkpoint: 7c779ff28; local invariant and independent review pass; existing PR273 updated08b86b949, fresh required CI pending.
