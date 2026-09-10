@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V07
-phase: focused_tested
+phase: regression_testing
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V07_integrated_26646, V07_UVM_53589, V07_fullJSON_after_integrated, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V07_UVM_53589, V07_fullJSON_48473, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: V07 never-instantiated type eligibility (DD010); V06 validated421b50abd.
-next_action: Await V07 integrated26646, real-DPI UVM53589 ; NFA91909 passed58/58. FullJSON follows integrated completion.
-next_command: "tail -20 ../evidence/campaign-20260908/v07/integrated.log"
+next_action: Await fullJSON48473 and real-DPI UVM53589; integrated26646 and NFA91909 passed. Preserve frozen tools until both terminal.
+next_command: "tail -20 ../evidence/campaign-20260908/v07/full-json.log"
 next_command_cwd: repository root
 candidate_state: V07 shared guard implemented; six permanent paired entries pass both focused harnesses; independent review clear. All full gates remain required.
 installed_tools: Frozen compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a and V07 runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337. Saved validated V06 runtime in evidence/v07/baseline-vvp.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Integrated26646, UVM53589, NFA91909 passed58/58; fullJSON unstarted until integrated terminates.
+next_validation: FullJSON48473 and UVM53589 running; independent review, focused and neighbor gates, makecheck, NFA58/58 and integrated4813total4808pass0fail2NI3EF,VPI105,negative149,runtime already passed.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
 publication_policy_checkpoint: bfb4f1802

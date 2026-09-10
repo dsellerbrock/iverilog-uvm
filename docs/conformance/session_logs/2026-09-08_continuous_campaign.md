@@ -1440,3 +1440,11 @@ no agent merge. Active V07 source/tests remain preserved and unpublished.
 V07 NFA91909 terminated0 with58passed,0failed. Integrated26646 and UVM53589
 re-polled and confirmed live. FullJSON remains unstarted. Worktree audit
 unchanged; preserve all unrelated dirty/non-ancestor siblings.
+
+V07 integrated26646 terminated0:4813total4808pass,zero unexpected failures,
+2NI3EF,VPI105,negative149 and runtime invariants pass. Six new manifest
+entries each registered exactly once; source/gold presence verified. Frozen
+compiler07b302c2/runtime3b162fd9 unchanged. Installed FPGA target/config
+byte-identical to current build. FullJSON48473 started after integrated
+termination; UVM53589 remains confirmed live. Both required gates remain
+pending. PR273 still open/mergeable with six queued checks at observation.
