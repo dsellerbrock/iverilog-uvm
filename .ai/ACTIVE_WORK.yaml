@@ -30,9 +30,9 @@ completion: Close only live-parent descendant traversal scope after required gat
 last_validated_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
 discovery_policy: Unrelated findings record-only; patch regressions remain in scope.
 stop_after_completion: false
-next_action: Wait for integrated29287 and UVM5922; run full JSON only after integrated terminates; resolve any candidate regression before closure.
-next_command: "tail -10 ../evidence/campaign-20260908/p04/integrated.log"
+next_action: Wait for full JSON and UVM5922; integrated29287 passed4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15. No closure before remaining gates pass.
+next_command: "tail -5 ../evidence/campaign-20260908/p04/full-json.log"
 candidate_evidence: Six paired baseline failures, candidate6/6legacy+JSON, neighbors24legacy14JSON, makecheck and NFA58/58 pass. Final independent review clear, including resource-wait control.
 candidate_runtime_sha256: 76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522
-live_gates: [integrated29287, UVM5922]
-unstarted_gates: [full_JSON_after_integrated]
+live_gates: [UVM5922, full_JSON9510]
+unstarted_gates: []

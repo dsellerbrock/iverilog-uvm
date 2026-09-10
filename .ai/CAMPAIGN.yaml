@@ -11,13 +11,13 @@ pending_gates: [P04_focused_and_integrated_validation, U01_application_qualifica
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
-next_action: Wait for P04 integrated29287/UVM5922; then fullJSON serially after integrated. No dependent fix before validation.
-next_command: "tail -10 ../evidence/campaign-20260908/p04/integrated.log"
+next_action: Wait for P04 fullJSON9510 and UVM5922; integrated29287 passed. No dependent fix or closure before remaining gates pass.
+next_command: "tail -5 ../evidence/campaign-20260908/p04/full-json.log"
 next_command_cwd: repository root
 candidate_state: P04 seven-line runtime traversal and six paired regressions; focused and neighbor gates pass; required integrated gates pending.
 installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c; P04 candidate runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522; validated baseline copied to evidence/p04/vvp-baseline.
 validation_state: L07 all local gates pass;4837legacy total,1729JSON,355real-DPIUVM,58NFA,105VPI,149negative,15runtime controls; required remote CI remains pending.
-next_validation: integrated29287 and UVM5922 live; fullJSON must follow integrated terminal; no toolchain mutation.
+next_validation: fullJSON9510 and UVM5922 live; integrated29287 terminal0; frozen runtime76132e1224af.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -210,3 +210,5 @@ uvm_milestone_publication:
 u01_resume: Fresh single-core runtime replay under evidence/u01-after-l07; original corpus and bundled library unchanged. Last validated compiler/runtime9a1b6beb3.
 
 u01_latest_replay: PASS with115requests/230scoreboarditems and zero warnings/errors/fatals; source360files unchanged. Repeats old2PASS/1FAILwith4guardwarnings,new3PASS. U01 remains open for teardown repeatability and causal classification; no fix attribution from this pass.
+
+p04_integrated_terminal: 29287 exited0;4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15. Full JSON started after terminal; UVM5922 remains live.
