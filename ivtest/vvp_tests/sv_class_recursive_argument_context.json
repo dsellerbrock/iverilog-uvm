@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_class_recursive_argument_context.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_class_recursive_argument_context"
+    ],
+    "gold": "sv_class_recursive_argument_context"
+}

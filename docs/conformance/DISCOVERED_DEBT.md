@@ -261,3 +261,61 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Discovered during:** U04 original-release replay.
 - **Evidence:** results-9mvpk_8f complete=true,baseline_valid=true; both original2020.1 releases compile0/runtime0, no unresolved DPI symbols or command-line UVM errors, but finish at time0 without required smoke completion marker. Direct legacy ABI tests pass4/4 across both releases/editions.
 - **Disposition:** Record-only during U04; still RUNTIME_FAIL. Establish whether the intended run-phase traffic/checking executes and reduce the causal mechanism after the current semantic baseline is validated. No warning waivers or application edits.
+
+U06 closes the recursive-input cause after full validation at aad6fe22b.
+Original2020.1.0/1.1 now pass their unchanged smoke; full qualification remains separate.
+
+### DD018 — Nested argument output copy-out selects staged caller scope
+
+Discovered under U06. Evidence-only copyout_control.sv and
+copyout-baseline.log/copyout-candidate.log in evidence/campaign-20260908/u06
+show identical failures on validated aa172f5 runtime and U06 candidate.
+A recursive method passes get_child(output seen) as an argument; seen is
+an automatic caller local. Generated copy-out stores through the staged
+outer callee frame instead of the caller frame. Both runs fail the output
+assertion when input assertions are removed to isolate this behavior.
+IEEE 1800-2017/2023 13.5 argument passing is the applicable cluster; exact
+copy-out correction remains untriaged. Symbols: draw_copy_out_function_argument,
+scoped write-context selection. Original smoke has no such output actual.
+Record-only, not a U06 regression or a qualified subcase; preserve reducer
+for deliberate selection after validating the input-context increment.
+
+DD018 resolved by L09 at 3c44fd13b after required local validation.
+Caller actual context and formal source context are now selected separately.
+
+### DD019 — Scalar output into fixed-array class property element
+
+L09 probe fixed_property_output.sv (evidence/campaign-20260908/l09) produces
+"Skipping indexed property copy-out" on both validated U06 target and L09
+candidate. Existing emitter supports certain container-valued property
+elements but not this scalar fixed-array slot. Compile baseline diagnostic
+is preserved in fixed-property-baseline-compile.log. Legal output lvalue
+classification belongs to IEEE2017/2023 13.5 and class array properties;
+implementation remains open. Record-only during L09; no warning waiver or
+claim of fixed-array property-element output support.
+
+
+### DD020 — Scalar output actuals evaluated before call and on return
+
+L10 index-side-effect control fails on candidate because scalar output actuals
+are copied in before function execution. Existing function_port_is_container_output_
+only suppresses container/fixed-array output input evaluation. The same issue
+applies to plain fixed-array scalar actuals on validated L09, independent of
+L10 property stores. IEEE2017/2023 13.5 return copying; must preserve automatic
+formal defaults and static output persistence. Selected prerequisite L11; L10
+patch and reducers preserved under evidence/campaign-20260908/l10.
+
+L10 receiver().slots[...] syntax probe was rejected by parser; preserved in
+receiver_syntax_probe.sv. Not required for nested env.box receiver coverage;
+record-only syntax frontier, no parser changes under L10.
+
+DD020 resolved by L11 at b32df9a29 after all required local gates.
+
+
+L10 conversion probes found ordinary string/integral assignments are permissively
+accepted by the existing frontend despite6.16 requiring explicit casts. Preserved
+`evidence/campaign-20260908/l10/string_assignment_control.sv`; broader assignment
+diagnostic debt is record-only. L10 now rejects the fixed-property output
+mismatch so its new typed stores cannot execute a mismatched load opcode.
+
+DD019 resolved by L10 at051aeee8e after validatedL11 prerequisite and all required local gates.

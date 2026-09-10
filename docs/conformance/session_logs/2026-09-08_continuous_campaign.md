@@ -1673,3 +1673,178 @@ Added strict POSIX legacy matcher and safe glob conversion entry points to the e
 U04 original-release ABI checks passed4/4. Full smoke now exits0 at time0 with no missing symbols or UVM errors but no completion marker; results-9mvpk_8f remains RUNTIME_FAIL, recorded DD-017. Focused invalid-regex control now uses an unclosed bracket with a leading wildcard to avoid native-extension ambiguity while still detecting a forbidden glob retry; paired tests pass. Integrated88113,UVM73729,NFA6429 live,makecheck passed; fullJSON awaits integrated termination.
 
 U04 closed at aa172f5f9 after all required local gates: frontendS1-S10,pairedABI/error and originalrelease4/4,review,makecheck,NFA58/58,legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrixresults-rqcthqwn complete/baseline_valid,4SMOKE_PASS9COMPILE_FAIL2RUNTIME_FAIL. Fingerprints unchanged. Four validated increments P04,L08,U05,U04 ready for existing PR273; no merge.
+
+PR273 updated once with four validated increments P04,L08,U05,U04 at1357ae803. Publication is a fast-forward merge retaining prior and campaign histories; tree8dd85ae9 exactly equals reviewedsourceedacb3d62. Description follows template and retains all qualification gaps. FreshCI pending,no merge. SelectedU06 fromDD-017 to trace original2020.1 phase execution; no implementation yet.
+
+### U06 recursive-argument reducer checkpoint
+
+Original 2020.1.0 replay with UVM_DEBUG reaches uvm_test_top but loses
+phase and state at recursive traversal. Evidence u06/debug-2020.1.0.log
+shows valid root phase followed by empty phase/UVM_PHASE_UNINITIALIZED
+at the child. A standalone recursive class function reproduces this:
+traverse(comp.get_child(), phase, state) receives null phase and state0;
+traverse(comp.child, phase, state) preserves values37/19 and passes. Both
+2017 and2023 compile successfully; nested-call runs fail1, direct controls
+pass0. Reducers, bytecode, logs and results are preserved in
+evidence/campaign-20260908/u06/recursive_args*.
+
+Read both local IEEE editions 8.6 and13.5.1: class methods have automatic
+lifetime and value arguments retain independent copies. Runtime trace
+shows of_ALLOC clears the single staged caller-read override for the
+nested get_child invocation. After its free, scoped loads select the
+uninitialized outer callee write-head. Independent review confirms the
+cause and recommends allocation-associated staging with frame identity,
+restoring enclosing staging only after nested result extraction/release.
+A global read-preference change or merely removing the clear is unsafe.
+Required controls include same-scope nesting, first/middle argument calls,
+defaults, ref/output copy-out and fork handoff. No runtime changes made.
+U06 remains active; last validated semantic revision aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a.
+Worktree audit preserves all existing dirty/divergent trees; none created
+or retired. Next command and pending implementation/gates remain in
+ACTIVE_WORK/CAMPAIGN; no qualification claim or additional PR.
+
+U06 candidate fe4e949b8 saves the displaced caller-read override against
+the exact nested allocation and restores it after release or fork move.
+The 33-line runtime patch keeps returned-callee reads and ref delegation
+unchanged. Permanent first/middle/same-scope recursion coverage fails
+validated baseline and passes candidate in both editions; twelve paired
+default/ref/fork/constructor controls pass unchanged. A nonlocal named
+block exit followed by three frame-reuse calls passes both runtimes.
+All release_active_call_context_ callers are terminal-only (disabled or
+ended), so its no-resume cleanup cannot expose saved staging to a later
+call. Independent review investigated this lifetime boundary.
+
+Nested output copy-out was independently isolated and fails identically
+before/after this patch; reducer preserved as DD018, not claimed fixed.
+Original2020.1.0 smoke now executes checks through time1, exact marker,
+zero warnings/errors/fatals. Candidate runtime a9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1;
+compiler/DPI unchanged. Integrated18435, real-DPIUVM11401 and fullmatrix64934
+running; makecheck and NFA58 pass. JSON follows integrated termination;
+frontend must run alone after gates finish. No dependent implementation.
+PR273 head1357ae803 remains open with six fresh CI jobs in progress.
+
+U06 full15release matrix64934 completed: results-mseshk7y is complete
+and baseline_valid,6SMOKE_PASS9COMPILE_FAIL. Four additional original
+2020.1.0/1.1 smoke runs pass in explicit2017/2023 modes. Final independent
+review clear. First integrated18435 exited1 solely because the newly added
+2023 wrapper used a bare include path; legacy harness runs from ivtest.
+Corrected to the existing ivltests/ include convention at7d9cb0c64; exact
+legacy compile/run now passes. VPI105,negative149,runtime15/15 all passed
+in first run. Full integrated60637 rerunning; runtime unchanged. UVM11401
+continues; JSON/isolated frontend remain pending. Preserve first-gate log
+in u06/integrated-first.log.
+
+U06 integrated60637 completed0:4855total4850pass0fail2NI3EF,
+VPI105,negative149,runtime15/15. JSON55272 completed with1747runs and
+exactly2 new-test golden-output failures: runtime printed PASSED, but
+JSON requires its own -vvp-stdout.gold file, separate from legacy .gold.
+Added stdout PASSED/empty stderr gold at aad6fe22b; fullJSON77801 rerunning.
+Original log preserved as u06/json-first.log; no runtime changes.
+
+U06 closed at validated source aad6fe22b (semantic fe4e949b8): every required
+gate passed, including corrected JSON77801 1747/0 and isolated frontend99674
+S1-S10. Installed root restored; compiler/runtime/DPI fingerprints unchanged.
+Legacy4855total4850pass0fail2NI3EF,VPI105,negative149,runtime15/15,
+real-DPIUVM355/0/0,NFA58/58,makecheck and independent review all pass.
+Full15release matrix6SMOKE_PASS9COMPILE_FAIL; original2020.1.0/1.1 smoke
+passes4/4 in2017/2023 modes. Complete contract preserved in u06/. No
+fullrelease/application/IEEE1800.2 qualification claim. One validated increment
+since publication; defer next PR update to the established3-5increment batch.
+Next justified blocker is preserved DD018 automatic output copy-out.
+
+L09 selected after U06 closure. New21-line class-only output_actual.sv
+reproduces in2017/2023: produce(output seen) sets37 but caller seen stays-1
+when used as the recursive call's argument. Separating produce into its own
+statement before recursion passes both modes. Both compile without warnings.
+IEEE2017/2023 13.5 explicitly returns output/inout values to the corresponding
+actual variables; 8.6 supplies automatic lifetime. Bytecode confirms output
+store before nested free while outer recursive callee is staged. Actual
+scalar runtime path is of_STORE_VEC4 -> ensure_write_context_ -> vvp_send_vec4,
+not the initially suspected scoped-write accessor. Trace automatic receive
+recovery next; no L09 implementation yet. Reducers,logs,bytecode and results
+are preserved in evidence/campaign-20260908/l09/. No local gates running.
+
+L09 scalar trace proves output37 is delivered to staged recurse frame, then
+its initializer overwrites it; caller remains-1. Added indexed_output.sv:
+both editions fail with caller slots37,-1 rather than-1,37. Recursive
+copy-out evaluates slots[choose(index)] using callee index0 instead of caller
+index1. Thus a write-only correction is insufficient. Independent diagnosis
+also rejects global redirection during returned-frame windows because
+fixed-array result materialization legitimately writes staged argument
+storage before epilogue. Next implementation should explicitly separate
+callee formal-source loads from caller read/write destination evaluation,
+reusing current per-type copy-out code; nested address calls need caller
+context. No implementation changes yet. Current L09 phase root_caused,
+last validated source aad6fe22b; no live local gates.
+
+
+### L09 candidate 3c44fd13b — required validation running
+
+Automatic copy-out now distinguishes formal-source context from caller
+destination evaluation, including recursive index and property receiver reads.
+Both IEEE editions require return to actual variables (13.5), with automatic
+class-method lifetime (8.6). Three permanent families fail the saved U06
+baseline and pass the candidate in both editions. Focused JSON38/0, malformed
+bytecode6/6, NFA58/58, makecheck and independent bounded review pass.
+Nonlocal abort/reuse controls pass; DD019 unsupported fixed-array property
+scalar output is preserved separately, not waived.
+
+Integrated17224 and real-DPI UVM9469 are live; full JSON follows integrated,
+then frontend runs alone. No source/install changes while gates run. Fresh
+15release report `third_party/uvm-releases/results-p31gasib/results.json` is
+complete/baseline_valid with6SMOKE_PASS9knownCOMPILE_FAIL. Evidence under
+`../evidence/campaign-20260908/l09/`; frozen hashes in candidate-sha256.txt.
+L09 remains awaiting validation. PR273 remains open at1357ae803; Ubuntu22/24
+passed, macOS and three Windows jobs still running at this checkpoint.
+
+
+### L09 closure at 3c44fd13b
+
+legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged. All gate processes terminal0; full release probe terminal1 reflects nine recorded compile gaps, with all six smoke passes retained. Bounded copy-out scope closed, DD019 and parent language/UVM/application obligations remain open. Two validated increments since publication; keep milestone cadence.
+
+
+### L10 suspension and L11 prerequisite at b32df9a29
+
+L10 extends fixed-property output stores with destination type conversion.
+Its partial patch and regression sources are preserved in
+`../evidence/campaign-20260908/l10/partial-implementation.patch`. Conversion
+controls passed, but a side-effecting index exposed pre-existing scalar output
+copy-in. A void control passes; a nonvoid output actual evaluates twice.
+L10 implementation was reverted and installed L09 hashes restored before
+selecting L11, so no dependent fix uses the unvalidated L10 baseline.
+
+L11 plain fixed-array reducer fails both editions with selector calls=2.
+The native output classifier now includes scalar types and skips scalar send,
+using existing context alloc/reset typed defaults and retaining static formals.
+DPI remains excluded. Both permanent families fail baseline and pass candidate
+in both editions; strengthened selector changes inside the function, proving
+return-time evaluation. Automatic typed defaults and static retention repeat
+three times. Focused42/0, NFA58/58, makecheck and independent review pass.
+Integrated58045 and real-DPIUVM51883 are running; JSON and isolated frontend
+remain unstarted. No L11 closure or additional publication yet.
+
+
+### L11 closure at b32df9a29
+
+legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Six release smoke passes retained; nine known compile gaps. Resume preserved L10 with prerequisite validated. README usage update3a87ebca9 is independently committed; OpenTitan UVM1.2 target confirmed in pinned corpus VCS/Questa/Riviera configs and recorded for future application replay.
+
+
+### L10 resumed candidate051aeee8e
+
+After validated L11, restored preserved L10 source/tests, retaining new L11
+registrations when patch append context no longer applied. Three positive
+families fail L11 baseline and pass both editions; numeric conversions,
+same-type real/string/class, inout, nested receiver, once-only index, nonzero
+and multidimensional bounds are covered. Invalid negative/X-Z/oversized
+indices issue four exact warnings, leave storage unchanged and preserve
+function/index side effects. Explicit string/non-string output mismatch
+diagnostic prevents wrong-runtime-load crash; both editions6.16/6.22.3
+require casts, with no string-literal exception for a returned variable.
+Focused JSON50/0 andlegacy8/0 after correcting onlygold filenames/pathprefixes.
+Independent review clear. Fullintegrated30122,UVM16983,NFA30525 running;
+makecheckexit0. JSON follows integrated; frontend runs alone last.
+
+
+### L10 closure at051aeee8e
+
+legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints. Fullrelease reportresults-jhzl92on remains6SMOKE_PASS9knownCOMPILE_FAIL,complete/baseline_valid. PR273externallymergedd0932af64,all6CIpassed. Canonicalmain fast-forwarded and sharedgraph updated. Fourvalidatedincrements sincepublication (U06,L09,L11,L10) plusREADME3a87ebca9 form nextsinglemilestonePR; no agentmerge.

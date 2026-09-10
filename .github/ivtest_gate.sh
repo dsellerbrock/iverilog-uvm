@@ -28,6 +28,10 @@ if ! python3 "$ROOT/tests/vvp_runtime/run_covgrp_exports.py"; then
     status=1
 fi
 
+if ! python3 "$ROOT/tests/vvp_runtime/run_copyout_context.py"; then
+    status=1
+fi
+
 echo "=== ivtest sweep (vendored suite) ==="
 cd "$ROOT/ivtest"
 if ! perl vvp_reg.pl > "$WORK/ivtest.log" 2>&1; then

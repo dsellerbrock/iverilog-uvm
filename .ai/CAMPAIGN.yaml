@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: "U04"
+current_blocker: null
 phase: "publication"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
+last_integrated_good_revision: "051aeee8e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
+pending_gates: ["next_milestone_remote_CI_before_merge", "U01_application_qualification"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Update existing PR273 with validated P04,L08,U05,U04 batch, preserving source history and exact reviewed tree; no merge. Then select DD-017."
-next_command: "git diff --stat abcfdf7fb HEAD"
+next_selection: "After L10 exact closure, inspect shared legacy-UVM compile frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
+next_action: "Publish reviewed campaign tree in a branch descended from refreshed main, preserving history; then select legacy UVM1.2 compile blocker."
+next_command: "git fetch origin; verify origin/main tree equals previous published edacb3d62 tree before publication merge."
 next_command_cwd: repository root
-candidate_state: "U04 closed exact legacy regex C ABI scope; all required local gates passed. Four validated increments ready for existing PR273."
-installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
-validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
-next_validation: "U04 refreshed reducer and exact scope before edits, then permanent ABI/error controls and full required validation."
+candidate_state: "L10 closed; four validated increments U06,L09,L11,L10 and README ready for one next main PR."
+installed_tools: "Frozen L10 candidate fingerprints evidence/l10/candidate-sha256.txt; runtime/compiler/DPI unchanged from L11, onlytargetupdated. No installs duringgates."
+validation_state: "L10 legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
+next_validation: "Remote CI for next publication; next blocker reducer/standards before implementation."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -128,11 +128,11 @@ published_batches:
     external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
     external_merge_base: agent/campaign-automatic-events-20260910
 publication_queue: []
-publication_next_action: Publication catch-up stopped at user request. No new PR until a substantial subsequent milestone; reconcile externally changed PR state without merging.
+publication_next_action: "Wait for fresh PR273 CI/review; continue autonomous campaign and batch next roughly3-5validated increments. No new PR or merge now."
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
 
-latest_remote_main: 9821855164b179e1a1f7fb0298320f576646bc15
+latest_remote_main: "d0932af644460749b56ddc21139cc7d1cfeb2c26"
 main_landed_scope: PR272 externally merged campaign through L05 to main982185516.
 
 consolidated_main_pr:
@@ -148,7 +148,7 @@ consolidated_main_pr:
   outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
-last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
 validated_increments_since_publication: 4
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
@@ -157,20 +157,22 @@ coverage_milestone_pr:
   url: https://github.com/dsellerbrock/iverilog-uvm/pull/273
   base: main
   branch: agent/campaign-coverage-v04-v06-main-20260910
-  publication_revision: 08b86b94931f62958d1f4441a7fb90a7e5c48318
-  validated_semantic_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
-  scope: V04, V05, V06; exact validated tree and retained campaign ancestry. V07 excluded pending validation.
-  authorization: User requested one PR directly to main with completed commits.
-  pending: Required GitHub CI and review; no agent merge.
-  preservation: Active V07 source/tests remain untouched in the campaign worktree.
+  publication_revision: 1357ae80330680d06973b19d8c1d75e87f26dcd8
+  validated_semantic_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
+  reviewed_source_revision: edacb3d622b36899131e9e73814c8d7527aa3a90
+  exact_published_tree: 8dd85ae935f944d4661a9dba465f860040e982df
+  scope: V04-V07,L06-L08,P04,U02-U05,B01; latest batchP04,L08,U05,U04,all required local gates passed.
+  authorization: User requested a consolidated PR directly to main and slower milestone publication.
+  pending: Fresh GitHub CI and review; no agent merge.
+  preservation: Publication merge retains both previous published and campaign histories; exact reviewed tree verified.
 v07_latest_checkpoint: Candidate built and installed; paired standalone tests passed in both editions, baseline red for population and cross cases, baseline green for mode controls. Session38942 completed0. Focused harnesses, integrated gates and final review remain required.
 
-uvm_release_matrix: docs/conformance/uvm_release_matrix.md; official Git pins plus archive-only downloads,15releases,3smoke passes,12compile failures.
-uvm_release_results: third_party/uvm-releases/results-pv87b5yu/results.json; complete and baseline_valid true.
+uvm_release_matrix: "docs/conformance/uvm_release_matrix.md;15pinned releases,4smoke passes,9compile failures,2runtime failures."
+uvm_release_results: "third_party/uvm-releases/results-rqcthqwn/results.json;complete and baseline_valid true."
 
 b01_checkpoint: 7c779ff28; local invariant and independent review pass; existing PR273 updated08b86b949, fresh required CI pending.
 
-user_requested_next: U03 driver --uvm=<release> and --uvm-list; preserve existing UVM flags and integrate pinned acquisition inventory.
+user_requested_next: "Pinned acquisition and driver picker delivered in PR273; continue U06 original-release phase qualification."
 
 b01_ci_retry: MINGW64 job102969844400 failed dependency download from ftp2.osuosl.org before build; gh rerun refused while run active. Retry failed job after run34506491167 permits it.
 l06_validation_complete: All local required gates pass, including JSON1719/0 and real-DPI UVM355/0/0; preserve candidate checkpoint pending B01 Windows boundary.
@@ -182,7 +184,7 @@ b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores ex
 
 u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
 u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
-last_locally_validated_semantic_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
+last_locally_validated_semantic_revision: "051aeee8e"
 
 l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
 u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
@@ -223,7 +225,7 @@ l08_final_review: Clear after SVA clone provenance fix; required gates pending.
 l08_candidate_revision: 47e6c87b3
 l08_nfa: Passed58/58, terminal81089 exit0.
 l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
-pr273_latest_checks: "Ubuntu22.04,Ubuntu24.04,MINGW64,UCRT64,CLANG64 passed; macOS queued. PR remains open; no merge."
+pr273_latest_checks: "Fresh checks pending on1357ae803; prior headpassedUbuntu22/24 and all3Windows jobs,macOS remainedqueued."
 
 u05_live_gates: []
 u05_unstarted_gates: []
@@ -237,3 +239,46 @@ u04_candidate_revision: aa172f5f9
 u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
 
 u04_nfa: Passed58/58 terminal6429 exit0.
+
+u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
+
+candidate_revision: "051aeee8e"
+
+l09_live_gates: {}
+l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."
+l09_review: Clear subject to required gates; typed,indexed,virtual-output and malformed-bytecode coverage inspected; DD019 separate.
+
+l09_integrated_terminal: "17224 exit0; legacy4861total4856pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. FullJSON37094 now running; UVM9469 live; isolated frontend unstarted."
+
+l09_json_terminal: "37094 exit0;1753tests0failures. UVM9469 remains live; isolated frontend unstarted."
+
+l09_uvm_terminal: "9469 exit0; real-DPI UVM355passed0failed0skipped. Frontend41521 now running alone; do not use installed root until terminal and restoration verified."
+l09_closure: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d; legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
+l11_live_gates: {}
+
+l11_completed_gates: "NFA22442 exit0,58/58; makecheck76983 exit0; focused42/0. Final source comment rebuild captured targetd9a0c5df5ab6b8410b3087d347633695f4f109772f0e7c9bb2d592b2057a5fed; no semantic change from focused candidate."
+
+l11_integrated_terminal: "58045 exit0;4865total4860pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON64592 running after integrated terminal; UVM51883 still running; frontend unstarted."
+
+l11_json_terminal: "64592 exit0;1757tests0failures. UVM51883 remains live; frontend unstarted."
+l11_release_results: "third_party/uvm-releases/results-4ifmf4k_/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; probe95059 terminal1 due known compile gaps."
+
+l11_uvm_terminal: "51883 exit0,real-DPI355passed0failed0skipped. Frontend86720 running alone; require root restoration and fingerprints before further tools."
+
+user_opentitan_uvm_target: "User wants pinned UVM1.2 for OpenTitan. Confirmed pinned corpus7a3ad34 hw/dv/tools/dvsim/vcs.hjson uses -ntb_opts uvm-1.2, Questa/Riviera also1.2. Existing U01 evidence uses bundled2020.3.1; qualify1.2 and replay unmodified app before switching evidence baseline. No need to wait for all15 releases. Preserve L10 prerequisite order."
+readme_uvm_usage: "3a87ebca9 documents picker,pins,registration,prefix,smoke matrix and limitations; actual selected2020.3.1 smoke exit0,zero UVM W/E/F."
+l11_closure: "b32df9a29; legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
+l10_live_gates: {}
+
+l10_nfa_terminal: "30525 exit0,58/58; makecheckexit0."
+pr273_merge_observed: "PR273 externally MERGED at head1357ae803; all6CI jobs complete success. Finish running L10 gates, then reconcile validated campaign batch onto refreshedmain in retained checkout before next implementation. No newworktree while leftovers need audit; no agent merge."
+
+l10_integrated_terminal: "30122 exit0;4873total4868pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON39499 running after terminal; UVM16983 live; releaseprobe49747 live; frontendunstarted."
+
+main_update_after_pr273: "origin/main and canonicalcheckoutd0932af644460749b56ddc21139cc7d1cfeb2c26; PR273merged2026-09-10T20:48:01Z. Sharedgraph ASTupdate26746 exit0,49060nodes92853edges. Preserve dirtygraphoutput as expected."
+
+l10_json_terminal: "39499 exit0;1765tests0failures. UVM16983 remains live; frontendunstarted."
+l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json complete/baseline_valid;6SMOKE_PASS9knownCOMPILE_FAIL,terminal49747 exit1 due compile gaps."
+
+l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
+l10_closure: "051aeee8e; legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_function_scalar_output_defaults.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_function_scalar_output_defaults"
+    ],
+    "gold": "sv_function_scalar_output_defaults"
+}
