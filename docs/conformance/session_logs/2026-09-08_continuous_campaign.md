@@ -1081,3 +1081,9 @@ S06 review exposed an additional reachable operand-width defect: a property form
 
 
 S06 final shared-helper review cleared grouped/plain self-sizing, signedness, ownership, replay and -6 guards. Current focus18/18 legacy+JSON passes in both default and explicit legacy engines; S05neighbors14/14+14/14, S04neighbors17/17+8/8, generated76assertion+76cover cases in both editions,makecheck all pass. Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec frozen for integrated55376,NFA8748,real-DPIUVM91338. Full JSON must run after integrated. Broader arbitrary delay-expression parsing, formal lookup behavior and maximal-width delay arithmetic remain unqualified. No full-pass claim; S06 remains awaiting validation.
+
+S06 integrated55376 terminated0:4732total4727pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15. NFA8748 terminated0,58/58. FullJSON95717 launched only after integrated completion; real-DPIUVM91338 remains live. No source/test mutation. S06 awaits these remaining local gates and remote CI before merge.
+
+S06 fullJSON95717 terminated0:1624tests/0failures. Only real-DPIUVM91338 remains among required local gates; remote CI still required before merge.
+
+S06 real-DPIUVM91338 terminated0:355passed,0failed,0skipped with real DPI umbrella loaded. All required local gates and independent review pass on frozen compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Final fingerprints match. Qualify only the exact scope in the blocker/matrix; checkpoint then continue selection. Remote CI remains required before merge.

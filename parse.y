@@ -8144,21 +8144,8 @@ sva_seq_expr
       }
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
   | K_CYCLE_DELAY delay_value_simple sva_seq_atom
-      { long val = 0;
-	perm_string genvar_name;
-	sva_seq_step_t&f0 = (*$3)[0];
-	if (pform_sva_const_long($2, val) && f0.delay_lo >= 0) {
-	      f0.delay_lo += val;
-	      f0.delay_hi += val;
-	} else if (pform_sva_deferred_genvar($2, genvar_name)
-		   && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -4; f0.delay_hi = -4;
-	      f0.delay_genvar = genvar_name;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	delete $2;
-	$$ = $3; }
+      { pform_sva_single_delay(@2, (*$3)[0], $2);
+        $$ = $3; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
       { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$7)[0];
@@ -8208,23 +8195,10 @@ sva_seq_expr
 	}
 	$$ = $5; }
   | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
-      { long val = 0;
-	perm_string genvar_name;
-	sva_seq_step_t&f0 = (*$4)[0];
-	if (pform_sva_const_long($3, val) && f0.delay_lo >= 0) {
-	      f0.delay_lo += val;
-	      f0.delay_hi += val;
-	} else if (pform_sva_deferred_genvar($3, genvar_name)
-		   && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -4; f0.delay_hi = -4;
-	      f0.delay_genvar = genvar_name;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	delete $3;
-	$1->insert($1->end(), $4->begin(), $4->end());
-	delete $4;
-	$$ = $1; }
+      { pform_sva_single_delay(@3, (*$4)[0], $3);
+        $1->insert($1->end(), $4->begin(), $4->end());
+        delete $4;
+        $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
       { long lo = 0, hi = 0;
 	sva_seq_step_t&f0 = (*$8)[0];

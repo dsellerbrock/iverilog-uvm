@@ -373,7 +373,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### S06 — Overridden symbolic SVA cycle delay is frozen to its default
 
 - **Area / edition:** SVA and parameter elaboration / IEEE1800-2017 and1800-2023.
-- **State:** ACTIVE — DD-008 selected after S05 local qualification.
+- **State:** LOCALLY VALIDATED — reviewed S06 delay correction; remote CI required before merge.
 - **Evidence:** On validated a76c9f67a, LO1/HI2/D0 defaults with D1 override
   pass at tick2 and ignore a false final child at tick3 in both editions.
   Literal ##1 controls pass. Reducer and paired logs: campaign-20260908/s06.
@@ -387,3 +387,18 @@ qualification remain open. Evidence: campaign-20260908/s03.
   No new arbitrary delay cap or broader multiclock architecture.
 - **Closure:** Paired semantic regressions, override/boundary controls,
   required full gates and independent review. Remote CI before merge.
+
+- **S06 repaired scope:** Single named parameter/localparam cycle delays retain
+  per-instance values. Delayed sampled histories align symbolic repetition
+  endpoints with the current consequent; unmatched real-time ages retain
+  vacuity. Direct/prefixed overlap/nonoverlap, bounded/unbounded parents,
+  empty timing, cancellation and cover endpoint counts have paired controls.
+  Shared self-sizing preserves substituted operand width/sign; invalid
+  original negative grouped delays and unknown bounds reject per instance.
+- **S06 remaining scope:** Arbitrary delay-expression parsing, broader formal
+  lookup, unsupported composed/multiclock shapes and maximal-width arithmetic
+  remain unqualified. A rejection control does not implement a legal shape.
+- **S06 current validation:** Focus18/18 legacy+JSON in both engines;
+  S05neighbors14/14+14/14,S04neighbors17/17+8/8; NFA58/58;
+  integrated4732total4727pass0fail2NI3EF,VPI105,negative149,runtime15;
+  JSON1624/0,real-DPIUVM355/0/0,makecheck and final source/test review pass.

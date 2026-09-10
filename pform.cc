@@ -9294,6 +9294,71 @@ static PExpr* sva_clone_expr_(PExpr*e)
       return sva_clone_subst_(e, nullptr);
 }
 
+/* Single cycle delays share the range path's instance-elaboration boundary.
+   -6 identifies an exact symbolic delay, as distinct from a general window. */
+void pform_sva_single_delay(const struct vlltype&loc,
+                           sva_seq_step_t&step, PExpr*delay)
+{
+      if (pform_sva_overridable_bound(delay)
+          && step.delay_lo >= 0 && step.delay_hi >= 0) {
+            PExpr*copy = sva_clone_expr_(delay);
+            if (copy) {
+                  auto offset = [&](PExpr*expr, long value) -> PExpr* {
+                        // A property formal can later substitute arithmetic here.
+                        // Keep its own width before adding the sequence offset.
+                        std::list<named_pexpr_t> args;
+                        named_pexpr_t arg;
+                        arg.parm = sva_clone_expr_(expr);
+                        args.push_back(arg);
+                        PExpr*bits = new PECallFunction(lex_strings.make("$bits"), args);
+                        FILE_NAME(bits, loc);
+                        expr = new PECastSize(bits, expr);
+                        FILE_NAME(expr, loc);
+                        if (!value) return expr;
+                        PExpr*number = new PENumber(new verinum((uint64_t)value,
+                              sizeof(long)*CHAR_BIT));
+                        FILE_NAME(number, loc);
+                        PExpr*sum = new PEBinary('+', expr, number);
+                        FILE_NAME(sum, loc);
+                        // Validate the operand before an existing grouped offset
+                        // can turn a negative instance value into a legal sum.
+                        PExpr*zero = new PENumber(new verinum(int64_t(0)));
+                        FILE_NAME(zero, loc);
+                        PExpr*negative = new PEBComp('<', sva_clone_expr_(expr), zero);
+                        FILE_NAME(negative, loc);
+                        PExpr*invalid = new PENumber(new verinum(verinum::Vx, 64));
+                        FILE_NAME(invalid, loc);
+                        PExpr*checked = new PETernary(negative, invalid, sum);
+                        FILE_NAME(checked, loc);
+                        return checked;
+                  };
+                  step.delay_lo_expr = offset(delay, step.delay_lo);
+                  step.delay_hi_expr = offset(copy, step.delay_hi);
+                  step.delay_lo = step.delay_hi =
+                        step.delay_lo == step.delay_hi ? -6 : -5;
+                  return;
+            }
+            cerr << loc << ": error: cannot preserve parameter-valued SVA cycle delay." << endl;
+            error_count += 1;
+            step.delay_lo = step.delay_hi = -2;
+            delete delay;
+            return;
+      }
+      long value = 0;
+      perm_string genvar_name;
+      if (pform_sva_const_long(delay, value) && step.delay_lo >= 0) {
+            step.delay_lo += value;
+            step.delay_hi += value;
+      } else if (pform_sva_deferred_genvar(delay, genvar_name)
+                 && step.delay_lo == 0 && step.delay_hi == 0) {
+            step.delay_lo = step.delay_hi = -4;
+            step.delay_genvar = genvar_name;
+      } else if (step.delay_lo != -3) {
+            step.delay_lo = step.delay_hi = -2;
+      }
+      delete delay;
+}
+
 struct sva_local_decl_type_t {
       PExpr*width = nullptr;
       bool signed_flag = false;
@@ -21338,13 +21403,18 @@ static bool sva_parameter_repeat_try_assertion_(
 	   parameter-valued repetition, followed by the nonoverlapped bounded
 	   window ##[0:RiseMax-RiseMin].  The upper bound is deliberately kept
 	   as a parse expression so every interface instance sees its override. */
+      bool point_delay = cons.delay_lo == -6 && cons.delay_hi == -6
+            && cons.delay_lo_expr && cons.delay_hi_expr;
       bool windowed_cons = (prop->op_type == 1 || prop->op_type == 2)
-	    && cons.delay_lo == -5 && cons.delay_hi == -5
+            && ((cons.delay_lo == -5 && cons.delay_hi == -5)
+                || (cover && point_delay))
 	    && cons.delay_lo_expr && cons.delay_hi_expr
 	    && repeat.rep_hi != -1 && !repeat.rep_hi_expr;
-      bool fixed_cons = prop->op_type == 1
-	    && cons.delay_lo == cons.delay_hi
-	    && (cons.delay_lo == 0 || cons.delay_lo == 1);
+      bool fixed_cons = point_delay
+            || ((prop->op_type == 1 || !cover)
+                && cons.delay_lo == cons.delay_hi && cons.delay_lo >= 0
+                && (!cover || cons.delay_lo <= 1));
+      bool replay_checker = !windowed_cons && (!cover || point_delay);
       bool prefix_ok = direct_repeat
 	    || (prefix->expr && prefix->delay_lo == 0 && prefix->delay_hi == 0
 		&& prefix->delay_genvar.nil() && prefix->rep_tail == 0
@@ -21373,8 +21443,8 @@ static bool sva_parameter_repeat_try_assertion_(
       if (!sva_parameter_checker_preflight_(
 		loc, prop, top_src, repeat.rep_lo_expr,
 		repeat.rep_hi_expr,
-		windowed_cons ? cons.delay_lo_expr : nullptr,
-		windowed_cons ? cons.delay_hi_expr : nullptr, prepared)) {
+		(windowed_cons || point_delay) ? cons.delay_lo_expr : nullptr,
+		(windowed_cons || point_delay) ? cons.delay_hi_expr : nullptr, prepared)) {
 	    restore_standalone_cover();
 	    return false;
       }
@@ -21450,8 +21520,39 @@ static bool sva_parameter_repeat_try_assertion_(
       if (!fixed_ante) r_keep = capture(repeat.expr, capture_idx++);
       perm_string r_cons = capture(cons.expr, capture_idx++);
 
+      bool shadow_prefix = !direct_repeat || prop->op_type == 2;
+      auto replay_lag = [&]() -> PExpr* {
+            PExpr*delay = point_delay ? sva_clone_expr_(cons.delay_lo_expr)
+                  : new PENumber(new verinum((uint64_t)cons.delay_lo,
+                        sizeof(long)*CHAR_BIT));
+            FILE_NAME(delay, loc);
+            if (prop->op_type == 2) {
+                  delay = new PEBinary('+', delay, sva_num32_(loc, 1));
+                  FILE_NAME(delay, loc);
+            }
+            return delay;
+      };
+      perm_string r_keep_history, r_start_history, r_young;
+      std::vector<perm_string> replay_state;
+      if (replay_checker) {
+            r_keep_history = sva_make_parameter_pipe_(loc, inst, replay_lag(), "rkeep");
+            r_start_history = sva_make_parameter_pipe_(loc, inst, replay_lag(), "rstart");
+            PExpr*young_top = sva_clone_expr_(repeat.rep_lo_expr);
+            if (!shadow_prefix) {
+                  PExpr*zero = new PEBComp('e', sva_clone_expr_(repeat.rep_lo_expr), sva_num32_(loc, 0));
+                  FILE_NAME(zero, loc);
+                  young_top = new PETernary(zero, sva_num32_(loc, 1), young_top);
+                  FILE_NAME(young_top, loc);
+            }
+            r_young = sva_make_parameter_pipe_(loc, inst, young_top, "ryoung");
+            replay_state.push_back(r_keep_history);
+            replay_state.push_back(r_start_history);
+            replay_state.push_back(r_young);
+            for (size_t k = 0; k < replay_state.size(); ++k)
+                  init_zero.push_back(sva_assign_(loc, replay_state[k], sva_num32_(loc, 0)));
+      }
       PExpr*pipe_top = sva_clone_expr_(top_src);
-      if (!cover && !windowed_cons && direct_repeat && unbounded) {
+      if (replay_checker && !shadow_prefix && unbounded) {
             PExpr*zero = new PEBComp('e', sva_clone_expr_(top_src), sva_num32_(loc, 0));
             FILE_NAME(zero, loc);
             pipe_top = new PETernary(zero, sva_num32_(loc, 1), pipe_top);
@@ -21594,11 +21695,7 @@ static bool sva_parameter_repeat_try_assertion_(
 		 << "the clock time slot can be visible to the assertion."
 		 << endl;
 
-      if (!cover && !windowed_cons) {
-            /* Consecutive matches have no gaps. At the start of a ##1
-               tick, every surviving matched age (and every mature parent)
-               owns exactly one due child. The terminal count retains only
-               parents that reached HI on the previous tick. */
+      if (replay_checker) {
             auto binary = [&](char op, PExpr*a, PExpr*b) -> PExpr* {
                   PExpr*expr = new PEBinary(op, a, b);
                   FILE_NAME(expr, loc);
@@ -21611,18 +21708,17 @@ static bool sva_parameter_repeat_try_assertion_(
             };
             auto lower = [&]() -> PExpr* {
                   PExpr*lo = sva_clone_expr_(repeat.rep_lo_expr);
-                  if (!direct_repeat) return lo;
-                  // An overlapped implication uses nonempty matches only.
+                  if (shadow_prefix) return lo;
                   PExpr*expr = new PETernary(lo_is_zero(), number32(1), lo);
                   FILE_NAME(expr, loc);
                   return expr;
             };
+            auto young = [&](perm_string reg) -> PExpr* {
+                  return binary('^', sva_id_(loc, reg),
+                        shift('l', shift('r', sva_id_(loc, reg), lower()), lower()));
+            };
             auto matched = [&]() -> PExpr* {
                   return countones(shift('r', sva_id_(loc, pipe), lower()));
-            };
-            auto young = [&]() -> PExpr* {
-                  return binary('^', sva_id_(loc, pipe),
-                        shift('l', shift('r', sva_id_(loc, pipe), lower()), lower()));
             };
             auto mature = [&]() -> PExpr* {
                   return unbounded ? sva_id_(loc, r_mature) : number32(0);
@@ -21633,52 +21729,119 @@ static bool sva_parameter_repeat_try_assertion_(
             };
             auto retire_matched = [&]() -> Statement* {
                   std::vector<Statement*> stmts;
-                  stmts.push_back(sva_assign_(loc, pipe, young()));
+                  stmts.push_back(sva_assign_(loc, pipe, young(pipe)));
                   if (unbounded)
                         stmts.push_back(sva_assign_(loc, r_mature, number32(0)));
                   return sva_block_(loc, stmts);
             };
+            auto positive_lag = [&]() -> PExpr* {
+                  PExpr*expr = new PEBComp('n', replay_lag(), number32(0));
+                  FILE_NAME(expr, loc);
+                  return expr;
+            };
+            auto last_endpoint = [&]() -> PExpr* {
+                  PExpr*index = new PETernary(positive_lag(),
+                        binary('-', replay_lag(), number32(1)), number32(0));
+                  FILE_NAME(index, loc);
+                  return sva_logic_(loc, 'a', positive_lag(),
+                        sva_not_(loc, sva_index_(loc, r_keep_history, index)));
+            };
+            auto start = [&]() -> PExpr* {
+                  PExpr*index = replay_lag();
+                  if (direct_repeat && prop->op_type == 2)
+                        index = binary('-', index, number32(1));
+                  return sva_index_(loc, r_start_history, index);
+            };
             body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
                   sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
-            if (cons.delay_lo == 1) {
-                  std::vector<Statement*> failed;
-                  failed.push_back(add(r_fail_req, binary('+',
-                        binary('+', matched(), mature()), sva_id_(loc, r_due))));
-                  failed.push_back(retire_matched());
-                  body.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
-                        add(r_pass_req, sva_id_(loc, r_due)),
-                        sva_block_(loc, failed)));
-                  body.push_back(sva_assign_(loc, r_due, number32(0)));
-            }
-            if (direct_repeat)
-                  body.push_back(sva_assign_(loc, pipe, age_source()));
 
+            /* Vacuity is observable before a delayed child could exist.
+               Retain only real-time ages that have never matched. */
+            if (!cover) {
+            if (direct_repeat) {
+                  PExpr*nonzero = new PEBComp('n', lower(), number32(0));
+                  FILE_NAME(nonzero, loc);
+                  body.push_back(sva_if_(loc, sva_logic_(loc, 'a',
+                        sva_enabled_expr_(loc, inst), nonzero),
+                        sva_assign_(loc, r_young,
+                              binary('|', sva_id_(loc, r_young), number32(1))), nullptr));
+            }
+            std::vector<Statement*> growing, dead;
+            growing.push_back(sva_assign_(loc, r_young,
+                  shift('l', sva_id_(loc, r_young), number32(1))));
+            growing.push_back(sva_assign_(loc, r_young, young(r_young)));
+            dead.push_back(add(r_vac_req, countones(sva_id_(loc, r_young))));
+            dead.push_back(sva_assign_(loc, r_young, number32(0)));
+            body.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_keep)),
+                  sva_block_(loc, growing), sva_block_(loc, dead)));
+            if (prefix) {
+                  Statement*inject = sva_assign_(loc, r_young,
+                        binary('|', sva_id_(loc, r_young), number32(1)));
+                  PExpr*nonzero = new PEBComp('n', lower(), number32(0));
+                  FILE_NAME(nonzero, loc);
+                  body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+                        sva_if_(loc, exact_true(sva_id_(loc, r_prefix)),
+                              sva_if_(loc, nonzero, inject, nullptr),
+                              add(r_vac_req, number32(1))), nullptr));
+            }
+
+            } // real-time vacuity belongs only to assertions
+
+            /* Replay sampled antecedents when their children are due.
+               Positive lag makes the following original keep sample
+               available now, so the last child can close its parent now. */
+            PExpr*enabled_start = sva_enabled_expr_(loc, inst);
+            if (prefix)
+                  enabled_start = sva_logic_(loc, 'a', enabled_start,
+                        exact_true(sva_id_(loc, r_prefix)));
+            body.push_back(sva_assign_(loc, r_start_history, binary('|',
+                  shift('l', sva_id_(loc, r_start_history), number32(1)), enabled_start)));
+            body.push_back(sva_assign_(loc, r_keep_history, binary('|',
+                  shift('l', sva_id_(loc, r_keep_history), number32(1)),
+                  exact_true(sva_id_(loc, r_keep)))));
+            body.push_back(sva_assign_(loc, r_keep,
+                  sva_index_(loc, r_keep_history, replay_lag())));
+            if (!shadow_prefix)
+                  body.push_back(sva_assign_(loc, pipe,
+                        binary('|', sva_id_(loc, pipe), start())));
+
+            // Preserve endpoint counting for cover, including the existing
+            // empty-match count in mixed empty/nonempty direct overlap.
+            if (cover && !shadow_prefix)
+                  body.push_back(sva_if_(loc, sva_logic_(loc, 'a', start(),
+                        sva_logic_(loc, 'a', lo_is_zero(), exact_true(sva_id_(loc, r_cons)))),
+                        add(r_count, number32(1)), nullptr));
             std::vector<Statement*> closed;
-            closed.push_back(add(r_pass_req, binary('+', matched(), mature())));
-            closed.push_back(add(r_vac_req, countones(young())));
+            if (!cover)
+                  closed.push_back(sva_if_(loc, sva_not_(loc, positive_lag()),
+                        add(r_pass_req, binary('+', matched(), mature())), nullptr));
             closed.push_back(sva_assign_(loc, pipe, number32(0)));
             if (unbounded)
                   closed.push_back(sva_assign_(loc, r_mature, number32(0)));
-
             std::vector<Statement*> extended;
             extended.push_back(sva_assign_(loc, pipe,
                   shift('l', sva_id_(loc, pipe), number32(1))));
             if (unbounded) {
                   extended.push_back(add(r_mature, matched()));
-                  extended.push_back(sva_assign_(loc, pipe, young()));
+                  extended.push_back(sva_assign_(loc, pipe, young(pipe)));
             }
-            if (cons.delay_lo == 0) {
-                  std::vector<Statement*> failed;
-                  failed.push_back(add(r_fail_req, binary('+', matched(), mature())));
-                  failed.push_back(retire_matched());
-                  extended.push_back(sva_if_(loc,
-                        sva_not_(loc, exact_true(sva_id_(loc, r_cons))),
-                        sva_block_(loc, failed), nullptr));
+            if (cover) {
+                  extended.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
+                        add(r_count, binary('+', matched(), mature())), nullptr));
+            } else {
+            std::vector<Statement*> failed, passed;
+            failed.push_back(add(r_fail_req, binary('+', matched(), mature())));
+            failed.push_back(retire_matched());
+            passed.push_back(add(r_pass_req, binary('+', matched(), mature())));
+            passed.push_back(retire_matched());
+            extended.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
+                  sva_if_(loc, last_endpoint(), sva_block_(loc, passed), nullptr),
+                  sva_block_(loc, failed)));
             }
             if (!unbounded) {
-                  PExpr*terminal = sva_index_(loc, pipe, sva_clone_expr_(top_src));
-                  extended.push_back(add(cons.delay_lo == 1 ? r_due : r_pass_req,
-                        terminal));
+                  if (!cover)
+                        extended.push_back(add(r_pass_req,
+                              sva_index_(loc, pipe, sva_clone_expr_(top_src))));
                   extended.push_back(sva_assign_(loc, pipe,
                         binary('^', sva_id_(loc, pipe), shift('l',
                               shift('r', sva_id_(loc, pipe), sva_clone_expr_(top_src)),
@@ -21686,31 +21849,40 @@ static bool sva_parameter_repeat_try_assertion_(
             }
             body.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_keep)),
                   sva_block_(loc, extended), sva_block_(loc, closed)));
-
-            if (prefix) {
+            if (shadow_prefix) {
                   auto inject = [&]() -> Statement* {
                         return sva_assign_(loc, pipe,
                               binary('|', sva_id_(loc, pipe), number32(1)));
                   };
-                  Statement*zero_live;
-                  if (unbounded) {
-                        zero_live = add(r_mature, number32(1));
+                  Statement*keep_parent = unbounded
+                        ? add(r_mature, number32(1)) : inject();
+                  Statement*zero;
+                  if (cover) {
+                        std::vector<Statement*> endpoint;
+                        endpoint.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
+                              add(r_count, number32(1)), nullptr));
+                        if (!unbounded) {
+                              PExpr*hi_nonzero = new PEBComp('n',
+                                    sva_clone_expr_(top_src), number32(0));
+                              FILE_NAME(hi_nonzero, loc);
+                              keep_parent = sva_if_(loc, hi_nonzero, keep_parent, nullptr);
+                        }
+                        endpoint.push_back(keep_parent);
+                        zero = sva_block_(loc, endpoint);
                   } else {
-                        PExpr*terminal = new PEBComp('e',
-                              sva_clone_expr_(top_src), number32(0));
-                        FILE_NAME(terminal, loc);
-                        zero_live = sva_if_(loc, terminal,
-                              add(cons.delay_lo == 1 ? r_due : r_pass_req, number32(1)),
-                              inject());
+                        PExpr*terminal = last_endpoint();
+                        if (!unbounded) {
+                              PExpr*hi_zero = new PEBComp('e',
+                                    sva_clone_expr_(top_src), number32(0));
+                              FILE_NAME(hi_zero, loc);
+                              terminal = sva_logic_(loc, 'o', terminal, hi_zero);
+                        }
+                        zero = sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
+                              sva_if_(loc, terminal, add(r_pass_req, number32(1)), keep_parent),
+                              add(r_fail_req, number32(1)));
                   }
-                  if (cons.delay_lo == 0)
-                        zero_live = sva_if_(loc, exact_true(sva_id_(loc, r_cons)),
-                              zero_live, add(r_fail_req, number32(1)));
-                  Statement*start = sva_if_(loc, lo_is_zero(), zero_live, inject());
-                  start = sva_if_(loc, exact_true(sva_id_(loc, r_prefix)),
-                        start, add(r_vac_req, number32(1)));
-                  body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
-                        start, nullptr));
+                  body.push_back(sva_if_(loc, start(),
+                        sva_if_(loc, lo_is_zero(), zero, inject()), nullptr));
             }
       } else {
       if (!cover && !fixed_ante) {
@@ -21970,6 +22142,8 @@ static bool sva_parameter_repeat_try_assertion_(
 
       auto clear_state = [&]() -> Statement* {
 	    std::vector<Statement*> clear;
+            for (size_t k = 0; k < replay_state.size(); ++k)
+                  clear.push_back(sva_assign_(loc, replay_state[k], sva_num32_(loc, 0)));
             for (size_t k = 0; k < fixed_state.size(); ++k)
                   clear.push_back(sva_assign_(loc, fixed_state[k], sva_bit_(loc, 0)));
 	    clear.push_back(sva_assign_(loc, pipe, sva_bit_(loc, 0)));
@@ -22213,7 +22387,8 @@ static bool sva_parameter_window_try_assertion_(
       }
       if (!cons_seq || cons_seq->size() != 1) return false;
       sva_seq_step_t&cons = (*cons_seq)[0];
-      if (!cons.expr || cons.delay_lo != -5 || cons.delay_hi != -5
+      if (!cons.expr || (cons.delay_lo != -5 && cons.delay_lo != -6)
+          || cons.delay_hi != cons.delay_lo
 	  || !cons.delay_lo_expr || !cons.delay_hi_expr
 	  || !cons.delay_genvar.nil() || cons.rep_tail != 0
 	  || cons.rep_kind != 0 || cons.fm || cons.lv_rhs)
@@ -22245,6 +22420,7 @@ static bool sva_parameter_window_try_assertion_(
       }
 
 	/* Commit only after the complete endpoint match has been cloned. */
+      cons.delay_lo = cons.delay_hi = -5;
       sva_stree_t*fixed_ante = nullptr;
       if (tree_form) {
             if (kind != 2) fixed_ante = prop->ante_tree;
@@ -23225,10 +23401,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	 before |=> adjustment or legacy offset arithmetic can reinterpret -4. */
       bool has_parameter_delay = false;
       for (size_t si = 0 ; si < prop->seq->size() ; si += 1)
-	    if ((*prop->seq)[si].delay_lo == -5) has_parameter_delay = true;
+	    if ((*prop->seq)[si].delay_lo == -5
+                || (*prop->seq)[si].delay_lo == -6) has_parameter_delay = true;
       if (prop->antecedent)
 	    for (size_t si = 0 ; si < prop->antecedent->size() ; si += 1)
-		  if ((*prop->antecedent)[si].delay_lo == -5)
+		  if ((*prop->antecedent)[si].delay_lo == -5
+                      || (*prop->antecedent)[si].delay_lo == -6)
 			has_parameter_delay = true;
       if (has_parameter_delay) {
 	    cerr << loc << ": sorry: this parameter-valued bounded cycle-delay "

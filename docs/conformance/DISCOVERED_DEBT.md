@@ -129,4 +129,4 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Possible clause:** IEEE1800-2017/2023 6.20.2,16.9,16.12.7; exact delay-normalization cause unverified.
 - **Evidence:** campaign-20260908/s05/parameter-delay-override.sv and .log; current candidate produces EARLY1/0 then1/0. First observed before the S05 parent edit; no retained pre-S05 isolated reducer result, so baseline comparison remains required.
 - **Reproducer status:** reduced current failure; literal-delay control passes.
-- **Triage status:** promoted to S06 after S05 local qualification; paired reducer remains red on validated a76c9f67a. S05 does not claim qualification of symbolic consequent-delay overrides.
+- **Triage status:** resolved within the reviewed, locally validated S06 single named parameter/localparam delay scope. Broader delay-expression syntax, composed/multiclock shapes, formal lookup and maximal-width arithmetic remain unqualified.
