@@ -11,8 +11,8 @@ pending_gates: [B01_Windows_CI, U01_teardown_qualification, remote_CI_before_mer
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: Resume suspended L06 after B01 required Windows CI and L06 UVM gates pass; then select user-requested U03 version picker before discretionary DD013.
-next_action: Await U03 integrated90425, then run full JSON serially; recheck PR273 CI atc189df5b8.
-next_command: "tail -20 ../evidence/campaign-20260908/u03/integrated.log"
+next_action: Await L07 integrated27702 and UVM33056; run full JSON after integrated terminal. NFA88696 passed58/58.
+next_command: "tail -20 ../evidence/campaign-20260908/l07/integrated.log"
 next_command_cwd: repository root
 candidate_state: L06 pform.cc candidate passes14/14focused,27/26neighbors,makecheck and finalreview. UVM2020.3.2 reaches preexisting q[$] lvalue crash (bothbaseline/candidate reproduce).
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
@@ -189,3 +189,4 @@ u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VP
 
 u03_closure: c35d2ef36 all required local gates passed; fullJSON31236 terminal0,1719/0.
 l07_selection: DD013 queue-last lvalue crash on validated c35d2ef36; sole active implementation. B01 remote CI still pending.
+l07_candidate: elab_lval.cc and ten paired regressions; focus10/10each,neighbors21/13,makecheck,review,NFA58/58 pass; unmodifiedUVM2020.3.2 smoke passes. Integrated27702/UVM33056 running; JSON unstarted.
