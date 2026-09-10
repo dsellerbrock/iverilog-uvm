@@ -1935,3 +1935,9 @@ On fully validated L13 source849a779ea, both-edition struct-string permanent red
 
 a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT.
 The member-index frontier is removed from original1.1a/1.1d/1.2. No parent release or application qualification claimed. Next priority is original1.2 static-local traversal references (DD021), before OpenTitan1.2 replay.
+
+### L14 lifetime-aware hierarchical reference candidate
+
+Original1.2 visit.compiled_regex and reduced class static-local read/write fail4errors in both editions on validateda85a256b1. BothLRM6.21 explicitly permits static locals inside automatic scopes except unnamed blocks. symbol_search checked scope lifetime before declaration lookup. Candidate checks NetNet/PWire/NetEvent override and defers intermediate named scopes to terminal lookup; actual automatic locals remain errors, including explicitauto in static scopes.
+
+Permanent tests exercise pre-call initialization, two-object shared static state, read/write, nested shadowing, chandle assignment, static-event trigger/wait and negative automatic/event/nested/unnamed access. JSON12/0,legacy12/0,neighbors18/0. Initial wrapper paths/gold-prefix mismatch fixed in harness metadata; compiler unchanged. Required broad gates pending.

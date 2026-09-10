@@ -247,7 +247,21 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			     << "Prefix scope " << scope_path(scope) << endl;
 		  }
 
-		  if (scope->is_auto()) {
+		  // 6.21 permits static locals inside automatic tasks/functions.
+		  // Intermediate named scopes have no variable lifetime of their own.
+		  ivl_lifetime_t lifetime = IVL_VLT_INHERITED;
+		  bool child_scope = false;
+		  if (NetNet*net = scope->find_signal(path_tail.name))
+			lifetime = net->lifetime_override();
+		  else if (PWire*wire = scope->find_signal_placeholder(path_tail.name))
+			lifetime = wire->lifetime_override();
+		  else if (NetEvent*event = scope->find_event(path_tail.name))
+			lifetime = event->lifetime_override();
+		  else
+			child_scope = scope->child_byname(path_tail.name);
+		  bool automatic_item = lifetime == IVL_VLT_AUTOMATIC
+			|| (lifetime == IVL_VLT_INHERITED && scope->is_auto());
+		  if (automatic_item && !child_scope) {
 			cerr << li->get_fileline() << ": error: Hierarchical "
 			      "reference to automatically allocated item "
 			      "`" << path_tail.name << "' in path `" << path << "'" << endl;

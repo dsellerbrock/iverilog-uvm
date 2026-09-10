@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_hier_automatic_local_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_hier_automatic_local_fail"
+    ],
+    "gold": "sv_hier_automatic_local_fail"
+}

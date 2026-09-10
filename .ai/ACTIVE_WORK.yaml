@@ -1,7 +1,7 @@
 id: "L14"
 title: "Hierarchical references to static locals in automatic scopes"
 status: "in_progress"
-phase: "selected"
+phase: "awaiting_validation"
 base_revision: "a85a256b1"
 last_validated_revision: "a85a256b1"
 selection_reason: "Original UVM1.2 now fails only four compiled_regex references in visit plus existing ignored-constraint warning; user prioritizes1.2 for OpenTitan."
@@ -10,6 +10,9 @@ standards: "IEEE1800-2017 and2023 6.21,8.6; specific6.21 static-variable allowan
 allowed_scope: ["Resolve named static local variable references according to actual declaration lifetime, including read/write and class method contexts.", "Preserve automatic-variable rejection, named/unnamed scope boundaries and existing lookup precedence.", "Permanent paired-edition regressions; required integrated gates and original UVM replay."]
 non_goals: ["No DPI-regex symbols or ignored constraint fixes.", "No UVM source edits, application pass claim, or unrelated storage redesign."]
 required_gates: ["Both-edition red reducer and positive/negative lifetime controls, focusedlegacy/JSON,independent review.", "Integratedlegacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,release sweep,isolatedfrontend and restored tool fingerprints."]
-next_action: "Establish static local hierarchical read/write reducer and automatic-variable negative controls, trace symbol_search and lifetime metadata before implementation."
-next_command: "sed -n '230,270p' symbol_search.cc"
+next_action: "Run required integrated gates and original UVM release replay; isolatedfrontend last alone. Keep unrelated DPI and constraint gaps record-only."
+next_command: "tail -n15 ../evidence/campaign-20260908/l14/integrated.log"
 stop_after_completion: false
+
+root_cause: "symbol_search rejected every item in an automatic prefix scope before checking its declaration. Lifetime overrides on NetNet/PWire/NetEvent now govern variable access; defer through intermediate named scope and check terminal item. Explicit automatic declarations in static scopes remain rejected."
+focused_evidence: "Both-edition baseline fails4errors; candidate reducer runsPASSED. FocusedJSON12/0,legacy12/0,neighbors18/0. Initial wrapper include and JSON diagnostic-path configuration errors corrected without compiler changes; final focused3.log retained."

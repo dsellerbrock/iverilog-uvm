@@ -2893,3 +2893,15 @@ sv_struct_string_index_bounds normal,-g2017,-s,sv_struct_string_index_bounds ivl
 sv_struct_string_index_bounds_2023 normal,-g2023,-s,sv_struct_string_index_bounds ivltests gold=sv_struct_string_index_bounds.gold
 sv_struct_string_index_real_fail CE,-g2017,-s,sv_struct_string_index_real_fail ivltests gold=sv_struct_string_index_real_fail.gold
 sv_struct_string_index_real_fail_2023 CE,-g2023,-s,sv_struct_string_index_real_fail ivltests gold=sv_struct_string_index_real_fail.gold
+sv_hier_static_local normal,-g2017,-s,sv_hier_static_local ivltests gold=sv_hier_static_local.gold
+sv_hier_static_local_2023 normal,-g2023,-s,sv_hier_static_local ivltests gold=sv_hier_static_local.gold
+sv_hier_static_event normal,-g2017,-s,sv_hier_static_event ivltests gold=sv_hier_static_event.gold
+sv_hier_static_event_2023 normal,-g2023,-s,sv_hier_static_event ivltests gold=sv_hier_static_event.gold
+sv_hier_automatic_local_fail CE,-g2017,-s,sv_hier_automatic_local_fail ivltests gold=sv_hier_automatic_local_fail.gold
+sv_hier_automatic_local_fail_2023 CE,-g2023,-s,sv_hier_automatic_local_fail ivltests gold=sv_hier_automatic_local_fail.gold
+sv_hier_automatic_nested_fail CE,-g2017,-s,sv_hier_automatic_nested_fail ivltests gold=sv_hier_automatic_nested_fail.gold
+sv_hier_automatic_nested_fail_2023 CE,-g2023,-s,sv_hier_automatic_nested_fail ivltests gold=sv_hier_automatic_nested_fail.gold
+sv_hier_automatic_event_fail CE,-g2017,-s,sv_hier_automatic_event_fail ivltests gold=sv_hier_automatic_event_fail.gold
+sv_hier_automatic_event_fail_2023 CE,-g2023,-s,sv_hier_automatic_event_fail ivltests gold=sv_hier_automatic_event_fail.gold
+sv_hier_unnamed_static_fail CE,-g2017,-s,sv_hier_unnamed_static_fail ivltests gold=sv_hier_unnamed_static_fail.gold
+sv_hier_unnamed_static_fail_2023 CE,-g2023,-s,sv_hier_unnamed_static_fail ivltests gold=sv_hier_unnamed_static_fail.gold

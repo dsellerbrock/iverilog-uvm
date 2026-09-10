@@ -1,0 +1,2 @@
+./ivltests/sv_hier_automatic_event_fail.v:7: error: Hierarchical reference to automatically allocated item `ready' in path `t'
+1 error(s) during elaboration.
