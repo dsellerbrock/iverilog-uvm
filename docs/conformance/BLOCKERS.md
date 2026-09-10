@@ -317,3 +317,17 @@ gates/review pass: NFA58, focus55/20, integrated4692/4687/0/2/3,VPI103,
 negative149,runtime15,JSON1584,real-DPI UVM355,make check. Finite cyclic-pool
 limits, DD005 nonfanout vacuity, S02 multiclock identity and broader SVA/formal
 qualification remain open. Evidence: campaign-20260908/s03.
+
+### S04 — Missing vacuous user pass actions in single-clock implications
+
+- **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.12.7,16.14.1.
+- **State:** ACTIVE — specification grounded; selected from DD005.
+- **Evidence:** At locally validated61ca5f336, false antecedent `a |-> b`
+  produces0pass/0fail instead of1pass/0fail in2017/2023, default/legacy modes.
+  Four compile/runtime logs and reducer in campaign-20260908/s04.
+- **Mechanism:** Nonfanout NFA dead-before-obligation path suppresses pass
+  dispatch; legacy match-only injection loses vacuous attempts. Specialized
+  implication callers require the same causal audit before implementation.
+- **Closure:** Correct user actions per attempt while preserving sampling,
+  cancellation, multiplicity, callback distinctions and S03 parent semantics;
+  all required local gates and independent review, then remote CI before merge.

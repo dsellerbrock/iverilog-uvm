@@ -811,3 +811,11 @@ remained unchanged throughout final validation. Only source-comment clarificatio
 followed the candidate build; no semantic code changes. Worktree audit unchanged,
 unrelated changes preserved. Checkpoint exact S03 parent aggregation; retain
 remote CI before merge, finite cyclic limits, S02 and DD005. Return to selection.
+
+S03 committed61ca5f336, qualification checkpointc4851435b. Returned to selection
+and reproduced DD005 with a minimal false-antecedent implication:0pass/0fail in
+both editions/default+legacy modes, required1pass/0fail. Activated S04 contract.
+IEEE16.12.7 defines vacuous success and16.14.1 executes the successful assertion's
+pass action. Trace NFA dead-before-obligation and legacy match-only injection,
+including specialized callers; no implementation edits yet. S02 remains at its
+recorded cross-clock identity design boundary, and unrelated work stays preserved.

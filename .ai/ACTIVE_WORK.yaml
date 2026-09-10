@@ -1,39 +1,38 @@
-id: S03
-title: Aggregate NFA implication verdicts per starting attempt
-status: completed_local
-phase: selection
-base_revision: 2be79b2c0
+id: S04
+title: Execute vacuous user pass actions in single-clock implications
+status: active
+phase: spec_grounded
+base_revision: 61ca5f336
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 16.12.7.
-expected_behavior: Each starting implication attempt reports failure once if any consequent fails, and success only after the antecedent closes and all consequences succeed.
-observed_behavior: Both editions report two failures for one starting attempt with two failing endpoint consequences.
-reproducer: ../evidence/campaign-20260908/s03/attempt-verdict.sv
-causal_hypothesis: Existing NFA endpoint fanout dispatches verdicts per consequence; antecedent slots become reusable before all dependent consequences resolve.
+  - IEEE1800-2017 and IEEE1800-2023 16.12.7 and 16.14.1.
+expected_behavior: An enabled assertion implication with no antecedent match succeeds vacuously and executes its user pass action once per starting attempt, without a nonvacuous-success callback.
+observed_behavior: False a in a |-> b produces zero pass actions in both editions and both default and legacy engines.
+reproducer: ../evidence/campaign-20260908/s04/vacuity.sv
+causal_hypothesis: Nonfanout NFA death without an antecedent obligation suppresses pass dispatch; legacy lowering injects only matching antecedents and loses vacuous attempts.
 allowed_scope:
-  - pform.cc pform_sva_nfa_try_assertion parent bookkeeping, existing capacity guards and cancellation/EOS consumers.
-  - Existing NFA endpoint tests, local-data controls and exact-output golds whose reviewed expectation is affected.
-  - Permanent paired per-attempt assertion regressions and focused manifests.
-  - Active contract, campaign checkpoint, blocker registry, clause matrix and session log.
+  - pform.cc single-clock implication lowering and directly shared action bookkeeping.
+  - NFA, legacy and specialized fixed/genvar delay callers implicated by the same missing-vacuity mechanism.
+  - Permanent paired regressions, focus manifests and reviewed affected existing test expectations.
+  - VPI controls/callback tests needed to distinguish user pass actions from nonvacuous success reports.
+  - Active contract, campaign checkpoint, blocker registry, discovered debt, clause matrix and session log.
 non_goals:
-  - No scheduler architecture redesign or multiclock implementation; preserve existing NFA supported shapes.
-  - No unrelated SVA defects, application modifications or complete assertion/formal qualification claim.
+  - No multiclock architecture expansion or S02 implementation.
+  - No unrelated property operators, new unsupported assertion controls, or full SVA/formal qualification claim.
+  - No cover-action redesign; preserve existing coverage semantics and S03 parent aggregation.
 invariants:
-  - Preserve endpoint multiplicity without substituting endpoint counts for per-attempt truth.
-  - Preserve Preponed sampling, evaluation/report regions, cancellation and clock boundary timing.
-  - Preserve current finite-pool overflow diagnostics and bound acyclic parent lifetimes correctly.
-  - Reuse existing mechanisms; record and escalate a proven architecture boundary before broadening.
+  - One action per starting attempt, including multiple vacuous attempts resolving together.
+  - Preserve Preponed sampling, Reactive user actions, disabled/killed attempts and supported assertion controls.
+  - Never report a vacuous success as a nonvacuous-success callback.
+  - Preserve arbitrary legal user action ownership; no incomplete statement cloning or silent action loss.
+  - Preserve explicit legacy mode and existing nonvacuous/failure behavior.
 required_gates:
-  - Paired red/green controls for separate endpoints, mixed consequence outcomes and verdict identity.
-  - Overlap/nonoverlap, mixed and coincident endpoint outcomes, local snapshots, cancellation, vacuity and EOS.
-  - Independent semantic review and implementation review.
-  - SVA NFA suite, focused legacy/JSON, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
+  - Paired red/green in default and legacy modes; overlap/nonoverlap and delayed antecedent/consequence controls.
+  - Vacuous/nonvacuous/failure mixtures, cancellation, same-tick multiplicity and callback distinction.
+  - Independent standards/implementation review.
+  - SVA NFA parity, focused legacy/JSON, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
   - Remote CI before merge.
-completion: Complete only per-parent verdict aggregation in the existing supported NFA endpoint path after required local gates; retain finite cyclic capacity and unsupported shapes explicitly.
+completion: Qualify exact repaired implication paths; retain unsupported paths and unrelated mandatory obligations explicitly.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 61ca5f336
-next_action: Verify DD005 nonfanout vacuity as next candidate; preserve S02 design boundary.
-validation_state: NFA58/0, focus55/20, JSON1584/0, integrated65557 all pass (4692/4687/0/2/3,VPI103,negative149,runtime15). Initial UVM58507 ended354/1 on stale nested/throughout vacuity expectations; corrected and independently reviewed, paired and real-DPI focus5567 pass2/0. Final full real-DPI UVM14116 completed355/0/0.
-implementation_state: Committed61ca5f336; all required local gates and review pass, remote CI required before merge.
-installed_compiler: 61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c
-installed_runtime: 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec
+next_action: Trace every implicated pass-action consumer and antecedent representation before choosing the smallest complete shared correction.

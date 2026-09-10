@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: selection
+current_blocker: S04
+phase: spec_grounded
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 61ca5f336
@@ -10,12 +10,12 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: Verify DD005 nonfanout vacuous user-pass actions; retain S02 architecture boundary.
-next_action: Run focused graph/source verification and paired vacuity reducer.
-next_command: "graphify query 'nonfanout implication vacuous pass action track_ob' --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+next_selection: S04 selected from reproduced DD005; S02 remains at its documented design boundary.
+next_action: Trace NFA, legacy and specialized implication antecedent/pass-action paths before editing implementation.
+next_command: "sed -n '23130,23595p' pform.cc"
 next_command_cwd: repository root
-candidate_state: S03 locally validated and committed61ca5f336; no active implementation blocker.
+candidate_state: S04 red in both editions and both engines at validated61ca5f336; no implementation changes.
 installed_tools: Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 validation_state: All S03 local gates/review pass; final UVM14116 completed355/0/0. No running validation processes.
-next_validation: Establish paired red and exact semantics for the next selected blocker.
+next_validation: Implement only after causal trace; all S04 implementation gates pending.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
