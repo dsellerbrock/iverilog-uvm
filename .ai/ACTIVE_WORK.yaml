@@ -1,7 +1,7 @@
 id: L09
 title: Preserve caller-local output copy-out during nested argument calls
 status: in_progress
-phase: "spec_grounded"
+phase: "root_caused"
 base_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 selection_reason: DD018 is a reproducible automatic-argument correctness defect, observed independently before and after U06; caller outputs silently remain unchanged. Repair after validated input-context baseline.
@@ -25,9 +25,13 @@ required_gates:
   - Required integrated legacy,JSON,VPI,negative,runtime,UVM,NFA,makecheck and relevant frontend validation.
 completion: Close only exact validated output-copying scope; dependent application and standards qualification stay separate.
 stop_after_completion: false
-next_action: "Trace output-copy generation through of_STORE_VEC4/ensure_write_context_ and automatic signal receive. Scalar reducer bypasses vthread_get_wt_context_item_scoped; do not patch only that accessor. Establish smallest caller-destination binding correction before implementation."
-next_command: "sed -n '615,705p' vvp/vvp_net_sig.cc"
+next_action: "Create permanent scalar and indexed-output regressions, then scope a paired copy-out context protocol: preserve callee formal loads separately from caller read/write address evaluation. Reuse current per-type copying and delegated context mechanics; avoid global write redirection."
+next_command: "sed -n '615,1158p' tgt-vvp/draw_ufunc.c"
 
 l09_reducer: ../evidence/campaign-20260908/l09/output_actual.sv; both2017/2023 compile0/run1,caller seen remains-1 instead of37. Non-nested output_actual_control.sv passes both modes. No warnings after separate object initialization.
 l09_standards: Both IEEE1800-2017 and2023 clause13.5 require output/inout values returned to corresponding actual variables; clause8.6 gives automatic class-method lifetime. Read local editions.
 l09_trace: Bytecode stores produced37 into recurse.seen before freeing produce, while recurse callee is staged on write head. of_STORE_VEC4 passes ensure_write_context_ to vvp_send_vec4; actual scalar path does not call scoped-write accessor. Follow automatic receive recovery before choosing repair.
+
+l09_indexed_reducer: ../evidence/campaign-20260908/l09/indexed_output.sv; both editions compile0/run1. Recursive output to slots[choose(index)] uses callee index0 instead of caller index1, producing37,-1 rather than-1,37.
+l09_review_direction: Independent diagnosis rejects global returned-window write redirection because fixed-array return materialization legitimately writes staged storage before epilogue. A write-only copy-out binding also leaves same-scope index and receiver reads wrong. Separate formal-source reads from caller read/write destination evaluation; nested address calls must inherit caller context.
+l09_trace_evidence: output_actual.trace shows produced37 delivered to staged recurse frame, then overwritten by its local initialization; original caller frame retains-1. Existing per-type copy-out emitter has explicit formal load sites, suitable for source/caller phase separation without replacing copy semantics.

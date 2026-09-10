@@ -1763,3 +1763,16 @@ scalar runtime path is of_STORE_VEC4 -> ensure_write_context_ -> vvp_send_vec4,
 not the initially suspected scoped-write accessor. Trace automatic receive
 recovery next; no L09 implementation yet. Reducers,logs,bytecode and results
 are preserved in evidence/campaign-20260908/l09/. No local gates running.
+
+L09 scalar trace proves output37 is delivered to staged recurse frame, then
+its initializer overwrites it; caller remains-1. Added indexed_output.sv:
+both editions fail with caller slots37,-1 rather than-1,37. Recursive
+copy-out evaluates slots[choose(index)] using callee index0 instead of caller
+index1. Thus a write-only correction is insufficient. Independent diagnosis
+also rejects global redirection during returned-frame windows because
+fixed-array result materialization legitimately writes staged argument
+storage before epilogue. Next implementation should explicitly separate
+callee formal-source loads from caller read/write destination evaluation,
+reusing current per-type copy-out code; nested address calls need caller
+context. No implementation changes yet. Current L09 phase root_caused,
+last validated source aad6fe22b; no live local gates.
