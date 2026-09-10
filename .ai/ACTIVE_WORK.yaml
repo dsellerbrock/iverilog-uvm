@@ -1,10 +1,10 @@
 id: S06
 title: Preserve overridden symbolic SVA cycle delays through elaboration
 status: active
-phase: reproduced
+phase: root_caused
 base_revision: a76c9f67a
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 value-parameter overrides and sequence cycle delays; verify exact subclauses before implementation.
+  - IEEE1800-2017 and IEEE1800-2023 6.20.2,23.10.2,16.7 (Syntax16-4),16.12.7.
 expected_behavior: An instance override of D changes the timing of ##D; every resulting child obligation is checked on its actual elaborated tick and contributes to one parent verdict. Declaration defaults must not freeze timing.
 observed_behavior: With LO1/HI2/D0 defaults and D1 override, a[*LO:HI] |-> ##D q passes at tick2 and ignores q becoming false on tick3. Both editions reproduce on fully locally validated S05.
 reproducer: ../evidence/campaign-20260908/s06/parameter-delay-override.sv
@@ -34,3 +34,13 @@ discovery_policy: Unrelated discoveries are record-only; causal prerequisites re
 stop_after_completion: false
 last_validated_revision: a76c9f67a
 next_action: Verify both editions' override and cycle-delay semantics, trace pform_sva_const_long and all single-delay callers, then choose the smallest complete instance-elaborated correction.
+
+representation:
+  - Preserve single-delay expressions through instance elaboration, distinct from general consequence windows.
+  - Replay sampled keep and captured enabled starts through parameter-sized histories; current q checks the delayed endpoints.
+  - Positive replay lag supplies already-sampled endpoint-plus-one keep for final-child closure; zero-lag overlap retains S05 closure timing.
+  - Separate real-time unmatched-only ages preserve vacuous action timing; shadow replay never emits vacuity.
+  - Direct nonoverlap uses a synthetic prefix at start+D and keep lagD+1; actual prefixes use lagD+1 for both inputs.
+  - Cancellation clears histories, real-time young ages and shadow parent state; Off only changes newly captured starts.
+model_evidence: s06/check_delayed_parent_model.py compares explicit parent/child lists against packed delayed ages;9450traces999810tick-by-tick comparisons pass, including zero delays and direct/prefixed empty cases.
+review: Independent design review found no counterexample; failure must win over final-endpoint closure, and histories must preserve start enable/cancellation.
