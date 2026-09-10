@@ -1843,3 +1843,8 @@ require casts, with no string-literal exception for a returned variable.
 Focused JSON50/0 andlegacy8/0 after correcting onlygold filenames/pathprefixes.
 Independent review clear. Fullintegrated30122,UVM16983,NFA30525 running;
 makecheckexit0. JSON follows integrated; frontend runs alone last.
+
+
+### L10 closure at051aeee8e
+
+legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints. Fullrelease reportresults-jhzl92on remains6SMOKE_PASS9knownCOMPILE_FAIL,complete/baseline_valid. PR273externallymergedd0932af64,all6CIpassed. Canonicalmain fast-forwarded and sharedgraph updated. Fourvalidatedincrements sincepublication (U06,L09,L11,L10) plusREADME3a87ebca9 form nextsinglemilestonePR; no agentmerge.

@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: "L10"
-phase: "awaiting_validation"
+current_blocker: null
+phase: "publication"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "b32df9a29"
+last_integrated_good_revision: "051aeee8e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["L10_integrated", "L10_JSON", "L10_UVM", "L10_NFA", "L10_frontend", "U01_application_qualification", "PR273_remote_CI_before_merge"]
+pending_gates: ["next_milestone_remote_CI_before_merge", "U01_application_qualification"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After L10 exact closure, inspect shared legacy-UVM compile frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
-next_action: "Await integrated30122 and UVM16983; full JSON after integrated terminal, then frontend alone after every other gate terminal. No source/install changes."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l10/integrated.log ../evidence/campaign-20260908/l10/uvm.log"
+next_action: "Publish reviewed campaign tree in a branch descended from refreshed main, preserving history; then select legacy UVM1.2 compile blocker."
+next_command: "git fetch origin; verify origin/main tree equals previous published edacb3d62 tree before publication merge."
 next_command_cwd: repository root
-candidate_state: "L10 candidate051aeee8e focusedJSON50/0,legacy8/0,independentreviewclear. Fullgates running; L11 validated baselineb32df9a29."
+candidate_state: "L10 closed; four validated increments U06,L09,L11,L10 and README ready for one next main PR."
 installed_tools: "Frozen L10 candidate fingerprints evidence/l10/candidate-sha256.txt; runtime/compiler/DPI unchanged from L11, onlytargetupdated. No installs duringgates."
-validation_state: "L11 legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
-next_validation: "L10 integrated30122,UVM16983,NFA30525 running;makecheckexit0;JSON/frontendunstarted."
+validation_state: "L10 legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
+next_validation: "Remote CI for next publication; next blocker reducer/standards before implementation."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -132,7 +132,7 @@ publication_next_action: "Wait for fresh PR273 CI/review; continue autonomous ca
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
 
-latest_remote_main: 9821855164b179e1a1f7fb0298320f576646bc15
+latest_remote_main: "d0932af644460749b56ddc21139cc7d1cfeb2c26"
 main_landed_scope: PR272 externally merged campaign through L05 to main982185516.
 
 consolidated_main_pr:
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-validated_increments_since_publication: 3
+validated_increments_since_publication: 4
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -184,7 +184,7 @@ b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores ex
 
 u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
 u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
-last_locally_validated_semantic_revision: "b32df9a29"
+last_locally_validated_semantic_revision: "051aeee8e"
 
 l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
 u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
@@ -268,4 +268,17 @@ l11_uvm_terminal: "51883 exit0,real-DPI355passed0failed0skipped. Frontend86720 r
 user_opentitan_uvm_target: "User wants pinned UVM1.2 for OpenTitan. Confirmed pinned corpus7a3ad34 hw/dv/tools/dvsim/vcs.hjson uses -ntb_opts uvm-1.2, Questa/Riviera also1.2. Existing U01 evidence uses bundled2020.3.1; qualify1.2 and replay unmodified app before switching evidence baseline. No need to wait for all15 releases. Preserve L10 prerequisite order."
 readme_uvm_usage: "3a87ebca9 documents picker,pins,registration,prefix,smoke matrix and limitations; actual selected2020.3.1 smoke exit0,zero UVM W/E/F."
 l11_closure: "b32df9a29; legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
-l10_live_gates: {integrated: 30122, UVM: 16983, NFA: 30525}
+l10_live_gates: {}
+
+l10_nfa_terminal: "30525 exit0,58/58; makecheckexit0."
+pr273_merge_observed: "PR273 externally MERGED at head1357ae803; all6CI jobs complete success. Finish running L10 gates, then reconcile validated campaign batch onto refreshedmain in retained checkout before next implementation. No newworktree while leftovers need audit; no agent merge."
+
+l10_integrated_terminal: "30122 exit0;4873total4868pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON39499 running after terminal; UVM16983 live; releaseprobe49747 live; frontendunstarted."
+
+main_update_after_pr273: "origin/main and canonicalcheckoutd0932af644460749b56ddc21139cc7d1cfeb2c26; PR273merged2026-09-10T20:48:01Z. Sharedgraph ASTupdate26746 exit0,49060nodes92853edges. Preserve dirtygraphoutput as expected."
+
+l10_json_terminal: "39499 exit0;1765tests0failures. UVM16983 remains live; frontendunstarted."
+l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json complete/baseline_valid;6SMOKE_PASS9knownCOMPILE_FAIL,terminal49747 exit1 due compile gaps."
+
+l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
+l10_closure: "051aeee8e; legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"

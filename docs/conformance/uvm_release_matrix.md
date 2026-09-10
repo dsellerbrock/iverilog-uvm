@@ -69,7 +69,7 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `aad6fe22b` (U06 runtime patch `fe4e949b8`).
+2026-09-10, native ARM64, validated source `051aeee8e` (U06, L09, L11 and L10 argument fixes).
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -103,7 +103,7 @@ edition before being called a compiler defect. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-mseshk7y/results.json`, with per-release
+`third_party/uvm-releases/results-jhzl92on/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -120,7 +120,7 @@ compiler, DPI and runtime compatibility changes. U01 teardown evidence remains p
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 
-- `vvp` SHA-256: `a9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1`
+- `vvp` SHA-256: `448929b960a25ee12740f331e68f4206e9e8f79719286e7ba75b550124d814e0`
 
 - `uvm_dpi.vpi` SHA-256: `e69ec1f7d0d0d94668656c50fb83982241ad912fd229464a365fc5b278c28d5a`
 
@@ -133,4 +133,6 @@ Glob conversion retains the legacy2040-character input limit and documented pres
 U06 additionally passed the original2020.1.0 and2020.1.1 smoke in both
 explicit2017 and2023 modes (four runs). This qualifies those bounded smoke
 checks, not the full releases or IEEE1800.2. Recursive automatic input
-passing is repaired; separately recorded DD018 output copy-out remains open.
+passing is repaired; L09, L11 and L10 subsequently repair bounded output
+copy-out contexts, defaults and fixed-property elements. Full argument
+qualification remains separate.

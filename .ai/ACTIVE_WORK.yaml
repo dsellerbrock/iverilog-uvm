@@ -1,7 +1,7 @@
 id: "L10"
 title: "Copy output values into fixed-array class-property elements"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "documented"
 base_revision: "b32df9a29"
 last_validated_revision: "b32df9a29"
 selection_reason: "DD019 silently skips legal output actuals at a shared emitter path; concrete correctness gap discovered during L09, now independently selected after validated baseline."
@@ -23,4 +23,13 @@ prerequisite: "L11 closed at b32df9a29 after all required gates; resume exact pr
 
 l10_candidate: "Resumed after validated L11; fixed-property scalar typed stores reuse slot checks and L09 context phases. Destination numeric conversion includes width/sign,two-state,real/int. String/non-string outputs rejected (6.16,6.22.3). Three positive families red on L11 baseline/pass both editions; paired CE mismatch cases,JSON50/0,legacy8/0. Full gates and final review pending."
 candidate_revision: "051aeee8e"
-l10_live_gates: {integrated: 30122, UVM: 16983, NFA: 30525}
+l10_live_gates: {}
+
+l10_integrated_terminal: "30122 exit0;4873total4868pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON39499 running after terminal; UVM16983 live; releaseprobe49747 live; frontendunstarted."
+
+l10_json_terminal: "39499 exit0;1765tests0failures. UVM16983 remains live; frontendunstarted."
+l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json complete/baseline_valid;6SMOKE_PASS9knownCOMPILE_FAIL,terminal49747 exit1 due compile gaps."
+
+l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
+
+l10_closure: "legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"

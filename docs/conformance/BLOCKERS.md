@@ -736,7 +736,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L10 — Fixed-array class-property element output copy-out
 
-- **State:** Resumed after validated L11; candidate focused-tested, full required validation pending.
+- **State:** CLOSED at 051aeee8e after validated prerequisite L11 and all required local gates.
 - **Evidence:** Legal scalar output actual holder.slots[index] emits a skipping warning and remains unchanged.
 - **Scope:** Existing fixed property slot checks and typed property stores; preserve receiver/index context and invalid-index semantics. No unrelated container expansion.
 
@@ -747,3 +747,5 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Scope:** Native output argument setup must skip caller reads, initialize automatic formals to defaults, retain static formals and preserve DPI open-array handling.
 
 - **L11 validation:** legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged.
+
+- **L10 validation:** legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints. Fixed property elements only; broader output/array support remains separately scoped.
