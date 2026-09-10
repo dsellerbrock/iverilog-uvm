@@ -1,43 +1,32 @@
-id: U01
-title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+id: L08
+title: Reduce the UVM2020.1 resource-queue compile frontier
 status: in_progress
-phase: post_p04_unmodified_replay
+phase: selected_for_triage
 base_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 standards:
-  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
-expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
-observed_behavior: Fresh L07 smoke passes with115requests/230checked items and zero UVM warnings/errors/fatals. Preserved old executable repeats PASS/PASS/FAIL with4sequence-parent warnings; new executable repeats three passes. Repeatable teardown qualification remains open.
-reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
+  - Verify applicable2017/2023 type-parameter, class-specialization and assignment compatibility clauses after reduction.
+expected_behavior: Legal resource-queue declarations and assignments preserve the declared element type and compile; determine the exact normative subcase before implementation.
+observed_behavior: Original UVM2020.1.0 and1.1 compile probes stop at nested resource queue type/assignment errors; later diagnostics may cascade.
+reproducer: scripts/uvm_release_matrix.py probes and third_party/uvm-releases/results-jdbvlt0_/results.json; select only the first causal diagnostic.
+selection_reason: User-requested major UVM release qualification remains blocked; a potentially legal type compatibility failure affects reusable verification libraries. Do not treat earlier legacy member-delay syntax as mandatory IEEE syntax without proof.
 allowed_scope:
-  - Read-only application corpus and current harness/source inspection.
-  - Fresh evidence/campaign-20260908/u01-after-p04 build/log/reducer artifacts; preserve earlier evidence.
-  - .ai/ACTIVE_WORK.yaml
-  - .ai/CAMPAIGN.yaml
-  - docs/conformance/BLOCKERS.md
-  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
+  - Read-only original UVM2020.1 sources and current compiler implementation.
+  - Fresh evidence/campaign-20260908/l08 reducers, logs and primary-source notes.
+  - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
+  - docs/conformance/BLOCKERS.md and session log.
 non_goals:
-  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
-  - No compiler implementation until a causal reducer and exact scope are established.
+  - No compiler source changes until failing reducer, expected semantics and causal scope are established in this contract.
+  - No original library edits, broad release fixes, parent-feature closure, or unrelated discoveries beyond record-only.
 invariants:
-  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
-  - Preserve 300-second per-process CPU guard and bounded wall time.
-  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
+  - One active blocker; U01 preserved under u01-after-p04, B01 remote gate remains separate.
+  - Native ARM64,300second per-process CPU guard, no RSS cap; preserve unrelated worktrees.
 required_gates:
-  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
-  - First divergence from current-source replay, with traffic and scoreboard evidence.
-  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
-completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
-discovery_policy: Unrelated findings are record-only.
-stop_after_completion: false
+  - Confirm first failure on current validated compiler and original pinned source.
+  - Paired edition reducer and applicable primary LRM semantics before implementation.
+  - Any semantic patch requires permanent regressions and all required focused/integrated gates and review before closure.
+completion: Close only the exact validated causal subcase; release-wide and application qualification remain separate.
 last_validated_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
-selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
-next_action: Rebuild and run the original pinned xbar smoke in a fresh u01-after-p04 output root with validated P04 runtime. Compare source fingerprints, checked traffic and teardown; no warning suppression.
-evidence:
-  - u01-after-l07/result.json and source-comparison.txt;360exported files unchanged.
-  - u01-after-l07/repeat-results.json; actual warning lines checked against severity summary, corrected4not5.
-  - u01-after-l07/phase-guard-results.json and return-guard-results.json;5raw/5clean each,4warnings/0warnings.
-  - u01-after-l07/phase-trace.log; unmodified source and executable with phase trace, clean checked completion.
-compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campaign uses2020.3.1. Original tl_device_seq runs forever and xbar smoke does not explicitly stop it.
-guard_mechanism: start guards its caller; phase cleanup kills phase processes; parent guard warns on terminal caller. Correct reduced warning behavior alone does not qualify application teardown.
-diagnostic_limits: Added observer changes finish timing and is not qualification. Initial function-valued wait attempt woke too early and is invalid. Bounded delayed observer checks after the known completion time; warning-free repeats stay warning-free after an additional1ns, so deferred report timing is not established as the explanation.
-next_command: "cat ../evidence/campaign-20260908/u01-after-p04/result.json"
+discovery_policy: Unrelated findings record-only.
+stop_after_completion: false
+next_action: Read the existing2020.1.0 first compile diagnostic and original source; build a minimal paired reducer.
+next_command: "cat third_party/uvm-releases/results-jdbvlt0_/results.json"

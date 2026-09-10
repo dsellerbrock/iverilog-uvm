@@ -1628,3 +1628,12 @@ passed. Source/test/tool fingerprints are preserved in p04/fingerprints.json;
 no installed-runtime mutation occurred during gates. No terminal-parent kill
 or broad process/UVM qualification claim. U01 resumes with fresh unmodified
 application replay; one validated increment since last PR publication.
+
+U01 post-P04 replay2921 terminated1 at harness level (compile/runtime0):
+115requests/230checked items,4SEQPRTZMBwarnings,0errors/fatals,TEST FAILED CHECKS.
+Two preserved-executable repeats49616 terminated0 with identical counts and
+four warnings each. All360exportedfiles match post-L07 exactly. These data do
+not qualify the application or justify suppressing its newer-library guards.
+At a deliberate boundary preserve U01 OPEN and select L08 from DD-011: reduce
+the original UVM2020.1 resource-queue compile frontier before any compiler edit.
+P04 remains the last validated semantic baseline; no live local gates remain.

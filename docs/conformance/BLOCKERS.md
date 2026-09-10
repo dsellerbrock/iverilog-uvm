@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** `9a1b6beb3` fresh unmodified smoke PASS with115requests/230checked scoreboard items and zero UVM warnings/errors/fatals. All360exportedfiles remain identical. Preserved older executable repeats PASS/PASS/FAIL with4sequence-parent warnings; current executable repeats three passes. No causal L06/L07 fix attribution or repeatable teardown qualification. Reduced phase-kill and completed-parent-sequence controls each give4warnings without explicit sequence kill and0with cleanup. Pinned OpenTitan configs select UVM1.2; the campaign library is2020.3.1. Evidence: `campaign-20260908/u01-after-l07`.
+- **Last verified revision:** `53b58890c` (P04): fresh smoke plus2repeats all complete115requests/230checked scoreboard items,4SEQPRTZMBwarnings,0errors/fatals and TEST FAILED CHECKS. All360exported source files match the prior replay. P04 fixes its independent live-parent kill reducer; it does not qualify U01. Pinned workload settings select UVM1.2, campaign library2020.3.1; no library edit or warning suppression. Evidence: `campaign-20260908/u01-after-p04`.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -685,3 +685,13 @@ qualification remain open. Evidence: campaign-20260908/s03.
   focused and required integrated gates, independent review, then U01 replay.
 
 - **P04 validation:** Six paired regressions and all required focused/integrated gates passed: legacy4843total0unexpected failures,JSON1735/0,real-DPIUVM355/0/0,NFA58/58,VPI105,negative149,runtime15/15,makecheck and independent review. U01 replay remains separate.
+
+### L08 — UVM2020.1 resource-queue typing frontier
+
+- **Area / edition:** Type elaboration / editions to be verified against reducer.
+- **State:** OPEN, selected for bounded triage; implementation not yet authorized.
+- **Evidence:** DD-011; original2020.1.0/1.1 compile logs in the pinned release
+  matrix stop at nested resource-queue type/assignment errors.
+- **Closure:** First causal reducer, applicable IEEE semantics and minimal
+  implementation scope before any patch; permanent regression, required gates
+  and review. No release-wide or application qualification by implication.
