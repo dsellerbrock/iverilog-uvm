@@ -56,7 +56,9 @@ Four points this patch tightens without a full restructure:
 3. **One-blocker targeted development.** Implementation proceeds one
    `.ai/ACTIVE_WORK.yaml` ticket at a time (`AGENTS.md` → Targeted-fix
    protocol); this manifesto's milestone ordering is not a queue an agent
-   pulls from unilaterally.
+   pulls from unilaterally. An explicitly authorized continuous campaign may
+   select successive tickets at coordinator boundaries. Completed patches
+   return to selection; pending required gates remain awaiting validation.
 4. **IEEE 1800-2017, IEEE 1800-2023, UVM/1800.2, application DV, and the
    formal-verification program are five separate goals with separate
    evidence.** Closing one does not imply progress on another; do not

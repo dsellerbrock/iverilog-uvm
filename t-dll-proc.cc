@@ -465,12 +465,11 @@ bool dll_target::proc_block(const NetBlock*net)
 	    return true;
       }
 
-	/* If there is exactly one statement and the block is not a
-	   fork/join_none, there is no need for the block wrapper,
-	   generate the contained statement instead. */
+	/* Only singleton sequential blocks can lose their wrapper. A fork
+	   child remains an independent process (IEEE 1800-2017/2023 9.3.2). */
       if ((count == 1) && (net->subscope() == 0) &&
 	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
-	  (net->type() != NetBlock::PARA_JOIN_NONE)) {
+	  (net->type() == NetBlock::SEQU)) {
 	    return net->proc_first()->emit_proc(this);
       }
 

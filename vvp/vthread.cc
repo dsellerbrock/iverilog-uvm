@@ -17335,7 +17335,10 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 		    && vvp_pure_comb_evaluation_active(pure_comb_owner);
 	      if (next_pc && next_pc->opcode == of_CHUNK_LINK && next_pc->cptr)
 		    next_pc = next_pc->cptr;
-	      if ((thr->i_am_in_function || synchronous_pure_named)
+	      /* A real fork child waits for its parent to block or terminate
+	         (IEEE 1800-2017/2023 9.3.2, 13.4.4), even inside a function. */
+	      if (!child_is_process
+		  && (thr->i_am_in_function || synchronous_pure_named)
 		  && !(next_pc && next_pc->opcode == of_JOIN_DETACH)) {
 		    child->is_scheduled = 1;
 		    if (thr->i_am_in_function)

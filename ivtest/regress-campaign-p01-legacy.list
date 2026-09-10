@@ -1,0 +1,6 @@
+sv_fork_null_child normal,-g2017,-s,main ivltests gold=sv_fork_null_child.gold
+sv_fork_null_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_null_child.gold
+sv_fork_empty_child normal,-g2017,-s,main ivltests gold=sv_fork_empty_child.gold
+sv_fork_empty_child_2023 normal,-g2023,-s,main ivltests gold=sv_fork_empty_child.gold
+sv_fork_deferred_null_action normal,-g2017,-s,main ivltests gold=sv_fork_deferred_null_action.gold
+sv_fork_deferred_null_action_2023 normal,-g2023,-s,main ivltests gold=sv_fork_deferred_null_action.gold

@@ -10439,9 +10439,10 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 		  continue;
 	    }
 
-	      // If the result turns out to be a noop, then skip it.
+	      // Empty parallel children still terminate a process and can
+	      // release join_any (IEEE 1800-2017/2023 9.3.2, Table 9-1).
 	    if (NetBlock*tbl = dynamic_cast<NetBlock*>(tmp))
-		  if (tbl->proc_first() == 0) {
+		  if (type == NetBlock::SEQU && tbl->proc_first() == 0) {
 			delete tbl;
 			continue;
 		  }
