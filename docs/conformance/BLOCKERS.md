@@ -402,3 +402,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
   S05neighbors14/14+14/14,S04neighbors17/17+8/8; NFA58/58;
   integrated4732total4727pass0fail2NI3EF,VPI105,negative149,runtime15;
   JSON1624/0,real-DPIUVM355/0/0,makecheck and final source/test review pass.
+
+### S07 — Nested parameterized sequence aliases fail expansion
+
+- **Area / edition:** Sequence composition / IEEE1800-2017 and1800-2023.
+- **State:** IN_PROGRESS — DD-006 selected after S06 local qualification.
+- **Evidence:** campaign-20260908/s04/window-nested-alias.sv; Left/Right
+  wrapping Pair(actuals) reports No function named Pair, while direct use
+  works. Previously reproduced on61ca5f336; current-source check pending.
+- **Scope:** Shared nested sequence expansion and actual binding; preserve
+  lexical identity, recursion safeguards, temporal truth and ownership.
+- **Closure:** Paired reducer/direct controls, permanent timing/binding tests,
+  all required local gates and review; remote CI before merge.
