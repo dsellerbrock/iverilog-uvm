@@ -52,8 +52,8 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### U01 — Xbar runtime/scoreboard/outstanding-request failures
 
 - **Area / edition:** UVM and applications / edition-agnostic
-- **State:** OPEN
-- **Confidence:** RECORDED
+- **State:** IN_PROGRESS (resumed: sequence-parent warnings after checked traffic completes)
+- **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
   (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
   requests on termination); PR #258; PR #261 (enum fix is explicitly not
@@ -65,8 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** components build3 (2026-09-04 session log);
-  not re-verified against current `main`.
+- **Last verified revision:** b0ac00f47 fresh unmodified-source smoke: L01 fixes address routing and scoreboard mismatch; three responses match, fourth response is aborted as before L01, outstanding-request error and 300s timeout remain. U01 remains unqualified.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -214,3 +213,25 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **What it blocks:** Ordered small-domain parent/member-object sampling.
 - **Closure requirements:** Exact stage projections, latest partial ordering, rollback, replay, callbacks/activation and required gates; keep ordered dist and non-scalar stages explicit unsupported.
 - **Last verified revision:** b9de0be7f red reducer in both editions; candidate patch passes all required local gates and independent review; remote CI/merge pending.
+
+
+### L01 — Procedural member foreach replaces a selected prefix with a new loop
+
+- **Area / edition:** Procedural iteration / IEEE 1800-2017 and 2023 12.7.3.
+- **State:** CLOSED (bounded local scope; remote CI required before merge)
+- **Confidence:** REPRODUCED
+- **Parent:** U01, preserved under evidence/campaign-20260908/u01.
+- **Evidence / reproducer:** lookup.sv fails both editions at c57fbe3c5; inner foreach visits all device ranges despite an enclosing selected-device filter. Slang accepts both editions; Verilator runtime produces correct membership.
+- **What it blocks:** Correct selected member iteration and unmodified xbar scoreboard address routing.
+- **Closure requirements:** Correct terminal-only loop declarations/iteration, constant/variable/nested controls, Bison/focused/integrated gates and independent review; then replay U01.
+- **Last verified revision:** b0ac00f47 passes paired/focused/integrated/full JSON/UVM and review. Unmodified U01 replay confirms corrected routing with four request checks and three matched responses; application remains open for its pre-existing fourth-response stall.
+
+### L02 — Automatic block locals retain values across loop entries
+
+- **Area / edition:** Lifetime / IEEE 1800-2017 and 2023 6.21, 6.8.
+- **State:** CLOSED (bounded local scope; remote CI before merge)
+- **Confidence:** REPRODUCED and ROOT_CAUSED
+- **Parent:** U01; preserved contract and two-edition reducer in evidence/campaign-20260908/u01-loop.
+- **Evidence:** Class-task for-loop bit local returns 1 on entry 2 instead of default 0. Emitted autobegin.shared stores it in the task frame. Same driver structure leaves rsp_done set after the first response.
+- **Closure requirements:** Fresh per-entry storage/defaults with static and capture controls; required local gates, review and U01 replay.
+- **Last verified revision:** e0dab7221 red in both editions. Candidate now passes 93 legacy / 50 JSON focus and make check, including automatic_events2, ancestor history 2,3, and recursive event ownership (prior UVM deadlock repaired). Independent review has no actionable finding. All local semantic gates pass: integrated4666/4661/0/2/3, VPI103, negative149, runtime15, JSON1558/0, UVM355/0/0 real DPI. Unchanged U01 replay on9218751e2 completes115 requests/230 checked items; zero errors/fatals. Four sequence-parent warnings still prevent application qualification.

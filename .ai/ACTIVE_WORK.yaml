@@ -1,34 +1,31 @@
-id: C01
-title: Reject untranslated inline constraints instead of solving without them
-status: completed_local
-phase: checkpoint
-base_revision: 8f298eefe
+id: U01
+title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+status: in_progress
+phase: reduce_sequence_parent_warnings
+base_revision: 9218751e2
 standards:
-  - IEEE 1800-2017 18.7 inline constraints
-  - IEEE 1800-2023 18.7 inline constraints
-expected_behavior: A randomize with call applies every requested constraint; unsupported lowering must fail explicitly, never emit a successful partial solve.
-observed_behavior: make_randomize_with_expr still warns and continues when an item yields empty IR without an existing error.
-hypothesis: The shared inline class builder fails to increment Design errors on its fallback path.
+  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
+expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
+observed_behavior: Post-L02 unchanged replay completes 115 requests and 230 checked scoreboard items with zero errors/fatals; four SEQPRTZMB parent-process warnings cause TEST FAILED CHECKS. Mechanism and baseline applicability remain to be established.
+reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
 allowed_scope:
-  - elab_expr.cc (shared inline constraint failure path)
-  - ivtest (focused failure and supported controls; affected diagnostic gold)
+  - Read-only application corpus and current harness/source inspection.
+  - Fresh evidence/campaign-20260908/u01-after-l02 and u01-sequence-parent build/log/reducer artifacts.
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
-  - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Implement unsupported expression shapes or broader constraint semantics.
-  - Change unrelated class-declaration or runtime solver behavior.
+  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
+  - No compiler implementation until a causal reducer and exact scope are established.
 invariants:
-  - Preserve existing precise diagnostics; no duplicate generic error after a diagnosed failure.
-  - Preserve receiver/capture ownership and all shared expression/task callers.
-  - Explicit failure does not qualify the unsupported legal feature as implemented.
+  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
+  - Preserve 300-second per-process CPU guard and bounded wall time.
+  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
 required_gates:
-  - Both-edition red acceptance/constraint-loss reducer and permanent rejection regression.
-  - Supported inline expression/task controls and focused legacy/JSON diagnostics.
-  - Integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check and independent review.
-  - Remote CI before merge.
-completion: Silent-discard defect resolved; all required local gates passed. Unsupported shapes remain unimplemented; remote CI/merge pending.
-discovery_policy: Unrelated discoveries are record-only.
+  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
+  - First divergence from current-source replay, with traffic and scoreboard evidence.
+  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
+completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false

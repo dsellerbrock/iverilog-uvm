@@ -314,3 +314,214 @@ and independent review pass. Close the silent-discard defect only; no claim
 that unsupported foreach/clog2 shapes are implemented. Remote CI/merge
 remain pending. Worktree audit unchanged; unrelated trees remain preserved.
 Next: current U01 unmodified application frontier at this coherent milestone.
+
+
+## U01 replay and L01 prerequisite boundary
+
+At c57fbe3c5, one fresh unmodified OpenTitan runtime row was rebuilt using
+pinned 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19 and native Python 3.13/FuseSoC.
+Core: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, original xbar_smoke config,
+providers and timescale; no explicit seed override. Compilation passed in
+3.298s. Runtime timed out after 300.052s (124) with the same scoreboard error
+at 1681844ps and outstanding-request failure. No application pass is claimed.
+Exact commands, compiler/corpus fingerprints and source/provider metadata:
+../evidence/campaign-20260908/u01/result.json and matrix logs. Corpus stayed clean.
+
+A 10-second UVM_HIGH/unbuffered diagnostic replay of this fresh bytecode
+(trace-high.json/log) no longer crashes in enum comparison. It shows the first
+routing divergence at 977768ps: host address 0x2309 is assigned to rv_dm__dbg
+by the scoreboard, while the DUT sends it to soc_dbg_ctrl__jtag. The actual
+ranges are 0..0x1ff and 0x2300..0x231f respectively. Later comparison errors
+are consequences of this earlier mismatch, not the causal reducer.
+
+lookup.sv reduces the failure without UVM: nested foreach visits both devices'
+ranges even when its enclosing loop selected one device. Both Icarus editions
+fail; Slang 11.0.448 accepts both editions; Verilator 5.050 executes correct
+membership. The grammar's special identifier-prefix alternative introduces
+an extra loop and shadows the prefix, unlike its expression-prefix alternative.
+IEEE 2017/2023 12.7.3 and Annex foreach syntax have a terminal loop-variable
+list; prefix selections belong to the target. Existing dual-dimension test
+comments cite 11.7 incorrectly and assert the erroneous extra-loop behavior.
+
+U01 is suspended at this explicit coordinator boundary. Its reducer, full
+fresh replay and contract are preserved under u01. L01 is the sole active
+implementation blocker; after its semantic gates pass, resume the exact smoke.
+
+
+L01 changes only the existing identifier-prefix grammar action: retain the
+selection expression in the enclosing scope, declare only terminal indices,
+and build one foreach. The grammar productions and Bison automaton are
+unchanged (563 shift/reduce, 1122 reduce/reduce; raw parse.output identical).
+The synthesized PEIdent retains source/lexical position, the prefix list is
+freed separately, and existing terminal index-type inference is preserved.
+
+Both-edition lookup, constant selectors, selected-row-only traversal, explicit
+outer loops and normal multidimensional loops pass. Undefined and empty/comma
+prefixes are rejected. The old dual_dim test asserted a false extra outer loop;
+it now tests proper selection and explicit nested traversal. Independent review
+found no semantic issue, verified identical Bison output, and noted an empty
+prefix diagnostic pointing to line 1. Changed that diagnostic to the foreach
+location and reran build/focus before integrated validation.
+
+A diagnostic associative-string member probe still creates an int loop key
+and executes zero iterations with both the retained pre-L01 compiler and the
+campaign compiler. This is DD-002, outside L01; old-compiler bytecode was used
+only for that diagnostic comparison, not as qualification evidence. No claim
+of associative-string member foreach completion is made.
+
+L01 final focus passes 53/53 legacy and 34/34 JSON, exit 0. make check
+passes. Final raw Bison output remains identical to baseline. Integrated and
+real-DPI UVM are running; full JSON follows integrated.
+
+L01 integrated gate exited 0: legacy 4662 total, 4657 passed, zero failed,
+2 not implemented, 3 expected failures; name comparison clean. VPI 103/103,
+negative 149/149, runtime 15/15. Full JSON and real-DPI UVM remain pending.
+
+L01 full JSON exited 0: 1554 tests, zero failures. Real-DPI UVM remains
+the required local semantic gate; U01 replay follows the validated checkpoint.
+
+L01 real-DPI UVM exited 0: 355 passed, zero failed/skipped (-g2012).
+All required local semantic gates and review pass. Checkpoint implementation
+as awaiting the required U01 application replay, not CLOSED. Worktree audit
+unchanged; no sibling trees removed. Next: rebuild the same smoke into a fresh
+u01-after-l01 root with unchanged application sources, providers and options.
+
+Post-L01 application replay uses b0ac00f47 in u01-after-l01, with the same
+core/options/providers and a fresh build. Compile passed (3.262s). Source list
+and all 360 exported source files match the pre-fix replay byte-for-byte;
+input-comparison.json records this. Runtime still pending at this checkpoint.
+
+Post-L01 replay completed: runtime timeout 124 after 300.068s, with no
+scoreboard comparison error; noOutstandingReqsAtEndOfSim_A remains at
+5344083913 ps. Diagnostic high-verbosity/scb_logging trace checks all four
+request routes and the first three responses. The fourth request (0x35cc,
+source 0x3c) has rsp_abort_after_d_valid_len=1 in both pre/post-L01 traces
+at 2014861 ps and no host response. This is a preserved earlier frontier,
+not evidence of application completion. Source inputs remain identical.
+
+Close only L01 local scope at b0ac00f47; required remote CI before merge
+remains pending. Resume U01 read-only reduction: inspect abort configuration,
+member randomize and driver behavior before identifying another prerequisite.
+No application source/check/traffic changes. Worktree audit unchanged.
+
+U01 trace refinement: abort enable is legal randomized stimulus in xbar_base_vseq,
+not itself a bug. Driver d_channel_thread declares rsp_done/rsp_abort inside
+its forever body. After the first response, later loop entries retain rsp_done,
+skip driving, and mark rsp_completed=1. A standalone class-task loop reproduces
+the stale bit on entry 2 in both editions (u01-loop/reentry*.log). Both LRMs
+6.21 require per-entry initialization; 6.8 gives bit default zero. Bytecode
+uses autobegin.shared, with no fresh allocation/default initialization.
+Suspend U01 deliberately and activate L02 only. Existing frame allocation is
+the first candidate; preserve static overrides and detached capture lifetimes.
+
+L02 candidate keeps existing own-frame allocation for automatic blocks with
+direct variables or events; empty blocking scopes still collapse. Removed
+the obsolete explicit-automatic-only capture helper. Permanent paired tests
+exercise scalar/string/object/queue defaults, explicit initializers, static
+persistence, recursion, break/continue/return, delayed inherited captures and
+event-only scopes. Initial test integration had a 2023 include-path mistake
+and missing JSON gold artifact, both corrected without semantic edits. Final
+focus passes 69 legacy and 48 JSON, make check passes, independent review
+finds no actionable issue. Integrated and real-DPI UVM gates now running;
+full JSON and U01 replay remain required before local closure.
+
+L02 integrated fails one real regression: automatic_events2, second task
+instance wakes at 23 instead of 24. Totals 4664 / 4658 pass / 1 fail /
+2 NI / 3 EF; VPI 103, negative 149 and runtime 15 all pass. No waiver.
+Full JSON diagnostic on frame-only installed tools passes 1556/0.
+UVM session 34962 remains running on those same installed tools.
+
+Cause: scalar automatic event receivers discard ancestor source context and
+broadcast across unrelated task activations. Partial vvp/event.cc repair
+uses existing lexical stack recovery and filters ancestor delivery; object
+mutation fanout is unchanged. Built vvp/vvp (not installed) restores exact
+automatic_events2 output. Review identified another issue: probe reset copies
+shared history, and signal allocation does not send initial values. New
+event-history.sv reproduces wrong posedge times (2,2 rather than 2,3) with
+concurrent task activations initialized to 0 and 1 before child allocation.
+This regression remains in L02 scope. No new validated semantic baseline.
+
+Resume at this exact history-initialization reducer; do not repeat broad
+audit or application replay. Candidate source and permanent tests remain
+uncommitted and preserved, along with evidence/u01-loop/candidate.patch.
+The installed runtime is frame-only; built vvp/vvp contains partial routing
+repair. Rebuild/install coherently only after correcting the remaining
+mechanism, then rerun required gates and review. Last fully validated source
+revision remains b0ac00f47. Remote CI and U01 checked completion remain pending.
+
+L02 regression repair: retain distinct block frames, with scalar source
+activation routing and sparse history cached in existing ancestor activation
+hooks. Reset/reuse follows the existing context lifecycle; there is no map
+of stale context pointers. Native/ancestor/static samples use ordered stamps.
+History is seeded before comparison and the current ancestor sample is saved
+after live fanout, without firing synthetic events. Static cache writes guard
+against newer reentrant stamps. Object mutation fanout is unchanged.
+
+Both original failures now pass: automatic_events2 exact gold and history
+reducer 2,3. Permanent paired controls cover fixed selects, event-or, two
+activations, reused frames, real/string histories, default positive-edge
+partial write, and static broadcast. Review found no actionable defect.
+DD-003 Boolean expression context loss and DD-004 unchanged-partial-write
+default negedge are recorded with original-frame-layout evidence, not folded
+into the L02 qualification claim.
+
+Fresh baseline compiler construction exposed one-second make timestamp
+granularity during restoration: restore-build said up to date and initial
+focus accidentally used the original compiler. Forced make -W elab_scope.cc
+rebuilt candidate, reinstalled, and confirmed matching build/install hashes
+(a90ef338a4fe compiler, 875c35bd2ba2 runtime). Final focus93/50 and make check
+pass. Old frame-only UVM completed355/0/0 and JSON1556/0, but are superseded
+for qualification by fresh history-integrated/session7745 and
+history-uvm/session61703. Full JSON and U01 replay still follow those gates.
+
+L02 history-integrated gate exited0: 4666 total, 4661 passed, zero failed,
+2 not implemented, 3 expected failures; name-diff clean. VPI103/103,
+negative149/149, runtime15/15. Full JSON now running; real-DPI UVM still
+pending. No semantic baseline checkpoint or U01 replay until both pass.
+
+L02 full JSON exited0: 1558 tests, zero failures. UVM61703 is still live.
+Prepared u01-after-l02/replay.sh with identical pinned core/providers/options
+and fresh output root; syntax checked only, not executed before UVM passes.
+
+L02 history UVM completed with 354 pass / 1 fail / 0 skip: recursive
+`auto_task_frame_sharing_test` deadlocked. A recursive ancestor source also
+had its caller child scope on the stack; stacked recovery incorrectly took
+precedence over ancestor ownership. The shared scalar routing helper and
+history recording now prioritize known ancestor ownership. All scalar paths
+and event-or use the helper. A permanent recursive factorial/wait reducer
+fails by timeout on the prior runtime and passes on the repair. Existing
+frame-sharing runtime test passes; only obsolete architecture-specific test
+comments changed. Independent review found no actionable finding.
+
+Fresh recursive-history focus passed93 legacy/50 JSON, and make check passed.
+Build/install compiler hashes match a90ef338a4fe and runtime7a5b2e9d9d19.
+Fresh required integrated session42484 and UVM session14938 are running;
+full JSON follows integrated serially. Previous integrated/JSON results are
+historical, not qualification of this changed runtime. Last validated source
+remains b0ac00f47. U01 replay remains prepared but unexecuted. Worktree audit
+unchanged; unrelated dirty and non-ancestor trees remain preserved.
+
+L02 recursive-history integrated exited0: 4666 total/4661 pass/0 fail/2 NI/3 EF,
+name-diff clean, VPI103, negative149 and runtime15 passed. Full JSON exited0:
+1558 tests, zero failures. Fresh UVM14938 remains live; its previously failing
+recursive frame-sharing test now passed. U01 replay still awaits full UVM.
+
+L02 final UVM exited0: 355 pass, zero fail/skip, real DPI umbrella loaded.
+All required local semantic gates now pass on the coherent candidate.
+Checkpoint the implementation before replaying pinned unmodified U01.
+L02 remains awaiting application replay, and remote CI remains required before
+merge. No broader lifetime or application-completion claim is made.
+
+L02 implementation checkpoint9218751e2 passed unchanged U01 replay for its
+bounded lifetime scope: runtime finishes in11.629s at36742796ps, 115 requests,
+230 scoreboard items, zero UVM errors/fatals. Diagnostic UVM_HIGH/scb_logging
+replay confirms115 request and115 response checks, including the previously
+stalled fourth response. Actual source list and360 exported files are identical
+with post-L01 input; only wrapper absolute output path differs. No corpus edits.
+
+The application remains RUNTIME_FAIL: four SEQPRTZMB parent-process warnings.
+OpenTitan dv_report_server.sv explicitly includes warnings in its failure
+predicate. Do not suppress or waive them. Close only L02 bounded local scope,
+resume U01 to trace parent-process guard teardown and establish baseline/reducer
+evidence before any further implementation. Remote CI remains pending before
+merge. Last validated implementation9218751e2; no live validation processes.

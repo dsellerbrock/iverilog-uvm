@@ -25,6 +25,8 @@
 # include  "config.h"
 # include  <set>
 
+class scalar_event_history;
+
 class evctl {
 
     public:
@@ -238,6 +240,7 @@ class vvp_fun_edge_aa : public vvp_fun_edge, public automatic_hooks_s {
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+      scalar_event_history*history_;
 };
 
 /*
@@ -331,6 +334,7 @@ class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+      scalar_event_history*history_;
 };
 
 /*
