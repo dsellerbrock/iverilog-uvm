@@ -1,39 +1,29 @@
-id: U01
-title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+id: L06
+title: Initialize queues of default-initialized structs as empty queues
 status: in_progress
-phase: library_compatibility_triage
+phase: reproduced
 base_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
-standards:
-  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
-expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
-observed_behavior: Post-L03 replay completed115 requests and230 scoreboard items with zero errors/fatals, but two SEQPRTZMB warnings and TEST FAILED CHECKS. Re-establish the frontier after L05 and V04-V07; no application pass inferred.
-reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
-allowed_scope:
-  - Read-only application corpus and current harness/source inspection.
-  - Fresh evidence/campaign-20260908/u01-after-v07 and u01-sequence-parent build/log/reducer artifacts.
-  - .ai/ACTIVE_WORK.yaml
-  - .ai/CAMPAIGN.yaml
-  - docs/conformance/BLOCKERS.md
-  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
-non_goals:
-  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
-  - No compiler implementation until a causal reducer and exact scope are established.
-invariants:
-  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
-  - Preserve 300-second per-process CPU guard and bounded wall time.
-  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
-required_gates:
-  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
-  - First divergence from current-source replay, with traffic and scoreboard evidence.
-  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
-completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
-discovery_policy: Unrelated findings are record-only.
-stop_after_completion: false
 last_validated_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
-selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
-next_action: Run the preserved pinned smoke in a fresh native build root, compare exported inputs and exact traffic/teardown observations, then reduce only a justified simulator divergence.
-current_replay: u01-after-v07/result.json RUNTIME_FAIL;115requests,230scoreboarditems,0errors/0fatals,4SEQPRTZMBwarnings,TEST FAILED CHECKS; all360exportedfiles unchanged.
-current_controls: Paired2017/2023 parent.kill emits1warning and sequence.kill emits0; all guard controls pass.
-compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campaign uses current bundled UVM. Clean local UVM1.2 revision c68f035f9c8e965807082495c5a667729afe3aa8 lacks the newer sequence-parent guard.
-next_triage: Native --uvm-home diagnostic with original application sources and correct matrix cwd fails first at uvm_component.svh3616 (#setting.offset), then legacy macro invocations. Check applicable delay grammar and macro semantics before classifying any compiler defect or selecting a prerequisite; do not edit corpus or suppress diagnostics.
-resumed_after: U02 tooling checkpoint140c58b14; all official release sources now available via pinned submodules or archive downloader.
+standards:
+  - IEEE1800-2017 and IEEE1800-2023 7.10 queue initial value;7.2.2 structure member initialization.
+selection_reason: Official UVM2020.3.2 reg-map queue of uvm_reg_bus_op with data=0 is rejected; legal empty container initialization is a concrete remaining standards and release-compatibility obligation from DD011.
+reproducer: ../evidence/campaign-20260908/l06/queue-default.sv
+expected_behavior: Queue declarations without explicit initializers begin empty regardless of struct element defaults; no nonexistent element is initialized. Scalar struct construction and invalid type-default diagnostics remain intact.
+root_cause_hypothesis: pform_make_struct_member_defaults treats all nonscalar storage as unsupported rather than distinguishing empty queue containers; class/const and nested typedef paths need causal tracing before selecting the smallest shared correction.
+allowed_scope:
+  - Queue declaration/type classification and synthesized struct-member initialization at affected pform callers.
+  - Permanent paired controls for direct/typedef/class/automatic/static/nested queue declarations, explicit insertion and scalar-default behavior; invalid type defaults must still reject.
+  - Exact LRM/source trace, focused and required integrated gates, official2020.3.2 replay and scoped documentation.
+non_goals:
+  - No nonstandard legacy delay syntax extension, UVM/library edits, unrelated resource-type fixes or broad structure-default completion claim.
+  - No warning removal, dropped element defaults or fabricated queue contents.
+required_gates:
+  - Paired baseline reducer, primary standards evidence and independently reviewed causal patch.
+  - Focused legacy/JSON,affected struct/queue neighbors,integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck.
+  - UVM2020.3.2 release probe; getting further is not a release pass.
+completion: Close only the validated queue-container initialization scope; broader struct defaults and application qualification stay open.
+stop_after_completion: false
+discovery_policy: Unrelated discoveries record-only; any required prerequisite gets a deliberate preserved-work boundary.
+next_action: Reproduce both editions and trace shape classification plus every initializer caller before editing implementation.
+baseline_evidence: Both2017/2023 fail queue-default.sv at declaration with the unsupported-struct-default queue diagnostic on validated03caa64c8.
+causal_trace: pform_make_struct_member_defaults rejects all nonscalar shapes; pform_has_implicit_struct_member_defaults drives const guards in pform_make_var and pform_class_property; nested pform_append_struct_member_defaults and pform_struct_has_member_defaults recurse through queue element types. Shape helper currently prioritizes typedef dimensions over declaration dimensions, so outer queue typedef-array cases require explicit controls. Type-default validation is separate and must remain unconditional.

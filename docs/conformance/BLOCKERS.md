@@ -589,3 +589,16 @@ qualification remain open. Evidence: campaign-20260908/s03.
   releases use pinned submodules, others verified archive downloads. Six offline
   evidence-integrity/source-preservation controls pass. No compiler fix or
   broad UVM/application/ABI qualification is included in this tooling closure.
+
+
+### L06 — Empty queues of structs with member defaults are rejected
+
+- **Area / edition:** Data types / IEEE1800-2017 and1800-2023 7.10,7.2.2.
+- **State:** IN_PROGRESS — selected from DD011 on validated03caa64c8.
+- **Evidence:** OfficialUVM2020.3.2 uvm_reg_map.svh2058 declares
+  uvm_reg_bus_op accesses[$]; the element has data=0. Compiler emits an
+  unsupported-default diagnostic for the queue declaration.
+- **Expected:** An uninitialized queue is empty; no nonexistent element gets
+  member initialization. Preserve valid scalar defaults and invalid-type errors.
+- **Closure:** Paired reducer, smallest shared correction, full required gates
+  and release replay; partial progress is not UVM/application qualification.

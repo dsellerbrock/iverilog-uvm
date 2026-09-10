@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U01
-phase: library_compatibility_triage
+current_blocker: L06
+phase: reproduced
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
@@ -10,14 +10,14 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: U01 current unmodified xbar teardown qualification; V07 validated03caa64c832a9c1b22b82a5692fda7764c94ebc9
-next_action: Resume U01 compatibility classification using acquired official1.2 source and paired controls. Do not edit library or simulator before a justified reducer/contract.
-next_command: "sed -n '77160,77177p' ../evidence/campaign-20260908-lrm2023.txt"
+next_selection: L06 empty queue initialization of default-initialized struct element types; DD011 source-backed legal requirement.
+next_action: Extend paired L06 shape/lifetime/invalid-default controls, then correct shared initialization classification; preserve validation of element type defaults and outer dimension order.
+next_command: "sed -n '5661,5730p' pform.cc"
 next_command_cwd: repository root
-candidate_state: U02 tooling checkpoint140c58b14 complete; U01 restored. Last validated compiler/runtime03caa64c8 unchanged; DD011 compile families are record-only until selected.
+candidate_state: L06 queue-default reducer fails both editions on validated03caa64c8. No implementation edits yet; four related pform initialization paths identified. U01 suspended in evidence/l06.
 installed_tools: Frozen compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a and V07 runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337. Saved validated V06 runtime in evidence/v07/baseline-vvp.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Subsequent semantic work requires its own reducer/contract and standard grounding; U01 remains unqualified.
+next_validation: Paired positive/negative reducers,focusedneighbors,requiredintegrated gates and unmodifiedUVM2020.3.2 matrix probe after the causal patch.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802

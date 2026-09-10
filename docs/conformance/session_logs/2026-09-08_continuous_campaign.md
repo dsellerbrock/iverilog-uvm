@@ -1503,3 +1503,17 @@ offline checks pass, including dirty/divergent Git preservation and process-tree
 timeout. DD011 records compile families without authorizing semantic fixes.
 U02 tooling scope complete; restore U01 triage after checkpoint. No new PR at
 this two-increment milestone; retain the user's less-frequent publication cadence.
+
+Post-U02 coordinator: both supplied IEEE editions AnnexA delay_value permits
+numbers,ps_identifier,time_literal,1step; ps_identifier is optional package
+scope plus identifier. Legacy #setting.offset therefore is not established as
+a mandatory IEEE syntax defect; no extension or corpus edit performed. U01
+compatibility remains open. DD011 newestUVM2020.3.2 queue frontier instead
+contradicts explicit7.10 empty-queue initialization. Select L06 with exact
+contract and preserve U01 in evidence/l06. queue-default.sv fails both2017/2023
+on validated03caa64c8 with the unsupported struct-member-default diagnostic.
+Graph-guided/source trace identifies shared pform_make defaults plus implicit
+const guards and nested-member recursion. Outer declaration dimensions must
+precede typedef dimensions; element-default legality must still be checked even
+when no elements exist. No implementation edits yet. Next expand shape/const/
+lifetime and invalid-default controls before the smallest shared correction.
