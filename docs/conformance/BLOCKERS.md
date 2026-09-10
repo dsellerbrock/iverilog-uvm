@@ -783,3 +783,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Semantics:** Both IEEE editions6.21 explicitly permit static-variable hierarchical references inside automatic tasks/functions, except unnamed blocks. Preserve automatic-variable rejection.
 
 - **L14 validation:** 69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical. UVM1.2 runtime timeout remains DD028.
+
+### U08 — Original UVM1.2 runtime timeout
+
+- **State:** OPEN, selected after validated L14.
+- **Evidence:** DD028, original1.2 compiles then times out300s with no runtime output.
+- **Scope:** Identify and repair the proven runtime mechanism; preserve original source and intended checking. No assumed cause or parent qualification.

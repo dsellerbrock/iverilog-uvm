@@ -1,28 +1,15 @@
-id: "L14"
-title: "Hierarchical references to static locals in automatic scopes"
-status: "closed"
-phase: "closed"
-base_revision: "a85a256b1"
+id: "U08"
+title: "Original UVM1.2 smoke runtime timeout"
+status: "in_progress"
+phase: "reproduced"
+base_revision: "69ff60cc6"
 last_validated_revision: "69ff60cc6"
-selection_reason: "Original UVM1.2 now fails only four compiled_regex references in visit plus existing ignored-constraint warning; user prioritizes1.2 for OpenTitan."
-expected_behavior: "Both editions6.21 explicitly permit hierarchical access to static variables inside automatic tasks/functions, except unnamed blocks. Actual automatic variables remain inaccessible through hierarchical names."
-standards: "IEEE1800-2017 and2023 6.21,8.6; specific6.21 static-variable allowance governs despite general23.6 automatic-object wording. Primary local texts verified."
-allowed_scope: ["Resolve named static local variable references according to actual declaration lifetime, including read/write and class method contexts.", "Preserve automatic-variable rejection, named/unnamed scope boundaries and existing lookup precedence.", "Permanent paired-edition regressions; required integrated gates and original UVM replay."]
-non_goals: ["No DPI-regex symbols or ignored constraint fixes.", "No UVM source edits, application pass claim, or unrelated storage redesign."]
-required_gates: ["Both-edition red reducer and positive/negative lifetime controls, focusedlegacy/JSON,independent review.", "Integratedlegacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,release sweep,isolatedfrontend and restored tool fingerprints."]
-next_action: "Await UVM66826 and releases84865, then isolatedfrontend alone; verify restored tools before L14 closure. DD028 original1.2 timeout is next runtime candidate."
-next_command: "tail -n15 ../evidence/campaign-20260908/l14/uvm.log ../evidence/campaign-20260908/l14/releases.log"
+selection_reason: "DD028: user prioritizes original1.2 for OpenTitan; original sources now compile but smoke times out300s without runtime output."
+reproducer: "third_party/uvm-releases/results-f9qr050b/1.2/smoke.vvp on validated active vvp; compiler0, runtime timeout300.061s, empty log."
+expected_behavior: "Original pinned1.2 must execute intended factory/copy/phase/regex/HDL-read smoke checking. Determine the exact runtime mechanism and applicable language/DPI/phase semantics before implementation."
+allowed_scope: ["Reduce the verified runtime timeout, trace actual implementation and identify the causal language/runtime or DPI mechanism.", "Smallest semantically correct causal fix with permanent regression and all required integrated gates.", "Replay unmodified pinned UVM1.2; preserve original reducer and independent failure warnings."]
+non_goals: ["No library source modifications, warning suppression, timeout inflation, or application pass claim.", "Do not assume2017.0.9 timeout is the same bug without evidence.", "DPI1.1d symbol and ignored constraint warnings remain record-only unless proven prerequisites."]
+required_gates: ["Standards-grounded red reducer and meaningful checking;focusedlegacy/JSON/independent review.", "Integratedlegacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,release replay,isolatedfrontend and restored hashes."]
+next_action: "Use bounded verbose runtime and process sample to distinguish VVP loading/linking from event execution before reducing package initialization or phase behavior."
+next_command: "local-install/bin/vvp -v third_party/uvm-releases/results-f9qr050b/1.2/smoke.vvp"
 stop_after_completion: false
-
-root_cause: "symbol_search rejected every item in an automatic prefix scope before checking its declaration. Lifetime overrides on NetNet/PWire/NetEvent now govern variable access; defer through intermediate named scope and check terminal item. Explicit automatic declarations in static scopes remain rejected."
-focused_evidence: "Both-edition baseline fails4errors; candidate reducer runsPASSED. FocusedJSON12/0,legacy12/0,neighbors18/0. Initial wrapper include and JSON diagnostic-path configuration errors corrected without compiler changes; final focused3.log retained."
-
-candidate_revision: "69ff60cc6"
-live_gates: {uvm: 66826, releases: 84865}
-validation_checkpoint: "makecheckexit0; final scoped review clear. JSON after integrated terminal, frontend last alone. Verify root restoration and evidence/l14/sha256.txt before closure."
-
-l14_integrated_terminal: "21445 exit0;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON26820 started after terminal. UVM66826 and releases84865 live; frontend unstarted."
-
-l14_json_terminal: "26820 exit0;1797tests0failures. UVM66826 and releases84865 remain live; isolatedfrontend unstarted. No installs or compiler edits during gates."
-
-closure: "69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical."
