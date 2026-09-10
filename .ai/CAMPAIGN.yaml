@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U02
-phase: coordination
+current_blocker: U01
+phase: library_compatibility_triage
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
@@ -11,10 +11,10 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: U01 current unmodified xbar teardown qualification; V07 validated03caa64c832a9c1b22b82a5692fda7764c94ebc9
-next_action: Checkpoint U02 release matrix and restore U01 compatibility triage from preserved contract; no new per-blocker PR.
-next_command: "cat ../evidence/campaign-20260908/u01-after-v07/suspended-before-uvm-matrix.yaml"
+next_action: Resume U01 compatibility classification using acquired official1.2 source and paired controls. Do not edit library or simulator before a justified reducer/contract.
+next_command: "sed -n '77160,77177p' ../evidence/campaign-20260908-lrm2023.txt"
 next_command_cwd: repository root
-candidate_state: U02 acquisition/probe tooling locally validated;15available,3smoke passes,12compile gaps recorded as DD011. Last validated compiler/runtime03caa64c8 unchanged.
+candidate_state: U02 tooling checkpoint140c58b14 complete; U01 restored. Last validated compiler/runtime03caa64c8 unchanged; DD011 compile families are record-only until selected.
 installed_tools: Frozen compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a and V07 runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337. Saved validated V06 runtime in evidence/v07/baseline-vvp.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
 next_validation: Subsequent semantic work requires its own reducer/contract and standard grounding; U01 remains unqualified.
