@@ -30,7 +30,8 @@ module main;
     expanded=legacy_glob({2040{"."}});
     if (expanded != {"/^",{2040{"\\."}},"$/"}) $fatal(1,"expanded glob truncated");
     if (saved != "/^agent\\..*$/") $fatal(1,"DPI string lifetime");
-    if (legacy_match("*","anything") == 0 || legacy_match("[","x") == 0)
+    // An unclosed bracket is invalid even on hosts that extend leading-star syntax.
+    if (legacy_match("*[","anything[") == 0 || legacy_match("[","x") == 0)
       $fatal(1,"invalid regex accepted or retried as glob");
     oversized={2041{"a"}};
     if (legacy_glob(oversized) != oversized) $fatal(1,"oversize glob return");
