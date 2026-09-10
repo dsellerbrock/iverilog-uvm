@@ -32,8 +32,8 @@ completion: Complete only per-parent verdict aggregation in the existing support
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 2be79b2c0
-next_action: Await final integrated65557 and UVM58507; all regressions must be resolved before checkpointing implementation.
-validation_state: NFA58/0, final focus55/20, paired16verdict modes plus cancellation/recycling, cover/EOS and VPI2/2 pass. Integrated1023 exposed a stale VPI oracle; corrected from reviewed timing/vacuity. JSON56004 completed1584/0; UVM58507 and integrated65557 live.
+next_action: Await full real-DPI UVM14116; only checkpoint implementation after it passes.
+validation_state: NFA58/0, focus55/20, JSON1584/0, integrated65557 all pass (4692/4687/0/2/3,VPI103,negative149,runtime15). Initial UVM58507 ended354/1 on stale nested/throughout vacuity expectations; corrected and independently reviewed, paired and real-DPI focus5567 pass2/0. Final full real-DPI UVM14116 pending.
 implementation_state: Uncommitted pform.cc parent identity/aggregation candidate; no runtime changes.
 installed_compiler: 61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c
 installed_runtime: 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec

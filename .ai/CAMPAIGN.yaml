@@ -11,11 +11,11 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S03 correct existing NFA verdict aggregation before reconsidering S02.
-next_action: Poll integrated65557 and UVM58507; finish local qualification only after both pass.
-next_command: "tail -8 ../evidence/campaign-20260908/s03/integrated-final.log ../evidence/campaign-20260908/s03/uvm.log"
+next_action: Poll final real-DPI UVM14116; checkpoint exact S03 scope after full pass, then return to selection.
+next_command: "tail -8 ../evidence/campaign-20260908/s03/uvm-final.log"
 next_command_cwd: repository root
-candidate_state: S03 uncommitted parent aggregation candidate; red/green and focus55/20 pass.
+candidate_state: S03 uncommitted candidate; only final UVM local gate pending. DD005 nonfanout vacuity recorded separately.
 installed_tools: Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: NFA58/0, focus55/20 and VPI2/2 pass. Initial integrated1023 failed one stale VPI oracle (legacy4692/4687/0/2/3, negative149/runtime15 pass). Corrected reviewed VPI timing/vacuity; JSON56004 completed1584/0; integrated65557 and UVM58507 live.
-next_validation: Await final integrated/UVM; preserve last fully validated revision2be79b2c0.
+validation_state: Integrated65557 passes4692/4687/0/2/3,VPI103,negative149,runtime15; JSON1584/0. Initial UVM354/1 stale vacuity oracle corrected with independent review; real-DPI focus2/0. Full UVM14116 live.
+next_validation: Await final full UVM14116; no dependent implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

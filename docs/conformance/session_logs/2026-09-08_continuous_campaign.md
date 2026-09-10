@@ -792,3 +792,14 @@ S03 JSON56004 completed1584/0. Final integrated65557 now runs against the
 corrected reviewed VPI oracle and final strengthened tests; UVM58507 remains
 live. No semantic implementation edits during validation. Current last validated
 revision remains2be79b2c0 until both required gates finish. No new blocker selected.
+
+S03 final integrated65557 completed0:4692/4687/0/2/3,VPI103,negative149,
+runtime15. UVM58507 completed354/1: recursive consequent test expected1pass
+for nested/throughout paths despite17 enabled starts. Reviewed stimulus has
+one nonvacuous success and16vacuous successes for each; corrected only those
+two expectations to17. Paired red/green and real-DPI focus5567 pass2/0.
+DD005 records unchanged nonfanout paths still omitting vacuity; not repaired
+opportunistically. Full real-DPI UVM14116 launched as the sole pending localgate.
+No semantic implementation changes; preserve installed candidate and last
+validated baseline2be79b2c0 until final UVM passes. Next poll14116, then review
+final evidence and checkpoint S03 before returning to selection.

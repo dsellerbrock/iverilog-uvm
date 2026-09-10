@@ -84,3 +84,19 @@ requires parking. Use the format above for the next agent's discoveries.
   candidate runtime; native probe path has no ancestor history to seed.
 - Reproducer status: reproduced; triage: pending. No default-negated-edge
   qualification claim is made by L02's passing positive-edge control.
+
+### DD-005 — Non-fanout assertion paths omit vacuous user pass actions
+
+- Active blocker: S03; record-only outside the endpoint aggregation path.
+- Observation: `tests/sva_recursive_consequent_test.sv` executes17 enabled
+  starts; the fixed negated consequence has one nonvacuous success and one
+  failure, but reports only1pass rather than16 including vacuity. Existing
+  until/eventual controls similarly count only nonvacuous successes.
+- Mechanism: unchanged non-endpoint NFA/legacy implication handling suppresses
+  vacuous pass dispatch. S03 repairs only the split endpoint parent path.
+- Authority: IEEE1800-2017/2023 16.12.7; a no-match antecedent succeeds.
+- Evidence: campaign-20260908/s03/recursive-red-2017.log and2023.log;
+  old baseline test already expects1pass, and the unaffected source path
+  omits its vacuous action. Nested/throughout parent paths now report17.
+- Reproducer status: observed in both editions; triage pending. Do not infer
+  general vacuity qualification from the S03 endpoint-path controls.
