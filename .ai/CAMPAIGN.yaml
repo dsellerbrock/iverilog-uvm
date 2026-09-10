@@ -11,7 +11,7 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: U01 current unmodified xbar teardown qualification; V07 validated03caa64c832a9c1b22b82a5692fda7764c94ebc9
-next_action: U01: classify UVM1.2 diagnostic compile frontier against primary delay grammar and macro invocation semantics; preserve current-library warnings and application failure.
+next_action: Classify UVM1.2 diagnostic compile frontier against primary delay grammar and macro invocation semantics; preserve current-library warnings and application failure.
 next_command: "sed -n '77160,77177p' ../evidence/campaign-20260908-lrm2023.txt"
 next_command_cwd: repository root
 candidate_state: V07 validated03caa64c8; U01 replay and paired guard controls complete. No compiler patch selected. UVM1.2 diagnostic compile has unresolved syntax/macro gaps; no runtime or ABI qualification inferred.
