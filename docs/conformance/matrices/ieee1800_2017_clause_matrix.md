@@ -856,5 +856,49 @@ logical truth including nonunit values. Four paired reducers and callback
 coverage pass with required full local gates: integrated4700/4695/0/2/3,
 VPI104,negative149,runtime15,JSON1592 and real-DPI UVM355. Remote CI remains
 required before merge.
-Symbolic nonvacuous parent-verdict aggregation remains DD-007, and broader
-SVA, multiclock S02 and formal qualification remain PARTIAL/open.
+Symbolic nonvacuous parent-verdict aggregation was separately tracked as DD-007
+and is addressed by S05 below. Broader SVA, multiclock S02 and formal
+qualification remain PARTIAL/open.
+
+
+S05: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 16.12.7,16.12.22,16.14.1. Accepted parameter-valued
+consecutive repetitions with fixed ##0/##1 Boolean consequences aggregate
+one parent verdict: first failed child retires the parent; success waits for
+antecedent closure and all pending children. Existing packed ages and mature
+counts preserve overlapping starts and repetition-bound overrides without a
+new attempt-pool cap. Direct empty nonoverlapped antecedents start their exact
+consequence windows on the current tick; prefixed zero repeats retain their
+nonempty endpoint timing. Empty-only overlap is rejected per instance; mixed
+empty/nonempty overlap uses nonempty matches. Cover endpoint counting remains
+separate. Four-state, Off/Kill, async/NBA cancellation, callback and delayed
+Reactive action controls pass. All required local gates pass: focus14/14
+legacy+JSON in both engines, NFA58/58, integrated4714/4709/0/2/3,VPI105,
+negative149,runtime15,JSON1606,real-DPI UVM355, make check and independent review.
+Remote CI remains required before merge. Symbolic consequent-delay overrides
+DD-008, broader SVA/multiclock and the formal program remain unqualified.
+
+
+S06: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.20.2,23.10.2,16.7 Syntax16-4,16.12.7 and16.14.1.
+Single named parameter/localparam ##D preserves actual instance timing through
+elaboration. Direct/prefixed symbolic bounded/unbounded repetition parents
+use delayed sampled histories and one parent verdict; real-time unmatched
+ages preserve vacuity. Overlap/nonoverlap empty timing, Off/Kill/disable
+cancellation, fixed antecedent neighbors and cover endpoint counting have
+paired controls. Native self-sizing retains signedness and width when a
+preserved property operand receives a substituted actual. Invalid negative
+original grouped operands and unknown bounds reject per instance.
+
+Qualification: paired focus18/18 legacy+JSON in both engines; S05neighbors
+14/14+14/14,S04neighbors17/17+8/8; NFA58/58; integrated4732total4727pass0fail
+2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1624/0; real-DPIUVM355/0/0;
+makecheck, unchanged Bison563SR/1122RR signature, final independent review.
+Explicit reference controls check76assertion and76cover cases in each edition;
+independent packed-vs-parent model checks9450traces/999810ticks.
+
+This bounded qualification does not establish arbitrary delay-expression
+syntax, broader formal lookup, composed/multiclock operators, maximal-width
+delay arithmetic, application DV completion or formal-program completion.
+Explicit unsupported-composition diagnostics are rejection coverage only.
+Remote CI remains required before merge. Evidence: campaign-20260908/s06.

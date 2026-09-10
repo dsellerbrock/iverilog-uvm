@@ -339,3 +339,66 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Closure:** Correct vacuous user actions per attempt while preserving sampling,
   cancellation, multiplicity, callback distinctions and S03 parent semantics;
   all required local gates and independent review, then remote CI before merge.
+
+
+### S05 — Symbolic repetition implication parent verdicts
+
+- **Area / edition:** SVA / IEEE1800-2017 and1800-2023 16.9.2,16.12.7,16.14.1.
+- **State:** LOCALLY VALIDATED — reviewed S05 parent correction; remote CI required before merge.
+- **Evidence:** One enabled start of a[*LO:HI] with overridden LO2/HI3 produces
+  good1/0 and bad0/1 at length2, then good2/0 and bad0/2 at length3 in both
+  editions. Correct parent results are early good0/0,bad0/1 and final
+  good1/0,bad0/1. Reducer/logs: campaign-20260908/s05.
+- **Mechanism:** Symbolic r_end/r_fire counts publish consequent endpoint
+  actions directly, rather than retiring failed parents and waiting for
+  antecedent closure before success. Current packed ages/mature counts must
+  retain the necessary ownership without an arbitrary new cap.
+- **Selection:** Standards correctness and parameterized application assertion
+  relevance; this is a distinct symbolic engine from S03's qualified NFA path.
+- **Scope:** Accepted symbolic consecutive-repetition implication paths,
+  existing cancellation/sampling/Reactive behavior, empty/nonempty timing and
+  repetition-bound overrides. DD-006, symbolic consequent-delay overrides DD-008,
+  and S02 remain separate.
+- **Closure:** Reviewed parent-verdict semantics with permanent regressions and
+  all required local gates; remote CI remains required before merge.
+
+- **S05 current validation:** Paired focus14/14 legacy+JSON in both engines;
+  neighbor17/17+8/8, callback1/1, NFA58/58, make check0 and independent review
+  pass. Full integrated4714/4709/0/2/3, VPI105, negative149, runtime15,
+  JSON1606/0 and real-DPI UVM355/0/0 pass. This qualifies accepted symbolic
+  consecutive repetitions with fixed ##0/##1 Boolean consequences and tested
+  exact-window empty timing, not all SVA or symbolic consequent-delay overrides.
+
+
+### S06 — Overridden symbolic SVA cycle delay is frozen to its default
+
+- **Area / edition:** SVA and parameter elaboration / IEEE1800-2017 and1800-2023.
+- **State:** LOCALLY VALIDATED — reviewed S06 delay correction; remote CI required before merge.
+- **Evidence:** On validated a76c9f67a, LO1/HI2/D0 defaults with D1 override
+  pass at tick2 and ignore a false final child at tick3 in both editions.
+  Literal ##1 controls pass. Reducer and paired logs: campaign-20260908/s06.
+- **Hypothesis:** Single-delay grammar folds a parameter default through
+  pform_sva_const_long and deletes its expression; range-delay syntax already
+  retains overridable expressions for ordinary instance elaboration.
+- **Selection:** Silent timing miscompilation, ordinary parameter override
+  correctness and parameterized application assertion relevance.
+- **Scope:** Shared single-delay normalization and necessary instance-sized
+  lowering; exact parent, cancellation, sampling and empty timing preserved.
+  No new arbitrary delay cap or broader multiclock architecture.
+- **Closure:** Paired semantic regressions, override/boundary controls,
+  required full gates and independent review. Remote CI before merge.
+
+- **S06 repaired scope:** Single named parameter/localparam cycle delays retain
+  per-instance values. Delayed sampled histories align symbolic repetition
+  endpoints with the current consequent; unmatched real-time ages retain
+  vacuity. Direct/prefixed overlap/nonoverlap, bounded/unbounded parents,
+  empty timing, cancellation and cover endpoint counts have paired controls.
+  Shared self-sizing preserves substituted operand width/sign; invalid
+  original negative grouped delays and unknown bounds reject per instance.
+- **S06 remaining scope:** Arbitrary delay-expression parsing, broader formal
+  lookup, unsupported composed/multiclock shapes and maximal-width arithmetic
+  remain unqualified. A rejection control does not implement a legal shape.
+- **S06 current validation:** Focus18/18 legacy+JSON in both engines;
+  S05neighbors14/14+14/14,S04neighbors17/17+8/8; NFA58/58;
+  integrated4732total4727pass0fail2NI3EF,VPI105,negative149,runtime15;
+  JSON1624/0,real-DPIUVM355/0/0,makecheck and final source/test review pass.

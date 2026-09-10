@@ -1,0 +1,1 @@
+ivltests/sv_assert_cycle_delay_composition_fail.v:3: sorry: this parameter-valued bounded cycle-delay composition is not supported by the instance-elaborated assertion engine yet; the assertion is dropped rather than using the parameter declaration default.

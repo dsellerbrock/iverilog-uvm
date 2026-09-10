@@ -2,7 +2,7 @@
 // elaborated module instance, after parameter overrides (IEEE 1800-2017
 // 6.20.2 and 16.9.2).  The large default deliberately mirrors OpenTitan's
 // prim_esc_rxtx_assert_fpv; only the overridden value may size the checker.
-// S04: compatibility counts retain pre-existing per-endpoint verdicts (DD-007), not full per-attempt qualification.
+// IEEE 16.12.7: all endpoints determine one verdict per starting attempt.
 module repeat_parameter_checker #(
   parameter int Depth = 32
 ) (
@@ -64,12 +64,12 @@ module sv_assert_repeat_parameter_override;
     $display("COUNTS bounded=%0d/%0d unbounded=%0d/%0d",
              dut.bounded_pass, dut.bounded_fail,
              dut.unbounded_pass, dut.unbounded_fail);
-    if (dut.bounded_pass != 14 || dut.bounded_fail != 0) begin
-      $display("FAILED: instance override was not used for every bounded endpoint");
+    if (dut.bounded_pass != 10 || dut.bounded_fail != 0) begin
+      $display("FAILED: bounded parent did not close once at the overridden bound");
       $finish_and_return(1);
     end
-    if (dut.unbounded_pass != 11 || dut.unbounded_fail != 1) begin
-      $display("FAILED: unbounded repetition did not create an obligation at every endpoint");
+    if (dut.unbounded_pass != 9 || dut.unbounded_fail != 1) begin
+      $display("FAILED: unbounded parent did not fail once and retire");
       $finish_and_return(1);
     end
     $display("PASSED");

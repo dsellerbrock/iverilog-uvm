@@ -1,6 +1,35 @@
-id: selection
-status: active
-phase: selection
-last_validated_revision: 2cdaec5bc73f646107d19ed5bf908930a9908089
-next_action: Verify DD-007 symbolic repetition parent verdicts as next candidate; preserve S02 and U01 suspended scopes.
+id: U01
+title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+status: in_progress
+phase: resume_teardown_reducer
+base_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
+standards:
+  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
+expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
+observed_behavior: Post-L02 unchanged replay completes 115 requests and 230 checked scoreboard items with zero errors/fatals; four SEQPRTZMB parent-process warnings cause TEST FAILED CHECKS. Mechanism and baseline applicability remain to be established.
+reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
+allowed_scope:
+  - Read-only application corpus and current harness/source inspection.
+  - Fresh evidence/campaign-20260908/u01-after-l02 and u01-sequence-parent build/log/reducer artifacts.
+  - .ai/ACTIVE_WORK.yaml
+  - .ai/CAMPAIGN.yaml
+  - docs/conformance/BLOCKERS.md
+  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
+non_goals:
+  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
+  - No compiler implementation until a causal reducer and exact scope are established.
+invariants:
+  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
+  - Preserve 300-second per-process CPU guard and bounded wall time.
+  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
+required_gates:
+  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
+  - First divergence from current-source replay, with traffic and scoreboard evidence.
+  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
+completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false
+
+selection_reason: Resume application qualification after S03-S06 assertion correctness increments; existing checked-traffic evidence is strong but teardown warning mechanism and baseline applicability remain unresolved.
+last_validated_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
+next_action: Re-run the retained sequence-parent guard reducer on current tools; inspect real runtime ancestry and termination behavior before selecting a causal implementation scope.

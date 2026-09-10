@@ -119,4 +119,14 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Possible clause:** IEEE 1800-2017/2023 16.12.7 and 16.14.1.
 - **Evidence:** Existing validated sv_assert_repeat_parameter_override and sv_assert_repeat_parameter_smoke tests explicitly expected multiple endpoint actions before S04. Independent S04 review derived their new totals by adding vacuity; these remain compatibility checks, not per-attempt standards qualification. No new regression inferred from those totals.
 - **Reproducer status:** existing regression stimuli retained; parent-verdict reducer needs a deliberate selection boundary.
-- **Triage status:** untriaged, record-only. Parent symbolic repetition remains partially qualified.
+- **Triage status:** resolved within S05 locally validated fixed ##0/##1 symbolic repetition scope. Broader symbolic consequent-delay overrides remain DD-008 and are not covered by this qualification.
+
+### DD-008 — symbolic consequent delay override uses the default
+
+- **Discovered while working:** S05 boundary reducer construction.
+- **Observation:** `a[*LO:HI] |-> ##D q` with defaults LO1/HI2/D0 and instance D1 passes at the second tick instead of awaiting the final child at tick3; making q false at tick3 produces no failure. Explicit literal ##1 is a passing control in the S05 paired reducers.
+- **File/function:** pform.cc cycle-delay normalization and symbolic repetition probe; causal triage pending.
+- **Possible clause:** IEEE1800-2017/2023 6.20.2,16.9,16.12.7; exact delay-normalization cause unverified.
+- **Evidence:** campaign-20260908/s05/parameter-delay-override.sv and .log; current candidate produces EARLY1/0 then1/0. First observed before the S05 parent edit; no retained pre-S05 isolated reducer result, so baseline comparison remains required.
+- **Reproducer status:** reduced current failure; literal-delay control passes.
+- **Triage status:** resolved within the reviewed, locally validated S06 single named parameter/localparam delay scope. Broader delay-expression syntax, composed/multiclock shapes, formal lookup and maximal-width arithmetic remain unqualified.

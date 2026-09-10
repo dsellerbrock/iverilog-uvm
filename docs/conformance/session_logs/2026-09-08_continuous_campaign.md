@@ -1024,3 +1024,68 @@ U01 teardown/application qualification and broader standards/UVM/formal
 obligations remain open. Required remote CI and merge permissions remain
 unchanged. This ends the S04 patch, not the continuous campaign; selection
 resumes from current evidence after the implementation checkpoint.
+
+
+### Selection after S04: S05 symbolic parent verdicts
+
+S04 implementation2cdaec5bc is locally validated, with completed contract saved
+under s04/completed-contract.yaml. DD-007 is selected next for standards and
+parameterized-application correctness. Canonical Graphify query identifies the
+symbolic repeat/window lowerers; shared graph unchanged. Fresh parent-verdict
+reducer on2cdaec5bc fails in2017 and2023: early good1/0,bad0/1, then final
+good2/0,bad0/2 for one start. LRM16.12.7 in both editions requires all consequent
+matches to satisfy one implication evaluation;16.14.1 attaches the action to
+that property truth. Exact new ACTIVE_WORK contract includes all accepted
+symbolic caller shapes, cancellation and empty/nonempty match timing; no source
+edit yet. Trace the actual age/endpoint mechanism before choosing parent state.
+No new worktree, install, merge or dependent unvalidated baseline was introduced.
+
+
+### S05 parent correction — 2026-09-10, awaiting full validation
+
+Validated baseline remains2cdaec5bc; current branchHEADd3f7b492c plus uncommitted S05 patch. IEEE2017/2023 16.12.7 and16.14.1 require one parent verdict across all antecedent endpoints;16.12.22 distinguishes legal mixed empty/nonempty overlap from illegal empty-only overlap. Independent review confirmed contiguous matches allow the existing age bits and mature count to identify delayed owners. Terminal r_due retains only a final delayed child after HI retirement. Parents fail once before any further extension; successful parents wait for closure. Cover endpoint counting and exact-window single endpoints remain separate. Direct empty |=> windows start now; prefixed zero repetitions end on the nonempty prefix and retain next-tick |=> timing. Empty-start enable gating corrected.
+
+Both editions reproduced early/duplicate parent verdicts and empty-window timing defects; corrected reducers pass. Permanent paired cases cover fixed/delayed, direct/prefixed, bounded/unbounded, LO0, overlapping failures/new starts, X/Z, empty nonzero-window offsets, per-instance illegal-empty rejection, async/NBA/kill mature cancellation, and Off preservation. Focus14/14 legacy+JSON passes in both default and explicit legacy engines. Neighbor focus17/17+8/8 passes after independently derived old override totals10/0,9/1 and smoke68/2,68/0; smoke now explicitly closes two remaining unbounded parents and checks70/0. VPI callback/delayed-action control1/1 passes (one nonvacuous success, one failure, vacuous action separate).
+
+One initial focus run overlapped the VPI harness and read its shared a.out result (the failed parent's log contained the callback PASS line). Both harnesses rerun serially and pass; no semantic failure inferred from that invalid concurrent run. Initial negative gold formatting was corrected for legacy ./ivltests vs JSON ivltests and VPI compiler banner; diagnostics and callback values unchanged. DD-008 records an independent symbolic consequent-delay override defect, not repaired here.
+
+Compiler SHA256cd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d, runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Source/tests frozen for integrated74997 and real-DPIUVM66260. Full JSON, NFA, make check, final review and remote CI remain required; S05 is not CLOSED. Worktree audit leaves all prior dirty/nonancestor trees preserved.
+
+S05 full integrated session74997 terminated0:4714total4709pass0fail2NI3EF, VPI105/105, negative149/149, runtime15/15. NFA58/58, make check0 and final independent source/test review also pass. Full JSON session52285 now running separately from the terminal integrated harness; real-DPIUVM66260 remains live. No compiler/test edits during these gates. S05 remains awaiting validation.
+
+S05 full JSON session52285 terminated0,1606tests/0failures. Only real-DPIUVM66260 remains among required local gates; remote CI remains required before merge.
+
+S05 real-DPIUVM session66260 terminated0:355passed,0failed,0skipped with the real DPI umbrella loaded. All required local gates and final review now pass. No semantic source/test edits occurred during the full runs; installed fingerprints match. S05 is locally validated in the exact scope recorded in the matrix and blocker entry; remote CI remains required before merge. Continue campaign selection after checkpointing this increment.
+
+
+### S06 selection after validated S05
+
+S05 implementation a76c9f67a and checkpoint8de0e3c88 are committed; completed S05 contract preserved in evidence/s05. S06 promotes DD-008 because freezing a legal instance delay override silently misses the specified consequence failure. Both2017/2023 fresh reducers on S05 print EARLY1/0 then1/0 where no early pass and final0/1 are required. Graph-guided navigation led to the delay normalization path; source shows single delays fold via pform_sva_const_long before genvar handling, while symbolic range bounds already retain expressions. Exact S06 contract is active; no S06 implementation edit yet. Continue standards and causal tracing, without broad audit or another worktree.
+
+S06 standards grounding: both LRMs16.7 Syntax16-4 define nonnegative integral cycle delays and their tick timing;23.10.2 assigns values to particular instances (with dependent-parameter updates), supported by6.20.2.16.9.1 is operator precedence, not the cycle-delay timing clause. Existing literal ##2 and preserved ##[D:D] reject ranged symbolic antecedents, so parser preservation alone cannot implement the full selected timing contract.
+
+Reviewed representation reuses packed state instead of a pending-owner matrix: delay sampled antecedent inputs to align each endpoint with current q; for positive lag, the following original keep sample is already available and identifies the final endpoint. A separate unmatched-only real-time tracker preserves vacuity. Direct |=> maps to a synthetic prefix at start+D, with keep replay lagD+1; prefixed |=> delays both inputs byD+1. OverlapD0 retains S05 closure timing. Independent explicit per-parent child-list reference vs packed-age model passes9450traces/999810tick-by-tick comparisons, including D0/1/2/3/8, bounded/unbounded, direct/prefixed, empty-only legal cases, enable and resets. Independent review found no counterexample. Implementation and all actual compiler validation remain pending; models are design evidence, not conformance qualification.
+
+
+S06 partial implementation checkpoint: uncommitted parse.y/pform.cc/pform.h implement delayed replay plus real-time vacuity, and preserve single-delay parameter expressions as exact sentinel-6 through shared normalization. Original reducer now reports0/1 without early pass in both editions. Generated explicit-reference controls pass76cases x52ticks for literals (2017) and overrides (2017/2023); model covers9450traces/999810tick comparisons. Replay-only S04 neighbor17/17+8/8 passed; current parser+replay S05 focus14/14+14/14 passes. Bison563SR/1122RR and exact conflict-state signature match S05. Builds65118/93157, installs/focus32282/92814 and Bison8903 are terminal.
+
+Compiler fingerprinta3f662e2c3ace1dd26288fc8440785964484ce5695be46eb70baa421d4c2d45b, runtimeunchanged7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Ranged cover property with ##D remains rejected after normalization (s06/cover-delay-override.sv/.log); this is an in-scope sibling gap to repair, not grounds to qualify the patch. Permanent S06 regressions, invalid-bound/override controls, final source review and all full gates remain pending. No live processes. Last fully locally validated revisiona76c9f67a. Preserve partial diff and resume cover-path repair; no new selection or broad audit.
+
+
+S06 cover sibling now shares delayed input replay but counts each true consequence endpoint and retains parents after false consequences. Independent endpoint-count reference passes76cases in both editions. Added permanent paired override, direct empty/nonempty timing, cancellation/Off and cover controls; negative/unknown instance bounds, grouped negative delay and unsupported multi-step consequence controls bring focus to16/16 legacy and16/16 JSON. Initial negative-wrapper include and JSON manifest formatting errors corrected; expected semantic diagnostics unchanged. Review found missing -6 late refusal (repaired before legacy arithmetic) and reproduced ##D (##2 q), D=-1 incorrectly accepted; shared offset normalization now preserves invalid original operands as X for existing instance-bound validation. This does not qualify unsupported broader compositions.
+
+Build94435/install terminal, source/test freeze compiler201b7e4a2f1fc689a18dc6d2e98a1e7daffdff8a4b455f716bad10d7bede6176/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Integrated94110,NFA68316,real-DPIUVM6626 launched; full JSON waits for integrated to avoid shared harness files. Final source/test review and remaining neighbor/model/check gates pending. Worktree audit preserves prior dirty/nonancestor trees. S06 awaits validation; last validated revision remainsa76c9f67a.
+
+
+S06 review exposed an additional reachable operand-width defect: a property formal colliding with a module parameter is preserved and later receives an arithmetic actual. Grouped and plain ##D wrappers widened4-bit actual arithmetic before evaluation (unsigned15+1 yielded delayed16 rather than0). Added native $bits(operand)'(operand) self-sizing before every preserved-offset path; signedness remains native. Grouped and plain |->/|=> signed/unsigned timing controls now in the permanent operand-width regression. First grouped-only correction passed18/18 focused tests but review identified zero-offset bypass before qualification; moved cast ahead of that return. Integrated94110/UVM6626 and40586/61236 stopped143 before each mutation; these are incomplete gates, not passes. NFA68316/61282 passed58/58 only on preceding candidates. Build22386 and final review active; all full gates must restart after focused green/review clearance.
+
+
+S06 final shared-helper review cleared grouped/plain self-sizing, signedness, ownership, replay and -6 guards. Current focus18/18 legacy+JSON passes in both default and explicit legacy engines; S05neighbors14/14+14/14, S04neighbors17/17+8/8, generated76assertion+76cover cases in both editions,makecheck all pass. Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec frozen for integrated55376,NFA8748,real-DPIUVM91338. Full JSON must run after integrated. Broader arbitrary delay-expression parsing, formal lookup behavior and maximal-width delay arithmetic remain unqualified. No full-pass claim; S06 remains awaiting validation.
+
+S06 integrated55376 terminated0:4732total4727pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15. NFA8748 terminated0,58/58. FullJSON95717 launched only after integrated completion; real-DPIUVM91338 remains live. No source/test mutation. S06 awaits these remaining local gates and remote CI before merge.
+
+S06 fullJSON95717 terminated0:1624tests/0failures. Only real-DPIUVM91338 remains among required local gates; remote CI still required before merge.
+
+S06 real-DPIUVM91338 terminated0:355passed,0failed,0skipped with real DPI umbrella loaded. All required local gates and independent review pass on frozen compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Final fingerprints match. Qualify only the exact scope in the blocker/matrix; checkpoint then continue selection. Remote CI remains required before merge.
+
+S06 implementation6f49fe1eb checkpointed; completed contract preserved in evidence/s06. Resume U01 application teardown qualification after S03-S06 assertion increments: existing115requests/230checked scoreboard items do not overcome SEQPRTZMB warnings. Retained reducer and suspended contract avoid another broad audit. No application mutation or new worktree. Worktree audit preserves prior dirty/nonancestor trees.

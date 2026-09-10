@@ -1,0 +1,3 @@
+FATAL: ./ivltests/sv_assert_cycle_delay_negative_fail.v:3: invalid parameter-valued SVA bound after instance override; bounds must be known and nonnegative, with finite lo <= hi (IEEE 1800-2017 16.9.2)
+       During elaboration  Scope: _ivl_sva0_bound_invalid
+1 error(s) during elaboration.
