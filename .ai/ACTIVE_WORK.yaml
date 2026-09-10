@@ -1,7 +1,7 @@
 id: S04
 title: Execute vacuous user pass actions in single-clock implications
 status: active
-phase: implementing
+phase: validating
 base_revision: 61ca5f336
 standards:
   - IEEE1800-2017 and IEEE1800-2023 16.12.7 and 16.14.1.
@@ -35,7 +35,7 @@ completion: Qualify exact repaired implication paths; retain unsupported paths a
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 61ca5f336
-next_action: Repair parameter-window vacuity using original flat/OR/AND antecedent progress, then complete cancellation/callback and all required gates.
+next_action: Poll live UVM session50563; after terminal status install current cancellation candidate and run focused/NFA/integrated/full JSON/real-DPI UVM/check/final review gates.
 partial_implementation:
   - Shared detached Reactive pass dispatcher keeps vacuous actions separate from nonvacuous callbacks.
   - NFA, general fixed legacy and genvar delay producers now publish vacuous pass requests.
@@ -44,13 +44,17 @@ partial_validation:
   - Original reducer green in both editions and default/legacy modes; NFA-specific green in both editions.
   - Delayed-action and simultaneous-first-failure reducer green in both editions and modes.
   - Genvar red reproduced, then green in both editions and modes.
-  - Two permanent paired regressions pass focused legacy 4/4 and JSON 4/4.
+  - Before cancellation changes, focused legacy15/15 and JSON6/6; new cancellation pair passes separately in2017/2023. Final expanded focus17legacy/8JSON pending.
   - NFA sweep 58 passed and 0 failed after independent expected-count/timestamp review.
-  - Independent partial implementation review found no actionable findings.
+  - Independent NFA/legacy/genvar/repeat/window review found no actionable findings. Cancellation delta requires final review.
 outstanding:
   - Parameter repetition slice implemented and focused green; final integrated qualification remains pending.
-  - Parameter windows must retain original fixed/OR/AND antecedent continuation before synthetic repetition normalization.
-  - Complete cancellation, callback, specialized-path and permanent paired coverage.
+  - Parameter-window fixed/OR/AND progress implemented; initial red and overlapping/Off/disable/Kill controls green in both editions/modes.
+  - Four permanent paired regressions and one shared-plugin VPI callback test added; cancellation candidate built and checked with isolated compiler prefix, not yet installed.
   - Six NFA oracles independently derived and updated; current NFA sweep 58/0.
   - Focused neighboring, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check, final review and remote CI before merge.
 implementation_checkpoint: Dirty pform.cc and permanent regression files are partial S04 work, not a validated semantic baseline.
+
+running_validation: UVM session50563 against installed window candidate bd499c9703c00632cffaafe63349860e4bef3a14c66ddd2168dfb97d2fb3118f; do not replace installed binaries until terminal.
+built_candidate: 8d49346e19bf4f6a85a8036409596e16e65ec0f057d2447defb89cdc08ffede8; cancellation moves disable test after Observed and adds asynchronous clear to NFA/legacy/genvar.
+latest_integrated_result: Initial session24071 terminal1; legacy4698total/4684pass/9failed/2NI/3EF. Nine stale oracles reviewed and focused green; VPI104/104, negative149/149, runtime15/15 passed. Rerun required after installation.

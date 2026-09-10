@@ -100,3 +100,23 @@ requires parking. Use the format above for the next agent's discoveries.
   omits its vacuous action. Nested/throughout parent paths now report17.
 - Reproducer status: observed in both editions; triage pending. Do not infer
   general vacuity qualification from the S03 endpoint-path controls.
+
+### DD-006 — nested parameterized sequence alias does not expand
+
+- **Discovered while working:** S04.
+- **Observation:** Pair(x,y) defined as x ##2 y works when reused directly with distinct actuals in OR/AND antecedents. Wrapping Pair(a,b) and Pair(c,d) in named Left/Right aliases instead reports No function named Pair during elaboration.
+- **File/function:** pform.cc sequence splicing / parameter-window antecedent normalization; causal triage pending.
+- **Possible clause:** IEEE 1800-2017/2023 sequence declarations and argument binding; exact clause pending triage.
+- **Evidence:** evidence/campaign-20260908/s04/window-nested-alias.sv and window-nested-alias.log. Same four errors with compiler rebuilt from validated61ca5f336: window-nested-baseline.log. Current source/build restored afterwards; installed candidate tools unchanged during running gates.
+- **Reproducer status:** confirmed before S04; direct parameterized reuse is a passing control.
+- **Triage status:** untriaged, record-only; no repair included in S04.
+
+### DD-007 — symbolic repetition still reports consequent endpoint verdicts
+
+- **Discovered while working:** S04 oracle review.
+- **Observation:** Symbolic ranged/unbounded antecedent lowering retains per-endpoint consequent pass/fail actions, rather than aggregating one parent assertion verdict. S03 repaired the NFA parent model, not this separate symbolic engine. S04 only repairs previously missing vacuity for ages that never matched.
+- **File/function:** pform.cc sva_parameter_repeat_try_assertion_ r_pass_req/r_fail_req and endpoint counts.
+- **Possible clause:** IEEE 1800-2017/2023 16.12.7 and 16.14.1.
+- **Evidence:** Existing validated sv_assert_repeat_parameter_override and sv_assert_repeat_parameter_smoke tests explicitly expected multiple endpoint actions before S04. Independent S04 review derived their new totals by adding vacuity; these remain compatibility checks, not per-attempt standards qualification. No new regression inferred from those totals.
+- **Reproducer status:** existing regression stimuli retained; parent-verdict reducer needs a deliberate selection boundary.
+- **Triage status:** untriaged, record-only. Parent symbolic repetition remains partially qualified.

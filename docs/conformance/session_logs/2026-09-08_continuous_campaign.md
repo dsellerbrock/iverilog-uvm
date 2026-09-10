@@ -900,3 +900,52 @@ preserved. Dirty implementation/tests retained. Last fully validated revision
 Evidence includes build/install-parameter, parameter red/green, window-red,
 nfa-parameter and focus-parameter logs. Resume window lowering at
 `sed -n '21845,22035p' pform.cc`; do not repeat the broad audit.
+
+
+### S04 window completion and cancellation validation checkpoint (2026-09-09)
+
+Window normalization now retains the original antecedent tree. Fixed branch
+states advance by age, then OR/AND viability is combined and the existing
+parent tracker emits first-loss vacuity or enabled endpoint matches. Captured
+expressions retain one owner; residual tree fields are freed after lowering.
+Independent review found no actionable issue. Flat/OR/AND startup red0/0/0 is
+green1/1/1 in both editions/modes. Permanent window coverage adds overlap,
+branch survival, Off, asynchronous disable, Kill/On and parameterized named
+sequence reuse with distinct arguments. Direct reuse passes; nested aliases
+fail identically on rebuilt61ca5f336 and are parked as DD-006.
+
+All three initial permanent reducers were explicitly red with baseline61ca5f336.
+A new VPI test reuses the existing callback plugin: six implication paths each
+execute five vacuous user actions, including delayed NFA actions, but report no
+nonvacuous success callbacks. The standalone true control supplies exactly five
+callbacks. Both editions pass. Initial window NFA58/58 and make check pass.
+
+Initial integrated session24071 completed with legacy4698total/4684pass/9fail/
+2NI/3EF; VPI104/104, negative149/149, runtime15/15 all pass. The nine legacy
+failures were independently traced to old pass counts and updated without
+changing failure expectations or the allowlist. Corrected focus15/15legacy and
+6/6JSON passes. Symbolic range/unbounded per-endpoint verdicts remain pre-existing
+DD-007; override/smoke totals are explicitly compatibility checks, not complete
+per-attempt qualification.
+
+New cancellation controls then exposed in-scope errors: same-tick NBA disable
+produced actions1/1/0/0/1 for legacy/NFA/repeat/window/genvar versus allzero;
+between-clock disable pulse gave3/3/2 actions and1failure versus2/2/2 and0.
+NFA/legacy/genvar now enter Observed before checking unsampled disable and use
+a shared asynchronous abort process matching the parameter engine's existing
+edge pattern. The rebuilt compiler8d49346e19bf4f6a85a8036409596e16e65ec0f057d2447defb89cdc08ffede8
+passes both reducers in both editions/modes via isolated `s04/disable-tools`.
+A fourth permanent paired reducer passes both editions. This compiler is NOT
+installed yet: UVM session50563 remains live on window compiler
+bd499c9703c00632cffaafe63349860e4bef3a14c66ddd2168dfb97d2fb3118f. Preserve the
+installed tools until that exact handle is terminal. Then install current build
+and run expanded focus17legacy/8JSON, VPI, NFA, integrated, full JSON, real-DPI
+UVM, make check and final review. Last fully validated implementation61ca5f336.
+
+Ponytail full and using-agent-skills were explicitly re-invoked; the correction
+reuses dispatch/cancellation patterns, with unrelated discoveries record-only.
+Graphify query on the canonical shared graph identified the same pform lowering
+functions; no graph rebuild or worktree mutation occurred. All builds and other
+test sessions are terminal; only UVM50563 remains live. Evidence is under
+`s04/`, including reducer sources/logs, baseline-tools, disable-tools,
+integrated-failures, focus-oracles, nfa-window and check-window logs.
