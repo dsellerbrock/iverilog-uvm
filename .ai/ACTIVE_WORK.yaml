@@ -1,7 +1,7 @@
 id: S03
 title: Aggregate NFA implication verdicts per starting attempt
-status: active
-phase: awaiting_validation
+status: completed_local
+phase: selection
 base_revision: 2be79b2c0
 standards:
   - IEEE1800-2017 and IEEE1800-2023 16.12.7.
@@ -31,9 +31,9 @@ required_gates:
 completion: Complete only per-parent verdict aggregation in the existing supported NFA endpoint path after required local gates; retain finite cyclic capacity and unsupported shapes explicitly.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-last_validated_revision: 2be79b2c0
-next_action: Await full real-DPI UVM14116; only checkpoint implementation after it passes.
-validation_state: NFA58/0, focus55/20, JSON1584/0, integrated65557 all pass (4692/4687/0/2/3,VPI103,negative149,runtime15). Initial UVM58507 ended354/1 on stale nested/throughout vacuity expectations; corrected and independently reviewed, paired and real-DPI focus5567 pass2/0. Final full real-DPI UVM14116 pending.
-implementation_state: Uncommitted pform.cc parent identity/aggregation candidate; no runtime changes.
+last_validated_revision: 61ca5f336
+next_action: Verify DD005 nonfanout vacuity as next candidate; preserve S02 design boundary.
+validation_state: NFA58/0, focus55/20, JSON1584/0, integrated65557 all pass (4692/4687/0/2/3,VPI103,negative149,runtime15). Initial UVM58507 ended354/1 on stale nested/throughout vacuity expectations; corrected and independently reviewed, paired and real-DPI focus5567 pass2/0. Final full real-DPI UVM14116 completed355/0/0.
+implementation_state: Committed61ca5f336; all required local gates and review pass, remote CI required before merge.
 installed_compiler: 61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c
 installed_runtime: 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec
