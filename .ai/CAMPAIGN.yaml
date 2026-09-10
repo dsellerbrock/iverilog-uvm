@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: S06
-phase: awaiting_validation
+current_blocker: U01
+phase: resume_teardown_reducer
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: a76c9f67ae854d415043de9b7c5a9052a705c913
+last_integrated_good_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [S06_required_local_validation, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: S06 selected from DD-008: silent instance timing miscompilation reproduced in both editions on validated S05.
-next_action: Await integrated55376,NFA8748,UVM91338; run full JSON after integrated. Preserve source/test freeze.
-next_command: "tail -30 ../evidence/campaign-20260908/s06/integrated-reviewed.log"
+next_selection: U01 resumed: meaningful application traffic already established; teardown semantics remain unresolved.
+next_action: Re-run retained sequence-parent guard reducer, trace runtime process ancestry/termination, preserve unmodified application and original warnings.
+next_command: "cat ../evidence/campaign-20260908/u01-sequence-parent/guard.sv"
 next_command_cwd: repository root
-candidate_state: Uncommitted reviewed S06 source and18paired tests; width-preservation review complete and focused/model/check green.
+candidate_state: S06 implemented in 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7 with all local gates passed; U01 active qualification investigation, no unvalidated semantic patch.
 installed_tools: Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Focus18/18 legacy+JSON both engines; S05neighbor14/14+14/14,S04neighbor17/17+8/8, generated76assertion+76cover cases in both editions,makecheck and finalreview green. Integrated55376,NFA8748,UVM91338 live. Last fully validated implementationa76c9f67a.
-next_validation: Full JSON serially after integrated; all current full gates must pass before S06 closure.
+validation_state: S06 all local gates pass, compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672; no live processes.
+next_validation: U01 reducer on current native tools, then exact causal contract before implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

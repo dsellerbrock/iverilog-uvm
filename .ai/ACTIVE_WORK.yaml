@@ -1,60 +1,35 @@
-id: S06
-title: Preserve overridden symbolic SVA cycle delays through elaboration
-status: active
-phase: awaiting_validation
-base_revision: a76c9f67a
+id: U01
+title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+status: in_progress
+phase: resume_teardown_reducer
+base_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 6.20.2,23.10.2,16.7 (Syntax16-4),16.12.7.
-expected_behavior: An instance override of D changes the timing of ##D; every resulting child obligation is checked on its actual elaborated tick and contributes to one parent verdict. Declaration defaults must not freeze timing.
-observed_behavior: With LO1/HI2/D0 defaults and D1 override, a[*LO:HI] |-> ##D q passes at tick2 and ignores q becoming false on tick3. Both editions reproduce on fully locally validated S05.
-reproducer: ../evidence/campaign-20260908/s06/parameter-delay-override.sv
-causal_hypothesis: The leading and concatenated single-delay grammar calls pform_sva_const_long before preserving overridable expressions; the parameter default is folded into delay_lo/hi and the expression deleted. Range-delay syntax already preserves overridable bounds.
+  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
+expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
+observed_behavior: Post-L02 unchanged replay completes 115 requests and 230 checked scoreboard items with zero errors/fatals; four SEQPRTZMB parent-process warnings cause TEST FAILED CHECKS. Mechanism and baseline applicability remain to be established.
+reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
 allowed_scope:
-  - parse.y and pform.cc single cycle-delay normalization and directly necessary instance-elaborated lowering; audit all affected callers.
-  - Preserve legal existing fixed, genvar and parameter delay behavior and S05 parent semantics; implement the exact missing timing without an arbitrary delay or attempt cap.
-  - Direct/prefixed symbolic repetitions and neighboring fixed antecedents affected by the common normalization path.
-  - Named/positional overrides, dependent parameter expressions and per-instance invalid-bound diagnostics within the selected causal path.
-  - Permanent paired regressions, required focused/full validation, review and exact conformance records.
+  - Read-only application corpus and current harness/source inspection.
+  - Fresh evidence/campaign-20260908/u01-after-l02 and u01-sequence-parent build/log/reducer artifacts.
+  - .ai/ACTIVE_WORK.yaml
+  - .ai/CAMPAIGN.yaml
+  - docs/conformance/BLOCKERS.md
+  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - No multiclock S02 or nested sequence alias DD-006 implementation.
-  - No unrelated operator or formal-backend expansion.
-  - No declaration-default fallback, silent dropped assertion or diagnostic-only claim of legal-feature implementation.
+  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
+  - No compiler implementation until a causal reducer and exact scope are established.
 invariants:
-  - Preserve per-instance parameter expression identity until elaboration.
-  - Preserve Preponed sampling, Observed disable checks, asynchronous cancellation, Off/Kill and Reactive action dispatch.
-  - Preserve one parent verdict, endpoint-sensitive cover accounting and exact empty/nonempty timing.
-  - Do not broaden into a new assertion architecture without a deliberate recorded coordination boundary.
+  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
+  - Preserve 300-second per-process CPU guard and bounded wall time.
+  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
 required_gates:
-  - Paired pre-fix red/current green with early and late polarity discrimination for overridden delays.
-  - Multiple instances, zero/nonzero and beyond-one delays, dependent expressions and negative/unknown bounds where applicable.
-  - Focused legacy/JSON, S05 neighboring controls, NFA, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check.
-  - Grammar conflict count/signature if parse.y changes; independent standards/source/test review; remote CI before merge.
-completion: Qualify the exact repaired cycle-delay scope and retain broader obligations explicitly.
-discovery_policy: Unrelated discoveries are record-only; causal prerequisites require preserved reducers/work and a deliberate coordination boundary.
+  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
+  - First divergence from current-source replay, with traffic and scoreboard evidence.
+  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
+completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false
-last_validated_revision: a76c9f67a
-next_action: Await integrated55376,NFA8748,real-DPIUVM91338; run full JSON serially after integrated. No source/test edits during gates.
 
-representation:
-  - Preserve single-delay expressions through instance elaboration, distinct from general consequence windows.
-  - Replay sampled keep and captured enabled starts through parameter-sized histories; current q checks the delayed endpoints.
-  - Positive replay lag supplies already-sampled endpoint-plus-one keep for final-child closure; zero-lag overlap retains S05 closure timing.
-  - Separate real-time unmatched-only ages preserve vacuous action timing; shadow replay never emits vacuity.
-  - Direct nonoverlap uses a synthetic prefix at start+D and keep lagD+1; actual prefixes use lagD+1 for both inputs.
-  - Cancellation clears histories, real-time young ages and shadow parent state; Off only changes newly captured starts.
-model_evidence: s06/check_delayed_parent_model.py compares explicit parent/child lists against packed delayed ages;9450traces999810tick-by-tick comparisons pass, including zero delays and direct/prefixed empty cases.
-review: Final independent source/test review cleared shared operand self-sizing, replay timing, ownership and sentinel guards; full gates required. Arbitrary delay-expression syntax, broader formal lookup and maximal-width arithmetic remain unqualified.
-
-partial_implementation:
-  - pform.cc replays sampled keep and captured starts, with real-time unmatched ages and final-endpoint lookahead; supports arbitrary fixed literal delays and direct/prefixed nonoverlap timing.
-  - pform.h and parse.y share pform_sva_single_delay; overridable expressions are retained as exact symbolic delay sentinel -6 and instance-preflighted.
-  - Fixed antecedents reuse the existing exact-window lowering; symbolic ranged/unbounded assertion parents use delayed replay.
-actual_validation:
-  - Original override reducer now0/1 with no early pass in both editions.
-  - Generated76cases x52ticks using explicit parent reference pass for literal delays in2017 and overridden delays in both2017/2023.
-  - S05 focus14/14 legacy+JSON passes after parser preservation; S04 neighbor17/17+8/8 passed the earlier replay-only candidate and must rerun on final source.
-  - Bison563SR/1122RR with exact conflict-state signature unchanged from S05.
-in_scope_gap: Cover endpoint replay repaired; generated76cases pass both editions. Shared -6 refusal and grouped-negative operand validation repaired. Broader unsupported compositions remain explicitly unimplemented.
-remaining_gates: [NFA, integrated, full_JSON, real_DPI_UVM, remote_CI_before_merge]
-current_sessions: Integrated55376,NFA8748,UVM91338 running on reviewed frozen candidate; all earlier full attempts stopped143 before source fixes and cannot qualify this candidate.
-current_toolchain: Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+selection_reason: Resume application qualification after S03-S06 assertion correctness increments; existing checked-traffic evidence is strong but teardown warning mechanism and baseline applicability remain unresolved.
+last_validated_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
+next_action: Re-run the retained sequence-parent guard reducer on current tools; inspect real runtime ancestry and termination behavior before selecting a causal implementation scope.

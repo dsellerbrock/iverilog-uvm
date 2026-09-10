@@ -1087,3 +1087,5 @@ S06 integrated55376 terminated0:4732total4727pass0fail2NI3EF,VPI105/105,negative
 S06 fullJSON95717 terminated0:1624tests/0failures. Only real-DPIUVM91338 remains among required local gates; remote CI still required before merge.
 
 S06 real-DPIUVM91338 terminated0:355passed,0failed,0skipped with real DPI umbrella loaded. All required local gates and independent review pass on frozen compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Final fingerprints match. Qualify only the exact scope in the blocker/matrix; checkpoint then continue selection. Remote CI remains required before merge.
+
+S06 implementation6f49fe1eb checkpointed; completed contract preserved in evidence/s06. Resume U01 application teardown qualification after S03-S06 assertion increments: existing115requests/230checked scoreboard items do not overcome SEQPRTZMB warnings. Retained reducer and suspended contract avoid another broad audit. No application mutation or new worktree. Worktree audit preserves prior dirty/nonancestor trees.
