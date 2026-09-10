@@ -1,43 +1,34 @@
-id: U05
-title: Dispatch standalone UVM DPI reports back to SystemVerilog
-status: "complete"
-phase: "documented"
-base_revision: 47e6c87b3f420776e915cc969fe29ac03d8ac827
+id: U04
+title: Qualify DPI regex loading for original UVM2020.1 releases
+status: in_progress
+phase: "root_caused"
+base_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
 last_validated_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
-suspended_parent: U04 preserved in evidence/campaign-20260908/u04/suspended-u04.yaml; no parent implementation started.
-selection_reason: Legacy regex error paths require real UVM reporting; standalone umbrella currently replaces the exported callback with a no-op, proved independently.
-reproducer: ../evidence/campaign-20260908/u04/report_bridge.sv with report-baseline-compile.log and report-baseline-runtime.log; reports remains0 instead of1.
-expected_behavior: A context DPI call to m_uvm_report_dpi invokes m__uvm_report_dpi in selected uvm_pkg exactly once with all six arguments intact and restores caller scope.
-root_cause: UVM_DPI_STANDALONE defines m__uvm_report_dpi as no-op under an obsolete dead-code assumption; generated per-design stubs already show the existing runtime dispatcher ABI.
+selection_reason: Original2020.1.0/1.1 compile after L08 but missing DPI regex symbols prevent meaningful runtime smoke; this directly advances user-requested historical UVM support.
+reproducer: third_party/uvm-releases/results-gizcr5j0/results.json and both original release runtime.log files; complete and baseline_valid true.
+expected_behavior: Original pinned release regex imports resolve with correct signatures, matching and nonmatching cases execute correctly, and command-line parsing is not corrupted by unavailable DPI calls.
+observed_behavior: Missing uvm_re_match and uvm_glob_to_re symbols precede five UVM command-line errors and BUILDERR; no runtime pass despite exit0.
 standards:
-  - IEEE1800-2023 H.7.3 Table H.1 maps int and string to C int and const char pointer; H.9.2/H.9.3 require context exported calls to execute with the selected scope. Verify matching2017 text before closure.
+  - Establish applicable IEEE DPI import and exact official release declarations before any semantic or ABI patch; do not infer equivalence from symbol spelling.
 allowed_scope:
-  - uvm_dpi/uvm_dpi_iverilog.cc standalone callback adapter using existing runtime export dispatcher.
-  - uvm_dpi/build_uvm_dpi.sh comments describing the adapter.
-  - .github/uvm_frontend_test.sh and permanent tests/uvm_releases reporting fixtures.
-  - Active/campaign/blocker/session evidence and documentation.
+  - Read-only pinned release DPI declarations and runtime source.
+  - Trace installed UVM DPI loading, driver selection and existing native wrappers.
+  - Evidence reducers and active contract, campaign, blocker and session records.
+  - Refresh exact implementation scope only after causal mechanism and ABI expectations are established.
 non_goals:
-  - No legacy regex adapter or original vendor-source edits during U05.
-  - No new runtime dispatcher, public ABI redesign, report suppression or diagnostic-only stand-in for the actual callback.
+  - No original library modifications, regex substitution shortcuts, ignored missing imports, warning waivers or release-wide qualification by compilation alone.
+  - No unrelated compiler/runtime repairs during this blocker.
 invariants:
-  - One active blocker; preserve U04 reducer and original sources, then resume U04 after U05 validation.
-  - Preserve merged regression builds that link real per-design dispatchers; adapter only under standalone macro.
-  - Native ARM64 serial build,300second CPU guard, no RSS cap; no installs or frontend relocation test while gates run.
+  - One active blocker; L08 all required local gates passed before selection.
+  - Native ARM64, serial builds,300second CPU guard, no RSS cap; preserve unrelated worktrees and merge permissions.
 required_gates:
-  - Paired2017/2023 failing baseline and passing standalone callback with all arguments checked.
-  - Installed real-UVM report-server severity count test and frontend relocation/selection suite.
-  - makecheck, required integrated legacy/VPI/negative/runtime, JSON, real-DPI UVM, NFA and independent review before closure.
-completion: Close standalone report dispatch only after all gates; then resume U04 legacy ABI scope.
+  - Reproduce exact unresolved imports and compare original declaration signatures to loaded exports.
+  - Verify matching and nonmatching regex semantics plus glob conversion with permanent coverage for any code change.
+  - Run required focused and integrated gates and independent review before closure.
+completion: Close only the exact validated DPI loading or ABI subcase; historical releases and application qualification remain separate.
 stop_after_completion: false
-next_action: "Resume preserved U04 legacy regex ABI contract on the validated reporting baseline."
-next_command: "cat ../evidence/campaign-20260908/u04/suspended-u04.yaml"
-baseline_evidence: Four paired baseline tests compile0 and fail runtime1; report_bridge checks six arguments/count, report_server checks real UVM severity and ID counters.
-source_authority: IEEE2017 and2023 H.9.2/H.9.3 context/export text verified; Table H.1 int/string C mappings agree. Generated smoke.dpiexport.c and vthread.cc union/dispatcher are authoritative existing internal ABI.
-focused_validation: Frontend74657 terminal0; all S1-S10 passed including four paired reporting tests. Install root restored and candidate installed. Independent review clear.
-
-u05_live_gates: []
-u05_unstarted_gates: []
-u05_candidate_revision: a5eb76ebb
-
-u05_nfa: Terminal71460 exit0;58passed0failed.
-closure: Paired4baseline failures and4candidate passes; relocated frontendS1-S10 pass,review clear,makecheck pass,NFA58/58,integrated4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Frozen tool fingerprints unchanged.
+next_action: "Refresh the scoped ABI contract and edge-case reducer on validated U05; preserve strict legacy POSIX matching, verify glob conversion boundaries and real UVM error reporting before adapter edits."
+next_command: "cat ../evidence/campaign-20260908/u04/legacy_regex.sv; sed -n '30,115p' third_party/uvm-releases/sources/2020.1.0/1800.2-2020-1.0/src/dpi/uvm_regex.cc"
+prerequisite_resolution: U05 validated at a5eb76ebb; standalone m__uvm_report_dpi dispatches six arguments through existing runtime ABI, all required local gates passed.
+root_cause: Selected legacy SV sources import C uvm_re_match and uvm_glob_to_re; installed modern UVM umbrella exports lower-level uvm_re APIs because modern SV implements those names as wrappers. No legacy symbols exist in installed library.
+design_review: Blind delegation changes strict invalid-regex behavior and return codes; use strict POSIX matching outside existing glob-retry macro, preserve singleton-slash and empty-regex semantics, and verify report severity counts. Modern glob helper needs explicit length/bracket/error boundary treatment; upstream bugs are not normative. DD-016 records source-only edge findings.

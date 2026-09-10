@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: "U05"
-phase: "coordination"
+current_blocker: "U04"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
@@ -11,13 +11,13 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Resume U04 from its preserved contract; reporting prerequisite U05 fully validated."
-next_command: "cat ../evidence/campaign-20260908/u04/suspended-u04.yaml"
+next_action: "Resume U04 ABI edge-case reducer and grounded adapter design on fully validated U05."
+next_command: "cat ../evidence/campaign-20260908/u04/legacy_regex.sv"
 next_command_cwd: repository root
-candidate_state: "U05 closed exact standalone reporting bridge at a5eb76ebb; all required local gates passed."
+candidate_state: "U04 resumed; no legacy ABI implementation yet. U05 validated at a5eb76ebb. Strict matching and real report propagation required; blind modern delegation rejected by review."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
 validation_state: "U05 frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed."
-next_validation: "Poll live U05 gates; after integrated68370 terminal, run PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner sh -c 'cd ivtest && python3 vvp_reg.py' redirected to evidence/u05/full-json.log. U04 suspended until U05 all required gates pass."
+next_validation: "U04 refreshed reducer and exact scope before edits, then permanent ABI/error controls and full required validation."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
