@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: "selection"
+current_blocker: "L11"
+phase: "selected"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
@@ -10,11 +10,11 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: ["U01_application_qualification", "PR273_remote_CI_before_merge"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: "After U06 required validation and exact closure, consider DD018 caller-local output copy-out: paired evidence proves remaining automatic-argument correctness gap. Preserve U01 application scope; do not implement on unvalidated U06."
-next_action: "Select DD019 fixed-array class-property output copy-out, preserve L09 baseline and establish minimal reducer."
-next_command: "graphify query \"draw_copy_out_function_argument indexed class property output\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+next_selection: "After validated L11 closure, reapply preserved L10 patch and resume exact property output scope."
+next_action: "Restore installed validated L09 from reverted source, reproduce plain-array double evaluation, verify formal defaults and scope repair."
+next_command: "../evidence/arm64-tooling/resource-runner make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex"
 next_command_cwd: repository root
-candidate_state: "L09 closed after all required local gates; select DD019 as next concrete output-copying gap."
+candidate_state: "L10 partial source/tests archived and reverted; installed target still L10 until baseline rebuild/install. L11 sole active prerequisite."
 installed_tools: "Frozen L09 vvp448929b960a25ee12740f331e68f4206e9e8f79719286e7ba75b550124d814e0, vvp.tgt0cc9c2f67660b0e880a6d9a3171858d5a414fcb9018d8fb2435fe3ef478b2a59; ivl and DPI unchanged from validated U06."
 validation_state: "L09 all required local gates passed: legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
 next_validation: "Next blocker failing reducer before implementation."
@@ -242,7 +242,7 @@ u04_nfa: Passed58/58 terminal6429 exit0.
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
 
-candidate_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
+candidate_revision: null
 
 l09_live_gates: {}
 l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."

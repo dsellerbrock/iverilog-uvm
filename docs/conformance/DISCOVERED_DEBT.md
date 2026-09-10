@@ -293,3 +293,18 @@ is preserved in fixed-property-baseline-compile.log. Legal output lvalue
 classification belongs to IEEE2017/2023 13.5 and class array properties;
 implementation remains open. Record-only during L09; no warning waiver or
 claim of fixed-array property-element output support.
+
+
+### DD020 — Scalar output actuals evaluated before call and on return
+
+L10 index-side-effect control fails on candidate because scalar output actuals
+are copied in before function execution. Existing function_port_is_container_output_
+only suppresses container/fixed-array output input evaluation. The same issue
+applies to plain fixed-array scalar actuals on validated L09, independent of
+L10 property stores. IEEE2017/2023 13.5 return copying; must preserve automatic
+formal defaults and static output persistence. Selected prerequisite L11; L10
+patch and reducers preserved under evidence/campaign-20260908/l10.
+
+L10 receiver().slots[...] syntax probe was rejected by parser; preserved in
+receiver_syntax_probe.sv. Not required for nested env.box receiver coverage;
+record-only syntax frontier, no parser changes under L10.

@@ -78,7 +78,7 @@ static int ref_actual_is_nameable_(ivl_expr_t expr)
       return 1;
 }
 
-static int function_port_is_container_output_(ivl_signal_t port)
+static int function_port_is_native_output_(ivl_signal_t port)
 {
       ivl_type_t type;
 
@@ -102,7 +102,12 @@ static int function_port_is_container_output_(ivl_signal_t port)
 
       type = ivl_signal_net_type(port);
       return type && (ivl_type_base(type) == IVL_VT_DARRAY
-	  || ivl_type_base(type) == IVL_VT_QUEUE);
+	  || ivl_type_base(type) == IVL_VT_QUEUE
+	  || ivl_type_base(type) == IVL_VT_BOOL
+	  || ivl_type_base(type) == IVL_VT_LOGIC
+	  || ivl_type_base(type) == IVL_VT_REAL
+	  || ivl_type_base(type) == IVL_VT_STRING
+	  || ivl_type_base(type) == IVL_VT_CLASS);
 }
 
 /* Bind one `ref' formal (IEEE 1800-2017 13.5.2). An actual that cannot
@@ -138,9 +143,10 @@ static void draw_eval_function_argument(ivl_signal_t port, ivl_expr_t expr)
 
 	/* An output argument is copy-out only (IEEE 1800-2017/2023 13.5).
 	 * Evaluating the caller here would copy in a value that is not an input and
-	 * would evaluate an indexed actual twice. Automatic output storage receives
-	 * its default in the send pass; static output storage retains its value. */
-      if (function_port_is_container_output_(port))
+	 * would evaluate an indexed actual twice. Automatic scalar storage receives
+	 * its default from context allocation/reset; the send pass initializes
+	 * containers. Static output storage retains its value. */
+      if (function_port_is_native_output_(port))
 	    return;
 
 	/* An unpacked fixed-array formal can retain its element data type
@@ -219,13 +225,18 @@ static void draw_send_function_argument(ivl_signal_t port, ivl_expr_t actual)
 	 * storage. Do not reset a static output between calls. Automatic output
 	 * storage is initialized on each entry; materialize its declared container
 	 * default here because the ordinary argument stack has no copy-in value. */
-      if (function_port_is_container_output_(port)) {
+      if (function_port_is_native_output_(port)) {
 	    ivl_type_t port_type = ivl_signal_net_type(port);
 
 	    if (ivl_signal_dimensions(port) > 0)
 		  return;
 
 	    if (!ivl_scope_is_auto(ivl_signal_scope(port)))
+		  return;
+
+	    /* Scalar automatic storage is initialized by the existing context
+	       alloc/reset hooks. Do not overwrite it with the caller's value. */
+	    if (dtype != IVL_VT_DARRAY && dtype != IVL_VT_QUEUE)
 		  return;
 
 	    if (ivl_type_base(port_type) == IVL_VT_QUEUE
@@ -387,7 +398,7 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 	                        continue;
 	                  if (vif_copyback
 			      && ivl_signal_port(port) == IVL_SIP_OUTPUT
-			      && !function_port_is_container_output_(port))
+			      && !function_port_is_native_output_(port))
 				continue;
 	                  if (ivl_signal_port(port) == IVL_SIP_REF) {
                         draw_bind_function_ref_argument(port, argv[idx]);
@@ -405,7 +416,7 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 	                  continue;
 	            if (vif_copyback
 			&& ivl_signal_port(port) == IVL_SIP_OUTPUT
-			&& !function_port_is_container_output_(port))
+			&& !function_port_is_native_output_(port))
 			  continue;
 	            draw_eval_function_argument(port, argv[idx]);
       }
@@ -416,7 +427,7 @@ static int draw_function_input_arguments_(ivl_scope_t scope,
 	                  continue;
 	            if (vif_copyback
 			&& ivl_signal_port(port) == IVL_SIP_OUTPUT
-			&& !function_port_is_container_output_(port))
+			&& !function_port_is_native_output_(port))
 			  continue;
 	            draw_send_function_argument(port, argv[idx - 1]);
       }

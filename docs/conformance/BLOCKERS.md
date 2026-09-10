@@ -732,3 +732,16 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Evidence:** Preserved nested output control fails identically before/after U06; caller local remains unchanged.
 - **Scope:** Explicit automatic copy-out phases select callee formal loads and caller destination reads/writes, preserving frame ownership and existing typed copying. IEEE2017/2023 8.6 and13.5.
 - **Evidence at candidate:** Three permanent regression families fail baseline and pass both editions; focused JSON38/0, malformed bytecode6/6, NFA58/58, makecheck and independent review pass. Full legacy4861/0,JSON1753/0,real-DPIUVM355/0/0,VPI105,negative149,runtime15/15 and frontendS1-S10 passed; restored tools match frozen fingerprints. Class fixed-array property scalar output (DD019) remains separate.
+
+
+### L10 — Fixed-array class-property element output copy-out
+
+- **State:** SUSPENDED for prerequisite L11; partial patch and reducers preserved under evidence/campaign-20260908/l10.
+- **Evidence:** Legal scalar output actual holder.slots[index] emits a skipping warning and remains unchanged.
+- **Scope:** Existing fixed property slot checks and typed property stores; preserve receiver/index context and invalid-index semantics. No unrelated container expansion.
+
+
+### L11 — Scalar output actuals must not be copied in
+
+- **State:** OPEN, prerequisite to L10 selected from DD020.
+- **Scope:** Native output argument setup must skip caller reads, initialize automatic formals to defaults, retain static formals and preserve DPI open-array handling.

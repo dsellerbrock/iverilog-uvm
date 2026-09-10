@@ -1,57 +1,22 @@
-id: L09
-title: Preserve caller-local output copy-out during nested argument calls
-status: closed
-phase: documented
-base_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
-last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
-selection_reason: DD018 is a reproducible automatic-argument correctness defect, observed independently before and after U06; caller outputs silently remain unchanged. Repair after validated input-context baseline.
-reproducer: ../evidence/campaign-20260908/u06/copyout_control.sv and paired copyout-baseline.log/copyout-candidate.log
-expected_behavior: A nested function output actual naming a caller automatic local receives the assigned output at return, even while an enclosing recursive call is preparing its arguments.
-observed_behavior: Nested get_child(output seen) writes a staged recursive callee frame; original caller seen remains unchanged and assertion fails on both pre-U06 and validated U06 runtimes.
-allowed_scope:
-  - Minimized reducers and scoped read-only tracing of draw_copy_out_function_argument and vthread_get_wt_context_item_scoped.
-  - Applicable IEEE2017/2023 argument direction, automatic lifetime and return-copy semantics.
-  - ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT and existing session log.
-  - tgt-vvp/draw_ufunc.c explicit copy-out source versus destination context phases, reusing existing typed copying.
-  - vvp/vthread.cc,vvp/codes.h,vvp/compile.cc paired context save/source/destination/restore opcodes; preserve frame ownership and nested calls.
-  - Permanent ivtest reducers, registrations and focused/integrated validation; opcode documentation.
-  - tests/vvp_runtime copy-out malformed-bytecode checks and .github/ivtest_gate.sh registration.
-non_goals:
-  - No UVM/application source edits, weakened assertions, or unrelated context redesign.
-  - No broad audit or claims that U06 qualified output arguments.
-invariants:
-  - One implementation blocker; U06 fully validated before this selection.
-  - NativeARM64 serial build,300second CPU guard,no RSS cap; preserve worktrees and merge permissions.
-required_gates:
-  - Failing permanent regression and applicable IEEE semantics before implementation.
-  - Focused recursion,input/output/inout/ref/default/return controls and independent review.
-  - Required integrated legacy,JSON,VPI,negative,runtime,UVM,NFA,makecheck and relevant frontend validation.
-completion: Close only exact validated output-copying scope; dependent application and standards qualification stay separate.
+id: "L11"
+title: "Preserve copy-out-only scalar output argument semantics"
+status: "in_progress"
+phase: "focused_tested"
+base_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
+last_validated_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
+prerequisite_for: "L10"
+preserved_parent: "../evidence/campaign-20260908/l10/partial-implementation.patch and suspended-contract.yaml"
+reproducer: "Plain fixed-array output actual with side-effecting selector; scalar output formal observes its own default, not caller value."
+expected_behavior: "Native output actual evaluated only for return assignment; automatic formal starts with declared type default, static retains own state."
+standards: "Both IEEE1800 editions13.5 output return copying,13.4.2 automatic/static formal lifetime; verify exact defaults."
+allowed_scope: ["Minimized baseline reducers and exact standards/trace.", "tgt-vvp/draw_ufunc.c output classification,evaluation,send/default paths; no L10 typed property changes until prerequisite validated.", "Permanent regression and required gates; existing governance docs."]
+non_goals: ["No unrelated parser,ref,DPI-open-array redesign.", "Preserve L10 patch and regressions for resume after validation."]
+required_gates: ["Paired red/green both editions,automatic/static typed defaults,index side effects,existing container and DPI controls.", "Focused,independent review,full integrated/JSON/real-DPIUVM/NFA/makecheck,isolated frontend."]
 stop_after_completion: false
-next_action: "Await integrated and UVM terminal results; run full JSON after integrated, then frontend alone after all gates terminal. No implementation or installs during validation."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l09/integrated.log ../evidence/campaign-20260908/l09/uvm.log"
+next_action: "Restore installed validated L09 from reverted source, reproduce plain-array double evaluation, verify formal defaults and scope repair."
+next_command: "../evidence/arm64-tooling/resource-runner make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex"
 
-l09_reducer: ../evidence/campaign-20260908/l09/output_actual.sv; both2017/2023 compile0/run1,caller seen remains-1 instead of37. Non-nested output_actual_control.sv passes both modes. No warnings after separate object initialization.
-l09_standards: Both IEEE1800-2017 and2023 clause13.5 require output/inout values returned to corresponding actual variables; clause8.6 gives automatic class-method lifetime. Read local editions.
-l09_trace: Bytecode stores produced37 into recurse.seen before freeing produce, while recurse callee is staged on write head. of_STORE_VEC4 passes ensure_write_context_ to vvp_send_vec4; actual scalar path does not call scoped-write accessor. Follow automatic receive recovery before choosing repair.
+root_cause: "function_port_is_container_output_ suppresses input evaluation only for containers. Scalar outputs therefore read caller value and evaluate side-effecting actuals twice. Existing automatic vvp signal alloc/reset initializes typed formals; static storage persists. Extend classification and skip scalar send using that existing lifecycle."
+standards_evidence: "Read both editions13.5,13.4.2,13.3.2 and2017 Table6-7; automatic outputs default on entry, static retains state. Baseline plain fixed-array selector called twice in both editions."
 
-l09_indexed_reducer: ../evidence/campaign-20260908/l09/indexed_output.sv; both editions compile0/run1. Recursive output to slots[choose(index)] uses callee index0 instead of caller index1, producing37,-1 rather than-1,37.
-l09_review_direction: Independent diagnosis rejects global returned-window write redirection because fixed-array return materialization legitimately writes staged storage before epilogue. A write-only copy-out binding also leaves same-scope index and receiver reads wrong. Separate formal-source reads from caller read/write destination evaluation; nested address calls must inherit caller context.
-l09_trace_evidence: output_actual.trace shows produced37 delivered to staged recurse frame, then overwritten by its local initialization; original caller frame retains-1. Existing per-type copy-out emitter has explicit formal load sites, suitable for source/caller phase separation without replacing copy semantics.
-
-implementation_contract: Copy-out destination expressions and stores use caller read/write activation; formal loads use callee activation. Preserve original contexts until epilogue free, retain nested-call behavior, and do not redirect unrelated function-result stores.
-
-l09_candidate: Three permanent test families fail baseline and pass candidate in both editions;38focused JSON cases pass;6malformed-bytecode checks pass. Explicit copy-out enter/context/leave distinguishes formal loads from caller destination expressions. Nonlocal abort/reuse and non-nested controls pass both editions. Independent review clear; full required gates pending.
-candidate_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
-
-l09_live_gates: {frontend: 41521}
-l09_completed_gates: "NFA85815 exit0,58/58; makecheck exit0; release matrix95523 terminal1 with complete/baseline_valid report6SMOKE_PASS9knownCOMPILE_FAIL."
-l09_release_results: third_party/uvm-releases/results-p31gasib/results.json
-
-l09_integrated_terminal: "17224 exit0; legacy4861total4856pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. FullJSON37094 now running; UVM9469 live; isolated frontend unstarted."
-
-l09_json_terminal: "37094 exit0;1753tests0failures. UVM9469 remains live; isolated frontend unstarted."
-
-l09_uvm_terminal: "9469 exit0; real-DPI UVM355passed0failed0skipped. Frontend41521 now running alone; do not use installed root until terminal and restoration verified."
-
-l09_closure: "legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
+l11_focused: "42/0, paired2families both modes baseline fail/candidate pass; independent review clear, selector strengthened to prove return-time evaluation."
