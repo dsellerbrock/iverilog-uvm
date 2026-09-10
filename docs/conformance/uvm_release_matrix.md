@@ -123,3 +123,9 @@ fixes are included in U02. U01 OpenTitan teardown evidence remains preserved.
 - `vvp` SHA-256: `3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337`
 
 - `uvm_dpi.vpi` SHA-256: `23a2d7a5a0696d0102f7ad254a7c142688202824caf19772c5583b74ecc85dd1`
+
+### Legacy regex ABI candidate (U04)
+
+The installed Icarus umbrella now provides the two C entry points imported by original2020.1 UVM: `uvm_re_match` and `uvm_glob_to_re`. Matching delegates strict ERE compilation/execution to the native POSIX library and preserves native compile errors; it does not retry invalid patterns as globs. Raw empty ERE behavior remains native-dependent (Darwin rejects it); explicit `^$` is tested for empty-string matching. See the [POSIX regular-expression specification](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html).
+
+Glob conversion retains the legacy2040-character input limit and documented preservation of slash-delimited regex, using owned expandable storage. It deliberately does not reproduce upstream bracket fall-through or fixed-buffer overflow. Tests cover anchors,metacharacters,2040input/4084expanded output,2048regex acceptance/2049rejection, copied-string lifetime and actual UVM severity/ID counts. Original library sources remain unchanged. The candidate passes paired2017/2023 tests and relocated frontendS1-S10; integrated/release qualification remains pending.

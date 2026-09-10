@@ -222,11 +222,11 @@ else
 fi
 
 # --------------------------------------------------------------------------
-say "S10: standalone DPI report callbacks and real UVM severity counts"
+say "S10: standalone DPI reports and legacy regex ABI"
 for edition in 2017 2023; do
-    for fixture in report_bridge report_server; do
+    for fixture in report_bridge report_server legacy_regex; do
         options=(-m "$DPIVPI")
-        [ "$fixture" = report_server ] && options=(-uvm)
+        [ "$fixture" != report_bridge ] && options=(-uvm)
         if "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
             "$SRCROOT/tests/uvm_releases/$fixture.sv" >report.log 2>&1; then
             out="$($TO "$VVP" report.vvp 2>&1)"

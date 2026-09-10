@@ -1,7 +1,7 @@
 id: U04
 title: Qualify DPI regex loading for original UVM2020.1 releases
 status: in_progress
-phase: "root_caused"
+phase: "awaiting_validation"
 base_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
 last_validated_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
 selection_reason: Original2020.1.0/1.1 compile after L08 but missing DPI regex symbols prevent meaningful runtime smoke; this directly advances user-requested historical UVM support.
@@ -14,7 +14,9 @@ allowed_scope:
   - Read-only pinned release DPI declarations and runtime source.
   - Trace installed UVM DPI loading, driver selection and existing native wrappers.
   - Evidence reducers and active contract, campaign, blocker and session records.
-  - Refresh exact implementation scope only after causal mechanism and ABI expectations are established.
+  - uvm_dpi/uvm_dpi_iverilog.cc legacy C entry points with strict POSIX matching and bounded-input glob conversion.
+  - tests/uvm_releases legacy ABI fixtures and .github/uvm_frontend_test.sh integration.
+  - docs/conformance/uvm_release_matrix.md qualification evidence.
 non_goals:
   - No original library modifications, regex substitution shortcuts, ignored missing imports, warning waivers or release-wide qualification by compilation alone.
   - No unrelated compiler/runtime repairs during this blocker.
@@ -27,8 +29,11 @@ required_gates:
   - Run required focused and integrated gates and independent review before closure.
 completion: Close only the exact validated DPI loading or ABI subcase; historical releases and application qualification remain separate.
 stop_after_completion: false
-next_action: "Refresh the scoped ABI contract and edge-case reducer on validated U05; preserve strict legacy POSIX matching, verify glob conversion boundaries and real UVM error reporting before adapter edits."
-next_command: "cat ../evidence/campaign-20260908/u04/legacy_regex.sv; sed -n '30,115p' third_party/uvm-releases/sources/2020.1.0/1800.2-2020-1.0/src/dpi/uvm_regex.cc"
+next_action: "Original UVM2020.1 probes37649 running; run required integrated/JSON/UVM/NFA gates on frozen candidate. FrontendS1-S10 and paired legacy ABI boundary/error tests passed; review clear."
+next_command: "tail -5 ../evidence/campaign-20260908/u04/release-candidate.log"
 prerequisite_resolution: U05 validated at a5eb76ebb; standalone m__uvm_report_dpi dispatches six arguments through existing runtime ABI, all required local gates passed.
 root_cause: Selected legacy SV sources import C uvm_re_match and uvm_glob_to_re; installed modern UVM umbrella exports lower-level uvm_re APIs because modern SV implements those names as wrappers. No legacy symbols exist in installed library.
 design_review: Blind delegation changes strict invalid-regex behavior and return codes; use strict POSIX matching outside existing glob-retry macro, preserve singleton-slash and empty-regex semantics, and verify report severity counts. Modern glob helper needs explicit length/bracket/error boundary treatment; upstream bugs are not normative. DD-016 records source-only edge findings.
+
+abi_contract: Official2020.1 declarations are context int uvm_re_match(string,string) and context string uvm_glob_to_re(string), mapped to C int/const char pointers by IEEE2017/2023 TableH.1. Match uses strict POSIX ERE, optional paired slash delimiters, zero for match and nonzero for mismatch/invalid regex; invalid regex increments UVM_ERROR. Explicit ^$ matches only the empty string; raw empty ERE is delegated to the native implementation (Darwin returns14), not given an invented portable result. Singleton slash is literal. Glob empty/slash becomes /^$/, bracketed regex remains bracketed per documented intent; preserve2040 input limit and reportoversize returning original input. Allocate enough conversion storage for worst-case expansion instead of reproducing old buffer overflow.
+implementation_decision: Modern combined matcher changes error codes and retries invalid patterns as globs. Modern deglob helper has different length accounting. Implement legacy entry points directly using POSIX and std::string, retaining native caller signatures and U05 reporting; original vendor sources untouched.
