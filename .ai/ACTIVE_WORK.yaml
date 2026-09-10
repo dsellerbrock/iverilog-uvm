@@ -1,7 +1,7 @@
 id: U01
 title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
 status: in_progress
-phase: fresh_application_replay
+phase: teardown_repeatability_triage
 base_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
 standards:
   - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
@@ -41,3 +41,7 @@ current_action: Replay the same original xbar smoke with the unchanged bundled U
 
 replay_handle: 24296
 next_command: tail -20 ../evidence/campaign-20260908/u01-after-l07/replay.log
+
+latest_replay: Fresh unmodified xbar smoke PASS;115requests,230scoreboarditems,zero warnings/errors/fatals,TEST PASSED CHECKS;360exported source files identical to previous replay and same runtime/UVM hashes.
+repeat_evidence: Preserved old executable gives two clean passes and one five-SEQPRTZMB-warning failure; new executable gives three clean passes. Same runtime arguments and no recompilation within repeats. Intermittent old teardown is proven; no causal fix attribution or broad U01 closure.
+next_triage: Compare process-parent lifetime and teardown ordering in preserved app and existing reduced guard controls; distinguish nondeterminism from intended UVM guard behavior before any patch.

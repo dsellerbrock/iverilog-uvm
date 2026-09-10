@@ -208,3 +208,5 @@ uvm_milestone_publication:
   added_scope: V07,U02,L06,U03,L07; same existing PR, exact reviewed tree1390318eab71083aba899fe7efbaa6c5fa3a6c68, file modes and pins preserved.
   validation: All required local gates passed; fresh remote CI and existing merge permissions remain required. No agent merge.
 u01_resume: Fresh single-core runtime replay under evidence/u01-after-l07; original corpus and bundled library unchanged. Last validated compiler/runtime9a1b6beb3.
+
+u01_latest_replay: PASS with115requests/230scoreboarditems and zero warnings/errors/fatals; source360files unchanged. Repeats old2PASS/1FAILwith5guardwarnings,new3PASS. U01 remains open for teardown repeatability and causal classification; no fix attribution from this pass.
