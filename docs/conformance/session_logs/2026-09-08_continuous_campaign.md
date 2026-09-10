@@ -566,3 +566,13 @@ Last validated source9218751e2, V01 code uncommitted until required gates pass.
 V01 live gate handles: integrated23417, UVM72988. Installed compiler
 a90ef338a4fe and runtime2de024fb402d. No full JSON launched until integrated
 finishes; no dependent semantic work until gates pass.
+
+V01 integrated exited0:4668 total/4663 pass/0fail/2NI/3EF, name-diff clean,
+VPI103, negative149 and runtime15 pass. Full JSON exited0:1560/0. Real-DPI
+UVM72988 remains live; implementation remains uncommitted pending that gate.
+
+V01 real-DPI UVM completed355/0/0. All required local gates and review pass.
+Name this completed increment V01A to preserve the parent V01 broader scope.
+Checkpoint exact constructor-dependent value-bin union, then return to selection.
+Worktree audit unchanged; no unrelated files touched, no running gates. Remote
+CI remains required before merge; U01 teardown qualification remains open.

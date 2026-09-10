@@ -412,25 +412,14 @@ class class_type : public __vpiHandle {
 		if (entry.first.first == family && entry.second >= at_least)
 		      hits += 1;
 	  return hits; }
-	// Type-level DENOMINATOR for constructor-dependent value-bin
-	// families. How many logical bins a family has is a per-INSTANCE
-	// property: `bins b[] = {[1:hi]}' resolves a different set for hi=4
-	// than for hi=8, so unlike a static bin there is no single count the
-	// type view can read off the definition. Each instance registers the
-	// count it resolved and the widest one is kept.
-	//
-	// IEEE 1800-2017/2023 19.9 defines type coverage over the counters
-	// merged across every instance. The exact merge is the union of the
-	// resolved bin sets, which cannot be enumerated for a wide range
-	// (`[0:2**32-1]' is one legal family), so the widest resolved set
-	// stands in for it. dyn_type_hits() is a true union of distinct hit
-	// bins, so callers raise the denominator to the hit count when
-	// instances resolved disjoint sets and the union genuinely exceeds
-	// the widest single set.
+      // IEEE 1800-2017/2023 19.11.3: unsized value bins merge by value;
+      // scalar and fixed-array bins merge by name/index.
       void dyn_type_register_total(unsigned family,
-				    unsigned __int128 logical) const
+                                    unsigned __int128 logical) const
       { unsigned __int128&slot = covgrp_dyn_type_totals_[family];
-	if (logical > slot) slot = logical; }
+        if (logical > slot) slot = logical; }
+      void dyn_type_register_ranges(unsigned family,
+            const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
       unsigned __int128 dyn_type_total(unsigned family) const
       { auto it = covgrp_dyn_type_totals_.find(family);
 	return it == covgrp_dyn_type_totals_.end()
@@ -476,6 +465,8 @@ class class_type : public __vpiHandle {
       mutable std::map<std::pair<unsigned,uint64_t>,uint32_t>
 	    covgrp_dyn_type_counts_;
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
+      mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
+            covgrp_dyn_type_ranges_;
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;

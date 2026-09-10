@@ -7248,8 +7248,11 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  const covgrp_dyn_state_t&state = entry.second;
 		  if (!state.valid || !state.meta) continue;
 		  if ((state.meta->kind & 7) != 0) continue;
-		  defn->dyn_type_register_total(entry.first,
-					   covgrp_dyn_logical_count_(state));
+		  if (state.meta->array_size == 0)
+                        defn->dyn_type_register_ranges(entry.first, state.ranges);
+                  else
+                        defn->dyn_type_register_total(entry.first,
+                              covgrp_dyn_logical_count_(state));
 	    }
       }
 

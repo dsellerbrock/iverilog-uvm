@@ -28,6 +28,7 @@
 # include  "vvp_net_sig.h"
 # include  "config.h"
 # include  <cstddef>
+# include  <algorithm>
 # include  <cinttypes>
 # include  <cctype>
 # include  <cerrno>
@@ -3490,6 +3491,29 @@ unsigned class_type::covgrp_trans_family_item(unsigned family) const
       return 0;
 }
 
+void class_type::dyn_type_register_ranges(unsigned family,
+      const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const
+{
+      auto&universe = covgrp_dyn_type_ranges_[family];
+      universe.insert(universe.end(), ranges.begin(), ranges.end());
+      std::sort(universe.begin(), universe.end());
+      size_t count = 0;
+      for (const auto&range : universe) {
+            if (count == 0 || (universe[count-1].second != UINT64_MAX
+                  && range.first > universe[count-1].second + 1)) {
+                  universe[count++] = range;
+            } else {
+                  universe[count-1].second = std::max(
+                        universe[count-1].second, range.second);
+            }
+      }
+      universe.resize(count);
+      unsigned __int128 total = 0;
+      for (const auto&range : universe)
+            total += (unsigned __int128)range.second - range.first + 1;
+      covgrp_dyn_type_totals_[family] = total;
+}
+
 double class_type::type_coverage(vvp_cobject*) const
 {
 	// Same per-item weighted model as instance coverage, computed
@@ -3541,12 +3565,9 @@ double class_type::type_coverage(vvp_cobject*) const
 		  ? covgrp_cumulative_at_least_(rec.item_idx) : 1;
 	    uint64_t hits = at_least == 0
 		  ? 0 : dyn_type_hits(rec.family, at_least);
-	      // The registered size is the widest set any instance resolved;
-	      // the hit map is a true union, so a genuinely disjoint
-	      // resolution across instances raises the denominator instead of
-	      // reporting more hits than bins.
-	    unsigned __int128 sized = dyn_type_total(rec.family);
-	    if ((unsigned __int128)hits > sized) sized = hits;
+            // Construction registers the complete bin-name universe,
+            // including bins in instances that have never been sampled.
+            unsigned __int128 sized = dyn_type_total(rec.family);
 	    if (sized == 0) continue;
 	    uint64_t total = sized > (unsigned __int128)UINT64_MAX
 		  ? UINT64_MAX : (uint64_t)sized;

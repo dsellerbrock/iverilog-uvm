@@ -806,3 +806,10 @@ and ancestor-owned scalar history; all required local semantic gates and
 review pass, including recursive event ownership. Unchanged U01 replay completes
 115 requests and230 checked items; four sequence-parent warnings keep U01 open. General Boolean event-expression context
 (DD-003) and silent-default edge initialization remain unqualified.
+
+V01A: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.11.3:
+constructor-dependent unsized value bins contribute their exact registered
+interval union to merged type coverage, including unsampled/retired instances.
+Partial overlap/disjoint, threshold, signed and fixed/scalar controls pass all
+required local gates. Parent V01, default merge_instances averaging and general
+huge-total percentage calculations remain unqualified.

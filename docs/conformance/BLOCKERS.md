@@ -118,7 +118,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 
 - **Area / edition:** Functional coverage / edition-agnostic
-- **State:** IN_PROGRESS
+- **State:** OPEN (V01A resolves bounded dynamic value-bin union locally)
 - **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage` uses a
   maximum registered dynamic-family size raised to the hit count — not an
@@ -235,3 +235,14 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Evidence:** Class-task for-loop bit local returns 1 on entry 2 instead of default 0. Emitted autobegin.shared stores it in the task frame. Same driver structure leaves rsp_done set after the first response.
 - **Closure requirements:** Fresh per-entry storage/defaults with static and capture controls; required local gates, review and U01 replay.
 - **Last verified revision:** e0dab7221 red in both editions. Candidate now passes 93 legacy / 50 JSON focus and make check, including automatic_events2, ancestor history 2,3, and recursive event ownership (prior UVM deadlock repaired). Independent review has no actionable finding. All local semantic gates pass: integrated4666/4661/0/2/3, VPI103, negative149, runtime15, JSON1558/0, UVM355/0/0 real DPI. Unchanged U01 replay on9218751e2 completes115 requests/230 checked items; zero errors/fatals. Four sequence-parent warnings still prevent application qualification.
+
+### V01A — Exact constructor-dependent value-bin union
+
+- **Area / edition:** Coverage / IEEE1800-2017 and2023 19.11.3.
+- **State:** CLOSED (bounded local scope; remote CI before merge)
+- **Parent:** V01; no complete type-option or arbitrary cross/transition universe claim.
+- **Confidence:** REPRODUCED and ROOT_CAUSED
+- **Evidence:** Paired sv_covergroup_merged_value_union; original LRM example returned100 instead of66.666667.
+- **Implementation:** Register and merge resolved intervals for unsized value bins; preserve name/index identity for scalar/fixed bins. Unsampled and retired instances remain represented.
+- **Validation:** Focus53/43, integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0, real-DPI UVM355/0/0, make check and independent review passed.
+- **Limits:** Default merge_instances weighted averaging and downstream huge-total saturation remain unqualified.

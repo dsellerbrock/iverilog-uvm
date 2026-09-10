@@ -1,7 +1,7 @@
-id: V01
+id: V01A
 title: Exact merged constructor-dependent value-bin universe
-status: awaiting_validation
-phase: integrated_validation
+status: closed
+phase: completed
 base_revision: 9218751e2
 standards:
   - IEEE 1800-2017 and IEEE 1800-2023 19.11.3, with value-bin identity in 19.5.1.
@@ -32,4 +32,4 @@ required_gates:
 completion: Bounded explicit merged value-bin universe only; broader type-option model remains unqualified.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-validation: Paired permanent test green and previous-runtime red; focus53 legacy/43 JSON, make check and independent review pass. Integrated and UVM pending, full JSON follows integrated.
+validation: Paired permanent test green and previous-runtime red; focus53 legacy/43 JSON, make check and independent review pass. Integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0 and real-DPI UVM355/0/0 pass. Remote CI before merge.
