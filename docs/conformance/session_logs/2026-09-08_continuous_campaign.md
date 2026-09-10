@@ -1436,3 +1436,7 @@ requested publication boundary produced one coherent direct-main PR273 for
 validated V04-V06, exact tree421b50abd with preserved campaign ancestry.
 Publication8f50344c0 is mergeable with six CI checks queued at observation;
 no agent merge. Active V07 source/tests remain preserved and unpublished.
+
+V07 NFA91909 terminated0 with58passed,0failed. Integrated26646 and UVM53589
+re-polled and confirmed live. FullJSON remains unstarted. Worktree audit
+unchanged; preserve all unrelated dirty/non-ancestor siblings.
