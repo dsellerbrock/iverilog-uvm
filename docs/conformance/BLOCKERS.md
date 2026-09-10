@@ -699,3 +699,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **L08 candidate evidence:** Scoped resource-queue actual fails in both editions on the validated baseline; explicit equivalent type passes. Type-only class-member lookup and resolved specialization keys now pass ten permanent paired regressions in legacy and JSON runners, related17/15 controls and make check. Independent review clear after preserving dotted-path provenance through SVA cloning. Integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA remain required; no closure yet.
 
 - **L08 closure:** Implementation47e6c87b3 passed all required local gates: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,NFA58/58,real-DPIUVM355/0/0,focused10/10each,neighbors17/15,makecheck and independent review. Original2020.1.0/1.1 compile but fail runtime as separately recorded in DD-011.
+
+### U04 — Original UVM2020.1 DPI regex loading
+
+- **State:** OPEN, selected after validated L08.
+- **Evidence:** DD-011, results-gizcr5j0; both original releases compile but miss uvm_re_match/uvm_glob_to_re symbols at runtime, followed by BUILDERR.
+- **Scope:** Establish declarations, loaded exports and causal reducer before authorizing a bounded patch. No library edits or release-wide qualification.
