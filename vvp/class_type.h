@@ -420,6 +420,10 @@ class class_type : public __vpiHandle {
         if (logical > slot) slot = logical; }
       void dyn_type_register_ranges(unsigned family,
             const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
+      uint64_t cross_type_register_bin(unsigned family,
+            const std::vector<std::pair<unsigned,uint64_t>>&name) const;
+      void cross_type_register_named(unsigned family,
+            const std::vector<unsigned>&props) const;
       unsigned __int128 dyn_type_total(unsigned family) const
       { auto it = covgrp_dyn_type_totals_.find(family);
 	return it == covgrp_dyn_type_totals_.end()
@@ -480,6 +484,11 @@ class class_type : public __vpiHandle {
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
       mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
             covgrp_dyn_type_ranges_;
+      struct cov_cross_type_t {
+            std::map<std::vector<std::pair<unsigned,uint64_t>>,uint64_t> bins;
+            std::set<unsigned> named_props;
+      };
+      mutable std::map<unsigned,cov_cross_type_t> covgrp_cross_type_;
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;

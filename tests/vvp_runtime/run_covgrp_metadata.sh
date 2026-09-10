@@ -95,8 +95,15 @@ if ! cmp -s "$work_dir/options-expected-normalized" \
     exit 1
 fi
 
-"$vvp" "$cross_semantic_malformed" > "$work_dir/cross-semantic.stdout" \
-    2> "$work_dir/cross-semantic.stderr"
+# The semantic fixture uses $fatal to assert that rejected plans publish no
+# type denominator. Follow the other runtime fixtures' module-path override.
+if [ -n "${VPI_MODULE_DIR:-}" ]; then
+    "$vvp" -M "$VPI_MODULE_DIR" -m system "$cross_semantic_malformed" \
+        > "$work_dir/cross-semantic.stdout" 2> "$work_dir/cross-semantic.stderr"
+else
+    "$vvp" -m system "$cross_semantic_malformed" \
+        > "$work_dir/cross-semantic.stdout" 2> "$work_dir/cross-semantic.stderr"
+fi
 if [ -s "$work_dir/cross-semantic.stdout" ]; then
     echo "FAIL covergroup metadata: expected empty semantic-check stdout" >&2
     exit 1

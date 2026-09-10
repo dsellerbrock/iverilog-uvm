@@ -1282,3 +1282,55 @@ not include it; local auto-bin ordinals cannot serve as cross-instance identity.
 V05 is the sole active blocker; no source edits yet. Next trace full choice/name
 mapping and existing count machinery before proposing the minimal correction.
 No new PR under the user's milestone cadence.
+
+
+V05 root trace: source descriptors have stable per-dimension term_idx;
+unsized dynamic logical_idx is the resolved value, fixed arrays retain index,
+static/transition choices use stable metadata. Existing per-instance auto_bin
+is dense and is incorrectly reused by shared type-hit counters. Type coverage
+omits both automatic products and resolved active named cross properties.
+Both primary19.11.3 clauses require full component-name tuples. Independent
+design review accepts per-class/family tuple interning and requires union of
+existing active named property IDs for mixed crosses. That direct aggregation
+support expands neither selection grammar nor precedence. No source edit yet;
+next implement minimal registration/mapped-count path and permanent controls.
+
+
+V05 candidate now interns full cross tuples per class/family after successful
+plan validation, maps local automatic hits to those canonical IDs, and unions
+already-resolved active named properties for type aggregation. No parser,
+selector precedence, domain bound or transition-cardinality change.
+Permanent focus13/13 passes in legacy and JSON, covering union, overlapping
+names, thresholds, dimensions, named/ignore bins, retirement, deferred parent
+capture,2023 retention and named/arrayed transition sources. Transition paired
+baseline fails0 versus1/9; candidate reaches1/9,2/9,3/9 while local counts stay
+below threshold. Nine malformed plans now assert no published denominator via
+zero-weight sources and zero cross threshold; making the first selector valid
+triggers the assertion. Independent final review confirms both gaps resolved.
+Coverage neighbors75/65,V04 neighbors2/2,makecheck and NFA58/58 pass.
+Installed V05 runtime6e4f2e37/compiler98664d54 frozen; integrated13242 and real-DPI
+UVM55560 running. FullJSON must follow integrated serially. Candidate remains
+unvalidated pending required gates; last validated revision27c1672d6.
+Previous response only verified already-known PR272 merge status (no campaign
+implementation progress); this continuation added executable review controls
+and launched the remaining gates. No new PR at this two-increment milestone.
+
+V05 integrated13242 completed0:4785total4780pass0unexpected2NI3EF,
+VPI105/105,negative149/149 and all runtime invariants, including strengthened
+malformed cross fixture. FullJSON63211 started only after terminal integrated;
+installed FPGA target already present and byte-identical to current build.
+Real-DPIUVM55560 remains live. PR272 current six remote checks remain QUEUED;
+external merge is not remote-validation evidence. No new PR.
+
+V05 fullJSON63211 completed0 with1677tests,zero failures. Compiler98664d54
+and runtime6e4f2e37 remain unchanged; diff whitespace check passes. Real-DPI
+UVM55560 is the final required local gate and remains confirmed live.
+
+V05 UVM55560 completed0:355passed,zero failures/skips,real DPI umbrella loaded,
+actual-g2012. All required local gates and independent review pass. Runtime
+6e4f2e37/compiler98664d54 fingerprints remain unchanged. Close only supported
+constructed-cross type union/count scope; parentV01, unsupported topology,
+transition cardinality and unqualified options remain open. Completed contract
+preserved in evidence/v05. Worktree audit unchanged; unrelated dirty and
+non-ancestor trees retained. This is the second validated increment since
+publication272; no new PR. Return to coordinator selection after checkpoint.

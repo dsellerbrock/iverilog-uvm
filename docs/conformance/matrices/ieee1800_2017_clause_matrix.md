@@ -987,3 +987,16 @@ unsampled/retired universes, unequal families, thresholds, static/dynamic bins,
 weighted items and small/empty domains. All local gates and independent review
 pass. Individual transition-family cardinality, broader cross/bin-universe
 obligations and parentV01 remain separate; remote CI before merge.
+
+
+V05: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.6,19.11.3. Supported constructed automatic crosses contribute
+the union of ordered component-bin names to merged type coverage. Shared hits
+use canonical tuple identities rather than instance-local dense ordinals;
+already-resolved active named properties also contribute. Paired regressions
+cover overlapping/disjoint constructor domains, source-bin kinds and dimension
+order, thresholds, named/ignore precedence, retirement, parent capture and
+named/arrayed transition sources;2023-only retention is separately controlled.
+Malformed plans publish no type denominator. All required local gates and
+independent review pass. Existing topology limits, transition-family cardinality,
+unqualified type options and parentV01 remain separate; remote CI before merge.

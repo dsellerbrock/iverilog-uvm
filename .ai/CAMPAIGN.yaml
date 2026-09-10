@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V05
-phase: reproduced
+phase: coordination
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 27c1672d6a840c4899f873ab01adf66402d31b41
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification,remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: V05 automatic cross-bin type coverage union; V04 is locally validated.
-next_action: Trace V05 cross choice identities and registration; verify primary name-union semantics before source edits. No new PR at this increment.
-next_command: "sed -n '7646,7750p' vvp/vthread.cc"
+next_selection: Select next justified blocker after V05 checkpoint; two locally validated increments since PR272.
+next_action: Checkpoint locally validated V05, inspect current ready blockers and select one justified next contract. No immediate PR.
+next_command: "rg -n 'State|^###' docs/conformance/BLOCKERS.md"
 next_command_cwd: repository root
-candidate_state: V04 checkpointed in27c1672d6; all required local gates/review pass.
-installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime e094574ede7fce8d3cff9f035c2a827d50e4a30bb30d75cb9b3c86f69ed1b36a (V04 candidate).
-validation_state: V04 paired2/2legacy+JSON, coverage neighbors75/65,makecheck and final review pass; NFA58/58 and integrated4767/4772 with zero unexpected failures pass; fullJSON1664/0 passed; UVM355/0/0 passed.
-next_validation: V04 fullJSON after integrated completes; all remaining required local gates before checkpointing semantic baseline. Remote CI/review before merging.
+candidate_state: V05 all required local gates/review pass; checkpoint pending.
+installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime6e4f2e37f8e47c3cdfdafa75200b764a20c5ab9625f7086db0c3d802a6820246 (V05 candidate, frozen during gates).
+validation_state: V05 focus13/13 legacy+JSON; neighbors75/65 and V04 2/2; integrated4785total4780pass0fail2NI3EF,VPI105,negative149,runtime checks; JSON1677/0; UVM355/0/0 realDPI-g2012; NFA58/58; makecheck and final review pass.
+next_validation: New blocker must establish reducer and standards contract before changing the validated semantic baseline.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,6 +149,6 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-validated_increments_since_publication: 1
+validated_increments_since_publication: 2
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.

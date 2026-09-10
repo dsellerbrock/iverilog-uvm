@@ -70,6 +70,7 @@ struct covgrp_cross_state_t {
       std::vector<covgrp_cross_route_t> routes;
       std::vector<unsigned> named_props;
       uint64_t auto_total = 0;
+      std::vector<uint64_t> type_bins; // local automatic index -> type identity
       bool enabled = false;
 };
 
@@ -228,9 +229,11 @@ class vvp_cobject : public vvp_object {
       uint32_t cov_dyn_count(unsigned family, uint64_t bin) const
       { auto it = cov_dyn_counts_.find(std::make_pair(family, bin));
 	return it == cov_dyn_counts_.end() ? 0 : it->second; }
-      void cov_dyn_bump(unsigned family, uint64_t bin)
+      void cov_dyn_bump(unsigned family, uint64_t bin, uint64_t type_bin)
       { cov_dyn_counts_[std::make_pair(family, bin)] += 1;
-	defn_->dyn_type_bump(family, bin); }
+	defn_->dyn_type_bump(family, type_bin); }
+      void cov_dyn_bump(unsigned family, uint64_t bin)
+      { cov_dyn_bump(family, bin, bin); }
       bool cov_dyn_warn_once(unsigned family)
       { return cov_dyn_warned_.insert(std::make_pair(family, true)).second; }
       bool cov_dyn_resolved() const { return cov_dyn_resolved_; }

@@ -508,13 +508,24 @@ qualification remain open. Evidence: campaign-20260908/s03.
   makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
   fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.
 
-### V05 — Automatic cross bins are omitted from merged type coverage
+### V05 — Constructed cross bins are omitted or misidentified in merged type coverage
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.6,19.11.3.
-- **State:** REPRODUCED — both editions on locally validated27c1672d6.
+- **State:** LOCALLY VALIDATED — exact supported constructed-cross union/count scope; remote CI before merge.
 - **Evidence:** campaign-20260908/v05/cross.sv: two dynamic cross instances,
   six-bin union and two hits; type coverage0 instead33.333333, instance25 correct.
 - **Scope:** Register supported automatic cross-bin names/counts for merged
-  type coverage, preserving per-instance topology and full product identity.
+  type coverage and union already-resolved active named properties, preserving
+  per-instance topology and full product identity.
 - **Closure:** Paired canonical identity/union controls, required full gates
   and independent review; remote CI before merge. ParentV01 remains open.
+
+- **V05 candidate evidence:** Ordered component-name tuples registered only
+  after successful topology validation; local counts map to canonical type
+  counters, with active named-property union. Focus13/13 legacy+JSON,
+  coverage neighbors75/65,V04 neighbors2/2,NFA58/58 and independent review pass.
+  Includes named/arrayed transition identities and malformed-plan denominator
+  assertions. Integrated4785total4780pass0fail2NI3EF,VPI105,negative149,
+  runtime checks,fullJSON1677/0,real-DPIUVM355/0/0 and makecheck all pass.
+  ParentV01 remains open; unsupported topologies, transition cardinality and
+  unqualified options are not closed. No immediate PR under milestone cadence.

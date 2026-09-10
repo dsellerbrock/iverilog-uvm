@@ -3578,6 +3578,20 @@ void class_type::dyn_type_register_ranges(unsigned family,
       covgrp_dyn_type_totals_[family] = total;
 }
 
+uint64_t class_type::cross_type_register_bin(unsigned family,
+      const std::vector<std::pair<unsigned,uint64_t>>&name) const
+{
+      auto&bins = covgrp_cross_type_[family].bins;
+      return bins.emplace(name, bins.size()).first->second;
+}
+
+void class_type::cross_type_register_named(unsigned family,
+      const std::vector<unsigned>&props) const
+{
+      auto&names = covgrp_cross_type_[family].named_props;
+      names.insert(props.begin(), props.end());
+}
+
 double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 {
       if (contributes) *contributes = false;
@@ -3649,6 +3663,20 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	    if (at_least == 0) hits = total;
 	    item_dyn_total[rec.item_idx] += total;
 	    item_dyn_hits[rec.item_idx] += hits;
+      }
+      // Constructed crosses retain their validated bin-name union even
+      // after an instance is retired. Local route ordinals are not names.
+      for (const cov_cross_t&cross : covgrp_crosses_) {
+            auto found = covgrp_cross_type_.find(cross.family);
+            if (found == covgrp_cross_type_.end()) continue;
+            const cov_cross_type_t&universe = found->second;
+            auto&props = item_props[cross.item_idx];
+            props.insert(universe.named_props.begin(), universe.named_props.end());
+            unsigned at_least = covgrp_cumulative_at_least_(cross.item_idx);
+            unsigned __int128 total = universe.bins.size();
+            item_dyn_total[cross.item_idx] += total;
+            item_dyn_hits[cross.item_idx] += at_least == 0 ? total
+                  : dyn_type_hits(cross.family, at_least);
       }
       double wsum = 0.0, wcov = 0.0;
 	 std::set<unsigned> items;
