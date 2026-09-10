@@ -11,8 +11,8 @@ pending_gates: "L14 integrated21445,UVM66826,NFA93204,releases84865,JSON,isolate
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "Await JSON26820,UVM66826,releases84865; run frontend last alone, verify restored tools and hashes before L14 closure."
-next_command: "tail -n15 ../evidence/campaign-20260908/l14/json.log ../evidence/campaign-20260908/l14/releases.log"
+next_action: "Await UVM66826 and releases84865, then isolatedfrontend alone; verify restored tools before L14 closure. DD028 original1.2 timeout is next runtime candidate."
+next_command: "tail -n15 ../evidence/campaign-20260908/l14/uvm.log ../evidence/campaign-20260908/l14/releases.log"
 next_command_cwd: repository root
 candidate_state: "L14 declaration-lifetime candidate built/installed; focusedJSON12/0,legacy12/0,neighbors18/0,independent review clear."
 installed_tools: "Frozen evidence/l14/sha256.txt. Do not rebuild or install while gates run."
@@ -357,7 +357,7 @@ l12_closure: "a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/
 
 publication_next_milestone: "U07,L13,L12 are fully validated unpublished increments. Prefer expanding existing main-target PR274 at the next coherent checkpoint (within3-5increments), preserving existing required remoteCI and no merge permission."
 
-l14_live_gates: {json: 26820, uvm: 66826, releases: 84865}
+l14_live_gates: {uvm: 66826, releases: 84865}
 l14_makecheck: "exit0; remaining gates pending; final scoped review clear."
 
 l14_nfa_terminal: "93204 exit0;58/58. Integrated21445,UVM66826,release84865 still running; JSON/frontend unstarted."
@@ -365,3 +365,5 @@ l14_nfa_terminal: "93204 exit0;58/58. Integrated21445,UVM66826,release84865 stil
 l14_integrated_terminal: "21445 exit0;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON26820 started after terminal. UVM66826 and releases84865 live; frontend unstarted."
 
 l14_uvm12_frontier: "results-f9qr050b/1.2 compile0, runtime300.061s timeout/empty log, return-9. DD028 record-only while L14 gates run. Original source fingerprint unchanged; no smoke or application pass."
+
+l14_json_terminal: "26820 exit0;1797tests0failures. UVM66826 and releases84865 remain live; isolatedfrontend unstarted. No installs or compiler edits during gates."
