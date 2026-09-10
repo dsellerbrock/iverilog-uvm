@@ -711,6 +711,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U05 — Standalone DPI reporting callback
 
-- **State:** OPEN, prerequisite selected at deliberate U04 boundary.
+- **State:** CLOSED at a5eb76ebb after all required local validation; resume U04.
 - **Evidence:** u04/report_bridge.sv compiles but callback count remains0; standalone umbrella defines exported report callback as no-op.
 - **Scope:** Existing runtime export dispatcher adapter, preserved merged builds, argument/count and real-UVM reporting tests. U04 legacy regex reducers preserved; resume after validation.
+
+- **U05 closure evidence:** Four paired baseline failures become four passes in relocated frontend S10; S1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed. No legacy regex compatibility claim from this reporting fix.

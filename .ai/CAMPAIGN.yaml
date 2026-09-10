@@ -1,22 +1,22 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "U05"
-phase: "awaiting_validation"
+phase: "coordination"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "47e6c87b3f420776e915cc969fe29ac03d8ac827"
+last_integrated_good_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Await U05 JSON30199 and UVM71712. Integrated68370 terminal0: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. Other required gates passed. No closure before both remaining gates pass."
-next_command: "tail -5 ../evidence/campaign-20260908/u05/full-json.log ../evidence/campaign-20260908/u05/uvm.log"
+next_action: "Resume U04 from its preserved contract; reporting prerequisite U05 fully validated."
+next_command: "cat ../evidence/campaign-20260908/u04/suspended-u04.yaml"
 next_command_cwd: repository root
-candidate_state: "U05 candidatea5eb76ebb; paired baseline4fail, relocated frontend S1-S10 allpass,makecheck passed,independent review clear. Integrated/UVM/NFA pending; JSON unstarted."
+candidate_state: "U05 closed exact standalone reporting bridge at a5eb76ebb; all required local gates passed."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
-validation_state: "All required L08 local gates passed, including full JSON1745/0 and real-DPI UVM355/0/0."
+validation_state: "U05 frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed."
 next_validation: "Poll live U05 gates; after integrated68370 terminal, run PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner sh -c 'cd ivtest && python3 vvp_reg.py' redirected to evidence/u05/full-json.log. U04 suspended until U05 all required gates pass."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-validated_increments_since_publication: 2
+validated_increments_since_publication: 3
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -225,7 +225,7 @@ l08_nfa: Passed58/58, terminal81089 exit0.
 l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
 pr273_latest_checks: "Ubuntu22.04,Ubuntu24.04,MINGW64,UCRT64,CLANG64 passed; macOS queued. PR remains open; no merge."
 
-u05_live_gates: [JSON30199, UVM71712]
+u05_live_gates: []
 u05_unstarted_gates: []
 u05_candidate_revision: a5eb76ebb
 

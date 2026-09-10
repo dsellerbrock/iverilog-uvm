@@ -1,9 +1,9 @@
 id: U05
 title: Dispatch standalone UVM DPI reports back to SystemVerilog
-status: in_progress
-phase: "awaiting_validation"
+status: "complete"
+phase: "documented"
 base_revision: 47e6c87b3f420776e915cc969fe29ac03d8ac827
-last_validated_revision: 47e6c87b3f420776e915cc969fe29ac03d8ac827
+last_validated_revision: "a5eb76ebb49121475467623866ee70f71cb80803"
 suspended_parent: U04 preserved in evidence/campaign-20260908/u04/suspended-u04.yaml; no parent implementation started.
 selection_reason: Legacy regex error paths require real UVM reporting; standalone umbrella currently replaces the exported callback with a no-op, proved independently.
 reproducer: ../evidence/campaign-20260908/u04/report_bridge.sv with report-baseline-compile.log and report-baseline-runtime.log; reports remains0 instead of1.
@@ -29,14 +29,15 @@ required_gates:
   - makecheck, required integrated legacy/VPI/negative/runtime, JSON, real-DPI UVM, NFA and independent review before closure.
 completion: Close standalone report dispatch only after all gates; then resume U04 legacy ABI scope.
 stop_after_completion: false
-next_action: "Await U05 JSON30199 and UVM71712. Integrated68370 terminal0: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. Other required gates passed. No closure before both remaining gates pass."
-next_command: "tail -5 ../evidence/campaign-20260908/u05/full-json.log ../evidence/campaign-20260908/u05/uvm.log"
+next_action: "Resume preserved U04 legacy regex ABI contract on the validated reporting baseline."
+next_command: "cat ../evidence/campaign-20260908/u04/suspended-u04.yaml"
 baseline_evidence: Four paired baseline tests compile0 and fail runtime1; report_bridge checks six arguments/count, report_server checks real UVM severity and ID counters.
 source_authority: IEEE2017 and2023 H.9.2/H.9.3 context/export text verified; Table H.1 int/string C mappings agree. Generated smoke.dpiexport.c and vthread.cc union/dispatcher are authoritative existing internal ABI.
 focused_validation: Frontend74657 terminal0; all S1-S10 passed including four paired reporting tests. Install root restored and candidate installed. Independent review clear.
 
-u05_live_gates: [JSON30199, UVM71712]
+u05_live_gates: []
 u05_unstarted_gates: []
 u05_candidate_revision: a5eb76ebb
 
 u05_nfa: Terminal71460 exit0;58passed0failed.
+closure: Paired4baseline failures and4candidate passes; relocated frontendS1-S10 pass,review clear,makecheck pass,NFA58/58,integrated4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Frozen tool fingerprints unchanged.
