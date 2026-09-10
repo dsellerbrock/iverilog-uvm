@@ -1,12 +1,12 @@
 id: L03
 title: Preserve automatic activation identity in Boolean event expressions
 status: in_progress
-phase: design_after_prerequisite
-base_revision: 755b48a09920bced3832409b1548c8437c884976833c052cc3b5b80e7e03aacbc2c05aa
+phase: awaiting_validation
+base_revision: 755b48a09920bced3832409b1548c8437c884976
 standards:
   - IEEE1800-2017 and IEEE1800-2023 6.21 and9.4.2; verify exact expression event and automatic lifetime rules before implementation.
 expected_behavior: Concurrent automatic task invocations observe transitions of their own Boolean event expression, not another invocation's operand.
-observed_behavior: Retained DD-003 reducer posedge(value[2] | 1'b0) fires both invocations at time2 instead of times2,3; reverify on current validated source.
+observed_behavior: Retained DD-003 reducer posedge(value[2] | 1'b0) fires both invocations at time2 instead of times2,3; freshly reproduced on validated L04 in both editions; mixed parent/local OR also wakes2,2 instead2,3.
 reproducer: ../evidence/campaign-20260908/u01-loop/history-expression-preexisting.sv
 selection_reason: Shared automatic Boolean driver state can corrupt ordinary concurrent DV event waits; concrete pre-existing reducer and prior L02 mechanism give a justified next blocker beyond SVA composition.
 allowed_scope:
@@ -27,10 +27,16 @@ required_gates:
 completion: Qualify only the exact repaired automatic Boolean event-expression scope; broader event operators and application/formal status remain separate.
 discovery_policy: Unrelated findings record-only; proven prerequisites require a deliberate boundary with preserved reducer and work.
 stop_after_completion: false
-last_validated_revision: 755b48a09920bced3832409b1548c8437c884976833c052cc3b5b80e7e03aacbc2c05aa
-next_action: Reproduce DD-003 on current tools; graph-guided trace of Boolean expression propagation and existing automatic functors.
+last_validated_revision: 755b48a09920bced3832409b1548c8437c884976
+next_action: Await frozen candidate integrated80505, NFA79303 and real-DPIUVM93480; run fullJSON only after integrated completes.
 
 causal_trace: Boolean operands and scheduled output are shared and source context is discarded. Mixed-scope expressions cannot publish a parent result to children with different local operands. Existing allocation/reset hooks run before stack linkage and do not publish unchanged defaults.
 prerequisite: L04 validated in 755b48a09920bced3832409b1548c8437c884976 establishes post-link initialize_instance and integral default publication. Resume L03 with preserved original reducer.
 
-next_design: Reuse frame-owned ancestor input history and post-link initialization to seed each child Boolean result; never broadcast a parent result over children with distinct local operands.
+approved_design: Reuse frame-owned ancestor input history and post-link initialization to seed each child Boolean result; never broadcast a parent result over children with distinct local operands.
+
+implementation_model: Frame-owned operands/dirty state, shared existing ancestor history, context-specific synchronous post-link initialization only, normal queued Active evaluation and unchanged static truth functions.
+
+focused_validation: L03focus12/12legacy+JSON,L02neighbors93/93+50/50,L04neighbors4/4+4/4,directPART_PV history/reuse,makecheck and final independent review pass.
+current_toolchain: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
+residual_scope: BUF,NOT,mux and other expression families are unchanged and not qualified by L03.

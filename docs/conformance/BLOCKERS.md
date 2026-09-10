@@ -433,7 +433,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **State:** IN_PROGRESS — resumed after validated L04 initialization prerequisite; original reducer preserved.
 - **Evidence:** u01-loop/history-expression-preexisting.sv; two automatic
   invocations of posedge(value[2] | 1'b0) both trigger at2 instead of2,3.
-  Previously reproduced before L02; fresh current check pending.
+  Freshly reproduced after validated L04 in both editions; mixed parent/local
+  OR also wakes2,2 instead2,3 (evidence/l03/after-l04-* and mixed-*).
 - **Scope:** Shared Boolean driver activation state/context and directly
   necessary selection, preserving existing runtime lifetime mechanisms.
 - **Closure:** Paired reducer and lifetime/static controls, all required
