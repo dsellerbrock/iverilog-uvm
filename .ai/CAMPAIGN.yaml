@@ -11,13 +11,13 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
-next_action: "Complete L08 integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA; replay original UVM2020.1.0 after validated baseline."
-next_command: "tail -5 ../evidence/campaign-20260908/l08/integrated.log"
+next_action: "Await full JSON31236 and real-DPI UVM7325; integrated9062 passed4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. NFA58/58, focused10/10 each,neighbors17/15,makecheck and finalreview pass. Do not close L08 until remaining gates pass."
+next_command: "tail -5 ../evidence/campaign-20260908/l08/full-json.log ../evidence/campaign-20260908/l08/uvm.log"
 next_command_cwd: repository root
 candidate_state: "L08 candidate resolves scoped type actuals and specialization keys; permanent10 paired regressions pass, neighbors17legacy15JSON pass, make check pass. Independent review clone finding fixed; final review pending."
-installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c; P04 candidate runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522; validated baseline copied to evidence/p04/vvp-baseline.
-validation_state: L07 all local gates pass;4837legacy total,1729JSON,355real-DPIUVM,58NFA,105VPI,149negative,15runtime controls; required remote CI remains pending.
-next_validation: "Required L08 integrated gates; no closure or dependent fix before validation."
+installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
+validation_state: "L08 partial gates pass; full JSON31236 and UVM7325 pending. Last fully validated semantic revision remains53b58890c63a48aa1943c7ef065db59f19cebef3."
+next_validation: "Wait for live full JSON31236 and UVM7325; original UVM2020.1.0/1.1 compile0 but runtime failures recorded separately. No dependent fixes yet."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -216,8 +216,8 @@ p04_json_terminal: 9510 exited0;1735tests0failures. UVM5922 confirmed live; no r
 p04_closure: 53b58890c63a48aa1943c7ef065db59f19cebef3; all local gates and review passed,including real-DPIUVM355/0/0. Direct live-parent descendant traversal only; terminal-parent kill DD014 remains open.
 u01_post_p04: Fresh run plus2repeats all115requests/230items,4guardwarnings,0errors/fatals,TEST FAILED CHECKS;360sourcefiles identical. Preserve OPEN compatibility/teardown scope; selected independent L08 from DD011.
 
-l08_live_gates: [integrated9062, NFA81089, UVM7325]
-l08_unstarted_gates: [full_JSON_after_integrated]
+l08_live_gates: [JSON31236, UVM7325]
+l08_unstarted_gates: []
 l08_final_review: Clear after SVA clone provenance fix; required gates pending.
 
 l08_candidate_revision: 47e6c87b3

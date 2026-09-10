@@ -30,8 +30,8 @@ completion: Close only the exact validated causal subcase; release-wide and appl
 last_validated_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 discovery_policy: Unrelated findings record-only.
 stop_after_completion: false
-next_action: "Run required integrated gates on the L08 candidate; focused10/10 legacy and JSON, neighbors17/15 and make check passed. Do not close before all gates and review."
-next_command: "tail -5 ../evidence/campaign-20260908/l08/integrated.log"
+next_action: "Await full JSON31236 and real-DPI UVM7325; integrated9062 passed4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15. NFA58/58, focused10/10 each,neighbors17/15,makecheck and finalreview pass. Do not close L08 until remaining gates pass."
+next_command: "tail -5 ../evidence/campaign-20260908/l08/full-json.log ../evidence/campaign-20260908/l08/uvm.log"
 root_cause: "Parser deliberately resolves ambiguous TYPE::member as PEIdent; NetScope::evaluate_type_parameter_ only resolves single unqualified PEIdent names. has_scoped_type_prefix distinguishes :: from dotted value paths. Existing scoped class resolvers preserve specialization/typedef provenance, but ordinary find_typedef may escape to enclosing scopes and needs an owner boundary for selected members."
 review_note: Read-only design review recommends elaboration-time type-only resolution, no grammar precedence change and no value-type inference. Include explicit value/property/hierarchy negatives and specialization/shadowing controls.
 evidence:
@@ -43,6 +43,6 @@ implementation_plan: Add a type-only PEIdent resolver guarded by parsed class-sc
 
 scope_refinement: Scoped type actuals must enter specialization keys by resolved type identity; otherwise qualifier arguments are lost in PEIdent textual fallback and9/17bit actuals collide. This is required by the active positive specialization control, not unrelated work.
 
-l08_live_gates: [integrated9062, NFA81089, UVM7325]
-l08_unstarted_gates: [full_JSON_after_integrated]
+l08_live_gates: [JSON31236, UVM7325]
+l08_unstarted_gates: []
 l08_final_review: Clear after SVA clone provenance fix; required gates pending.
