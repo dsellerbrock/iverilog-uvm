@@ -1941,3 +1941,8 @@ The member-index frontier is removed from original1.1a/1.1d/1.2. No parent relea
 Original1.2 visit.compiled_regex and reduced class static-local read/write fail4errors in both editions on validateda85a256b1. BothLRM6.21 explicitly permits static locals inside automatic scopes except unnamed blocks. symbol_search checked scope lifetime before declaration lookup. Candidate checks NetNet/PWire/NetEvent override and defers intermediate named scopes to terminal lookup; actual automatic locals remain errors, including explicitauto in static scopes.
 
 Permanent tests exercise pre-call initialization, two-object shared static state, read/write, nested shadowing, chandle assignment, static-event trigger/wait and negative automatic/event/nested/unnamed access. JSON12/0,legacy12/0,neighbors18/0. Initial wrapper paths/gold-prefix mismatch fixed in harness metadata; compiler unchanged. Required broad gates pending.
+
+### L14 closure and next publication milestone
+
+69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical.
+PR274 externally merged; U07,L13,L12,L14 now form four validated increments for one next main-target PR. Original1.2 runtime timeout DD028 remains the next investigation priority.

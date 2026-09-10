@@ -1,9 +1,9 @@
 id: "L14"
 title: "Hierarchical references to static locals in automatic scopes"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "closed"
 base_revision: "a85a256b1"
-last_validated_revision: "a85a256b1"
+last_validated_revision: "69ff60cc6"
 selection_reason: "Original UVM1.2 now fails only four compiled_regex references in visit plus existing ignored-constraint warning; user prioritizes1.2 for OpenTitan."
 expected_behavior: "Both editions6.21 explicitly permit hierarchical access to static variables inside automatic tasks/functions, except unnamed blocks. Actual automatic variables remain inaccessible through hierarchical names."
 standards: "IEEE1800-2017 and2023 6.21,8.6; specific6.21 static-variable allowance governs despite general23.6 automatic-object wording. Primary local texts verified."
@@ -24,3 +24,5 @@ validation_checkpoint: "makecheckexit0; final scoped review clear. JSON after in
 l14_integrated_terminal: "21445 exit0;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON26820 started after terminal. UVM66826 and releases84865 live; frontend unstarted."
 
 l14_json_terminal: "26820 exit0;1797tests0failures. UVM66826 and releases84865 remain live; isolatedfrontend unstarted. No installs or compiler edits during gates."
+
+closure: "69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical."

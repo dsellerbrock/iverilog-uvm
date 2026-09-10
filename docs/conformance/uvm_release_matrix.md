@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `a85a256b1` (L12 string character reads through unpacked struct members).
-The release sweep and all required L12 local validation gates are complete.
+2026-09-10, native ARM64, validated source `69ff60cc6` (L14 static local hierarchical references).
+The release sweep and all required L14 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -85,7 +85,7 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1d | RUNTIME_FAIL | Missing `uvm_dpi_regcomp`; four UVM errors and one fatal before smoke completion; codegen fallback warnings remain visible |
-| 1.2 | COMPILE_FAIL | Traversal references to static local `visit.compiled_regex`; ignored constraint also remains (DD021) |
+| 1.2 | RUNTIME_TIMEOUT | Compilation succeeds; runtime produces no output before300-second limit. Constraint and codegen fallback warnings remain visible |
 | 2017.0.9 | RUNTIME_TIMEOUT | Compiles; runtime times out after 300 seconds without output (DD022) |
 | 2017.1.0 | SMOKE_PASS | All smoke checks passed through time1 after U07; zero UVM warnings/errors/fatals |
 | 2017.1.1 | SMOKE_PASS | All smoke checks passed through time1 after U07; zero UVM warnings/errors/fatals |
@@ -96,14 +96,14 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 8 passed compile plus runtime smoke, 5 failed
-compilation, 1 failed runtime checking and 1 timed out at runtime. These are observed compatibility gaps, not waived
+All 15 sources were acquired; 8 passed compile plus runtime smoke, 4 failed
+compilation, 1 failed runtime checking and 2 timed out at runtime. These are observed compatibility gaps, not waived
 requirements or standards-conformance verdicts. U07 classifies unparenthesized member delays as compatibility syntax under
 `-gicarus-misc`; strict IEEE mode still requires parentheses. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-qb7873zh/results.json`, with per-release
+`third_party/uvm-releases/results-f9qr050b/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -116,7 +116,7 @@ continues through later releases after an earlier failure.
 All release sources remain unmodified. L08, U05, U04 and U06 record the scoped
 compiler, DPI and runtime compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `59e3095b292b475a4157672a020f9a4f9419127d3f11738daa9ef79377b783c1`
+- `ivl` SHA-256: `d137346bfc704a4947503e35e2783b92e9004a52f5e3f92951cd2d0fe9213e4c`
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 
@@ -140,3 +140,5 @@ qualification remains separate.
 L13 was reopened when narrow two-state typed-parameter indices were misinterpreted as negative. Corrected source849a779ea passes all required local gates; all15 source fingerprints, statuses and normalized compiler diagnostics match the prior sweep.
 
 L12 removes the original1.1a/1.1d/1.2 printer member-index diagnostics. Other12 normalized compiler logs and all15 source fingerprints match the prior sweep. Compilation now reaches previously blocked1.1d codegen and runtime; its failed checking is not a smoke pass.
+
+L14 removes original1.2 static-local reference errors. It now compiles but times out after300seconds with an empty runtime log; no UVM1.2 smoke or OpenTitan1.2 pass is claimed. Other14 normalized compiler logs and all15 source fingerprints match L12.
