@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_struct_string_index_real_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_struct_string_index_real_fail"
+    ],
+    "gold": "sv_struct_string_index_real_fail"
+}

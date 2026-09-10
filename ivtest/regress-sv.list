@@ -2887,3 +2887,9 @@ sv_string_byte_unsigned_context normal,-g2017,-s,sv_string_byte_unsigned_context
 sv_string_byte_unsigned_context_2023 normal,-g2023,-s,sv_string_byte_unsigned_context ivltests gold=sv_string_byte_unsigned_context.gold
 sv_string_parameter_byte normal,-g2017,-s,sv_string_parameter_byte ivltests gold=sv_string_parameter_byte.gold
 sv_string_parameter_byte_2023 normal,-g2023,-s,sv_string_parameter_byte ivltests gold=sv_string_parameter_byte.gold
+sv_struct_string_index normal,-g2017,-s,sv_struct_string_index ivltests gold=sv_struct_string_index.gold
+sv_struct_string_index_2023 normal,-g2023,-s,sv_struct_string_index ivltests gold=sv_struct_string_index.gold
+sv_struct_string_index_bounds normal,-g2017,-s,sv_struct_string_index_bounds ivltests gold=sv_struct_string_index_bounds.gold
+sv_struct_string_index_bounds_2023 normal,-g2023,-s,sv_struct_string_index_bounds ivltests gold=sv_struct_string_index_bounds.gold
+sv_struct_string_index_real_fail CE,-g2017,-s,sv_struct_string_index_real_fail ivltests gold=sv_struct_string_index_real_fail.gold
+sv_struct_string_index_real_fail_2023 CE,-g2023,-s,sv_struct_string_index_real_fail ivltests gold=sv_struct_string_index_real_fail.gold

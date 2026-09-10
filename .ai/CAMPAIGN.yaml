@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-function-arguments-main-20260910"
-current_blocker: "L13"
-phase: "awaiting_validation"
+current_blocker: "L12"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "849a779ea"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["real-DPI UVM12635", "isolated frontend and restoration", "PR274 remaining CI", "application1.2 qualification"]
+pending_gates: "L12 focused and integrated validation; PR274 remaining CI; UVM1.2 application qualification"
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "Await real-DPI UVM12635; then run isolated frontend and verify root restoration and width-sha256.txt before L13 closure. Resume L12 from evidence/l12/resume2 afterward."
-next_command: "tail -n 15 ../evidence/campaign-20260908/l13/width-uvm.log"
+next_action: "Resume L12 member string reads on validated849a779ea; focused regressions then required integrated gates."
+next_command: "git diff -- elab_expr.cc ivtest/ivltests/sv_struct_string_index_bounds.v"
 next_command_cwd: repository root
 candidate_state: "849a779ea built and installed; focusedJSON6/0,legacy6/0,neighbors42/0,reviewclear. L12 suspended in evidence/l12/resume2."
 installed_tools: "Frozen evidence/l13/width-sha256.txt; do not rebuild/install during gates."

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_struct_string_index_bounds.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_struct_string_index_bounds"
+    ],
+    "gold": "sv_struct_string_index_bounds"
+}

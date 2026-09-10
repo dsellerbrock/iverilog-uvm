@@ -760,7 +760,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L12 — String character reads through unpacked struct members
 
-- **State:** SUSPENDED again pending reopened L13; latest patch/tests/contract preserved in evidence/l12/resume2.
+- **State:** OPEN, resumed on fully validated849a779ea; fresh both-edition member reducer still fails.
 - **Evidence:** DD021 original UVM1.2 printer row.val[0] receives explicit unsupported struct-member index diagnostic.
 - **Scope:** Correct bounded rvalue string indexing, preserving byte type, bounds and index evaluation. Static-local references and constraints remain separate blockers.
 

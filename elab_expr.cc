@@ -11742,6 +11742,33 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		    // callers propagated as x / a blank $display argument / a
 		    // zero compound-assign operand.
 		  if (!member_comp.index.empty()) {
+			if (cur_type->base_type() == IVL_VT_STRING
+			    && member_comp.index.size() == 1
+			    && member_comp.index.front().sel == index_component_t::SEL_BIT) {
+			      NetExpr*idx = elab_and_eval(des, scope,
+				    member_comp.index.front().msb, -1, false);
+			      if (!idx) {
+				    delete base_expr;
+				    return nullptr;
+			      }
+			      if (!type_is_vectorable(idx->expr_type())) {
+				    cerr << li->get_fileline() << ": error: String character"
+					 << " index must be an integral expression." << endl;
+				    des->errors += 1;
+				    delete idx;
+				    delete base_expr;
+				    return nullptr;
+			      }
+			      // IEEE 1800 6.16: select a character from the
+			      // member value using the ordinary string read path.
+			      idx = cast_to_width(idx, 32, idx->has_sign(), *li);
+			      idx = new NetECast('2', idx, 32, true);
+			      idx->set_line(*li);
+			      cur_type = &netvector_t::atom2s8;
+			      base_expr = new NetESelect(base_expr, idx, 8, cur_type);
+			      base_expr->set_line(*li);
+			      continue;
+			}
 			const netvector_t*mvec =
 			      dynamic_cast<const netvector_t*>(cur_type);
 			if (!mvec) {
