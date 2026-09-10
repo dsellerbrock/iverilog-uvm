@@ -1,7 +1,7 @@
 id: V07
 title: Exclude never-instantiated covergroup types from cumulative coverage
-status: in_progress
-phase: regression_testing
+status: locally_validated
+phase: done
 base_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 last_validated_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 standards:
@@ -29,4 +29,5 @@ required_gates:
 completion: Close never-instantiated-type eligibility only after all required local gates and review; parentV01 and broader qualification remain open.
 stop_after_completion: false
 discovery_policy: Unrelated discoveries record-only; preserve parent work before any deliberate prerequisite switch.
-next_action: Await UVM53589, the final required local gate. FullJSON1705/0 and all other local gates/review passed; preserve frozen tools.
+next_action: Checkpoint exact V07 scope, then coordinator selection; no parent coverage completion claim.
+validation: Focus6/6 each harness,V04 2/2,V05 13/13,V06 22/22,coverage75/65,integrated4813total4808pass0fail2NI3EF,VPI105,negative149,runtime,JSON1705/0,NFA58/58,UVM355/0/0 realDPI actual-g2012,makecheck,independent review pass.

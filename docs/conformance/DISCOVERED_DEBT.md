@@ -168,3 +168,8 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Triage status:** record-only during V06. V06 function-scope test instantiates
   all intended groups before checking their weighted aggregate; its bin/type
   weight assertions remain explicit and independently checked.
+
+- **DD-010 resolution:** V07 locally validates the shared population guard with
+  paired lifecycle controls and full required local gates. Never-instantiated
+  types are excluded; zero-weight retired merged instances remain represented.
+  Remote CI and broader coverage qualification remain separate.

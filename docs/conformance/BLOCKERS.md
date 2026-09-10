@@ -556,7 +556,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V07 — Never-instantiated covergroup types lower cumulative coverage
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.9,19.11,19.11.3.
-- **State:** REPRODUCED — paired editions on validated421b50abd; selected DD010.
+- **State:** LOCALLY VALIDATED — never-instantiated type eligibility only; remote CI before merge.
 - **Evidence:** v07/uninstantiated-type.sv reports0 before any instance and50
   after constructing one fully covered type; expected100 in both situations.
 - **Root:** Compilation registers types whose static metadata merge1 scores
@@ -566,3 +566,10 @@ qualification remain open. Evidence: campaign-20260908/s03.
   populations and independent type/instance weights; no new metadata or registry.
 - **Closure:** Paired lifecycle controls, full required local gates and review.
   Broader parentV01 and other coverage obligations remain open.
+
+- **V07 validation:** Six permanent lifecycle entries pass both harnesses,
+  with paired baseline failures and zero-weight/retirement controls. V04/V05/V06
+  and coverage neighbors pass; integrated4813total4808pass0fail2NI3EF,VPI105,
+  negative149,runtime,JSON1705/0,NFA58/58,UVM355/0/0 realDPI actual-g2012,
+  makecheck and independent review pass. Existing live/retired state suffices;
+  no metadata, ABI or scheduler changes. Broader qualification remains open.

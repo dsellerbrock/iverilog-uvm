@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V07
-phase: regression_testing
+phase: coordination
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V07_UVM_53589, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: V07 never-instantiated type eligibility (DD010); V06 validated421b50abd.
-next_action: Await real-DPI UVM53589; fullJSON48473 passed1705/0. Close V07 only after final required gate passes.
-next_command: "tail -20 ../evidence/campaign-20260908/v07/uvm.log"
+next_action: Checkpoint V07, then assess U01 application teardown on the current validated baseline.
+next_command: "cat ../evidence/campaign-20260908/u01-after-l03/replay.sh"
 next_command_cwd: repository root
-candidate_state: V07 shared guard implemented; six permanent paired entries pass both focused harnesses; independent review clear. All full gates remain required.
+candidate_state: V07 all required local gates and independent review passed; source ready for semantic checkpoint.
 installed_tools: Frozen compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a and V07 runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337. Saved validated V06 runtime in evidence/v07/baseline-vvp.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: UVM53589 is the sole remaining local gate. FullJSON1705/0, integrated4813total4808pass0fail2NI3EF,VPI105,negative149,runtime,NFA58/58,focused/neighbor gates,makecheck and review passed.
+next_validation: Next blocker requires an exact contract and current evidence. V07 completed with UVM355/0/0 realDPI actual-g2012.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-validated_increments_since_publication: 0
+validated_increments_since_publication: 1
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 

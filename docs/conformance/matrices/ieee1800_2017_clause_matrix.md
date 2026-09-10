@@ -1011,5 +1011,17 @@ Typed formal aliases prevent outer-name capture while permitting constant
 type queries and lexical outer constant functions. New tagged item metadata
 preserves older VVP record interpretation and validates indices/weight bounds.
 All required local gates and independent review pass. Procedural static option
-assignment, other type options and DD010 uninstantiated-type eligibility remain
-unqualified; this does not close parentV01. Remote CI required before merge.
+assignment and other type options remain unqualified; DD010 is addressed in
+V07 below. This does not close parentV01. Remote CI required before merge.
+
+
+V07: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.11,19.11.3. Never-instantiated covergroup types do not enter
+cumulative coverage. The existing live registry and retired-options marker
+preserve constructed populations independently of instance weights. Paired
+no-instance, partial weighted scores, construction, static/dynamic cross and
+transition sources, empty populations and retirement controls pass. All
+required local gates and independent review pass. UVM evidence is actual-g2012
+with real DPI; it does not qualify either language edition or IEEE1800.2.
+ParentV01, remaining type options and broader application/formal obligations
+remain open. Required remote CI precedes any separately authorized merge.
