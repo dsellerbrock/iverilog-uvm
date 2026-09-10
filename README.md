@@ -223,7 +223,7 @@ python3 scripts/uvm_release_matrix.py --prefix "$PWD/install" --release 2020.3.1
 ```
 
 Availability in `--uvm-list` does not imply compatibility: the recorded matrix
-has eight smoke passes, six compile gaps and one runtime timeout. See the
+has eight smoke passes, five compile gaps, one runtime failure and one runtime timeout. See the
 [release matrix](docs/conformance/uvm_release_matrix.md) for exact versions,
 checks and limitations. For an existing external source tree, use
 `iverilog -g2017 --uvm-home=/path/to/uvm -o sim.vvp my_testbench.sv`;

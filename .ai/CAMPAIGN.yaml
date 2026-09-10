@@ -4,7 +4,7 @@ current_blocker: "L12"
 phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "849a779ea"
+last_integrated_good_revision: "a85a256b1"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: "L12 integrated46193,UVM61496,NFA78999,releases64954,JSON,isolatedfrontend; PR274CI; application1.2 qualification"
@@ -344,7 +344,7 @@ l13_width_json_release_terminal: "JSON16047 exit0,1779/0. Release59096 exit1 for
 
 l13_corrected_closure: "849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics."
 
-l12_live_gates: {uvm: 61496}
+l12_live_gates: {}
 l12_makecheck: "exit0 on a85a256b1; remaining required gates pending."
 
 l12_nfa_terminal: "78999 exit0;58/58. Release sweep results-qb7873zh still live; original1.1d now compiles but smokeRUNTIME_FAIL, original1.2 remaining4compiled_regex reference errors. DD027/DD021 record-only while L12 gates run."
@@ -352,3 +352,5 @@ l12_nfa_terminal: "78999 exit0;58/58. Release sweep results-qb7873zh still live;
 l12_integrated_terminal: "46193 exit0;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON68078 started after terminal. UVM61496 and release64954 verified live. NFA78999 exit0,58/58; makecheckexit0; frontend unstarted."
 
 l12_json_release_terminal: "JSON68078 exit0,1785/0. Releases64954 exit1 for known qualification gaps; results-qb7873zh complete/baseline_valid,8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. All15 sources unchanged; three original1.x printer-index diagnostics removed; other12 normalized compiler logs identical. Original1.1d now reaches codegen null-fallback warnings and runtime missing uvm_dpi_regcomp with4UVM_ERROR/1FATAL. Record-only DD027. Frozen tools unchanged; UVM61496 still running and frontend unstarted."
+
+l12_closure: "a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT."

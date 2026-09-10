@@ -1,9 +1,9 @@
 id: "L12"
 title: "Read indexed string members of unpacked structs"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "closed"
 base_revision: "849a779ea"
-last_validated_revision: "849a779ea"
+last_validated_revision: "a85a256b1"
 selection_reason: "DD021 blocks original UVM1.1 and1.2 printer row.val[0]; user prioritizes pinned1.2 for OpenTitan."
 reproducer: "Minimal unpacked struct containing string, read s.val[0] and variable indices; compare ordinary string control."
 expected_behavior: "String character selection on an unpacked struct member behaves like ordinary string indexing with correct byte type, value, bounds and index evaluation. Verify both editions before implementation."
@@ -35,3 +35,5 @@ validation_checkpoint: "makecheckexit0; frozen evidence/l12/resume2/sha256.txt. 
 l12_integrated_terminal: "46193 exit0;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON68078 started after terminal. UVM61496 and release64954 verified live. NFA78999 exit0,58/58; makecheckexit0; frontend unstarted."
 
 l12_json_release_terminal: "JSON68078 exit0,1785/0. Releases64954 exit1 for known qualification gaps; results-qb7873zh complete/baseline_valid,8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. All15 sources unchanged; three original1.x printer-index diagnostics removed; other12 normalized compiler logs identical. Original1.1d now reaches codegen null-fallback warnings and runtime missing uvm_dpi_regcomp with4UVM_ERROR/1FATAL. Record-only DD027. Frozen tools unchanged; UVM61496 still running and frontend unstarted."
+
+closure: "a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT."

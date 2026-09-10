@@ -760,7 +760,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L12 — String character reads through unpacked struct members
 
-- **State:** OPEN, resumed on fully validated849a779ea; fresh both-edition member reducer still fails.
+- **State:** CLOSED at a85a256b1 after all required gates.
 - **Evidence:** DD021 original UVM1.2 printer row.val[0] receives explicit unsupported struct-member index diagnostic.
 - **Scope:** Correct bounded rvalue string indexing, preserving byte type, bounds and index evaluation. Static-local references and constraints remain separate blockers.
 
@@ -773,3 +773,5 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **L13 validation:** legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged. Fullrelease results-6pvdp6vh retain8smokepasses,6compilegaps,1timeout; normalized diagnostics and source hashes match U07. General class-property dispatch and constant-function string evaluation remain open.
 
 - **L13 corrected validation:** 849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics.
+
+- **L12 validation:** a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. Full UVM release and application qualification remain open.

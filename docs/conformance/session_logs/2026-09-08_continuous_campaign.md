@@ -1930,3 +1930,8 @@ Resume L12 from evidence/l12/resume2; no dependent implementation ran before thi
 ### L12 resumed candidate
 
 On fully validated L13 source849a779ea, both-edition struct-string permanent reducer still fails compilation. Resumed the preserved single-character member read through existing string select lowering, with signed byte result and separately sized/signed/two-state index conversion. Narrow/wide variable, negative/empty/bounds, partialX/Z, high-bit widening, nested/array/automatic-argument and index side-effect controls pass. FocusedJSON6/0,legacy6/0,neighborJSON71/0; independent review clear. Required integrated gates and original UVM release replay remain pending.
+
+### L12 closure
+
+a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT.
+The member-index frontier is removed from original1.1a/1.1d/1.2. No parent release or application qualification claimed. Next priority is original1.2 static-local traversal references (DD021), before OpenTitan1.2 replay.
