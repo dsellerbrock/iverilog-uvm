@@ -249,3 +249,9 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Reproducer status:** diagnostic observation only; not minimized.
 - **Triage status:** untriaged, record-only. U01 observer now uses a bounded
   explicit time after the known smoke completion and verifies log ordering.
+
+### DD-016 — Regex edge cases during legacy ABI comparison
+
+- **Discovered during:** U04 read-only legacy/modern regex comparison, before U05 prerequisite selection.
+- **Evidence:** Modern uvm-core/src/dpi/uvm_regex.cc uvm_re_comp strips slash brackets without the legacy len>1 guard; the single-slash input appears to underflow re_len-2. Source-only, not yet reduced; do not claim a runtime defect without evidence. Legacy2020.1 glob_to_re bracketed-input branch also falls through into the tail rather than preserving input, unlike modern conversion.
+- **Disposition:** Record-only; original vendor code unchanged. U04 must define explicit regex/empty/slash/bracket/error expectations before any ABI delegation; upstream behavior is not automatically normative.
