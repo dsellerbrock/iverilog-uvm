@@ -7,16 +7,16 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L05_real_DPI_UVM42794, L05_fullJSON84561, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [L05_real_DPI_UVM42794, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: L05 from DD-002: selected associative class-member foreach key type.
-next_action: Await UVM42794 and fullJSON84561; publish remaining cohesive validated batches.
-next_command: "tail -20 ../evidence/campaign-20260908/l05/full-json.log"
+next_action: Await UVM42794; publish remaining cohesive validated batches.
+next_command: "tail -20 ../evidence/campaign-20260908/l05/uvm.log"
 next_command_cwd: repository root
 candidate_state: L05 reviewed candidate source/tests frozen; last validated implementation4bcbd9c7b.
 installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
-validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; NFA58/58 and integrated4765/4770 with zero unexpected failures pass; UVM/fullJSON running.
+validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; NFA58/58 and integrated4765/4770 with zero unexpected failures pass; fullJSON1662/0 pass; UVM running.
 next_validation: FullJSON after integrated; no dependent fixes before required local validation completes.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
@@ -31,9 +31,26 @@ published_batches:
     base: main
     state: draft
     outstanding: Required remote CI and review before any separately authorized merge.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/264
+    scope: Z01A bounded joint stages and C01 silent inline-constraint omission.
+    branch: agent/campaign-constraints-20260910
+    semantic_revision: c57fbe3c5
+    publication_revision: 0bac0a8511ac8d11a414786420008ea490968358
+    base: agent/campaign-fork-processes-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/263
+    state: draft
+    outstanding: Required remote CI/review; retarget and revalidate after prerequisite lands; no merge authorization.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/265
+    scope: L01 selected foreach and L02 automatic activation history.
+    branch: agent/campaign-foreach-activation-20260910
+    semantic_revision: 9218751e2
+    qualification_documentation_revision: 20b7aee6d
+    publication_revision: 4175060234aaed865e7713d8d1e474bf05f3301d
+    base: agent/campaign-constraints-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/264
+    state: draft
+    outstanding: Required remote CI/review; retarget and revalidate after prerequisites land; no merge authorization.
 publication_queue:
-  - Z01A/C01 bounded solver stages and untranslated inline-constraint rejection through c57fbe3c5.
-  - L01/L02 selected foreach and automatic activation history through 9218751e2.
   - V01A/V02/V03 bounded coverage semantics through 2be79b2c0.
   - S03/S04 assertion parent verdicts and vacuous actions through 2cdaec5bc.
   - S05/S06 symbolic repetition and instance-valued delays through 6f49fe1eb.

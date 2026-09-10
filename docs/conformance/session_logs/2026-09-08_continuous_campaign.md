@@ -1158,3 +1158,12 @@ L05 source/tests/tools remain frozen. Integrated66792 exited0: 4770 total,
 negative149/149 and runtime invariants pass. NFA93662 exited0 with58/58.
 FullJSON84561 started only after integrated completed; UVM42794 remains running.
 Last fully locally validated semantic revision remains4bcbd9c7b.
+
+
+Publication catch-up: draft PR264 publishes Z01A/C01, based on PR263;
+draft PR265 publishes L01/L02, based on PR264. Exact semantic/documentation
+and publication heads are recorded in CAMPAIGN.yaml. Publication trees differ
+from the validated historical trees only in inherited AGENTS.md PR policy;
+no L05 semantic work is included. Required remote CI/review remain pending.
+L05 fullJSON84561 terminated0:1662 tests,zero failures. UVM42794 remains
+running; source/tests/tools remain frozen and last validated head4bcbd9c7b.

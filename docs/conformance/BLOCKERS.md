@@ -472,10 +472,19 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L05 — Selected associative class-member foreach loses index type
 
 - **Area / edition:** Foreach/arrays / IEEE1800-2017 and1800-2023 12.7.3.
-- **State:** SELECTED — reproduce retained DD-002 on current validated tools.
+- **State:** AWAITING VALIDATION — paired reducer fixed; final real-DPI UVM gate pending.
 - **Evidence:** campaign-20260908/l01/typed.sv: values[string] member loop
   index becomes int and visits zero entries, also seen before L01.
 - **Scope:** Exact implicit-index type resolution and necessary selected-member
   elaboration, preserving prefix selection and existing iteration behavior.
 - **Closure:** Paired reducer, key/selection/lifetime controls, all required
   local gates and review; remote CI before merge.
+
+- **L05 mechanism:** Preserve selected target paths through parser declarations
+  and foreach index typing; reuse existing type-only lookup to reach the
+  terminal array key type without evaluating selectors.
+- **L05 validation so far:** Focus10/10 legacy+JSON, foreach neighbors53/34,
+  makecheck/review, NFA58/58, integrated4765/4770 with zero unexpected failures,
+  VPI105, negative149, runtime checks, fullJSON1662/0 pass. UVM42794 pending.
+- **L05 residuals:** Invalid same-name header selectors (DD-009), selected-array
+  non-member typing and broader container obligations are not qualified here.
