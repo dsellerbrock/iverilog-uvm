@@ -1,7 +1,7 @@
 id: V02
 title: Honor default instance-averaged type coverage
 status: in_progress
-phase: root_cause_trace
+phase: required_validation
 base_revision: 6eee0480c
 standards:
   - IEEE 1800-2017 and IEEE 1800-2023 19.11.3 and type-option table19-3.
@@ -11,7 +11,10 @@ reproducer: ../evidence/campaign-20260908/v02/average.sv
 causal_hypothesis: Type-option mode is not represented in runtime metadata, and the type query computes only the merged item-counter model.
 allowed_scope:
   - Trace covergroup option lowering/metadata in elaborate.cc, netclass.h, t-dll-api.cc, ivl_target.h and tgt-vvp/draw_class.c only as actually needed; identify exact existing path before edits.
+  - elab_expr.cc ordinary typed initializer wrapper and elab_lval.cc existing pseudo-member paths: read weight/get_inst_coverage, write weight, reject procedural get_inst_coverage writes (19.7).
+  - tgt-vvp/eval_object.c existing class-new option initialization marker, including empty groups.
   - vvp class_type, vthread and vvp_cobject coverage query/options/instance lifecycle; parse/compile metadata only if required by traced path.
+  - tests/vvp_runtime/covgrp_metadata_malformed.vvp and .stderr, existing tagged-metadata validation fixture.
   - Paired ivtest type-coverage option regressions and corrections to historical test expectations demonstrated inconsistent with the LRM.
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
@@ -20,9 +23,10 @@ allowed_scope:
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
 non_goals:
   - No arbitrary coverage redesign, unrelated goal/strobe/cross options, or application changes.
+  - get_inst_coverage mode selection is directly coupled and included; procedural static type-option assignment remains separately unqualified.
   - No claim that V01 parent or complete functional coverage is qualified.
 invariants:
-  - Preserve explicit merged mode, option.weight semantics, zero-weight handling, unsampled and retired instance accounting.
+  - Preserve explicit merged mode, option.weight semantics, zero-weight and zero-denominator eligibility, unsampled and retired instance accounting.
   - Reuse existing instance coverage computation and registration where possible.
   - A discovered prerequisite requires preserved reducer/work and separate coordination before implementation.
 required_gates:
@@ -33,3 +37,7 @@ required_gates:
 completion: Only exact supported default/explicit instance averaging scope with reviewed evidence; no closure while required gates remain pending.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
+
+current_failure: Original four-state initializer reducer and focused65/55 tests now pass; required integrated/full JSON/UVM validation and final review remain pending.
+current_reproducer: ../evidence/campaign-20260908/v02/four-state-option.sv
+last_validated_revision: 6eee0480c

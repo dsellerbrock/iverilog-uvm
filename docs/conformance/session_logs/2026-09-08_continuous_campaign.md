@@ -595,3 +595,56 @@ emitter is tgt-vvp/draw_class.c (corrected tentative contract filename).
 Next inspect netclass.h520-570, draw_class.c550-600 and option-property lowering
 to narrow metadata/snapshot scope. No V02 implementation code changed. Latest
 validated6eee0480c; no live gates. Required V02 tests/gates still outstanding.
+
+V02 implementation underway: raw instance computation extracted without a
+parallel engine; additive .covgrp_options record carries declared merge mode,
+weight and get_inst option values/IR/property slots. Old VVP without record
+retains old query defaults. New compilation uses normative default merge0.
+Live registry plus raw-pointer retirement snapshots avoids object resurrection;
+zero-denominator eligibility accompanies raw score. Direct get_inst query mode
+is coupled: merge1/get_inst0 returns type coverage. IEEE19.7 disallows procedural
+get_inst writes; read path supported, writes reject; weight remains mutable.
+Design review caught this restriction and zero-denominator handling before
+qualification. First full build passed. Coherent rebuild/install then paired
+options reducer running in session2509. No required semantic gates passed yet;
+last validated revision6eee0480c. New test covers weights, retirement, empty bins
+and merged/public-instance dispatch. No application or unrelated-tree changes.
+
+V02 review repair checkpoint: paired averaging/empty/parent-option and illegal
+procedural get_inst write regressions added. Corrected bit width/truncation,
+parent-link initialization timing and ordinary-class coverage classification.
+Focused suite61 legacy/51 JSON, metadata bounds and make check completed
+successfully in session50570. No integrated/full JSON/real-DPI UVM gates run.
+
+A subsequent paired reducer four-state-option.sv fails: constructor logic2'bx1
+assigned to bit get_inst_coverage becomes0 instead of1; public instance query
+therefore returns100 rather than50. Integer IR atom evaluation rejects the
+whole word at X/Z and the initializer falls back to default0. Do not coerce
+operands before expression evaluation. Bounded independent design review
+recommends ordinary compiled typed assignments via a synthesized initializer
+wrapper, reusing NetEUFunc machinery and evaluating constructor actuals once.
+Embedded groups lack a class scope, so this needs deliberate wrapper integration;
+no replacement implementation yet. Keep V02 active and unvalidated, with
+6eee0480c the last locally validated semantic revision. Worktree audit unchanged;
+unrelated trees retained. No gate processes running after session50570 completed.
+
+V02 native initializer implemented using an automatic NetEUFunc wrapper and
+ordinary typed property assignments. Constructor actuals are evaluated once by
+existing NetENew initialization, then read from captured properties; enclosing
+object is an explicit wrapper argument. Paired original four-state reducer,
+compound X/Z with once-only actual, averaging, parent-options and empty-group
+controls all pass the first native build. Review found no actionable wrapper
+issue and requested lexical/method/concurrency controls; these are now permanent
+paired tests. Removed obsolete group IR metadata and mutable-parent evaluator
+relaxation; no new four-state evaluator. Final simplified metadata rebuild/install
+session2394 pending. Required focus now65 legacy/55 JSON; remaining integrated,
+full JSON, real-DPI UVM, metadata/check and final review still outstanding.
+
+V02 simplified native candidate rebuilt/installed successfully. Focus65 legacy/
+55 JSON, metadata bounds and make check all pass (16028/69600 terminal0).
+Installed compiler0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a
+and runtime7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
+Required integrated55247 and real-DPI UVM11766 now live; full JSON must wait for
+integrated to finish because ivtest shares logs. Final independent review
+requested. No source edits or dependent blocker work during these gates.
+Last fully validated semantic baseline remains6eee0480c; V02 stays open.

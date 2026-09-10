@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V02
-phase: root_cause_trace
+phase: required_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 6eee0480c
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V02_reducer_and_required_validation, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V02_integrated_55247, V02_full_JSON, V02_real_DPI_UVM_11766, V02_final_review, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
 next_selection: V02 default type coverage correctness; U01 preserved for later teardown qualification.
-next_action: Trace merge_instances metadata and existing instance coverage/lifetime accounting before the smallest semantically correct V02 patch.
-next_command: "sed -n '520,570p' netclass.h; sed -n '550,600p' tgt-vvp/draw_class.c; rg -n 'covgrp_item_option_prop|type_option.merge_instances' elaborate.cc"
+next_action: Await integrated55247 and real-DPI UVM11766; after integrated finishes run full JSON serially; resolve failures before closing V02.
+next_command: "tail -20 ../evidence/campaign-20260908/v02/native-integrated.log ../evidence/campaign-20260908/v02/native-uvm.log"
 next_command_cwd: repository root
-candidate_state: V02 paired reducer returns100 instead of50; no implementation changes yet. V01A checkpoint6eee0480c passed all local gates.
-installed_tools: Coherent compiler a90ef338a4fe and runtime 2de024fb402d match build outputs.
-validation_state: Focus53/43, make check, integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0 and real-DPI UVM355/0/0 passed.
-next_validation: Establish V02 exact lowering/instance query path and supported contract before implementation.
+candidate_state: Uncommitted V02 averaging and native typed initializer implementation; permanent paired scope/four-state/lifetime/option regressions pass. Required gates running.
+installed_tools: Compiler 0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a; runtime 7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
+validation_state: Native final focus65 legacy/55 JSON, metadata bounds and make check pass. Integrated session55247 and real-DPI UVM11766 live. Full JSON not yet launched; final independent review pending. Last fully validated revision6eee0480c.
+next_validation: After integrated55247 completes, run full JSON with the same installed tools; retain UVM11766 and final independent review gates.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
