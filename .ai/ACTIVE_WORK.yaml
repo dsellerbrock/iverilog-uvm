@@ -1,7 +1,7 @@
 id: V04
 title: Preserve wide merged coverage denominators through ratio calculation
-status: in_progress
-phase: awaiting_validation
+status: locally_validated
+phase: documented
 base_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
 standards:
   - IEEE1800-2017 and IEEE1800-2023 19.11.3; verify primary type coverage and bin identity wording.
@@ -39,3 +39,6 @@ focused_validation: Focus2/2legacy+JSON, coverage neighbors75/75legacy+65/65JSON
 full_gate_handles: real-DPIUVM36614 running; fullJSON96126 completed0 with1664/0; integrated7488 passed4767/4772 with0fail,VPI105,negative149,runtime checks; NFA98267 passed58/58.
 current_toolchain: Compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226 unchanged; runtime e094574ede7fce8d3cff9f035c2a827d50e4a30bb30d75cb9b3c86f69ed1b36a candidate. Saved validated runtime is evidence/v04/baseline-vvp.
 next_validation_action: Await UVM36614; source/tests/tools remain frozen. No dependent fix or ordinary new PR while gates pending.
+
+final_validation: UVM36614 terminated0 with355passed0failed0skipped and real DPI loaded. FullJSON1664/0, integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,NFA58/58 and focused/check/review gates all pass. Frozen compiler/runtime fingerprints unchanged.
+next_checkpoint_action: Commit V04 exact aggregate fix and preserve completed contract; return to selection. No PR until a subsequent substantial milestone unless explicitly requested.

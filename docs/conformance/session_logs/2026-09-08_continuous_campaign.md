@@ -1259,3 +1259,13 @@ and test tree matches validated59e5e07c7 exactly. Canonical main update/graph
 refresh proceeds independently of frozen V04 installed tools.
 V04 fullJSON96126 terminated0 with1664 tests,zero failures. UVM36614 is
 confirmed live and remains the final required local gate. No new PR.
+
+
+V04 final UVM36614 terminated0 with355passed0failed0skipped and real DPI loaded.
+All required local gates/review pass: focus2/2legacy+JSON,coverage neighbors75/65,
+integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
+JSON1664/0,NFA58/58,makecheck. Frozen compiler98664d54/runtimee094574e unchanged.
+Checkpoint exact merged aggregate arithmetic only; transition-family sizes and
+parentV01 remain separate. This is one validated increment since publication;
+no new PR under the user's slower cadence. Worktree audit unchanged; canonical
+main982185516/shared graph48779nodes92604edges updated, unrelated trees retained.

@@ -976,3 +976,14 @@ runtime selector binding is unchanged (12.7.1/12.7.3); invalid same-name header
 selectors are recorded separately as DD-009. Selected-array non-member typing
 and broader container obligations remain unqualified. All required local gates
 and independent review pass; remote CI/review and merging remain outstanding.
+
+
+V04: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.11.3. Merged type-coverage ratios retain supported dynamic
+family cardinalities and aggregate total/hit counts through128-bit arithmetic
+before floating conversion. Distinct named wide families no longer inflate
+coverage through64-bit saturation. Paired relative-error tests cover disjoint
+unsampled/retired universes, unequal families, thresholds, static/dynamic bins,
+weighted items and small/empty domains. All local gates and independent review
+pass. Individual transition-family cardinality, broader cross/bin-universe
+obligations and parentV01 remain separate; remote CI before merge.

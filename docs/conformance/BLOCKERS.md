@@ -492,7 +492,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V04 — Merged type coverage saturates wide bin totals before division
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.11.3.
-- **State:** AWAITING VALIDATION — paired2x ratio defect repaired; required full gates running.
+- **State:** LOCALLY VALIDATED — reviewed merged aggregate arithmetic; remote CI before merge.
 - **Evidence:** class_type::type_coverage narrows exact dynamic cardinality
   to UINT64_MAX and saturates per-item sums; instance coverage already uses
   unsaturated real aggregation. Multiple named wide families can exceed64 bits.
@@ -505,5 +505,5 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 - **V04 candidate:** Local128-bit merged total/hit accumulation; individual
   transition-family cardinality unchanged. Focus2/2+2/2, coverage neighbors75/65,
-  makecheck and independent review pass. Integrated7488,UVM36614,NFA98267 live;
-  fullJSON follows integrated. Last validated baseline59e5e07c7.
+  makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
+  fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.

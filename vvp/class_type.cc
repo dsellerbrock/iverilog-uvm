@@ -3602,8 +3602,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	// declaration weights rather than making this static result depend on
 	// which instance happened to invoke get_coverage().
       std::map<unsigned, std::set<unsigned>> item_props;
-	std::map<unsigned,uint64_t> item_trans_total;
-	std::map<unsigned,uint64_t> item_trans_hits;
+	std::map<unsigned,unsigned __int128> item_trans_total;
+	std::map<unsigned,unsigned __int128> item_trans_hits;
 	std::set<unsigned> seen_trans_families;
       for (size_t bi = 0 ; bi < covgrp_bins_.size() ; bi += 1) {
 	    const cov_bin_t&bin = covgrp_bins_[bi];
@@ -3614,12 +3614,9 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 			uint64_t total = covgrp_trans_family_size(bin.trans_family);
 			unsigned at_least = bin.item_idx < covgrp_items_.size()
 			      ? covgrp_cumulative_at_least_(bin.item_idx) : 1;
-			item_trans_total[bin.item_idx] = cov_sat_add_(
-			      item_trans_total[bin.item_idx], total);
-			item_trans_hits[bin.item_idx] = cov_sat_add_(
-			      item_trans_hits[bin.item_idx],
-			      at_least == 0 ? total
-				    : dyn_type_hits(bin.trans_family, at_least));
+			item_trans_total[bin.item_idx] += total;
+			item_trans_hits[bin.item_idx] += at_least == 0 ? total
+			      : dyn_type_hits(bin.trans_family, at_least);
 		  }
 		  continue;
 	    }
@@ -3634,8 +3631,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	// contribute neither a hit nor a denominator, so a covergroup whose
 	// only bins were runtime-valued reported 0.00 type coverage while
 	// reading 100.00 per instance.
-	std::map<unsigned,uint64_t> item_dyn_total;
-	std::map<unsigned,uint64_t> item_dyn_hits;
+	std::map<unsigned,unsigned __int128> item_dyn_total;
+	std::map<unsigned,unsigned __int128> item_dyn_hits;
 	std::set<unsigned> seen_dyn_families;
       for (size_t bi = 0 ; bi < covgrp_dyn_bins_.size() ; bi += 1) {
 	    const cov_dyn_bin_t&rec = covgrp_dyn_bins_[bi];
@@ -3643,19 +3640,15 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	    if (!seen_dyn_families.insert(rec.family).second) continue;
 	    unsigned at_least = rec.item_idx < covgrp_items_.size()
 		  ? covgrp_cumulative_at_least_(rec.item_idx) : 1;
-	    uint64_t hits = at_least == 0
+	    unsigned __int128 hits = at_least == 0
 		  ? 0 : dyn_type_hits(rec.family, at_least);
             // Construction registers the complete bin-name universe,
             // including bins in instances that have never been sampled.
-            unsigned __int128 sized = dyn_type_total(rec.family);
-	    if (sized == 0) continue;
-	    uint64_t total = sized > (unsigned __int128)UINT64_MAX
-		  ? UINT64_MAX : (uint64_t)sized;
+            unsigned __int128 total = dyn_type_total(rec.family);
+	    if (total == 0) continue;
 	    if (at_least == 0) hits = total;
-	    item_dyn_total[rec.item_idx] =
-		  cov_sat_add_(item_dyn_total[rec.item_idx], total);
-	    item_dyn_hits[rec.item_idx] =
-		  cov_sat_add_(item_dyn_hits[rec.item_idx], hits);
+	    item_dyn_total[rec.item_idx] += total;
+	    item_dyn_hits[rec.item_idx] += hits;
       }
       double wsum = 0.0, wcov = 0.0;
 	 std::set<unsigned> items;
@@ -3668,16 +3661,16 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 		  at_least = covgrp_cumulative_at_least_(item_idx);
 		  weight = covgrp_items_[item_idx].weight;
 	    }
-	    uint64_t total = item_trans_total[item_idx];
-	    uint64_t hits = 0;
+	    unsigned __int128 total = item_trans_total[item_idx];
+	    unsigned __int128 hits = 0;
 	    for (unsigned prop : item_props[item_idx]) {
 		  total += 1;
 		  if (type_count(prop) >= at_least)
 			hits += 1;
 	    }
 	    hits += item_trans_hits[item_idx];
-	    total = cov_sat_add_(total, item_dyn_total[item_idx]);
-	    hits = cov_sat_add_(hits, item_dyn_hits[item_idx]);
+	    total += item_dyn_total[item_idx];
+	    hits += item_dyn_hits[item_idx];
 	    if (total == 0) continue;
 	    wsum += (double)weight;
 	    wcov += (double)weight
