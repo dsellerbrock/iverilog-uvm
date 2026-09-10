@@ -1637,3 +1637,17 @@ not qualify the application or justify suppressing its newer-library guards.
 At a deliberate boundary preserve U01 OPEN and select L08 from DD-011: reduce
 the original UVM2020.1 resource-queue compile frontier before any compiler edit.
 P04 remains the last validated semantic baseline; no live local gates remain.
+
+L08 fresh original2020.1.0 probe results-x3bxo9km repeats the class-scoped type
+argument diagnostic. Minimal scoped_type_argument.sv fails exactly one
+not-a-type error in both2017/2023. Replacing only the scoped typedef actual
+with its explicit queue_type#(resource) specialization passes compilation and
+runtime handle-identity/value73 checks in both editions. Early probe variants
+using module-scope class-qualified declarations encountered the already parked
+DD-012 boundary; the final reducer avoids that unrelated declaration shape.
+Applicable primary semantics:2017/2023 6.20.3 and8.23. Parser ambiguity chooses
+PEIdent; evaluate_type_parameter_ only resolves an unqualified single name.
+The existing :: provenance marker and scoped-class resolver should be reused;
+value-type inference would wrongly accept values as types. Design review flags
+specialization identity and outer-scope typedef fallback as required controls.
+No compiler source changes yet; last validated baseline remains53b58890c.

@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L08
-phase: selected_for_triage
+phase: spec_grounded
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
@@ -11,13 +11,13 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
-next_action: Reduce the first UVM2020.1 resource queue compile error and ground semantics before any implementation.
-next_command: "cat third_party/uvm-releases/results-jdbvlt0_/results.json"
+next_action: Finalize L08 scoped type-only resolver with exact namespace boundaries, update implementation scope, then add permanent positive/negative tests and minimal patch.
+next_command: "sed -n '2948,3052p' elab_expr.cc"
 next_command_cwd: repository root
-candidate_state: L08 triage only; no compiler patch. P04 validated; U01 replay remains a four-warning failure.
+candidate_state: L08 paired scoped-type reducer fails; explicit equivalent type control passes both editions. No compiler edits yet.
 installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c; P04 candidate runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522; validated baseline copied to evidence/p04/vvp-baseline.
 validation_state: L07 all local gates pass;4837legacy total,1729JSON,355real-DPIUVM,58NFA,105VPI,149negative,15runtime controls; required remote CI remains pending.
-next_validation: L08 first-diagnostic reproduction in both editions; no local gates currently running.
+next_validation: L08 implementation design and scope, then focused and full required gates; no live sessions.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
