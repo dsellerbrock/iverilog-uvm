@@ -363,3 +363,5 @@ l14_makecheck: "exit0; remaining gates pending; final scoped review clear."
 l14_nfa_terminal: "93204 exit0;58/58. Integrated21445,UVM66826,release84865 still running; JSON/frontend unstarted."
 
 l14_integrated_terminal: "21445 exit0;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON26820 started after terminal. UVM66826 and releases84865 live; frontend unstarted."
+
+l14_uvm12_frontier: "results-f9qr050b/1.2 compile0, runtime300.061s timeout/empty log, return-9. DD028 record-only while L14 gates run. Original source fingerprint unchanged; no smoke or application pass."
