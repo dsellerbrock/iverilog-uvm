@@ -551,3 +551,18 @@ qualification remain open. Evidence: campaign-20260908/s03.
   Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
   zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
   NFA58/58,makecheck and independent final review all pass. DD010 remains open.
+
+
+### V07 — Never-instantiated covergroup types lower cumulative coverage
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.9,19.11,19.11.3.
+- **State:** REPRODUCED — paired editions on validated421b50abd; selected DD010.
+- **Evidence:** v07/uninstantiated-type.sv reports0 before any instance and50
+  after constructing one fully covered type; expected100 in both situations.
+- **Root:** Compilation registers types whose static metadata merge1 scores
+  without checking whether an instance ever existed. Existing live registry
+  and retired-options marker already preserve the required population state.
+- **Scope:** Shared type-coverage eligibility, preserving constructed/retired
+  populations and independent type/instance weights; no new metadata or registry.
+- **Closure:** Paired lifecycle controls, full required local gates and review.
+  Broader parentV01 and other coverage obligations remain open.

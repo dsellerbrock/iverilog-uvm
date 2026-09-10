@@ -1413,3 +1413,14 @@ other coverage obligations remain separate. Worktree audit unchanged; dirty
 and non-ancestor sibling trees preserved. Three locally validated increments
 since PR272; next coordinator boundary assesses DD010 before the next coherent
 coverage publication. No per-blocker PR and no merge authorization inferred.
+
+V06 checkpoint421b50abd is the validated semantic baseline. Coordinator
+selected DD010 as V07 after canonical Graphify query and current source trace.
+Both primary19.11 clauses explicitly require overall100 for no instances;
+19.11.3 merges actual instance bins. Paired fresh reducer returns0 before
+construction and50 instead100 after one of two types is fully covered.
+Existing live registry plus covgrp_has_retired_options_ preserves exact
+never/live/retired distinction even for zero instance weight and empty items;
+reuse it rather than add another lifetime flag. V07 sole active contract set.
+After a validated V07 increment, publish one coherent V04-V07 batch under the
+user's slower cadence. No immediate PR or parentV01 completion claim.

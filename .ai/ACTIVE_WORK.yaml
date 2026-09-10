@@ -1,45 +1,32 @@
-id: V06
-title: Honor declared coverpoint and cross type weights in merged coverage
-status: done
-phase: documented
-base_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
-last_validated_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
+id: V07
+title: Exclude never-instantiated covergroup types from cumulative coverage
+status: in_progress
+phase: root_caused
+base_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
+last_validated_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 19.7.1 Table19-3 and19.11.3.
-expected_behavior: Declared coverpoint/cross type_option.weight defaults to1 independently of option.weight and weights merged item coverage; ordinary instance and merge_instances0 calculations retain their instance weights.
-observed_behavior: A50-percent and B0-percent with type weights3/1 and instance weights1/3 return12.5percent for both type and instance, where merged type must37.5percent. Both editions reproduce on validated59d8f345a.
-reproducer: ../evidence/campaign-20260908/v06/type-weight.sv
-selection_reason: Explicit residual after V03 and V05; incorrect weights distort routine coverage completion reports even with correct bin counts. This is a direct remaining standard obligation, not a broad audit or selection by ease.
+  - IEEE1800-2017 and IEEE1800-2023 19.9,19.11,19.11.3.
+expected_behavior: Overall coverage excludes never-instantiated types and returns100 when no eligible coverage exists; constructed types remain eligible according to their actual bin model even after retirement, including instances whose instance weight is zero under merge1.
+observed_behavior: Declared merged types with static bins yield overall0 before any instance and50 instead100 after constructing and fully covering only one of two types; paired editions reproduce on validated421b50abd.
+reproducer: ../evidence/campaign-20260908/v07/uninstantiated-type.sv
+selection_reason: DD010 is a proven remaining eligibility defect that corrupts routine overall completion reports; correcting it completes the current coherent coverage reporting milestone without claiming full parentV01 coverage.
+root_cause: compile_class_done registers covergroup types before any object exists; merge1 type_coverage counts static bin metadata with no eligibility check. Existing covgrp_live_ and covgrp_has_retired_options_ already distinguish never-created from live/retired populations, independently of instance weights and bin cardinality.
 allowed_scope:
-  - Declared integral constant type-weight validation and propagation for coverpoints and crosses through existing class IR, target metadata and runtime merged aggregation.
-  - Preserve older VVP metadata compatibility and validate new metadata; reuse existing group type-weight mechanisms where appropriate.
-  - Paired permanent weight/default/zero/mode/constructor interaction and invalid-value controls; correct existing item-isolation fixtures to declare both type and instance weights, with standards-based evidence rather than weakening their bin assertions.
+  - Shared type_coverage eligibility using existing live and retired-instance state.
+  - Paired no-instance,unused-type,construction,retirement,zero-weight,merged/weighted-mode and static/dynamic/transition/cross controls.
+  - Required local full gates, independent review and precise canonical records.
 non_goals:
-  - Procedural static type-option assignment, goals/strobe, unsupported topology or transition cardinality redesign.
-  - No application edits, formal architecture changes or unrelated cleanup.
+  - No metadata/ABI/parser changes or new lifetime registry.
+  - No procedural static option assignment, unsupported topology/cardinality or application changes.
 invariants:
-  - Type and instance weights remain independent; group weights do not become lower-level defaults.
-  - No silent acceptance of nonconstant, negative, unknown or otherwise unrepresentable new type-weight metadata.
-  - Preserve merge_instances0 weighted-instance semantics, bin identity/count/threshold logic and older bytecode readability.
+  - Retired types must not disappear from cumulative coverage.
+  - Zero instance weight is not proof of nonexistence under merge1; preserve independent type weighting.
+  - Bin counts, thresholds, weighting, event sampling and existing empty-denominator behavior remain intact.
 required_gates:
-  - Primary2017 and2023 Table19-3 plus19.11.3, paired baseline failure, causal source trace and independent design review of metadata extension.
-  - Paired permanent positive/negative/default/mode controls and malformed/legacy metadata checks; coverage neighbors and V04/V05 regression controls.
-  - Integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent final review; remote CI before separately authorized merge.
-completion: Close exact declaration-time item type-weight scope only after all required local gates and review pass; other parentV01 and type-option obligations remain open.
+  - Primary2017/2023 19.11 and19.11.3 with paired baseline red evidence.
+  - Permanent focused controls, coverage and V04/V05/V06 neighbors, integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent review.
+  - Remote CI before separately authorized merge; publication cadence3-5 validated increments.
+completion: Close never-instantiated-type eligibility only after all required local gates and review; parentV01 and broader qualification remain open.
 stop_after_completion: false
-discovery_policy: Unrelated discoveries record-only; any proven prerequisite requires preserved parent work and a deliberate coordination boundary.
-next_action: Checkpoint V06 exact locally validated scope, then return to coordinator selection.
-
-candidate: Declared item type weights propagated through class IR/API and new tagged metadata; merged aggregation uses independent type weights; old bytecode retains prior untagged interpretation.
-focused_status: All22 paired cases pass in legacy and JSON; group/point/cross compound-formal rejection and legal type queries verified. V04 neighbors2/2,V05 13/13,coverage75/65,metadata bounds/compatibility and makecheck pass. Final review and full gates pending.
-parser_status: VVP grammar conflict profile unchanged at14 shift/reduce and5 reduce/reduce; new tag parses before following numeric property declarations.
-standards_resolution: Retain existing typed int conversion; reviewer visually verified2023PDF page110 and both edition6.11.2 extracts, plus official Accellera committee discussion. No unknown-weight semantic change authorized by contrary recollection.
-
-binding_correction: Shared validator temporarily installs typed ctor then sample aliases, runs normal typed constant evaluation, deletes expression, restores aliases in reverse order. Reuses existing alias/cache invalidation machinery; no AST blacklist or constructor-scope guessing.
-active_sessions: none; integrated95424,JSON87219,UVM26530,NFA50661 all completed0.
-
-final_review: No remaining V06 blocker after permanent outer-function lexical-scope control; all full gates still required. DD010 eligibility defect is separately recorded and unchanged.
-
-resolved_scope: Declaration-time coverpoint/cross type weights with independent defaults and typed constants, correct formal binding/type queries and outer constant-function scope, new/legacy metadata interpretation. Procedural static assignment, uninstantiated-type eligibility DD010 and broader coverage obligations remain separate.
-final_local_gates: Focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime checks,fullJSON1699/0,real-DPIUVM355/0/0 in-g2012,NFA58/58,makecheck and independent final review all pass.
-validated_fingerprints: Compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a; runtimef38e482bc738cc9f7ce84ff4817e59143aa99f7501cd4aae297b8addc194ce8e.
+discovery_policy: Unrelated discoveries record-only; preserve parent work before any deliberate prerequisite switch.
+next_action: Add the shared population guard using existing live/retired state, prove paired lifecycle controls, then run all required gates.
