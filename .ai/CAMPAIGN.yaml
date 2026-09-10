@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L03
-phase: reproduce
+current_blocker: L04
+phase: causal_analysis
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
@@ -9,13 +9,13 @@ preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (orig
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: DD-003 promoted to L03 for concurrent automatic event-expression correctness after S07 local qualification.
-next_action: Reproduce retained Boolean expression activation reducer and trace shared driver state.
-next_command: "cat ../evidence/campaign-20260908/u01-loop/history-expression-preexisting.sv"
+suspended_parent: L03 prerequisite boundary (contract/reducer in evidence/l03); S02 design boundary retained.
+next_selection: L04 promoted from DD-004 as proven initialization prerequisite for mixed-scope L03 Boolean event evaluation.
+next_action: Review existing automatic hook extension and all allocation callers before integral default publication.
+next_command: "sed -n '9160,9230p' vvp/vthread.cc"
 next_command_cwd: repository root
-candidate_state: S07 implemented in 4a879babc833c052cc3b5b80e7e03aacbc2c05aa with all local gates passed; L03 investigation only.
+candidate_state: L04 paired default-negedge red at time1; no implementation edits yet. L03 original reducer and design findings preserved.
 installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Last fully validated 4a879babc833c052cc3b5b80e7e03aacbc2c05aa; all sessions terminal. U01 still unqualified with4teardown warnings.
-next_validation: Fresh paired L03 reducer/direct controls before implementation.
+validation_state: Last fully validated4a879babc; L03 andL04 paired reducers fail as recorded; all sessions terminal.
+next_validation: Post-link ordering review and bounded L04 patch,then required local gates before L03 resumes.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

@@ -430,7 +430,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L03 — Automatic Boolean event expressions share activation state
 
 - **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.21,9.4.2.
-- **State:** IN_PROGRESS — DD-003 selected after S07 local qualification.
+- **State:** SUSPENDED — proven initial-value publication prerequisite L04; reducer/design evidence preserved.
 - **Evidence:** u01-loop/history-expression-preexisting.sv; two automatic
   invocations of posedge(value[2] | 1'b0) both trigger at2 instead of2,3.
   Previously reproduced before L02; fresh current check pending.
@@ -438,3 +438,16 @@ qualification remain open. Evidence: campaign-20260908/s03.
   necessary selection, preserving existing runtime lifetime mechanisms.
 - **Closure:** Paired reducer and lifetime/static controls, all required
   local gates and review; remote CI before merge.
+
+### L04 — Automatic integral defaults do not seed event history
+
+- **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.8,6.21,9.4.2.
+- **State:** IN_PROGRESS — DD-004 is a proven L03 initialization prerequisite.
+- **Evidence:** Paired current4a879babc default-negedge reducer fires at1 on
+  unchanged partial zero write instead of actual negedge at3; evidence/l04.
+- **Mechanism:** Integral slot reset sets storage without initial publication;
+  current hooks precede context stack/live linkage.
+- **Scope:** Post-link hook using existing activation infrastructure and
+  automatic integral initial-value propagation, all allocation callers audited.
+- **Closure:** Paired default/lifetime controls and all required gates/review;
+  resume L03 only after validated baseline. Remote CI before merge.
