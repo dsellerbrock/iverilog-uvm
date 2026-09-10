@@ -1227,6 +1227,17 @@ VVP adds the instance to a list of freed instances for that scope,
 which allows the storage to be reused the next time a new instance
 is required.
 
+Procedural automatic output copying uses an explicit context interval:
+``%copyout/enter S_scope`` saves the current contexts and selects the
+caller for destination expression evaluation and writes. Each formal
+value load is surrounded by ``%copyout/context 1`` (callee) and
+``%copyout/context 0`` (caller). ``%copyout/leave`` restores the saved
+contexts before the normal ``%free``. These intervals nest, so a function
+called while evaluating an output index receives the caller's variables.
+They do not change allocation ownership or ordinary function-result stores.
+Missing intervals, invalid modes and scopes without an automatic callee
+frame produce runtime errors.
+
 For each automatically allocated scope instance, VVP creates an array
 of items, referred to as the scope context. Each item in this array is
 a pointer to the allocated storage for holding the state of one scope

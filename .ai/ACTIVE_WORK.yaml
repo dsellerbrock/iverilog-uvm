@@ -1,7 +1,7 @@
 id: L09
 title: Preserve caller-local output copy-out during nested argument calls
 status: in_progress
-phase: "root_caused"
+phase: focused_tested
 base_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 selection_reason: DD018 is a reproducible automatic-argument correctness defect, observed independently before and after U06; caller outputs silently remain unchanged. Repair after validated input-context baseline.
@@ -12,7 +12,10 @@ allowed_scope:
   - Minimized reducers and scoped read-only tracing of draw_copy_out_function_argument and vthread_get_wt_context_item_scoped.
   - Applicable IEEE2017/2023 argument direction, automatic lifetime and return-copy semantics.
   - ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT and existing session log.
-  - Expand exact implementation scope only after causal mechanism and smallest correct repair are established.
+  - tgt-vvp/draw_ufunc.c explicit copy-out source versus destination context phases, reusing existing typed copying.
+  - vvp/vthread.cc,vvp/codes.h,vvp/compile.cc paired context save/source/destination/restore opcodes; preserve frame ownership and nested calls.
+  - Permanent ivtest reducers, registrations and focused/integrated validation; opcode documentation.
+  - tests/vvp_runtime copy-out malformed-bytecode checks and .github/ivtest_gate.sh registration.
 non_goals:
   - No UVM/application source edits, weakened assertions, or unrelated context redesign.
   - No broad audit or claims that U06 qualified output arguments.
@@ -35,3 +38,7 @@ l09_trace: Bytecode stores produced37 into recurse.seen before freeing produce, 
 l09_indexed_reducer: ../evidence/campaign-20260908/l09/indexed_output.sv; both editions compile0/run1. Recursive output to slots[choose(index)] uses callee index0 instead of caller index1, producing37,-1 rather than-1,37.
 l09_review_direction: Independent diagnosis rejects global returned-window write redirection because fixed-array return materialization legitimately writes staged storage before epilogue. A write-only copy-out binding also leaves same-scope index and receiver reads wrong. Separate formal-source reads from caller read/write destination evaluation; nested address calls must inherit caller context.
 l09_trace_evidence: output_actual.trace shows produced37 delivered to staged recurse frame, then overwritten by its local initialization; original caller frame retains-1. Existing per-type copy-out emitter has explicit formal load sites, suitable for source/caller phase separation without replacing copy semantics.
+
+implementation_contract: Copy-out destination expressions and stores use caller read/write activation; formal loads use callee activation. Preserve original contexts until epilogue free, retain nested-call behavior, and do not redirect unrelated function-result stores.
+
+l09_candidate: Three permanent test families fail baseline and pass candidate in both editions;38focused JSON cases pass;6malformed-bytecode checks pass. Explicit copy-out enter/context/leave distinguishes formal loads from caller destination expressions. Nonlocal abort/reuse and non-nested controls pass both editions. Full required gates and final review pending.

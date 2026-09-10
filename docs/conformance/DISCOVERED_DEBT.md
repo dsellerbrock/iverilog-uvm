@@ -279,3 +279,14 @@ copy-out correction remains untriaged. Symbols: draw_copy_out_function_argument,
 scoped write-context selection. Original smoke has no such output actual.
 Record-only, not a U06 regression or a qualified subcase; preserve reducer
 for deliberate selection after validating the input-context increment.
+
+### DD019 — Scalar output into fixed-array class property element
+
+L09 probe fixed_property_output.sv (evidence/campaign-20260908/l09) produces
+"Skipping indexed property copy-out" on both validated U06 target and L09
+candidate. Existing emitter supports certain container-valued property
+elements but not this scalar fixed-array slot. Compile baseline diagnostic
+is preserved in fixed-property-baseline-compile.log. Legal output lvalue
+classification belongs to IEEE2017/2023 13.5 and class array properties;
+implementation remains open. Record-only during L09; no warning waiver or
+claim of fixed-array property-element output support.

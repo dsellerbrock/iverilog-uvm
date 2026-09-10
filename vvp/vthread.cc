@@ -300,6 +300,12 @@ struct saved_staged_read_s {
       __vpiScope*scope;
 };
 
+struct copyout_context_s {
+      vvp_context_t read, write, staged_read;
+      __vpiScope*staged_scope;
+      vvp_context_t caller, callee;
+};
+
 struct active_call_context_s {
       vvp_context_t context;
       __vpiScope*scope;
@@ -898,6 +904,7 @@ struct vthread_s {
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
       std::vector<saved_staged_read_s> saved_staged_reads;
+      std::vector<copyout_context_s> copyout_contexts;
 	/* A frame allocated by %alloc that no call has consumed yet.
 	   tgt-vvp's spawn-time argument capture for a single-branch
 	   `fork <task>(); join_none' emits the %alloc in the SPAWNING
@@ -11422,6 +11429,66 @@ static void retire_active_call_context_(vthread_t thr,
 bool of_ABS_WR(vthread_t thr, vvp_code_t)
 {
       thr->push_real( fabs(thr->pop_real()) );
+      return true;
+}
+
+static bool copyout_error_(const char*reason)
+{
+      cerr << "runtime error: copy-out " << reason << endl;
+      vpip_set_return_value(1);
+      schedule_finish(1);
+      return false;
+}
+
+/* Copy-out evaluates actual addresses in the caller, and switches to the
+ * returned callee only to load a formal. A nested address call therefore
+ * stages its own inputs on the caller chain, not the returned callee's. */
+bool of_COPYOUT_ENTER(vthread_t thr, vvp_code_t cp)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      if (!scope || !scope->has_automatic_context())
+            return copyout_error_("requires an automatic scope");
+      scope = resolve_context_scope(scope);
+      copyout_context_s saved = { thr->rd_context, thr->wt_context,
+            thr->staged_alloc_rd_context, thr->staged_alloc_rd_scope,
+            thr->wt_context,
+            first_live_context_for_scope(thr->rd_context, scope) };
+      if (!saved.callee)
+            return copyout_error_("has no returned callee frame");
+      if (!thr->saved_staged_reads.empty()
+          && thr->saved_staged_reads.back().allocation == saved.callee)
+            saved.caller = thr->saved_staged_reads.back().caller;
+      thr->copyout_contexts.push_back(saved);
+      thr->rd_context = thr->wt_context = saved.caller;
+      thr->staged_alloc_rd_context = 0;
+      thr->staged_alloc_rd_scope = 0;
+      return true;
+}
+
+bool of_COPYOUT_CONTEXT(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->copyout_contexts.empty())
+            return copyout_error_("context without enter");
+      if (cp->bit_idx[0] > 1)
+            return copyout_error_("invalid context mode");
+      const copyout_context_s&saved = thr->copyout_contexts.back();
+      thr->rd_context = thr->wt_context = cp->bit_idx[0]
+            ? saved.callee : saved.caller;
+      thr->staged_alloc_rd_context = 0;
+      thr->staged_alloc_rd_scope = 0;
+      return true;
+}
+
+bool of_COPYOUT_LEAVE(vthread_t thr, vvp_code_t)
+{
+      if (thr->copyout_contexts.empty())
+            return copyout_error_("leave without enter");
+      const copyout_context_s saved = thr->copyout_contexts.back();
+      thr->copyout_contexts.pop_back();
+      thr->rd_context = saved.read;
+      thr->wt_context = saved.write;
+      thr->staged_alloc_rd_context = saved.staged_read;
+      thr->staged_alloc_rd_scope = saved.staged_scope;
       return true;
 }
 
