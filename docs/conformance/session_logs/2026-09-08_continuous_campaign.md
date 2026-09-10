@@ -1229,3 +1229,10 @@ and NaN. Focus2/2legacy+JSON, coverage neighbors75/65,makecheck and final
 independent review pass. Compiler unchanged98664d54; candidate runtimee094574e.
 Integrated7488,UVM36614,NFA98267 now running. FullJSON must follow integrated.
 Source/tests/tools frozen; no semantic checkpoint or new PR while pending.
+
+
+Latest GitHub snapshot: all PR263–271 externally merged, but only263 targeted
+main; later merges target stack base branches. CI remains queued/running,
+not passed. A future substantial milestone should consolidate publication,
+not repeat a rapid PR stack. No more publication during current V04 increment.
+V04 NFA98267 completed0 with58/58; integrated7488 and UVM36614 remain live.

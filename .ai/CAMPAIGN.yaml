@@ -7,11 +7,11 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V04_integrated7488,V04_NFA98267,V04_UVM36614,V04_fullJSON_after_integrated,U01_teardown_qualification,remote_CI_before_merge]
+pending_gates: [V04_integrated7488,V04_UVM36614,V04_fullJSON_after_integrated,U01_teardown_qualification,remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: V04 merged wide coverage totals; L05 is locally validated.
-next_action: Await integrated7488,NFA98267,UVM36614; run fullJSON after integrated terminal result. Candidate source/tests/tools frozen. No new PR at this increment.
+next_action: Await integrated7488,UVM36614; run fullJSON after integrated terminal result. Candidate source/tests/tools frozen. No new PR at this increment.
 next_command: "tail -20 ../evidence/campaign-20260908/v04/integrated.log"
 next_command_cwd: repository root
 candidate_state: V04 reviewed candidate uncommitted; last validated implementation59e5e07c7.
@@ -29,8 +29,8 @@ published_batches:
     semantic_revision: b9de0be7f7702b7aba7d07d24f76c439322d3773
     publication_revision: a3744e5b7647bad0854b2ea59a47412d75d24f27
     base: main
-    state: merged
-    outstanding: Required remote CI and review before any separately authorized merge.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 3fe277c253412ddf7686e4ab15db7c1516a580c3
     external_merge_base: main
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/264
@@ -40,8 +40,8 @@ published_batches:
     publication_revision: 0bac0a8511ac8d11a414786420008ea490968358
     base: agent/campaign-fork-processes-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/263
-    state: merged
-    outstanding: Required remote CI/review; retarget and revalidate after prerequisite lands; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 656bb041b21cef686e7a2845112975a1595759e0
     external_merge_base: agent/campaign-fork-processes-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/265
@@ -52,8 +52,8 @@ published_batches:
     publication_revision: 4175060234aaed865e7713d8d1e474bf05f3301d
     base: agent/campaign-constraints-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/264
-    state: merged
-    outstanding: Required remote CI/review; retarget and revalidate after prerequisites land; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: fab276b0adf860328d86dac743d5e1165b10c26e
     external_merge_base: agent/campaign-constraints-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/266
@@ -64,8 +64,8 @@ published_batches:
     publication_revision: 2193f80c0f171558a40fb90148d2122bee82220e
     base: agent/campaign-foreach-activation-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/265
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 7093c085a9b5104cae220a5e39f4533ef059a131
     external_merge_base: agent/campaign-foreach-activation-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/267
@@ -76,8 +76,10 @@ published_batches:
     publication_revision: be78334feb6b80e34adbf537c7f48ebe567543fa
     base: agent/campaign-coverage-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/266
-    state: open
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
+    external_merge_revision: 3a835e102608e7231c92e2c741237d6b2f3655ad
+    external_merge_base: agent/campaign-coverage-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/268
     scope: S05/S06 symbolic assertion parent verdicts and instance delay.
     branch: agent/campaign-sva-timing-20260910
@@ -86,8 +88,8 @@ published_batches:
     publication_revision: 23cce38e9448acda1d72bfc98d457e119fd9e5fc
     base: agent/campaign-sva-verdicts-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/267
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 68b54eb0ee8087f2a62555da6341ada9b0547496
     external_merge_base: agent/campaign-sva-verdicts-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/269
@@ -98,8 +100,8 @@ published_batches:
     publication_revision: ea5ab6c6b2cf2576823b626ec905c5b5ca1ac8e4
     base: agent/campaign-sva-timing-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/268
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: d47784a1f455c0520798c5c84ca8dc5596fd1bd4
     external_merge_base: agent/campaign-sva-timing-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/270
@@ -110,8 +112,10 @@ published_batches:
     publication_revision: 53236d900fdd305b337ea4782681f59430cb7088
     base: agent/campaign-sequence-aliases-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/269
-    state: open
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
+    external_merge_revision: dd066c7a88590e1fda4a9f1221968d009ea40368
+    external_merge_base: agent/campaign-sequence-aliases-20260910
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/271
     scope: L05 selected member foreach key typing.
     branch: agent/campaign-foreach-key-types-20260910
@@ -119,11 +123,14 @@ published_batches:
     publication_revision: 021aca3b9862f8fc20954d2da7d98a9262d581fb
     base: agent/campaign-automatic-events-20260910
     depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/270
-    state: merged
-    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+    state: externally_merged
+    outstanding: Remote CI still queued/running at latest observation; external merge does not qualify pending checks or imply landing on main.
     external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
     external_merge_base: agent/campaign-automatic-events-20260910
 publication_queue: []
 publication_next_action: Publication catch-up stopped at user request. No new PR until a substantial subsequent milestone; reconcile externally changed PR state without merging.
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
+
+latest_remote_main: 3fe277c253412ddf7686e4ab15db7c1516a580c3
+main_landed_scope: Fork batch PR263 only at last ancestry/content check; later PRs merged into stacked base branches.
