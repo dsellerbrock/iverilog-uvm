@@ -10,7 +10,7 @@ observed_behavior: Both editions return100 percent; merge_instances is accepted 
 reproducer: ../evidence/campaign-20260908/v02/average.sv
 causal_hypothesis: Type-option mode is not represented in runtime metadata, and the type query computes only the merged item-counter model.
 allowed_scope:
-  - Trace covergroup option lowering/metadata in elaborate.cc, netclass.h, t-dll-api.cc, ivl_target.h and tgt-vvp/class_type.c only as actually needed; identify exact existing path before edits.
+  - Trace covergroup option lowering/metadata in elaborate.cc, netclass.h, t-dll-api.cc, ivl_target.h and tgt-vvp/draw_class.c only as actually needed; identify exact existing path before edits.
   - vvp class_type, vthread and vvp_cobject coverage query/options/instance lifecycle; parse/compile metadata only if required by traced path.
   - Paired ivtest type-coverage option regressions and corrections to historical test expectations demonstrated inconsistent with the LRM.
   - .ai/ACTIVE_WORK.yaml

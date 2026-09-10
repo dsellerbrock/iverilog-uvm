@@ -12,7 +12,7 @@ merge_requirements: Required remote CI and existing merge permissions remain in 
 suspended_parent: null
 next_selection: V02 default type coverage correctness; U01 preserved for later teardown qualification.
 next_action: Trace merge_instances metadata and existing instance coverage/lifetime accounting before the smallest semantically correct V02 patch.
-next_command: "sed -n '3310,3390p' vvp/class_type.cc; sed -n '8790,8970p' vvp/vthread.cc"
+next_command: "sed -n '520,570p' netclass.h; sed -n '550,600p' tgt-vvp/draw_class.c; rg -n 'covgrp_item_option_prop|type_option.merge_instances' elaborate.cc"
 next_command_cwd: repository root
 candidate_state: V02 paired reducer returns100 instead of50; no implementation changes yet. V01A checkpoint6eee0480c passed all local gates.
 installed_tools: Coherent compiler a90ef338a4fe and runtime 2de024fb402d match build outputs.

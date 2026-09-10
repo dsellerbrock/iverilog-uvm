@@ -585,3 +585,13 @@ V02 contract activated, no implementation edits yet. Next trace existing
 instance query and retention plus metadata path; reuse those rather than add a
 parallel coverage engine. Remote CI and U01 teardown qualification stay open.
 No live test sessions. Current exact next commands preserved in CAMPAIGN.yaml.
+
+V02 trace checkpoint: existing instance coverage computation is
+of_COVGRP_GET_INST_COVERAGE in vvp/vthread.cc8790-8970; reuse/extract rather
+than duplicate. class_type has covgrp_live_ and destructor removal, but retains
+only retired at_least options. Runtime type_coverage is always merged; option
+merge_instances appears only in elaborate.cc accepted-name list. Actual VVP
+emitter is tgt-vvp/draw_class.c (corrected tentative contract filename).
+Next inspect netclass.h520-570, draw_class.c550-600 and option-property lowering
+to narrow metadata/snapshot scope. No V02 implementation code changed. Latest
+validated6eee0480c; no live gates. Required V02 tests/gates still outstanding.
