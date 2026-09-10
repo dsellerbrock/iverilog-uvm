@@ -1,7 +1,7 @@
 id: U05
 title: Dispatch standalone UVM DPI reports back to SystemVerilog
 status: in_progress
-phase: spec_grounded
+phase: awaiting_validation
 base_revision: 47e6c87b3f420776e915cc969fe29ac03d8ac827
 last_validated_revision: 47e6c87b3f420776e915cc969fe29ac03d8ac827
 suspended_parent: U04 preserved in evidence/campaign-20260908/u04/suspended-u04.yaml; no parent implementation started.
@@ -29,5 +29,8 @@ required_gates:
   - makecheck, required integrated legacy/VPI/negative/runtime, JSON, real-DPI UVM, NFA and independent review before closure.
 completion: Close standalone report dispatch only after all gates; then resume U04 legacy ABI scope.
 stop_after_completion: false
-next_action: Implement standalone adapter matching generated export C stub, add permanent paired reducer and real-UVM count check, then build and validate.
-next_command: sed -n '192,222p' uvm_dpi/uvm_dpi_iverilog.cc
+next_action: "Wait for frontend74657 to finish and restore hidden install root; then install validated candidate umbrella and run required integrated gates."
+next_command: "tail -8 ../evidence/campaign-20260908/u05/frontend.log"
+baseline_evidence: Four paired baseline tests compile0 and fail runtime1; report_bridge checks six arguments/count, report_server checks real UVM severity and ID counters.
+source_authority: IEEE2017 and2023 H.9.2/H.9.3 context/export text verified; Table H.1 int/string C mappings agree. Generated smoke.dpiexport.c and vthread.cc union/dispatcher are authoritative existing internal ABI.
+focused_validation: Frontend74657 terminal0; all S1-S10 passed including four paired reporting tests. Install root restored and candidate installed. Independent review clear.

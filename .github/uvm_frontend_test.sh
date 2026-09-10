@@ -222,6 +222,28 @@ else
 fi
 
 # --------------------------------------------------------------------------
+say "S10: standalone DPI report callbacks and real UVM severity counts"
+for edition in 2017 2023; do
+    for fixture in report_bridge report_server; do
+        options=(-m "$DPIVPI")
+        [ "$fixture" = report_server ] && options=(-uvm)
+        if "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
+            "$SRCROOT/tests/uvm_releases/$fixture.sv" >report.log 2>&1; then
+            out="$($TO "$VVP" report.vvp 2>&1)"
+            rc=$?
+            if [ "$rc" -eq 0 ] && echo "$out" | grep -qx PASSED && \
+                ! echo "$out" | grep -q 'DPI error:'; then
+                pass "$fixture IEEE $edition"
+            else
+                fail "$fixture IEEE $edition"; echo "$out"
+            fi
+        else
+            fail "$fixture IEEE $edition compile"; cat report.log
+        fi
+    done
+done
+
+# --------------------------------------------------------------------------
 echo ""
 if [ $FAIL -eq 0 ]; then
     echo "UVM front-end regression: ALL SCENARIOS PASSED"

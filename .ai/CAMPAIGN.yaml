@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "U05"
-phase: "spec_grounded"
+phase: "implemented"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "47e6c87b3f420776e915cc969fe29ac03d8ac827"
@@ -11,10 +11,10 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Repair proven standalone report-dispatch prerequisite; U04 reducers preserved and parent suspended."
-next_command: "sed -n '192,222p' uvm_dpi/uvm_dpi_iverilog.cc"
+next_action: "Await frontend74657 restoration, then install U05 umbrella and required validation; U04 remains suspended."
+next_command: "tail -8 ../evidence/campaign-20260908/u05/frontend.log"
 next_command_cwd: repository root
-candidate_state: "U05 baseline drops callback; no production changes yet. U04 legacy ABI wrappers cannot blindly reuse modern regex due invalid/slash/error differences."
+candidate_state: "U05 standalone callback adapter built; four baseline failures established. Frontend74657 running; independent review pending."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
 validation_state: "All required L08 local gates passed, including full JSON1745/0 and real-DPI UVM355/0/0."
 next_validation: "Next selected blocker requires exact failing reducer or qualification gap before changes."
