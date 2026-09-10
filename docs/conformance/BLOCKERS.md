@@ -406,7 +406,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### S07 — Nested parameterized sequence aliases fail expansion
 
 - **Area / edition:** Sequence composition / IEEE1800-2017 and1800-2023.
-- **State:** IN_PROGRESS — DD-006 selected after S06 local qualification.
+- **State:** LOCALLY VALIDATED — reviewed nested-alias increment; remote CI required before merge.
 - **Evidence:** campaign-20260908/s04/window-nested-alias.sv; Left/Right
   wrapping Pair(actuals) reports No function named Pair, while direct use
   works. Previously reproduced on61ca5f336; current-source check pending.
@@ -414,3 +414,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
   lexical identity, recursion safeguards, temporal truth and ownership.
 - **Closure:** Paired reducer/direct controls, permanent timing/binding tests,
   all required local gates and review; remote CI before merge.
+
+- **S07 exact qualification:** Bare alias bodies recursively expand nested
+  sequence calls in their declaration generate scope. Caller-supplied
+  sequence actuals retain caller lookup. Active-path cycles reject before
+  expansion; repeated legal uses retain independent cloned bodies.
+- **S07 validation:** Paired focus12/12 legacy+JSON in both engines;
+  S06neighbors18/18+18/18,S04neighbors17/17+8/8,NFA58/58;
+  integrated4744total4739pass0fail2NI3EF,VPI105,negative149,runtime15;
+  JSON1636/0,real-DPIUVM355/0/0,makecheck and final review pass.
+- **S07 residuals:** Full dependency-graph validation across independent
+  instances and pre-existing parameterized declaration-owned lookup remain
+  unqualified; no general sequence-composition completion claim.

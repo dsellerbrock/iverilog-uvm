@@ -1097,3 +1097,9 @@ S07 paired current-source red confirms four No function Pair errors; direct call
 Permanent focus12/12 legacy+JSON passes both engines; S06neighbors18/18+18/18,S04neighbors17/17+8/8,makecheck pass. Original/deep alias timing, shadow/caller binding, branching/mutual/actual-self cycle tests cover the exact increment. Final review and all full gates pending; no S07 qualification yet.
 
 S07 final independent source/test review clear. Source/tests frozen, compiler aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd/runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Integrated82704,NFA32199,real-DPIUVM10750 running; fullJSON waits for integrated. S07 awaiting validation, last fully validated implementation6f49fe1eb.
+
+S07 integrated82704 terminated0:4744total4739pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15. NFA32199 terminated0,58/58. FullJSON73868 launched after integrated completion; real-DPIUVM10750 remains live. Source/test freeze preserved; S07 awaits remaining gates.
+
+S07 fullJSON73868 terminated0:1636tests/0failures. Only real-DPIUVM10750 remains among required local gates; remote CI before merge remains required.
+
+S07 real-DPIUVM10750 terminated0:355passed,0failed,0skipped with real DPI umbrella loaded. All required local gates and final independent review pass. Candidate source/tests unchanged throughout gates; qualify exact nested-alias scope and retain documented residuals. Checkpoint then continue campaign selection; remote CI remains required before merge.

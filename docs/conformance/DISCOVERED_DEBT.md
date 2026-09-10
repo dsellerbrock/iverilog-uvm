@@ -109,7 +109,7 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Possible clause:** IEEE 1800-2017/2023 sequence declarations and argument binding; exact clause pending triage.
 - **Evidence:** evidence/campaign-20260908/s04/window-nested-alias.sv and window-nested-alias.log. Same four errors with compiler rebuilt from validated61ca5f336: window-nested-baseline.log. Current source/build restored afterwards; installed candidate tools unchanged during running gates.
 - **Reproducer status:** confirmed before S04; direct parameterized reuse is a passing control.
-- **Triage status:** untriaged, record-only; no repair included in S04.
+- **Triage status:** resolved within S07 reviewed locally validated bare-alias recursive expansion scope; full dependency-graph validation and broader parameterized declaration lookup remain unqualified.
 
 ### DD-007 — symbolic repetition still reports consequent endpoint verdicts
 

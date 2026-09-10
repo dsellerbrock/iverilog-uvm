@@ -1,0 +1,2 @@
+ivltests/sv_assert_sequence_mutual_cycle_fail.v:4: error: cyclic SVA sequence instantiation of `A'.
+ivltests/sv_assert_sequence_mutual_cycle_fail.v:4: error: cyclic SVA sequence instantiation of `A'.

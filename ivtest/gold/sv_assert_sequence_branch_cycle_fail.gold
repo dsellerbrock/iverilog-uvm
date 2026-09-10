@@ -1,0 +1,2 @@
+./ivltests/sv_assert_sequence_branch_cycle_fail.v:3: error: cyclic SVA sequence instantiation of `A'.
+./ivltests/sv_assert_sequence_branch_cycle_fail.v:3: error: cyclic SVA sequence instantiation of `A'.

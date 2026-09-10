@@ -8275,9 +8275,10 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
    module scope, and then splice arm `ga''s body -- turning today's
    loud duplicate error into a silent wrong result. */
 template <class MAP>
-static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm)
+static typename MAP::iterator sva_resolve_(MAP&m, perm_string nm,
+                                          const PGenerate*scope = pform_cur_generate)
 {
-      for (const PGenerate*g = pform_cur_generate ; ; ) {
+      for (const PGenerate*g = scope ; ; ) {
 	    sva_scoped_name_t k;
 	    k.name = nm;
 	    k.gen  = g;
@@ -13110,8 +13111,18 @@ void pform_flush_pending_sampled_calls()
    bare identifier naming a declared sequence splices that sequence's
    steps (first spliced delay adds the step's own delay). */
 static void sva_splice_sequences_(const struct vlltype&loc,
-				  std::vector<sva_seq_step_t>&steps)
+				  std::vector<sva_seq_step_t>&steps,
+                                  const PGenerate*scope = pform_cur_generate)
 {
+      static std::set<sva_scoped_name_t> active;
+      auto enter = [&](const sva_scoped_name_t&key) {
+            if (active.insert(key).second) return true;
+            cerr << loc << ": error: cyclic SVA sequence instantiation of `"
+                 << key.name << "'." << endl;
+            error_count += 1;
+            return false;
+      };
+      unsigned entry_errors = error_count;
       static int splice_depth = 0;
       if (++splice_depth > 64) {
 	    cerr << loc << ": error: SVA sequence instantiation nested too "
@@ -13120,14 +13131,15 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    --splice_depth;
 	    return;
       }
-      for (size_t i = 0 ; i < steps.size() ; ) {
+      for (size_t i = 0 ; i < steps.size() && error_count == entry_errors ; ) {
 	      /* M9D: parameterized sequence instantiation `name(args)`. */
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
 		  if (!cf->path().package && cf->path().name.size() == 1) {
 			perm_string nm = peek_tail_name(cf->path().name);
 			std::map<sva_scoped_name_t, sva_param_seq_t>::iterator pit =
-			      sva_resolve_(sva_param_sequences, nm);
+			      sva_resolve_(sva_param_sequences, nm, scope);
 			if (pit != sva_param_sequences.end() && pit->second.body) {
+                              if (!enter(pit->first)) { --splice_depth; return; }
 			      std::vector<sva_seq_step_t>*inst =
 				    sva_instantiate_seq_(loc, nm, pit->second,
 							 cf->get_parms());
@@ -13141,7 +13153,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 						steps[i].match_calls.end());
 					  steps[i].match_calls.clear();
 				    }
-				    sva_splice_sequences_(loc, *inst);
+				    sva_splice_sequences_(loc, *inst, scope);
+                                    active.erase(pit->first);
 				    delete steps[i].expr;
 				    steps.erase(steps.begin() + i);
 				    steps.insert(steps.begin() + i,
@@ -13151,6 +13164,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    i += n;
 				    continue;
 			      }
+                              active.erase(pit->first);
 			      delete steps[i].expr;
 			      steps[i].expr = sva_bit_(loc, 1);
 			      i += 1;
@@ -13165,11 +13179,12 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  continue;
 	    }
 	    std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator seq_it =
-		  sva_resolve_(sva_module_sequences, id->path().name.front().name);
+		  sva_resolve_(sva_module_sequences, id->path().name.front().name, scope);
 	    if (seq_it == sva_module_sequences.end() || !seq_it->second) {
 		  i += 1;
 		  continue;
 	    }
+            if (!enter(seq_it->first)) { --splice_depth; return; }
 	    std::vector<sva_seq_step_t> body;
 	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
 		  sva_seq_step_t st = (*seq_it->second)[k];
@@ -13259,6 +13274,11 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			steps[i].match_calls.begin(), steps[i].match_calls.end());
 		  steps[i].match_calls.clear();
 	    }
+	    // This body has no substituted actuals: its nested sequence names
+            // belong to the alias declaration, not the caller's generate.
+            sva_splice_sequences_(loc, body, seq_it->first.gen);
+            active.erase(seq_it->first);
+	    delete steps[i].expr;
 	    steps.erase(steps.begin() + i);
 	    steps.insert(steps.begin() + i, body.begin(), body.end());
 	    i += body.size();
