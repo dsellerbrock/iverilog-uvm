@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** 03caa64c8 fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but4SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match post-L03 replay. Paired parent.kill/sequence.kill controls still distinguish1/0 warnings. Pinned OpenTitan tool configs select UVM1.2; current-library compatibility and teardown remain unqualified. UVM1.2 diagnostic compile frontier is being classified without corpus edits. Evidence: campaign-20260908/u01-after-v07.
+- **Last verified revision:** `53b58890c` (P04): fresh smoke plus2repeats all complete115requests/230checked scoreboard items,4SEQPRTZMBwarnings,0errors/fatals and TEST FAILED CHECKS. All360exported source files match the prior replay. P04 fixes its independent live-parent kill reducer; it does not qualify U01. Pinned workload settings select UVM1.2, campaign library2020.3.1; no library edit or warning suppression. Evidence: `campaign-20260908/u01-after-p04`.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -615,12 +615,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### B01 — Windows coverage API import-library exports missing
 
 - **Area:** Build/API ABI export map, no language-semantic change.
-- **State:** IN_PROGRESS — prerequisite discovered in PR273 required UCRT64 CI.
+- **State:** CLOSED — old/new export invariant and review passed; required Windows CI now passed on PR273 head abcfdf7fb84b36b030ea8d28b05fca73ca06be16.
 - **Evidence:** job102955775883 link of vvp.tgt reports seven missing coverage
   API symbols; all are declared in ivl_target.h and implemented in t-dll-api.cc.
 - **Root:** Missing ivl.def entries prevent Windows import-library linkage.
 - **Closure:** Old/new invariant proof, exact exports, independent review and
   required Windows CI. Update existing PR273; no new PR or agent merge.
+
+
+- **Windows evidence:** UCRT64 job102981118128 completed success at2026-09-10T18:56:21Z, including build/link, regression, UVM and installed frontend. MINGW64 and CLANG64 also passed. Export map unchanged from reviewed7c779ff28; macOS remains queued for overall PR, no merge performed.
 
 
 ### U03 — Select a pinned UVM release from the iverilog command line
@@ -670,3 +673,48 @@ qualification remain open. Evidence: campaign-20260908/s03.
   NFA58/58 and real-DPI UVM355/0/0 pass. Full 15-release replay is complete and
   baseline-valid: four smoke passes, eleven compile failures. No broad queue,
   UVM, application or formal-program completion claim is made.
+
+### P04 — Process kill misses descendants in synchronous task frames
+
+- **Area / edition:** Process runtime / IEEE1800-2017 and2023 9.7.
+- **State:** CLOSED for live-parent descendant traversal; locally validated at `53b58890c63a48aa1943c7ef065db59f19cebef3`.
+- **Evidence:** `u01-after-l07/kill_task_children.sv`; both edition runs report
+  parent KILLED, child WAITING, counter continuing4to9 after parent.kill.
+- **Cause:** Descendant kill traversal skips joined synchronous task frames;
+  their live detached children are later reparented during frame cleanup.
+- **Scope:** Live-parent kill through synchronous frames only. Terminal-parent
+  kill DD-014 and application teardown qualification remain separate.
+- **Closure:** Permanent task/frame/deep-descendant and sibling controls;
+  focused and required integrated gates, independent review, then U01 replay.
+
+- **P04 validation:** Six paired regressions and all required focused/integrated gates passed: legacy4843total0unexpected failures,JSON1735/0,real-DPIUVM355/0/0,NFA58/58,VPI105,negative149,runtime15/15,makecheck and independent review. U01 replay remains separate.
+
+### L08 — UVM2020.1 resource-queue typing frontier
+
+- **Area / edition:** Class-scoped type actuals, IEEE1800-2017/2023 6.20.3 and8.23.
+- **State:** CLOSED for class-scoped type actual resolution and specialization identity; release-wide qualification remains open.
+- **Evidence:** DD-011; original2020.1.0/1.1 compile logs in the pinned release
+  matrix stop at nested resource-queue type/assignment errors.
+- **Closure:** First causal reducer, applicable IEEE semantics and minimal
+  implementation scope before any patch; permanent regression, required gates
+  and review. No release-wide or application qualification by implication.
+
+- **L08 candidate evidence:** Scoped resource-queue actual fails in both editions on the validated baseline; explicit equivalent type passes. Type-only class-member lookup and resolved specialization keys now pass ten permanent paired regressions in legacy and JSON runners, related17/15 controls and make check. Independent review clear after preserving dotted-path provenance through SVA cloning. Integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA remain required; no closure yet.
+
+- **L08 closure:** Implementation47e6c87b3 passed all required local gates: legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,NFA58/58,real-DPIUVM355/0/0,focused10/10each,neighbors17/15,makecheck and independent review. Original2020.1.0/1.1 compile but fail runtime as separately recorded in DD-011.
+
+### U04 — Original UVM2020.1 DPI regex loading
+
+- **State:** CLOSED at aa172f5f9 for legacy regex C ABI and real error propagation; original release phase qualification remains DD-017.
+- **Evidence:** DD-011, results-gizcr5j0; both original releases compile but miss uvm_re_match/uvm_glob_to_re symbols at runtime, followed by BUILDERR.
+- **Scope:** Establish declarations, loaded exports and causal reducer before authorizing a bounded patch. No library edits or release-wide qualification.
+
+### U05 — Standalone DPI reporting callback
+
+- **State:** CLOSED at a5eb76ebb after all required local validation; resume U04.
+- **Evidence:** u04/report_bridge.sv compiles but callback count remains0; standalone umbrella defines exported report callback as no-op.
+- **Scope:** Existing runtime export dispatcher adapter, preserved merged builds, argument/count and real-UVM reporting tests. U04 legacy regex reducers preserved; resume after validation.
+
+- **U05 closure evidence:** Four paired baseline failures become four passes in relocated frontend S10; S1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0 passed. No legacy regex compatibility claim from this reporting fix.
+
+- **U04 closure:** All required local gates passed: paired ABI/error controls,original2020.1.0/1.1 ABI4/4,relocated frontendS1-S10,review,makecheck,NFA58/58,legacy4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrix remains4SMOKE_PASS,9COMPILE_FAIL,2RUNTIME_FAIL; no release-wide qualification inferred.

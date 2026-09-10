@@ -4,8 +4,8 @@
 # loadable VPI module for the `iverilog -uvm' front end (used by `make
 # install' -> installuvm). This is distinct from the regression suite's
 # per-test *merged* module (.github/uvm_test.sh): here the umbrella stands
-# alone, so it is built with -DUVM_DPI_STANDALONE, which supplies a dead-code
-# fallback for the per-design m__uvm_report_dpi export (see uvm_dpi_iverilog.cc).
+# alone, so it is built with -DUVM_DPI_STANDALONE, which supplies the runtime
+# dispatcher adapter for the m__uvm_report_dpi export (see uvm_dpi_iverilog.cc).
 #
 # The umbrella combines the vendored, tool-independent Accellera UVM DPI
 # sources (regex, command-line, common reporting bridge) with an Icarus

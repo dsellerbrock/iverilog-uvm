@@ -1,0 +1,4 @@
+ivltests/sv_scoped_type_actual_values_fail.v:5: error: Type parameter `T` value `types.number` is not a type.
+ivltests/sv_scoped_type_actual_values_fail.v:5: error: Type parameter `T` value `types.value` is not a type.
+ivltests/sv_scoped_type_actual_values_fail.v:5: error: Type parameter `T` value `main.value` is not a type.
+3 error(s) during elaboration.

@@ -9091,6 +9091,7 @@ static PExpr* sva_clone_subst_(PExpr*e,
 		  cp->set_leading_type_args(type_args);
 	    }
 	    cp->set_scoped_type_prefix(id->has_scoped_type_prefix());
+            cp->set_dotted_suffix(id->has_dotted_suffix());
 	    cp->set_line(*e);
 	    return cp;
       }

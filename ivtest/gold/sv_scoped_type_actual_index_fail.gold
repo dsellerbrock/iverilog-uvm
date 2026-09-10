@@ -1,0 +1,4 @@
+./ivltests/sv_scoped_type_actual_index_fail.v:10: error: Type parameter `T` value `types.word_t['sd0]` is not a type.
+./ivltests/sv_scoped_type_actual_index_fail.v:10: error: Type parameter `T` value `generic.word_t` is not a type.
+./ivltests/sv_scoped_type_actual_index_fail.v:10: error: Type parameter `T` value `holder.nested_t.word_t` is not a type.
+3 error(s) during elaboration.

@@ -1563,3 +1563,113 @@ live; full JSON must follow integrated termination. Installed compiler SHA256
 B01 remains safely suspended awaiting remote Windows gates on PR273 at
 c189df5b8. UCRT64 Build and self-check passed; regression remains live. The
 publication-only executable-mode mistake was corrected; no gate was waived.
+
+### L07 milestone and U01 teardown triage
+
+L07 completed all required local gates at `9a1b6beb3`: integrated4837total,
+4832pass,0unexpected failures,2NI,3EF; JSON1729/0; real-DPI UVM355/0/0;
+NFA58/58, VPI105, negative149 and runtime15/15. PR273 was updated once at
+`abcfdf7fb84b36b030ea8d28b05fca73ca06be16`, adding the five validated increments
+V07/U02/L06/U03/L07. Fresh remote CI remains pending; no agent merge.
+
+U01 fresh L07 replay passes with115requests/230checked scoreboard items and
+zero UVM warnings/errors/fatals; all360exported source files are unchanged.
+Preserved old executable repeats PASS/PASS/FAIL; the failure has four actual
+SEQPRTZMB warnings. The earlier count of five included its report-summary
+line and is corrected in repeat-results.json, retaining the original file.
+Current executable repeats three clean passes. These are meaningful individual
+runs, but neither causal L06/L07 fix attribution nor repeatable qualification.
+
+Two standalone UVM controls cover direct run-phase teardown and background
+sequences outliving a completed outer sequence. Each produces4warnings in all
+five raw repeats and0with explicit sequence kill in all five clean repeats.
+The original app starts forever-running device sequences without explicit
+sequence stop; current UVM's guard monitors the start caller. Pinned OpenTitan
+VCS/Questa settings select UVM1.2, predating this guard. No warning waiver or
+application/library source edit was made.
+
+An added diagnostic observer disabled automatic finish and allowed execution
+past the known smoke completion. Its first valid run retained3warnings; three
+repeats retained0warnings after reporting plus an additional1ns. This does not
+support the hypothesis that missing warnings are merely deferred past report.
+The earlier function-valued wait observer woke at time zero and is invalid;
+its source/log are preserved, with the observation parked as DD-015. A distinct
+terminal-parent kill source concern is parked as DD-014, without investigation.
+Independent review agrees with keeping U01 OPEN at a coordination boundary.
+All artifacts are under evidence/campaign-20260908/u01-after-l07.
+
+Further bounded reduction established a concrete active-parent kill failure:
+a child forked inside an automatic task remains WAITING and increments its
+counter from4to9 after its parent reports KILLED. Both2017/2023 modes fail.
+The helper walks detached children of the physical root but misses those
+owned by its synchronous task frames; later frame reaping reparents them alive.
+Select P04 as a separate prerequisite; no claim that it explains all U01
+warning variability, and no expansion to terminal-parent kill DD-014.
+
+P04 candidate adds seven lines to the existing kill helper: traverse joined
+frames' detached descendants before frame teardown can reparent them. Six
+paired regressions fail on preserved baseline runtime and pass on candidate:
+nested automatic/static frames, joined subprocesses, unrelated sibling,
+self-kill, and blocked mailbox cancellation with later resource activity.
+Focused legacy6/6 and JSON6/6, neighbors24/14, makecheck and NFA58/58 pass.
+Independent initial source review found no concrete ownership defect and
+requested the now-passing resource control. Runtime candidate76132e1224af6b73
+is frozen; integrated29287 and real-DPIUVM5922 remain live. FullJSON follows
+integrated termination. P04 is awaiting validation, not closed; last validated
+semantic baseline remains9a1b6beb3.
+
+P04 closes at53b58890c after all required local gates pass. Integrated29287
+terminated0 (4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15),
+JSON9510 terminated0 (1735tests0failures), and UVM5922 terminated0 with355pass,
+0fail,0skip and REAL DPI umbrella loaded. Actual UVM mode isg2012; paired
+focused regressions qualify the bounded process behavior separately in2017/2023.
+NFA58/58,makecheck,focused6/6each,neighbors24/14 and final independent review
+passed. Source/test/tool fingerprints are preserved in p04/fingerprints.json;
+no installed-runtime mutation occurred during gates. No terminal-parent kill
+or broad process/UVM qualification claim. U01 resumes with fresh unmodified
+application replay; one validated increment since last PR publication.
+
+U01 post-P04 replay2921 terminated1 at harness level (compile/runtime0):
+115requests/230checked items,4SEQPRTZMBwarnings,0errors/fatals,TEST FAILED CHECKS.
+Two preserved-executable repeats49616 terminated0 with identical counts and
+four warnings each. All360exportedfiles match post-L07 exactly. These data do
+not qualify the application or justify suppressing its newer-library guards.
+At a deliberate boundary preserve U01 OPEN and select L08 from DD-011: reduce
+the original UVM2020.1 resource-queue compile frontier before any compiler edit.
+P04 remains the last validated semantic baseline; no live local gates remain.
+
+L08 fresh original2020.1.0 probe results-x3bxo9km repeats the class-scoped type
+argument diagnostic. Minimal scoped_type_argument.sv fails exactly one
+not-a-type error in both2017/2023. Replacing only the scoped typedef actual
+with its explicit queue_type#(resource) specialization passes compilation and
+runtime handle-identity/value73 checks in both editions. Early probe variants
+using module-scope class-qualified declarations encountered the already parked
+DD-012 boundary; the final reducer avoids that unrelated declaration shape.
+Applicable primary semantics:2017/2023 6.20.3 and8.23. Parser ambiguity chooses
+PEIdent; evaluate_type_parameter_ only resolves an unqualified single name.
+The existing :: provenance marker and scoped-class resolver should be reused;
+value-type inference would wrongly accept values as types. Design review flags
+specialization identity and outer-scope typedef fallback as required controls.
+No compiler source changes yet; last validated baseline remains53b58890c.
+
+### L08 candidate: class-scoped type actuals
+
+IEEE1800-2017/2023 6.20.3 and8.23 ground the resource-queue reducer. Resolve only selected class typedefs, preserve specialized type identity in cache keys, reject values and dotted paths, and keep cloned syntax provenance. Ten paired permanent regressions pass both runners; related17legacy/15JSON controls and make check pass. Independent review found a missing SVA clone flag, now fixed and reviewed clear. Required integrated gates are pending; no feature or release qualification claim. Evidence: `evidence/campaign-20260908/l08/`.
+
+L08 closed at47e6c87b3 after all required local gates: integrated4853total0unexpected failures,VPI105,negative149,runtime15/15,fullJSON1745/0,NFA58/58,real-DPIUVM355/0/0,focused10/10each,neighbors17/15,makecheck and independent review. Both original2020.1 releases now compile; runtime DPI frontier remains separate. Two validated increments since PR273; continue selection without publishing a per-blocker PR.
+
+### U05 standalone UVM report dispatch candidate
+
+U04 legacy ABI work exposed a proven reporting prerequisite: the installed standalone umbrella discarded m__uvm_report_dpi calls. Four paired baseline failures verify lost callbacks and unchanged real UVM severity/ID counts. The adapter follows the existing generated C stub/runtime dispatcher ABI, under the standalone guard; merged builds remain on generated stubs. IEEE2017/2023 H.9.2/H.9.3 and Table H.1 ground context and scalar mapping. Frontend S1-S10 passed from a relocated install, including all four new reporting controls. Independent review clear; required integrated gates remain pending. U04 original reducers preserved, no regex implementation yet.
+
+B01 external validation completed: UCRT64 job102981118128 passed every step on PR273 headabcfdf7f, including build/link, regression, UVM and installed frontend. MINGW64 and CLANG64 also passed. Reviewed seven-symbol export map is unchanged; old-map fails and new-map66-export proof/review retained. B01 exact export scope closed; overall PRmacOS queued, no merge. U05 remains sole active implementation awaiting local gates.
+
+U05 closed at a5eb76ebb after every required local gate passed: frontend S1-S10 including4paired report checks, review, makecheck,NFA58/58,legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Tool fingerprints unchanged. Resume U04 preserved regex ABI scope. Three validated increments since PR273; batch the resumed parent into the next coherent milestone within the3-5increment cadence.
+
+### U04 legacy regex ABI candidate
+
+Added strict POSIX legacy matcher and safe glob conversion entry points to the existing DPI umbrella. Modern delegation was rejected after source comparison because it changes invalid-pattern behavior, error codes and length handling. The initial raw-empty-ERE test assumption was disproved by Darwin returning14; the adapter preserves native behavior and portable empty matching uses^$. Paired tests cover valid/nonmatching/invalid regex,slash/anchors,2040glob/4084expansion,2048regex/2049rejection and four real UVM error reports. Final relocated frontendS1-S10 passed; review clear. Original2020.1.0/1.1 probes37649 running; requiredfullgates pending.
+
+U04 original-release ABI checks passed4/4. Full smoke now exits0 at time0 with no missing symbols or UVM errors but no completion marker; results-9mvpk_8f remains RUNTIME_FAIL, recorded DD-017. Focused invalid-regex control now uses an unclosed bracket with a leading wildcard to avoid native-extension ambiguity while still detecting a forbidden glob retry; paired tests pass. Integrated88113,UVM73729,NFA6429 live,makecheck passed; fullJSON awaits integrated termination.
+
+U04 closed at aa172f5f9 after all required local gates: frontendS1-S10,pairedABI/error and originalrelease4/4,review,makecheck,NFA58/58,legacy4853total4848pass0fail2NI3EF,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. Full15release matrixresults-rqcthqwn complete/baseline_valid,4SMOKE_PASS9COMPILE_FAIL2RUNTIME_FAIL. Fingerprints unchanged. Four validated increments P04,L08,U05,U04 ready for existing PR273; no merge.

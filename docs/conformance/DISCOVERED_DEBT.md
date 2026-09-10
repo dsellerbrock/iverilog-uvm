@@ -191,6 +191,9 @@ requires parking. Use the format above for the next agent's discoveries.
   before any semantic fix. No archived library or application source patched.
 
 
+- **L08 candidate follow-up:** Original2020.1.0/1.1 now compile at47e6c87b3, but both are RUNTIME_FAIL in results-gizcr5j0 (complete=true,baseline_valid=true). Runtime logs report unresolved uvm_re_match/uvm_glob_to_re DPI symbols followed by command-line UVM errors and BUILDERR. Record-only pending L08 validation; release-specific DPI loading/ABI and runtime semantics are not qualified. No library edits.
+
+
 ### DD-012 — L06 mixed-array and class-qualified declaration boundaries
 
 - **Discovered while working:** L06 expanded initialization controls.
@@ -214,3 +217,47 @@ requires parking. Use the format above for the next agent's discoveries.
   not repaired in its patch. UVM2020.3.2 is still COMPILE_FAIL/unqualified.
 
 - **L07 follow-up:** Direct queue-variable element assignment fixed and locally validated at `9a1b6beb3`. Unmodified2020.3.2 now passes the release smoke. Class-property/root-member last-index forms remain outside the resolved scope.
+
+### DD-014 — Terminal process kill loses descendant reachability
+
+- **Discovered while working:** U01 teardown source tracing; record-only.
+- **Observation:** `of_PROCESS_KILL` returns immediately when the process has no
+  owner or already reports FINISHED/KILLED. Thread reaping reparents detached
+  children. This appears unable to kill live descendants through a retained
+  handle to a terminated parent.
+- **File/function:** `vvp/vthread.cc`, `of_PROCESS_KILL`, `vthread_reap`.
+- **Possible clause:** IEEE 1800-2023 9.7 explicitly requires killing live
+  descendants even when the target is FINISHED/KILLED. The 2017 wording differs
+  and needs separate qualification; do not infer identical edition requirements.
+- **Evidence:** Current source at validated semantic revision `9a1b6beb3` and
+  local primary LRM text; no attribution to U01's intermittent warnings.
+- **Reproducer status:** none.
+- **Triage status:** untriaged; no implementation authorized by this entry.
+
+### DD-015 — Function-valued UVM core-state wait diagnostic woke early
+
+- **Discovered while working:** U01 post-report observer construction.
+- **Observation:** An added diagnostic top using
+  `wait (get_core_state() == UVM_CORE_FINISHED)` continued at time zero and
+  stopped the application at 1 ns. This invalidated the observer attempt; it
+  is not application qualification or proof of a compiler defect.
+- **File/function:** `uvm-core/src/base/uvm_globals.svh`, `get_core_state`;
+  evidence `u01-after-l07/teardown_observer_wait_attempt.sv` and
+  `teardown-observer.log` preserve the attempt.
+- **Possible clause:** Wait expression evaluation and function dependencies;
+  exact applicable semantics and cause remain to be established.
+- **Reproducer status:** diagnostic observation only; not minimized.
+- **Triage status:** untriaged, record-only. U01 observer now uses a bounded
+  explicit time after the known smoke completion and verifies log ordering.
+
+### DD-016 — Regex edge cases during legacy ABI comparison
+
+- **Discovered during:** U04 read-only legacy/modern regex comparison, before U05 prerequisite selection.
+- **Evidence:** Modern uvm-core/src/dpi/uvm_regex.cc uvm_re_comp strips slash brackets without the legacy len>1 guard; the single-slash input appears to underflow re_len-2. Source-only, not yet reduced; do not claim a runtime defect without evidence. Legacy2020.1 glob_to_re bracketed-input branch also falls through into the tail rather than preserving input, unlike modern conversion.
+- **Disposition:** Record-only; original vendor code unchanged. U04 must define explicit regex/empty/slash/bracket/error expectations before any ABI delegation; upstream behavior is not automatically normative.
+
+### DD-017 — Original UVM2020.1 smoke exits before intended phase checks
+
+- **Discovered during:** U04 original-release replay.
+- **Evidence:** results-9mvpk_8f complete=true,baseline_valid=true; both original2020.1 releases compile0/runtime0, no unresolved DPI symbols or command-line UVM errors, but finish at time0 without required smoke completion marker. Direct legacy ABI tests pass4/4 across both releases/editions.
+- **Disposition:** Record-only during U04; still RUNTIME_FAIL. Establish whether the intended run-phase traffic/checking executes and reduce the causal mechanism after the current semantic baseline is validated. No warning waivers or application edits.
