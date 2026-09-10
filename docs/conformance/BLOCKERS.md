@@ -752,6 +752,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U07 — Legacy UVM member delay compatibility
 
-- **State:** OPEN, selected after validated L10 and publicationPR274.
+- **State:** CLOSED at a83731194 after all required local gates.
 - **Evidence:** Original1.2 #setting.offset fails parsing; same first frontier in older releases.
 - **Classification:** Nonstandard unparenthesized member delay; both IEEE editions require parentheses. Use existing miscellaneous extension switch, preserving strict rejection and normal delay semantics; no library patches.
+
+- **U07 validation:** legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged. Eight release smoke passes; six compile gaps and one runtime timeout remain. This closes only compatibility syntax under the existing miscellaneous-extension mode, not IEEE/UVM parent qualification.

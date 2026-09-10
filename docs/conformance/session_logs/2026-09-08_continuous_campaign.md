@@ -1865,3 +1865,9 @@ Original1.2 progresses to DD021 elaboration/ignored-constraint frontiers, still
 COMPILE_FAIL. Integrated62003,UVM39509,NFA1896 running;makecheckexit0.
 FullJSON follows integrated, frontendalone last. PR274 remains separate
 validated batch at eb8852748; this candidate is not published.
+
+
+### U07 closure at a83731194
+
+legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged.
+Fresh full release sweep results-4r1diuop is complete/baseline_valid:8SMOKE_PASS,6COMPILE_FAIL,1RUNTIME_TIMEOUT. New2017.1.0/1.1 passes include exact marker and zeroW/E/F;2017.0.9 timeout recordedDD022. Original1.2 DD021 remains. No mandatoryIEEE coverage gain claimed for extension syntax. README/matrix updated. Select bounded string struct-member indexing next, prioritizing1.2/OpenTitan; no per-blocker PR.

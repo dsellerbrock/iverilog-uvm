@@ -327,6 +327,8 @@ U07 candidate original1.2 probe `third_party/uvm-releases/results-sv_woyjp`
 gets past #setting.offset but fails elaboration: uvm_printer.svh1172 reports
 an unsupported index on struct member val, and uvm_traversal.svh284-285 reports
 hierarchical references to automatically allocated compiled_regex in visit.
+The upstream declaration is explicitly `static chandle compiled_regex`;
+reduce lifetime handling and hierarchical lookup rather than assuming the diagnostic is correct.
 A uvm_sequence_base.svh1255 pick_sequence constraint item is also reported
 unrepresentable and ignored. These remain separate semantic/diagnostic
 frontiers; no UVM pass or waiver. Source trees unchanged; record-only during

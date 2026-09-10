@@ -1,17 +1,17 @@
 status: active
 branch: "agent/campaign-function-arguments-main-20260910"
 current_blocker: "U07"
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "051aeee8e"
+last_integrated_good_revision: "a83731194"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["U07_UVM", "U07_frontend", "PR274_remote_CI_before_merge", "U01_application_qualification"]
+pending_gates: ["PR274_remote_CI_before_merge", "U01_application_qualification"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U07 exact closure, reduce DD021 legacy-UVM elaboration frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
-next_action: "Await UVM39509; JSON1773/0 and release matrix complete. Run frontend alone after UVM terminal. No installs/source changes."
+next_action: "Select and reduce DD021 string struct-member indexing for UVM1.2."
 next_command: "tail -n 12 ../evidence/campaign-20260908/u07/integrated.log ../evidence/campaign-20260908/u07/uvm.log"
 next_command_cwd: repository root
 candidate_state: "U07 a83731194 built/installed,focused8/8bothharnesses,neighbors40/0,reviewclear; fullgatesrunning."
@@ -293,10 +293,14 @@ function_arguments_pr:
   scope: U06,L09,L11,L10,READMEversionusage
   validation: Allrequiredlocalgatespassed;fresh6CIjobsqueued/running;noagentmerge.
   history: Two-parentpublicationmergea075e5b63 preservedmainandcampaignwithreviewedtree19f5007c;followingupeb8852748 removesoneblankEOFlineonly.
-u07_live_gates: {UVM: 39509}
+u07_live_gates: {}
 
 u07_integrated_terminal: "62003 exit0; legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. NFA58/58 and makecheck passed; fullJSON started after legacy/VPI terminal."
 
 u07_release_results: "results-4r1diuop complete/baseline_valid;8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. Newly passing2017.1.0/1.1 exact marker and zeroW/E/F;2017.0.9 compiles then300second timeout with empty runtime log. Terminal96191 exit1 for known release gaps. U07 required validation remains pending."
 
 u07_json_terminal: "40182 exit0;1773tests0failures. UVM39509 running; isolated frontend unstarted."
+
+u07_uvm_terminal: "39509 exit0; real-DPI355passed0failed0skipped. Frontend13719 running alone; fingerprints matched before start."
+
+u07_closure: "a83731194;legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"

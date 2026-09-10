@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, candidate source `a83731194` (U07 member-delay compatibility, following validated L10).
-The release sweep is complete; U07 integrated validation is still pending.
+2026-09-10, native ARM64, validated source `a83731194` (U07 member-delay compatibility, following validated L10).
+The release sweep and all required U07 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
