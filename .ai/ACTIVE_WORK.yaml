@@ -1,47 +1,34 @@
-id: U01
-title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+id: P04
+title: Kill live descendants spawned inside synchronous task frames
 status: in_progress
-phase: teardown_repeatability_triage
+phase: reproduced
 base_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
 standards:
-  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
-expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
-observed_behavior: Post-L03 replay completed115 requests and230 scoreboard items with zero errors/fatals, but two SEQPRTZMB warnings and TEST FAILED CHECKS. Re-establish the frontier after L05 and V04-V07; no application pass inferred.
-reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
+  - IEEE1800-2017 9.7 process kill terminates process and its spawned subprocesses; synchronous task calls do not create a distinct process.
+  - IEEE1800-2023 9.7 explicitly includes all descendant subprocesses, terminated before kill returns.
+expected_behavior: Killing a live parent also terminates its child forked inside an automatic task; child cannot continue counter updates.
+observed_behavior: Both editions report parent KILLED but child WAITING and counter4to9 after kill.
+reproducer: ../evidence/campaign-20260908/u01-after-l07/kill_task_children.sv and kill-task-{2017,2023}.log
+root_cause: kill_detached_subprocesses_ walks detached children but misses synchronous task frames in children; do_disable later reparents their detached children alive.
 allowed_scope:
-  - Read-only application corpus and current harness/source inspection.
-  - Fresh evidence/campaign-20260908/u01-after-l07 build/log/reducer artifacts; preserve earlier evidence.
-  - .ai/ACTIVE_WORK.yaml
-  - .ai/CAMPAIGN.yaml
-  - docs/conformance/BLOCKERS.md
-  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
+  - vvp/vthread.cc process-kill descendant traversal.
+  - Focused permanent legacy and JSON process-kill regressions and gold/registry entries.
+  - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
+  - docs/conformance/BLOCKERS.md and session log.
 non_goals:
-  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
-  - No compiler implementation until a causal reducer and exact scope are established.
+  - Terminal-parent kill DD-014, core-state wait DD-015, unrelated runtime redesign.
+  - No application edits, warning suppression, or broad U01 closure.
 invariants:
-  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
-  - Preserve 300-second per-process CPU guard and bounded wall time.
-  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
+  - Preserve logical process identity and existing disable semantics.
+  - Native ARM64, serial build,300second per-process CPU guard, no RSS cap.
+  - Preserve sibling worktrees and frozen baseline; do not install while gates run.
 required_gates:
-  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
-  - First divergence from current-source replay, with traffic and scoreboard evidence.
-  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
-completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
-discovery_policy: Unrelated findings are record-only.
-stop_after_completion: false
+  - Paired failing baseline and passing task/named-frame/deep descendant controls; unaffected sibling survives.
+  - Focused legacy and JSON regression harnesses; make check and independent review.
+  - Required integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA gates.
+completion: Close only live-parent descendant traversal scope after required gates pass, then replay unmodified U01 at a coordination boundary.
 last_validated_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
-next_action: Run the preserved pinned smoke in a fresh native build root, compare exported inputs and exact traffic/teardown observations, then reduce only a justified simulator divergence.
-current_replay: u01-after-v07/result.json RUNTIME_FAIL;115requests,230scoreboarditems,0errors/0fatals,4SEQPRTZMBwarnings,TEST FAILED CHECKS; all360exportedfiles unchanged.
-current_controls: Paired2017/2023 parent.kill emits1warning and sequence.kill emits0; all guard controls pass.
-compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campaign uses current bundled UVM. Clean local UVM1.2 revision c68f035f9c8e965807082495c5a667729afe3aa8 lacks the newer sequence-parent guard.
-next_triage: Native --uvm-home diagnostic with original application sources and correct matrix cwd fails first at uvm_component.svh3616 (#setting.offset), then legacy macro invocations. Check applicable delay grammar and macro semantics before classifying any compiler defect or selecting a prerequisite; do not edit corpus or suppress diagnostics.
-
-current_action: Replay the same original xbar smoke with the unchanged bundled UVM first, on validated L07 tools, in a fresh native output root. Do not substitute a library or suppress sequence-parent warnings.
-
-replay_handle: 24296
-next_command: "sed -n '55,110p' ../clean-corpora/opentitan-7a3ad34/hw/ip/tlul/generic_dv/env/seq_lib/xbar_base_vseq.sv"
-
-latest_replay: Fresh unmodified xbar smoke PASS;115requests,230scoreboarditems,zero warnings/errors/fatals,TEST PASSED CHECKS;360exported source files identical to previous replay and same runtime/UVM hashes.
-repeat_evidence: Preserved old executable gives two clean passes and one five-SEQPRTZMB-warning failure; new executable gives three clean passes. Same runtime arguments and no recompilation within repeats. Intermittent old teardown is proven; no causal fix attribution or broad U01 closure.
-next_triage: Compare process-parent lifetime and teardown ordering in preserved app and existing reduced guard controls; distinguish nondeterminism from intended UVM guard behavior before any patch.
+discovery_policy: Unrelated findings record-only; patch regressions remain in scope.
+stop_after_completion: false
+next_action: Trace all callers and frame ownership, implement smallest traversal correction, add permanent paired coverage.
+next_command: "rg -n 'kill_detached_subprocesses_' vvp/vthread.cc"

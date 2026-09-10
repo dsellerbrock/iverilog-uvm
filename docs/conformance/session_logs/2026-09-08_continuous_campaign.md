@@ -1563,3 +1563,45 @@ live; full JSON must follow integrated termination. Installed compiler SHA256
 B01 remains safely suspended awaiting remote Windows gates on PR273 at
 c189df5b8. UCRT64 Build and self-check passed; regression remains live. The
 publication-only executable-mode mistake was corrected; no gate was waived.
+
+### L07 milestone and U01 teardown triage
+
+L07 completed all required local gates at `9a1b6beb3`: integrated4837total,
+4832pass,0unexpected failures,2NI,3EF; JSON1729/0; real-DPI UVM355/0/0;
+NFA58/58, VPI105, negative149 and runtime15/15. PR273 was updated once at
+`abcfdf7fb84b36b030ea8d28b05fca73ca06be16`, adding the five validated increments
+V07/U02/L06/U03/L07. Fresh remote CI remains pending; no agent merge.
+
+U01 fresh L07 replay passes with115requests/230checked scoreboard items and
+zero UVM warnings/errors/fatals; all360exported source files are unchanged.
+Preserved old executable repeats PASS/PASS/FAIL; the failure has four actual
+SEQPRTZMB warnings. The earlier count of five included its report-summary
+line and is corrected in repeat-results.json, retaining the original file.
+Current executable repeats three clean passes. These are meaningful individual
+runs, but neither causal L06/L07 fix attribution nor repeatable qualification.
+
+Two standalone UVM controls cover direct run-phase teardown and background
+sequences outliving a completed outer sequence. Each produces4warnings in all
+five raw repeats and0with explicit sequence kill in all five clean repeats.
+The original app starts forever-running device sequences without explicit
+sequence stop; current UVM's guard monitors the start caller. Pinned OpenTitan
+VCS/Questa settings select UVM1.2, predating this guard. No warning waiver or
+application/library source edit was made.
+
+An added diagnostic observer disabled automatic finish and allowed execution
+past the known smoke completion. Its first valid run retained3warnings; three
+repeats retained0warnings after reporting plus an additional1ns. This does not
+support the hypothesis that missing warnings are merely deferred past report.
+The earlier function-valued wait observer woke at time zero and is invalid;
+its source/log are preserved, with the observation parked as DD-015. A distinct
+terminal-parent kill source concern is parked as DD-014, without investigation.
+Independent review agrees with keeping U01 OPEN at a coordination boundary.
+All artifacts are under evidence/campaign-20260908/u01-after-l07.
+
+Further bounded reduction established a concrete active-parent kill failure:
+a child forked inside an automatic task remains WAITING and increments its
+counter from4to9 after its parent reports KILLED. Both2017/2023 modes fail.
+The helper walks detached children of the physical root but misses those
+owned by its synchronous task frames; later frame reaping reparents them alive.
+Select P04 as a separate prerequisite; no claim that it explains all U01
+warning variability, and no expansion to terminal-parent kill DD-014.

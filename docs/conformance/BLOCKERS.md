@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** 03caa64c8 fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but4SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match post-L03 replay. Paired parent.kill/sequence.kill controls still distinguish1/0 warnings. Pinned OpenTitan tool configs select UVM1.2; current-library compatibility and teardown remain unqualified. UVM1.2 diagnostic compile frontier is being classified without corpus edits. Evidence: campaign-20260908/u01-after-v07.
+- **Last verified revision:** `9a1b6beb3` fresh unmodified smoke PASS with115requests/230checked scoreboard items and zero UVM warnings/errors/fatals. All360exportedfiles remain identical. Preserved older executable repeats PASS/PASS/FAIL with4sequence-parent warnings; current executable repeats three passes. No causal L06/L07 fix attribution or repeatable teardown qualification. Reduced phase-kill and completed-parent-sequence controls each give4warnings without explicit sequence kill and0with cleanup. Pinned OpenTitan configs select UVM1.2; the campaign library is2020.3.1. Evidence: `campaign-20260908/u01-after-l07`.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -670,3 +670,16 @@ qualification remain open. Evidence: campaign-20260908/s03.
   NFA58/58 and real-DPI UVM355/0/0 pass. Full 15-release replay is complete and
   baseline-valid: four smoke passes, eleven compile failures. No broad queue,
   UVM, application or formal-program completion claim is made.
+
+### P04 — Process kill misses descendants in synchronous task frames
+
+- **Area / edition:** Process runtime / IEEE1800-2017 and2023 9.7.
+- **State:** OPEN, active implementation.
+- **Evidence:** `u01-after-l07/kill_task_children.sv`; both edition runs report
+  parent KILLED, child WAITING, counter continuing4to9 after parent.kill.
+- **Cause:** Descendant kill traversal skips joined synchronous task frames;
+  their live detached children are later reparented during frame cleanup.
+- **Scope:** Live-parent kill through synchronous frames only. Terminal-parent
+  kill DD-014 and application teardown qualification remain separate.
+- **Closure:** Permanent task/frame/deep-descendant and sibling controls;
+  focused and required integrated gates, independent review, then U01 replay.

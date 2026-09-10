@@ -214,3 +214,35 @@ requires parking. Use the format above for the next agent's discoveries.
   not repaired in its patch. UVM2020.3.2 is still COMPILE_FAIL/unqualified.
 
 - **L07 follow-up:** Direct queue-variable element assignment fixed and locally validated at `9a1b6beb3`. Unmodified2020.3.2 now passes the release smoke. Class-property/root-member last-index forms remain outside the resolved scope.
+
+### DD-014 — Terminal process kill loses descendant reachability
+
+- **Discovered while working:** U01 teardown source tracing; record-only.
+- **Observation:** `of_PROCESS_KILL` returns immediately when the process has no
+  owner or already reports FINISHED/KILLED. Thread reaping reparents detached
+  children. This appears unable to kill live descendants through a retained
+  handle to a terminated parent.
+- **File/function:** `vvp/vthread.cc`, `of_PROCESS_KILL`, `vthread_reap`.
+- **Possible clause:** IEEE 1800-2023 9.7 explicitly requires killing live
+  descendants even when the target is FINISHED/KILLED. The 2017 wording differs
+  and needs separate qualification; do not infer identical edition requirements.
+- **Evidence:** Current source at validated semantic revision `9a1b6beb3` and
+  local primary LRM text; no attribution to U01's intermittent warnings.
+- **Reproducer status:** none.
+- **Triage status:** untriaged; no implementation authorized by this entry.
+
+### DD-015 — Function-valued UVM core-state wait diagnostic woke early
+
+- **Discovered while working:** U01 post-report observer construction.
+- **Observation:** An added diagnostic top using
+  `wait (get_core_state() == UVM_CORE_FINISHED)` continued at time zero and
+  stopped the application at 1 ns. This invalidated the observer attempt; it
+  is not application qualification or proof of a compiler defect.
+- **File/function:** `uvm-core/src/base/uvm_globals.svh`, `get_core_state`;
+  evidence `u01-after-l07/teardown_observer_wait_attempt.sv` and
+  `teardown-observer.log` preserve the attempt.
+- **Possible clause:** Wait expression evaluation and function dependencies;
+  exact applicable semantics and cause remain to be established.
+- **Reproducer status:** diagnostic observation only; not minimized.
+- **Triage status:** untriaged, record-only. U01 observer now uses a bounded
+  explicit time after the known smoke completion and verifies log ordering.

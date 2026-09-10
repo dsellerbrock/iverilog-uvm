@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U01
-phase: teardown_repeatability_triage
+current_blocker: P04
+phase: reproduced
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
+pending_gates: [P04_focused_and_integrated_validation, U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: Complete L07 validation, then reassess the unmodified application and remaining release blockers at a deliberate selection boundary.
-next_action: Trace original xbar forked sequence parents and UVM process-guard teardown against old/new repeat evidence; no compiler change until a causal reducer is established.
-next_command: "sed -n '55,110p' ../clean-corpora/opentitan-7a3ad34/hw/ip/tlul/generic_dv/env/seq_lib/xbar_base_vseq.sv"
+next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
+next_action: Implement bounded P04 live-parent descendant traversal after caller/ownership trace; preserve U01 diagnostics.
+next_command: "rg -n 'kill_detached_subprocesses_' vvp/vthread.cc"
 next_command_cwd: repository root
-candidate_state: L07 locally validated and published; U01 has no active compiler patch.
-installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
-validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Isolate intermittent parent termination ordering; fresh replay24296 and repeated runtime46249 are terminal.
+candidate_state: P04 reducer fails in2017/2023; no implementation yet. U01 safely suspended with reviewed evidence.
+installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; driver75f4c2cb.
+validation_state: L07 all local gates pass;4837legacy total,1729JSON,355real-DPIUVM,58NFA,105VPI,149negative,15runtime controls; required remote CI remains pending.
+next_validation: Independent review of U01 diagnostic interpretation; no compiler patch or required local gate running.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -209,4 +209,4 @@ uvm_milestone_publication:
   validation: All required local gates passed; fresh remote CI and existing merge permissions remain required. No agent merge.
 u01_resume: Fresh single-core runtime replay under evidence/u01-after-l07; original corpus and bundled library unchanged. Last validated compiler/runtime9a1b6beb3.
 
-u01_latest_replay: PASS with115requests/230scoreboarditems and zero warnings/errors/fatals; source360files unchanged. Repeats old2PASS/1FAILwith5guardwarnings,new3PASS. U01 remains open for teardown repeatability and causal classification; no fix attribution from this pass.
+u01_latest_replay: PASS with115requests/230scoreboarditems and zero warnings/errors/fatals; source360files unchanged. Repeats old2PASS/1FAILwith4guardwarnings,new3PASS. U01 remains open for teardown repeatability and causal classification; no fix attribution from this pass.
