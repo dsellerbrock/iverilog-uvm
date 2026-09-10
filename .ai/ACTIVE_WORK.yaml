@@ -27,7 +27,7 @@ required_gates:
   - Permanent regression,focused and required integrated validation,independent review and original-source replay before closure.
 completion: Close exact validated causal scope only; original-release/application qualification remains separate unless intended checking demonstrably executes.
 stop_after_completion: false
-next_action: "Await live JSON55272 and real-DPIUVM11401. Integrated60637 completed0 (4855total0fail,VPI105,negative149,runtime15/15). Run frontend alone only after both remaining gates terminate; no installs."
+next_action: "Await live JSON77801; first JSON run only lacked the new test golden-output file, corrected at aad6fe22b. UVM11401 completed0 with355pass0fail0skip. Run frontend alone after JSON terminates; no installs."
 next_command: "tail -8 ../evidence/campaign-20260908/u06/json.log"
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
@@ -43,7 +43,7 @@ u06_focused: Permanent test fails baseline and passes candidate in both editions
 
 candidate_revision: "fe4e949b8"
 
-next_validation: "JSON55272 and UVM11401 running; integrated60637,makecheck,NFA58,review,full15release matrix and four original2017/2023 smokes passed their declared scope. Isolated frontend pending."
+next_validation: "JSON77801 running. Integrated60637,real-DPIUVM355/0/0,makecheck,NFA58,review,full15release matrix and four original2017/2023 smokes complete. Isolated frontend pending."
 
 u06_final_review: Independent review clear; terminal-only cleanup source guards and baseline/candidate nonlocal exit plus frame reuse control resolve lifetime concern. No additional code changes requested.
 u06_release_matrix: results-mseshk7y complete and baseline_valid; 6SMOKE_PASS9COMPILE_FAIL, both2020.1 releases execute original smoke through time1 with exact checks and zero warnings/errors/fatals. Matrix exit1 reflects remaining compile failures, not incomplete execution.

@@ -1733,3 +1733,10 @@ legacy compile/run now passes. VPI105,negative149,runtime15/15 all passed
 in first run. Full integrated60637 rerunning; runtime unchanged. UVM11401
 continues; JSON/isolated frontend remain pending. Preserve first-gate log
 in u06/integrated-first.log.
+
+U06 integrated60637 completed0:4855total4850pass0fail2NI3EF,
+VPI105,negative149,runtime15/15. JSON55272 completed with1747runs and
+exactly2 new-test golden-output failures: runtime printed PASSED, but
+JSON requires its own -vvp-stdout.gold file, separate from legacy .gold.
+Added stdout PASSED/empty stderr gold at aad6fe22b; fullJSON77801 rerunning.
+Original log preserved as u06/json-first.log; no runtime changes.
