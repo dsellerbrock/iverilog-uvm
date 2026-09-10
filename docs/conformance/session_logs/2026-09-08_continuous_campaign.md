@@ -1133,3 +1133,46 @@ L03 integrated ancillary checks passed VPI105/105,negative149/149,and runtime in
 L03 real-DPIUVM93480 terminated0:355passed,0failed,0skipped. Frozen compiler/runtime fingerprints unchanged. All required local gates and final review pass. Qualify exact shared Boolean functor/supported-chain scope and checkpoint, then continue campaign selection; remote CI remains required before merge.
 
 L03 implementation4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb checkpointed; completed contract preserved in evidence/l03. Worktree audit preserves dirty/nonancestor sibling trees. Resume U01 unmodified application qualification in fresh u01-after-l03 output root on validated L03/L04 runtime. No application edits, warning suppression or traffic/check changes.
+
+U01 post-L03 replay3600 terminated1 with RUNTIME_FAIL:compile3.298sec,runtime11.946sec,115requests/230scoreboarditems,0UVMerrors/0fatals,2SEQPRTZMBwarnings and TEST FAILED CHECKS at50311632ps. Pinned corpus clean7a3ad34;360exportedfiles match post-S06 exactly. Fewer warnings than prior four-warning run is not application qualification; retained reduced parent-kill mechanism does not justify suppressing warnings or a compiler patch. Preserve U01 contract/replay and select L05 from DD-002 at coordination boundary, because incorrect associative member key typing silently skips DV traversal. No L05 implementation before fresh paired reducer, primary semantics and source trace.
+
+L05 paired retained reducer failszeroentries on validated L03. Source confirms selected-member parser actions lose selector structure (null target or unindexed path), while helper rejects indexed paths. Candidate preserves both selected-member paths, reuses evaluation-free PEIdent type lookup and terminal dimension/key types, leaving established unselected and selected-array-nonmember routes unchanged. Original paired reducer and signed16bit/classkey/inherited-parameterized controls pass initial candidate. A proposed positive same-name selector/key control failed, but review withdrew outer-binding expectation:12.7.3 references12.7.1 implicit block declarations before wholeloop, and both Slang editions bind header key to newstringindex and reject it. No runtime target-scope change was applied. Invalid control retained as evidence; valid distinct-selector/shadowed-body-key control replaces it.
+
+L05 permanent5pairedcases cover string order/count/sum,signed16bit keys,class-method keys,inherited parameterized members,expression/bare selectors,valid body shadowing,concurrent automatic dynamic receivers and skipped fixed dimensions. Saved pre-L05 compiler fails all new cases; candidate focus10/10legacy+JSON,foreach neighbors53/53+34/34,makecheck and final review pass. Bison563shift/reduce1122reduce/reduce counts unchanged; final comment-only rebuild produces identical fingerprints. Candidate compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226/runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754 frozen. Integrated66792,NFA93662,real-DPIUVM42794 running; fullJSON waits for integrated. L05 awaits validation; last fully validated4bcbd9c7b.
+
+User requested periodic GitHub PR creation. Updated AGENTS.md to publish/update reviewable draft PRs at validated checkpoints, inspect and drain unpublished validated backlog, and record semantic heads/dependencies/CI in CAMPAIGN. Publication is authorized; merge permissions and all gates remain unchanged. Refreshed origin/main remains49505f514; no open PRs were found. First publication is the validated cohesive P03/P01/P02 fork-process batch through b9de0be7f, with the new PR-cadence policy only added above that semantic head. L05 remains frozen awaiting full local validation.
+
+
+### Periodic GitHub publication requested; first batch published
+
+User explicitly requested periodic pull requests. AGENTS.md policy checkpoint
+61001162b requires publication at coherent locally validated checkpoints and
+catch-up of the unpublished backlog, while preserving required CI and merge
+permissions. Draft PR https://github.com/dsellerbrock/iverilog-uvm/pull/263
+publishes P03/P01/P02 at validated semantic revision b9de0be7f; publication
+revision a3744e5b7 adds only the PR-cadence policy. No open PR existed before
+publication. Remaining cohesive batches are recorded in CAMPAIGN.yaml.
+
+L05 source/tests/tools remain frozen. Integrated66792 exited0: 4770 total,
+4765 pass, zero failures,2 not implemented,3 expected failures; VPI105/105,
+negative149/149 and runtime invariants pass. NFA93662 exited0 with58/58.
+FullJSON84561 started only after integrated completed; UVM42794 remains running.
+Last fully locally validated semantic revision remains4bcbd9c7b.
+
+
+Publication catch-up: draft PR264 publishes Z01A/C01, based on PR263;
+draft PR265 publishes L01/L02, based on PR264. Exact semantic/documentation
+and publication heads are recorded in CAMPAIGN.yaml. Publication trees differ
+from the validated historical trees only in inherited AGENTS.md PR policy;
+no L05 semantic work is included. Required remote CI/review remain pending.
+L05 fullJSON84561 terminated0:1662 tests,zero failures. UVM42794 remains
+running; source/tests/tools remain frozen and last validated head4bcbd9c7b.
+
+
+L05 final UVM42794 terminated0:355 passed,0 failed,0 skipped with real DPI
+loaded. FullJSON84561 passed1662/0; integrated66792 passed4770total4765pass,
+0fail2NI3EF, VPI105/105,negative149/149,runtime checks; NFA58/58.
+Focused paired10/10+10/10, foreach neighbors53/34,makecheck and independent
+review already passed on the frozen source/tools. Checkpoint only selected
+member index typing. DD-009 invalid header selection and other residuals stay
+separate. Remote CI remains required before merge; campaign continues.

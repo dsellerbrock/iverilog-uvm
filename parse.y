@@ -6028,18 +6028,17 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	pform_make_foreach_declarations(@1, 0, $10);
+        index_component_t itmp;
+        itmp.sel = index_component_t::SEL_BIT;
+        itmp.msb = $5;
+        itmp.lsb = nullptr;
+        $3->back().index.push_back(itmp);
+        $3->splice($3->end(), *$8);
+        pform_make_foreach_declarations(@1, $3, $10);
       }
     statement_or_null
       { /* paths[0].slices[i] — hierarchical target with a selected prefix */
 	pform_name_t*tmp_name = $3;
-	name_component_t&tail = tmp_name->back();
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = $5;
-	itmp.lsb = 0;
-	tail.index.push_back(itmp);
-	tmp_name->splice(tmp_name->end(), *$8);
 	delete $8;
 
 	PForeach*tmp_for = pform_make_foreach(@1, *tmp_name, $10, $14);
@@ -6055,8 +6054,8 @@ loop_statement /* IEEE1800-2005: A.6.8 */
       }
 
       // A bare selected-prefix identifier reduces through loop_variables
-      // because of the foreach header ambiguity. It still names an enclosing
-      // value: only the terminal bracket list declares loop variables (12.7.3).
+      // because of the foreach header ambiguity. It is a selector expression,
+      // not an additional loop-variable declaration (12.7.3).
   | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '.'
     foreach_array_identifier '[' loop_variables ']' ')'
       {
@@ -6067,13 +6066,18 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	  // Inner loop variables (one per dimension of the hierarchical
-	  // member $8) take their index type from the combined,
-	  // UNINDEXED path $3.$8 -- a dimension's shape does not depend
-	  // on which element of $3 is selected.
-	pform_name_t inner_shape_path(*$3);
-	inner_shape_path.splice(inner_shape_path.end(), pform_name_t(*$8));
-	pform_make_foreach_declarations(@1, &inner_shape_path, $10);
+        if ($5->size() == 1 && !$5->front().nil()) {
+              index_component_t itmp;
+              itmp.sel = index_component_t::SEL_BIT;
+              itmp.msb = new PEIdent($5->front(), @5.lexical_pos);
+              FILE_NAME(itmp.msb, @5);
+              itmp.lsb = nullptr;
+              $3->back().index.push_back(itmp);
+              $3->splice($3->end(), *$8);
+              pform_make_foreach_declarations(@1, $3, $10);
+        } else {
+              pform_make_foreach_declarations(@1, nullptr, $10);
+        }
       }
     statement_or_null
       { bool prefix_ok = $5->size() == 1 && !$5->front().nil();
@@ -6082,18 +6086,7 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 
 	PForeach*tmp_for = 0;
 	if (prefix_ok) {
-	      pform_name_t*inner_path = new pform_name_t(*$3);
-	      name_component_t&inner_tail = inner_path->back();
-              index_component_t itmp;
-              itmp.sel = index_component_t::SEL_BIT;
-              itmp.msb = new PEIdent($5->front(), @5.lexical_pos);
-              FILE_NAME(itmp.msb, @5);
-              itmp.lsb = nullptr;
-              inner_tail.index.push_back(itmp);
-	      inner_path->splice(inner_path->end(), pform_name_t(*$8));
-
-	      tmp_for = pform_make_foreach(@1, *inner_path, $10, $14);
-	      delete inner_path;
+	      tmp_for = pform_make_foreach(@1, *$3, $10, $14);
 
 	} else {
 	      delete $10;

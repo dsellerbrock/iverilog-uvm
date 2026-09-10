@@ -2059,16 +2059,53 @@ static const data_type_t* find_foreach_class_property_index_type_(
 
 ivl_type_t foreach_index_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 {
+      vector<perm_string> names;
+      bool selected = false;
+      for (const auto&component : target_path) {
+            names.push_back(component.name);
+            selected |= !component.index.empty();
+      }
+      if (selected) {
+            // Resolve the declared container without a circular dependency
+            // on the index being typed. Ordinary target elaboration still
+            // binds and validates selectors; type lookup does not evaluate them.
+            PEIdent subject(target_path, lexical_pos);
+            subject.set_line(*this);
+            NetScope*owner = scope->parent() ? scope->parent() : scope;
+            ivl_type_t type = subject.test_type_of_ident(des, owner);
+            if (!type) {
+                  cerr << get_fileline() << ": error: Unable to determine the type of foreach target "
+                       << target_path << "." << endl;
+                  des->errors += 1;
+                  return size_type.elaborate_type(des, scope);
+            }
+            size_t depth = index_depth;
+            while (const auto*array = dynamic_cast<const netarray_t*>(type)) {
+                  size_t dimensions = 1;
+                  if (const auto*fixed = dynamic_cast<const netsarray_t*>(array))
+                        dimensions = fixed->static_dimensions().size();
+                  if (depth < dimensions) {
+                        if (const auto*queue = dynamic_cast<const netqueue_t*>(array))
+                              if (queue->assoc_compat() && queue->assoc_index_type())
+                                    return queue->assoc_index_type();
+                        break;
+                  }
+                  depth -= dimensions;
+                  type = array->element_type();
+            }
+            return size_type.elaborate_type(des, scope);
+      }
+
       const char*trace = getenv("IVL_FOREACH_TYPE_TRACE");
-      const PWire*array_wire = scope ? find_foreach_array_placeholder_(scope, target_path) : 0;
+      const PWire*array_wire = scope ? find_foreach_array_placeholder_(scope, names) : 0;
       const data_type_t*wire_index_type =
 	    array_wire ? find_foreach_wire_index_type_(array_wire, index_depth) : 0;
       const data_type_t*class_prop_index_type =
 	    (!array_wire && scope)
 	      ? find_foreach_class_property_index_type_(
-		    des, scope, target_path, index_depth)
+		    des, scope, names, index_depth)
 	      : 0;
-      string target_path_string = foreach_target_path_string_(target_path);
+      string target_path_string = foreach_target_path_string_(names);
       if (trace && *trace) {
 	    cerr << "foreach-type: scope=";
 	    if (scope)

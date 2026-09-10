@@ -54,7 +54,7 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Possible clause:** IEEE 1800-2017/2023 12.7.3 implicit index type.
 - **Evidence:** evidence/campaign-20260908/l01/typed*.sv, .vvp and logs; old compiler from preserved string-array-param-after253 worktree, a diagnostic comparison rather than a campaign qualification gate.
 - **Reproducer status:** confirmed
-- **Triage status:** untriaged; no repair included in L01.
+- **Triage status:** resolved within the reviewed, locally validated L05 selected-member index-type scope; no repair included in L01. Broader container/header validation remains separate.
 
 ### DD-003 — Boolean event-expression driver discards automatic activation context
 
@@ -130,3 +130,22 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Evidence:** campaign-20260908/s05/parameter-delay-override.sv and .log; current candidate produces EARLY1/0 then1/0. First observed before the S05 parent edit; no retained pre-S05 isolated reducer result, so baseline comparison remains required.
 - **Reproducer status:** reduced current failure; literal-delay control passes.
 - **Triage status:** resolved within the reviewed, locally validated S06 single named parameter/localparam delay scope. Broader delay-expression syntax, composed/multiclock shapes, formal lookup and maximal-width arithmetic remain unqualified.
+
+
+### DD-009 — Invalid foreach header selector accepts an implicit string key
+
+- **Discovered while working:** L05
+- **Observation:** foreach(boxes[key].values[key]) where boxes is fixed-size
+  and values is string-keyed compiles despite the implicit key being string.
+  The attempted outer-key positive interpretation was withdrawn after IEEE
+  12.7.1/12.7.3 review; both Slang editions reject the string selector.
+- **File/function:** Selected target expression/index type validation; not
+  isolated to a specific lower-level check yet.
+- **Possible clause:** IEEE1800-2017/2023 7.4.2,12.7.1,12.7.3.
+- **Evidence:** campaign-20260908/l05/shadow-invalid-positive.sv and design
+  review. Existing runtime target binding was preserved, not changed to
+  make this invalid positive case pass.
+- **Reproducer status:** Candidate acceptance observed; exact diagnostic
+  reducer and pre-existing validation mechanism remain to be isolated.
+- **Triage status:** record-only; no repair or invalid-header qualification
+  is included in L05's legal selected-member index-type increment.

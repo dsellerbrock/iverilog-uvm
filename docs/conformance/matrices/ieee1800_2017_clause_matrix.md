@@ -797,7 +797,7 @@ only terminal loop variables are introduced. Both-edition lookup and traversal
 controls pass, along with 53 legacy/34 JSON focused cases and unchanged Bison
 automaton. All local semantic gates and review passed; fresh unmodified U01
 replay confirms corrected routing and three checked responses. DD-002
-associative string index typing remains a separate unqualified gap. U01 is
+associative string index typing is addressed by the later bounded L05 increment. U01 is
 still open for the fourth-response stall; no application pass is established.
 
 L02: IMPLEMENTED (bounded local scope, unmerged) for automatic block reentry and scalar event history
@@ -964,3 +964,15 @@ concurrent/recursive activations,reuse and NBA coalescing. Evidence:
 campaign-20260908/l03. BUF,NOT,mux and other expression families are unchanged
 and remain unqualified by this increment; application/formal status remains
 separate. Remote CI is required before merge.
+
+
+L05: IMPLEMENTED (bounded local qualification, unmerged), IEEE 1800-2017
+and 1800-2023 12.7.3: selected class-member foreach preserves the terminal
+associative key type through both identifier and expression prefix paths.
+Paired tests cover string order, signed narrow integral keys, class-handle keys,
+inherited parameterized members, nested selection, outer-name preservation,
+concurrent/reused automatic loops and terminal static dimensions. Existing
+runtime selector binding is unchanged (12.7.1/12.7.3); invalid same-name header
+selectors are recorded separately as DD-009. Selected-array non-member typing
+and broader container obligations remain unqualified. All required local gates
+and independent review pass; remote CI/review and merging remain outstanding.
