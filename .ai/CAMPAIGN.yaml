@@ -11,13 +11,13 @@ pending_gates: [U06_integrated, U06_JSON, U06_real_DPI_UVM, U06_frontend, U01_ap
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U06 required validation and exact closure, consider DD018 caller-local output copy-out: paired evidence proves remaining automatic-argument correctness gap. Preserve U01 application scope; do not implement on unvalidated U06."
-next_action: "Await live integrated18435 and real-DPIUVM11401; JSON must follow integrated terminal, frontend must run alone after other gates finish. Fullrelease matrix64934 is live. No installs or semantic changes."
+next_action: "Await live integrated60637 and real-DPIUVM11401; JSON must follow integrated terminal, frontend must run alone after other gates finish. Fullrelease matrix64934 completed (6 pass,9 compile gaps). No installs or semantic changes."
 next_command: "tail -8 ../evidence/campaign-20260908/u06/integrated.log"
 next_command_cwd: repository root
 candidate_state: "U06 fe4e949b8 awaiting required validation; full15release matrixresults-mseshk7y complete/baseline_valid with6SMOKE_PASS9COMPILE_FAIL, no runtime failures. Both2020.1 releases now execute intended checks. No closure until gates pass."
 installed_tools: "Frozen U06 candidate fe4e949b8: runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1; compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca and DPIe69ec1f7d0d0d94668656c50fb83982241ad912fd229464a365fc5b278c28d5a unchanged. No installs while gates run."
 validation_state: "U04 all required local gates passed: frontendS1-S10,review,makecheck,NFA58/58,integrated4853total0unexpected,VPI105,negative149,runtime15/15,JSON1745/0,real-DPIUVM355/0/0. OriginallegacyABI4/4;15release matrix4pass9compilefail2runtimefail."
-next_validation: "Integrated18435 and UVM11401 running; makecheck and NFA58 passed; JSON and isolated frontend pending. Frozen runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1."
+next_validation: "Integrated60637 and UVM11401 running; makecheck and NFA58 passed; JSON and isolated frontend pending. Frozen runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802

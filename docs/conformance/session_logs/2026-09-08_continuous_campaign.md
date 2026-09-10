@@ -1722,3 +1722,14 @@ compiler/DPI unchanged. Integrated18435, real-DPIUVM11401 and fullmatrix64934
 running; makecheck and NFA58 pass. JSON follows integrated termination;
 frontend must run alone after gates finish. No dependent implementation.
 PR273 head1357ae803 remains open with six fresh CI jobs in progress.
+
+U06 full15release matrix64934 completed: results-mseshk7y is complete
+and baseline_valid,6SMOKE_PASS9COMPILE_FAIL. Four additional original
+2020.1.0/1.1 smoke runs pass in explicit2017/2023 modes. Final independent
+review clear. First integrated18435 exited1 solely because the newly added
+2023 wrapper used a bare include path; legacy harness runs from ivtest.
+Corrected to the existing ivltests/ include convention at7d9cb0c64; exact
+legacy compile/run now passes. VPI105,negative149,runtime15/15 all passed
+in first run. Full integrated60637 rerunning; runtime unchanged. UVM11401
+continues; JSON/isolated frontend remain pending. Preserve first-gate log
+in u06/integrated-first.log.
