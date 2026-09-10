@@ -1801,3 +1801,24 @@ passed, macOS and three Windows jobs still running at this checkpoint.
 ### L09 closure at 3c44fd13b
 
 legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged. All gate processes terminal0; full release probe terminal1 reflects nine recorded compile gaps, with all six smoke passes retained. Bounded copy-out scope closed, DD019 and parent language/UVM/application obligations remain open. Two validated increments since publication; keep milestone cadence.
+
+
+### L10 suspension and L11 prerequisite at b32df9a29
+
+L10 extends fixed-property output stores with destination type conversion.
+Its partial patch and regression sources are preserved in
+`../evidence/campaign-20260908/l10/partial-implementation.patch`. Conversion
+controls passed, but a side-effecting index exposed pre-existing scalar output
+copy-in. A void control passes; a nonvoid output actual evaluates twice.
+L10 implementation was reverted and installed L09 hashes restored before
+selecting L11, so no dependent fix uses the unvalidated L10 baseline.
+
+L11 plain fixed-array reducer fails both editions with selector calls=2.
+The native output classifier now includes scalar types and skips scalar send,
+using existing context alloc/reset typed defaults and retaining static formals.
+DPI remains excluded. Both permanent families fail baseline and pass candidate
+in both editions; strengthened selector changes inside the function, proving
+return-time evaluation. Automatic typed defaults and static retention repeat
+three times. Focused42/0, NFA58/58, makecheck and independent review pass.
+Integrated58045 and real-DPIUVM51883 are running; JSON and isolated frontend
+remain unstarted. No L11 closure or additional publication yet.

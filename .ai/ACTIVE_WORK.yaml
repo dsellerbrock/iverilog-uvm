@@ -1,7 +1,7 @@
 id: "L11"
 title: "Preserve copy-out-only scalar output argument semantics"
 status: "in_progress"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 last_validated_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 prerequisite_for: "L10"
@@ -13,10 +13,14 @@ allowed_scope: ["Minimized baseline reducers and exact standards/trace.", "tgt-v
 non_goals: ["No unrelated parser,ref,DPI-open-array redesign.", "Preserve L10 patch and regressions for resume after validation."]
 required_gates: ["Paired red/green both editions,automatic/static typed defaults,index side effects,existing container and DPI controls.", "Focused,independent review,full integrated/JSON/real-DPIUVM/NFA/makecheck,isolated frontend."]
 stop_after_completion: false
-next_action: "Restore installed validated L09 from reverted source, reproduce plain-array double evaluation, verify formal defaults and scope repair."
-next_command: "../evidence/arm64-tooling/resource-runner make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex"
+next_action: "Await integrated58045 and UVM51883; JSON follows integrated terminal; frontend alone after all other gates terminal. No installs/source changes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l11/integrated.log ../evidence/campaign-20260908/l11/uvm.log"
 
 root_cause: "function_port_is_container_output_ suppresses input evaluation only for containers. Scalar outputs therefore read caller value and evaluate side-effecting actuals twice. Existing automatic vvp signal alloc/reset initializes typed formals; static storage persists. Extend classification and skip scalar send using that existing lifecycle."
 standards_evidence: "Read both editions13.5,13.4.2,13.3.2 and2017 Table6-7; automatic outputs default on entry, static retains state. Baseline plain fixed-array selector called twice in both editions."
 
 l11_focused: "42/0, paired2families both modes baseline fail/candidate pass; independent review clear, selector strengthened to prove return-time evaluation."
+candidate_revision: "b32df9a29"
+l11_live_gates: {integrated: 58045, UVM: 51883}
+
+l11_completed_gates: "NFA22442 exit0,58/58; makecheck76983 exit0; focused42/0. Final source comment rebuild captured targetd9a0c5df5ab6b8410b3087d347633695f4f109772f0e7c9bb2d592b2057a5fed; no semantic change from focused candidate."

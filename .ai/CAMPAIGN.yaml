@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "L11"
-phase: "selected"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["U01_application_qualification", "PR273_remote_CI_before_merge"]
+pending_gates: ["L11_integrated", "L11_JSON", "L11_UVM", "L11_NFA", "L11_makecheck", "L11_frontend", "U01_application_qualification", "PR273_remote_CI_before_merge"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After validated L11 closure, reapply preserved L10 patch and resume exact property output scope."
-next_action: "Restore installed validated L09 from reverted source, reproduce plain-array double evaluation, verify formal defaults and scope repair."
-next_command: "../evidence/arm64-tooling/resource-runner make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex"
+next_action: "Await integrated58045 and UVM51883; JSON follows integrated terminal; frontend alone after all other gates terminal. No installs/source changes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l11/integrated.log ../evidence/campaign-20260908/l11/uvm.log"
 next_command_cwd: repository root
-candidate_state: "L10 partial source/tests archived and reverted; installed target still L10 until baseline rebuild/install. L11 sole active prerequisite."
-installed_tools: "Frozen L09 vvp448929b960a25ee12740f331e68f4206e9e8f79719286e7ba75b550124d814e0, vvp.tgt0cc9c2f67660b0e880a6d9a3171858d5a414fcb9018d8fb2435fe3ef478b2a59; ivl and DPI unchanged from validated U06."
+candidate_state: "L11 b32df9a29 built/installed;42focused pass,review clear. L10 patch suspended until prerequisite validation."
+installed_tools: "Frozen L11 fingerprints in evidence/l11/candidate-sha256.txt; final comment rebuild changed target hash, runtime/compiler/DPI unchanged. Final sourceb32df9a29; no installs during gates."
 validation_state: "L09 all required local gates passed: legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
-next_validation: "Next blocker failing reducer before implementation."
+next_validation: "L11 required gates running; last fully validated semantic baselineL09 3c44fd13b."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -242,7 +242,7 @@ u04_nfa: Passed58/58 terminal6429 exit0.
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
 
-candidate_revision: null
+candidate_revision: "b32df9a29"
 
 l09_live_gates: {}
 l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."
@@ -254,3 +254,6 @@ l09_json_terminal: "37094 exit0;1753tests0failures. UVM9469 remains live; isolat
 
 l09_uvm_terminal: "9469 exit0; real-DPI UVM355passed0failed0skipped. Frontend41521 now running alone; do not use installed root until terminal and restoration verified."
 l09_closure: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d; legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
+l11_live_gates: {integrated: 58045, UVM: 51883}
+
+l11_completed_gates: "NFA22442 exit0,58/58; makecheck76983 exit0; focused42/0. Final source comment rebuild captured targetd9a0c5df5ab6b8410b3087d347633695f4f109772f0e7c9bb2d592b2057a5fed; no semantic change from focused candidate."
