@@ -183,6 +183,26 @@ C0x23 .class "bad_parent_atom_embedded" "top.bad_parent_atom_embedded" [1]
  .covgrp_dyn_bin 0 0 0 0 0 "bad_embedded" "c:0pp:0:32" "c:1:32" "u32" 4294967295
  .covgrp_item 1 1 0 "cp" "" 0
  ;
+C0x30 .class "bad_group_merge" "top.bad_group_merge" [1]
+   0: "__option", "q0:sb32"
+ .covgrp_options 2 1 1 0 0
+ ;
+C0x31 .class "bad_group_weight" "top.bad_group_weight" [1]
+   0: "__option", "q0:sb32"
+ .covgrp_options 0 4294967296 1 0 0
+ ;
+C0x32 .class "bad_group_property" "top.bad_group_property" [1]
+   0: "__option", "q0:sb32"
+ .covgrp_options 0 1 2 0 0
+ ;
+C0x33 .class "bad_group_shape" "top.bad_group_shape" [1]
+   0: "__option", "S"
+ .covgrp_options 0 1 1 2 0
+ ;
+C0x34 .class "bad_group_get_inst" "top.bad_group_get_inst" [1]
+   0: "__option", "q0:sb32"
+ .covgrp_options 0 1 1 2 0
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";

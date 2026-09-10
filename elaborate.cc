@@ -30267,7 +30267,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 const char*where) {
 			  static const char*known[] = {
 				"at_least", "auto_bin_max", "weight", "goal",
-				"per_instance", "comment", "name",
+				"per_instance", "get_inst_coverage", "comment", "name",
 				"detect_overlap", "cross_num_print_missing",
 				"cross_retain_auto_bins",
 				"type_option.weight", "type_option.goal",
@@ -30953,10 +30953,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		      // covergroup object. Constant/default at_least and weight
 		      // initialize every object; a constructor-dependent weight is
 		      // evaluated after constructor-formal slots are stored.
-		    auto add_item_option_props = [&](unsigned item_idx)
+		    auto add_option_props = [&](const std::string&stem,
+                                          const char*first = "at_least",
+                                          ivl_type_t first_type = &netvector_t::atom2s32)
 			  -> std::pair<int,int> {
-			std::string stem = "__covgrp_item_" + std::to_string(item_idx);
-			auto add_unique_property = [&](const std::string&base) -> int {
+			auto add_unique_property = [&](const std::string&base, ivl_type_t type) -> int {
 			      std::string candidate = base;
 			      unsigned suffix = 0;
 			      perm_string name = lex_strings.make(candidate.c_str());
@@ -30966,7 +30967,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      }
 			      bool added = cg_class->set_property(name,
 				    property_qualifier_t::make_none(),
-				    &netvector_t::atom2s32);
+				    type);
 			      if (!added) {
 				    cerr << "internal error: unable to add covergroup "
 					 << "item-option property '" << name << "'." << endl;
@@ -30975,11 +30976,36 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      }
 			      return cg_class->property_idx_from_name(name);
 			};
-			int at_prop = add_unique_property(stem + "_option_at_least");
-			int wt_prop = add_unique_property(stem + "_option_weight");
+			int at_prop = add_unique_property(stem + "_option_" + first, first_type);
+			int wt_prop = add_unique_property(stem + "_option_weight", &netvector_t::atom2s32);
 			prop_idx = cg_class->get_properties();
 			return std::make_pair(at_prop, wt_prop);
 		    };
+            auto&group_options = cg_class->covgrp_options();
+            group_options.declaration_scope = class_scope_;
+            auto weight_it = cgdef->options.find(perm_string::literal("weight"));
+            if (weight_it != cgdef->options.end())
+                  group_options.weight_expr = weight_it->second;
+            auto inst_it = cgdef->options.find(perm_string::literal("get_inst_coverage"));
+            if (inst_it != cgdef->options.end())
+                  group_options.get_inst_coverage_expr = inst_it->second;
+            auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
+            group_options.weight_prop = group_props.second;
+            group_options.get_inst_coverage_prop = group_props.first;
+            auto merge_it = cgdef->options.find(
+                  perm_string::literal("type_option.merge_instances"));
+            if (merge_it != cgdef->options.end()) {
+                  NetExpr*value = is_direct_ctor_formal(merge_it->second) ? nullptr
+                        : elab_and_eval(des, class_scope_, merge_it->second,
+                                        -1, false, false);
+                  if (NetEConst*constant = dynamic_cast<NetEConst*>(value))
+                        group_options.merge_instances = (constant->value().as_ulong64() & 1) != 0;
+                  else {
+                        cerr << "error: covergroup type_option.merge_instances requires a constant expression." << endl;
+                        des->errors += 1;
+                  }
+                  delete value;
+            }
 		      // A coverpoint expression may select or combine constructor and
 		      // sample() formals (for example v[2:0] or {valid, ready}). Bind
 		      // typed placeholder signals while sizing the expression so
@@ -31190,7 +31216,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned cp_abm = opt_uint(cp.options, "auto_bin_max",
 						cg_auto_bin_max);
 			  std::pair<int,int> cp_option_props =
-				add_item_option_props(cp_idx);
+				add_option_props("__covgrp_item_" + std::to_string(cp_idx));
 			  cg_class->add_covgrp_item(cp_at_least,
 						cp_weight.first, false,
 						cp.label, cp_weight.second,
@@ -32352,7 +32378,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      x_guard_src = property_idx_from_name(gname);
 			  }
 			  std::pair<int,int> x_option_props =
-				add_item_option_props(item_idx);
+				add_option_props("__covgrp_item_" + std::to_string(item_idx));
 			  cg_class->add_covgrp_item(x_at_least, x_weight.first,
 						true, cross.label,
 						x_weight.second,

@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_covergroup_inst_option_write_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_covergroup_inst_option_write_fail"
+}

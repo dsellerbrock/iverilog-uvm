@@ -391,7 +391,7 @@ class class_type : public __vpiHandle {
 			  uint64_t&value, unsigned&width,
 			  bool&is_signed) const;
       bool is_covergroup() const
-      { return !covgrp_items_.empty() || !covgrp_bins_.empty()
+      { return covgrp_options_present_ || !covgrp_items_.empty() || !covgrp_bins_.empty()
 	    || !covgrp_dyn_bins_.empty() || !covgrp_crosses_.empty()
 	    || !covgrp_cross_terms_.empty() || !covgrp_cross_bins_.empty(); }
 
@@ -426,7 +426,18 @@ class class_type : public __vpiHandle {
 	      ? (unsigned __int128)0 : it->second; }
 	uint64_t covgrp_trans_family_size(unsigned family) const;
 	unsigned covgrp_trans_family_item(unsigned family) const;
-      double type_coverage(class vvp_cobject*context = 0) const;
+      struct covgrp_options_t {
+            // Old VVP without this record retains its previous query modes.
+            bool merge_instances = true;
+            unsigned weight = 1, get_inst_coverage = 1;
+            int weight_prop = -1, get_inst_coverage_prop = -1;
+      };
+      void set_covgrp_options(const covgrp_options_t&options)
+      { covgrp_options_ = options; covgrp_options_present_ = true; }
+      unsigned covgrp_weight(vvp_cobject*obj) const;
+      bool covgrp_get_inst_coverage(vvp_cobject*obj) const;
+      double type_coverage(class vvp_cobject*context = 0,
+                           bool*contributes = nullptr) const;
 
 	// M11: registry of covergroup types for $get_coverage and the
 	// end-of-simulation report.
@@ -470,6 +481,9 @@ class class_type : public __vpiHandle {
       int covgrp_parent_prop_ = -1;
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;
+      covgrp_options_t covgrp_options_;
+      bool covgrp_options_present_ = false;
+      mutable long double covgrp_retired_weight_ = 0, covgrp_retired_weighted_ = 0;
       mutable std::vector<class vvp_cobject*> covgrp_live_;
       mutable std::vector<unsigned> covgrp_retired_at_least_;
       mutable bool covgrp_has_retired_options_ = false;

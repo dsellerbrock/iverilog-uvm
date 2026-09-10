@@ -23,6 +23,8 @@ endclass
 
 class cumulative_threshold_wrap;
   covergroup cg with function sample(bit value);
+    type_option.merge_instances = 1;
+    option.get_inst_coverage = 1;
     cp: coverpoint value {
       bins one = {1};
     }
@@ -67,6 +69,8 @@ endclass
 
 class retired_threshold_wrap;
   covergroup cg with function sample(bit value);
+    type_option.merge_instances = 1;
+    option.get_inst_coverage = 1;
     cp: coverpoint value {
       bins one = {1};
     }
@@ -199,8 +203,7 @@ module main;
     end
 
     // get_coverage() is static even when selected through an instance. Keep
-    // its current merged model receiver-independent when instance weights
-    // diverge; full merge_instances/type_option semantics remain separate.
+    // its instance average receiver-independent when item weights diverge.
     weight_a = new;
     weight_b = new;
     weight_a.cg.cp_first.option.weight = 1;

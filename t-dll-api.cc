@@ -4547,6 +4547,36 @@ extern "C" unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx)
       return 1;
 }
 
+extern "C" unsigned ivl_type_covgrp_merge_instances(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().merge_instances : 0;
+}
+
+extern "C" unsigned ivl_type_covgrp_weight(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().weight : 1;
+}
+
+extern "C" unsigned ivl_type_covgrp_get_inst_coverage(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().get_inst_coverage : 0;
+}
+
+extern "C" int ivl_type_covgrp_weight_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().weight_prop : -1;
+}
+
+extern "C" int ivl_type_covgrp_get_inst_coverage_prop(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().get_inst_coverage_prop : -1;
+}
+
 extern "C" unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

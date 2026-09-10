@@ -8834,9 +8834,15 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
 {
       const std::vector<const class_type*>&reg = class_type::covgrp_registry();
       double sum = 0.0;
-      for (const class_type*ct : reg)
-	    sum += ct->type_coverage();
-      thr->push_real(reg.empty() ? 100.0 : sum / (double)reg.size());
+      size_t count = 0;
+      for (const class_type*ct : reg) {
+            bool contributes = false;
+            double score = ct->type_coverage(nullptr, &contributes);
+            if (!contributes) continue;
+            sum += score;
+            count += 1;
+      }
+      thr->push_real(count == 0 ? 100.0 : sum / count);
       return true;
 }
 
@@ -8847,12 +8853,9 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * Ignore records have no counter; illegal and default bins are
  * excluded from both numerator and denominator (19.11 option model).
  */
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-
+      if (contributes) *contributes = false;
       double result = 0.0;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -8955,10 +8958,24 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  wsum += (double)weight;
 		  wcov += (double)weight * icov;
 	    }
-	    if (wsum > 0.0)
-		  result = wcov / wsum;
+	    if (wsum > 0.0) {
+                  result = wcov / wsum;
+                  if (contributes) *contributes = true;
+            } else if (defn->covgrp_weight(cobj) == 0) {
+                  result = 100.0;
+            }
       }
-      thr->push_real(result);
+      return result;
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+            ? cobj->get_defn()->type_coverage(cobj)
+            : vvp_covgrp_instance_coverage(cobj));
       return true;
 }
 

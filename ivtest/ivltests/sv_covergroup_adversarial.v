@@ -49,6 +49,8 @@ module main;
   // type-level merge across instances
   bit [1:0] m;
   covergroup cg_ty;
+    type_option.merge_instances = 1;
+    option.get_inst_coverage = 1;
     cp: coverpoint m { bins b[] = {0,1,2,3}; }
   endgroup
 

@@ -1,5 +1,5 @@
 // M11-3/4: named cross bins with binsof selects (19.6.1), type
-// coverage (get_coverage merges instances), start/stop, and
+// coverage (explicitly merged get_coverage), start/stop, and
 // $get_coverage. Pre-M11 all of these were silently dropped or
 // unavailable.
 module m11_coverage_cross_query_test;
@@ -47,10 +47,12 @@ module m11_coverage_cross_query_test;
     function real icov(); return cg.get_inst_coverage(); endfunction
   endclass
 
-  // Type coverage across two instances + start/stop.
+  // Explicit merged type coverage, separate instance queries, and start/stop.
   class ct;
     int val;
     covergroup cg;
+      type_option.merge_instances = 1;
+      option.get_inst_coverage = 1;
       cp: coverpoint val { bins lo = {[0:7]}; bins hi = {[8:15]}; }
     endgroup
     function new(); cg = new; endfunction

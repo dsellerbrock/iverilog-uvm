@@ -539,6 +539,23 @@ class netclass_t : public ivl_type_s {
 	it.iff_expr = iff_expr;
 	it.iff_src = iff_src;
 	covgrp_items_.push_back(it); }
+      struct covgrp_options_t {
+            bool merge_instances = false;
+            unsigned weight = 1, get_inst_coverage = 0;
+            PExpr* weight_expr = nullptr;
+            PExpr* get_inst_coverage_expr = nullptr;
+            NetScope* declaration_scope = nullptr;
+            int weight_prop = -1, get_inst_coverage_prop = -1;
+      };
+      covgrp_options_t& covgrp_options() { return covgrp_options_; }
+      const covgrp_options_t& covgrp_options() const { return covgrp_options_; }
+      int covgrp_option_prop(perm_string name) const {
+            if (name == perm_string::literal("weight"))
+                  return covgrp_options_.weight_prop;
+            if (name == perm_string::literal("get_inst_coverage"))
+                  return covgrp_options_.get_inst_coverage_prop;
+            return -1;
+      }
       size_t covgrp_item_count() const { return covgrp_items_.size(); }
       const covgrp_item_t& covgrp_item(size_t idx) const { return covgrp_items_[idx]; }
 	// Resolve the IEEE hierarchical pseudo-members
@@ -760,6 +777,7 @@ class netclass_t : public ivl_type_s {
       std::vector<covgrp_cross_term_t> covgrp_cross_terms_;
       std::vector<covgrp_cross_bin_t> covgrp_cross_bins_;
       std::vector<covgrp_item_t> covgrp_items_;
+      covgrp_options_t covgrp_options_;
       std::vector<int> covgrp_cp_parent_props_;
       std::vector<PExpr*> covgrp_cp_guards_;
       std::vector<PExpr*> covgrp_bin_guards_;
