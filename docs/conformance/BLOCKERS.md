@@ -674,7 +674,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### P04 — Process kill misses descendants in synchronous task frames
 
 - **Area / edition:** Process runtime / IEEE1800-2017 and2023 9.7.
-- **State:** OPEN, active implementation.
+- **State:** CLOSED for live-parent descendant traversal; locally validated at `53b58890c63a48aa1943c7ef065db59f19cebef3`.
 - **Evidence:** `u01-after-l07/kill_task_children.sv`; both edition runs report
   parent KILLED, child WAITING, counter continuing4to9 after parent.kill.
 - **Cause:** Descendant kill traversal skips joined synchronous task frames;
@@ -683,3 +683,5 @@ qualification remain open. Evidence: campaign-20260908/s03.
   kill DD-014 and application teardown qualification remain separate.
 - **Closure:** Permanent task/frame/deep-descendant and sibling controls;
   focused and required integrated gates, independent review, then U01 replay.
+
+- **P04 validation:** Six paired regressions and all required focused/integrated gates passed: legacy4843total0unexpected failures,JSON1735/0,real-DPIUVM355/0/0,NFA58/58,VPI105,negative149,runtime15/15,makecheck and independent review. U01 replay remains separate.

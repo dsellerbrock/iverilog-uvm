@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: P04
-phase: awaiting_integrated_validation
+current_blocker: U01
+phase: post_p04_unmodified_replay
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+last_integrated_good_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [P04_focused_and_integrated_validation, U01_application_qualification, PR273_remote_CI_before_merge]
+pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
-next_action: Wait for P04 UVM5922; fullJSON9510 passed1735/0 and integrated29287 passed. No closure before remaining gate passes.
-next_command: "tail -5 ../evidence/campaign-20260908/p04/uvm.log"
+next_action: Fresh unmodified xbar smoke replay with validated P04 runtime; compare actual checked traffic and teardown to preserved evidence.
+next_command: "cat ../evidence/campaign-20260908/u01-after-p04/result.json"
 next_command_cwd: repository root
-candidate_state: P04 seven-line runtime traversal and six paired regressions; focused and neighbor gates pass; required integrated gates pending.
+candidate_state: P04 locally validated and closed; U01 resumed with no implementation patch.
 installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c; P04 candidate runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522; validated baseline copied to evidence/p04/vvp-baseline.
 validation_state: L07 all local gates pass;4837legacy total,1729JSON,355real-DPIUVM,58NFA,105VPI,149negative,15runtime controls; required remote CI remains pending.
-next_validation: UVM5922 is the only remaining local gate; frozen runtime76132e1224af.
+next_validation: U01 fresh replay; all P04 required local gates terminal and passed.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-validated_increments_since_publication: 0
+validated_increments_since_publication: 1
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -182,7 +182,7 @@ b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores ex
 
 u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
 u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
-last_locally_validated_semantic_revision: 4965219df (L06; compiler9915d687, runtime3b162fd9); remote Windows build gate remains separate and pending.
+last_locally_validated_semantic_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 
 l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
 u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
@@ -213,3 +213,4 @@ u01_latest_replay: PASS with115requests/230scoreboarditems and zero warnings/err
 
 p04_integrated_terminal: 29287 exited0;4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15. Full JSON started after terminal; UVM5922 remains live.
 p04_json_terminal: 9510 exited0;1735tests0failures. UVM5922 confirmed live; no restart.
+p04_closure: 53b58890c63a48aa1943c7ef065db59f19cebef3; all local gates and review passed,including real-DPIUVM355/0/0. Direct live-parent descendant traversal only; terminal-parent kill DD014 remains open.

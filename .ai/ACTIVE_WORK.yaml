@@ -1,38 +1,43 @@
-id: P04
-title: Kill live descendants spawned inside synchronous task frames
+id: U01
+title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
 status: in_progress
-phase: awaiting_integrated_validation
-base_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+phase: post_p04_unmodified_replay
+base_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
 standards:
-  - IEEE1800-2017 9.7 process kill terminates process and its spawned subprocesses; synchronous task calls do not create a distinct process.
-  - IEEE1800-2023 9.7 explicitly includes all descendant subprocesses, terminated before kill returns.
-expected_behavior: Killing a live parent also terminates its child forked inside an automatic task; child cannot continue counter updates.
-observed_behavior: Both editions report parent KILLED but child WAITING and counter4to9 after kill.
-reproducer: ../evidence/campaign-20260908/u01-after-l07/kill_task_children.sv and kill-task-{2017,2023}.log
-root_cause: kill_detached_subprocesses_ walks detached children but misses synchronous task frames in children; do_disable later reparents their detached children alive.
+  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
+expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
+observed_behavior: Fresh L07 smoke passes with115requests/230checked items and zero UVM warnings/errors/fatals. Preserved old executable repeats PASS/PASS/FAIL with4sequence-parent warnings; new executable repeats three passes. Repeatable teardown qualification remains open.
+reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
 allowed_scope:
-  - vvp/vthread.cc process-kill descendant traversal.
-  - Focused permanent legacy and JSON process-kill regressions and gold/registry entries.
-  - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
-  - docs/conformance/BLOCKERS.md and session log.
+  - Read-only application corpus and current harness/source inspection.
+  - Fresh evidence/campaign-20260908/u01-after-p04 build/log/reducer artifacts; preserve earlier evidence.
+  - .ai/ACTIVE_WORK.yaml
+  - .ai/CAMPAIGN.yaml
+  - docs/conformance/BLOCKERS.md
+  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Terminal-parent kill DD-014, core-state wait DD-015, unrelated runtime redesign.
-  - No application edits, warning suppression, or broad U01 closure.
+  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
+  - No compiler implementation until a causal reducer and exact scope are established.
 invariants:
-  - Preserve logical process identity and existing disable semantics.
-  - Native ARM64, serial build,300second per-process CPU guard, no RSS cap.
-  - Preserve sibling worktrees and frozen baseline; do not install while gates run.
+  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
+  - Preserve 300-second per-process CPU guard and bounded wall time.
+  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
 required_gates:
-  - Paired failing baseline and passing task/named-frame/deep descendant controls; unaffected sibling survives.
-  - Focused legacy and JSON regression harnesses; make check and independent review.
-  - Required integrated legacy/VPI/negative/runtime, full JSON, real-DPI UVM and NFA gates.
-completion: Close only live-parent descendant traversal scope after required gates pass, then replay unmodified U01 at a coordination boundary.
-last_validated_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-discovery_policy: Unrelated findings record-only; patch regressions remain in scope.
+  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
+  - First divergence from current-source replay, with traffic and scoreboard evidence.
+  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
+completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false
-next_action: Wait for UVM5922; fullJSON9510 passed1735/0 and integrated29287 passed4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15. No closure before the remaining gate passes.
-next_command: "tail -5 ../evidence/campaign-20260908/p04/uvm.log"
-candidate_evidence: Six paired baseline failures, candidate6/6legacy+JSON, neighbors24legacy14JSON, makecheck and NFA58/58 pass. Final independent review clear, including resource-wait control.
-candidate_runtime_sha256: 76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522
-live_gates: [UVM5922]
-unstarted_gates: []
+last_validated_revision: 53b58890c63a48aa1943c7ef065db59f19cebef3
+selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
+next_action: Rebuild and run the original pinned xbar smoke in a fresh u01-after-p04 output root with validated P04 runtime. Compare source fingerprints, checked traffic and teardown; no warning suppression.
+evidence:
+  - u01-after-l07/result.json and source-comparison.txt;360exported files unchanged.
+  - u01-after-l07/repeat-results.json; actual warning lines checked against severity summary, corrected4not5.
+  - u01-after-l07/phase-guard-results.json and return-guard-results.json;5raw/5clean each,4warnings/0warnings.
+  - u01-after-l07/phase-trace.log; unmodified source and executable with phase trace, clean checked completion.
+compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campaign uses2020.3.1. Original tl_device_seq runs forever and xbar smoke does not explicitly stop it.
+guard_mechanism: start guards its caller; phase cleanup kills phase processes; parent guard warns on terminal caller. Correct reduced warning behavior alone does not qualify application teardown.
+diagnostic_limits: Added observer changes finish timing and is not qualification. Initial function-valued wait attempt woke too early and is invalid. Bounded delayed observer checks after the known completion time; warning-free repeats stay warning-free after an additional1ns, so deferred report timing is not established as the explanation.
+next_command: "cat ../evidence/campaign-20260908/u01-after-p04/result.json"

@@ -1617,3 +1617,14 @@ requested the now-passing resource control. Runtime candidate76132e1224af6b73
 is frozen; integrated29287 and real-DPIUVM5922 remain live. FullJSON follows
 integrated termination. P04 is awaiting validation, not closed; last validated
 semantic baseline remains9a1b6beb3.
+
+P04 closes at53b58890c after all required local gates pass. Integrated29287
+terminated0 (4843total4838pass0fail2NI3EF,VPI105,negative149,runtime15/15),
+JSON9510 terminated0 (1735tests0failures), and UVM5922 terminated0 with355pass,
+0fail,0skip and REAL DPI umbrella loaded. Actual UVM mode isg2012; paired
+focused regressions qualify the bounded process behavior separately in2017/2023.
+NFA58/58,makecheck,focused6/6each,neighbors24/14 and final independent review
+passed. Source/test/tool fingerprints are preserved in p04/fingerprints.json;
+no installed-runtime mutation occurred during gates. No terminal-parent kill
+or broad process/UVM qualification claim. U01 resumes with fresh unmodified
+application replay; one validated increment since last PR publication.
