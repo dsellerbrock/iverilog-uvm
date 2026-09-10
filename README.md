@@ -191,6 +191,44 @@ vvp smoke.vvp
 
 which ends with a UVM report summary showing `UVM_ERROR : 0`.
 
+### Choosing a UVM version
+
+`-uvm` uses the bundled UVM release. Use `--uvm=<release>` to select a
+registered version; the selection enables UVM and its DPI backend automatically.
+The language edition (`-g2017` or `-g2023`) is a separate choice.
+
+Acquire and register the pinned releases once, from the repository root
+(POSIX, Python 3.12 or newer). Use the same prefix as your compiler installation;
+`install` below matches the build example above:
+
+```bash
+python3 scripts/uvm_release_matrix.py --fetch-only --register --prefix "$PWD/install"
+iverilog --uvm-list
+
+iverilog -g2017 --uvm=2020.3.1 -s top -o sim.vvp my_testbench.sv
+vvp sim.vvp +UVM_TESTNAME=my_test
+```
+
+The manifest covers 15 releases from UVM 1.0p1 through 2020.3.2. Official Git
+releases are pinned submodules; other releases use checksum-pinned downloads.
+Registration links to the acquired source trees, so keep the submodules and
+`third_party/uvm-releases/` cache in place. Compilation does not download UVM.
+Each testbench is compiled together with its selected UVM sources.
+
+To compile and run the release smoke matrix, or check just one release:
+
+```bash
+python3 scripts/uvm_release_matrix.py --prefix "$PWD/install"
+python3 scripts/uvm_release_matrix.py --prefix "$PWD/install" --release 2020.3.1
+```
+
+Availability in `--uvm-list` does not imply compatibility: the recorded matrix
+has six smoke passes and nine compile gaps. See the
+[release matrix](docs/conformance/uvm_release_matrix.md) for exact versions,
+checks and limitations. For an existing external source tree, use
+`iverilog -g2017 --uvm-home=/path/to/uvm -o sim.vvp my_testbench.sv`;
+`--uvm-home` and `--uvm=<release>` are mutually exclusive.
+
 Advanced overrides (a different UVM library, disabling DPI, raw module
 loading) are all still available — see **[docs/uvm_frontend.md](docs/uvm_frontend.md)**
 for the front-end architecture and **[docs/uvm.md](docs/uvm.md)** for the
