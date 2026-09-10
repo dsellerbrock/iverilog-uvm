@@ -1192,3 +1192,16 @@ Coordinator selection now resumes from59e5e07c7. Assess the existing V01
 wide-total saturation obligation with a targeted graph query/source trace;
 no new implementation contract or code edit is authorized until the concrete
 next scope is established. L05 completed contract is preserved in evidence/l05.
+
+
+User corrected publication cadence: the rapid PR catch-up was too frequent.
+AGENTS.md now calls for substantial milestones, normally3–5 validated blockers,
+frequent local commits and reuse of an existing matching PR. No more catch-up
+PRs. Earlier per-checkpoint publication policy is superseded.
+
+GitHub state changed outside this task during publication. PR263 was merged
+by dsellerbrock to main3fe277c25; several later PRs were merged into their stack
+base branches. These are distinct from landing on main. PR263 CI was still
+running at inspection; no CI pass or merge authorization is inferred.
+Exact observed remote states are preserved in pr-publication/remote-state.json
+and CAMPAIGN.yaml. No merge or ready-state operation was performed by this task.
