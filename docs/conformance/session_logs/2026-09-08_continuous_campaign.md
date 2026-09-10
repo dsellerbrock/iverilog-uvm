@@ -1827,3 +1827,19 @@ remain unstarted. No L11 closure or additional publication yet.
 ### L11 closure at b32df9a29
 
 legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Six release smoke passes retained; nine known compile gaps. Resume preserved L10 with prerequisite validated. README usage update3a87ebca9 is independently committed; OpenTitan UVM1.2 target confirmed in pinned corpus VCS/Questa/Riviera configs and recorded for future application replay.
+
+
+### L10 resumed candidate051aeee8e
+
+After validated L11, restored preserved L10 source/tests, retaining new L11
+registrations when patch append context no longer applied. Three positive
+families fail L11 baseline and pass both editions; numeric conversions,
+same-type real/string/class, inout, nested receiver, once-only index, nonzero
+and multidimensional bounds are covered. Invalid negative/X-Z/oversized
+indices issue four exact warnings, leave storage unchanged and preserve
+function/index side effects. Explicit string/non-string output mismatch
+diagnostic prevents wrong-runtime-load crash; both editions6.16/6.22.3
+require casts, with no string-literal exception for a returned variable.
+Focused JSON50/0 andlegacy8/0 after correcting onlygold filenames/pathprefixes.
+Independent review clear. Fullintegrated30122,UVM16983,NFA30525 running;
+makecheckexit0. JSON follows integrated; frontend runs alone last.

@@ -1,7 +1,7 @@
 id: "L10"
 title: "Copy output values into fixed-array class-property elements"
 status: "in_progress"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "b32df9a29"
 last_validated_revision: "b32df9a29"
 selection_reason: "DD019 silently skips legal output actuals at a shared emitter path; concrete correctness gap discovered during L09, now independently selected after validated baseline."
@@ -14,11 +14,13 @@ non_goals: ["No UVM/application edits; no dynamic/associative array feature expa
 required_gates: ["Baseline red/candidate green in both editions; scalar types, bounds/index/receiver controls.", "Focused regression, independent review, integrated legacy/JSON/VPI/negative/runtime,real-DPIUVM,NFA,makecheck,isolated frontend."]
 completion: "Close only validated fixed-property element output scope; retain all broader obligations."
 stop_after_completion: false
-next_action: "Establish fresh failing minimal fixed-property output reducer and trace typed ordinary property assignments."
-next_command: "Read fixed property slot helpers and normal property stores in tgt-vvp before modifying."
+next_action: "Await integrated30122 and UVM16983; full JSON after integrated terminal, then frontend alone after every other gate terminal. No source/install changes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l10/integrated.log ../evidence/campaign-20260908/l10/uvm.log"
 
 root_cause: "Value-returning function emitter only enters fixed property slot path for runtime-container-valued elements. Scalar typed element copies fall to warning/return; void calls use ordinary typed assignment and pass. Both modes baseline compile0/run1 for nonvoid; void control pass."
 
 prerequisite: "L11 closed at b32df9a29 after all required gates; resume exact preserved L10 patch."
 
 l10_candidate: "Resumed after validated L11; fixed-property scalar typed stores reuse slot checks and L09 context phases. Destination numeric conversion includes width/sign,two-state,real/int. String/non-string outputs rejected (6.16,6.22.3). Three positive families red on L11 baseline/pass both editions; paired CE mismatch cases,JSON50/0,legacy8/0. Full gates and final review pending."
+candidate_revision: "051aeee8e"
+l10_live_gates: {integrated: 30122, UVM: 16983, NFA: 30525}

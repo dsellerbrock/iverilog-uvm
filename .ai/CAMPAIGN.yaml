@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "L10"
-phase: "resumed"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "b32df9a29"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["U01_application_qualification", "PR273_remote_CI_before_merge"]
+pending_gates: ["L10_integrated", "L10_JSON", "L10_UVM", "L10_NFA", "L10_frontend", "U01_application_qualification", "PR273_remote_CI_before_merge"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: "After validated L11 closure, reapply preserved L10 patch and resume exact property output scope."
-next_action: "Replay preserved typed and side-effect controls on L10 candidate, extend invalid-index coverage and review."
-next_command: "Run L10 focused reducers after serial build/install."
+next_selection: "After L10 exact closure, inspect shared legacy-UVM compile frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
+next_action: "Await integrated30122 and UVM16983; full JSON after integrated terminal, then frontend alone after every other gate terminal. No source/install changes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l10/integrated.log ../evidence/campaign-20260908/l10/uvm.log"
 next_command_cwd: repository root
-candidate_state: "L10 partial patch resuming after fully validated L11."
-installed_tools: "Frozen L11 fingerprints in evidence/l11/candidate-sha256.txt; final comment rebuild changed target hash, runtime/compiler/DPI unchanged. Final sourceb32df9a29; no installs during gates."
+candidate_state: "L10 candidate051aeee8e focusedJSON50/0,legacy8/0,independentreviewclear. Fullgates running; L11 validated baselineb32df9a29."
+installed_tools: "Frozen L10 candidate fingerprints evidence/l10/candidate-sha256.txt; runtime/compiler/DPI unchanged from L11, onlytargetupdated. No installs duringgates."
 validation_state: "L11 legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
-next_validation: "L10 paired controls then required full validation after resuming patch."
+next_validation: "L10 integrated30122,UVM16983,NFA30525 running;makecheckexit0;JSON/frontendunstarted."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -242,7 +242,7 @@ u04_nfa: Passed58/58 terminal6429 exit0.
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
 
-candidate_revision: "b32df9a29"
+candidate_revision: "051aeee8e"
 
 l09_live_gates: {}
 l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."
@@ -268,3 +268,4 @@ l11_uvm_terminal: "51883 exit0,real-DPI355passed0failed0skipped. Frontend86720 r
 user_opentitan_uvm_target: "User wants pinned UVM1.2 for OpenTitan. Confirmed pinned corpus7a3ad34 hw/dv/tools/dvsim/vcs.hjson uses -ntb_opts uvm-1.2, Questa/Riviera also1.2. Existing U01 evidence uses bundled2020.3.1; qualify1.2 and replay unmodified app before switching evidence baseline. No need to wait for all15 releases. Preserve L10 prerequisite order."
 readme_uvm_usage: "3a87ebca9 documents picker,pins,registration,prefix,smoke matrix and limitations; actual selected2020.3.1 smoke exit0,zero UVM W/E/F."
 l11_closure: "b32df9a29; legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
+l10_live_gates: {integrated: 30122, UVM: 16983, NFA: 30525}
