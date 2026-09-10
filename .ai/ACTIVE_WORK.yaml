@@ -1,35 +1,31 @@
-id: U01
-title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+id: L03
+title: Preserve automatic activation identity in Boolean event expressions
 status: in_progress
-phase: resume_teardown_reducer
-base_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
+phase: reproduce
+base_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
 standards:
-  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
-expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
-observed_behavior: Post-L02 unchanged replay completes 115 requests and 230 checked scoreboard items with zero errors/fatals; four SEQPRTZMB parent-process warnings cause TEST FAILED CHECKS. Mechanism and baseline applicability remain to be established.
-reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
+  - IEEE1800-2017 and IEEE1800-2023 6.21 and9.4.2; verify exact expression event and automatic lifetime rules before implementation.
+expected_behavior: Concurrent automatic task invocations observe transitions of their own Boolean event expression, not another invocation's operand.
+observed_behavior: Retained DD-003 reducer posedge(value[2] | 1'b0) fires both invocations at time2 instead of times2,3; reverify on current validated source.
+reproducer: ../evidence/campaign-20260908/u01-loop/history-expression-preexisting.sv
+selection_reason: Shared automatic Boolean driver state can corrupt ordinary concurrent DV event waits; concrete pre-existing reducer and prior L02 mechanism give a justified next blocker beyond SVA composition.
 allowed_scope:
-  - Read-only application corpus and current harness/source inspection.
-  - Fresh evidence/campaign-20260908/u01-after-l02 and u01-sequence-parent build/log/reducer artifacts.
-  - .ai/ACTIVE_WORK.yaml
-  - .ai/CAMPAIGN.yaml
-  - docs/conformance/BLOCKERS.md
-  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
+  - Shared Boolean expression event driver automatic-context preservation and directly necessary compile/lowering selection.
+  - Existing runtime automatic activation mechanisms, without a new scheduler architecture.
+  - Permanent paired regressions and required focused/full validation, review and conformance records.
 non_goals:
-  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
-  - No compiler implementation until a causal reducer and exact scope are established.
+  - No unrelated default-negedge DD-004, foreach type DD-002, application teardown changes or formal architecture work.
 invariants:
-  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
-  - Preserve 300-second per-process CPU guard and bounded wall time.
-  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
+  - Each activation has its own operand state and event history; propagate source activation identity through the actual expression computation.
+  - Preserve scheduler-region ordering, reset/free lifetime hooks, static scope behavior and cancellation.
+  - Preserve unrelated worktrees and required toolchain/permission gates.
 required_gates:
-  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
-  - First divergence from current-source replay, with traffic and scoreboard evidence.
-  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
-completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
-discovery_policy: Unrelated findings are record-only.
+  - Fresh paired red reducer plus direct-signal and Boolean-expression controls; standards and causal trace before patch.
+  - Permanent concurrent activation, expression polarity, lifetime and static controls.
+  - Focused legacy/JSON, relevant lifetime neighbors,NFA,integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
+  - Remote CI required before merge.
+completion: Qualify only the exact repaired automatic Boolean event-expression scope; broader event operators and application/formal status remain separate.
+discovery_policy: Unrelated findings record-only; proven prerequisites require a deliberate boundary with preserved reducer and work.
 stop_after_completion: false
-
-selection_reason: Resume application qualification after S03-S06 assertion correctness increments; existing checked-traffic evidence is strong but teardown warning mechanism and baseline applicability remain unresolved.
-last_validated_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
-next_action: Re-run the retained sequence-parent guard reducer on current tools; inspect real runtime ancestry and termination behavior before selecting a causal implementation scope.
+last_validated_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
+next_action: Reproduce DD-003 on current tools; graph-guided trace of Boolean expression propagation and existing automatic functors.

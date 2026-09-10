@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_assert_nested_sequence_actual_scope.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_assert_nested_sequence_actual_scope"
+}

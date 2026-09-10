@@ -1,0 +1,1 @@
+ivltests/sv_assert_sequence_actual_cycle_fail.v:5: error: cyclic SVA sequence instantiation of `Wrap'.

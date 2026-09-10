@@ -902,3 +902,24 @@ syntax, broader formal lookup, composed/multiclock operators, maximal-width
 delay arithmetic, application DV completion or formal-program completion.
 Explicit unsupported-composition diagnostics are rejection coverage only.
 Remote CI remains required before merge. Evidence: campaign-20260908/s06.
+
+
+S07: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 16.8. Bare sequence aliases recursively expand copied
+bodies rather than leaving nested parameterized calls for ordinary function
+elaboration. Nested alias sequence names resolve in the alias declaration's
+generate scope; substituted actuals preserve caller lookup. Active declaration
+paths reject direct/indirect, branching and actual-self expansion cycles
+before cloning further bodies. Repeated legal instances retain independent
+copies and the existing depth safeguard remains.
+
+Qualification: paired focus12/12 legacy+JSON in both engines; S06neighbors
+18/18+18/18,S04neighbors17/17+8/8; NFA58/58; integrated4744total4739pass0fail
+2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1636/0; real-DPIUVM355/0/0;
+makecheck and final independent source/test review. Permanent controls cover
+multi-level alias timing/cancellation/reuse, declaration shadowing, caller
+actual scope, mutual/branching/actual-self cycles. Evidence: campaign-20260908/s07.
+
+Complete global dependency-graph validation across separate instances,
+pre-existing parameterized declaration-owned lookup and broader sequence
+composition remain unqualified. Remote CI is required before merge.
