@@ -68,8 +68,9 @@ requires parking. Use the format above for the next agent's discoveries.
 - Evidence: u01-loop/history-expression-preexisting.sv, history-baseline.log,
   history-baseline.vvp; fresh e0dab7221 compiler rebuilt into baseline-tools
   with original frame selection. Identical 2,2 failure on baseline and L02.
-- Reproducer status: reproduced; triage: pending. General automatic Boolean
-  event-expression correctness is not claimed by L02.
+- Reproducer status: resolved within reviewed locally validated L03 Boolean
+  functor family and supported input chains. Other expression families remain
+  unqualified; no general expression-correctness claim.
 
 ### DD-004 — Unchanged partial write can manufacture a default-bit negedge
 

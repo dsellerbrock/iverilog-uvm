@@ -1,7 +1,7 @@
 id: L03
 title: Preserve automatic activation identity in Boolean event expressions
-status: in_progress
-phase: awaiting_validation
+status: locally_validated
+phase: qualified_local
 base_revision: 755b48a09920bced3832409b1548c8437c884976
 standards:
   - IEEE1800-2017 and IEEE1800-2023 6.21 and9.4.2; verify exact expression event and automatic lifetime rules before implementation.
@@ -28,7 +28,7 @@ completion: Qualify only the exact repaired automatic Boolean event-expression s
 discovery_policy: Unrelated findings record-only; proven prerequisites require a deliberate boundary with preserved reducer and work.
 stop_after_completion: false
 last_validated_revision: 755b48a09920bced3832409b1548c8437c884976
-next_action: Await real-DPIUVM93480 terminal result; all other required local gates passed. Preserve frozen source/tests/tools.
+next_action: Checkpoint exact L03 implementation, preserve completed contract, and return to campaign selection. Remote CI before merge.
 
 causal_trace: Boolean operands and scheduled output are shared and source context is discarded. Mixed-scope expressions cannot publish a parent result to children with different local operands. Existing allocation/reset hooks run before stack linkage and do not publish unchanged defaults.
 prerequisite: L04 validated in 755b48a09920bced3832409b1548c8437c884976 establishes post-link initialize_instance and integral default publication. Resume L03 with preserved original reducer.
@@ -42,3 +42,5 @@ current_toolchain: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b1446563
 residual_scope: BUF,NOT,mux and other expression families are unchanged and not qualified by L03.
 
 full_validation_so_far: integrated80505 passed4760total4755pass0fail2NI3EF,VPI105/105,negative149/149,runtime invariants including new partial-history check; NFA79303 passed58/58; fullJSON92046 passed1652/0.
+
+final_validation: real-DPIUVM93480 terminated0 with355passed0failed0skipped; frozen tool fingerprints unchanged. All required local gates and final review pass.

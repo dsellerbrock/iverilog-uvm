@@ -944,3 +944,23 @@ and reuse. Evidence: campaign-20260908/l04.
 
 Derived Boolean activation state remains L03; other value types and broader
 initialization obligations are not qualified here. Remote CI before merge.
+
+
+L03: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.21,9.4.2. The shared Boolean functor family retains
+per-activation operands and ancestor input history, combining parent and
+child operands only within the correct activation. Post-link initialization
+propagates derived baselines synchronously for the initializing frame;
+ordinary evaluation remains queued Active with frame-owned pending flags.
+No queued raw context survives frame reuse. Static truth functions are shared
+without changing their scheduling.
+
+Qualification: paired focus12/12legacy+JSON,L02neighbors93/50,L04neighbors4/4,
+direct PART_PV pre-child history/untouched bits/live updates/frame reuse,
+NFA58/58,integrated4760total4755pass0fail2NI3EF,VPI105/105,negative149/149,
+runtime invariants,JSON1652/0,real-DPIUVM355/0/0,makecheck and final independent
+review. Cases cover mixed parent/child operands,chained initialization,
+concurrent/recursive activations,reuse and NBA coalescing. Evidence:
+campaign-20260908/l03. BUF,NOT,mux and other expression families are unchanged
+and remain unqualified by this increment; application/formal status remains
+separate. Remote CI is required before merge.

@@ -430,7 +430,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L03 — Automatic Boolean event expressions share activation state
 
 - **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.21,9.4.2.
-- **State:** IN_PROGRESS — resumed after validated L04 initialization prerequisite; original reducer preserved.
+- **State:** LOCALLY VALIDATED — reviewed Boolean activation state and supported input chains; remote CI before merge.
 - **Evidence:** u01-loop/history-expression-preexisting.sv; two automatic
   invocations of posedge(value[2] | 1'b0) both trigger at2 instead of2,3.
   Freshly reproduced after validated L04 in both editions; mixed parent/local
@@ -439,6 +439,13 @@ qualification remain open. Evidence: campaign-20260908/s03.
   necessary selection, preserving existing runtime lifetime mechanisms.
 - **Closure:** Paired reducer and lifetime/static controls, all required
   local gates and review; remote CI before merge.
+
+- **L03 validation:** Paired focus12/12legacy+JSON,L02neighbors93/50,
+  L04neighbors4/4,PART_PV ancestor history/reuse,NFA58/58,integrated4760total
+  4755pass0fail2NI3EF,VPI105/105,negative149/149,runtime invariants,
+  JSON1652/0,real-DPIUVM355/0/0,makecheck and final review pass.
+- **L03 residuals:** BUF,NOT,mux and other expression families remain
+  unchanged/unqualified; no general expression or application closure.
 
 ### L04 — Automatic integral defaults do not seed event history
 

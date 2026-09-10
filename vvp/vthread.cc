@@ -9227,10 +9227,20 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
 
 // Initial values must reach probes only after all state items exist and
 // activation recovery can identify the new frame (possibly a root).
+static vvp_context_t initializing_context = nullptr;
+
+bool vthread_context_is_initializing(vvp_context_t context)
+{
+      return context && context == initializing_context;
+}
+
 static void vthread_initialize_context(__vpiScope*scope, vvp_context_t context)
 {
+      vvp_context_t saved = initializing_context;
+      initializing_context = context;
       for (unsigned idx = 0; idx < scope->nitem; ++idx)
             scope->item[idx]->initialize_instance(context);
+      initializing_context = saved;
 }
 
 /*
