@@ -1871,3 +1871,24 @@ validated batch at eb8852748; this candidate is not published.
 
 legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged.
 Fresh full release sweep results-4r1diuop is complete/baseline_valid:8SMOKE_PASS,6COMPILE_FAIL,1RUNTIME_TIMEOUT. New2017.1.0/1.1 passes include exact marker and zeroW/E/F;2017.0.9 timeout recordedDD022. Original1.2 DD021 remains. No mandatoryIEEE coverage gain claimed for extension syntax. README/matrix updated. Select bounded string struct-member indexing next, prioritizing1.2/OpenTitan; no per-blocker PR.
+
+
+### L12 suspended; L13 signed-byte prerequisite candidate f5c9a0305
+
+L12 reproduced unsupported struct string character reads in both editions,
+while ordinary controls passed. Its property-plus-NetESelect candidate passed
+ASCII, nested struct, array-of-struct, side-effect and bounds probes. High-bit
+typing exposed shared ordinary string select unsignedness: octal377 widened
+to255 while getc and byte cast returned-1. Both editions6.16/6.16.3 and6.11.3
+require signed byte. Preserved L12 patch/tests/contract under evidence/l12 and
+restored U07 compiler fingerprints before selecting L13.
+
+L13 changes resolve_type_ to signed8bit and marks untyped string-width8
+NetESelect signed. Cloning and constant folding preserve sign; unsigned
+packed bit/part selects and unsigned expression contexts remain controlled.
+Both-edition original reducer failed at runtime before fix. New permanent
+JSON4/0,legacy4/0 and stringneighbors40/0 passed, independent review clear;
+NFA58/58 and makecheck passed. Full integrated77859,UVM67427 and release
+sweep76597 running. JSON follows integrated, isolated frontend last.
+Class-property string character dispatch remains separately recordedDD025;
+L12 must resume only after all L13 required gates complete.
