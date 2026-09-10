@@ -308,3 +308,5 @@ patch and reducers preserved under evidence/campaign-20260908/l10.
 L10 receiver().slots[...] syntax probe was rejected by parser; preserved in
 receiver_syntax_probe.sv. Not required for nested env.box receiver coverage;
 record-only syntax frontier, no parser changes under L10.
+
+DD020 resolved by L11 at b32df9a29 after all required local gates.

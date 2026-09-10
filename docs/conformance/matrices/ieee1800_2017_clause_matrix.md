@@ -1036,3 +1036,13 @@ pass; all required local gates pass at3c44fd13b. This does not qualify all
 argument forms; scalar output into a fixed-array class-property element
 remains DD019. UVM regression is actual-g2012 with real DPI, not IEEE1800.2
 qualification. Required remote CI and merge permissions remain separate.
+
+
+L11: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 13.5,13.4.2 and default initialization rules. Native scalar
+function output actuals are evaluated for return copying only. Automatic
+formals use existing typed frame initialization/reset; static formals retain
+their values. Return-time index side effects, repeated typed automatic defaults
+and static retention pass in both editions. All required local gates pass at
+b32df9a29. DPI import setup and input/inout/ref paths remain separate; this
+does not qualify every argument form or the suspended L10 property-element case.

@@ -743,5 +743,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L11 — Scalar output actuals must not be copied in
 
-- **State:** OPEN, prerequisite to L10 selected from DD020.
+- **State:** CLOSED at b32df9a29 after all required local gates.
 - **Scope:** Native output argument setup must skip caller reads, initialize automatic formals to defaults, retain static formals and preserve DPI open-array handling.
+
+- **L11 validation:** legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged.

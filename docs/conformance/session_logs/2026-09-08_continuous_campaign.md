@@ -1822,3 +1822,8 @@ return-time evaluation. Automatic typed defaults and static retention repeat
 three times. Focused42/0, NFA58/58, makecheck and independent review pass.
 Integrated58045 and real-DPIUVM51883 are running; JSON and isolated frontend
 remain unstarted. No L11 closure or additional publication yet.
+
+
+### L11 closure at b32df9a29
+
+legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Six release smoke passes retained; nine known compile gaps. Resume preserved L10 with prerequisite validated. README usage update3a87ebca9 is independently committed; OpenTitan UVM1.2 target confirmed in pinned corpus VCS/Questa/Riviera configs and recorded for future application replay.

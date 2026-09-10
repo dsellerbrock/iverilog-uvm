@@ -1,7 +1,7 @@
 id: "L11"
 title: "Preserve copy-out-only scalar output argument semantics"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "documented"
 base_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 last_validated_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
 prerequisite_for: "L10"
@@ -21,7 +21,7 @@ standards_evidence: "Read both editions13.5,13.4.2,13.3.2 and2017 Table6-7; auto
 
 l11_focused: "42/0, paired2families both modes baseline fail/candidate pass; independent review clear, selector strengthened to prove return-time evaluation."
 candidate_revision: "b32df9a29"
-l11_live_gates: {UVM: 51883}
+l11_live_gates: {}
 
 l11_completed_gates: "NFA22442 exit0,58/58; makecheck76983 exit0; focused42/0. Final source comment rebuild captured targetd9a0c5df5ab6b8410b3087d347633695f4f109772f0e7c9bb2d592b2057a5fed; no semantic change from focused candidate."
 
@@ -29,3 +29,7 @@ l11_integrated_terminal: "58045 exit0;4865total4860pass0fail2NI3EF,VPI105,negati
 
 l11_json_terminal: "64592 exit0;1757tests0failures. UVM51883 remains live; frontend unstarted."
 l11_release_results: "third_party/uvm-releases/results-4ifmf4k_/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; probe95059 terminal1 due known compile gaps."
+
+l11_uvm_terminal: "51883 exit0,real-DPI355passed0failed0skipped. Frontend86720 running alone; require root restoration and fingerprints before further tools."
+
+l11_closure: "legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
