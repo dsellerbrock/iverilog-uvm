@@ -15,10 +15,11 @@ required_gates:
   - Failing old export map and passing corrected map; all declared coverage API names exported.
   - Independent review, script syntax/diff checks, required Windows CI before completion/merge.
 completion: Local export invariant can validate the patch; Windows remote gate remains required and cannot be reported passed from native checks.
-suspended_parent: L06 candidate source/tests and gatehandles preserved in evidence/b01/suspended-l06.yaml; integrated48575 completed, UVM55602 still running, fullJSON25806 passed1719/0.
+suspended_parent: L06 candidate source/tests and gatehandles preserved in evidence/b01/suspended-l06.yaml; integrated48575 completed, UVM55602 passed355/0/0, fullJSON25806 passed1719/0.
 stop_after_completion: false
-next_action: Inspect required PR273 CI at08b86b949; await L06 UVM55602. Close B01 only after Windows gate passes, then resume L06 validation.
+next_action: Inspect required PR273 CI at08b86b949; L06 UVM55602 passed355/0/0. Close B01 only after Windows gate passes, then resume L06 validation.
 
 local_validation: Old map fails exact seven; fixed map passes66/66; syntax, diff and independent review pass. Windows CI pending.
 publication: https://github.com/dsellerbrock/iverilog-uvm/pull/273 at08b86b94931f62958d1f4441a7fb90a7e5c48318
 next_command: gh pr view 273 --json headRefOid,statusCheckRollup
+ci_failure: MINGW64 dependency download timeout before build; rerun request refused while overall run active. Retry after terminal.
