@@ -1,56 +1,36 @@
-id: S05
-title: Aggregate symbolic repetition implication verdicts per starting attempt
-status: locally_validated
-phase: documented
-base_revision: 2cdaec5bc
+id: S06
+title: Preserve overridden symbolic SVA cycle delays through elaboration
+status: active
+phase: reproduced
+base_revision: a76c9f67a
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 16.9.2,16.12.7,16.14.1.
-expected_behavior: Each starting implication fails once if any consequent fails; success waits until its antecedent is closed and every consequent succeeds. A failed parent cannot spawn further visible verdicts. Preserve vacuity and the specified start timing of empty and nonempty antecedent matches.
-observed_behavior: One a[*LO:HI] start with LO2/HI3 reports early pass at length2 and a second pass at length3; false consequence reports duplicate failures. Both editions reproduce on validated S04.
-reproducer: ../evidence/campaign-20260908/s05/parent-verdict.sv
-causal_hypothesis: Symbolic lowering counts each endpoint in r_end/r_fire and publishes pass/fail requests directly; bounded age bits and the unbounded mature count do not retire failed parents or defer successful parent completion.
+  - IEEE1800-2017 and IEEE1800-2023 value-parameter overrides and sequence cycle delays; verify exact subclauses before implementation.
+expected_behavior: An instance override of D changes the timing of ##D; every resulting child obligation is checked on its actual elaborated tick and contributes to one parent verdict. Declaration defaults must not freeze timing.
+observed_behavior: With LO1/HI2/D0 defaults and D1 override, a[*LO:HI] |-> ##D q passes at tick2 and ignores q becoming false on tick3. Both editions reproduce on fully locally validated S05.
+reproducer: ../evidence/campaign-20260908/s06/parameter-delay-override.sv
+causal_hypothesis: The leading and concatenated single-delay grammar calls pform_sva_const_long before preserving overridable expressions; the parameter default is folded into delay_lo/hi and the expression deleted. Range-delay syntax already preserves overridable bounds.
 allowed_scope:
-  - pform.cc accepted parameter-valued consecutive-repetition implication lowering and directly shared parent bookkeeping.
-  - Existing direct and prefixed, bounded and unbounded, fixed/delayed and accepted windowed consequent paths; audit every affected caller before selecting representation.
-  - Preserve accepted empty-match timing per LRM and exact parameter overrides; do not silently reduce supported semantics.
-  - Permanent paired regressions, focused manifests, VPI controls and reviewed affected prior oracles.
-  - Active contract, blocker/debt registry, clause matrix, campaign checkpoint and focused session evidence.
+  - parse.y and pform.cc single cycle-delay normalization and directly necessary instance-elaborated lowering; audit all affected callers.
+  - Preserve legal existing fixed, genvar and parameter delay behavior and S05 parent semantics; implement the exact missing timing without an arbitrary delay or attempt cap.
+  - Direct/prefixed symbolic repetitions and neighboring fixed antecedents affected by the common normalization path.
+  - Named/positional overrides, dependent parameter expressions and per-instance invalid-bound diagnostics within the selected causal path.
+  - Permanent paired regressions, required focused/full validation, review and exact conformance records.
 non_goals:
-  - No multiclock architecture expansion or S02 implementation.
-  - No named-sequence alias DD-006 repair, unrelated operators, unsupported assertion controls or full SVA/formal claim.
-  - No arbitrary finite cap for previously uncapped symbolic repetitions.
+  - No multiclock S02 or nested sequence alias DD-006 implementation.
+  - No unrelated operator or formal-backend expansion.
+  - No declaration-default fallback, silent dropped assertion or diagnostic-only claim of legal-feature implementation.
 invariants:
-  - One parent verdict per enabled starting attempt; retain exact multiplicity across overlapping starts.
-  - Preserve S04 vacuous user actions and separate nonvacuous callbacks.
-  - Preserve Preponed sampling, Observed unsampled disable checks, asynchronous logical-truth cancellation and Off/Kill semantics.
-  - Preserve arbitrary user action ownership and detached Reactive execution.
-  - Existing cover endpoint counting remains distinct from assertion parent truth.
+  - Preserve per-instance parameter expression identity until elaboration.
+  - Preserve Preponed sampling, Observed disable checks, asynchronous cancellation, Off/Kill and Reactive action dispatch.
+  - Preserve one parent verdict, endpoint-sensitive cover accounting and exact empty/nonempty timing.
+  - Do not broaden into a new assertion architecture without a deliberate recorded coordination boundary.
 required_gates:
-  - Paired baseline red/current green including early-pass, mixed consequence and repeated-failure discrimination.
-  - Bounded/unbounded and direct/prefixed repetitions, parameter overrides, simultaneous parents, cancellation and delayed actions.
-  - Applicable empty/nonempty match timing and neighboring exact/windowed controls.
-  - Focused legacy/JSON, NFA, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
-  - Independent standards/implementation review; remote CI before merge.
-completion: Qualify the exact repaired symbolic implication scope; retain any unresolved parent-feature obligations explicitly rather than declaring the parent feature complete.
-discovery_policy: Unrelated discoveries are record-only; regressions from this patch remain in scope.
+  - Paired pre-fix red/current green with early and late polarity discrimination for overridden delays.
+  - Multiple instances, zero/nonzero and beyond-one delays, dependent expressions and negative/unknown bounds where applicable.
+  - Focused legacy/JSON, S05 neighboring controls, NFA, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check.
+  - Grammar conflict count/signature if parse.y changes; independent standards/source/test review; remote CI before merge.
+completion: Qualify the exact repaired cycle-delay scope and retain broader obligations explicitly.
+discovery_policy: Unrelated discoveries are record-only; causal prerequisites require preserved reducers/work and a deliberate coordination boundary.
 stop_after_completion: false
-last_validated_revision: 2cdaec5bc
-next_action: Checkpoint the validated S05 increment, preserve its completed contract, then return to campaign selection.
-
-implementation_evidence:
-  - Existing age bits and mature count retain parent identity; failed parents retire before extension and success waits for closure.
-  - Terminal r_due retains the final delayed child; contiguous matches make a separate due-owner mask unnecessary.
-  - Empty direct nonoverlapped matches start their window on the current tick; zero-count starts respect assertion enable.
-  - Empty-only overlapped antecedents rejected per instance; mixed empty/nonempty overlap uses nonempty matches.
-validation_progress:
-  - Paired initial and boundary reducers red before parent correction, green after.
-  - Focus14/14 legacy and14/14 JSON in default and explicit legacy engines.
-  - Neighbor focus17/17 legacy and8/8 JSON after reviewed smoke/override oracle correction.
-  - VPI parent callback and delayed action control1/1 passes.
-  - Independent final source/test review no findings; all required local gates pass.
-completed_gates:
-  - Full JSON session52285 terminal0,1606/0; evidence/s05/json.log.
-  - Real-DPI UVM session66260 terminal0,355/0/0; evidence/s05/uvm.log.
-remaining_gates: [remote_CI_before_merge]
-final_review: No actionable findings; NFA58/58, make check0, full integrated/JSON/real-DPI UVM pass.
-integrated_result: Session74997 terminal0;4714total4709pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15.
+last_validated_revision: a76c9f67a
+next_action: Verify both editions' override and cycle-delay semantics, trace pform_sva_const_long and all single-delay callers, then choose the smallest complete instance-elaborated correction.

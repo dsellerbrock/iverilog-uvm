@@ -368,3 +368,22 @@ qualification remain open. Evidence: campaign-20260908/s03.
   JSON1606/0 and real-DPI UVM355/0/0 pass. This qualifies accepted symbolic
   consecutive repetitions with fixed ##0/##1 Boolean consequences and tested
   exact-window empty timing, not all SVA or symbolic consequent-delay overrides.
+
+
+### S06 — Overridden symbolic SVA cycle delay is frozen to its default
+
+- **Area / edition:** SVA and parameter elaboration / IEEE1800-2017 and1800-2023.
+- **State:** ACTIVE — DD-008 selected after S05 local qualification.
+- **Evidence:** On validated a76c9f67a, LO1/HI2/D0 defaults with D1 override
+  pass at tick2 and ignore a false final child at tick3 in both editions.
+  Literal ##1 controls pass. Reducer and paired logs: campaign-20260908/s06.
+- **Hypothesis:** Single-delay grammar folds a parameter default through
+  pform_sva_const_long and deletes its expression; range-delay syntax already
+  retains overridable expressions for ordinary instance elaboration.
+- **Selection:** Silent timing miscompilation, ordinary parameter override
+  correctness and parameterized application assertion relevance.
+- **Scope:** Shared single-delay normalization and necessary instance-sized
+  lowering; exact parent, cancellation, sampling and empty timing preserved.
+  No new arbitrary delay cap or broader multiclock architecture.
+- **Closure:** Paired semantic regressions, override/boundary controls,
+  required full gates and independent review. Remote CI before merge.

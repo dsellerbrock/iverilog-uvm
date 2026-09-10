@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: S05
-phase: selection
+current_blocker: S06
+phase: reproduced
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: a76c9f67ae854d415043de9b7c5a9052a705c913
@@ -10,11 +10,11 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: Assess DD-008 symbolic consequent-delay override against validated S05; prioritize silent parameter miscompilation and application relevance.
-next_action: Select the next justified blocker after S05; preserve completed contract in evidence/s05.
-next_command: "tail -n 20 ../evidence/campaign-20260908/s05/json.log ../evidence/campaign-20260908/s05/uvm.log"
+next_selection: S06 selected from DD-008: silent instance timing miscompilation reproduced in both editions on validated S05.
+next_action: Trace single cycle-delay parameter folding and verify LRM semantics before any S06 source change.
+next_command: "sed -n '8725,8835p' pform.cc && sed -n '8138,8244p' parse.y"
 next_command_cwd: repository root
-candidate_state: S05 committed at a76c9f67ae854d415043de9b7c5a9052a705c913; all local gates pass; no active implementation edits.
+candidate_state: S06 paired reducer red; exact ACTIVE_WORK contract written; no implementation edits.
 installed_tools: Compilercd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 validation_state: S05 focus14/14 legacy+JSON in both engines, neighbors17/17+8/8, VPI1/1. Integrated74997 terminal0 (4714/4709/0/2/3,VPI105,negative149,runtime15), NFA58/58, make check0, final review pass. JSON52285 terminal0,1606/0; UVM66260 terminal0,355/0/0 real DPI. All required S05 local gates pass.
 next_validation: S05 all local gates pass; remote CI remains required before merge.

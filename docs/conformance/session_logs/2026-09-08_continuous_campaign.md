@@ -1056,3 +1056,8 @@ S05 full integrated session74997 terminated0:4714total4709pass0fail2NI3EF, VPI10
 S05 full JSON session52285 terminated0,1606tests/0failures. Only real-DPIUVM66260 remains among required local gates; remote CI remains required before merge.
 
 S05 real-DPIUVM session66260 terminated0:355passed,0failed,0skipped with the real DPI umbrella loaded. All required local gates and final review now pass. No semantic source/test edits occurred during the full runs; installed fingerprints match. S05 is locally validated in the exact scope recorded in the matrix and blocker entry; remote CI remains required before merge. Continue campaign selection after checkpointing this increment.
+
+
+### S06 selection after validated S05
+
+S05 implementation a76c9f67a and checkpoint8de0e3c88 are committed; completed S05 contract preserved in evidence/s05. S06 promotes DD-008 because freezing a legal instance delay override silently misses the specified consequence failure. Both2017/2023 fresh reducers on S05 print EARLY1/0 then1/0 where no early pass and final0/1 are required. Graph-guided navigation led to the delay normalization path; source shows single delays fold via pform_sva_const_long before genvar handling, while symbolic range bounds already retain expressions. Exact S06 contract is active; no S06 implementation edit yet. Continue standards and causal tracing, without broad audit or another worktree.
