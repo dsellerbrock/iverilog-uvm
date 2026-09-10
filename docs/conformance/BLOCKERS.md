@@ -615,12 +615,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### B01 — Windows coverage API import-library exports missing
 
 - **Area:** Build/API ABI export map, no language-semantic change.
-- **State:** IN_PROGRESS — prerequisite discovered in PR273 required UCRT64 CI.
+- **State:** CLOSED — old/new export invariant and review passed; required Windows CI now passed on PR273 head abcfdf7fb84b36b030ea8d28b05fca73ca06be16.
 - **Evidence:** job102955775883 link of vvp.tgt reports seven missing coverage
   API symbols; all are declared in ivl_target.h and implemented in t-dll-api.cc.
 - **Root:** Missing ivl.def entries prevent Windows import-library linkage.
 - **Closure:** Old/new invariant proof, exact exports, independent review and
   required Windows CI. Update existing PR273; no new PR or agent merge.
+
+
+- **Windows evidence:** UCRT64 job102981118128 completed success at2026-09-10T18:56:21Z, including build/link, regression, UVM and installed frontend. MINGW64 and CLANG64 also passed. Export map unchanged from reviewed7c779ff28; macOS remains queued for overall PR, no merge performed.
 
 
 ### U03 — Select a pinned UVM release from the iverilog command line

@@ -191,7 +191,7 @@ u03_closure: c35d2ef36 all required local gates passed; fullJSON31236 terminal0,
 l07_selection: DD013 queue-last lvalue crash on validated c35d2ef36; sole active implementation. B01 remote CI still pending.
 l07_candidate: elab_lval.cc and ten paired regressions; focus10/10each,neighbors21/13,makecheck,review,NFA58/58 pass; unmodifiedUVM2020.3.2 smoke passes. Integrated27702/UVM33056 running; JSON unstarted.
 
-b01_latest_evidence: UCRT64 Build and self-check passed on c189df5b8; regression and full job still live. Required Windows gate remains pending.
+b01_latest_evidence: "CLOSED: reviewed export map unchanged at PR273 headabcfdf7f; required UCRT64 job102981118128 complete success incl build/link/regression/UVM/frontend; MINGW64 and CLANG64 also success."
 
 l07_integrated_terminal: 27702 exited0;4837total4832pass0fail2NI3EF,VPI105,negative149,runtime15/15. JSON98943 and UVM33056 live.
 publication_milestone_candidate: After L07 validation, V07/U02/L06/U03/L07 comprise five increments; inspect refreshed main and prefer one coherent update to existing requested main PR273, preserving content and file modes. No publication before required local gates pass.
@@ -223,7 +223,7 @@ l08_final_review: Clear after SVA clone provenance fix; required gates pending.
 l08_candidate_revision: 47e6c87b3
 l08_nfa: Passed58/58, terminal81089 exit0.
 l08_release_probe: results-gizcr5j0 complete and baseline_valid; original2020.1.0/1.1 compile0 but RUNTIME_FAIL, missing DPI regex symbols and UVM BUILDERR; DD-011 record-only.
-pr273_latest_checks: Ubuntu22.04,Ubuntu24.04,CLANG64 passed; MINGW64,UCRT64 running,macOS queued.
+pr273_latest_checks: "Ubuntu22.04,Ubuntu24.04,MINGW64,UCRT64,CLANG64 passed; macOS queued. PR remains open; no merge."
 
 u05_live_gates: [integrated68370, UVM71712]
 u05_unstarted_gates: [full_JSON_after_integrated]
