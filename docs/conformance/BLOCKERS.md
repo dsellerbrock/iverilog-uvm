@@ -82,14 +82,13 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Closure requirements:** Small-domain staged distributions with correct
   marginal/conditional probabilities and graph rollback on failure; explicit
   rejection preserved for shapes still out of scope after the fix.
-- **Last verified revision:** components build3 (PR #258); not re-verified
-  against current `main`.
+- **Last verified revision:** b9de0be7f reproduced both editions. Z01A resolves bounded canonical integral stages locally; ordered dist/randc and non-scalar/large-domain cases remain open.
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
 - **Area / edition:** Frontend/randomization / edition-agnostic
-- **State:** OPEN
-- **Confidence:** SOURCE
+- **State:** CLOSED (silent-discard defect only; local implementation unmerged)
+- **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `make_randomize_with_expr()` in `elab_expr.cc`
   warns and continues when an inline constraint cannot be lowered, instead
   of hard-erroring — the call can be built without the requested constraint.
@@ -99,8 +98,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Closure requirements:** Reduce a live unsupported inline-constraint
   shape; require either correct constraint execution or an explicit failure
   — never a successful solve that silently dropped the constraint.
-- **Last verified revision:** not re-verified since the audit; confirm the
-  exact code path on current `main` before starting.
+- **Last verified revision:** 8f298eefe accepts and discards a selected foreach item in both editions; runtime returns success with 412736472 instead of required 123. Candidate passes all required local gates and review; remote CI required before merge. Unsupported expressions remain unimplemented.
 
 ### S01 — Cross-clock overlapping implication (SVA boundary)
 
@@ -205,3 +203,14 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **What it blocks:** Background process scheduling in functions.
 - **Closure requirements:** Child execution starts after parent suspension/termination, including multiple children; required gates.
 - **Last verified revision:** Campaign P03 checkpoint based on 49505f514; see 2026-09-08 campaign evidence. All required local gates passed; closing PR/remote CI pending before merge.
+
+### Z01A — Bounded canonical integral joint ordering stages
+
+- **Area / edition:** Randomization / IEEE 1800-2017 18.5.10, 2023 18.5.9.
+- **State:** CLOSED (bounded local implementation; unmerged)
+- **Parent:** Z01 (remains open beyond this bounded subcase).
+- **Confidence:** REPRODUCED
+- **Evidence / reproducer:** exact_joint rejects all order_pairs at current b9de0be7f; root-local ordering in existing sv_randomize_global_sampling_fail is legal but unsupported.
+- **What it blocks:** Ordered small-domain parent/member-object sampling.
+- **Closure requirements:** Exact stage projections, latest partial ordering, rollback, replay, callbacks/activation and required gates; keep ordered dist and non-scalar stages explicit unsupported.
+- **Last verified revision:** b9de0be7f red reducer in both editions; candidate patch passes all required local gates and independent review; remote CI/merge pending.

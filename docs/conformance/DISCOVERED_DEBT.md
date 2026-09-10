@@ -33,3 +33,14 @@ No entries yet. This governance-bootstrap pass did not investigate
 implementation code for defects (that would itself be an audit, which is
 out of scope here) — nothing was discovered during this ticket that
 requires parking. Use the format above for the next agent's discoveries.
+
+
+### DD-001 — joint active-randc prepass and enumeration-cap interaction
+
+- **Discovered while working:** Z01A
+- **Observation:** Source review found a randc draw before complete component enumeration. A draw-dependent over-cap failure could condition successful calls on the selected value; not reproduced or claimed as a confirmed defect.
+- **File/function:** vvp/vvp_z3.cc, z3_solve_pass_ randc prepass and exact_joint component enumeration.
+- **Possible clause:** IEEE 1800-2017 18.4.2 / global constraint distributions; exact applicability needs triage.
+- **Evidence:** Independent Z01A source review; ordered active-randc is explicitly excluded/rejected by Z01A.
+- **Reproducer status:** sketched
+- **Triage status:** untriaged

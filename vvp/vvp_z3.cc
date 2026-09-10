@@ -5052,10 +5052,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       }
 
       if (exact_joint) {
-            // Explicit ordering requires proved staged distributions
-            // (IEEE 1800-2017 18.5.10; IEEE 1800-2023 18.5.9).
-            if (!builder.order_pairs.empty())
-                  return fail_joint("solve-before stages across objects are not yet supported");
+            // Ordered randc/dist and non-scalar stages need separate proofs.
+            // Reject before any sampling; a cap failure after a randc draw
+            // could otherwise condition successful calls on that draw.
+            if (!builder.order_pairs.empty()) {
+                  if (!builder.dist_specs.empty())
+                        return fail_joint("joint solve-before with dist is not yet supported");
+                  for (const auto&pair : builder.order_pairs)
+                        if (pair.first.kind != Z3Builder::OrderRef::PROP
+                            || pair.second.kind != Z3Builder::OrderRef::PROP)
+                              return fail_joint("joint solve-before requires canonical scalar ordering variables");
+                  for (const auto&pv : builder.prop_vars)
+                        if (rand_scalar_active_(builder, prop_active, pv.idx)
+                            && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)))
+                              return fail_joint("joint solve-before with active randc is not yet supported");
+                  for (const auto&ev : builder.elem_vars)
+                        if (rand_elem_active_(builder, prop_active, ev.idx, ev.elem)
+                            && builder.type(ev.idx)->property_is_randc(builder.local_index(ev.idx)))
+                              return fail_joint("joint solve-before with active randc is not yet supported");
+            }
             vector<Z3_ast> sizes;
             for (const auto&sv : builder.size_vars) sizes.push_back(sv.var);
             if (!sizes.empty()) {
@@ -5358,6 +5373,36 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Canonical graph struct leaves are PropVars, not MemberVars.
             if (!builder.member_vars.empty())
                   return fail_joint("an unpacked-struct leaf lacks canonical storage");
+            // Longest distance to a sink schedules partially ordered variables
+            // as late as possible, with unordered variables in the final stage
+            // (IEEE 1800-2017 18.5.10; IEEE 1800-2023 18.5.9).
+            map<unsigned, unsigned> remaining;
+            for (const auto&pair : builder.order_pairs) {
+                  remaining[pair.first.idx];
+                  remaining[pair.second.idx];
+            }
+            for (size_t pass = 0; pass < remaining.size(); ++pass) {
+                  bool changed = false;
+                  for (const auto&pair : builder.order_pairs) {
+                        unsigned want = remaining[pair.second.idx] + 1;
+                        if (remaining[pair.first.idx] < want) {
+                              remaining[pair.first.idx] = want;
+                              changed = true;
+                        }
+                  }
+                  if (!changed) break;
+                  if (pass + 1 == remaining.size())
+                        return fail_joint("cyclic joint solve-before ordering");
+            }
+            unsigned final_stage = 0;
+            for (const auto&entry : remaining)
+                  final_stage = max(final_stage, entry.second);
+            map<Z3_ast, unsigned> stages;
+            for (const auto&pv : builder.prop_vars) {
+                  auto found = remaining.find(pv.idx);
+                  if (found != remaining.end())
+                        stages[pv.var] = final_stage - found->second;
+            }
             vector<vector<Z3_ast> > components;
             if (!z3_joint_components_(ctx, base, variables, components))
                   return fail_joint("the joint dependency graph contains an unsupported expression");
@@ -5410,7 +5455,34 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         if (tuples.empty())
                               return fail_joint("the sampled distribution value has no proved joint tuple");
                   }
-                  // A distribution sets its subject's marginal; the remaining
+                  for (unsigned stage = 0; stage < final_stage; ++stage) {
+                        vector<size_t> columns;
+                        for (size_t i = 0; i < component.size(); ++i) {
+                              auto found = stages.find(component[i]);
+                              if (found != stages.end() && found->second == stage)
+                                    columns.push_back(i);
+                        }
+                        if (columns.empty()) continue;
+                        // Count distinct stage assignments, not their number
+                        // of later completions. Every projection has a proved
+                        // nonempty fiber in the complete component table.
+                        set<vector<uint64_t> > projections;
+                        for (const auto&tuple : tuples) {
+                              vector<uint64_t> projection;
+                              for (size_t column : columns) projection.push_back(tuple[column]);
+                              projections.insert(std::move(projection));
+                        }
+                        auto selected = projections.begin();
+                        if (projections.size() > 1)
+                              advance(selected, root_rng.uniform_index(projections.size()));
+                        tuples.erase(remove_if(tuples.begin(), tuples.end(),
+                              [&](const vector<uint64_t>&tuple) {
+                                    for (size_t i = 0; i < columns.size(); ++i)
+                                          if (tuple[columns[i]] != (*selected)[i]) return true;
+                                    return false;
+                              }), tuples.end());
+                  }
+                  // A distribution/stage sets its marginal; the remaining
                   // complete fiber is uniform. Independent factors multiply.
                   const auto&chosen = tuples[tuples.size() == 1 ? 0 : root_rng.uniform_index(tuples.size())];
                   for (size_t i = 0; i < component.size(); ++i) {
@@ -5461,7 +5533,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    size_random_targets[idx] = target;
 	    return target;
       };
-      if (!builder.order_pairs.empty()) {
+      if (!exact_joint && !builder.order_pairs.empty()) {
 	    std::map<Z3Builder::OrderRef,unsigned> rank;
 	    auto order_ref_active = [&](const Z3Builder::OrderRef&ref) -> bool {
 		  if (ref.kind == Z3Builder::OrderRef::ELEM)

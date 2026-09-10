@@ -1,0 +1,3 @@
+./ivltests/sv_randomize_with_unresolvable_dropped.v:31: warning: Static variable initialization requires explicit lifetime in this context.
+./ivltests/sv_randomize_with_unresolvable_dropped.v:17: error: constraint `foreach (lookup[...]) { ... }' could not be translated and the randomize call cannot be compiled.
+1 error(s) during elaboration.

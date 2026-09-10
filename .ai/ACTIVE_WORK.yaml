@@ -1,37 +1,34 @@
-id: P02
-title: Preserve process identity for singleton fork joins
-status: completed
-phase: locally_validated
-base_revision: a5788c259
+id: C01
+title: Reject untranslated inline constraints instead of solving without them
+status: completed_local
+phase: checkpoint
+base_revision: 8f298eefe
 standards:
-  - IEEE 1800-2017 and 2023 clauses 9.3.2, 9.6.1, 9.6.3, 9.7, 18.14.1 and 18.14.2 (local text verified)
-expected_behavior: Every fork child is an independent process with its own descendant controls and RNG, including singleton join and join_any.
-observed_behavior: Both editions fail identity at time zero and wait-fork sibling isolation at time 10 on a5788c259; logs in campaign-20260908/p02-red.
-hypothesis: dll_target::proc_block treats singleton parallel blocks as sequential statements and removes their process boundary before VVP lowering.
-reproducers:
-  - ivtest/ivltests/sv_fork_singleton_process.v
-  - ivtest/ivltests/sv_fork_singleton_control.v
+  - IEEE 1800-2017 18.7 inline constraints
+  - IEEE 1800-2023 18.7 inline constraints
+expected_behavior: A randomize with call applies every requested constraint; unsupported lowering must fail explicitly, never emit a successful partial solve.
+observed_behavior: make_randomize_with_expr still warns and continues when an item yields empty IR without an existing error.
+hypothesis: The shared inline class builder fails to increment Design errors on its fallback path.
 allowed_scope:
-  - t-dll-proc.cc (proc_block singleton elimination predicate only)
-  - ivtest (singleton regression sources, gold and registrations)
+  - elab_expr.cc (shared inline constraint failure path)
+  - ivtest (focused failure and supported controls; affected diagnostic gold)
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
   - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
   - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - Scheduler redesign, deferred assertions, randomization solver, unrelated applications.
+  - Implement unsupported expression shapes or broader constraint semantics.
+  - Change unrelated class-declaration or runtime solver behavior.
 invariants:
-  - Sequential blocks and synchronous task calls retain enclosing process identity.
-  - Preserve named blocks, randsequence blocks, RNG ownership and existing event regions.
-dependencies: [P01 and P03 locally validated]
+  - Preserve existing precise diagnostics; no duplicate generic error after a diagnosed failure.
+  - Preserve receiver/capture ownership and all shared expression/task callers.
+  - Explicit failure does not qualify the unsupported legal feature as implemented.
 required_gates:
-  - Both-edition baseline red and patched focused reducers.
-  - Focused legacy and JSON positive/control/neighbor tests.
-  - Integrated ivtest/VPI/negative/runtime gate, full JSON, real-DPI UVM and make check.
-  - Independent review, documentation and diff check; remote CI remains required before merge.
-completion: Close only singleton process boundary elimination after required local gates pass; broader process conformance remains separate.
-discovery_policy: Record unrelated discoveries only; proven prerequisites require coordinator boundary.
-stop_after_completion: true
-
-validation: All required local gates passed; remote CI remains a merge gate.
+  - Both-edition red acceptance/constraint-loss reducer and permanent rejection regression.
+  - Supported inline expression/task controls and focused legacy/JSON diagnostics.
+  - Integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check and independent review.
+  - Remote CI before merge.
+completion: Silent-discard defect resolved; all required local gates passed. Unsupported shapes remain unimplemented; remote CI/merge pending.
+discovery_policy: Unrelated discoveries are record-only.
+stop_after_completion: false

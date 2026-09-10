@@ -207,3 +207,110 @@ required local gates passed. P02 closes the singleton VVP process-boundary
 fix only. Combined P03/P01/P02 source remains unmerged; remote CI is still
 required before merge. No broad process, application, UVM-standard, or formal
 qualification claim follows from these three fixes. Next: current Z01 verification.
+
+
+## Z01A — bounded joint integral solve-before stages (in progress)
+
+Baseline b9de0be7f rejects a legal root-local ordering in a parent/child
+constraint graph in both -g2017 and -g2023. Reducer and red logs are under
+../evidence/campaign-20260908/z01a. Verified IEEE 1800-2017 18.5.9/18.5.10
+and IEEE 1800-2023 18.5.8/18.5.9 against the local editions. Stage variables
+are uniform over feasible distinct assignments, not weighted by the number
+of later completions; partially ordered variables occur as late as possible.
+
+The joint solver now computes canonical-property sink distances and samples
+distinct stage projections from already-complete component tables, then
+uniformly samples the remaining fiber. The existing 1024-tuple ceiling is
+unchanged. Ordered dist, active randc, and non-PROP ordering remain explicit
+unsupported boundaries. Cycles fail. Existing non-joint ordering is untouched.
+
+Both-edition standalone tests pass: ordered marginal/conditional fibers,
+coupled three-stage chain, latest placement of a partially ordered variable,
+two child-owned ordering instances, aliases, replay, frozen variables,
+callbacks, and UNSAT value rollback. Negative tests cover cycles, array-element
+ordering, active randc, ordered dist, and 1024/1025 tuple boundary preservation.
+Static-storage aliases in ordering are not specifically qualified here.
+
+An initial test incorrectly required RNG rollback on failure. IEEE 18.6.3
+requires random-variable preservation and no post_randomize callback; the
+existing transaction restores values/history, not RNG state. Removed only
+that unsupported test assumption, retaining deterministic successful replay.
+The first paired focus passed 36 legacy tests but failed six JSON comparisons
+because JSON has separate stdout/stderr gold files. Added those files and
+updated the obsolete unsupported-order expectation; final paired focus and
+integrated gates are pending. No semantic gate has been waived.
+
+Independent source review found no actionable defect and requested coupled
+three-stage, child-owner, ordered-cap and ordered-dist coverage; all added.
+Z01 remains open beyond this bounded implementation. No broader IEEE, UVM,
+application DV or formal completion is asserted.
+
+Final paired focus passed 38/38 legacy and 38/38 JSON, exit 0. make check
+passed. Reviewer confirmed all requested additions, with no further findings.
+Integrated and real-DPI UVM are running; full JSON follows integrated because
+the harnesses share ivtest output paths. Source fingerprint is in z01a/fingerprint.txt.
+
+Z01A integrated gate exited 0: legacy 4652 total, 4647 passed, zero failed,
+2 not implemented, 3 expected failures; name comparison clean. VPI 103/103,
+negative 149/149, runtime invariants 15/15. Full JSON and real-DPI UVM pending.
+
+Z01A full JSON exited 0: 1541 tests, zero failures. Real-DPI UVM is the
+remaining required local gate.
+
+Z01A real-DPI UVM exited 0: 355 passed, 0 failed, 0 skipped (actual -g2012).
+All required local gates and independent review pass. Close only bounded
+canonical integral joint ordering; parent Z01 remains open. Remote CI is
+required before merge. Next selection: reverify C01 because discarding a
+requested inline constraint could invalidate successful DV checking.
+
+
+## C01 — refuse successful inline-constraint omission (in progress)
+
+On baseline 8f298eefe, both -g2017 and -g2023 compile the selected foreach
+reducer with a warning and return randomize success while addr is 412736472
+instead of the requested 123. Evidence: ../evidence/campaign-20260908/c01.
+Verified both editions' 18.7 requirement that inline constraints apply along
+with object constraints. The shared make_randomize_with_expr fallback now
+increments Design::errors and issues a hard diagnostic, preventing codegen
+without changing the owned expression/task construction path. Existing
+specific errors suppress the generic fallback message as before.
+
+Five permanent rejection sites exercise implicit object calls, scope-form
+class properties, explicit expressions, task-style calls and std::randomize
+with an object argument. Existing selected-foreach/clog2 diagnostic gold gains
+one error apiece. Historical sv_randomize_with_unresolvable_dropped explicitly
+expected warning-and-success; it now requires CE with an exact diagnostic.
+This removes a misleading success expectation, not a supported feature.
+Empty with blocks, zero-iteration dynamic foreach, adjacent constraints and
+successful task calls remain covered by positive tests in both editions.
+
+Independent review found no actionable defect. A suspected empty nested-set
+regression was checked against the parser: that shape was already rejected,
+so no translator expansion was made. Empty top-level blocks bypass the item
+loop and zero-iteration dynamic templates retain nonempty IR. The new 2023
+JSON rejection test initially differed only in include-path spelling; its
+source configuration now follows the existing direct-source edition pattern.
+Final paired focus passed 24/24 legacy and 21/21 JSON. Required integrated,
+full JSON, real-DPI UVM and make check remain pending. This ticket only closes
+silent constraint omission; unsupported legal shapes remain unimplemented.
+
+First integrated run: one legacy failure, sv_constraint_foreach_hierarchical.
+Its source explicitly expected successful randomize with a dropped hierarchical
+item. Converted it to CE with the lowering diagnostic (thereby still testing
+parser reachability); added JSON coverage for both historical discard tests.
+No compiler source changed. Other 4650 legacy cases passed; VPI 103/103,
+negative 149/149, runtime 15/15. Focus and integrated will rerun without an
+expected-failure waiver. make check passed; UVM remains running on same source.
+
+C01 final focus: 25/25 legacy and 23/23 JSON, exit 0. Review accepts both
+historical-test conversions as exact lowering diagnostics without a broader
+feature claim. Integrated rerun exited 0: 4656 total, 4651 passed, zero
+failed, 2 not implemented, 3 expected failures; name comparison clean.
+VPI 103/103, negative 149/149, runtime invariants 15/15. Full JSON and UVM pending.
+
+C01 full JSON exited 0: 1547 tests, zero failures. Real-DPI UVM exited 0:
+355 passed, zero failed/skipped (actual -g2012). All required local gates
+and independent review pass. Close the silent-discard defect only; no claim
+that unsupported foreach/clog2 shapes are implemented. Remote CI/merge
+remain pending. Worktree audit unchanged; unrelated trees remain preserved.
+Next: current U01 unmodified application frontier at this coherent milestone.
