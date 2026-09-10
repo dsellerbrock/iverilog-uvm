@@ -30992,6 +30992,25 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             auto group_props = add_option_props("__covgrp_group", "get_inst_coverage", &netvector_t::scalar_bool);
             group_options.weight_prop = group_props.second;
             group_options.get_inst_coverage_prop = group_props.first;
+            auto type_weight_it = cgdef->options.find(
+                  perm_string::literal("type_option.weight"));
+            if (type_weight_it != cgdef->options.end()) {
+                  // 19.10 declares an int member; use ordinary assignment
+                  // sizing/conversion before enforcing table19-3's domain.
+                  NetExpr*value = is_direct_ctor_formal(type_weight_it->second) ? nullptr
+                        : elaborate_rval_expr(des, class_scope_, &netvector_t::atom2s32,
+                                              type_weight_it->second, true);
+                  NetEConst*constant = dynamic_cast<NetEConst*>(value);
+                  if (constant && constant->value().is_defined()
+                        && constant->value().as_ulong64() <= INT32_MAX)
+                        group_options.type_weight = constant->value().as_ulong64();
+                  else {
+                        cerr << type_weight_it->second->get_fileline()
+                             << ": error: covergroup type_option.weight requires a non-negative integral constant." << endl;
+                        des->errors += 1;
+                  }
+                  delete value;
+            }
             auto merge_it = cgdef->options.find(
                   perm_string::literal("type_option.merge_instances"));
             if (merge_it != cgdef->options.end()) {

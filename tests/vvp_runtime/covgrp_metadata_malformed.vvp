@@ -203,6 +203,10 @@ C0x34 .class "bad_group_get_inst" "top.bad_group_get_inst" [1]
    0: "__option", "q0:sb32"
  .covgrp_options 0 1 1 2 0
  ;
+C0x35 .class "bad_group_type_weight" "top.bad_group_type_weight" [1]
+   0: "weight", "q0:sb32"
+ .covgrp_type_weight 2147483648
+ ;
 :file_names 2;
     "N/A";
     "covgrp_metadata_malformed.vvp";

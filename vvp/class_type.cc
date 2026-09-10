@@ -2907,6 +2907,15 @@ void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       }
 }
 
+void compile_class_covgrp_type_weight(uint64_t weight)
+{
+      assert(compile_class);
+      if (weight > INT32_MAX)
+            yyerror("invalid .covgrp_type_weight metadata value");
+      else
+            compile_class->covgrp_type_weight((unsigned)weight);
+}
+
 void compile_class_covgrp_item_options(uint64_t item_idx,
 				       uint64_t at_least_prop,
 				       uint64_t weight_prop)

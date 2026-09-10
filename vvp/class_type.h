@@ -434,6 +434,8 @@ class class_type : public __vpiHandle {
       };
       void set_covgrp_options(const covgrp_options_t&options)
       { covgrp_options_ = options; covgrp_options_present_ = true; }
+      unsigned covgrp_type_weight() const { return covgrp_type_weight_; }
+      void covgrp_type_weight(unsigned weight) { covgrp_type_weight_ = weight; }
       unsigned covgrp_weight(vvp_cobject*obj) const;
       bool covgrp_get_inst_coverage(vvp_cobject*obj) const;
       double type_coverage(class vvp_cobject*context = 0,
@@ -482,6 +484,7 @@ class class_type : public __vpiHandle {
       std::vector<int> covgrp_srcprops_;
       std::vector<int> covgrp_guardsrcs_;
       covgrp_options_t covgrp_options_;
+      unsigned covgrp_type_weight_ = 1;
       bool covgrp_options_present_ = false;
       mutable long double covgrp_retired_weight_ = 0, covgrp_retired_weighted_ = 0;
       mutable std::vector<class vvp_cobject*> covgrp_live_;

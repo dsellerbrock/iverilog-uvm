@@ -541,6 +541,7 @@ class netclass_t : public ivl_type_s {
 	covgrp_items_.push_back(it); }
       struct covgrp_options_t {
             bool merge_instances = false;
+            unsigned type_weight = 1;
             unsigned weight = 1, get_inst_coverage = 0;
             PExpr* weight_expr = nullptr;
             PExpr* get_inst_coverage_expr = nullptr;

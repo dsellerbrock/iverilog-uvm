@@ -4553,6 +4553,12 @@ extern "C" unsigned ivl_type_covgrp_merge_instances(ivl_type_t net)
       return class_type ? class_type->covgrp_options().merge_instances : 0;
 }
 
+extern "C" unsigned ivl_type_covgrp_type_weight(ivl_type_t net)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      return class_type ? class_type->covgrp_options().type_weight : 1;
+}
+
 extern "C" unsigned ivl_type_covgrp_weight(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

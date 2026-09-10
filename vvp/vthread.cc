@@ -8828,21 +8828,22 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/get_all — $get_coverage (19.9): the mean of the type
- * coverage over all covergroup types in the design. */
+/* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
+ * scores weighted by their covergroup-level type_option.weight. */
 bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
 {
       const std::vector<const class_type*>&reg = class_type::covgrp_registry();
-      double sum = 0.0;
-      size_t count = 0;
+      long double sum = 0.0, weights = 0.0;
       for (const class_type*ct : reg) {
+            unsigned weight = ct->covgrp_type_weight();
+            if (weight == 0) continue;
             bool contributes = false;
             double score = ct->type_coverage(nullptr, &contributes);
             if (!contributes) continue;
-            sum += score;
-            count += 1;
+            sum += (long double)weight * score;
+            weights += weight;
       }
-      thr->push_real(count == 0 ? 100.0 : sum / count);
+      thr->push_real(weights == 0 ? 100.0 : (double)(sum / weights));
       return true;
 }
 

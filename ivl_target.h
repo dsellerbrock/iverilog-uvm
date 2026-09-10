@@ -2772,6 +2772,7 @@ extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
 /* Covergroup declaration options; property indexes are -1 when absent. */
 extern unsigned ivl_type_covgrp_merge_instances(ivl_type_t net);
 extern unsigned ivl_type_covgrp_weight(ivl_type_t net);
+extern unsigned ivl_type_covgrp_type_weight(ivl_type_t net);
 extern unsigned ivl_type_covgrp_get_inst_coverage(ivl_type_t net);
 extern int ivl_type_covgrp_weight_prop(ivl_type_t net);
 extern int ivl_type_covgrp_get_inst_coverage_prop(ivl_type_t net);

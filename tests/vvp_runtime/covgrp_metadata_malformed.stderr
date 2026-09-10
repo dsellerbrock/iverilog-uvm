@@ -35,3 +35,4 @@ tests/vvp_runtime/covgrp_metadata_malformed.vvp:192: invalid .covgrp_options met
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:196: invalid .covgrp_options metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:200: invalid .covgrp_options metadata value
 tests/vvp_runtime/covgrp_metadata_malformed.vvp:204: invalid .covgrp_options metadata value
+tests/vvp_runtime/covgrp_metadata_malformed.vvp:208: invalid .covgrp_type_weight metadata value

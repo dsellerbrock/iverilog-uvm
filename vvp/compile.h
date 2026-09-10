@@ -720,6 +720,7 @@ extern void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
 			      uint64_t guardsrc = 0);
 extern void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
       uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop);
+extern void compile_class_covgrp_type_weight(uint64_t weight);
 extern void compile_class_covgrp_item_options(uint64_t item_idx,
 					      uint64_t at_least_prop,
 					      uint64_t weight_prop);
