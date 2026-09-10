@@ -1,25 +1,24 @@
-id: B01
-title: Restore Windows coverage API exports for PR273
+id: U03
+title: Select an acquired pinned UVM release in the iverilog driver
 status: in_progress
-phase: awaiting_validation
-user_authorization: Required correction to the existing user-requested PR273; preserve L06 at a deliberate prerequisite validation boundary.
-reproducer: PR273 UCRT64 job102955775883 fails linking vvp.tgt with seven undefined ivl_type_covgrp functions.
-root_cause: Seven implemented/declaration-visible coverage API functions are missing from ivl.def used by the Windows import library.
-allowed_scope:
-  - Add exactly the missing coverage exports to ivl.def.
-  - Permanent coverage API/export consistency check and integrated gate registration.
-  - Focused evidence and update existing PR273 with only this correction; no merge.
-non_goals:
-  - No L06 semantic code in this patch, no other export/API redesign, no installed tool mutation while L06 gates run.
+phase: regression_testing
+user_authorization: Explicit request for a UVM version picker similar to VCS; use pinned submodules or fallback downloader.
+prerequisite: U02 pinned acquisition tooling completed140c58b14; L06 local semantic gates passed at4965219df. No dependence on B01 Windows export mechanism.
+suspended_work: B01 awaiting external Windows CI atPR273/08b86b949; contract saved in evidence/u03/suspended-b01.yaml. No gate waiver or closure.
+contract:
+  - --uvm=VERSION selects an acquired release and implies UVM; --uvm-list lists available releases.
+  - Preserve -uvm bundled default, --uvm-home path selection, and --uvm-version reporting.
+  - Reject malformed/missing release IDs and conflicting explicit home/version selectors; never silently fall back.
+  - Release directories default to lib/ivl/uvm/releases; IVERILOG_UVM_RELEASES overrides the catalog directory.
+  - Acquisition script optionally registers verified releases as source-directory links; preserve conflicting existing paths.
+  - No compiler-time download, source rewriting, runtime redesign, or claims that a selected release is qualified.
 required_gates:
-  - Failing old export map and passing corrected map; all declared coverage API names exported.
-  - Independent review, script syntax/diff checks, required Windows CI before completion/merge.
-completion: Local export invariant can validate the patch; Windows remote gate remains required and cannot be reported passed from native checks.
-suspended_parent: L06 candidate source/tests and gatehandles preserved in evidence/b01/suspended-l06.yaml; integrated48575 completed, UVM55602 passed355/0/0, fullJSON25806 passed1719/0.
+  - Baseline missing-selector reducer; permanent driver resolution, listing, invalid/missing/conflicting option and spaced-path checks.
+  - Acquisition registration preservation check; existing UVM frontend controls; real-DPI selected known-release smoke.
+  - Independent review and required integrated validation; preserve frozen installed tools until ready to validate candidate driver.
+next_action: Await integrated90425, then run full JSON serially; checkpoint U03 after required gates.
 stop_after_completion: false
-next_action: Inspect required PR273 CI at08b86b949; L06 UVM55602 passed355/0/0. Close B01 only after Windows gate passes, then resume L06 validation.
 
-local_validation: Old map fails exact seven; fixed map passes66/66; syntax, diff and independent review pass. Windows CI pending.
-publication: https://github.com/dsellerbrock/iverilog-uvm/pull/273 at08b86b94931f62958d1f4441a7fb90a7e5c48318
-next_command: gh pr view 273 --json headRefOid,statusCheckRollup
-ci_failure: MINGW64 dependency download timeout before build; rerun request refused while overall run active. Retry after terminal.
+local_evidence: Baseline rejects --uvm-list; candidate picker controls pass; seven acquisition integrity tests pass; all15 registered; selected2020.3.1 real-DPI smoke passes with zero warning/error/fatal.
+validation_running: Integrated90425; frontend92166 passed all scenarios, final independent review clear.
+next_command: tail -20 ../evidence/campaign-20260908/u03/integrated.log

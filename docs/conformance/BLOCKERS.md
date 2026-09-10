@@ -618,7 +618,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### U03 — Select a pinned UVM release from the iverilog command line
 
 - **Area:** User-requested driver and release acquisition integration.
-- **State:** READY after the current B01/L06 validation boundary.
+- **State:** IN_PROGRESS — driver candidate passes focused and installed frontend tests; integrated validation pending.
 - **Authorization:** User requests a UVM version picker in iverilog similar to VCS.
 - **Gap:** The driver accepts --uvm-home but has no release-ID selector or
   available-release listing. Existing --uvm-version reports the bundled version.

@@ -17,6 +17,29 @@ spec.loader.exec_module(matrix)
 
 
 class MatrixTests(unittest.TestCase):
+    def test_registration_preserves_existing_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "source with spaces"
+            home.mkdir()
+            prefix = root / "install"
+            matrix.register_release("1.2", home, prefix)
+            matrix.register_release("1.2", home, prefix)
+            link = prefix / "lib/ivl/uvm/releases/1.2"
+            self.assertEqual(link.resolve(), home.resolve())
+            other = root / "other"
+            other.mkdir()
+            with self.assertRaises(ValueError):
+                matrix.register_release("1.2", other, prefix)
+            self.assertEqual(link.resolve(), home.resolve())
+            link.unlink()
+            link.mkdir()
+            with self.assertRaises(ValueError):
+                matrix.register_release("1.2", home, prefix)
+            self.assertTrue(link.is_dir())
+            with self.assertRaises(ValueError):
+                matrix.register_release("../escape", home, prefix)
+
     def test_git_pin_and_local_changes_are_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

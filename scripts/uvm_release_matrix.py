@@ -85,6 +85,20 @@ def acquire(release, cache):
     return target / saved["uvm_home"], saved["tree_sha256"], target
 
 
+def register_release(version, home, prefix):
+    """Expose a verified source tree to the driver's release picker."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", version):
+        raise ValueError("invalid release ID")
+    catalog = prefix / "lib/ivl/uvm/releases"
+    catalog.mkdir(parents=True, exist_ok=True)
+    link = catalog / version
+    if link.is_symlink() and link.resolve() == home.resolve():
+        return
+    if link.exists() or link.is_symlink():
+        raise ValueError(f"refusing to replace existing release registration: {link}")
+    link.symlink_to(home.resolve(), target_is_directory=True)
+
+
 def execute(command, cwd, log, timeout):
     started = time.monotonic()
     # The CPU limit is inherited by compiler children; wall timeout kills the group.
@@ -137,6 +151,8 @@ def main():
     parser.add_argument("--cache", type=Path, default=REPO / "third_party/uvm-releases")
     parser.add_argument("--prefix", type=Path, default=REPO / "local-install")
     parser.add_argument("--fetch-only", action="store_true")
+    parser.add_argument("--register", action="store_true",
+                        help="register verified sources under --prefix for iverilog --uvm=ID")
     parser.add_argument("--timeout", type=int, default=300)
     args = parser.parse_args()
     if os.name != "posix" or not hasattr(tarfile, "data_filter"):
@@ -175,6 +191,8 @@ def main():
         work.mkdir()
         try:
             home, source_hash, source_root = acquire(release, cache)
+            if args.register:
+                register_release(release["id"], home, prefix)
             row.update(uvm_home=str(home), source_tree_sha256=source_hash, status="FETCHED",
                        acquisition=release.get("git", {"url": release["url"]}))
             if not args.fetch_only:

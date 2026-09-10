@@ -18,7 +18,11 @@ Requires POSIX and Python 3.12 or newer. From the repository root:
 
 ```sh
 # Initialize Git pins and fetch/extract the archive-only releases.
-python3 scripts/uvm_release_matrix.py --fetch-only
+python3 scripts/uvm_release_matrix.py --fetch-only --register
+
+# Select a registered release with the compiler.
+local-install/bin/iverilog --uvm-list
+local-install/bin/iverilog --uvm=2020.3.1 -o test.vvp test.sv
 
 # Compile each library with the smoke test, then run successful compilations.
 # Uses local-install by default; select a different built prefix explicitly.
@@ -30,6 +34,16 @@ python3 scripts/uvm_release_matrix.py --release 1.2
 # Offline harness integrity checks.
 python3 tests/uvm_releases/test_matrix.py
 ```
+
+`--register` creates source-directory links under `<prefix>/lib/ivl/uvm/releases`.
+They point to the verified submodule or archive cache, so keep those sources in
+place. Existing conflicting registrations are refused, never replaced. Use
+`--prefix` to register with another installation. For an independently managed
+catalog, set `IVERILOG_UVM_RELEASES` to a directory of `<release>/src/uvm_pkg.sv`
+trees (or source-directory links). The compiler does not download releases.
+Explicit `--uvm=<release>` overrides `IVERILOG_UVM_HOME`; combining it with
+`--uvm-home` is an error. `-uvm` and reporting-only `--uvm-version` are unchanged.
+A listed or selected release is not thereby qualified; see the results below.
 
 The script initializes missing submodules but refuses to reset dirty or
 wrong-revision submodules. A changed cached source or mismatched archive is

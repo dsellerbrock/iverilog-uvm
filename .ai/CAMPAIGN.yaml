@@ -1,6 +1,6 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: B01
+current_blocker: U03
 phase: focused_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
@@ -174,3 +174,10 @@ user_requested_next: U03 driver --uvm=<release> and --uvm-list; preserve existin
 
 b01_ci_retry: MINGW64 job102969844400 failed dependency download from ftp2.osuosl.org before build; gh rerun refused while run active. Retry failed job after run34506491167 permits it.
 l06_validation_complete: All local required gates pass, including JSON1719/0 and real-DPI UVM355/0/0; preserve candidate checkpoint pending B01 Windows boundary.
+
+u03_boundary: Explicit independent driver task selected after safe suspension of B01 external CI. L06 local semantic baseline4965219df validated; frozen compiler/runtime preserved.
+
+u03_validation: Focused selector and registration tests pass; real-DPI selected2020.3.1 smoke passes. Frontend session92166 running and temporarily hides/restores local-install/lib/ivl; no other local gate until terminal.
+b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores executable ivtest gate mode lost during publication; fresh CI required.
+
+u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.

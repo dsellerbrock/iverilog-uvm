@@ -244,3 +244,18 @@ basic automatic UVM, real DPI genuinely loaded (proven by contrast against a
 no-provider build), the manual override, `--uvm-no-dpi`, `--uvm-home`,
 `--uvm-version`, and the missing-runtime / missing-package diagnostics — all
 from a working directory outside the source tree.
+
+
+## Select an acquired release
+
+Run `python3 scripts/uvm_release_matrix.py --fetch-only --register` in the source
+checkout to acquire and register the pinned release inventory with `local-install`.
+Use `--prefix` for another installation. Then `iverilog --uvm-list` lists available
+release IDs and `iverilog --uvm=2020.3.1 -o test.vvp test.sv` selects one.
+`IVERILOG_UVM_RELEASES` can name another catalog directory. Registrations link to
+the acquired source trees; keep those trees in place. The compiler never downloads
+sources or substitutes another release when the requested one is missing.
+`--uvm-home` remains available for explicit paths; it cannot be combined with
+`--uvm=<release>`. The installed Icarus DPI backend is used for every selection.
+See [the release matrix](conformance/uvm_release_matrix.md) for acquisition details
+and measured compatibility; availability alone does not establish a passing release.
