@@ -1,39 +1,15 @@
-id: "L12"
-title: "Read indexed string members of unpacked structs"
-status: "closed"
-phase: "closed"
-base_revision: "849a779ea"
+id: "L14"
+title: "Hierarchical references to static locals in automatic scopes"
+status: "in_progress"
+phase: "selected"
+base_revision: "a85a256b1"
 last_validated_revision: "a85a256b1"
-selection_reason: "DD021 blocks original UVM1.1 and1.2 printer row.val[0]; user prioritizes pinned1.2 for OpenTitan."
-reproducer: "Minimal unpacked struct containing string, read s.val[0] and variable indices; compare ordinary string control."
-expected_behavior: "String character selection on an unpacked struct member behaves like ordinary string indexing with correct byte type, value, bounds and index evaluation. Verify both editions before implementation."
-standards: "Both IEEE editions6.16 and string-operator table: indexed character is byte, indices0..N-1, out-of-range returns0, equivalent to getc. Verify struct and expression typing clauses before code."
-root_cause_hypothesis: "Unpacked-struct member expression traversal constructs NetEProperty then only accepts netvector_t selectors; string members fall into explicit unsupported diagnostic instead of existing string NetESelect lowering."
-allowed_scope: ["String member rvalue indexing reducer, relevant elaboration/type inference and existing lowering reuse if needed.", "Permanent paired-edition regressions and required integrated gates; original UVM1.2 compile replay.", "Existing canonical campaign documentation."]
-non_goals: ["No UVM source edits, static-local traversal or constraint changes.", "No string part-select extension, unrelated container redesign or application-pass claim."]
-required_gates: ["Both-edition baseline failure and ordinary-string control; standards-grounded read semantics, valid/invalid indices and side effects.", "Focused legacy/JSON, independent review, integrated legacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,isolatedfrontend,release replay."]
+selection_reason: "Original UVM1.2 now fails only four compiled_regex references in visit plus existing ignored-constraint warning; user prioritizes1.2 for OpenTitan."
+expected_behavior: "Both editions6.21 explicitly permit hierarchical access to static variables inside automatic tasks/functions, except unnamed blocks. Actual automatic variables remain inaccessible through hierarchical names."
+standards: "IEEE1800-2017 and2023 6.21,8.6; specific6.21 static-variable allowance governs despite general23.6 automatic-object wording. Primary local texts verified."
+allowed_scope: ["Resolve named static local variable references according to actual declaration lifetime, including read/write and class method contexts.", "Preserve automatic-variable rejection, named/unnamed scope boundaries and existing lookup precedence.", "Permanent paired-edition regressions; required integrated gates and original UVM replay."]
+non_goals: ["No DPI-regex symbols or ignored constraint fixes.", "No UVM source edits, application pass claim, or unrelated storage redesign."]
+required_gates: ["Both-edition red reducer and positive/negative lifetime controls, focusedlegacy/JSON,independent review.", "Integratedlegacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,release sweep,isolatedfrontend and restored tool fingerprints."]
+next_action: "Establish static local hierarchical read/write reducer and automatic-variable negative controls, trace symbol_search and lifetime metadata before implementation."
+next_command: "sed -n '230,270p' symbol_search.cc"
 stop_after_completion: false
-next_action: "Await UVM61496, then isolated frontend alone; verify installed root and frozen hashes before L12 closure and next blocker selection."
-next_command: "tail -n15 ../evidence/campaign-20260908/l12/resume2/uvm.log"
-
-evidence: "Fresh baseline849a779ea fails both editions with unsupported member indexing; resumed candidate focusedJSON6/0,legacy6/0,neighbors71/0 and independent review clear. evidence/l12/resume2."
-
-root_cause: "check_for_struct_members requires netvector_t after property read, rejecting string member index. Reuse existing signed-byte string NetESelect after integral index resize and separate signed int2 conversion. Both PEIdent elaboration routes use this helper."
-
-resumed_after: "L13 fully validated9baa5a9c3, closurea7908140c. Fresh both-edition reducer still fails2 unsupported diagnostics. Signed byte inference/lowering now baseline; adapt saved L12 select type to atom2s8."
-
-l12_current_scope: "Single integral character index on string member of ordinary/nested unpacked struct or struct array. Reuses signed byte NetESelect, rejects nonintegral selector instead of invalid lowering. Permanent highbit/ASCII/width/automatic argument/nested/array/effects/bounds cases; no class-property dispatch or general chained character-bit select qualification."
-
-index_conversion: "Source-signed cast_to_width(32) followed by separate signed32 NetECast preserves narrow unsigned extension, signed negatives, wide truncation and partial X/Z conversion. Both editions6.16/getc(int),6.11.2 and7.2 apply."
-
-second_resume: "L13 correction849a779ea fully validated and closed451aa7eeb. Fresh baseline both editions still rejects member index; evidence/l12/resume2/validated-l13-red.json. Preserve signed byte type and integral index conversion; unrelated discoveries remain record-only."
-
-live_gates: {uvm: 61496}
-candidate_revision: "a85a256b1"
-validation_checkpoint: "makecheckexit0; frozen evidence/l12/resume2/sha256.txt. JSON only after integrated terminal; frontend last alone, then verify installed root and hashes before closure."
-
-l12_integrated_terminal: "46193 exit0;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON68078 started after terminal. UVM61496 and release64954 verified live. NFA78999 exit0,58/58; makecheckexit0; frontend unstarted."
-
-l12_json_release_terminal: "JSON68078 exit0,1785/0. Releases64954 exit1 for known qualification gaps; results-qb7873zh complete/baseline_valid,8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. All15 sources unchanged; three original1.x printer-index diagnostics removed; other12 normalized compiler logs identical. Original1.1d now reaches codegen null-fallback warnings and runtime missing uvm_dpi_regcomp with4UVM_ERROR/1FATAL. Record-only DD027. Frozen tools unchanged; UVM61496 still running and frontend unstarted."
-
-closure: "a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT."

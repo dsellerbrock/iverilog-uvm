@@ -775,3 +775,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **L13 corrected validation:** 849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics.
 
 - **L12 validation:** a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. Full UVM release and application qualification remain open.
+
+### L14 — Static local hierarchical references inside automatic scopes
+
+- **State:** OPEN, selected after validated L12.
+- **Evidence:** Original1.2 visit.compiled_regex read/write rejected as automatic despite explicit static chandle declaration.
+- **Semantics:** Both IEEE editions6.21 explicitly permit static-variable hierarchical references inside automatic tasks/functions, except unnamed blocks. Preserve automatic-variable rejection.
