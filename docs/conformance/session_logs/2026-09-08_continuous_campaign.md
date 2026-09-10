@@ -751,3 +751,13 @@ S02 candidate rejects bounded variable-length antecedents in both editions.
 Before fixing it, distinguish per-endpoint consequent evaluation from the
 per-start implication verdict (16.12.7); the initial three-failure expectation
 is provisional and must not become a gold without resolving that distinction.
+
+S02 semantic review rejects the provisional three-failure oracle: two starts
+require two failures. Corrected retained reducer; compile rejection unchanged.
+Cross-clock request counts cannot preserve parent truth with a local bump edit;
+recorded design boundary and suspended S02 without implementation changes.
+At the coordination boundary, selected S03 on fresh paired wrong-result evidence:
+single-clock one start/two failing endpoints produces2 failures instead of1.
+Existing NFA verdict dispatch is the causal mechanism. Preserve endpoint/local
+state while aggregating parent truth; no multiclock architecture change in S03.
+Last validated implementation2be79b2c0; all new implementation gates pending.

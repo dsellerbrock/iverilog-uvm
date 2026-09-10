@@ -1,6 +1,6 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: S02
+current_blocker: S03
 phase: spec_grounded
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
@@ -9,13 +9,13 @@ preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (orig
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: null
-next_selection: S02 bounded variable-length multiclock antecedents; S01 verified superseded.
-next_action: Resolve per-start verdict semantics and trace both multiclock lowerings before patching.
+suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
+next_selection: S03 correct existing NFA verdict aggregation before reconsidering S02.
+next_action: Trace NFA pool lifetime, cancellation and EOS; design per-attempt aggregation.
 next_command: "sed -n '16660,16740p;17465,17610p' pform.cc"
 next_command_cwd: repository root
-candidate_state: S02 compile rejection reproduced in both editions; no implementation changes.
+candidate_state: S03 paired red proves duplicate failure actions; no implementation changes.
 installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 validation_state: All V03 local gates/review pass, including final real-DPI UVM57001 completed355/0/0. No running test processes.
-next_validation: Review reducer expected verdict counts before fixing; all S02 gates pending.
+next_validation: S03 semantic review confirms one failure per attempt; all implementation gates pending.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

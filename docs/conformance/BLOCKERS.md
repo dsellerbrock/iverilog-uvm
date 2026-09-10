@@ -273,7 +273,7 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 ### S02 — Bounded variable-length multiclock antecedents
 
 - **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7, 16.13.3.
-- **State:** ACTIVE — specification and causal trace.
+- **State:** SUSPENDED — attempt-identity design boundary; reducer retained.
 - **Confidence:** REPRODUCED compile rejection at `2be79b2c0` in both editions.
 - **Evidence:** `../evidence/campaign-20260908/s02/antecedent.sv` and paired
   compile logs; legal `a[*1:2] |=> @(posedge c2) b` is rejected.
@@ -283,3 +283,26 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Closure:** Preserve each endpoint evaluation, aggregate truth and required
   action semantics, clock timing, sampling and cancellation for the exact
   claimed bounded subset. Initial action-count expectation awaits verification.
+
+S02 coordination boundary: scalar cross-clock request counts erase the parent
+identity needed for one verdict per starting attempt. A local count-only fix is
+incorrect. Reusing NFA endpoint bookkeeping first requires correcting its
+existing per-consequence verdict dispatch; S03 is selected independently on a
+fresh wrong-result reducer. A future S02 design must preserve attempt identity,
+open antecedent status and outstanding consequences across clock domains;
+architecture expansion is not authorized by this suspension.
+
+### S03 — NFA implication verdicts are emitted per endpoint
+
+- **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7.
+- **State:** ACTIVE — reproduced and specification grounded.
+- **Evidence:** `../evidence/campaign-20260908/s03/attempt-verdict.sv` fails
+  both editions at `2be79b2c0`: one start with two failing consequences emits
+  two failure actions instead of one. Independent semantic review confirms.
+- **Mechanism:** `pform_sva_nfa_try_assertion` dispatches each consequence
+  verdict directly and releases antecedent slots without retaining parent
+  verdict identity. Existing endpoint-fanout golds encode this defect.
+- **Closure:** Aggregate consequence outcomes per attempt, including early
+  failure, delayed success, vacuity, cancellation and end-of-simulation;
+  retain independent endpoints and local snapshots. Correct affected golds
+  only from reviewed semantics and run required gates.

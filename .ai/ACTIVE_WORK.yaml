@@ -1,31 +1,30 @@
-id: S02
-title: Preserve bounded variable-length multiclock antecedent obligations
+id: S03
+title: Aggregate NFA implication verdicts per starting attempt
 status: active
 phase: spec_grounded
 base_revision: 2be79b2c0
 standards:
   - IEEE1800-2017 and IEEE1800-2023 16.12.7 and 16.13.3.
-expected_behavior: Every successful antecedent endpoint starts a separately evaluated consequent at the prescribed destination tick; aggregate implication truth remains per starting attempt.
-observed_behavior: Both editions reject a[*1:2] as a non-fixed antecedent before simulation.
-reproducer: ../evidence/campaign-20260908/s02/antecedent.sv
-reproducer_caveat: Compile rejection is established; initial three-failure action expectation is provisional pending per-attempt verdict analysis and must not be adopted as a gold.
-causal_hypothesis: Both multiclock lowerings require fixed antecedent slots and transfer scalar request counts; variable endpoints require preservation of originating attempt identity as well as multiplicity.
+expected_behavior: Each starting implication attempt reports failure once if any consequent fails, and success only after the antecedent closes and all consequences succeed.
+observed_behavior: Both editions report two failures for one starting attempt with two failing endpoint consequences.
+reproducer: ../evidence/campaign-20260908/s03/attempt-verdict.sv
+causal_hypothesis: Existing NFA endpoint fanout dispatches verdicts per consequence; antecedent slots become reusable before all dependent consequences resolve.
 allowed_scope:
-  - pform.cc multiclock antecedent lowering and existing NFA construction helpers if directly required.
-  - Existing multiclock handoff and result bookkeeping required to preserve per-attempt semantics.
-  - Permanent paired assertion regressions and focused manifests, affected negative test migration only after correct implementation.
+  - pform.cc pform_sva_nfa_try_assertion parent bookkeeping, existing capacity guards and cancellation/EOS consumers.
+  - Existing NFA endpoint tests, local-data controls and exact-output golds whose reviewed expectation is affected.
+  - Permanent paired per-attempt assertion regressions and focused manifests.
   - Active contract, campaign checkpoint, blocker registry, clause matrix and session log.
 non_goals:
-  - No scheduler architecture redesign, arbitrary property-local support or unbounded antecedents.
+  - No scheduler architecture redesign or multiclock implementation; preserve existing NFA supported shapes.
   - No unrelated SVA defects, application modifications or complete assertion/formal qualification claim.
 invariants:
   - Preserve endpoint multiplicity without substituting endpoint counts for per-attempt truth.
   - Preserve Preponed sampling, evaluation/report regions, cancellation and clock boundary timing.
-  - Inspect both two-domain and N-domain callers; do not silently accept unsupported siblings.
+  - Preserve current finite-pool overflow diagnostics and bound acyclic parent lifetimes correctly.
   - Reuse existing mechanisms; record and escalate a proven architecture boundary before broadening.
 required_gates:
   - Paired red/green controls for separate endpoints, mixed consequence outcomes and verdict identity.
-  - Overlap/nonoverlap, coincident and later ticks, fixed-chain controls, cancellation and vacuity for the claimed subset.
+  - Overlap/nonoverlap, mixed and coincident endpoint outcomes, local snapshots, cancellation, vacuity and EOS.
   - Independent semantic review and implementation review.
   - SVA NFA suite, focused legacy/JSON, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
   - Remote CI before merge.
@@ -33,4 +32,4 @@ completion: Close only the exact qualified bounded antecedent scope after requir
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 2be79b2c0
-next_action: Resolve per-start verdict semantics and trace reusable NFA endpoint bookkeeping before implementation.
+next_action: Add parent identity and terminal aggregation using existing NFA pools; independently review capacity and EOS semantics before implementation is finalized.
