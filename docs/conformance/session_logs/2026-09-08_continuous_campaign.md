@@ -1236,3 +1236,17 @@ main; later merges target stack base branches. CI remains queued/running,
 not passed. A future substantial milestone should consolidate publication,
 not repeat a rapid PR stack. No more publication during current V04 increment.
 V04 NFA98267 completed0 with58/58; integrated7488 and UVM36614 remain live.
+
+
+User explicitly requested one PR to main containing the earlier campaign work.
+Created PR272 (open, ready for review, mergeable), branch
+agent/campaign-consolidated-main-20260910, headd77b03d2363c58591666a9bd3c1097f30809bc50.
+Its implementation/test files are identical to validated59e5e07c7 and to the
+last published stack tree; only policy/docs use later pre-V04 snapshotbfb4f1802.
+All earlier publication heads and currentmain3fe277c25 are retained as ancestry.
+No V04 implementation is included. Required CI is pending; no agent merge.
+The user's slower milestone cadence still governs future ordinary publication.
+
+V04 integrated7488 terminated0:4772total4767pass0fail2NI3EF, VPI105/105,
+negative149/149,runtime checks. FullJSON starts serially after that completion;
+real-DPIUVM36614 remains running. V04 is not yet a validated semantic baseline.
