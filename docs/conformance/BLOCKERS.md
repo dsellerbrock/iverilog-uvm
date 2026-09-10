@@ -705,3 +705,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **State:** OPEN, selected after validated L08.
 - **Evidence:** DD-011, results-gizcr5j0; both original releases compile but miss uvm_re_match/uvm_glob_to_re symbols at runtime, followed by BUILDERR.
 - **Scope:** Establish declarations, loaded exports and causal reducer before authorizing a bounded patch. No library edits or release-wide qualification.
+
+### U05 — Standalone DPI reporting callback
+
+- **State:** OPEN, prerequisite selected at deliberate U04 boundary.
+- **Evidence:** u04/report_bridge.sv compiles but callback count remains0; standalone umbrella defines exported report callback as no-op.
+- **Scope:** Existing runtime export dispatcher adapter, preserved merged builds, argument/count and real-UVM reporting tests. U04 legacy regex reducers preserved; resume after validation.
