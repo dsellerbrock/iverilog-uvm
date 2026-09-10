@@ -1,20 +1,20 @@
 status: active
 branch: "agent/campaign-function-arguments-main-20260910"
 current_blocker: "L13"
-phase: "selection"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9baa5a9c3"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["L12_resume_and_validation", "PR274_remote_CI_before_merge", "U01_application_qualification"]
+pending_gates: "L13 correction focused and all required integrated gates; PR274 CI; application qualification"
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "Await isolated frontend78098; all other local gates passed/completed. Verify installed root restoration and frozen hashes before L13 closure and L12 resume."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l13/integrated-final.log ../evidence/campaign-20260908/l13/uvm-final.log"
+next_action: "Repair reopened L13 parameter index width before resuming L12."
+next_command: "sed -n '28,94p' pad_to_width.cc"
 next_command_cwd: repository root
-candidate_state: "L13 expanded signed byte and typed-parameter character candidate built/installed; focused6/0 and neighbors42/0 plus review clear. L12 suspended."
+candidate_state: "L12 preserved in evidence/l12/resume2; source restored to a7908140c before L13 correction."
 installed_tools: "Frozen L13 9baa5a9c3 fingerprints evidence/campaign-20260908/l13/final-sha256.txt. No installs/source changes during gates."
 validation_state: "U07 a83731194 last fully validated semantic revision: legacy4881total0unexpected,JSON1773/0,UVM355/0/0,NFA58/58,VPI105,negative149,runtime15/15,copyout6/6,frontendS1-S10. L13 candidate pending integrated/JSON/UVM/frontend; NFA/makecheck/focused/review passed."
 next_validation: "L13 integrated,JSON,UVM,NFA,makecheck,release replay and isolatedfrontend required."
@@ -327,3 +327,9 @@ l13_json_terminal: "99705 exit0;1779tests0failures. UVM41207 still live; fronten
 l13_uvm_terminal: "41207 exit0;355passed0failed0skipped,realDPI. Frozen fingerprints unchanged before isolatedfrontend78098 start."
 
 l13_closure: "9baa5a9c3;legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"
+
+l12_resumed: "L13 validated9baa5a9c3; closurea7908140c. Fresh redbaseline both editions preserved; baseline compiler copied under evidence/l12. Resume original struct-member selector with signed byte result."
+
+l13_reopened: "Prior 9baa5a9c3 gates passed but missed narrow two-state parameter indices. Reopened for confirmed regression; L12 suspended and preserved at evidence/l12/resume2. Prior closure is historical, not current qualification."
+
+l13_width_candidate: "Separate resize and signed two-state cast; focusedJSON6/0,legacy6/0,neighborJSON42/0,reviewclear. Wrong neighbor harness initially reported missing sources; rerun correct JSON harness passed42/0. Integrated gates required before L12 resumes."

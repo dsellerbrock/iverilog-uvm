@@ -1915,3 +1915,9 @@ separate from direct typed-parameter selection; no broad qualification claim.
 
 legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged.
 Fullrelease results-6pvdp6vh complete/baseline_valid with8SMOKE_PASS,6COMPILE_FAIL,1RUNTIME_TIMEOUT. Every source hash/status and normalized compiler diagnostic matches U07. PR274 remains OPEN atpublishedhead eb8852748; local L13 is unpublished, no agent merge. Resume preserved L12 after this validated prerequisite.
+
+### L13 reopened: two-state index width
+
+While resuming L12, narrow bit[1:0] index2 returned0 instead of the third character in the typed-parameter path introduced by L13. Both editions fail on saved9baa5a9c3 compiler (evidence/l13/width-red.json). L12 latest source/tests/contract preserved in evidence/l12/resume2 and removed before prerequisite correction. Prior integrated passes remain historical evidence, but closure is reopened.
+
+cast_to_int2 returns existing BOOL nodes without resizing; simply adding cast_to_width then setting signedness also overwrote the resize node extension policy. Final correction uses source-signed resize and a separate signed32 two-state cast. Permanent narrow unsigned/signed, wide truncation and partial X/Z controls pass with focusedJSON6/0,legacy6/0,neighborJSON42/0 and clear independent review. Initial neighbor list was accidentally sent to the legacy harness (42 missing-source failures); correct JSON replay passes42/0. Full required gates pending.

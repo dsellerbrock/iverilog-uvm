@@ -1,7 +1,7 @@
 id: "L13"
 title: "Preserve signed byte semantics of string character reads"
-status: "closed"
-phase: "closed"
+status: "in_progress"
+phase: "awaiting_validation"
 base_revision: "a83731194"
 last_validated_revision: "9baa5a9c3"
 suspended_parent: "L12; partial source patch, tests and contract preserved in evidence/campaign-20260908/l12. Restore only after validated prerequisite."
@@ -13,8 +13,8 @@ allowed_scope: ["Shared string character result type, sizing and elaboration pat
 non_goals: ["No L12 struct-member support until prerequisite validated.", "No UVM source edits, unrelated traversal/constraint changes, string part-select extension."]
 required_gates: ["Paired-edition signed highbit ASCII/zero/bounds controls, widened assignments/arithmetic/formals and packed-vector unsigned controls.", "Independent review,focusedlegacy/JSON,integratedlegacy/VPI/negative/runtime,JSON,UVM,NFA,makecheck,isolatedfrontend,release smoke replay."]
 stop_after_completion: false
-next_action: "Await isolated frontend78098; all other local gates passed/completed. Verify installed root restoration and frozen hashes before L13 closure and L12 resume."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l13/integrated-final.log ../evidence/campaign-20260908/l13/uvm-final.log"
+next_action: "Run corrected L13 integrated gates, then isolated frontend and fingerprint restoration; resume saved L12 only after closure."
+next_command: "tail -n 15 ../evidence/campaign-20260908/l13/width-integrated.log"
 
 root_cause: "resolve_type_ assigns unsigned atom2u8 after consuming a string index; shared untyped NetESelect constructor initializes unsigned. Both PEIdent width inference and lowered select must carry signed byte. Change only string character (width8) result, leaving vector select construction unsigned. Restored compiler fingerprints match U07 before candidate."
 
@@ -38,3 +38,7 @@ l13_json_terminal: "99705 exit0;1779tests0failures. UVM41207 still live; fronten
 l13_uvm_terminal: "41207 exit0;355passed0failed0skipped,realDPI. Frozen fingerprints unchanged before isolatedfrontend78098 start."
 
 closure: "9baa5a9c3;legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"
+
+reopened: "Narrow bit[1:0] index2 becomes signed -2 because cast_to_int2 returns BOOL expressions unchanged. Confirmed parameter result0 versus getc99. L12 resume2 patch/tests/contract preserved outside repository; dependent work suspended."
+
+width_correction: "Explicit cast_to_width preserves source signedness, followed by separate signed32 NetECast for two-state conversion. Prior direct cast_signed mutated extension node and failed; corrected candidate focusedJSON6/0,legacy6/0,neighborsJSON42/0,independent review clear. Baseline9b fails both editions narrow unsigned test. All integrated gates pending."

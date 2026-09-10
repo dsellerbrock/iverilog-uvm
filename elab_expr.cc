@@ -23958,8 +23958,10 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 
       if (par_type && par_type->base_type() == IVL_VT_STRING) {
 	    // 6.16: character indexing is equivalent to getc(int), not a bit select.
-	    sel = cast_to_int2(sel, 32);
-	    sel->cast_signed(true);
+	    sel = cast_to_width(sel, 32, sel->has_sign(), *this);
+	    // Keep source extension signedness separate from the signed int result.
+	    sel = new NetECast('2', sel, 32, true);
+	    sel->set_line(*this);
 	    NetECString*value = new NetECString(par_ex->value());
 	    value->set_line(*this);
 	    NetESelect*res = new NetESelect(value, sel, 8);

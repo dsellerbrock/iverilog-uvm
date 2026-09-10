@@ -136,3 +136,5 @@ checks, not the full releases or IEEE1800.2. Recursive automatic input
 passing is repaired; L09, L11 and L10 subsequently repair bounded output
 copy-out contexts, defaults and fixed-property elements. Full argument
 qualification remains separate.
+
+L13 qualification reopened after the above sweep: narrow two-state typed-parameter indices were misinterpreted as negative. Historical release results remain unchanged; corrected compiler validation is pending.
