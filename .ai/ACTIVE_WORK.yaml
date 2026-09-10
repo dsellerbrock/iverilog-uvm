@@ -16,3 +16,7 @@ stop_after_completion: false
 
 root_cause: "symbol_search rejected every item in an automatic prefix scope before checking its declaration. Lifetime overrides on NetNet/PWire/NetEvent now govern variable access; defer through intermediate named scope and check terminal item. Explicit automatic declarations in static scopes remain rejected."
 focused_evidence: "Both-edition baseline fails4errors; candidate reducer runsPASSED. FocusedJSON12/0,legacy12/0,neighbors18/0. Initial wrapper include and JSON diagnostic-path configuration errors corrected without compiler changes; final focused3.log retained."
+
+candidate_revision: "69ff60cc6"
+live_gates: {integrated: 21445, uvm: 66826, nfa: 93204, releases: 84865}
+validation_checkpoint: "makecheckexit0; final scoped review clear. JSON after integrated terminal, frontend last alone. Verify root restoration and evidence/l14/sha256.txt before closure."
