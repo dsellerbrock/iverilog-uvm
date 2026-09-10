@@ -1205,3 +1205,15 @@ base branches. These are distinct from landing on main. PR263 CI was still
 running at inspection; no CI pass or merge authorization is inferred.
 Exact observed remote states are preserved in pr-publication/remote-state.json
 and CAMPAIGN.yaml. No merge or ready-state operation was performed by this task.
+
+
+V04 paired baseline reducer reproduced on59e5e07c7: two distinct named full64-bit
+value-bin families, one sample, require2/2^65 coverage. Both editions return
+1.084202e-17 instead5.421011e-18, exactly2x; get_inst_coverage returns the right
+value. Both primary19.11.3 clauses require union by bin name. Root shared
+class_type::type_coverage narrows exact128-bit family totals and saturates sums
+before division. Proposed local128-bit accumulators preserve exact counts to
+floating ratio conversion; transition-family cardinality remains outside scope.
+Independent bounded design review requested. No runtime source edits yet.
+Canonical main was fast-forwarded to3fe277c25; shared graph update completed
+48419nodes91990edges, with existing HTML size limit leaving visualization stale.

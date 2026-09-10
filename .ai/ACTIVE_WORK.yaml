@@ -1,43 +1,35 @@
-id: L05
-title: Preserve associative class-member foreach index type
-status: locally_validated
-phase: documented
-base_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
+id: V04
+title: Preserve wide merged coverage denominators through ratio calculation
+status: in_progress
+phase: root_caused
+base_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 12.7.3 and associative array rules; verify primary text before implementation.
-expected_behavior: foreach over a selected class member associative array declares the index with the array key type and visits every existing entry in the required order.
-observed_behavior: Retained DD-002 foreach(boxes[selector].values[key]) for values[string] declares key as int and visits zero entries; reverify on current validated tools.
-reproducer: ../evidence/campaign-20260908/l01/typed.sv
-selection_reason: Incorrect key typing silently skips checking/data traversal in ordinary class-based DV. Concrete pre-existing reducer and L01 selected-prefix evidence justify this independent blocker while U01 teardown lacks a proven compiler fix.
+  - IEEE1800-2017 and IEEE1800-2023 19.11.3; verify primary type coverage and bin identity wording.
+expected_behavior: Merged type coverage uses the countable bin universe across named families without saturating the denominator before calculating a real percentage.
+observed_behavior: V01A retains exact128-bit dynamic family cardinality but type_coverage narrows each family and saturates per-item sums to UINT64_MAX; reproduce the resulting ratio error on the validated baseline.
+reproducer: ../evidence/campaign-20260908/v04/wide.sv
+selection_reason: Existing parent V01 explicitly leaves downstream wide-total saturation unqualified. Source shows exact cardinality is discarded at the final report, undermining coverage-number correctness even though sparse bins need no enumeration.
 allowed_scope:
-  - Foreach implicit-index type resolution for selected class-member associative arrays and directly necessary elaboration.
-  - Permanent paired regressions, required focused/full gates, review and conformance records.
+  - Merged type-coverage aggregate arithmetic and directly necessary ratio conversion.
+  - Paired wide/multiple-family/neighbor controls, full required gates, review and exact qualification records.
 non_goals:
-  - No application cleanup, warning suppression, unrelated expression drivers, randomization or formal architecture changes.
+  - No new coverage architecture, bin representation, transition-family cardinality repair, cross-bin union or type-option implementation.
+  - No application edits, new PR at this blocker, broad audit or unrelated fixes.
 invariants:
-  - Preserve selected prefix evaluation, declared key type and ordering, nested scopes, side effects and existing iteration semantics.
-  - No zero-iteration fallback, fabricated key or container substitution.
+  - Keep bin identity, threshold, live/retired union, zero-denominator handling, existing weights and default nonmerged mode intact.
+  - No new domain cap or inaccurate saturation presented as successful coverage.
 required_gates:
-  - Fresh paired red reducer and applicable primary LRM semantics, actual source trace before patch.
-  - Permanent string/integral key, selection and lifetime controls; focused legacy/JSON plus relevant foreach neighbors.
-  - NFA, integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
-  - Remote CI before merge.
-completion: Qualify only exact repaired member-key type resolution; broader foreach/container and application status remain separate.
-discovery_policy: Unrelated discoveries are record-only; proven prerequisites require explicit suspension with preserved work.
+  - Paired baseline failing ratio reducer and primary-edition semantics before implementation.
+  - Permanent relative-error oracle, small-domain and threshold controls; focused legacy/JSON and coverage neighbors.
+  - Integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent review.
+  - Required remote CI before any separately authorized merge.
+completion: Qualify only preserved merged dynamic totals and aggregate ratio scope; parent V01, transition counts, application/UVM/formal status remain separate.
+discovery_policy: Unrelated findings record-only; proven prerequisite requires deliberate suspension and preserved work.
 stop_after_completion: false
-last_validated_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
-next_action: L05 checkpointed; return to coordinator selection and publish remaining validated increments.
+last_validated_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+next_action: Establish paired reducer, verify both primary editions, trace all affected arithmetic callers; reuse the existing unsaturated instance-coverage calculation pattern where appropriate.
 
-causal_trace: Both selected-member parser actions discard selector structure for declaration typing (null target for expression selector, unindexed path for identifier selector); declaration helper also rejects indexed paths. Existing selected-path helper consequently cannot traverse the array element to its class member.
-planned_fix: Preserve selected member target through both parser actions and foreach_index_type_t; reuse PEIdent::test_type_of_ident from enclosing scope without evaluating selectors, then resolve terminal array index type. Keep established unselected route and selected-array non-member production unchanged.
-
-semantic_review: Same-name selector/loop-key positive control withdrawn. IEEE12.7.3 references12.7.1 implicit declarations before wholeloop; both Slang editions bind header key to newstringindex and reject it. Runtime target binding remains unchanged.
-
-focused_validation: Paired10/10legacy+JSON; foreach neighbors53/53legacy+34/34JSON; makecheck and final independent review pass.
-current_toolchain: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Comment-only rebuild produced identical fingerprints.
-residual_scope: Selected-array non-member production and invalid header index validation DD-009 remain unqualified by this increment; no runtime target-binding change.
-
-final_validation: UVM42794 terminated0 with355 passed,0 failed,0 skipped and real DPI loaded. FullJSON1662/0, integrated4765/4770 with zero failures, NFA58/58 and all focused/neighbor/check/review gates pass. Remote CI remains required before merge.
-next_checkpoint_action: Commit the exact reviewed L05 source/tests and bounded qualification; return to campaign selection without another user message.
-
-implementation_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+paired_red: Both2017/2023 at59e5e07c7 return1.084202e-17 instead5.421011e-18 (ratio2); instance query is correct. Two distinct full64-bit named value-bin families have2^65 bins and2 hits.
+primary_semantics: Both19.11.3 require union by bin name; distinct first[value]/second[value] families both contribute. Applicable primary excerpts2017lines38622-38692 and2023lines40539-40606 verified.
+causal_trace: Shared class_type::type_coverage serves object query, overall query, instance dispatch when merged and durable report. It narrows128-bit dynamic cardinality and saturates family sums before division; the separate instance path already avoids this.
+planned_fix: Preserve aggregate totals and hit sums as unsigned128 through ratio conversion inside type_coverage; keep individual transition-family cardinality calculation unchanged. No new helper or data model.

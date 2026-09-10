@@ -488,3 +488,17 @@ qualification remain open. Evidence: campaign-20260908/s03.
   VPI105, negative149, runtime checks, fullJSON1662/0 and real-DPI UVM355/0/0 pass.
 - **L05 residuals:** Invalid same-name header selectors (DD-009), selected-array
   non-member typing and broader container obligations are not qualified here.
+
+### V04 — Merged type coverage saturates wide bin totals before division
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.11.3.
+- **State:** SELECTED — reproduce the existing V01 residual on59e5e07c7.
+- **Evidence:** class_type::type_coverage narrows exact dynamic cardinality
+  to UINT64_MAX and saturates per-item sums; instance coverage already uses
+  unsaturated real aggregation. Multiple named wide families can exceed64 bits.
+- **Scope:** Preserve supported merged totals through percentage calculation,
+  retaining bin identity, thresholds, weights and mode dispatch.
+- **Closure:** Paired relative-error reducer/controls, all required local gates
+  and independent review; remote CI before separately authorized merge.
+- **Residuals:** ParentV01, transition-family cardinality and cross-bin universe
+  obligations remain separate. No per-blocker PR under updated cadence.
