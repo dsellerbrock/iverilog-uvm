@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_assert_sequence_actual_cycle_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_assert_sequence_actual_cycle_fail"
+}

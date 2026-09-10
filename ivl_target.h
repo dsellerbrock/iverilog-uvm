@@ -2769,6 +2769,13 @@ extern const char* ivl_type_covgrp_cross_bin_name(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_cross_bin_select_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_items(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_at_least(ivl_type_t net, int idx);
+/* Covergroup declaration options; property indexes are -1 when absent. */
+extern unsigned ivl_type_covgrp_merge_instances(ivl_type_t net);
+extern unsigned ivl_type_covgrp_weight(ivl_type_t net);
+extern unsigned ivl_type_covgrp_type_weight(ivl_type_t net);
+extern unsigned ivl_type_covgrp_get_inst_coverage(ivl_type_t net);
+extern int ivl_type_covgrp_weight_prop(ivl_type_t net);
+extern int ivl_type_covgrp_get_inst_coverage_prop(ivl_type_t net);
 extern unsigned ivl_type_covgrp_item_weight(ivl_type_t net, int idx);
 extern const char* ivl_type_covgrp_item_weight_ir(ivl_type_t net, int idx);
   /* Hidden per-instance scalar slots for the supported mutable item options

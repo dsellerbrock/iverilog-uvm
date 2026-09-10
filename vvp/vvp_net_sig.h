@@ -176,11 +176,12 @@ class vvp_fun_signal4_sa : public vvp_fun_signal_vec {
 class vvp_fun_signal4_aa : public vvp_fun_signal_vec, public automatic_signal_base, public automatic_hooks_s {
 
     public:
-      explicit vvp_fun_signal4_aa(unsigned wid, vvp_bit4_t init=BIT4_X);
+      explicit vvp_fun_signal4_aa(vvp_net_t*net, unsigned wid, vvp_bit4_t init=BIT4_X);
       ~vvp_fun_signal4_aa() override;
 
       void alloc_instance(vvp_context_t context) override;
       void reset_instance(vvp_context_t context) override;
+      void initialize_instance(vvp_context_t context) override;
 #ifdef CHECK_WITH_VALGRIND
       void free_instance(vvp_context_t context) override;
 #endif
@@ -204,6 +205,7 @@ class vvp_fun_signal4_aa : public vvp_fun_signal_vec, public automatic_signal_ba
       static void operator delete(void*obj);
 
 	    private:
+	      vvp_net_t*net_;
 	      __vpiScope*context_scope_;
 	      unsigned context_idx_;
 	      unsigned size_;

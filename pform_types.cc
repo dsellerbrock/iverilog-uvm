@@ -463,13 +463,7 @@ atom_type_t size_type (atom_type_t::INT, true);
 
 std::ostream& foreach_index_type_t::debug_dump(std::ostream&out) const
 {
-      out << "<foreach-index:";
-      for (size_t idx = 0 ; idx < target_path.size() ; idx += 1) {
-	    if (idx > 0)
-		  out << ".";
-	    out << target_path[idx];
-      }
-      out << "[" << index_depth << "]>";
+      out << "<foreach-index:" << target_path << "[" << index_depth << "]>";
       return out;
 }
 

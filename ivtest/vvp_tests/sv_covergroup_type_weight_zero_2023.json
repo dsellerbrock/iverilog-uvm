@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_type_weight_zero_2023.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_covergroup_type_weight_zero"
+}

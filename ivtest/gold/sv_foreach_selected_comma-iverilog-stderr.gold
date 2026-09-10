@@ -1,0 +1,2 @@
+ivltests/sv_foreach_selected_comma.v:5: error: A selected foreach prefix requires one index expression.
+ivltests/sv_foreach_selected_comma.v:6: error: A selected foreach prefix requires one index expression.

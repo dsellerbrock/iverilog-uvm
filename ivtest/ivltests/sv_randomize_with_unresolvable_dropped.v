@@ -1,20 +1,5 @@
-// A top-level item in a `randomize() with {...}` block that this
-// compiler pass cannot translate to solver IR (here: a foreach
-// constraint over a plain, non-rand class property that lives outside
-// the randomized object's own class -- IEEE 1800-2017 allows a `with'
-// block to reference enclosing-scope state, but this compiler does not
-// yet resolve such foreach targets) used to be dropped completely
-// silently: make_randomize_with_expr()'s constraint-collection loop
-// did `if (ir.empty()) continue;` with no diagnostic at all, so
-// randomize() still reported success while quietly ignoring part of
-// the requested constraint set -- a real behavioral gap with zero
-// visibility.
-//
-// This does not fix translation of such constraints (a separate,
-// larger gap); it only verifies the drop is now loud (a
-// compile-progress warning on stderr) rather than silent, and that
-// the randomize() call still completes normally rather than hanging
-// or crashing when one of its constraint items is unresolvable.
+// IEEE 1800-2017 18.7: reject the entire call if an inline item cannot lower.
+// Historical regression name retained; successful partial solves are forbidden.
 class item;
   rand int addr;
 endclass
@@ -26,7 +11,7 @@ class driver;
     item req = new;
     // The `addr inside {...}' item resolves normally; the foreach
     // item over `lookup' (a plain array outside item's own class)
-    // does not and is dropped with a warning.
+    // does not; compilation must fail instead of applying only the range.
     void'(req.randomize() with {
         addr inside {[0:100]};
         foreach (lookup[i]) {

@@ -26,7 +26,11 @@
 /*
  * vvp_fun_boolean_ is just a common hook for holding operands.
  */
-class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s {
+class scalar_event_history;
+struct vvp_boolean_state;
+
+class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s,
+                         public automatic_hooks_s {
 
     public:
       explicit vvp_fun_boolean_(unsigned wid);
@@ -39,9 +43,30 @@ class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s {
       void recv_real(vvp_net_ptr_t p, double real,
                      vvp_context_t) override;
 
+      void bind_net(vvp_net_t*net) { output_ = net; }
+      void alloc_instance(vvp_context_t) override;
+      void reset_instance(vvp_context_t) override;
+      void initialize_instance(vvp_context_t) override;
+#ifdef CHECK_WITH_VALGRIND
+      void free_instance(vvp_context_t) override;
+#endif
+
     protected:
+      virtual vvp_vector4_t calculate(const vvp_vector4_t input[4]) const = 0;
+
+    private:
+      void run_run() override;
+      vvp_boolean_state* state(vvp_context_t);
+      void update(vvp_context_t, unsigned, const vvp_vector4_t&, uint64_t,
+                  unsigned base, bool partial);
+      void receive(vvp_net_ptr_t, const vvp_vector4_t&, vvp_context_t,
+                   unsigned base, bool partial);
       vvp_vector4_t input_[4];
       vvp_net_t*net_;
+      vvp_net_t*output_ = nullptr;
+      __vpiScope*scope_ = nullptr;
+      unsigned context_idx_ = 0;
+      scalar_event_history*history_ = nullptr;
 };
 
 class vvp_fun_and  : public vvp_fun_boolean_ {
@@ -51,7 +76,7 @@ class vvp_fun_and  : public vvp_fun_boolean_ {
       ~vvp_fun_and() override;
 
     private:
-      void run_run() override;
+      vvp_vector4_t calculate(const vvp_vector4_t input[4]) const override;
       bool invert_;
 };
 
@@ -62,7 +87,7 @@ class vvp_fun_equiv : public vvp_fun_boolean_ {
       ~vvp_fun_equiv() override;
 
     private:
-      void run_run() override;
+      vvp_vector4_t calculate(const vvp_vector4_t input[4]) const override;
 };
 
 class vvp_fun_impl : public vvp_fun_boolean_ {
@@ -72,7 +97,7 @@ class vvp_fun_impl : public vvp_fun_boolean_ {
       ~vvp_fun_impl() override;
 
     private:
-      void run_run() override;
+      vvp_vector4_t calculate(const vvp_vector4_t input[4]) const override;
 };
 
 /*
@@ -217,7 +242,7 @@ class vvp_fun_or  : public vvp_fun_boolean_ {
       ~vvp_fun_or() override;
 
     private:
-      void run_run() override;
+      vvp_vector4_t calculate(const vvp_vector4_t input[4]) const override;
       bool invert_;
 };
 
@@ -228,7 +253,7 @@ class vvp_fun_xor  : public vvp_fun_boolean_ {
       ~vvp_fun_xor() override;
 
     private:
-      void run_run() override;
+      vvp_vector4_t calculate(const vvp_vector4_t input[4]) const override;
       bool invert_;
 };
 

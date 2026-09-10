@@ -18,6 +18,7 @@
  */
 
 # include  "event.h"
+# include  "scalar_event_history.h"
 # include  "compile.h"
 # include  "vthread.h"
 # include  "schedule.h"
@@ -32,6 +33,7 @@
 # include  <vector>
 
 # include <iostream>
+# include <memory>
 
 static bool event_trace_enabled_()
 {
@@ -456,6 +458,7 @@ struct vvp_fun_edge_state_s : public waitable_state_s {
       }
 
       vvp_bit4_t bits[4];
+      uint64_t stamp[4] = {};
 };
 
 vvp_fun_edge::vvp_fun_edge(edge_t e)
@@ -566,6 +569,7 @@ vvp_fun_edge_aa::vvp_fun_edge_aa(edge_t e)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
+      history_ = new scalar_event_history(context_scope_);
 }
 
 vvp_fun_edge_aa::~vvp_fun_edge_aa()
@@ -585,8 +589,10 @@ void vvp_fun_edge_aa::reset_instance(vvp_context_t context)
 
       assert(state->threads == 0);
       state->threads = 0;
-      for (unsigned idx = 0 ;  idx < 4 ;  idx += 1)
+      for (unsigned idx = 0 ;  idx < 4 ;  idx += 1) {
             state->bits[idx] = bits_[idx];
+            state->stamp[idx] = history_->static_stamp(idx);
+      }
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -615,18 +621,19 @@ void vvp_fun_edge_aa::recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t)
 void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
-	/* Only accept a context that is a live frame of this probe's
-	   scope (a native delivery). Nil or foreign contexts (static
-	   sources, cross-scope notifications) take the per-context
-	   fanout below, where each frame's state decides
-	   independently. (The former recover step never repaired
-	   anything here per the 2026-07 engagement census; misses
-	   always fell through to the fanout.) */
-      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
-	    context = 0;
+      uint64_t stamp = history_->next();
+      vvp_context_t source = context;
+      __vpiScope*source_scope = automatic_event_source_scope_(source, context_scope_);
+      context = scalar_event_native_context_(source, source_scope, context_scope_);
       if (context) {
             vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
+            if (const scalar_event_sample*old = history_->previous(context, port.port(),
+                                                                     state->stamp[port.port()])) {
+                  state->bits[port.port()] = old->vector.value(0);
+            }
+            state->stamp[port.port()] = stamp;
+
 
             if (recv_vec4_(bit, state->bits[port.port()], state->threads)) {
                   vvp_net_t*net = port.ptr();
@@ -635,11 +642,14 @@ void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       } else {
             context = context_scope_->live_contexts;
             while (context) {
-                  recv_vec4(port, bit, context);
+                  if (!source_scope ||
+                      vthread_recover_stacked_context_for_scope(context, source_scope) == source)
+                        recv_vec4(port, bit, context);
                   context = vvp_get_next_context(context);
             }
-            bits_[port.port()] = bit.value(0);
+            if (!source_scope && stamp >= history_->static_stamp(port.port())) bits_[port.port()] = bit.value(0);
       }
+      history_->remember(source, port.port(), stamp, bit);
 }
 
 class anyedge_value {
@@ -786,6 +796,7 @@ struct vvp_fun_anyedge_state_s : public waitable_state_s {
       }
 
       anyedge_value *last_value_[4];
+      uint64_t stamp[4] = {};
 };
 
 vvp_fun_anyedge::vvp_fun_anyedge(bool object_handle_change)
@@ -1083,6 +1094,7 @@ vvp_fun_anyedge_aa::vvp_fun_anyedge_aa(bool object_handle_change)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
+      history_ = new scalar_event_history(context_scope_);
 }
 
 vvp_fun_anyedge_aa::~vvp_fun_anyedge_aa()
@@ -1103,6 +1115,7 @@ void vvp_fun_anyedge_aa::reset_instance(vvp_context_t context)
       assert(state->threads == 0);
       state->threads = 0;
       for (unsigned idx = 0 ;  idx < 4 ;  idx += 1) {
+            state->stamp[idx] = history_->static_stamp(idx);
 	    if (last_value_[idx])
 	          last_value_[idx]->duplicate(state->last_value_[idx]);
 	    else if (state->last_value_[idx])
@@ -1135,18 +1148,19 @@ void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
             fprintf(stderr, "trace anyedge-aa recv_vec4 net=%p ctx=%p wid=%u\n",
                     (void*)port.ptr(), context, bit.size());
       }
-	/* Only accept a context that is a live frame of this probe's
-	   scope (a native delivery). Nil or foreign contexts (static
-	   sources, cross-scope notifications) take the per-context
-	   fanout below, where each frame's state decides
-	   independently. (The former recover step never repaired
-	   anything here per the 2026-07 engagement census; misses
-	   always fell through to the fanout.) */
-      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
-	    context = 0;
+      uint64_t stamp = history_->next();
+      vvp_context_t source = context;
+      __vpiScope*source_scope = automatic_event_source_scope_(source, context_scope_);
+      context = scalar_event_native_context_(source, source_scope, context_scope_);
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
+            if (const scalar_event_sample*old = history_->previous(context, port.port(),
+                                                                     state->stamp[port.port()])) {
+                  get_vec4_value(state->last_value_[port.port()])->set(old->vector);
+            }
+            state->stamp[port.port()] = stamp;
+
 
             anyedge_vec4_value*value = get_vec4_value(state->last_value_[port.port()]);
             assert(value);
@@ -1158,13 +1172,16 @@ void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       } else {
             context = context_scope_->live_contexts;
             while (context) {
-                  recv_vec4(port, bit, context);
+                  if (!source_scope ||
+                      vthread_recover_stacked_context_for_scope(context, source_scope) == source)
+                        recv_vec4(port, bit, context);
                   context = vvp_get_next_context(context);
             }
             anyedge_vec4_value*value = get_vec4_value(last_value_[port.port()]);
             assert(value);
-            value->set(bit);
+            if (!source_scope && stamp >= history_->static_stamp(port.port())) value->set(bit);
       }
+      history_->remember(source, port.port(), stamp, bit);
 }
 
 void vvp_fun_anyedge_aa::recv_real(vvp_net_ptr_t port, double bit,
@@ -1174,18 +1191,19 @@ void vvp_fun_anyedge_aa::recv_real(vvp_net_ptr_t port, double bit,
             fprintf(stderr, "trace anyedge-aa recv_real net=%p ctx=%p val=%g\n",
                     (void*)port.ptr(), context, bit);
       }
-	/* Only accept a context that is a live frame of this probe's
-	   scope (a native delivery). Nil or foreign contexts (static
-	   sources, cross-scope notifications) take the per-context
-	   fanout below, where each frame's state decides
-	   independently. (The former recover step never repaired
-	   anything here per the 2026-07 engagement census; misses
-	   always fell through to the fanout.) */
-      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
-	    context = 0;
+      uint64_t stamp = history_->next();
+      vvp_context_t source = context;
+      __vpiScope*source_scope = automatic_event_source_scope_(source, context_scope_);
+      context = scalar_event_native_context_(source, source_scope, context_scope_);
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
+            if (const scalar_event_sample*old = history_->previous(context, port.port(),
+                                                                     state->stamp[port.port()])) {
+                  get_real_value(state->last_value_[port.port()])->set(old->real);
+            }
+            state->stamp[port.port()] = stamp;
+
 
             anyedge_real_value*value = get_real_value(state->last_value_[port.port()]);
             assert(value);
@@ -1197,13 +1215,16 @@ void vvp_fun_anyedge_aa::recv_real(vvp_net_ptr_t port, double bit,
       } else {
             context = context_scope_->live_contexts;
             while (context) {
-                  recv_real(port, bit, context);
+                  if (!source_scope ||
+                      vthread_recover_stacked_context_for_scope(context, source_scope) == source)
+                        recv_real(port, bit, context);
                   context = vvp_get_next_context(context);
             }
             anyedge_real_value*value = get_real_value(last_value_[port.port()]);
             assert(value);
-            value->set(bit);
+            if (!source_scope && stamp >= history_->static_stamp(port.port())) value->set(bit);
       }
+      history_->remember(source, port.port(), stamp, bit);
 }
 
 void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
@@ -1213,18 +1234,19 @@ void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
             fprintf(stderr, "trace anyedge-aa recv_string net=%p ctx=%p val=%s\n",
                     (void*)port.ptr(), context, bit.c_str());
       }
-	/* Only accept a context that is a live frame of this probe's
-	   scope (a native delivery). Nil or foreign contexts (static
-	   sources, cross-scope notifications) take the per-context
-	   fanout below, where each frame's state decides
-	   independently. (The former recover step never repaired
-	   anything here per the 2026-07 engagement census; misses
-	   always fell through to the fanout.) */
-      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
-	    context = 0;
+      uint64_t stamp = history_->next();
+      vvp_context_t source = context;
+      __vpiScope*source_scope = automatic_event_source_scope_(source, context_scope_);
+      context = scalar_event_native_context_(source, source_scope, context_scope_);
       if (context) {
             vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
                   (vvp_get_context_item(context, context_idx_));
+            if (const scalar_event_sample*old = history_->previous(context, port.port(),
+                                                                     state->stamp[port.port()])) {
+                  get_string_value(state->last_value_[port.port()])->set(old->string);
+            }
+            state->stamp[port.port()] = stamp;
+
 
             anyedge_string_value*value = get_string_value(state->last_value_[port.port()]);
             assert(value);
@@ -1236,13 +1258,16 @@ void vvp_fun_anyedge_aa::recv_string(vvp_net_ptr_t port, const std::string&bit,
       } else {
             context = context_scope_->live_contexts;
             while (context) {
-                  recv_string(port, bit, context);
+                  if (!source_scope ||
+                      vthread_recover_stacked_context_for_scope(context, source_scope) == source)
+                        recv_string(port, bit, context);
                   context = vvp_get_next_context(context);
             }
             anyedge_string_value*value = get_string_value(last_value_[port.port()]);
             assert(value);
-	    value->set(bit);
+	    if (!source_scope && stamp >= history_->static_stamp(port.port())) value->set(bit);
       }
+      history_->remember(source, port.port(), stamp, bit);
 }
 
 void vvp_fun_anyedge_aa::recv_object(vvp_net_ptr_t port, vvp_object_t bit,
@@ -1431,15 +1456,9 @@ vthread_t vvp_fun_event_or_aa::add_waiting_thread(vthread_t thread)
 void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                     vvp_context_t context)
 {
-	/* Only accept a context that is a live frame of this probe's
-	   scope (a native delivery). Nil or foreign contexts (static
-	   sources, cross-scope notifications) take the per-context
-	   fanout below, where each frame's state decides
-	   independently. (The former recover step never repaired
-	   anything here per the 2026-07 engagement census; misses
-	   always fell through to the fanout.) */
-      if (!(context && vthread_context_live_matches_scope(context, context_scope_)))
-	    context = 0;
+      vvp_context_t source = context;
+      __vpiScope*source_scope = automatic_event_source_scope_(source, context_scope_);
+      context = scalar_event_native_context_(source, source_scope, context_scope_);
       if (context) {
             waitable_state_s*state = static_cast<waitable_state_s*>
                   (vvp_get_context_item(context, context_idx_));
@@ -1449,7 +1468,9 @@ void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       } else {
             context = context_scope_->live_contexts;
             while (context) {
-                  recv_vec4(port, bit, context);
+                  if (!source_scope ||
+                      vthread_recover_stacked_context_for_scope(context, source_scope) == source)
+                        recv_vec4(port, bit, context);
                   context = vvp_get_next_context(context);
             }
       }

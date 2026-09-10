@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_covergroup_type_weight_nonconstant_fail_2023.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_covergroup_type_weight_nonconstant_fail_2023"
+}

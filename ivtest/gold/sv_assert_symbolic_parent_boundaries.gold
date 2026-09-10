@@ -1,0 +1,2 @@
+errors=0 bounded=0/1 delayed=0/1 terminal=0/1 unbounded=1/0,1/0 prefix=0/1,0/1
+PASSED

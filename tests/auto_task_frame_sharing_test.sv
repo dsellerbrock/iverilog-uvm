@@ -1,14 +1,9 @@
-// Regression: automatic-variable storage must follow the single-task-frame
-// model. A named begin block inside an automatic task does not get its own
-// activation frame; its locals live in the frame allocated for the task
-// call. Under the retired per-block-frame model, a blocking fork...join
-// inside such a block corrupted parent-scope reads: when one branch ended
-// before a sibling branch read a parent-scope automatic local, the shared
-// parent context was dropped from the context chain the live sibling read
-// through, and the read returned the element default (x).
-//
-// The failing shape (from ivtest automatic_events2 root-cause analysis):
-// branch A ends at #10, branch B reads the named-block local `acc` at #30.
+// Automatic block locals must remain live while sibling fork branches use
+// them, and recursive/overlapping calls must retain independent values.
+// Frame sharing is an implementation choice, not the language contract.
+// Earlier frame ownership bugs dropped a parent context when one sibling
+// ended before another read it; recursive event routing also needs to select
+// the current invocation rather than a similarly named caller scope.
 module top;
 
   task automatic w(input byte id, output byte r);
@@ -24,7 +19,7 @@ module top;
 
   // Same shape one level deeper: the reading branch is inside a nested
   // named block, and the written local sits two automatic block scopes
-  // above it, all riding the one task frame.
+  // above it.
   task automatic w2(input byte id, output byte r);
     begin: outer
       reg [7:0] acc;
@@ -41,9 +36,8 @@ module top;
   endtask
 
   // Named blocking fork with its own declarations (the ivtest
-  // automatic_events2 shape): the fork scope is collapsed too, so its
-  // locals and the parent block's locals all ride the task frame, and a
-  // branch ending early must not disturb what the sibling branches read.
+  // automatic_events2 shape): a branch ending early must not disturb
+  // the fork locals or parent-block locals read by a live sibling.
   task automatic w3(input byte id, output byte r);
     begin: body3
       reg [7:0] acc;

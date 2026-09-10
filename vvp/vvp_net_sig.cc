@@ -583,7 +583,8 @@ static signal4_aa_slot* signal4_aa_get_or_make_slot(vvp_context_t context,
 }
 }
 
-vvp_fun_signal4_aa::vvp_fun_signal4_aa(unsigned wid, vvp_bit4_t init)
+vvp_fun_signal4_aa::vvp_fun_signal4_aa(vvp_net_t*net, unsigned wid, vvp_bit4_t init)
+: net_(net)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
@@ -605,6 +606,12 @@ void vvp_fun_signal4_aa::reset_instance(vvp_context_t context)
 {
       signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
       slot->bits.fill_bits(init_);
+}
+
+void vvp_fun_signal4_aa::initialize_instance(vvp_context_t context)
+{
+      signal4_aa_slot*slot = signal4_aa_get_or_make_slot(context, context_idx_, size_, init_);
+      net_->send_vec4(slot->bits, context);
 }
 
 #ifdef CHECK_WITH_VALGRIND

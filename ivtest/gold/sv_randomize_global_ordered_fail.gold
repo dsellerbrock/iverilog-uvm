@@ -1,0 +1,4 @@
+ERROR: global constraint sampling failed: cyclic joint solve-before ordering.
+ERROR: global constraint sampling failed: joint solve-before requires canonical scalar ordering variables.
+ERROR: global constraint sampling failed: joint solve-before with active randc is not yet supported.
+PASSED

@@ -1,37 +1,43 @@
-id: P02
-title: Preserve process identity for singleton fork joins
-status: completed
-phase: locally_validated
-base_revision: a5788c259
+id: L05
+title: Preserve associative class-member foreach index type
+status: locally_validated
+phase: documented
+base_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 standards:
-  - IEEE 1800-2017 and 2023 clauses 9.3.2, 9.6.1, 9.6.3, 9.7, 18.14.1 and 18.14.2 (local text verified)
-expected_behavior: Every fork child is an independent process with its own descendant controls and RNG, including singleton join and join_any.
-observed_behavior: Both editions fail identity at time zero and wait-fork sibling isolation at time 10 on a5788c259; logs in campaign-20260908/p02-red.
-hypothesis: dll_target::proc_block treats singleton parallel blocks as sequential statements and removes their process boundary before VVP lowering.
-reproducers:
-  - ivtest/ivltests/sv_fork_singleton_process.v
-  - ivtest/ivltests/sv_fork_singleton_control.v
+  - IEEE1800-2017 and IEEE1800-2023 12.7.3 and associative array rules; verify primary text before implementation.
+expected_behavior: foreach over a selected class member associative array declares the index with the array key type and visits every existing entry in the required order.
+observed_behavior: Retained DD-002 foreach(boxes[selector].values[key]) for values[string] declares key as int and visits zero entries; reverify on current validated tools.
+reproducer: ../evidence/campaign-20260908/l01/typed.sv
+selection_reason: Incorrect key typing silently skips checking/data traversal in ordinary class-based DV. Concrete pre-existing reducer and L01 selected-prefix evidence justify this independent blocker while U01 teardown lacks a proven compiler fix.
 allowed_scope:
-  - t-dll-proc.cc (proc_block singleton elimination predicate only)
-  - ivtest (singleton regression sources, gold and registrations)
-  - .ai/ACTIVE_WORK.yaml
-  - .ai/CAMPAIGN.yaml
-  - docs/conformance/BLOCKERS.md
-  - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
-  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
+  - Foreach implicit-index type resolution for selected class-member associative arrays and directly necessary elaboration.
+  - Permanent paired regressions, required focused/full gates, review and conformance records.
 non_goals:
-  - Scheduler redesign, deferred assertions, randomization solver, unrelated applications.
+  - No application cleanup, warning suppression, unrelated expression drivers, randomization or formal architecture changes.
 invariants:
-  - Sequential blocks and synchronous task calls retain enclosing process identity.
-  - Preserve named blocks, randsequence blocks, RNG ownership and existing event regions.
-dependencies: [P01 and P03 locally validated]
+  - Preserve selected prefix evaluation, declared key type and ordering, nested scopes, side effects and existing iteration semantics.
+  - No zero-iteration fallback, fabricated key or container substitution.
 required_gates:
-  - Both-edition baseline red and patched focused reducers.
-  - Focused legacy and JSON positive/control/neighbor tests.
-  - Integrated ivtest/VPI/negative/runtime gate, full JSON, real-DPI UVM and make check.
-  - Independent review, documentation and diff check; remote CI remains required before merge.
-completion: Close only singleton process boundary elimination after required local gates pass; broader process conformance remains separate.
-discovery_policy: Record unrelated discoveries only; proven prerequisites require coordinator boundary.
-stop_after_completion: true
+  - Fresh paired red reducer and applicable primary LRM semantics, actual source trace before patch.
+  - Permanent string/integral key, selection and lifetime controls; focused legacy/JSON plus relevant foreach neighbors.
+  - NFA, integrated,VPI,negative,runtime,fullJSON,real-DPIUVM,makecheck and independent review.
+  - Remote CI before merge.
+completion: Qualify only exact repaired member-key type resolution; broader foreach/container and application status remain separate.
+discovery_policy: Unrelated discoveries are record-only; proven prerequisites require explicit suspension with preserved work.
+stop_after_completion: false
+last_validated_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
+next_action: L05 checkpointed; return to coordinator selection and publish remaining validated increments.
 
-validation: All required local gates passed; remote CI remains a merge gate.
+causal_trace: Both selected-member parser actions discard selector structure for declaration typing (null target for expression selector, unindexed path for identifier selector); declaration helper also rejects indexed paths. Existing selected-path helper consequently cannot traverse the array element to its class member.
+planned_fix: Preserve selected member target through both parser actions and foreach_index_type_t; reuse PEIdent::test_type_of_ident from enclosing scope without evaluating selectors, then resolve terminal array index type. Keep established unselected route and selected-array non-member production unchanged.
+
+semantic_review: Same-name selector/loop-key positive control withdrawn. IEEE12.7.3 references12.7.1 implicit declarations before wholeloop; both Slang editions bind header key to newstringindex and reject it. Runtime target binding remains unchanged.
+
+focused_validation: Paired10/10legacy+JSON; foreach neighbors53/53legacy+34/34JSON; makecheck and final independent review pass.
+current_toolchain: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Comment-only rebuild produced identical fingerprints.
+residual_scope: Selected-array non-member production and invalid header index validation DD-009 remain unqualified by this increment; no runtime target-binding change.
+
+final_validation: UVM42794 terminated0 with355 passed,0 failed,0 skipped and real DPI loaded. FullJSON1662/0, integrated4765/4770 with zero failures, NFA58/58 and all focused/neighbor/check/review gates pass. Remote CI remains required before merge.
+next_checkpoint_action: Commit the exact reviewed L05 source/tests and bounded qualification; return to campaign selection without another user message.
+
+implementation_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644

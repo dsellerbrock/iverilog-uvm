@@ -50,12 +50,12 @@ module sv_assert_repeat_parameter_direct;
     drive(0, 0);
     @(negedge clk);
 
-    if (one.pass_count != 3 || one.fail_count != 3) begin
+    if (one.pass_count != 6 || one.fail_count != 3) begin
       $display("FAILED: [*1] did not verdict on the current sampled tick (%0d/%0d)",
                one.pass_count, one.fail_count);
       $finish_and_return(1);
     end
-    if (three.pass_count != 1 || three.fail_count != 1) begin
+    if (three.pass_count != 8 || three.fail_count != 1) begin
       $display("FAILED: [*3] consecutive history/endpoint was wrong (%0d/%0d)",
                three.pass_count, three.fail_count);
       $finish_and_return(1);

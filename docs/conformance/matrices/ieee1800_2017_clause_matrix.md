@@ -87,7 +87,7 @@ but that historical result is not a current zero-silent-gap certificate — see
 | 13 | Tasks and functions | PARTIAL | Tasks/functions, automatic/static lifetime, ref/const-ref/input/output/inout, default and named arguments, void functions, `void'()`, class/struct/array returns, and recursion are supported across the listed tested forms. A `localparam` interspersed in an old-style task/function body is retained as a declaration rather than misparsed as an executable statement; the Caliptra untyped form is runtime-pinned and ordinary untyped-function controls remain green. **Fixed in M1B-6:** every task/function definition-body elaboration starts in its own lexical fork context, including lazy parameterized-class specialization reached from a forked caller; `sv_fork_lazy_param_typedef_return` pins both function and task bodies while `task_return_fail2` preserves the illegal lexical-fork boundary. **Fixed in M1B-7:** `void'(...)` can discard scalar or object method results reached through a direct unpacked-struct class-handle member with the actual return type and no object-fallback warning; void-casting a task remains an error. **Fixed 2026-08-15 (13.4.4):** function bodies accept the expressly permitted `fork...join_none`, while `fork...join` and `fork...join_any` are rejected across nested/named scopes and class methods; the corresponding task forms remain legal. **Fixed subset in M4C-17:** a procedurally called SystemVerilog function can schedule an NBA to a persistent ordinary signal or supported class/VIF packed target without suspending or applying an immediate store; declaration-level static/automatic lifetime is enforced for direct vec4 locals, and such a function is rejected in a constant expression. This is not full 13.4.4 closure: program-call and freshly allocated local-object runtime forms, nonprocedural/final call-context enforcement, dynamically sized array targets, and automatic aggregates containing captured handles remain open. A blocking unpacked-array function result can target a whole fixed array or fixed-prefix slice and preserves declared-order correspondence across opposite range directions. **Fixed 2026-08-15:** task string `ref` formals use the same bound-reference wrapper as integral, real, and class-handle task formals, including detached fork writes and queue/dynamic-array element cells; whole-container task formals and function string/real formals retain the documented copy path. **Fixed/verified in M4C-29 (6.21/13.3.1 recorded subset):** an otherwise static task or function preserves its static VPI identity and inherited static ports/locals while each call owns storage for explicitly automatic scalar, dynamic-array, and fixed-array declarations, including integral/logic/real/string/object elements and nested named-block overrides. Initializers execute before detached children consume the activation; virtual-interface dispatch, detached-frame retention, array-port context selection, explicit-static fixed-array force/release, and per-declaration VPI lifetime metadata use the declaration's actual context owner. Conversely, explicitly static locals in automatic tasks/functions retain shared one-shot storage. Residuals: the equivalent nonblocking assignment is rejected loudly until aggregate NBA snapshotting exists; indexed struct-member-array method receivers remain open; a function returning an unpacked-array typedef assigned via `'{...}` aborts (ICE — loud but ungraceful). |
 | 14 | Clocking blocks | PARTIAL | **Fixed/verified 2026-08-24 subset; itemless public-event follow-up 2026-08-25.** Default/explicit/global clocking, `##N`, `#1step` Preponed sampling, numeric-skew sampling, output drives, and direct/class-held virtual interfaces are supported. Every valid clocking block, including one with no clockvars, has a public synchronization event that fires in Observed after NBA quiescence; static, hierarchical, global, default, VIF, and modport-VIF references use it. Its VIF representation is two-state, so initialization cannot manufacture a time-zero event. Numeric `#0`/`#N` samples are stored before both static and VIF `@(cb)` waiters wake. Same-scope, static-instance, alias, and VIF output drives preserve constant packed member/bit/part selection; current-event and buffered drives share the per-instance apply path and the defining scope's output skew. The follow-up audit made a root indexed class receiver loud before its stateful index can be cloned, centralized output-skew elaboration so one invalid declaration produces one diagnostic independent of drive count, restored exact modport provenance through additional carriers, and made VPI property writes loud instead of bypassing sampling or drive scheduling. Remaining legal boundaries are loud: run-time-selected drives, indexed class receivers, whole unpacked output storage, selected clockvar declaration-assignment targets, and non-default parameterized-interface widths. A clockvar concatenation l-value is rejected as illegal under 14.16. See the [selected-drive](../session_logs/2026-08-24_opentitan_vif_clocking_selected_drive.md), [static-skew/modport](../session_logs/2026-08-24_opentitan_clocking_static_skew_modports.md), and [HMAC frontier](../session_logs/2026-08-24_opentitan_hmac_boolean_dist_subject.md) session logs. |
 | 15 | Interprocess synchronization & communication | PARTIAL | named events (`->`/`@`/`wait`/`.triggered`), semaphores, mailboxes (incl `#(T)`) all FULL. Corners: merged events (`e1 = e2`) diagnosed; `wait_order` (syntax error). |
-| 16 | Assertions (SVA) | PARTIAL | Synthesized checkers, automaton (NFA) engine by default with the legacy linear engine behind `IVL_SVA_LEGACY=1` and a dual-run parity gate over both. `|->`/`|=>`, `##N`/`##[m:n]`/`##[m:$]` incl. mid-chain, `[*N]`/`[*m:n]`, goto/non-consecutive repetition, `and`/`or`/`intersect`/`within`/`throughout`, `not`/`first_match`, sequence local variables, `strong`/`weak`, `.triggered`/`.matched`, `expect`, procedural concurrent assertions with implicit clock inference, `disable iff`, sampled-value functions with real histories, named properties, defaults, pass/fail actions, cover, and the clause-40 VPI lifecycle. **Caliptra property-local subset (2026-08-16):** named properties and sequences accept plain formals followed by `int` and unsigned packed/scalar `logic` locals. Match-item assignments apply the declared width/sign conversion before later use, every overlapping attempt owns its complete local value, and multidimensional 256-bit captures survive fixed and unbounded implication paths. Broader assertion-variable types, declaration initializers, directions/defaults on formals, and complete branch flow analysis remain outside this bounded subset. **Single-clock NFA implication fan-out (M9-16):** every endpoint of a variable-length or combinator antecedent owns an independent multi-step/tree consequence record for `|->` and `|=>`; same-tick verdict counts retain one action and success/failure callback per record, while step callbacks remain once per checker per tick. An assignment made exactly once on a deterministic leaf prefix is snapshotted per obligation. Branch-local, post-branch, repeated, duplicate, interior-tree, and fused-`##0`-read assignments remain loud until per-live-path locals and assignment-before-read scheduling are available; empty consequences are also loud. Strong end-of-simulation failure actions and failure callbacks repeat once per live consequence record. Loop-free pools have an exact capacity bound and cyclic forms keep the finite-pool/loud-overflow contract. **Selective assertion control:** labeled and per-instance hierarchical `$assertoff`/`$asserton` stop and resume only new attempts for the selected directive, preserve attempts already executing at Off, and retain VPI identity as `(runtime scope, assertion index)`. Finite `always[m:n]` attempts preserved by Off expire at `n`, while unbounded attempts remain live. `$assertkill` reports disable/reset callbacks and aborts active attempts in the linear, NFA, parameter-bound, generated-delay, temporal, and two-/N-domain multiclock checkers. Per-identity generations survive immediate Kill/On pairs; generation-tagged multiclock handoffs cannot revive killed requests; identifier selectors are resolved in their lexical call context and canonicalized to a rooted per-instance identity, canonical generated selectors match `G[2]`, and final strong obligations are suppressed without requiring another assertion clock. The lexical canonicalization covers bare labels through nested procedural blocks, relative scope/child paths, explicit rooted paths, and chronological controls issued before checker registration; string-valued selectors and package/`local::`/`this`/`super` forms retain their existing exact runtime/source-spelling behavior. Queued deferred-immediate reports and pending procedural assertion instances remain the separate R29 cancellation gap. **Concurrent-assertion region placement is conformant (M6B-4):** whole signals, packed selects, direct packed-aggregate members, unpacked-array words, reals, hierarchical names, and direct members of statically bound interface/modport ports sample Preponed; evaluation runs in Observed and actions in Reactive. Runtime-selected interface-array members and package-qualified mutable operands remain loud live-read boundaries. **Parameter-valued bounds are PARTIAL (M9-15):** the focused instance-sized implication/cover paths preserve exact/range/unbounded repetition and bounded-consequence expressions through instance override, reject invalid values during elaboration, and keep unsupported standalone symbolic ranges loud. **Deferred immediate assertions remain PARTIAL (R29):** `#0` and `final` expressions evaluate synchronously; positional scalar, real, string, dynamic-container, and class-handle `$error`/`$display` arguments are value-captured in module, task, function, and class contexts; reports use process-local Observed/Reactive or Postponed queues with flush/cancellation behavior; deferred cover uses the same queues; module/generate items are implicit `always_comb`; labels preserve hierarchy/`%m`; and assertion control gates new reports. Passive zero-actual user tasks are supported for `final`. Illegal action blocks, malformed bytecode, source-final `#0`, and unsupported user-task/method/ref/fixed-unpacked-array action shapes fail loudly. Remaining gaps include general user-subroutine/ref/fixed-array argument capture, deferred-cover database/VPI accounting, assertion-label/outermost-disable cancellation, `$assertkill`/VPI-reset queue cancellation, deferred-immediate VPI assertion identity/result callbacks, cross-clock overlapping `|->`, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps. |
+| 16 | Assertions (SVA) | PARTIAL | Synthesized checkers, automaton (NFA) engine by default with the legacy linear engine behind `IVL_SVA_LEGACY=1` and a dual-run parity gate over both. `|->`/`|=>`, `##N`/`##[m:n]`/`##[m:$]` incl. mid-chain, `[*N]`/`[*m:n]`, goto/non-consecutive repetition, `and`/`or`/`intersect`/`within`/`throughout`, `not`/`first_match`, sequence local variables, `strong`/`weak`, `.triggered`/`.matched`, `expect`, procedural concurrent assertions with implicit clock inference, `disable iff`, sampled-value functions with real histories, named properties, defaults, pass/fail actions, cover, and the clause-40 VPI lifecycle. **Caliptra property-local subset (2026-08-16):** named properties and sequences accept plain formals followed by `int` and unsigned packed/scalar `logic` locals. Match-item assignments apply the declared width/sign conversion before later use, every overlapping attempt owns its complete local value, and multidimensional 256-bit captures survive fixed and unbounded implication paths. Broader assertion-variable types, declaration initializers, directions/defaults on formals, and complete branch flow analysis remain outside this bounded subset. **Single-clock NFA implication fan-out (M9-16):** every endpoint of a variable-length or combinator antecedent owns an independent multi-step/tree consequence record for `|->` and `|=>`; same-tick verdict counts retain one action and success/failure callback per record, while step callbacks remain once per checker per tick. An assignment made exactly once on a deterministic leaf prefix is snapshotted per obligation. Branch-local, post-branch, repeated, duplicate, interior-tree, and fused-`##0`-read assignments remain loud until per-live-path locals and assignment-before-read scheduling are available; empty consequences are also loud. Strong end-of-simulation failure actions and failure callbacks repeat once per live consequence record. Loop-free pools have an exact capacity bound and cyclic forms keep the finite-pool/loud-overflow contract. **Selective assertion control:** labeled and per-instance hierarchical `$assertoff`/`$asserton` stop and resume only new attempts for the selected directive, preserve attempts already executing at Off, and retain VPI identity as `(runtime scope, assertion index)`. Finite `always[m:n]` attempts preserved by Off expire at `n`, while unbounded attempts remain live. `$assertkill` reports disable/reset callbacks and aborts active attempts in the linear, NFA, parameter-bound, generated-delay, temporal, and two-/N-domain multiclock checkers. Per-identity generations survive immediate Kill/On pairs; generation-tagged multiclock handoffs cannot revive killed requests; identifier selectors are resolved in their lexical call context and canonicalized to a rooted per-instance identity, canonical generated selectors match `G[2]`, and final strong obligations are suppressed without requiring another assertion clock. The lexical canonicalization covers bare labels through nested procedural blocks, relative scope/child paths, explicit rooted paths, and chronological controls issued before checker registration; string-valued selectors and package/`local::`/`this`/`super` forms retain their existing exact runtime/source-spelling behavior. Queued deferred-immediate reports and pending procedural assertion instances remain the separate R29 cancellation gap. **Concurrent-assertion region placement is conformant (M6B-4):** whole signals, packed selects, direct packed-aggregate members, unpacked-array words, reals, hierarchical names, and direct members of statically bound interface/modport ports sample Preponed; evaluation runs in Observed and actions in Reactive. Runtime-selected interface-array members and package-qualified mutable operands remain loud live-read boundaries. **Parameter-valued bounds are PARTIAL (M9-15):** the focused instance-sized implication/cover paths preserve exact/range/unbounded repetition and bounded-consequence expressions through instance override, reject invalid values during elaboration, and keep unsupported standalone symbolic ranges loud. **Deferred immediate assertions remain PARTIAL (R29):** `#0` and `final` expressions evaluate synchronously; positional scalar, real, string, dynamic-container, and class-handle `$error`/`$display` arguments are value-captured in module, task, function, and class contexts; reports use process-local Observed/Reactive or Postponed queues with flush/cancellation behavior; deferred cover uses the same queues; module/generate items are implicit `always_comb`; labels preserve hierarchy/`%m`; and assertion control gates new reports. Passive zero-actual user tasks are supported for `final`. Illegal action blocks, malformed bytecode, source-final `#0`, and unsupported user-task/method/ref/fixed-unpacked-array action shapes fail loudly. Remaining gaps include general user-subroutine/ref/fixed-array argument capture, deferred-cover database/VPI accounting, assertion-label/outermost-disable cancellation, `$assertkill`/VPI-reset queue cancellation, deferred-immediate VPI assertion identity/result callbacks, variable-length multiclock antecedents, `disable iff` across a two-or-more-boundary chain, and the separately recorded branch-flow/deferred-immediate gaps. |
 | 17 | Checkers | PARTIAL | **M9-9.** `checker`/`endchecker` implemented on the module machinery: typed formals with directionless-defaults-to-input (17.4), default formal values, property/sequence declarations, `assert`/`assume`/`cover`, checker-local `default clocking`, internal variables and procedures, multiple independent instances, nested checker instantiation, `endchecker` labels, and `bind` of a checker. Loud residuals: untyped formals, event-typed formals, free (`rand`) variables (17.9), a checker DECLARED inside a module, procedural instantiation. sv_checker_basic, sv_checker_nested_instance, sv_checker_bind. (Verified 2026-07-25.) |
 | 18 | Constrained random value generation | PARTIAL | The evidenced core includes rand/randc, class and bounded scope `randomize()` with/without inline `with`, constraint blocks, `inside`, `dist`, implication, if-else constraints, `solve...before`, soft priority, `disable soft`, `unique {}`, object/property variable control, hooks, foreach/container constraints, `randcase`, `randsequence`, and per-object/per-process RNG state. Inherited constraints are solved as one set and conflicting soft constraints follow declaration priority. **M3B-2 (expanded 2026-08-14):** `randsequence` covers acyclic production reuse, weighted alternatives, constant/default/named input actuals, production `if`/`case`/`repeat`, ordered code blocks, bounded `rand join` interleavings, whole-sequence `break`, and production-local `return`; each unsupported broader form fails loudly. **M3B-17 (expanded 2026-08-12):** fixed unpacked-array `rand_mode` accepts declared-direction and multidimensional element/subarray setters and singular indexed queries. Dynamic arrays and queues use live numeric element modes; associative arrays preserve integral, string, and object key identity. Whole-array setters control current and future members, queue membership and ordering changes carry mode state with existing members, associative delete/reinsert creates a fresh active member, failed solves restore modes, and static aliases converge on canonical storage. The IEEE singular-function rule rejects a whole dynamic/queue/associative query; the whole fixed-array query remains a documented Slang-compatible all-enabled extension. Fixed, dynamic, queue, and associative unpacked `randc` elements carry independent transactional histories. The dynamic/queue/associative subset includes unconstrained and constrained feasible-domain cycles, mode pause/resume, queue permutation and membership changes, associative delete/reinsert, failed-solve rollback, canonical static aliases, and class shallow-copy state. **M3B-18 (2026-08-10):** recursive direct/fixed/D/Q/M class-handle graphs use one alias/cycle-safe transaction; descendant failure restores graph values and instance/static cyclic history, and canonical-static tentative values remain invisible to scheduler/VPI observers until final commit. **Fixed 2026-08-14 (evidenced unpacked-struct-member subset), expanded 2026-08-24:** `rand`/`randc` qualifiers on unpacked-struct members survive parse, elaboration, target lowering, and VVP execution. An outer `rand` struct property activates only qualified members, leaves unqualified state unchanged, preserves per-member transactional `randc` cycles, and constrains sparse enum members to their declared domain (including randc cycling over that feasible set). A class constraint may name a one-level scalar integral or enum member up to 64 bits as an independent solver variable; the `(outer property, member)` identity survives `solve...before`, unqualified or disabled members are pinned state, direct member `rand_mode` setter/query controls activation, enum domains remain declared-literal domains, and model values plus constrained-randc history commit or roll back atomically. Member qualifiers on packed structs/unions and rand real/string members are eager declaration errors even for unused typedefs. A randc integral leaf wider than the 20-bit history cap emits a named warning, including through a nested struct. Legal class-handle/container members remain declaration-positive but an enabled use makes `randomize()` return 0 with a runtime diagnostic. **Still open:** recursive `randsequence` grammars, nonconstant production-actual capture, value-returning productions, non-input formals, nested-control joined lanes, packed-select randomization semantics beyond the compatibility boundary, joint parent/child constraint solving, recursive child hook dispatch, class-handle/container struct-member randomization, deeper/indexed/aggregate unpacked-struct constraint paths, dynamic/associative member-lifecycle corners beyond the evidenced integral subset, and exact cycle completeness beyond the documented width bound. These prevent a FULL claim. Every thread and class object is seeded hierarchically at creation; `srandom`/`get_randstate()`/`set_randstate()` preserve the deterministic state contract. |
 | 19 | Functional coverage | PARTIAL | The evidenced implementation includes value/range/default/ignore/illegal bins, `iff`, compact transitions, fixed and per-instance dynamic-family crosses, constructor and `with function sample` formals, recorded instance/type options and queries, and durable reports. The typed constructor subset preserves source/coverpoint width and sign, four-state rejection, 19.5.7 conversion, descending-range emptiness, and OpenTitan's exact `[0 : 2 << (valid_source_width - 1) - 1]` range. Integral open bins coalesce to distinct resolved values; fixed arrays preserve ordered occurrences, put the remainder in the last nonempty bin, and carve after distribution. Object-specific cross plans cover automatic products and the evidenced `binsof`/named-`binsof` `intersect` conjunctions, overlapping named bins, `iff`, `illegal` > `ignore` > normal precedence, and illegal-cross locality. For 2023, `option.cross_retain_auto_bins` defaults to 1; a covergroup value defaults its crosses, a cross-local value overrides it, and coverpoint/`type_option` placements are errors. Constant values and the 2017 edition rejection are implemented; the retention reducer covers inherited fixed/dynamic defaults, local disable/enable overrides, no-explicit-bin retention, and empty ignore/illegal declaration presence. Constructor/per-instance expressions remain open. Current local gates are focus 20/20 in both paths, legacy 4,127 pass / 0 fail / 2 NI / 3 expected fail (4,132 total), JSON/VVP 1,017/1,017, negatives 136/136, VPI 103/103, and canonical UVM 354/354. The final OpenTitan 61-target UVM compile matrix is 8 DEBT / 50 FAIL / 3 SETUP_FAIL / 0 PASS versus 1 DEBT / 57 FAIL / 3 SETUP_FAIL / 0 PASS, with seven FAIL→DEBT transitions, zero timeouts/resource-limit signals, and zero exact or generic former cross-drop diagnostics. It is not a clean application or runtime pass. The final Caliptra static census is Icarus 53/105 in each assertions/no-assertions/synthesis lane versus Slang 54/105, with 52 PASS / 1 DEBT / 51 SHARED_SOURCE_OR_CONFIG / 1 SOURCE_ORDER_DEBT / 0 ICARUS_GAP; the sole Slang advantage is known `csrng_raw_wrap` source-order debt. This is compile/elaboration/synthesis differential evidence, not full DV runtime. Remaining gaps include constructor `ref`/output/inout directions, broader endpoints, constructor/per-instance retention expressions, transition-term illegal crosses, remaining dynamic `with`/`matches`/set/`CrossQueueType` and broader compound selectors, source denominator carving, type-coverage union, report/VPI/normative naming, broader signed static range/intersect normalization, empty trailing fixed-array-bin identity/naming, products over 65,536, and 2023 real/tolerance coverage. Caliptra's hierarchical member cross-item compatibility extension remains separate because 19.6 restricts standard cross items. Complete clause-19 closure is not claimed. |
@@ -771,3 +771,208 @@ in VVP (2017/2023 9.3.2, 9.6, 9.7, 18.14). All required local gates passed
 at the P02 campaign checkpoint. Identity, RNG seeding, descendant controls and
 suspend/resume/kill are covered. Non-VVP translation limitations remain;
 remote CI/merge and broader process qualification are separate.
+
+
+Z01A: IMPLEMENTED (bounded local scope; unmerged) for bounded canonical integral joint solve-before
+stages (2017 18.5.9/18.5.10 and 2023 18.5.8/18.5.9). Exact component tables
+support stage projection sampling within the existing 1024-tuple ceiling.
+All required local gates and independent review passed; remote CI/merge
+remain pending. Ordered dist, active randc, non-scalar stages, static-alias ordering
+qualification, larger components and broader Z01 remain outside this claim.
+See the campaign session log for separate edition evidence and limitations.
+
+
+C01: IMPLEMENTED (bounded diagnostic correctness; unmerged) for rejecting untranslated inline constraint items
+instead of accepting a partial randomize call (2017/2023 18.7). Both-edition
+red runtime evidence confirms lost constraints on 8f298eefe. The candidate
+passes paired focused rejection and supported/no-op controls. This is a
+semantic-degradation fix, not implementation of the unsupported expressions.
+All required local gates and review pass; remote CI/merge remain pending.
+See campaign evidence.
+
+
+L01: IMPLEMENTED (bounded local qualification; unmerged) for selected-prefix procedural member foreach
+(2017/2023 12.7.3). The selected prefix is no longer redeclared and iterated;
+only terminal loop variables are introduced. Both-edition lookup and traversal
+controls pass, along with 53 legacy/34 JSON focused cases and unchanged Bison
+automaton. All local semantic gates and review passed; fresh unmodified U01
+replay confirms corrected routing and three checked responses. DD-002
+associative string index typing is addressed by the later bounded L05 increment. U01 is
+still open for the fourth-response stall; no application pass is established.
+
+L02: IMPLEMENTED (bounded local scope, unmerged) for automatic block reentry and scalar event history
+(2017/2023 6.21, 6.8 and 9.4.2). Candidate preserves distinct block frames
+and ancestor-owned scalar history; all required local semantic gates and
+review pass, including recursive event ownership. Unchanged U01 replay completes
+115 requests and230 checked items; four sequence-parent warnings keep U01 open. General Boolean event-expression context
+(DD-003) and silent-default edge initialization remain unqualified.
+
+V01A: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.11.3:
+constructor-dependent unsized value bins contribute their exact registered
+interval union to merged type coverage, including unsampled/retired instances.
+Partial overlap/disjoint, threshold, signed and fixed/scalar controls pass all
+required local gates. Parent V01 and general huge-total percentage calculations remain unqualified.
+Default merge_instances averaging is separately qualified by V02 below.
+
+V02: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.7/19.11.3:
+default type coverage averages eligible instances using option.weight, including
+unsampled and retired objects; explicit merge mode and get_inst_coverage query
+selection retain separate semantics. Native typed initializer assignments preserve
+four-state conversion, lexical scope, parent methods and once-only constructor
+actuals. Procedural get_inst writes are rejected per19.7; weight stays mutable.
+All required local gates and review pass onac60732f3. Global type_option weights,
+goals/strobe and remaining parentV01 obligations remain unqualified.
+
+V03: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.7.1 table19-3,
+19.9 and19.11: declared covergroup type weights contribute to overall coverage
+with existing eligibility exclusions; zero aggregate weight returns100. Typed
+constant conversion and nonnegative domain are checked, and old VVP options
+records remain compatible. All local gates/review pass on2be79b2c0. Coverpoint/
+cross type weights and procedural static type-option updates remain unqualified.
+
+S01 verification at `2be79b2c0`: the former blanket cross-clock overlapping
+implication exclusion is superseded by fixed-chain support in `0ff77277c`.
+Twelve focused runs cover both editions and both SVA modes, including coincident
+edge order, later consequent ticks, sampling and nested flow. Broader multiclock
+assertion qualification remains PARTIAL. Evidence: campaign-20260908/s01.
+
+S03: IMPLEMENTED with reviewed local qualification (unmerged), IEEE1800-2017/
+2023 16.12.7. Split NFA endpoint consequences aggregate truth per starting
+implication attempt rather than dispatching each child verdict. Paired controls
+cover mixed/forbidden consequences, vacuity, parent/child reuse, cancellation,
+cover counts and strong EOS; required local suites pass including real-DPI
+UVM355. Existing finite cyclic-pool limits remain; DD005 nonfanout vacuity and
+S02 multiclock identity remain unqualified. Assertions as a whole stay PARTIAL.
+
+
+S04: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 16.12.7 and16.14.1. NFA, fixed legacy, genvar delay,
+symbolic repetition and fixed/OR/AND antecedents before parameter windows
+execute previously omitted vacuous user pass actions. Shared Reactive dispatch
+keeps them distinct from nonvacuous-success callbacks. Antecedent progress
+and pre-match age counts avoid startup ghosts and repeated vacuity. Disable
+level checks run in Observed; asynchronous cancellation recognizes integral
+logical truth including nonunit values. Four paired reducers and callback
+coverage pass with required full local gates: integrated4700/4695/0/2/3,
+VPI104,negative149,runtime15,JSON1592 and real-DPI UVM355. Remote CI remains
+required before merge.
+Symbolic nonvacuous parent-verdict aggregation was separately tracked as DD-007
+and is addressed by S05 below. Broader SVA, multiclock S02 and formal
+qualification remain PARTIAL/open.
+
+
+S05: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 16.12.7,16.12.22,16.14.1. Accepted parameter-valued
+consecutive repetitions with fixed ##0/##1 Boolean consequences aggregate
+one parent verdict: first failed child retires the parent; success waits for
+antecedent closure and all pending children. Existing packed ages and mature
+counts preserve overlapping starts and repetition-bound overrides without a
+new attempt-pool cap. Direct empty nonoverlapped antecedents start their exact
+consequence windows on the current tick; prefixed zero repeats retain their
+nonempty endpoint timing. Empty-only overlap is rejected per instance; mixed
+empty/nonempty overlap uses nonempty matches. Cover endpoint counting remains
+separate. Four-state, Off/Kill, async/NBA cancellation, callback and delayed
+Reactive action controls pass. All required local gates pass: focus14/14
+legacy+JSON in both engines, NFA58/58, integrated4714/4709/0/2/3,VPI105,
+negative149,runtime15,JSON1606,real-DPI UVM355, make check and independent review.
+Remote CI remains required before merge. Symbolic consequent-delay overrides
+DD-008, broader SVA/multiclock and the formal program remain unqualified.
+
+
+S06: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.20.2,23.10.2,16.7 Syntax16-4,16.12.7 and16.14.1.
+Single named parameter/localparam ##D preserves actual instance timing through
+elaboration. Direct/prefixed symbolic bounded/unbounded repetition parents
+use delayed sampled histories and one parent verdict; real-time unmatched
+ages preserve vacuity. Overlap/nonoverlap empty timing, Off/Kill/disable
+cancellation, fixed antecedent neighbors and cover endpoint counting have
+paired controls. Native self-sizing retains signedness and width when a
+preserved property operand receives a substituted actual. Invalid negative
+original grouped operands and unknown bounds reject per instance.
+
+Qualification: paired focus18/18 legacy+JSON in both engines; S05neighbors
+14/14+14/14,S04neighbors17/17+8/8; NFA58/58; integrated4732total4727pass0fail
+2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1624/0; real-DPIUVM355/0/0;
+makecheck, unchanged Bison563SR/1122RR signature, final independent review.
+Explicit reference controls check76assertion and76cover cases in each edition;
+independent packed-vs-parent model checks9450traces/999810ticks.
+
+This bounded qualification does not establish arbitrary delay-expression
+syntax, broader formal lookup, composed/multiclock operators, maximal-width
+delay arithmetic, application DV completion or formal-program completion.
+Explicit unsupported-composition diagnostics are rejection coverage only.
+Remote CI remains required before merge. Evidence: campaign-20260908/s06.
+
+
+S07: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 16.8. Bare sequence aliases recursively expand copied
+bodies rather than leaving nested parameterized calls for ordinary function
+elaboration. Nested alias sequence names resolve in the alias declaration's
+generate scope; substituted actuals preserve caller lookup. Active declaration
+paths reject direct/indirect, branching and actual-self expansion cycles
+before cloning further bodies. Repeated legal instances retain independent
+copies and the existing depth safeguard remains.
+
+Qualification: paired focus12/12 legacy+JSON in both engines; S06neighbors
+18/18+18/18,S04neighbors17/17+8/8; NFA58/58; integrated4744total4739pass0fail
+2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1636/0; real-DPIUVM355/0/0;
+makecheck and final independent source/test review. Permanent controls cover
+multi-level alias timing/cancellation/reuse, declaration shadowing, caller
+actual scope, mutual/branching/actual-self cycles. Evidence: campaign-20260908/s07.
+
+Complete global dependency-graph validation across separate instances,
+pre-existing parameterized declaration-owned lookup and broader sequence
+composition remain unqualified. Remote CI is required before merge.
+
+
+L04: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.8 Table6-7,6.21,9.4.2. Automatic integral signal defaults
+are published after all activation items exist, ownership is live and applicable
+stack linkage is established, before argument/user writes. The optional
+initialization hook covers ordinary allocations, virtual override calls,
+DPI exports and continuous automatic function calls. Root frames remain roots.
+Slot reset/default values are unchanged; native signal publication seeds
+activation-specific event history, so unchanged partial zero writes no longer
+manufacture negedges. Default X and real subsequent transitions are preserved.
+
+Qualification: paired focus4/4 legacy+JSON; lifetime neighbors93/93+50/50,
+mixedlifetime7/7+7/7,eventcontrols14/14+14/14; NFA58/58; integrated4748total
+4743pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1640/0;
+real-DPIUVM355/0/0,makecheck and final independent review. Tests cover whole/
+partial unchanged writes,0/X defaults,pos/negedges,concurrent/recursive frames
+and reuse. Evidence: campaign-20260908/l04.
+
+Derived Boolean activation state remains L03; other value types and broader
+initialization obligations are not qualified here. Remote CI before merge.
+
+
+L03: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.21,9.4.2. The shared Boolean functor family retains
+per-activation operands and ancestor input history, combining parent and
+child operands only within the correct activation. Post-link initialization
+propagates derived baselines synchronously for the initializing frame;
+ordinary evaluation remains queued Active with frame-owned pending flags.
+No queued raw context survives frame reuse. Static truth functions are shared
+without changing their scheduling.
+
+Qualification: paired focus12/12legacy+JSON,L02neighbors93/50,L04neighbors4/4,
+direct PART_PV pre-child history/untouched bits/live updates/frame reuse,
+NFA58/58,integrated4760total4755pass0fail2NI3EF,VPI105/105,negative149/149,
+runtime invariants,JSON1652/0,real-DPIUVM355/0/0,makecheck and final independent
+review. Cases cover mixed parent/child operands,chained initialization,
+concurrent/recursive activations,reuse and NBA coalescing. Evidence:
+campaign-20260908/l03. BUF,NOT,mux and other expression families are unchanged
+and remain unqualified by this increment; application/formal status remains
+separate. Remote CI is required before merge.
+
+
+L05: IMPLEMENTED (bounded local qualification, unmerged), IEEE 1800-2017
+and 1800-2023 12.7.3: selected class-member foreach preserves the terminal
+associative key type through both identifier and expression prefix paths.
+Paired tests cover string order, signed narrow integral keys, class-handle keys,
+inherited parameterized members, nested selection, outer-name preservation,
+concurrent/reused automatic loops and terminal static dimensions. Existing
+runtime selector binding is unchanged (12.7.1/12.7.3); invalid same-name header
+selectors are recorded separately as DD-009. Selected-array non-member typing
+and broader container obligations remain unqualified. All required local gates
+and independent review pass; remote CI/review and merging remain outstanding.

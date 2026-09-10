@@ -77,10 +77,10 @@ module sv_assert_struct_parameter_delay;
     drive(0, 0, 0, 0, 0); // c7 / flush
     @(negedge clk);
 
-    if (check_if.range_passes != 1 || check_if.range_failures != 0)
+    if (check_if.range_passes != 8 || check_if.range_failures != 0)
       $display("FAILED -- selected range bounds: %0d/%0d",
                check_if.range_passes, check_if.range_failures);
-    else if (check_if.repeat_passes != 1 || check_if.repeat_failures != 0)
+    else if (check_if.repeat_passes != 8 || check_if.repeat_failures != 0)
       $display("FAILED -- selected repetition/difference bounds: %0d/%0d",
                check_if.repeat_passes, check_if.repeat_failures);
     else

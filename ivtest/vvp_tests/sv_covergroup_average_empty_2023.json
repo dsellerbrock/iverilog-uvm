@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_average_empty.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_covergroup_average_empty"
+}

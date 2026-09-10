@@ -165,9 +165,8 @@ module endpoint_fanout_local_case #(
     @(negedge clk) begin
       endpoint = 1; q = 1; observed = 8'ha5;
     end
-    // The original antecedent slot is free after its second endpoint. A new
-    // attempt can now reuse it and overwrite its local copy while the late
-    // consequence must retain the endpoint snapshot.
+    // A concurrent new attempt captures different local data while the late
+    // consequence of the original parent must retain its endpoint snapshot.
     @(negedge clk) begin
       endpoint = 0;
       start = 1; tag = 8'h3c;
@@ -298,10 +297,10 @@ module endpoint_fanout_coincident_case #(
 endmodule
 
 // A strong consequence that is still live at end of simulation fails once
-// for every obligation record, not once for the checker. Two antecedent
+// for every parent attempt, not once for the checker. Two antecedent
 // attempts deliberately reach one endpoint tick and leave two independent
 // unbounded consequences pending.
-module endpoint_fanout_strong_eos_case (
+module endpoint_fanout_strong_eos_case #(parameter TWO_STARTS=1) (
   output integer failures
 );
   logic clk = 0;
@@ -315,7 +314,10 @@ module endpoint_fanout_strong_eos_case (
   initial begin
     failures = 0;
     @(negedge clk) start = 1;
-    @(negedge clk) start = 1;
+    @(negedge clk) begin
+      start = TWO_STARTS;
+      if (!TWO_STARTS) begin endpoint = 1; q = 1; end
+    end
     @(negedge clk) begin
       start = 0;
       endpoint = 1;
@@ -329,8 +331,8 @@ module endpoint_fanout_strong_eos_case (
 
   final begin
     $display("EOS_FAILURE %0d", failures);
-    if (failures != 2)
-      $fatal(1, "strong EOS obligations were coalesced");
+    if (failures != (TWO_STARTS ? 2 : 1))
+      $fatal(1, "strong EOS must report once per parent attempt");
   end
 endmodule
 
@@ -482,7 +484,7 @@ module endpoint_obligation_fanout_nfa_only;
   integer pcl0, fcl0, pcl1, fcl1;
 `endif
   integer pc0, fc0, pc1, fc1, pc2, fc2, pc3, fc3;
-  integer eos_failures;
+  integer eos_failures, eos_single_failures;
   integer pda, fda, pdc, fdc;
   integer pn0, fn0, pn1, fn1, pn2, fn2, pn3, fn3;
 
@@ -515,6 +517,7 @@ module endpoint_obligation_fanout_nfa_only;
   endpoint_fanout_coincident_case #(.NONOVERLAP(1), .EXPECT_PASS(0))
     cc3(pc3,fc3);
   endpoint_fanout_strong_eos_case eos(eos_failures);
+  endpoint_fanout_strong_eos_case #(.TWO_STARTS(0)) eos_single(eos_single_failures);
   endpoint_dependent_antecedent_local_case da(pda,fda);
   endpoint_dependent_consequence_local_case dc(pdc,fdc);
   endpoint_nonzero_local_read_case #(.CONSEQUENCE(0), .UNBOUNDED(0))
@@ -528,39 +531,42 @@ module endpoint_obligation_fanout_nfa_only;
 
   initial begin
     #90;
+    // Nine starts: eight vacuous successes and one failed implication.
+    // Endpoint successes cannot prematurely discharge that parent.
     $display("fanout counts %0d/%0d %0d/%0d %0d/%0d %0d/%0d %0d/%0d %0d/%0d %0d/%0d %0d/%0d",
       p0,f0,p1,f1,p2,f2,p3,f3,p4,f4,p5,f5,p6,f6,p7,f7);
     if ({p0,f0,p1,f1,p2,f2,p3,f3,p4,f4,p5,f5,p6,f6,p7,f7}
-        !== {32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,
-             32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,32'd1})
+        !== {32'd8,32'd1,32'd8,32'd1,32'd8,32'd1,32'd8,32'd1,
+             32'd8,32'd1,32'd8,32'd1,32'd8,32'd1,32'd8,32'd1})
       $fatal(1, "endpoint obligations were merged");
     $display("combinator counts %0d/%0d %0d/%0d %0d/%0d %0d/%0d",
       p8,f8,p9,f9,p10,f10,p11,f11);
     if ({p8,f8,p9,f9,p10,f10,p11,f11}
-        !== {32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,32'd1,32'd1})
+        !== {32'd8,32'd1,32'd8,32'd1,32'd8,32'd1,32'd8,32'd1})
       $fatal(1, "combinator endpoints did not fan out");
 `ifndef NO_LOCAL_FANOUT
     $display("local fanout counts %0d/%0d %0d/%0d", pl0,fl0,pl1,fl1);
-    if ({pl0,fl0,pl1,fl1} !== {32'd2,32'd0,32'd2,32'd0})
+    if ({pl0,fl0,pl1,fl1} !== {32'd9,32'd0,32'd9,32'd0})
       $fatal(1, "endpoint-local snapshots were not independent");
     $display("consequence-local counts %0d/%0d %0d/%0d",
       pcl0,fcl0,pcl1,fcl1);
-    if ({pcl0,fcl0,pcl1,fcl1} !== {32'd2,32'd0,32'd2,32'd0})
+    if ({pcl0,fcl0,pcl1,fcl1} !== {32'd9,32'd0,32'd9,32'd0})
       $fatal(1, "consequence-local snapshots were not independent");
 `endif
     $display("coincident counts %0d/%0d %0d/%0d %0d/%0d %0d/%0d",
       pc0,fc0,pc1,fc1,pc2,fc2,pc3,fc3);
     if ({pc0,fc0,pc1,fc1,pc2,fc2,pc3,fc3}
-        !== {32'd2,32'd0,32'd0,32'd2,32'd2,32'd0,32'd0,32'd2})
+        !== {32'd9,32'd0,32'd7,32'd2,32'd9,32'd0,32'd7,32'd2})
       $fatal(1, "same-tick endpoint verdict actions were coalesced");
     $display("dependent local counts %0d/%0d %0d/%0d",
       pda,fda,pdc,fdc);
-    if ({pda,fda,pdc,fdc} !== {32'd2,32'd0,32'd2,32'd0})
+    if ({pda,fda,pdc,fdc} !== {32'd9,32'd0,32'd9,32'd0})
       $fatal(1, "dependent local RHS escaped its attempt or obligation");
+    // The unbounded antecedent remains open after its first endpoint.
     $display("nonzero local counts %0d/%0d %0d/%0d %0d/%0d %0d/%0d",
       pn0,fn0,pn1,fn1,pn2,fn2,pn3,fn3);
     if ({pn0,fn0,pn1,fn1,pn2,fn2,pn3,fn3}
-        !== {32'd1,32'd0,32'd1,32'd0,32'd1,32'd0,32'd1,32'd0})
+        !== {32'd9,32'd0,32'd8,32'd0,32'd9,32'd0,32'd9,32'd0})
       $fatal(1, "a nonzero local-read continuation was rejected or misrun");
     $display("PASSED");
     $finish(0);
