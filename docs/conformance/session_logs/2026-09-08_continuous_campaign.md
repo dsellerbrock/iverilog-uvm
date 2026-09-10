@@ -1269,3 +1269,16 @@ Checkpoint exact merged aggregate arithmetic only; transition-family sizes and
 parentV01 remain separate. This is one validated increment since publication;
 no new PR under the user's slower cadence. Worktree audit unchanged; canonical
 main982185516/shared graph48779nodes92604edges updated, unrelated trees retained.
+
+
+V04 checkpoint27c1672d6 is now the locally validated semantic baseline;
+completed contract preserved in evidence/v04. Coordinator assessed the next
+existing parentV01 obligation using the canonical graph and current source.
+V05 paired reducer reproduces automatic cross omission: constructor domains
+[0:1]x[0:1] and[0:2]x[0:1],two distinct hits, expected2/6 type coverage;
+actual0 in both editions, while first instance correctly reports1/4.
+Cross state builds per-instance route/auto_total, but type aggregation does
+not include it; local auto-bin ordinals cannot serve as cross-instance identity.
+V05 is the sole active blocker; no source edits yet. Next trace full choice/name
+mapping and existing count machinery before proposing the minimal correction.
+No new PR under the user's milestone cadence.

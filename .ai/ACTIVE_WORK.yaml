@@ -1,44 +1,30 @@
-id: V04
-title: Preserve wide merged coverage denominators through ratio calculation
-status: locally_validated
-phase: documented
-base_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
+id: V05
+title: Include automatic cross-bin identities in merged type coverage
+status: in_progress
+phase: reproduced
+base_revision: 27c1672d6
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 19.11.3; verify primary type coverage and bin identity wording.
-expected_behavior: Merged type coverage uses the countable bin universe across named families without saturating the denominator before calculating a real percentage.
-observed_behavior: V01A retains exact128-bit dynamic family cardinality but type_coverage narrows each family and saturates per-item sums to UINT64_MAX; reproduce the resulting ratio error on the validated baseline.
-reproducer: ../evidence/campaign-20260908/v04/wide.sv
-selection_reason: Existing parent V01 explicitly leaves downstream wide-total saturation unqualified. Source shows exact cardinality is discarded at the final report, undermining coverage-number correctness even though sparse bins need no enumeration.
+  - IEEE1800-2017 and IEEE1800-2023 19.6 and19.11.3; verify exact cross-bin name identity and merged count semantics.
+expected_behavior: Merged type coverage counts the union of automatic cross-bin names across instances, with correctly merged hits and thresholds; constructor-dependent bin products must not collide through local ordinal numbering.
+observed_behavior: Two constructor-dependent cross instances contribute six distinct product bins and two hits but return0.0 merged type coverage; instance coverage correctly returns25.0 for its four-bin domain. Both editions reproduce on validated27c1672d6.
+reproducer: ../evidence/campaign-20260908/v05/cross.sv
+selection_reason: Existing parent V01 still leaves automatic cross-bin union unqualified. Cross coverage is routine DV checking, and omission makes type-level completion/progress reports wrong despite correct per-instance checking.
 allowed_scope:
-  - Merged type-coverage aggregate arithmetic and directly necessary ratio conversion.
-  - Paired wide/multiple-family/neighbor controls, full required gates, review and exact qualification records.
+  - Runtime automatic cross-bin registration, canonical identity/hit mapping and merged type coverage aggregation, with directly necessary existing metadata/state support.
+  - Permanent paired identity/union/threshold/lifetime controls, focused neighbors, required full gates, review and exact records.
 non_goals:
-  - No new coverage architecture, bin representation, transition-family cardinality repair, cross-bin union or type-option implementation.
-  - No application edits, new PR at this blocker, broad audit or unrelated fixes.
+  - No new parser grammar, expanded domain limits, transition-family cardinality repair, named-bin redesign or unrelated coverage options.
+  - No application changes, broad audit, formal architecture changes or immediate new PR.
 invariants:
-  - Keep bin identity, threshold, live/retired union, zero-denominator handling, existing weights and default nonmerged mode intact.
-  - No new domain cap or inaccurate saturation presented as successful coverage.
+  - Use full cross-product bin-name identity; never merge different bins merely because their per-instance ordinals match.
+  - Preserve instance topology, sampling guards, ignore/illegal/named-bin precedence, retention behavior, thresholds, weights, retirement and existing explicit domain boundaries.
 required_gates:
-  - Paired baseline failing ratio reducer and primary-edition semantics before implementation.
-  - Permanent relative-error oracle, small-domain and threshold controls; focused legacy/JSON and coverage neighbors.
-  - Integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent review.
-  - Required remote CI before any separately authorized merge.
-completion: Qualify only preserved merged dynamic totals and aggregate ratio scope; parent V01, transition counts, application/UVM/formal status remain separate.
-discovery_policy: Unrelated findings record-only; proven prerequisite requires deliberate suspension and preserved work.
+  - Paired failing reducer and applicable primary LRM before implementation.
+  - Actual source/metadata/runtime trace and bounded independent design review if shared identity representation changes.
+  - Paired permanent union/identity controls; full coverage neighbors, integrated,VPI,negative,runtime,NFA,JSON,real-DPIUVM,makecheck and final independent review.
+  - Remote CI before separately authorized merge.
+completion: Qualify exact automatic cross union/identity scope supported by reviewed evidence; parent V01 and other residual coverage obligations remain separate.
+discovery_policy: Unrelated findings record-only; proven prerequisite requires deliberate suspension with preserved reducer/work.
 stop_after_completion: false
-last_validated_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-next_action: Establish paired reducer, verify both primary editions, trace all affected arithmetic callers; reuse the existing unsaturated instance-coverage calculation pattern where appropriate.
-
-paired_red: Both2017/2023 at59e5e07c7 return1.084202e-17 instead5.421011e-18 (ratio2); instance query is correct. Two distinct full64-bit named value-bin families have2^65 bins and2 hits.
-primary_semantics: Both19.11.3 require union by bin name; distinct first[value]/second[value] families both contribute. Applicable primary excerpts2017lines38622-38692 and2023lines40539-40606 verified.
-causal_trace: Shared class_type::type_coverage serves object query, overall query, instance dispatch when merged and durable report. It narrows128-bit dynamic cardinality and saturates family sums before division; the separate instance path already avoids this.
-planned_fix: Preserve aggregate totals and hit sums as unsigned128 through ratio conversion inside type_coverage; keep individual transition-family cardinality calculation unchanged. No new helper or data model.
-
-implementation_state: Candidate source/tests frozen. Exact local128-bit aggregate change only; permanent paired tests fail saved baseline at2x and pass candidate.
-focused_validation: Focus2/2legacy+JSON, coverage neighbors75/75legacy+65/65JSON, makecheck and final independent review pass.
-full_gate_handles: real-DPIUVM36614 running; fullJSON96126 completed0 with1664/0; integrated7488 passed4767/4772 with0fail,VPI105,negative149,runtime checks; NFA98267 passed58/58.
-current_toolchain: Compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226 unchanged; runtime e094574ede7fce8d3cff9f035c2a827d50e4a30bb30d75cb9b3c86f69ed1b36a candidate. Saved validated runtime is evidence/v04/baseline-vvp.
-next_validation_action: Await UVM36614; source/tests/tools remain frozen. No dependent fix or ordinary new PR while gates pending.
-
-final_validation: UVM36614 terminated0 with355passed0failed0skipped and real DPI loaded. FullJSON1664/0, integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,NFA58/58 and focused/check/review gates all pass. Frozen compiler/runtime fingerprints unchanged.
-next_checkpoint_action: Commit V04 exact aggregate fix and preserve completed contract; return to selection. No PR until a subsequent substantial milestone unless explicitly requested.
+last_validated_revision: 27c1672d6
+next_action: Trace constructed cross choices/routes and shared count updates, verify primary bin-name semantics, then choose the smallest correct reuse of existing registration/counter machinery.

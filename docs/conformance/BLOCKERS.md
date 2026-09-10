@@ -507,3 +507,14 @@ qualification remain open. Evidence: campaign-20260908/s03.
   transition-family cardinality unchanged. Focus2/2+2/2, coverage neighbors75/65,
   makecheck and independent review pass. Integrated4772total4767pass0fail2NI3EF,VPI105,negative149,runtime checks,
   fullJSON1664/0,UVM355/0/0,NFA58/58 all pass.
+
+### V05 — Automatic cross bins are omitted from merged type coverage
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.6,19.11.3.
+- **State:** REPRODUCED — both editions on locally validated27c1672d6.
+- **Evidence:** campaign-20260908/v05/cross.sv: two dynamic cross instances,
+  six-bin union and two hits; type coverage0 instead33.333333, instance25 correct.
+- **Scope:** Register supported automatic cross-bin names/counts for merged
+  type coverage, preserving per-instance topology and full product identity.
+- **Closure:** Paired canonical identity/union controls, required full gates
+  and independent review; remote CI before merge. ParentV01 remains open.
