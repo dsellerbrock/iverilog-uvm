@@ -681,3 +681,12 @@ gates and review pass; implementation checkpointac60732f3. Bounded V02 local
 scope closed, parentV01/U01 and remote CI remain open. Worktree audit unchanged,
 unrelated trees preserved. Return to selection; assess unqualified aggregate
 type-option weight semantics using current source and a concrete reducer.
+
+V03 selected after V02 qualification: default overall arithmetic mean ignores
+explicit group type_option.weight. Paired reducer onac60732f3 has type scores
+50/100 and weights1/3, expected87.5, actual75. LRMs19.7.1 table19-3 require
+nonnegative integral type weights for overall cumulative coverage;19.9 defines
+$get_coverage overall score. Sourceof_COVGRP_GET_ALL adds each eligible type
+once; no type-weight metadata exists. Exact contract activated, no implementation
+edits yet. Next settle typed constant conversion and extend existing metadata/
+aggregation minimally; no parentV01/U01 completion claim. No active test handles.

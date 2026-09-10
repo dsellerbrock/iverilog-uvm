@@ -257,3 +257,15 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Closure requirements:** Respect default/explicit merge mode and instance weighting with paired controls, complete required gates and independent review.
 - **Last verified revision:** ac60732f3 implements default weighted instance averaging and explicit merged/public-instance dispatch with native typed option initialization. Focus65/55, integrated4680/4675/0/2/3, VPI103, negative149, runtime15, full JSON1572/0, real-DPI UVM355/0/0, make check and independent review pass.
 - **Limits:** Parent V01 remains open. General type_option weighting, procedural static type-option assignment, goals/strobe and arbitrary cross/transition universes are not qualified by this increment.
+
+### V03 — Overall coverage ignores covergroup type weights
+
+- **Area / edition:** Coverage / IEEE1800-2017 and2023 19.7.1 table19-3,19.9,19.11.
+- **State:** IN_PROGRESS
+- **Confidence:** REPRODUCED and ROOT_CAUSED
+- **Evidence:** evidence/campaign-20260908/v03/type-weight.sv; both editions onac60732f3 return75 instead of87.5 for scores50/100 with type weights1/3.
+- **What it blocks:** Correct overall coverage; declared type priority is silently ignored.
+- **Causal trace:** of_COVGRP_GET_ALL computes an unweighted arithmetic mean; group type-weight metadata is absent.
+- **Closure requirements:** Exact group-level type weights, default/zero/eligibility controls, valid constant conversion, all required local gates and independent review.
+- **Limits:** Coverpoint/cross type weights and procedural static option access remain separate obligations.
+- **Last verified revision:** ac60732f3 paired red; no V03 implementation edits yet.

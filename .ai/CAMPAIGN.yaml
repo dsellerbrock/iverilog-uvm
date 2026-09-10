@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: selection
+current_blocker: V03
+phase: semantic_trace
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: ac60732f3
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V03_semantics_and_required_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
-next_selection: Assess type_option.weight aggregate coverage correctness; keep U01 and broader V01 open.
-next_action: Verify unqualified overall type-weighted coverage against current source and LRM, then select one justified blocker.
-next_command: "graphify query 'global get_coverage type weights' --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+next_selection: V03 selected from paired current-source evidence; U01 and broader V01 remain open.
+next_action: Trace V03 group type-weight constant conversion and metadata; implement only after precise typed nonnegative semantics are established.
+next_command: "sed -n '30985,31015p' elaborate.cc; sed -n '8830,8852p' vvp/vthread.cc"
 next_command_cwd: repository root
-candidate_state: V02 locally qualified and checkpointed atac60732f3; no active implementation blocker.
+candidate_state: No V03 implementation edits yet. Paired type-weight.sv returns75 instead of87.5 on validatedac60732f3.
 installed_tools: Compiler 0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a; runtime 7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
-validation_state: All required V02 local gates pass; final real-DPI UVM9300 completed355/0/0. No test processes running.
-next_validation: Establish next exact reducer and semantics before implementation.
+validation_state: V02 fully locally qualified onac60732f3; V03 paired reducer red. No live processes.
+next_validation: Establish type-weight conversion semantics, implement bounded metadata/aggregation and permanent regressions, then required gates.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

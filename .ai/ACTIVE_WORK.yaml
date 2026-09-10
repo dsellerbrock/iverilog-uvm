@@ -1,44 +1,38 @@
-id: V02
-title: Honor default instance-averaged type coverage
-status: completed_local
-phase: selection
-base_revision: 6eee0480c
+id: V03
+title: Honor covergroup type weight in overall coverage
+status: in_progress
+phase: semantic_trace
+base_revision: ac60732f3
 standards:
-  - IEEE 1800-2017 and IEEE 1800-2023 19.11.3 and type-option table19-3.
-expected_behavior: Default merge_instances=0 computes the weighted average of instance coverage; two half-covered equal-weight instances return50 percent even when their union is fully hit.
-observed_behavior: Both editions return100 percent; merge_instances is accepted but current type_coverage always uses merged counters.
-reproducer: ../evidence/campaign-20260908/v02/average.sv
-causal_hypothesis: Type-option mode is not represented in runtime metadata, and the type query computes only the merged item-counter model.
+  - IEEE1800-2017 and IEEE1800-2023 19.7.1 table19-3, 19.9 and 19.11.
+expected_behavior: Eligible covergroup types contribute to overall coverage according to type_option.weight; scores50 and100 with weights1 and3 produce87.5.
+observed_behavior: Both editions produce75.0; type_option.weight is accepted but ignored by the overall arithmetic mean.
+reproducer: ../evidence/campaign-20260908/v03/type-weight.sv
+causal_hypothesis: Group type weight has no runtime metadata; of_COVGRP_GET_ALL adds each eligible type once without consulting a weight.
 allowed_scope:
-  - Trace covergroup option lowering/metadata in elaborate.cc, netclass.h, t-dll-api.cc, ivl_target.h and tgt-vvp/draw_class.c only as actually needed; identify exact existing path before edits.
-  - elab_expr.cc ordinary typed initializer wrapper and elab_lval.cc existing pseudo-member paths: read weight/get_inst_coverage, write weight, reject procedural get_inst_coverage writes (19.7).
-  - tgt-vvp/eval_object.c existing class-new option initialization marker, including empty groups.
-  - vvp class_type, vthread and vvp_cobject coverage query/options/instance lifecycle; parse/compile metadata only if required by traced path.
-  - tests/vvp_runtime/covgrp_metadata_malformed.vvp and .stderr, existing tagged-metadata validation fixture.
-  - tests/m11_coverage_cross_query_test.sv: explicitly request merged mode and separate instance queries to match existing assertions.
-  - Paired ivtest type-coverage option regressions and corrections to historical test expectations demonstrated inconsistent with the LRM.
-  - .ai/ACTIVE_WORK.yaml
-  - .ai/CAMPAIGN.yaml
-  - docs/conformance/BLOCKERS.md
-  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
-  - docs/conformance/matrices/ieee1800_2017_clause_matrix.md
+  - elaborate.cc and netclass.h covergroup type-option declaration metadata and constant semantics.
+  - ivl_target.h, t-dll-api.cc, tgt-vvp/draw_class.c and vvp parse/compile/class_type metadata as required by the actual trace.
+  - vvp/vthread.cc overall coverage aggregation using existing eligibility and type coverage computations.
+  - Paired ivtest type-weight regressions and existing malformed runtime metadata fixture.
+  - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
+  - docs/conformance/BLOCKERS.md, session log and clause matrix bounded updates.
 non_goals:
-  - No arbitrary coverage redesign, unrelated goal/strobe/cross options, or application changes.
-  - get_inst_coverage mode selection is directly coupled and included; procedural static type-option assignment remains separately unqualified.
-  - No claim that V01 parent or complete functional coverage is qualified.
+  - No redesign of the coverage engine, database persistence or unrelated coverage goals/strobe.
+  - Coverpoint/cross type-option weights and procedural static option access remain separate obligations unless proven prerequisites.
+  - No U01 application changes or complete parentV01 qualification claim.
 invariants:
-  - Preserve explicit merged mode, option.weight semantics, zero-weight and zero-denominator eligibility, unsampled and retired instance accounting.
-  - Reuse existing instance coverage computation and registration where possible.
-  - A discovered prerequisite requires preserved reducer/work and separate coordination before implementation.
+  - Preserve V02 default instance weighting and explicit merged mode.
+  - Reuse eligibility rules; exclude zero type weights and retain100 overall when none contribute.
+  - Type weight is distinct from instance option.weight.
+  - Check nonnegative integral constant semantics against the typed static option declaration before implementing conversion.
+  - Preserve old bytecode defaults and validate new metadata.
 required_gates:
-  - Paired edition red/green default and explicit mode tests; unequal instance weights, empty/unsampled/lifetime and merged controls.
-  - Applicable IEEE semantics and causal source trace; independent review.
-  - Focused coverage, required integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
+  - Paired red/green weighted overall coverage; defaults, zero weights, excluded/empty types and reversed proportions.
+  - Constant-domain validation and independent review.
+  - Focused legacy/JSON, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
   - Remote CI before merge.
-completion: Only exact supported default/explicit instance averaging scope with reviewed evidence; no closure while required gates remain pending.
+completion: Close only the exact qualified group-level type-weight scope after all required local gates; keep other weighting and parent coverage obligations open.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-
-implementation_revision: ac60732f3
-validation: Focus65/55, integrated4680/4675/0/2/3, VPI103, negative149, runtime15, JSON1572/0, real-DPI UVM355/0/0, make check and review pass.
-remaining_merge_gate: Remote CI before merge.
+last_validated_revision: ac60732f3
+next_action: Trace existing type-option constant lowering and metadata; settle typed nonnegative weight conversion before minimal implementation.
