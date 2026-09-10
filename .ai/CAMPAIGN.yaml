@@ -1,20 +1,20 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: V05
-phase: coordination
+current_blocker: V06
+phase: reproduced
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 27c1672d6a840c4899f873ab01adf66402d31b41
+last_integrated_good_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: Select next justified blocker after V05 checkpoint; two locally validated increments since PR272.
-next_action: Checkpoint locally validated V05, inspect current ready blockers and select one justified next contract. No immediate PR.
-next_command: "rg -n 'State|^###' docs/conformance/BLOCKERS.md"
+next_selection: V06 declared item type weights; V05 is locally validated.
+next_action: Trace V06 item type-weight propagation and metadata compatibility; independent design review before implementation.
+next_command: "sed -n '30965,31025p' elaborate.cc"
 next_command_cwd: repository root
-candidate_state: V05 all required local gates/review pass; checkpoint pending.
+candidate_state: V05 checkpoint59d8f345a is validated; V06 paired reducer fails12.5percent versus37.5percent. No V06 source edits yet.
 installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime6e4f2e37f8e47c3cdfdafa75200b764a20c5ab9625f7086db0c3d802a6820246 (V05 candidate, frozen during gates).
 validation_state: V05 focus13/13 legacy+JSON; neighbors75/65 and V04 2/2; integrated4785total4780pass0fail2NI3EF,VPI105,negative149,runtime checks; JSON1677/0; UVM355/0/0 realDPI-g2012; NFA58/58; makecheck and final review pass.
 next_validation: New blocker must establish reducer and standards contract before changing the validated semantic baseline.

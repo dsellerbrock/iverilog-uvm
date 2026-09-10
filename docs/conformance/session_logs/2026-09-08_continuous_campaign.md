@@ -1334,3 +1334,14 @@ transition cardinality and unqualified options remain open. Completed contract
 preserved in evidence/v05. Worktree audit unchanged; unrelated dirty and
 non-ancestor trees retained. This is the second validated increment since
 publication272; no new PR. Return to coordinator selection after checkpoint.
+
+V05 checkpoint59d8f345a completed; coordinator selected V06 after canonical
+Graphify query and bounded assessment of the remaining item type-weight
+obligation. Primary2017/2023 Table19-3 requires independent type weights
+(default1),and19.11.3 preserves instance weighting for merge_instances0.
+Paired reducer returns12.5 instead37.5 for merged type while instance12.5 is
+correct. Existing item-isolation tests using only option.weight0 will require
+explicit type_option.weight0 to preserve their intended bin-count oracle.
+This correction must not weaken bin assertions. V06 contract is now active;
+no implementation source edits yet. Next trace existing metadata and validate
+minimal backward-compatible extension. No new PR after two increments.

@@ -1,42 +1,31 @@
-id: V05
-title: Preserve constructed cross-bin identities in merged type coverage
-status: done
-phase: documented
-base_revision: 27c1672d6
+id: V06
+title: Honor declared coverpoint and cross type weights in merged coverage
+status: in_progress
+phase: reproduced
+base_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
+last_validated_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 19.6 and19.11.3; verify exact cross-bin name identity and merged count semantics.
-expected_behavior: Merged type coverage counts the union of automatic cross-bin names across instances, with correctly merged hits and thresholds; constructor-dependent bin products must not collide through local ordinal numbering.
-observed_behavior: Two constructor-dependent cross instances contribute six distinct product bins and two hits but return0.0 merged type coverage; instance coverage correctly returns25.0 for its four-bin domain. Both editions reproduce on validated27c1672d6.
-reproducer: ../evidence/campaign-20260908/v05/cross.sv
-selection_reason: Existing parent V01 still leaves automatic cross-bin union unqualified. Cross coverage is routine DV checking, and omission makes type-level completion/progress reports wrong despite correct per-instance checking.
+  - IEEE1800-2017 and IEEE1800-2023 19.7.1 Table19-3 and19.11.3.
+expected_behavior: Declared coverpoint/cross type_option.weight defaults to1 independently of option.weight and weights merged item coverage; ordinary instance and merge_instances0 calculations retain their instance weights.
+observed_behavior: A50-percent and B0-percent with type weights3/1 and instance weights1/3 return12.5percent for both type and instance, where merged type must37.5percent. Both editions reproduce on validated59d8f345a.
+reproducer: ../evidence/campaign-20260908/v06/type-weight.sv
+selection_reason: Explicit residual after V03 and V05; incorrect weights distort routine coverage completion reports even with correct bin counts. This is a direct remaining standard obligation, not a broad audit or selection by ease.
 allowed_scope:
-  - Runtime automatic cross-bin registration, canonical identity/hit mapping and merged type coverage aggregation, including the already-resolved active named properties required for mixed crosses.
-  - Permanent paired identity/union/threshold/lifetime controls, focused neighbors, required full gates, review and exact records.
+  - Declared integral constant type-weight validation and propagation for coverpoints and crosses through existing class IR, target metadata and runtime merged aggregation.
+  - Preserve older VVP metadata compatibility and validate new metadata; reuse existing group type-weight mechanisms where appropriate.
+  - Paired permanent weight/default/zero/mode/constructor interaction and invalid-value controls; correct existing item-isolation fixtures to declare both type and instance weights, with standards-based evidence rather than weakening their bin assertions.
 non_goals:
-  - No new parser grammar, expanded domain limits, transition-family cardinality repair, named-bin redesign or unrelated coverage options.
-  - No application changes, broad audit, formal architecture changes or immediate new PR.
+  - Procedural static type-option assignment, goals/strobe, unsupported topology or transition cardinality redesign.
+  - No application edits, formal architecture changes or unrelated cleanup.
 invariants:
-  - Use full cross-product bin-name identity; never merge different bins merely because their per-instance ordinals match.
-  - Preserve instance topology, sampling guards, ignore/illegal/named-bin precedence, retention behavior, thresholds, weights, retirement and existing explicit domain boundaries.
+  - Type and instance weights remain independent; group weights do not become lower-level defaults.
+  - No silent acceptance of nonconstant, negative, unknown or otherwise unrepresentable new type-weight metadata.
+  - Preserve merge_instances0 weighted-instance semantics, bin identity/count/threshold logic and older bytecode readability.
 required_gates:
-  - Paired failing reducer and applicable primary LRM before implementation.
-  - Actual source/metadata/runtime trace and bounded independent design review if shared identity representation changes.
-  - Paired permanent union/identity controls; full coverage neighbors, integrated,VPI,negative,runtime,NFA,JSON,real-DPIUVM,makecheck and final independent review.
-  - Remote CI before separately authorized merge.
-completion: Qualify exact automatic cross union/identity scope supported by reviewed evidence; parent V01 and other residual coverage obligations remain separate.
-discovery_policy: Unrelated findings record-only; proven prerequisite requires deliberate suspension with preserved reducer/work.
+  - Primary2017 and2023 Table19-3 plus19.11.3, paired baseline failure, causal source trace and independent design review of metadata extension.
+  - Paired permanent positive/negative/default/mode controls and malformed/legacy metadata checks; coverage neighbors and V04/V05 regression controls.
+  - Integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent final review; remote CI before separately authorized merge.
+completion: Close exact declaration-time item type-weight scope only after all required local gates and review pass; other parentV01 and type-option obligations remain open.
 stop_after_completion: false
-last_validated_revision: 27c1672d6
-next_action: Checkpoint V05 exact resolved scope and return to coordinator selection; no immediate PR.
-
-source_trace: Emitter fixes term_idx to source descriptor position per dimension (elaborate.cc32552+); runtime unsized logical_idx is resolved value, fixed-array index stays logical index, static/transition identities are stable metadata. Instance routes use dense auto_bin ordinals, and cov_dyn_bump incorrectly reuses those ordinals for shared type counters. type_coverage omits both constructed automatic universe and active named properties.
-primary_semantics: Both19.11.3 require cross-bin names to be tuples of component bin names; only identical tuples overlap across instances. Verified2017lines38674-38689 and2023lines40593-40607.
-approved_design: Per-class/cross-family interned ordered tuples of(term_idx,logical_idx), registered only after successful plan validation; map local auto-bin IDs to canonical type IDs while preserving instance counters. Reuse existing active named property sets and type_count for mixed crosses. Keep selectors, precedence and current domain boundaries unchanged.
-design_review: Independent review accepts tuple identity for currently supported choices and requires active named-property union so mixed crosses are not partially counted; this is direct aggregation support, not named-bin selection redesign.
-
-focused_evidence: V05 focus13/13 legacy and JSON; coverage neighbors75/65; V04 neighbors2/2; transition kind2/kind3 paired baseline failures and candidate passes; nine malformed plans assert no published denominator and valid-selector mutation triggers the assertion.
-final_review: Independent review finds both validation gaps resolved and no remaining source blocker; full required gates remain pending.
-
-resolved_scope: Supported constructed automatic cross-bin type union using ordered component names, canonical merged hit counts and active named-property aggregation; thresholds, retirement, parent capture and edition-specific retention controls verified. Parent V01 and arbitrary unsupported topology/cardinality/options remain open.
-final_gates: All required local gates pass; integrated4785total4780pass0fail2NI3EF,VPI105,negative149,runtime checks; fullJSON1677/0; real-DPIUVM355/0/0 in actual-g2012; NFA58/58; focus13/13 legacy+JSON; neighbors75/65 and V04 2/2; makecheck and final independent review.
-validated_tool_fingerprints: Compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime6e4f2e37f8e47c3cdfdafa75200b764a20c5ab9625f7086db0c3d802a6820246.
+discovery_policy: Unrelated discoveries record-only; any proven prerequisite requires preserved parent work and a deliberate coordination boundary.
+next_action: Trace existing group type-weight validation/metadata and item aggregation; choose the smallest complete metadata extension with backward compatibility before source edits.

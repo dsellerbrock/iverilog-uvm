@@ -529,3 +529,16 @@ qualification remain open. Evidence: campaign-20260908/s03.
   runtime checks,fullJSON1677/0,real-DPIUVM355/0/0 and makecheck all pass.
   ParentV01 remains open; unsupported topologies, transition cardinality and
   unqualified options are not closed. No immediate PR under milestone cadence.
+
+
+### V06 — Merged item coverage uses instance weights instead of type weights
+
+- **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.7.1,19.11.3.
+- **State:** REPRODUCED — both editions on validated59d8f345a.
+- **Evidence:** v06/type-weight.sv has coverpoint scores50/0,type weights3/1,
+  instance weights1/3. Type returns12.5 rather than37.5; instance12.5 is correct.
+- **Scope:** Declared coverpoint/cross type-weight validation, metadata and merged
+  aggregation. Preserve independent defaults, instance modes and old bytecode.
+- **Closure:** Paired semantic/invalid-value controls, scoped regression oracle
+  corrections for item isolation, all required local gates and independent review.
+  Procedural static assignment and other type-option obligations remain separate.
