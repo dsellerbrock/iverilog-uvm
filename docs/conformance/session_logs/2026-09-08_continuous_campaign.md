@@ -1468,3 +1468,17 @@ inspection. Pinned UVM explicitly warns on parent process termination without
 sequence.kill; prior reduced controls distinguish caller.kill from sequence.kill.
 Fresh unmodified replay is required before attributing a simulator defect.
 No compiler edits authorized in this read-only qualification/reduction phase.
+
+U01 replay73724 terminated1 at harness level: compile/runtime both0,115requests,
+230scoreboarditems,0errors/0fatals,4SEQPRTZMBwarnings and TEST FAILED CHECKS.
+All360exportedinputs match post-L03; warning count variation alone is not a
+regression claim. Paired guard controls61219 pass in2017/2023 (parent.kill1,
+sequence.kill0). Pinned VCS/Questa tool configs explicitly select UVM1.2;
+clean local UVM1.2 c68f035f lacks the newer process guard. Diagnostic compile
+using native --uvm-home, original exports and corrected matrix cwd fails at
+uvm_component.svh3616 #setting.offset and legacy macro invocations. Earlier
+manual invocation had option-order/cwd setup errors and is not defect evidence.
+Classify the corrected first syntax/macro frontier against primary standards
+before any prerequisite implementation. No UVM library install, corpus edit,
+warning suppression, application pass or DPI compatibility claim. V07 remains
+last validated implementation03caa64c8; U01 is active read-only triage.

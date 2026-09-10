@@ -1,7 +1,7 @@
 id: U01
 title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
 status: in_progress
-phase: current_baseline_replay
+phase: library_compatibility_triage
 base_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
 standards:
   - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
@@ -32,3 +32,7 @@ stop_after_completion: false
 last_validated_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
 selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
 next_action: Run the preserved pinned smoke in a fresh native build root, compare exported inputs and exact traffic/teardown observations, then reduce only a justified simulator divergence.
+current_replay: u01-after-v07/result.json RUNTIME_FAIL;115requests,230scoreboarditems,0errors/0fatals,4SEQPRTZMBwarnings,TEST FAILED CHECKS; all360exportedfiles unchanged.
+current_controls: Paired2017/2023 parent.kill emits1warning and sequence.kill emits0; all guard controls pass.
+compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campaign uses current bundled UVM. Clean local UVM1.2 revision c68f035f9c8e965807082495c5a667729afe3aa8 lacks the newer sequence-parent guard.
+next_triage: Native --uvm-home diagnostic with original application sources and correct matrix cwd fails first at uvm_component.svh3616 (#setting.offset), then legacy macro invocations. Check applicable delay grammar and macro semantics before classifying any compiler defect or selecting a prerequisite; do not edit corpus or suppress diagnostics.

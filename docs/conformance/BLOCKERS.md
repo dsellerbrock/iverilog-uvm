@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** 4bcbd9c7b fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but2SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match prior replay. Earlier four-warning teardown frontier and reduced parent-kill mechanism are preserved; warning-count change does not qualify the application. Evidence: campaign-20260908/u01-after-l03.
+- **Last verified revision:** 03caa64c8 fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but4SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match post-L03 replay. Paired parent.kill/sequence.kill controls still distinguish1/0 warnings. Pinned OpenTitan tool configs select UVM1.2; current-library compatibility and teardown remain unqualified. UVM1.2 diagnostic compile frontier is being classified without corpus edits. Evidence: campaign-20260908/u01-after-v07.
 
 ### Z01 — Joint solve-before stages unsupported
 
