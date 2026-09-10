@@ -1,7 +1,7 @@
 id: L05
 title: Preserve associative class-member foreach index type
-status: in_progress
-phase: awaiting_validation
+status: locally_validated
+phase: documented
 base_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 standards:
   - IEEE1800-2017 and IEEE1800-2023 12.7.3 and associative array rules; verify primary text before implementation.
@@ -36,3 +36,6 @@ semantic_review: Same-name selector/loop-key positive control withdrawn. IEEE12.
 focused_validation: Paired10/10legacy+JSON; foreach neighbors53/53legacy+34/34JSON; makecheck and final independent review pass.
 current_toolchain: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Comment-only rebuild produced identical fingerprints.
 residual_scope: Selected-array non-member production and invalid header index validation DD-009 remain unqualified by this increment; no runtime target-binding change.
+
+final_validation: UVM42794 terminated0 with355 passed,0 failed,0 skipped and real DPI loaded. FullJSON1662/0, integrated4765/4770 with zero failures, NFA58/58 and all focused/neighbor/check/review gates pass. Remote CI remains required before merge.
+next_checkpoint_action: Commit the exact reviewed L05 source/tests and bounded qualification; return to campaign selection without another user message.

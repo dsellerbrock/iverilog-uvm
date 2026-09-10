@@ -1167,3 +1167,12 @@ from the validated historical trees only in inherited AGENTS.md PR policy;
 no L05 semantic work is included. Required remote CI/review remain pending.
 L05 fullJSON84561 terminated0:1662 tests,zero failures. UVM42794 remains
 running; source/tests/tools remain frozen and last validated head4bcbd9c7b.
+
+
+L05 final UVM42794 terminated0:355 passed,0 failed,0 skipped with real DPI
+loaded. FullJSON84561 passed1662/0; integrated66792 passed4770total4765pass,
+0fail2NI3EF, VPI105/105,negative149/149,runtime checks; NFA58/58.
+Focused paired10/10+10/10, foreach neighbors53/34,makecheck and independent
+review already passed on the frozen source/tools. Checkpoint only selected
+member index typing. DD-009 invalid header selection and other residuals stay
+separate. Remote CI remains required before merge; campaign continues.
