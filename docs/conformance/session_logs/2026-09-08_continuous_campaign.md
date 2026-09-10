@@ -803,3 +803,11 @@ opportunistically. Full real-DPI UVM14116 launched as the sole pending localgate
 No semantic implementation changes; preserve installed candidate and last
 validated baseline2be79b2c0 until final UVM passes. Next poll14116, then review
 final evidence and checkpoint S03 before returning to selection.
+
+S03 full real-DPI UVM14116 completed0:355pass/0fail/0skip. All required local
+gates and independent review now pass. Installed compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c
+and runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec
+remained unchanged throughout final validation. Only source-comment clarifications
+followed the candidate build; no semantic code changes. Worktree audit unchanged,
+unrelated changes preserved. Checkpoint exact S03 parent aggregation; retain
+remote CI before merge, finite cyclic limits, S02 and DD005. Return to selection.

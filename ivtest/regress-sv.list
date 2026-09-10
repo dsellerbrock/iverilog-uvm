@@ -2688,3 +2688,5 @@ sv_covergroup_type_weight_nonconstant_fail CE,-g2017 ivltests gold=sv_covergroup
 sv_covergroup_type_weight_nonconstant_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_type_weight_nonconstant_fail_2023.gold
 sv_covergroup_type_weight_signed_fail CE,-g2017 ivltests gold=sv_covergroup_type_weight_signed_fail.gold
 sv_covergroup_type_weight_signed_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_type_weight_signed_fail_2023.gold
+sv_assert_attempt_verdict normal,-g2017 ivltests gold=sv_assert_attempt_verdict.gold
+sv_assert_attempt_verdict_2023 normal,-g2023 ivltests gold=sv_assert_attempt_verdict.gold

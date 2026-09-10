@@ -835,3 +835,11 @@ implication exclusion is superseded by fixed-chain support in `0ff77277c`.
 Twelve focused runs cover both editions and both SVA modes, including coincident
 edge order, later consequent ticks, sampling and nested flow. Broader multiclock
 assertion qualification remains PARTIAL. Evidence: campaign-20260908/s01.
+
+S03: IMPLEMENTED with reviewed local qualification (unmerged), IEEE1800-2017/
+2023 16.12.7. Split NFA endpoint consequences aggregate truth per starting
+implication attempt rather than dispatching each child verdict. Paired controls
+cover mixed/forbidden consequences, vacuity, parent/child reuse, cancellation,
+cover counts and strong EOS; required local suites pass including real-DPI
+UVM355. Existing finite cyclic-pool limits remain; DD005 nonfanout vacuity and
+S02 multiclock identity remain unqualified. Assertions as a whole stay PARTIAL.

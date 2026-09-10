@@ -11385,6 +11385,7 @@ static Statement* sva_cover_action_(const struct vlltype&loc,
    same-tick batch. */
 static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
 			      Statement*action);
+static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
 
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
    (sva_rewrite_sampled_) expands into an explicit history chain. d<=0
@@ -16487,8 +16488,8 @@ static bool sva_nfa_local_prefix_safe_(
  *     only after existing records advance.  Each record owns its
  *     state set and a snapshot of that endpoint's sequence locals.
  * Ordinary shapes retain the legacy one-bit per-tick verdict flags. Endpoint
- * fan-out counts every consequence verdict and repeats its action/callback,
- * preserving independent obligations even when several resolve together.
+ * fan-out aggregates consequence verdicts by parent attempt and repeats the
+ * action/callback for distinct parents resolving on the same tick.
  * Loop-free automata
  * get K = longest path: an attempt lives at most that many ticks, so
  * the pool provably cannot overflow. Cyclic automata (mid-chain
@@ -16783,6 +16784,24 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (sva_nfa_slots_env_() > 0) K = sva_nfa_slots_env_();
       }
 
+      bool consequence_cyclic = endpoint_fanout
+	    && pform_sva_nfa_has_cycle(consequence_nfa);
+      long consequence_depth = endpoint_fanout
+	    ? pform_sva_nfa_depth(consequence_nfa) : 0;
+      const long antecedent_capacity = K;
+      if (endpoint_fanout) {
+	    /* Parent identity outlives antecedent discovery. For finite paths,
+	       retain enough slots for both lifetimes, including |=> injection.
+	       Either cyclic machine makes the parent pool finite-capacity. */
+	    if (!cyclic && !consequence_cyclic) {
+		  if (consequence_depth > LONG_MAX - K) return false;
+		  K += consequence_depth;
+	    } else {
+		  K = K > 8 ? K : 8;
+		  if (K > 16) K = 16;
+		  if (sva_nfa_slots_env_() > 0) K = sva_nfa_slots_env_();
+	    }
+      }
       unsigned N = nfa.nstates;
       /* Preserve the established limit for ordinary one-pool NFAs. Split
 	 antecedent/consequence implications need a larger aggregate allowance
@@ -16790,10 +16809,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       const long generated_state_budget = endpoint_fanout ? 8192 : 1024;
       if (K <= 0 || (long)N > generated_state_budget / K) return false;
       long generated_states = (long)N * K;
-      bool consequence_cyclic = endpoint_fanout
-	    && pform_sva_nfa_has_cycle(consequence_nfa);
-      long consequence_depth = endpoint_fanout
-	    ? pform_sva_nfa_depth(consequence_nfa) : 0;
       long OK = 0;
       unsigned ON = 0;
       if (endpoint_fanout) {
@@ -16801,12 +16816,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    long lifetime = consequence_depth > 0 ? consequence_depth : 1;
 	    if (consequence_cyclic && lifetime < 8) lifetime = 8;
 	    /* An antecedent slot can emit at most one endpoint per tick.
-		 For an acyclic consequence, K*lifetime slots are therefore an
-		 exact capacity bound. A cyclic consequence is necessarily
+		 For an acyclic consequence, antecedent_capacity*lifetime slots
+		 are therefore an exact capacity bound. A cyclic consequence is necessarily
 		 finite-pool execution; retain the established loud-overflow
 		 contract and cap the generated checker size. */
-	    if (K > LONG_MAX / lifetime) return false;
-	    OK = K * lifetime;
+	    if (antecedent_capacity > LONG_MAX / lifetime) return false;
+	    OK = antecedent_capacity * lifetime;
 	    if (consequence_cyclic && OK > 256) OK = 256;
 	    if (OK < K) OK = K;
 	    if (ON == 0
@@ -16869,6 +16884,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
+      perm_string vacuous;
+      if (endpoint_fanout && !cover) {
+	    vacuous = sva_make_reg_(loc, inst, "vac", 0, true);
+	    init_zero.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
+      }
 
 	/* Rewrite sampled-value functions in the already-Preponed action
 	   arguments against this checker's history state, then rebuild the
@@ -16906,7 +16926,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  pass_stmt = sva_block_(loc, ordered);
 		  match_action = nullptr;
 	    }
-	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+	    if (endpoint_fanout) {
+		  std::vector<Statement*> action;
+		  action.push_back(sva_reactive_wait_(loc));
+		  PExpr*dec = new PEBinary('-', sva_id_(loc, vacuous),
+					  sva_num32_(loc, 1));
+		  FILE_NAME(dec, loc);
+		  action.push_back(sva_if_(loc, sva_id_(loc, vacuous),
+			    sva_assign_(loc, vacuous, dec),
+			    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+		  if (pass_stmt) action.push_back(pass_stmt);
+		  pass_stmt = sva_block_(loc, action);
+	    } else {
+		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+	    }
       }
 
 	/* disable iff: own, else the module default (cloned). */
@@ -17108,6 +17141,21 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    spawn[k] = sva_make_reg_(loc, inst, "spawn", (unsigned)k);
 	    init_zero.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 0)));
       }
+      std::vector<perm_string> parent_live(spawn.size()), matched(spawn.size());
+      for (long k = 0; k < (long)spawn.size(); ++k) {
+	    parent_live[k] = sva_make_reg_(loc, inst, "parent", (unsigned)k);
+	    matched[k] = sva_make_reg_(loc, inst, "matched", (unsigned)k);
+	    init_zero.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 0)));
+	    init_zero.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 0)));
+      }
+      std::vector<perm_string> owner(OK), failed_owner(OK), failed(OK);
+      for (long o = 0; o < OK; ++o) {
+	    owner[o] = sva_make_reg_(loc, inst, "owner", (unsigned)o, true);
+	    failed_owner[o] = sva_make_reg_(loc, inst, "failed_owner", (unsigned)o, true);
+	    failed[o] = sva_make_reg_(loc, inst, "failed", (unsigned)o);
+	    init_zero.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, 0)));
+	    init_zero.push_back(sva_assign_(loc, failed[o], sva_bit_(loc, 0)));
+      }
       std::vector<perm_string> ob;
       bool track_ob = implication && !cover && !endpoint_fanout;
       if (track_ob) {
@@ -17189,12 +17237,16 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  clear_slot(k, clr);
 		  if (track_ob)
 			clr.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
-		  if (endpoint_fanout)
+		  if (endpoint_fanout) {
 			clr.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 0)));
+			clr.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 0)));
+		  }
 	    }
 	    if (endpoint_fanout)
 		  for (long k = 0 ; k < OK ; k += 1)
 			clear_obligation(k, clr);
+	    if (endpoint_fanout && !cover)
+		  clr.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
 	    if (!cover) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 		  clr.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
@@ -17235,6 +17287,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				    sva_block_(loc, once), nullptr);
 	    for (long o = OK - 1 ; o >= 0 ; o -= 1) {
 		  std::vector<Statement*>take;
+		  take.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, source)));
 		  take.push_back(sva_assign_(loc, os[o][consequence_nfa.start],
 					  sva_bit_(loc, 1)));
 		  for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
@@ -17259,7 +17312,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    snprintf(msg, sizeof msg,
 		     "SVA NFA: attempt pool overflow (%ld slots) -- "
 		     "attempts are being dropped%s", K,
-		     cyclic ? "; raise IVL_SVA_NFA_SLOTS" : " (internal bug)");
+		     (cyclic || consequence_cyclic)
+			? "; raise IVL_SVA_NFA_SLOTS" : " (internal bug)");
 	    std::list<named_pexpr_t> dargs;
 	    named_pexpr_t darg;
 	    darg.parm = new PEString(strdup(msg));
@@ -17271,11 +17325,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    once.push_back(warn);
 	    Statement*inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_ovf)),
 				    sva_block_(loc, once), nullptr);
-	    for (long k = K-1 ; k >= 0 ; k -= 1)
-		  inj = sva_if_(loc, sva_not_(loc, busy_expr(k)),
-				sva_assign_(loc, s[k][nfa.start],
-					    sva_bit_(loc, 1)),
-				inj);
+	    for (long k = K-1 ; k >= 0 ; k -= 1) {
+		  std::vector<Statement*> take;
+		  take.push_back(sva_assign_(loc, s[k][nfa.start], sva_bit_(loc, 1)));
+		  if (endpoint_fanout) {
+			 take.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 1)));
+			 take.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 0)));
+		  }
+		  inj = sva_if_(loc, sva_not_(loc, endpoint_fanout
+			      ? (PExpr*)sva_id_(loc, parent_live[k]) : busy_expr(k)),
+			      sva_block_(loc, take), inj);
+	    }
 	    body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     inj, nullptr));
       }
@@ -17399,6 +17459,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::vector<Statement*> acc_v, die_v, cont_v;
 	    if (endpoint_fanout) {
 		  acc_v.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
+		  acc_v.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 1)));
 		  /* Reaching an antecedent endpoint is a successful checker step.
 		     For |=> the new obligation is intentionally allocated only after
 		     old consequences advance, so consequence-side bookkeeping cannot
@@ -17481,6 +17542,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   only this record; sibling endpoints, including endpoints from the same
 	   antecedent attempt, retain their own state and local-data snapshot. */
       if (endpoint_fanout) for (long o = 0 ; o < OK ; o += 1) {
+	    body.push_back(sva_assign_(loc, failed[o], sva_bit_(loc, 0)));
+	    body.push_back(sva_assign_(loc, failed_owner[o], sva_id_(loc, owner[o])));
 	    std::map<perm_string,PExpr*> lvmap;
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
 		  lvmap[lv_list[li]] = sva_id_(loc, ovk[o][li]);
@@ -17565,15 +17628,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					 sva_not_(loc, alive));
 
 	    std::vector<Statement*> acc_v, die_v, cont_v;
-	    if (cover) {
-		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
-					      sva_bit_(loc, 1));
-		  FILE_NAME(add, loc);
-		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
-	    } else {
-		  acc_v.push_back(increment_verdict(forbidden ? r_f : r_p));
-		  die_v.push_back(increment_verdict(forbidden ? r_p : r_f));
-	    }
+	    (forbidden ? acc_v : die_v).push_back(
+		  sva_assign_(loc, failed[o], sva_bit_(loc, 1)));
 	    if (!cover)
 		  die_v.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    clear_obligation(o, acc_v);
@@ -17597,6 +17653,57 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       if (endpoint_fanout && prop->op_type == 2)
 	    for (long k = 0 ; k < K ; k += 1)
 		  body.push_back(spawn_obligation_stmt(k));
+
+      auto owned_by = [&](long o, long k) -> PExpr* {
+	    PExpr*eq = new PEBComp('e', sva_id_(loc, owner[o]), sva_num32_(loc, k));
+	    FILE_NAME(eq, loc);
+	    return eq;
+      };
+      auto pending_children = [&](long k) -> PExpr* {
+	    PExpr*pending = sva_bit_(loc, 0);
+	    for (long o = 0; o < OK; ++o)
+		  pending = sva_logic_(loc, 'o', pending, sva_logic_(loc, 'a',
+			    owned_by(o, k), obligation_busy_expr(o)));
+	    return pending;
+      };
+      /* Consequences are independent evaluations of ONE implication.
+	 Failure terminates that parent once. Success waits for all endpoints,
+	 including any allocated after advancement for nonoverlap. */
+      if (endpoint_fanout) for (long k = 0; k < K; ++k) {
+	    PExpr*bad = sva_bit_(loc, 0);
+	    for (long o = 0; o < OK; ++o)
+		  bad = sva_logic_(loc, 'o', bad, sva_logic_(loc, 'a',
+			    new PEBComp('e', sva_id_(loc, failed_owner[o]), sva_num32_(loc, k)),
+			    sva_id_(loc, failed[o])));
+	    std::vector<Statement*> pass, fail, done;
+	    if (cover) {
+		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
+			    increment_verdict(r_cnt), nullptr));
+	    } else {
+		  pass.push_back(increment_verdict(r_p));
+		  pass.push_back(sva_if_(loc, sva_not_(loc, sva_id_(loc, matched[k])),
+			    increment_verdict(vacuous), nullptr));
+		  fail.push_back(increment_verdict(r_f));
+	    }
+	    auto finish = [&](std::vector<Statement*>&out) {
+		  clear_slot(k, out);
+		  out.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 0)));
+		  for (long o = 0; o < OK; ++o) {
+			std::vector<Statement*> clear;
+			clear_obligation(o, clear);
+			out.push_back(sva_if_(loc, owned_by(o, k),
+				      sva_block_(loc, clear), nullptr));
+		  }
+	    };
+	    finish(pass);
+	    finish(fail);
+	    PExpr*ready = sva_not_(loc, sva_logic_(loc, 'o', busy_expr(k),
+						 pending_children(k)));
+	    done.push_back(sva_if_(loc, bad, sva_block_(loc, fail),
+			    sva_if_(loc, ready, sva_block_(loc, pass), nullptr)));
+	    body.push_back(sva_if_(loc, sva_id_(loc, parent_live[k]),
+				   sva_block_(loc, done), nullptr));
+      }
 
 	/* Pass then fail dispatch: one report site each per tick, in
 	   the legacy engine's output order (pass before fail). Cover
@@ -17770,22 +17877,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
       }
 
-	/* A split consequence record, not its antecedent-discovery slot, owns
-	   the end-of-simulation obligation. Strong fails for any live record;
-	   weak reports only cyclic records that remain pending. */
+	/* At end of simulation, pending strong consequences fail each parent
+	   once. Weak consequences retain the cyclic pending diagnostic. */
       if (endpoint_fanout && !negated && !cover
 	  && (strong_seq || consequence_cyclic)) {
 	    if (strong_seq) {
-		  /* A strong property resolves every live consequence record at
-		     end of simulation. Count records (OR-reducing only the states
-		     within one record), then repeat the complete failure action and
-		     cbAssertionFailure report once per independent obligation. */
+		  /* OR all pending children of a parent before counting verdicts;
+		     sibling endpoints must not duplicate its EOS failure action. */
 		  PExpr*pend_count = new PENumber(
 			new verinum((uint64_t)0, 64));
 		  FILE_NAME(pend_count, loc);
-		  for (long o = 0 ; o < OK ; o += 1) {
+		  for (long k = 0 ; k < K ; k += 1) {
 			PEBinary*add = new PEBinary('+', pend_count,
-					      obligation_busy_expr(o));
+					      pending_children(k));
 			FILE_NAME(add, loc);
 			pend_count = add;
 		  }

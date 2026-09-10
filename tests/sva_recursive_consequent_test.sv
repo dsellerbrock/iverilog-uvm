@@ -96,10 +96,12 @@ module sva_recursive_consequent_test;
     stop = 1;
     tick();
 
+    // Seventeen enabled starts (t15..t175): the nested and throughout
+    // NFA paths each have one nonvacuous and sixteen vacuous successes.
     if (pass_not != 1 || fail_not != 1 || fail_always != 1 || pass_eventual != 1 ||
         pass_until != 1 || fail_until != 1 ||
-        pass_nested != 1 || fail_nested != 0 ||
-        pass_throughout != 1 || fail_throughout != 0) begin
+        pass_nested != 17 || fail_nested != 0 ||
+        pass_throughout != 17 || fail_throughout != 0) begin
       $display("FAIL: recursive consequent counters n=%0d/%0d a=%0d e=%0d u=%0d/%0d i=%0d/%0d t=%0d/%0d",
                pass_not, fail_not, fail_always, pass_eventual,
                pass_until, fail_until, pass_nested, fail_nested,

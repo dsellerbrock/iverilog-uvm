@@ -296,7 +296,7 @@ architecture expansion is not authorized by this suspension.
 ### S03 — NFA implication verdicts are emitted per endpoint
 
 - **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7.
-- **State:** ACTIVE — patched, awaiting required validation.
+- **State:** LOCALLY VALIDATED — remote CI required before merge.
 - **Evidence:** `../evidence/campaign-20260908/s03/attempt-verdict.sv` fails
   both editions at `2be79b2c0`: one start with two failing consequences emits
   two failure actions instead of one. Independent semantic review confirms.
@@ -307,3 +307,13 @@ architecture expansion is not authorized by this suspension.
   failure, delayed success, vacuity, cancellation and end-of-simulation;
   retain independent endpoints and local snapshots. Correct affected golds
   only from reviewed semantics and run required gates.
+
+S03 result: existing NFA endpoint fanout retains parent identity through all
+consequences; one child failure terminates the parent once, and success waits
+for antecedent closure and all child successes. Vacuous user actions, distinct
+nonvacuous callbacks, local snapshots, same-tick slot reuse, disable/kill,
+cover counts and parent-counted strong EOS are covered. All required local
+gates/review pass: NFA58, focus55/20, integrated4692/4687/0/2/3,VPI103,
+negative149,runtime15,JSON1584,real-DPI UVM355,make check. Finite cyclic-pool
+limits, DD005 nonfanout vacuity, S02 multiclock identity and broader SVA/formal
+qualification remain open. Evidence: campaign-20260908/s03.
