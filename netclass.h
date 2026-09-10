@@ -448,6 +448,7 @@ class netclass_t : public ivl_type_s {
       struct covgrp_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
+            unsigned type_weight = 1;
 	    std::string weight_ir; // per-instance constructor expression
 	    int at_least_prop = -1; // mutable per-instance option slot
 	    int weight_prop = -1;   // mutable per-instance option slot
@@ -523,7 +524,8 @@ class netclass_t : public ivl_type_s {
       { return covgrp_cross_bins_.size(); }
       const covgrp_cross_bin_t& covgrp_cross_bin(size_t idx) const
       { return covgrp_cross_bins_[idx]; }
-      void add_covgrp_item(unsigned at_least, unsigned weight, bool is_cross,
+      void add_covgrp_item(unsigned at_least, unsigned weight,
+                           unsigned type_weight, bool is_cross,
 			   perm_string name = perm_string(),
 			   const std::string&weight_ir = std::string(),
 			   PExpr*iff_expr = nullptr, int iff_src = -1,
@@ -531,6 +533,7 @@ class netclass_t : public ivl_type_s {
       { covgrp_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
+        it.type_weight = type_weight;
 	it.weight_ir = weight_ir;
 	it.at_least_prop = at_least_prop;
 	it.weight_prop = weight_prop;

@@ -2916,6 +2916,14 @@ void compile_class_covgrp_type_weight(uint64_t weight)
             compile_class->covgrp_type_weight((unsigned)weight);
 }
 
+void compile_class_covgrp_item_type_weight(uint64_t item_idx, uint64_t weight)
+{
+      assert(compile_class);
+      if (weight > INT32_MAX
+            || !compile_class->set_covgrp_item_type_weight(item_idx, (unsigned)weight))
+            yyerror("invalid .covgrp_item_type_weight metadata value");
+}
+
 void compile_class_covgrp_item_options(uint64_t item_idx,
 				       uint64_t at_least_prop,
 				       uint64_t weight_prop)
@@ -3610,11 +3618,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
             return weights != 0 ? (double)(weighted / weights) : 0.0;
       }
 
-	// Same per-item weighted model as instance coverage, computed
-	// over the type-level counters. Until the complete 19.11.3
-	// merge_instances/type_option model is represented, use stable
-	// declaration weights rather than making this static result depend on
-	// which instance happened to invoke get_coverage().
+      // Merged coverage uses independently declared item type weights;
+      // ordinary instance weights were consumed by the merge=false path.
       std::map<unsigned, std::set<unsigned>> item_props;
 	std::map<unsigned,unsigned __int128> item_trans_total;
 	std::map<unsigned,unsigned __int128> item_trans_hits;
@@ -3687,7 +3692,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	    unsigned at_least = 1, weight = 1;
 	    if (item_idx < covgrp_items_.size()) {
 		  at_least = covgrp_cumulative_at_least_(item_idx);
-		  weight = covgrp_items_[item_idx].weight;
+		  weight = covgrp_items_[item_idx].type_weight;
 	    }
 	    unsigned __int128 total = item_trans_total[item_idx];
 	    unsigned __int128 hits = 0;

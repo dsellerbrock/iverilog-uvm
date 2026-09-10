@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V06
-phase: awaiting_validation
+phase: coordination
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V06_integrated, V06_JSON, V06_real_DPI_UVM, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: V06 declared item type weights; V05 is locally validated.
-next_action: Poll live integrated95424 and UVM26530. NFA50661 completed0 and final review clear. FullJSON must start only after integrated terminal success. No tool rebuild/install while gates run.
-next_command: "tail -n 20 ../evidence/campaign-20260908/v06/integrated.log"
+next_selection: Assess DD010 uninstantiated merged-type eligibility after V06 checkpoint; coherent coverage milestone publication due within3-5 validated increments.
+next_action: Checkpoint V06, then select the next justified contract using current evidence. No required local gates remain for V06.
+next_command: "sed -n '3592,3628p' vvp/class_type.cc"
 next_command_cwd: repository root
-candidate_state: V06 uncommitted candidate including fixed compound-formal binding; focused controls pass. Last validated semantic baseline59d8f345a. Full gates running.
+candidate_state: V06 all required local gates/review pass; semantic checkpoint pending.
 installed_tools: Frozen V06 compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a; runtimef38e482bc738cc9f7ce84ff4817e59143aa99f7501cd4aae297b8addc194ce8e. Saved validated V05 tools remain in evidence/v06.
-validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/legacy+new interpretation,makecheck pass. NFA50661 completed0 with58/58; final independent review clear including outer-function scope discriminator. Integrated95424 and UVM26530 confirmed live; JSON not started.
-next_validation: Poll live gate sessions; after integrated success run PATH="$PWD/../local-install/bin:$PATH" ../../evidence/arm64-tooling/resource-runner python3 ./vvp_reg.py from ivtest, redirect to evidence/v06/json.log. All required gates before semantic checkpoint.
+validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
+next_validation: Next blocker requires a new exact contract and baseline reducer; preserve reviewed V06 tools until selection.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,6 +149,6 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-validated_increments_since_publication: 2
+validated_increments_since_publication: 3
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.

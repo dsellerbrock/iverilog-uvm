@@ -3,8 +3,8 @@ module test;
   covergroup cg(int lo, int hi) with function sample(int x, bit y);
     type_option.merge_instances = 1;
     option.get_inst_coverage = 1;
-    cx: coverpoint x { option.weight=0; bins b[] = {[lo:hi]}; }
-    cy: coverpoint y { option.weight=0; }
+    cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = {[lo:hi]}; }
+    cy: coverpoint y { option.weight=0; type_option.weight=0; }
     xy: cross cx,cy;
   endgroup
   cg a,b,c,empty_instance;

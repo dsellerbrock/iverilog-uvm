@@ -44,7 +44,7 @@ module test;
   covergroup weighted(bit [63:0] hi) with function sample(bit [63:0] v);
     type_option.merge_instances = 1;
     cp_large: coverpoint v { option.weight = 1; bins b[] = {[0:hi]}; }
-    cp_small: coverpoint v { option.weight = 3; bins a = {0}; bins b = {1}; }
+    cp_small: coverpoint v { option.weight = 3; type_option.weight = 3; bins a = {0}; bins b = {1}; }
   endgroup
   covergroup small_domain(int hi) with function sample(int v);
     type_option.merge_instances = 1;

@@ -2,8 +2,8 @@
 module test;
   covergroup named_cg(int n) with function sample(int x,bit y);
     type_option.merge_instances=1;
-    cx: coverpoint x { option.weight=0; bins b[] = {[0:n-1]}; }
-    cy: coverpoint y { option.weight=0; }
+    cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = {[0:n-1]}; }
+    cy: coverpoint y { option.weight=0; type_option.weight=0; }
     xy: cross cx,cy {
       option.cross_retain_auto_bins=0;
       bins selected = binsof(cx) intersect {2};
@@ -11,8 +11,8 @@ module test;
   endgroup
   covergroup auto_cg(int n) with function sample(int x,bit y);
     type_option.merge_instances=1;
-    cx: coverpoint x { option.weight=0; bins b[] = {[0:n-1]}; }
-    cy: coverpoint y { option.weight=0; }
+    cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = {[0:n-1]}; }
+    cy: coverpoint y { option.weight=0; type_option.weight=0; }
     xy: cross cx,cy { option.cross_retain_auto_bins=0; }
   endgroup
   named_cg a,b;

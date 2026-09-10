@@ -2,8 +2,8 @@ module test;
   covergroup cg(int hi) with function sample(int x,bit y,bit enabled);
     type_option.merge_instances=1;
     option.get_inst_coverage=1;
-    cx: coverpoint x { option.weight=0; bins b[] = {[0:hi]}; }
-    cy: coverpoint y { option.weight=0; }
+    cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = {[0:hi]}; }
+    cy: coverpoint y { option.weight=0; type_option.weight=0; }
     xy: cross cx,cy iff(enabled) {
       bins zero = binsof(cx) intersect {0};
       bins zero_again = binsof(cx) intersect {0};

@@ -1000,3 +1000,16 @@ named/arrayed transition sources;2023-only retention is separately controlled.
 Malformed plans publish no type denominator. All required local gates and
 independent review pass. Existing topology limits, transition-family cardinality,
 unqualified type options and parentV01 remain separate; remote CI before merge.
+
+
+V06: IMPLEMENTED (bounded local qualification, unmerged), IEEE1800-2017 and
+IEEE1800-2023 19.7.1,19.10,19.11.3. Declaration-time coverpoint and cross
+type_option.weight independently weights merged type coverage, with default1
+and typed non-negative constant validation. Instance and merge_instances0
+weighting remain independent. Group type weights do not become item defaults.
+Typed formal aliases prevent outer-name capture while permitting constant
+type queries and lexical outer constant functions. New tagged item metadata
+preserves older VVP record interpretation and validates indices/weight bounds.
+All required local gates and independent review pass. Procedural static option
+assignment, other type options and DD010 uninstantiated-type eligibility remain
+unqualified; this does not close parentV01. Remote CI required before merge.

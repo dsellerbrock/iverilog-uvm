@@ -5,11 +5,11 @@ module test;
     type_option.merge_instances=1;
     option.get_inst_coverage=1;
     cs: coverpoint state {
-      option.weight=0;
+      option.weight=0; type_option.weight=0;
       bins rise = (0 => 1);
       bins paths[] = (2, 3 => 4);
     }
-    cx: coverpoint x { option.weight=0; bins b[] = {[lo:hi]}; }
+    cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = {[lo:hi]}; }
     sx: cross cs,cx { option.at_least=2; }
   endgroup
   cg a,b;

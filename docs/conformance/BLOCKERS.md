@@ -534,7 +534,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### V06 — Merged item coverage uses instance weights instead of type weights
 
 - **Area / edition:** Coverage / IEEE1800-2017 and1800-2023 19.7.1,19.11.3.
-- **State:** AWAITING VALIDATION — candidate and focused controls pass; full gates/review pending.
+- **State:** LOCALLY VALIDATED — exact declaration-time item type-weight scope; remote CI before merge.
 - **Evidence:** v06/type-weight.sv has coverpoint scores50/0,type weights3/1,
   instance weights1/3. Type returns12.5 rather than37.5; instance12.5 is correct.
 - **Scope:** Declared coverpoint/cross type-weight validation, metadata and merged
@@ -542,3 +542,12 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Closure:** Paired semantic/invalid-value controls, scoped regression oracle
   corrections for item isolation, all required local gates and independent review.
   Procedural static assignment and other type-option obligations remain separate.
+
+- **V06 evidence:** Typed constant validator handles independent defaults,
+  zero weights, group noninheritance, static/dynamic/implicit crosses and
+  merge0/instance isolation. Temporary typed aliases preserve constructor and
+  sample scope, including legal type queries and outer constant functions.
+  Old bytecode fallback and new tagged metadata bounds are controlled.
+  Focus22/22+22/22,coverage75/65,V04 2/2,V05 13/13,integrated4807total4802pass
+  zero unexpected2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,
+  NFA58/58,makecheck and independent final review all pass. DD010 remains open.

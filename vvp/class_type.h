@@ -256,6 +256,7 @@ class class_type : public __vpiHandle {
       struct cov_item_t {
 	    unsigned at_least = 1;
 	    unsigned weight = 1;
+            unsigned type_weight = 1;
 	    std::string weight_ir;
 	    int at_least_prop = -1;
 	    int weight_prop = -1;
@@ -315,11 +316,17 @@ class class_type : public __vpiHandle {
       { cov_item_t it;
 	it.at_least = at_least;
 	it.weight = weight;
+        it.type_weight = weight; // compatibility for untagged older VVP
+
 	it.weight_ir = weight_ir;
 	it.is_cross = is_cross;
 	it.name = name;
 	it.iff_src = iff_src;
 	covgrp_items_.push_back(it); }
+      bool set_covgrp_item_type_weight(uint64_t idx, unsigned weight)
+      { if (idx >= covgrp_items_.size()) return false;
+        covgrp_items_[static_cast<size_t>(idx)].type_weight = weight;
+        return true; }
       bool set_covgrp_item_option_props(size_t idx, int at_least_prop,
 					 int weight_prop)
       { if (idx >= covgrp_items_.size()) return false;

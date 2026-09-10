@@ -5,8 +5,8 @@ module test;
     bit y;
     covergroup cg;
       type_option.merge_instances=1;
-      cx: coverpoint x { option.weight=0; bins b[] = values; }
-      cy: coverpoint y { option.weight=0; }
+      cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = values; }
+      cy: coverpoint y { option.weight=0; type_option.weight=0; }
       xy: cross cx,cy;
     endgroup
     function new(int lo);

@@ -1,7 +1,7 @@
 id: V06
 title: Honor declared coverpoint and cross type weights in merged coverage
-status: in_progress
-phase: awaiting_validation
+status: done
+phase: documented
 base_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 last_validated_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 standards:
@@ -28,7 +28,7 @@ required_gates:
 completion: Close exact declaration-time item type-weight scope only after all required local gates and review pass; other parentV01 and type-option obligations remain open.
 stop_after_completion: false
 discovery_policy: Unrelated discoveries record-only; any proven prerequisite requires preserved parent work and a deliberate coordination boundary.
-next_action: Await integrated95424 and UVM26530; NFA50661 completed0 and independent final review clear. Run full JSON serially after integrated terminates. Do not close V06 until every required gate passes.
+next_action: Checkpoint V06 exact locally validated scope, then return to coordinator selection.
 
 candidate: Declared item type weights propagated through class IR/API and new tagged metadata; merged aggregation uses independent type weights; old bytecode retains prior untagged interpretation.
 focused_status: All22 paired cases pass in legacy and JSON; group/point/cross compound-formal rejection and legal type queries verified. V04 neighbors2/2,V05 13/13,coverage75/65,metadata bounds/compatibility and makecheck pass. Final review and full gates pending.
@@ -36,6 +36,10 @@ parser_status: VVP grammar conflict profile unchanged at14 shift/reduce and5 red
 standards_resolution: Retain existing typed int conversion; reviewer visually verified2023PDF page110 and both edition6.11.2 extracts, plus official Accellera committee discussion. No unknown-weight semantic change authorized by contrary recollection.
 
 binding_correction: Shared validator temporarily installs typed ctor then sample aliases, runs normal typed constant evaluation, deletes expression, restores aliases in reverse order. Reuses existing alias/cache invalidation machinery; no AST blacklist or constructor-scope guessing.
-active_sessions: integrated95424,UVM26530 confirmed live; NFA50661 completed0. FullJSON not yet started and must wait for integrated.
+active_sessions: none; integrated95424,JSON87219,UVM26530,NFA50661 all completed0.
 
 final_review: No remaining V06 blocker after permanent outer-function lexical-scope control; all full gates still required. DD010 eligibility defect is separately recorded and unchanged.
+
+resolved_scope: Declaration-time coverpoint/cross type weights with independent defaults and typed constants, correct formal binding/type queries and outer constant-function scope, new/legacy metadata interpretation. Procedural static assignment, uninstantiated-type eligibility DD010 and broader coverage obligations remain separate.
+final_local_gates: Focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime checks,fullJSON1699/0,real-DPIUVM355/0/0 in-g2012,NFA58/58,makecheck and independent final review all pass.
+validated_fingerprints: Compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a; runtimef38e482bc738cc9f7ce84ff4817e59143aa99f7501cd4aae297b8addc194ce8e.

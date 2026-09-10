@@ -2,19 +2,19 @@ module test;
   covergroup kinds(int lo,int hi) with function sample(int x,bit y);
     type_option.merge_instances=1;
     cx: coverpoint x {
-      option.weight=0;
+      option.weight=0; type_option.weight=0;
       bins by_value[] = {[lo:hi]};
       bins by_index[2] = {[lo:hi]};
       bins scalar = {[lo:hi]};
     }
-    cy: coverpoint y { option.weight=0; }
+    cy: coverpoint y { option.weight=0; type_option.weight=0; }
     xy: cross cx,cy;
   endgroup
   covergroup dimensions(int hi) with function sample(int x,int y,bit z);
     type_option.merge_instances=1;
-    cx: coverpoint x { option.weight=0; bins b[] = {[0:hi]}; }
-    cy: coverpoint y { option.weight=0; bins b[] = {[0:hi]}; }
-    cz: coverpoint z { option.weight=0; }
+    cx: coverpoint x { option.weight=0; type_option.weight=0; bins b[] = {[0:hi]}; }
+    cy: coverpoint y { option.weight=0; type_option.weight=0; bins b[] = {[0:hi]}; }
+    cz: coverpoint z { option.weight=0; type_option.weight=0; }
     xyz: cross cx,cy,cz;
   endgroup
   kinds a,b;

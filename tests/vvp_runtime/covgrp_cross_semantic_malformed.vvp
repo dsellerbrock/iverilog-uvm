@@ -147,6 +147,26 @@ C0xa .class "valid_parent_namespace_overlap" "top.valid_parent_namespace_overlap
  .covgrp_src 1 1
  ;
 
+C_weight_old .class "old_item_weights" "top.old_item_weights" [2]
+   0: "__a", "q0:sb32"
+   1: "__b", "q0:sb32"
+ .covgrp_bin 0 0 0 0 0 0 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 1 1 0 0 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_options 1 1 0 1 0
+ .covgrp_item 0 1 0 "a" "" 0
+ .covgrp_item 1 3 0 "b" "" 0
+ ;
+C_weight_new .class "new_item_weights" "top.new_item_weights" [2]
+   0: "__a", "q0:sb32"
+   1: "__b", "q0:sb32"
+ .covgrp_bin 0 0 0 0 0 0 0 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_bin 1 1 0 0 0 0 1 0 1 1 0 1 4294967295 0 4294967295
+ .covgrp_options 1 1 0 1 0
+ .covgrp_item 0 1 0 "a" "" 0
+ .covgrp_item 1 3 0 "b" "" 0
+ .covgrp_item_type_weight 0 3
+ .covgrp_item_type_weight 1 1
+ ;
     .scope S_top;
 T_0 ;
     %new/cobj C0x1;
@@ -281,6 +301,28 @@ T_9 ;
     %pop/real 1;
     %end;
     .thread T_9;
+T_weight_old ;
+    %new/cobj C_weight_old;
+    %covgrp/options/init;
+    %covgrp/get_coverage;
+    %pushi/real 25, 4096;
+    %cmp/wr;
+    %jmp/1 T_weight_old_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "old item weight metadata failed" {0 0 0 0};
+T_weight_old_ok ;
+    %end;
+    .thread T_weight_old;
+T_weight_new ;
+    %new/cobj C_weight_new;
+    %covgrp/options/init;
+    %covgrp/get_coverage;
+    %pushi/real 75, 4096;
+    %cmp/wr;
+    %jmp/1 T_weight_new_ok, 4;
+    %vpi_call/w 1 1 "$fatal", 32'sb00000000000000000000000000000001, "new item weight metadata failed" {0 0 0 0};
+T_weight_new_ok ;
+    %end;
+    .thread T_weight_new;
 :file_names 2;
     "N/A";
     "covgrp_cross_semantic_malformed.vvp";
