@@ -593,6 +593,9 @@ NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
 : expr_(exp), base_(base), sel_type_(sel_type)
 {
       expr_width(wid);
+      // IEEE 1800 6.16: a string character has signed byte type.
+      if (exp->expr_type() == IVL_VT_STRING && wid == 8)
+	    cast_signed(true);
 }
 
 NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,

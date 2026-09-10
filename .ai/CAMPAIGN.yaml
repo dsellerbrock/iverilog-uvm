@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-function-arguments-main-20260910"
-current_blocker: "L12"
-phase: "reproduced"
+current_blocker: "L13"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "a83731194"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["L12_standards_and_causal_trace", "L12_implementation_and_required_validation", "PR274_remote_CI_before_merge", "U01_application_qualification"]
+pending_gates: ["L13_prerequisite_validation", "L12_resume_and_validation", "PR274_remote_CI_before_merge", "U01_application_qualification"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U07 exact closure, reduce DD021 legacy-UVM elaboration frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
-next_action: "L12 red reducer established both editions; trace struct-member type inference and reuse ordinary string selection lowering. No L12 code edits yet."
-next_command: "sed -n '11620,11780p' elab_expr.cc; sed -n '1120,1150p' tgt-vvp/eval_vec4.c"
+next_action: "L13 focusedJSON4/0,legacy4/0,stringneighbors40/0,reviewclear. Start required gates; fullJSON follows integrated; frontend alone last. L12 remains suspended."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l13/integrated.log ../evidence/campaign-20260908/l13/uvm.log"
 next_command_cwd: repository root
-candidate_state: "U07 a83731194 fully validated; L12 reducer only. Closure04b5b25fe; installed tools unchanged."
+candidate_state: "L13 four-line signed-byte candidate built/installed; U07 remains last validated baseline until required gates complete."
 installed_tools: "Frozen U07 candidate fingerprints evidence/u07/candidate-sha256.txt; only compiler changed from validatedL10; no installs duringgates."
 validation_state: "L10 legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
-next_validation: "L12 standards/type/causal trace, permanent regressions and implementation precede new required gates; no live local tests."
+next_validation: "L13 integrated,JSON,UVM,NFA,makecheck,release replay and isolatedfrontend required."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -306,3 +306,5 @@ u07_uvm_terminal: "39509 exit0; real-DPI355passed0failed0skipped. Frontend13719 
 u07_closure: "a83731194;legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"
 
 l12_baseline: "Both2017/2023 struct-string reducer compile2 with unsupported index diagnostics; ordinary string controls compile0/runtime0/PASSED. Evidence/l12/baseline-results.json. Last validated semantic revisiona83731194; no live local test processes."
+
+l13_prerequisite: "L12 suspended before permanent registration; patch/tests/contract saved in evidence/l12. Shared direct string character unsigned result contradicts signed byte/getc primary wording; baseline restoration required before new candidate. DD024."

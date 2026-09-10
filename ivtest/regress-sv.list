@@ -2881,3 +2881,7 @@ sv_member_delay_strict_fail CE,-g2017,-gno-icarus-misc,-s,sv_member_delay_strict
 sv_member_delay_strict_fail_2023 CE,-g2023,-gno-icarus-misc,-s,sv_member_delay_strict_fail ivltests gold=sv_member_delay_strict_fail.gold
 sv_member_delay_expression_fail CE,-g2017,-s,sv_member_delay_expression_fail ivltests gold=sv_member_delay_expression_fail.gold
 sv_member_delay_expression_fail_2023 CE,-g2023,-s,sv_member_delay_expression_fail ivltests gold=sv_member_delay_expression_fail.gold
+sv_string_byte_signed normal,-g2017,-s,sv_string_byte_signed ivltests gold=sv_string_byte_signed.gold
+sv_string_byte_signed_2023 normal,-g2023,-s,sv_string_byte_signed ivltests gold=sv_string_byte_signed.gold
+sv_string_byte_unsigned_context normal,-g2017,-s,sv_string_byte_unsigned_context ivltests gold=sv_string_byte_unsigned_context.gold
+sv_string_byte_unsigned_context_2023 normal,-g2023,-s,sv_string_byte_unsigned_context ivltests gold=sv_string_byte_unsigned_context.gold

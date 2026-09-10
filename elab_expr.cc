@@ -19349,7 +19349,7 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 		  if (type == &netstring_t::type_string) {
 			index++;
 			index_depth--;
-			type = &netvector_t::atom2u8;
+			type = &netvector_t::atom2s8;
 		  } else if (auto array = dynamic_cast<const netsarray_t*>(type)) {
 			auto array_size = array->static_dimensions().size();
 

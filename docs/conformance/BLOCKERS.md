@@ -760,6 +760,12 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L12 — String character reads through unpacked struct members
 
-- **State:** OPEN, selected after validated U07.
+- **State:** OPEN, suspended for L13 prerequisite; patch and reducer preserved.
 - **Evidence:** DD021 original UVM1.2 printer row.val[0] receives explicit unsupported struct-member index diagnostic.
 - **Scope:** Correct bounded rvalue string indexing, preserving byte type, bounds and index evaluation. Static-local references and constraints remain separate blockers.
+
+### L13 — Signed byte semantics of string character reads
+
+- **State:** OPEN, prerequisite for L12 selected at deliberate coordination boundary.
+- **Evidence:** Ordinary s[0] with octal377 yields255 when widened, while getc and byte cast yield-1. Both editions6.16/6.16.3/6.11.3 specify signed byte semantics.
+- **Scope:** Shared character-select typing and expression sizing, preserving unsigned packed bit/part selects.

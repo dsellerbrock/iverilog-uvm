@@ -343,3 +343,24 @@ syntax before runtime. Source hash and exact commands are preserved in results.j
 No causal runtime diagnosis yet; timeout is not proof of a scheduler defect.
 2017.1.0 and 2017.1.1 now pass all smoke checks. Record-only during U07;
 reduce and classify at a later coordination boundary. Full release remains open.
+
+### DD023 — Unknown ordinary string index behavior
+
+During L12 control testing, an ordinary string `s="@abc"` read at integer
+X or Z index returns character64 for both `s[i]` and `s.getc(i)`. Negative
+and length indices return0. The runtime string select reads an integer word
+without its unknown flag. Evidence `evidence/campaign-20260908/l12/bounds_control.sv`.
+Needs standards classification; not claimed qualified and record-only for L12.
+
+### DD024 — String character selection loses signed byte type
+
+L12 high-bit control shows ordinary and proposed member indexing widen0xff to255, while getc/byte cast yield-1. Both-edition6.16 and6.11.3 require signed byte. Selected as prerequisite L13; L12 partial work preserved and source restored before new baseline.
+
+### DD025 — Class string-property character index uses property slot
+
+L13 control `c.s[1]` with `c.s="abc"` aborts in class_type.cc get_string
+array_size assertion on both saved L10 compiler and L13 candidate. Index0
+returns whole string instead of character. Exact reducer `evidence/l13/class_control.sv`
+and L12 byte_type probe retained. Distinct property dispatch defect, not
+introduced by signed-byte typing; record-only, no class-property character
+qualification claimed by L13.
