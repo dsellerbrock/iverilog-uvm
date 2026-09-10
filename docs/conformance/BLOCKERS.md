@@ -728,6 +728,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L09 — Nested argument output copy-out loses caller automatic destination
 
-- **State:** OPEN, selected from DD018 after validated U06.
+- **State:** Awaiting required validation at 3c44fd13b; selected from DD018 after validated U06.
 - **Evidence:** Preserved nested output control fails identically before/after U06; caller local remains unchanged.
-- **Scope:** Minimize and trace caller-local output destinations before implementing a narrow correction; preserve input staging, return values, reference/default semantics and frame ownership.
+- **Scope:** Explicit automatic copy-out phases select callee formal loads and caller destination reads/writes, preserving frame ownership and existing typed copying. IEEE2017/2023 8.6 and13.5.
+- **Evidence at candidate:** Three permanent regression families fail baseline and pass both editions; focused JSON38/0, malformed bytecode6/6, NFA58/58, makecheck and independent review pass. Full legacy/JSON/UVM/frontend required gates pending; not closed. Class fixed-array property scalar output (DD019) remains separate.

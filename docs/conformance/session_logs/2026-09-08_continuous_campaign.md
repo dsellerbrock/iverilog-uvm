@@ -1776,3 +1776,23 @@ callee formal-source loads from caller read/write destination evaluation,
 reusing current per-type copy-out code; nested address calls need caller
 context. No implementation changes yet. Current L09 phase root_caused,
 last validated source aad6fe22b; no live local gates.
+
+
+### L09 candidate 3c44fd13b — required validation running
+
+Automatic copy-out now distinguishes formal-source context from caller
+destination evaluation, including recursive index and property receiver reads.
+Both IEEE editions require return to actual variables (13.5), with automatic
+class-method lifetime (8.6). Three permanent families fail the saved U06
+baseline and pass the candidate in both editions. Focused JSON38/0, malformed
+bytecode6/6, NFA58/58, makecheck and independent bounded review pass.
+Nonlocal abort/reuse controls pass; DD019 unsupported fixed-array property
+scalar output is preserved separately, not waived.
+
+Integrated17224 and real-DPI UVM9469 are live; full JSON follows integrated,
+then frontend runs alone. No source/install changes while gates run. Fresh
+15release report `third_party/uvm-releases/results-p31gasib/results.json` is
+complete/baseline_valid with6SMOKE_PASS9knownCOMPILE_FAIL. Evidence under
+`../evidence/campaign-20260908/l09/`; frozen hashes in candidate-sha256.txt.
+L09 remains awaiting validation. PR273 remains open at1357ae803; Ubuntu22/24
+passed, macOS and three Windows jobs still running at this checkpoint.
