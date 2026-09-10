@@ -1,7 +1,7 @@
 id: S06
 title: Preserve overridden symbolic SVA cycle delays through elaboration
 status: active
-phase: patched
+phase: awaiting_validation
 base_revision: a76c9f67a
 standards:
   - IEEE1800-2017 and IEEE1800-2023 6.20.2,23.10.2,16.7 (Syntax16-4),16.12.7.
@@ -33,7 +33,7 @@ completion: Qualify the exact repaired cycle-delay scope and retain broader obli
 discovery_policy: Unrelated discoveries are record-only; causal prerequisites require preserved reducers/work and a deliberate coordination boundary.
 stop_after_completion: false
 last_validated_revision: a76c9f67a
-next_action: Repair the ranged cover-property sibling path under symbolic single-delay normalization, then add permanent controls and complete required validation.
+next_action: Await integrated55376,NFA8748,real-DPIUVM91338; run full JSON serially after integrated. No source/test edits during gates.
 
 representation:
   - Preserve single-delay expressions through instance elaboration, distinct from general consequence windows.
@@ -43,7 +43,7 @@ representation:
   - Direct nonoverlap uses a synthetic prefix at start+D and keep lagD+1; actual prefixes use lagD+1 for both inputs.
   - Cancellation clears histories, real-time young ages and shadow parent state; Off only changes newly captured starts.
 model_evidence: s06/check_delayed_parent_model.py compares explicit parent/child lists against packed delayed ages;9450traces999810tick-by-tick comparisons pass, including zero delays and direct/prefixed empty cases.
-review: Independent design review found no counterexample; failure must win over final-endpoint closure, and histories must preserve start enable/cancellation.
+review: Final independent source/test review cleared shared operand self-sizing, replay timing, ownership and sentinel guards; full gates required. Arbitrary delay-expression syntax, broader formal lookup and maximal-width arithmetic remain unqualified.
 
 partial_implementation:
   - pform.cc replays sampled keep and captured starts, with real-time unmatched ages and final-endpoint lookahead; supports arbitrary fixed literal delays and direct/prefixed nonoverlap timing.
@@ -54,7 +54,7 @@ actual_validation:
   - Generated76cases x52ticks using explicit parent reference pass for literal delays in2017 and overridden delays in both2017/2023.
   - S05 focus14/14 legacy+JSON passes after parser preservation; S04 neighbor17/17+8/8 passed the earlier replay-only candidate and must rerun on final source.
   - Bison563SR/1122RR with exact conflict-state signature unchanged from S05.
-in_scope_gap: Ranged cover property with symbolic ##D currently rejects after normalization; repair before qualification. Reproducer s06/cover-delay-override.sv.
-remaining_gates: [cover_path_repair, permanent_regressions, invalid_bound_controls, final_scope_review, focused_legacy_JSON, NFA, integrated, full_JSON, real_DPI_UVM, make_check, remote_CI_before_merge]
-current_sessions: All build/install/focus/model sessions terminal; no live validation process.
-current_toolchain: Compilera3f662e2c3ace1dd26288fc8440785964484ce5695be46eb70baa421d4c2d45b; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+in_scope_gap: Cover endpoint replay repaired; generated76cases pass both editions. Shared -6 refusal and grouped-negative operand validation repaired. Broader unsupported compositions remain explicitly unimplemented.
+remaining_gates: [NFA, integrated, full_JSON, real_DPI_UVM, remote_CI_before_merge]
+current_sessions: Integrated55376,NFA8748,UVM91338 running on reviewed frozen candidate; all earlier full attempts stopped143 before source fixes and cannot qualify this candidate.
+current_toolchain: Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.

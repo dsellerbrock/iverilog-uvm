@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S06
-phase: patched
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: a76c9f67ae854d415043de9b7c5a9052a705c913
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [S06_cover_path_repair, S06_permanent_tests, S06_required_local_validation, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [S06_required_local_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S06 selected from DD-008: silent instance timing miscompilation reproduced in both editions on validated S05.
-next_action: Resume S06 partial patch; repair ranged cover-property symbolic delay, then permanent/negative controls and all required gates. Preserve current parser/replay work.
-next_command: "local-install/bin/iverilog -g2017 -s test -o ../evidence/campaign-20260908/s06/cover-delay-override.vvp ../evidence/campaign-20260908/s06/cover-delay-override.sv"
+next_action: Await integrated55376,NFA8748,UVM91338; run full JSON after integrated. Preserve source/test freeze.
+next_command: "tail -30 ../evidence/campaign-20260908/s06/integrated-reviewed.log"
 next_command_cwd: repository root
-candidate_state: Uncommitted S06 changes in parse.y,pform.cc,pform.h; original paired reducer and generated parameter timing controls green; ranged cover sibling remains rejected.
-installed_tools: Compilera3f662e2c3ace1dd26288fc8440785964484ce5695be46eb70baa421d4c2d45b; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: S06 original paired reducer green;76generatedcases x52ticks pass with overrides in both editions; S05focus14/14+14/14 current. Bison563SR/1122RR signature unchanged. All sessions terminal. Last fully locally validated implementation remains a76c9f67a.
-next_validation: Repair in-scope cover path and add permanent/boundary regressions; focused/NFA/integrated/JSON/real-DPIUVM/check/review all required on final S06 candidate.
+candidate_state: Uncommitted reviewed S06 source and18paired tests; width-preservation review complete and focused/model/check green.
+installed_tools: Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: Focus18/18 legacy+JSON both engines; S05neighbor14/14+14/14,S04neighbor17/17+8/8, generated76assertion+76cover cases in both editions,makecheck and finalreview green. Integrated55376,NFA8748,UVM91338 live. Last fully validated implementationa76c9f67a.
+next_validation: Full JSON serially after integrated; all current full gates must pass before S06 closure.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
