@@ -1751,3 +1751,15 @@ passes4/4 in2017/2023 modes. Complete contract preserved in u06/. No
 fullrelease/application/IEEE1800.2 qualification claim. One validated increment
 since publication; defer next PR update to the established3-5increment batch.
 Next justified blocker is preserved DD018 automatic output copy-out.
+
+L09 selected after U06 closure. New21-line class-only output_actual.sv
+reproduces in2017/2023: produce(output seen) sets37 but caller seen stays-1
+when used as the recursive call's argument. Separating produce into its own
+statement before recursion passes both modes. Both compile without warnings.
+IEEE2017/2023 13.5 explicitly returns output/inout values to the corresponding
+actual variables; 8.6 supplies automatic lifetime. Bytecode confirms output
+store before nested free while outer recursive callee is staged. Actual
+scalar runtime path is of_STORE_VEC4 -> ensure_write_context_ -> vvp_send_vec4,
+not the initially suspected scoped-write accessor. Trace automatic receive
+recovery next; no L09 implementation yet. Reducers,logs,bytecode and results
+are preserved in evidence/campaign-20260908/l09/. No local gates running.

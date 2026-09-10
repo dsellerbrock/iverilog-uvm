@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: "L09"
-phase: "reproducing"
+phase: "spec_grounded"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "aad6fe22bd7cdcb54dccb2ba5d152b094bf67634"
@@ -11,8 +11,8 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U06 required validation and exact closure, consider DD018 caller-local output copy-out: paired evidence proves remaining automatic-argument correctness gap. Preserve U01 application scope; do not implement on unvalidated U06."
-next_action: "Minimize preserved DD018 output-copying reducer on validated U06 and trace wrong write destination."
-next_command: "sed -n '10811,10865p' vvp/vthread.cc"
+next_action: "Trace output-copy generation through of_STORE_VEC4/ensure_write_context_ and automatic signal receive. Scalar reducer bypasses vthread_get_wt_context_item_scoped; do not patch only that accessor. Establish smallest caller-destination binding correction before implementation."
+next_command: "sed -n '615,705p' vvp/vvp_net_sig.cc"
 next_command_cwd: repository root
 candidate_state: "U06 closed; L09 selected from preserved DD018. No L09 implementation yet."
 installed_tools: "Frozen U06 candidate fe4e949b8: runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1; compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca and DPIe69ec1f7d0d0d94668656c50fb83982241ad912fd229464a365fc5b278c28d5a unchanged. No installs while gates run."

@@ -1,7 +1,7 @@
 id: L09
 title: Preserve caller-local output copy-out during nested argument calls
 status: in_progress
-phase: reproducing
+phase: "spec_grounded"
 base_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 last_validated_revision: aad6fe22bd7cdcb54dccb2ba5d152b094bf67634
 selection_reason: DD018 is a reproducible automatic-argument correctness defect, observed independently before and after U06; caller outputs silently remain unchanged. Repair after validated input-context baseline.
@@ -25,5 +25,9 @@ required_gates:
   - Required integrated legacy,JSON,VPI,negative,runtime,UVM,NFA,makecheck and relevant frontend validation.
 completion: Close only exact validated output-copying scope; dependent application and standards qualification stay separate.
 stop_after_completion: false
-next_action: Minimize preserved output-copying reducer on validated U06, verify both IEEE editions and trace the wrong write destination.
-next_command: sed -n '10811,10865p' vvp/vthread.cc
+next_action: "Trace output-copy generation through of_STORE_VEC4/ensure_write_context_ and automatic signal receive. Scalar reducer bypasses vthread_get_wt_context_item_scoped; do not patch only that accessor. Establish smallest caller-destination binding correction before implementation."
+next_command: "sed -n '615,705p' vvp/vvp_net_sig.cc"
+
+l09_reducer: ../evidence/campaign-20260908/l09/output_actual.sv; both2017/2023 compile0/run1,caller seen remains-1 instead of37. Non-nested output_actual_control.sv passes both modes. No warnings after separate object initialization.
+l09_standards: Both IEEE1800-2017 and2023 clause13.5 require output/inout values returned to corresponding actual variables; clause8.6 gives automatic class-method lifetime. Read local editions.
+l09_trace: Bytecode stores produced37 into recurse.seen before freeing produce, while recurse callee is staged on write head. of_STORE_VEC4 passes ensure_write_context_ to vvp_send_vec4; actual scalar path does not call scoped-write accessor. Follow automatic receive recovery before choosing repair.
