@@ -54,7 +54,7 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Possible clause:** IEEE 1800-2017/2023 12.7.3 implicit index type.
 - **Evidence:** evidence/campaign-20260908/l01/typed*.sv, .vvp and logs; old compiler from preserved string-array-param-after253 worktree, a diagnostic comparison rather than a campaign qualification gate.
 - **Reproducer status:** confirmed
-- **Triage status:** untriaged; no repair included in L01.
+- **Triage status:** promoted to L05 after validated L03 and fresh U01 replay; no repair included in L01.
 
 ### DD-003 — Boolean event-expression driver discards automatic activation context
 

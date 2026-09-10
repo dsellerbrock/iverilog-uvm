@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** b0ac00f47 fresh unmodified-source smoke: L01 fixes address routing and scoreboard mismatch; three responses match, fourth response is aborted as before L01, outstanding-request error and 300s timeout remain. U01 remains unqualified.
+- **Last verified revision:** 4bcbd9c7b fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but2SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match prior replay. Earlier four-warning teardown frontier and reduced parent-kill mechanism are preserved; warning-count change does not qualify the application. Evidence: campaign-20260908/u01-after-l03.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -467,3 +467,15 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **L04 residuals:** Qualification covers integral signal default publication;
   derived Boolean contexts (L03),other value types and broader initialization
   obligations remain separate.
+
+
+### L05 — Selected associative class-member foreach loses index type
+
+- **Area / edition:** Foreach/arrays / IEEE1800-2017 and1800-2023 12.7.3.
+- **State:** SELECTED — reproduce retained DD-002 on current validated tools.
+- **Evidence:** campaign-20260908/l01/typed.sv: values[string] member loop
+  index becomes int and visits zero entries, also seen before L01.
+- **Scope:** Exact implicit-index type resolution and necessary selected-member
+  elaboration, preserving prefix selection and existing iteration behavior.
+- **Closure:** Paired reducer, key/selection/lifetime controls, all required
+  local gates and review; remote CI before merge.

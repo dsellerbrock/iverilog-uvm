@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U01
-phase: fresh_replay_after_l03
+current_blocker: L05
+phase: reproduce
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_unmodified_application_replay, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [L05_reducer_and_semantics, L05_focused_and_full_validation, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: Resume U01 qualification on validated L03 runtime.
-next_action: Run original xbar_smoke in fresh u01-after-l03 output root; preserve first divergence and checked traffic.
-next_command: "bash ../evidence/campaign-20260908/u01-after-l03/replay.sh"
+next_selection: L05 from DD-002: selected associative class-member foreach key type.
+next_action: Reproduce retained typed.sv and trace index declaration type before implementation.
+next_command: "local-install/bin/iverilog -g2017 -o ../evidence/campaign-20260908/l05/reducer-2017.vvp ../evidence/campaign-20260908/l01/typed.sv && local-install/bin/vvp ../evidence/campaign-20260908/l05/reducer-2017.vvp"
 next_command_cwd: repository root
-candidate_state: L03 implementation 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb locally validated and checkpointed; U01 qualification active.
+candidate_state: L03 locally validated 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb; U01 replay still fails teardown checks; L05 selected with no source edits.
 installed_tools: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
-validation_state: All L03 required local gates and review pass; no live gate processes.
-next_validation: Unmodified pinned application replay; no compiler patch authorized without reducer and exact scope.
-completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
+validation_state: All L03 gates passed. U01 fresh replay115requests230items0errors0fatals2SEQPRTZMBwarnings,TEST FAILED CHECKS;360exportedfiles unchanged.
+next_validation: L05 paired reducer and standards-grounded source trace before patch.
+completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
