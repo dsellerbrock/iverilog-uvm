@@ -1,7 +1,7 @@
 id: L04
 title: Publish automatic integral defaults after activation linkage
 status: in_progress
-phase: causal_analysis
+phase: awaiting_validation
 parent: L03
 base_revision: 4a879babc
 standards:
@@ -30,4 +30,10 @@ completion: Qualify bounded automatic integral initial-value propagation, then r
 discovery_policy: Unrelated findings record-only; regressions from this patch remain in scope.
 stop_after_completion: false
 last_validated_revision: 4a879babc
-next_action: Review post-link hook placement at all four allocation callers; implement minimal callback and signal publication after standards verification.
+next_action: Await integrated3537,NFA96096,real-DPIUVM88516; run fullJSON serially after integrated. Preserve source/test freeze.
+
+implementation: Optional initialize_instance hook runs after all items exist and activation is live with applicable stack linkage; all four allocation callers covered. signal4_aa publishes existing integral slot bits through its native net before argument/user writes.
+focused_validation: Paired4/4 legacy+JSON; L02neighbors93/93+50/50,mixedlifetime7/7+7/7,eventcontrols14/14+14/14,makecheck and final independent review pass. Saved baseline runtime still fails original/new defaults controls; current passes both editions.
+current_sessions: Integrated3537,NFA96096,real-DPIUVM88516 running; no dependent L03 edit.
+current_toolchain: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtimee7a71e1ef3de401d931988a5dc2e1487b6f90cade059553f7412597a7b2e8abb.
+remaining_gates: [NFA,integrated,full_JSON,real_DPI_UVM,remote_CI_before_merge]

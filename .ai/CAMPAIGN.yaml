@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L04
-phase: causal_analysis
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
@@ -11,11 +11,11 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: L03 prerequisite boundary (contract/reducer in evidence/l03); S02 design boundary retained.
 next_selection: L04 promoted from DD-004 as proven initialization prerequisite for mixed-scope L03 Boolean event evaluation.
-next_action: Review existing automatic hook extension and all allocation callers before integral default publication.
-next_command: "sed -n '9160,9230p' vvp/vthread.cc"
+next_action: Await frozen L04 integrated3537,NFA96096,UVM88516; fullJSON after integrated.
+next_command: "tail -30 ../evidence/campaign-20260908/l04/integrated.log"
 next_command_cwd: repository root
-candidate_state: L04 paired default-negedge red at time1; no implementation edits yet. L03 original reducer and design findings preserved.
-installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Last fully validated4a879babc; L03 andL04 paired reducers fail as recorded; all sessions terminal.
-next_validation: Post-link ordering review and bounded L04 patch,then required local gates before L03 resumes.
+candidate_state: Uncommitted reviewed L04 hook/integral publication patch and4paired tests; no L03 implementation.
+installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtimee7a71e1ef3de401d931988a5dc2e1487b6f90cade059553f7412597a7b2e8abb.
+validation_state: L04 focused/neighbor/check/finalreview green; integrated3537,NFA96096,UVM88516 live. Last fully validated4a879babc.
+next_validation: FullJSON serially after integrated; all full gates before L04 closure/L03 resume.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
