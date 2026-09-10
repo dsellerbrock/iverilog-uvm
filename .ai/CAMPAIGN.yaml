@@ -11,8 +11,8 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Reduce DD-017 original UVM2020.1 phase-execution gap; compare trace evidence without modifying original libraries or treating zero-error early exit as pass."
-next_command: "local-install/bin/vvp third_party/uvm-releases/results-rqcthqwn/2020.1.0/smoke.vvp +UVM_PHASE_TRACE +UVM_OBJECTION_TRACE"
+next_action: "Trace original2020.1 phase implementation dispatch after paired phase/objection replay: old kernel schedules phases but no test objections or marker; passing2020.2 runs test through time1. Minimize before source changes."
+next_command: "sed -n '1320,1420p' third_party/uvm-releases/sources/2020.1.0/1800.2-2020-1.0/src/base/uvm_phase.svh"
 next_command_cwd: repository root
 candidate_state: "U06 selected, no implementation; P04,L08,U05,U04 published together in existing PR273 at1357ae803."
 installed_tools: "Frozen L08 candidate compiler4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca; validated P04 runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522. No installs while gates run."
@@ -239,3 +239,5 @@ u04_candidate_revision: aa172f5f9
 u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
 
 u04_nfa: Passed58/58 terminal6429 exit0.
+
+u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.

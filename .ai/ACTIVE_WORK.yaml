@@ -25,5 +25,7 @@ required_gates:
   - Permanent regression,focused and required integrated validation,independent review and original-source replay before closure.
 completion: Close exact validated causal scope only; original-release/application qualification remains separate unless intended checking demonstrably executes.
 stop_after_completion: false
-next_action: Replay original2020.1.0 with phase and objection trace, then compare against passing2020.2.0 before selecting implementation scope.
-next_command: local-install/bin/vvp third_party/uvm-releases/results-rqcthqwn/2020.1.0/smoke.vvp +UVM_PHASE_TRACE +UVM_OBJECTION_TRACE
+next_action: "Trace original2020.1 phase implementation dispatch after paired phase/objection replay: old kernel schedules phases but no test objections or marker; passing2020.2 runs test through time1. Minimize before source changes."
+next_command: "sed -n '1320,1420p' third_party/uvm-releases/sources/2020.1.0/1800.2-2020-1.0/src/base/uvm_phase.svh"
+
+u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
