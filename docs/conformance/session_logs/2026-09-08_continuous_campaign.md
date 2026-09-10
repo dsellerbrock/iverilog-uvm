@@ -949,3 +949,37 @@ functions; no graph rebuild or worktree mutation occurred. All builds and other
 test sessions are terminal; only UVM50563 remains live. Evidence is under
 `s04/`, including reducer sources/logs, baseline-tools, disable-tools,
 integrated-failures, focus-oracles, nfa-window and check-window logs.
+
+
+### S04 final candidate installed; full gates running (2026-09-09)
+
+Independent review found a wide-disable gap in the first abort helper: raw
+`disable === 1` missed nonunit true values. Both shared and parameter abort
+paths now normalize logical truth before exact-one edge detection. The
+permanent cancellation pair covers10 and1x pulses that cancel, and0x that does
+not, including symbolic repetition/window paths. Both editions pass. Final
+code review found no remaining blocking defect; shared helpers retain existing
+AST/process architecture. This is code clearance, not full qualification.
+
+Initial UVM50563 terminated346pass/9fail/0skip. All nine failures were old
+vacuity expectations independently derived from enabled clocks and antecedents:
+m6b4 one vacuous pass; m9 algebra18 (16vac+2nonvac); contextual constants each6;
+fixed-uarray4; nonoverlap window5; inside-property12 across4assertions;
+signedness3; typed-past stable/changed6each; recursive not/until16/1,
+eventual17, alwaysfailure1, nested/throughout17/0 unchanged. Expectations were
+corrected without weakening failure checks; focused real-DPI UVM66913 passes9/9.
+
+After the initial UVM became terminal, compiler
+5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116 was installed.
+Focus17/17legacy and8/8JSON, NFA58/58 and make check exit0 pass. Final integrated
+session1309 and full real-DPI UVM11066 are live against this exact installation;
+do not replace binaries. Full JSON remains pending and must run after1309 ends,
+because both ivtest harnesses share log files. Review/gates must all support the
+exact S04 scope before implementation checkpoint/selection. DD-007 symbolic
+per-endpoint behavior remains explicitly separate and unqualified.
+
+Only comment placement changed after the final build; no compiler semantics
+changed. Last fully validated implementation remains61ca5f336. Resume by polling
+1309 and11066, then full JSON after the integrated handle is terminal. Current
+logs: integrated-cancellation.log,uvm-cancellation.log,focus-cancellation.log,
+nfa-cancellation.log,uvm-focus-cancellation.log,check-cancellation.log under s04.

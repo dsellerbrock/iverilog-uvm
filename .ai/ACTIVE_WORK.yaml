@@ -35,7 +35,7 @@ completion: Qualify exact repaired implication paths; retain unsupported paths a
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 61ca5f336
-next_action: Poll live UVM session50563; after terminal status install current cancellation candidate and run focused/NFA/integrated/full JSON/real-DPI UVM/check/final review gates.
+next_action: Poll integrated1309 and UVM11066; after integrated terminal run full JSON serially. Resolve any failures before checkpointing S04 implementation.
 partial_implementation:
   - Shared detached Reactive pass dispatcher keeps vacuous actions separate from nonvacuous callbacks.
   - NFA, general fixed legacy and genvar delay producers now publish vacuous pass requests.
@@ -55,6 +55,13 @@ outstanding:
   - Focused neighboring, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM, make check, final review and remote CI before merge.
 implementation_checkpoint: Dirty pform.cc and permanent regression files are partial S04 work, not a validated semantic baseline.
 
-running_validation: UVM session50563 against installed window candidate bd499c9703c00632cffaafe63349860e4bef3a14c66ddd2168dfb97d2fb3118f; do not replace installed binaries until terminal.
-built_candidate: 8d49346e19bf4f6a85a8036409596e16e65ec0f057d2447defb89cdc08ffede8; cancellation moves disable test after Observed and adds asynchronous clear to NFA/legacy/genvar.
+running_validation: Integrated1309 and full real-DPI UVM11066 against installed final candidate5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116. No further installation while gates run.
+built_candidate: 5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116 installed; Observed level checks and asynchronous logical-truth cancellation tested including10/1x/0x pulses.
 latest_integrated_result: Initial session24071 terminal1; legacy4698total/4684pass/9failed/2NI/3EF. Nine stale oracles reviewed and focused green; VPI104/104, negative149/149, runtime15/15 passed. Rerun required after installation.
+
+final_candidate_checks:
+  - Focus legacy17/17 and JSON8/8.
+  - NFA58/58 and make check exit0.
+  - Affected real-DPI UVM9/9; initial full346/9/0 had independently reviewed stale vacuity expectations, now corrected.
+  - Final independent code review cleared; required full gates still pending.
+next_full_json_command: 'cd ivtest && PATH="$PWD/../local-install/bin:$PATH" ../../evidence/arm64-tooling/resource-runner python3 ./vvp_reg.py'

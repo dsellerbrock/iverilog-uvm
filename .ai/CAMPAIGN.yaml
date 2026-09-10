@@ -11,11 +11,11 @@ pending_gates: [S04_complete_implementation_and_required_validation, U01_teardow
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S04 selected from reproduced DD005; S02 remains at its documented design boundary.
-next_action: Poll UVM50563 to terminal, inspect results, then install built cancellation candidate and rerun all required gates.
-next_command: "tail -20 ../evidence/campaign-20260908/s04/uvm-initial.log"
+next_action: Await integrated1309 and UVM11066; run full JSON after integrated terminal, inspect all results and checkpoint only after required local gates pass.
+next_command: "tail -20 ../evidence/campaign-20260908/s04/integrated-cancellation.log"
 next_command_cwd: repository root
-candidate_state: Dirty S04 all selected producers implemented; cancellation fixes built/tested with isolated prefix. Four paired regressions and VPI callback control retained; no implementation commit/closure.
-installed_tools: Compilerbd499c9703c00632cffaafe63349860e4bef3a14c66ddd2168dfb97d2fb3118f; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Built uninstalled compiler8d49346e19bf4f6a85a8036409596e16e65ec0f057d2447defb89cdc08ffede8.
-validation_state: UVM50563 live on installed window candidate. Initial integrated24071 terminal1 with9 reviewed stale legacy oracles; corrected focus15/15 and6/6, NFA58/0, VPI104/104, negative149/149, runtime15/15, make check0. Cancellation candidate only isolated reducer validation; all final gates pending.
-next_validation: After UVM50563 terminal install cancellation build; focus17legacy/8JSON plus VPI, NFA, integrated, full JSON, real-DPI UVM, make check and independent final review.
+candidate_state: S04 candidate installed, four paired reducers plus VPI and reviewed existing oracles. Final code review clear; implementation uncommitted while full gates pending.
+installed_tools: Compiler5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: Integrated1309 and full UVM11066 live. Focus17/17legacy,8/8JSON,NFA58/58,focused real-DPI UVM9/9,make check0 and independent final review pass. Previous initial full UVM50563 terminal346/9/0; all nine stale oracles corrected and focused green.
+next_validation: Full JSON after integrated1309 terminal (shared ivtest/log); ensure make -C tgt-fpga install prerequisite. Required remote CI remains before merge.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
