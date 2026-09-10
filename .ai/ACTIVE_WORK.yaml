@@ -44,3 +44,6 @@ u06_focused: Permanent test fails baseline and passes candidate in both editions
 candidate_revision: "fe4e949b8"
 
 next_validation: "Integrated18435 and UVM11401 running; makecheck and NFA58 passed; JSON and isolated frontend pending. Frozen runtimea9c4e201da20cfc3a70c108faee95acab8450fb8f2b9e359808c53adb2ecfbf1."
+
+u06_final_review: Independent review clear; terminal-only cleanup source guards and baseline/candidate nonlocal exit plus frame reuse control resolve lifetime concern. No additional code changes requested.
+u06_release_matrix: results-mseshk7y complete and baseline_valid; 6SMOKE_PASS9COMPILE_FAIL, both2020.1 releases execute original smoke through time1 with exact checks and zero warnings/errors/fatals. Matrix exit1 reflects remaining compile failures, not incomplete execution.
