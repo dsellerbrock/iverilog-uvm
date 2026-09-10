@@ -820,12 +820,25 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 			    || (ivl_type_base(prop_type) == IVL_VT_QUEUE
 				&& !ivl_type_queue_assoc_compat(prop_type)))
 			&& type_is_runtime_container_(actual_type);
-		  int fixed_container_slot =
-			type_is_fixed_uarray_property_(prop_type)
-			&& type_is_runtime_container_(actual_type);
+		  int fixed_property_slot =
+			type_is_fixed_uarray_property_(prop_type);
+
+		  /* A returned formal is a variable, not a string literal. String
+		     and non-string assignments require an explicit cast (6.16). */
+		  if (fixed_property_slot
+		      && ((ivl_type_base(ivl_type_element(prop_type)) == IVL_VT_STRING)
+			  != (ivl_signal_data_type(port) == IVL_VT_STRING))) {
+			fprintf(stderr, "%s:%u: error: fixed property output %s "
+				"requires matching string types; use an explicit cast "
+				"through a temporary.\n",
+				ivl_expr_file(actual), ivl_expr_lineno(actual),
+				ivl_signal_basename(port));
+			vvp_errors += 1;
+			return;
+		  }
 
 		  if (assoc_container_value || positional_container_value
-		      || fixed_container_slot) {
+		      || fixed_property_slot) {
 			int pidx = (int)ivl_expr_property_idx(actual);
 
 			if (base_sig) {
@@ -894,11 +907,50 @@ static void draw_copy_out_function_argument_impl(ivl_signal_t port, ivl_expr_t a
 					    "    %%jmp/0xz T_%u.%u, %d; output fixed property slot OOB\n",
 					    thread_count, lab_bad_slot,
 					    slot_in_range_flag);
-			      draw_copy_out_load(port, "obj");
-			      draw_copy_out_container_value_(port, actual);
-			      fprintf(vvp_out,
-				      "    %%store/prop/obj %d, %d; output fixed container slot\n",
-				      pidx, slot_word);
+			      ivl_type_t leaf_type = ivl_type_element(prop_type);
+			      switch (ivl_type_base(leaf_type)) {
+				case IVL_VT_BOOL:
+				case IVL_VT_LOGIC: {
+				  unsigned width = ivl_type_packed_width(leaf_type);
+				  if (ivl_signal_data_type(port) == IVL_VT_REAL) {
+					draw_copy_out_load(port, "real");
+					fprintf(vvp_out, "    %%cvt/vr %u;\n", width);
+				  } else {
+					draw_copy_out_load(port, "vec4");
+					fprintf(vvp_out, "    %%pad/%s %u;\n",
+						ivl_signal_signed(port) ? "s" : "u", width);
+				  }
+				  if (ivl_type_base(leaf_type) == IVL_VT_BOOL)
+					fprintf(vvp_out, "    %%cast2;\n");
+				  fprintf(vvp_out,
+					  "    %%store/prop/v/i %d, %d, %u;\n",
+					  pidx, slot_word, width);
+				  break;
+				}
+				case IVL_VT_REAL:
+				  if (ivl_signal_data_type(port) == IVL_VT_REAL) {
+					draw_copy_out_load(port, "real");
+				  } else {
+					draw_copy_out_load(port, "vec4");
+					fprintf(vvp_out, "    %%cvt/rv%s;\n",
+						ivl_signal_signed(port) ? "/s" : "");
+				  }
+				  fprintf(vvp_out, "    %%store/prop/r/i %d, %d;\n",
+					  pidx, slot_word);
+				  break;
+				case IVL_VT_STRING:
+				  draw_copy_out_load(port, "str");
+				  fprintf(vvp_out, "    %%store/prop/str/i %d, %d;\n",
+					  pidx, slot_word);
+				  break;
+				default:
+				  draw_copy_out_load(port, "obj");
+				  draw_copy_out_container_value_(port, actual);
+				  fprintf(vvp_out,
+					  "    %%store/prop/obj %d, %d; output fixed property slot\n",
+					  pidx, slot_word);
+				  break;
+			      }
 			      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 			      fprintf(vvp_out, "    %%jmp T_%u.%u;\n",
 				      thread_count, lab_slot_done);

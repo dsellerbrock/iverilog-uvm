@@ -736,7 +736,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L10 — Fixed-array class-property element output copy-out
 
-- **State:** SUSPENDED for prerequisite L11; partial patch and reducers preserved under evidence/campaign-20260908/l10.
+- **State:** Resumed after validated L11; candidate focused-tested, full required validation pending.
 - **Evidence:** Legal scalar output actual holder.slots[index] emits a skipping warning and remains unchanged.
 - **Scope:** Existing fixed property slot checks and typed property stores; preserve receiver/index context and invalid-index semantics. No unrelated container expansion.
 

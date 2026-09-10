@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: "selection"
+current_blocker: "L10"
+phase: "resumed"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "b32df9a29"
@@ -11,10 +11,10 @@ pending_gates: ["U01_application_qualification", "PR273_remote_CI_before_merge"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After validated L11 closure, reapply preserved L10 patch and resume exact property output scope."
-next_action: "Restore L10 contract and apply preserved partial patch; repeat side-effect/typed/index controls before full validation."
-next_command: "git apply --check ../evidence/campaign-20260908/l10/partial-implementation.patch"
+next_action: "Replay preserved typed and side-effect controls on L10 candidate, extend invalid-index coverage and review."
+next_command: "Run L10 focused reducers after serial build/install."
 next_command_cwd: repository root
-candidate_state: "L11 fully validated; resume preserved L10 now on validated prerequisite."
+candidate_state: "L10 partial patch resuming after fully validated L11."
 installed_tools: "Frozen L11 fingerprints in evidence/l11/candidate-sha256.txt; final comment rebuild changed target hash, runtime/compiler/DPI unchanged. Final sourceb32df9a29; no installs during gates."
 validation_state: "L11 legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
 next_validation: "L10 paired controls then required full validation after resuming patch."

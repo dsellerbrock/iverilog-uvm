@@ -1,35 +1,24 @@
-id: "L11"
-title: "Preserve copy-out-only scalar output argument semantics"
-status: "closed"
-phase: "documented"
-base_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
-last_validated_revision: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d"
-prerequisite_for: "L10"
-preserved_parent: "../evidence/campaign-20260908/l10/partial-implementation.patch and suspended-contract.yaml"
-reproducer: "Plain fixed-array output actual with side-effecting selector; scalar output formal observes its own default, not caller value."
-expected_behavior: "Native output actual evaluated only for return assignment; automatic formal starts with declared type default, static retains own state."
-standards: "Both IEEE1800 editions13.5 output return copying,13.4.2 automatic/static formal lifetime; verify exact defaults."
-allowed_scope: ["Minimized baseline reducers and exact standards/trace.", "tgt-vvp/draw_ufunc.c output classification,evaluation,send/default paths; no L10 typed property changes until prerequisite validated.", "Permanent regression and required gates; existing governance docs."]
-non_goals: ["No unrelated parser,ref,DPI-open-array redesign.", "Preserve L10 patch and regressions for resume after validation."]
-required_gates: ["Paired red/green both editions,automatic/static typed defaults,index side effects,existing container and DPI controls.", "Focused,independent review,full integrated/JSON/real-DPIUVM/NFA/makecheck,isolated frontend."]
+id: "L10"
+title: "Copy output values into fixed-array class-property elements"
+status: "in_progress"
+phase: "focused_tested"
+base_revision: "b32df9a29"
+last_validated_revision: "b32df9a29"
+selection_reason: "DD019 silently skips legal output actuals at a shared emitter path; concrete correctness gap discovered during L09, now independently selected after validated baseline."
+reproducer: "../evidence/campaign-20260908/l09/fixed_property_output.sv"
+expected_behavior: "A legal scalar output/inout actual naming a fixed-array class-property element receives the formal value on return; preserve caller receiver/index, bounds, types and exactly-once evaluation."
+observed_behavior: "Compiler warns Skipping indexed property copy-out; destination remains unchanged."
+standards: "IEEE1800-2017/2023 13.5 output/inout actuals are procedural assignment lvalues; returned values update corresponding actual variables. Class properties and fixed-array indexing retain applicable bounds and value semantics."
+allowed_scope: ["Minimize reducers, standards and causal trace.", "tgt-vvp/draw_ufunc.c indexed fixed-property copy-out using existing typed property store operations and slot checks, only after root cause and red proof.", "Permanent ivtest regression families and required validation.", "Existing ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT,matrix and session log."]
+non_goals: ["No UVM/application edits; no dynamic/associative array feature expansion or ref redesign.", "No runtime architecture change; record unrelated discoveries."]
+required_gates: ["Baseline red/candidate green in both editions; scalar types, bounds/index/receiver controls.", "Focused regression, independent review, integrated legacy/JSON/VPI/negative/runtime,real-DPIUVM,NFA,makecheck,isolated frontend."]
+completion: "Close only validated fixed-property element output scope; retain all broader obligations."
 stop_after_completion: false
-next_action: "Await integrated58045 and UVM51883; JSON follows integrated terminal; frontend alone after all other gates terminal. No installs/source changes."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l11/integrated.log ../evidence/campaign-20260908/l11/uvm.log"
+next_action: "Establish fresh failing minimal fixed-property output reducer and trace typed ordinary property assignments."
+next_command: "Read fixed property slot helpers and normal property stores in tgt-vvp before modifying."
 
-root_cause: "function_port_is_container_output_ suppresses input evaluation only for containers. Scalar outputs therefore read caller value and evaluate side-effecting actuals twice. Existing automatic vvp signal alloc/reset initializes typed formals; static storage persists. Extend classification and skip scalar send using that existing lifecycle."
-standards_evidence: "Read both editions13.5,13.4.2,13.3.2 and2017 Table6-7; automatic outputs default on entry, static retains state. Baseline plain fixed-array selector called twice in both editions."
+root_cause: "Value-returning function emitter only enters fixed property slot path for runtime-container-valued elements. Scalar typed element copies fall to warning/return; void calls use ordinary typed assignment and pass. Both modes baseline compile0/run1 for nonvoid; void control pass."
 
-l11_focused: "42/0, paired2families both modes baseline fail/candidate pass; independent review clear, selector strengthened to prove return-time evaluation."
-candidate_revision: "b32df9a29"
-l11_live_gates: {}
+prerequisite: "L11 closed at b32df9a29 after all required gates; resume exact preserved L10 patch."
 
-l11_completed_gates: "NFA22442 exit0,58/58; makecheck76983 exit0; focused42/0. Final source comment rebuild captured targetd9a0c5df5ab6b8410b3087d347633695f4f109772f0e7c9bb2d592b2057a5fed; no semantic change from focused candidate."
-
-l11_integrated_terminal: "58045 exit0;4865total4860pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON64592 running after integrated terminal; UVM51883 still running; frontend unstarted."
-
-l11_json_terminal: "64592 exit0;1757tests0failures. UVM51883 remains live; frontend unstarted."
-l11_release_results: "third_party/uvm-releases/results-4ifmf4k_/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; probe95059 terminal1 due known compile gaps."
-
-l11_uvm_terminal: "51883 exit0,real-DPI355passed0failed0skipped. Frontend86720 running alone; require root restoration and fingerprints before further tools."
-
-l11_closure: "legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged"
+l10_candidate: "Resumed after validated L11; fixed-property scalar typed stores reuse slot checks and L09 context phases. Destination numeric conversion includes width/sign,two-state,real/int. String/non-string outputs rejected (6.16,6.22.3). Three positive families red on L11 baseline/pass both editions; paired CE mismatch cases,JSON50/0,legacy8/0. Full gates and final review pending."

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_fixed_property_output_index.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_fixed_property_output_index"
+    ],
+    "gold": "sv_fixed_property_output_index"
+}

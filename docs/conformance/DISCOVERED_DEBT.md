@@ -310,3 +310,10 @@ receiver_syntax_probe.sv. Not required for nested env.box receiver coverage;
 record-only syntax frontier, no parser changes under L10.
 
 DD020 resolved by L11 at b32df9a29 after all required local gates.
+
+
+L10 conversion probes found ordinary string/integral assignments are permissively
+accepted by the existing frontend despite6.16 requiring explicit casts. Preserved
+`evidence/campaign-20260908/l10/string_assignment_control.sv`; broader assignment
+diagnostic debt is record-only. L10 now rejects the fixed-property output
+mismatch so its new typed stores cannot execute a mismatched load opcode.

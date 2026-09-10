@@ -1,0 +1,9 @@
+WARNING: ivltests/sv_fixed_property_output_invalid.v:19: fixed unpacked-array property index is undefined or out of range; function copy-out was ignored
+         Time: 0  Scope: sv_fixed_property_output_invalid.$unm_blk_1
+WARNING: ivltests/sv_fixed_property_output_invalid.v:19: fixed unpacked-array property index is undefined or out of range; function copy-out was ignored
+         Time: 0  Scope: sv_fixed_property_output_invalid.$unm_blk_1
+WARNING: ivltests/sv_fixed_property_output_invalid.v:19: fixed unpacked-array property index is undefined or out of range; function copy-out was ignored
+         Time: 0  Scope: sv_fixed_property_output_invalid.$unm_blk_1
+WARNING: ivltests/sv_fixed_property_output_invalid.v:19: fixed unpacked-array property index is undefined or out of range; function copy-out was ignored
+         Time: 0  Scope: sv_fixed_property_output_invalid.$unm_blk_1
+PASSED
