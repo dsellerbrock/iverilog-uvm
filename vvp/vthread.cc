@@ -291,6 +291,15 @@ struct force_pending_s {
       }
 };
 
+/* A nested argument call temporarily displaces the enclosing allocation's
+ * caller-read override. The allocation identity distinguishes recursive
+ * invocations of the same scope; restore only after result copy-out/free. */
+struct saved_staged_read_s {
+      vvp_context_t allocation;
+      vvp_context_t caller;
+      __vpiScope*scope;
+};
+
 struct active_call_context_s {
       vvp_context_t context;
       __vpiScope*scope;
@@ -888,6 +897,7 @@ struct vthread_s {
       std::vector<active_call_context_s> active_call_contexts;
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
+      std::vector<saved_staged_read_s> saved_staged_reads;
 	/* A frame allocated by %alloc that no call has consumed yet.
 	   tgt-vvp's spawn-time argument capture for a single-branch
 	   `fork <task>(); join_none' emits the %alloc in the SPAWNING
@@ -11415,17 +11425,33 @@ bool of_ABS_WR(vthread_t thr, vvp_code_t)
       return true;
 }
 
+static void restore_staged_read_(vthread_t thr, vvp_context_t allocation)
+{
+      if (thr->saved_staged_reads.empty()
+          || thr->saved_staged_reads.back().allocation != allocation)
+            return;
+      const saved_staged_read_s saved = thr->saved_staged_reads.back();
+      thr->saved_staged_reads.pop_back();
+      thr->staged_alloc_rd_context = saved.caller;
+      thr->staged_alloc_rd_scope = saved.scope;
+}
+
 bool of_ALLOC(vthread_t thr, vvp_code_t cp)
 {
       __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
-      thr->staged_alloc_rd_context = 0;
-      thr->staged_alloc_rd_scope = 0;
       if (ctx_scope && cp->scope && ctx_scope != cp->scope) {
             trace_context_event_("alloc-shared", thr, cp->scope, 0);
             return true;
       }
         /* Allocate a context. */
       vvp_context_t child_context = vthread_alloc_context(ctx_scope);
+      if (thr->staged_alloc_rd_context) {
+            saved_staged_read_s saved = { child_context,
+                  thr->staged_alloc_rd_context, thr->staged_alloc_rd_scope };
+            thr->saved_staged_reads.push_back(saved);
+      }
+      thr->staged_alloc_rd_context = 0;
+      thr->staged_alloc_rd_scope = 0;
 
         /* Remember where this thread stood, so a %fork into a
            non-automatic scope can move the frame to the thread that
@@ -17310,6 +17336,7 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
                  goes back to where it stood before the %alloc. Leaving
                  the frame on this thread's stack would hand a later
                  sibling a pointer to storage the child has since freed. */
+            restore_staged_read_(thr, thr->pending_alloc_context);
             thr->wt_context = thr->pending_alloc_prev_wt;
             thr->rd_context = thr->pending_alloc_prev_rd;
             thr->pending_alloc_context = 0;
@@ -17540,6 +17567,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             if (retain_skip_chain)
                   vvp_set_stacked_context(skip_context, saved_skip_next);
             ensure_write_context_(thr, "free-skip");
+            restore_staged_read_(thr, skip_context);
             return true;
       }
 
@@ -17619,6 +17647,7 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             && thr->wt_context && context_live_in_owner(thr->wt_context))) {
             ensure_write_context_(thr, "free");
       }
+      restore_staged_read_(thr, child_context);
       trace_context_event_("free", thr, ctx_scope, child_context);
 
       return true;

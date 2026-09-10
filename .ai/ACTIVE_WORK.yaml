@@ -1,7 +1,7 @@
 id: U06
 title: Reduce original UVM2020.1 phase-execution gap
 status: in_progress
-phase: reproducing
+phase: focused_tested
 base_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
 last_validated_revision: aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a
 selection_reason: Both original2020.1 releases compile and pass direct ABI checks after L08/U04/U05, but full smoke exits before intended traffic/checking; qualification must not count this as a pass.
@@ -12,7 +12,9 @@ allowed_scope:
   - Read-only original2020.1.0/1.1 phase/component source and comparison with the passing2020.2.0 release.
   - Existing compiled replay with phase/objection trace, evidence-only diagnostic test copies and minimized reducers.
   - Applicable LRM/UVM semantics, scoped compiler/runtime tracing once reducer identifies mechanism.
-  - Active/campaign/blocker/session records; refresh exact implementation scope before changes.
+  - vvp/vthread.cc allocation-associated saved caller-read staging and matching free/handoff restoration; preserve existing context ownership and copy-out.
+  - Permanent ivtest regression fixtures and legacy/JSON registration; focused runtime controls and integrated gates.
+  - Active/campaign/blocker/session records.
 non_goals:
   - No original library or smoke weakening, warning waivers,synthetic marker,or application pass at time0.
   - No unrelated compiler/runtime fixes or broad audit.
@@ -34,3 +36,7 @@ u06_reducer_evidence: ../evidence/campaign-20260908/u06/recursive_args.sv, recur
 u06_standards: IEEE 1800-2017 and 1800-2023 clauses 8.6 automatic class-method lifetime and 13.5.1 independent pass-by-value argument copies, read from canonical local PDFs.
 u06_causal_finding: Nested get_child allocation clears the single staged_alloc_rd_context. After nested free, scoped reads select the outer uninitialized callee write-head, copying null phase and zero state instead of caller values37 and19. Direct child property avoids nested allocation and passes.
 u06_review: Independent review agrees; preserve allocation identity, delay enclosing staging restoration until nested result copy-out/free, and cover same-scope calls, first/middle arguments, defaults, ref/output and fork handoff. No production changes yet.
+
+implementation_hypothesis: Save an existing staged caller-read override against the exact nested allocation that displaces it. Restore only when that allocation is released or handed off; shared scopes do not displace a real allocation. Keep ref delegated-access scalar save/restore and callee result reads unchanged.
+
+u06_focused: Permanent test fails baseline and passes candidate in both editions; 12 paired default/ref/fork/constructor neighboring controls pass unchanged. Original2020.1.0 smoke now runs through time1 with exact marker and zero warning/error/fatal counts. Required integrated gates remain pending.

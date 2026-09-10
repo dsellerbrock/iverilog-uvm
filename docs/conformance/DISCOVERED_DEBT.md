@@ -261,3 +261,18 @@ requires parking. Use the format above for the next agent's discoveries.
 - **Discovered during:** U04 original-release replay.
 - **Evidence:** results-9mvpk_8f complete=true,baseline_valid=true; both original2020.1 releases compile0/runtime0, no unresolved DPI symbols or command-line UVM errors, but finish at time0 without required smoke completion marker. Direct legacy ABI tests pass4/4 across both releases/editions.
 - **Disposition:** Record-only during U04; still RUNTIME_FAIL. Establish whether the intended run-phase traffic/checking executes and reduce the causal mechanism after the current semantic baseline is validated. No warning waivers or application edits.
+
+### DD018 — Nested argument output copy-out selects staged caller scope
+
+Discovered under U06. Evidence-only copyout_control.sv and
+copyout-baseline.log/copyout-candidate.log in evidence/campaign-20260908/u06
+show identical failures on validated aa172f5 runtime and U06 candidate.
+A recursive method passes get_child(output seen) as an argument; seen is
+an automatic caller local. Generated copy-out stores through the staged
+outer callee frame instead of the caller frame. Both runs fail the output
+assertion when input assertions are removed to isolate this behavior.
+IEEE 1800-2017/2023 13.5 argument passing is the applicable cluster; exact
+copy-out correction remains untriaged. Symbols: draw_copy_out_function_argument,
+scoped write-context selection. Original smoke has no such output actual.
+Record-only, not a U06 regression or a qualified subcase; preserve reducer
+for deliberate selection after validating the input-context increment.
