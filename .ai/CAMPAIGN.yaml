@@ -254,6 +254,11 @@ l09_json_terminal: "37094 exit0;1753tests0failures. UVM9469 remains live; isolat
 
 l09_uvm_terminal: "9469 exit0; real-DPI UVM355passed0failed0skipped. Frontend41521 now running alone; do not use installed root until terminal and restoration verified."
 l09_closure: "3c44fd13beb6bd0f19186e82fe5a229950c4fc0d; legacy4861total0unexpected,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1753/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused38/0,independent review,frontendS1-S10; installed root restored and hashes unchanged"
-l11_live_gates: {integrated: 58045, UVM: 51883}
+l11_live_gates: {UVM: 51883}
 
 l11_completed_gates: "NFA22442 exit0,58/58; makecheck76983 exit0; focused42/0. Final source comment rebuild captured targetd9a0c5df5ab6b8410b3087d347633695f4f109772f0e7c9bb2d592b2057a5fed; no semantic change from focused candidate."
+
+l11_integrated_terminal: "58045 exit0;4865total4860pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON64592 running after integrated terminal; UVM51883 still running; frontend unstarted."
+
+l11_json_terminal: "64592 exit0;1757tests0failures. UVM51883 remains live; frontend unstarted."
+l11_release_results: "third_party/uvm-releases/results-4ifmf4k_/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; probe95059 terminal1 due known compile gaps."
