@@ -1217,3 +1217,15 @@ floating ratio conversion; transition-family cardinality remains outside scope.
 Independent bounded design review requested. No runtime source edits yet.
 Canonical main was fast-forwarded to3fe277c25; shared graph update completed
 48419nodes91990edges, with existing HTML size limit leaving visualization stale.
+
+
+V04 candidate uses local128-bit merged total/hit maps and per-item sums,
+removing only downstream narrowing/saturation. No helper or persistent data
+model change; transition-family size remains unchanged. Permanent paired test
+fails saved validated runtime at2x and passes candidate, with disjoint unsampled
+and retired universes, three unequal families, threshold2/0, static+dynamic bins,
+unequal weighted items, empty and small domains. Relative oracle rejects zero
+and NaN. Focus2/2legacy+JSON, coverage neighbors75/65,makecheck and final
+independent review pass. Compiler unchanged98664d54; candidate runtimee094574e.
+Integrated7488,UVM36614,NFA98267 now running. FullJSON must follow integrated.
+Source/tests/tools frozen; no semantic checkpoint or new PR while pending.

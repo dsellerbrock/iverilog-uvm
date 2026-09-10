@@ -1,7 +1,7 @@
 id: V04
 title: Preserve wide merged coverage denominators through ratio calculation
 status: in_progress
-phase: root_caused
+phase: awaiting_validation
 base_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
 standards:
   - IEEE1800-2017 and IEEE1800-2023 19.11.3; verify primary type coverage and bin identity wording.
@@ -33,3 +33,9 @@ paired_red: Both2017/2023 at59e5e07c7 return1.084202e-17 instead5.421011e-18 (ra
 primary_semantics: Both19.11.3 require union by bin name; distinct first[value]/second[value] families both contribute. Applicable primary excerpts2017lines38622-38692 and2023lines40539-40606 verified.
 causal_trace: Shared class_type::type_coverage serves object query, overall query, instance dispatch when merged and durable report. It narrows128-bit dynamic cardinality and saturates family sums before division; the separate instance path already avoids this.
 planned_fix: Preserve aggregate totals and hit sums as unsigned128 through ratio conversion inside type_coverage; keep individual transition-family cardinality calculation unchanged. No new helper or data model.
+
+implementation_state: Candidate source/tests frozen. Exact local128-bit aggregate change only; permanent paired tests fail saved baseline at2x and pass candidate.
+focused_validation: Focus2/2legacy+JSON, coverage neighbors75/75legacy+65/65JSON, makecheck and final independent review pass.
+full_gate_handles: integrated7488,real-DPIUVM36614,NFA98267; fullJSON must run only after integrated terminal result.
+current_toolchain: Compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226 unchanged; runtime e094574ede7fce8d3cff9f035c2a827d50e4a30bb30d75cb9b3c86f69ed1b36a candidate. Saved validated runtime is evidence/v04/baseline-vvp.
+next_validation_action: Await integrated7488,NFA98267,UVM36614; start fullJSON serially after integrated releases ivtest output paths. No dependent fix or new PR while gates pending.
