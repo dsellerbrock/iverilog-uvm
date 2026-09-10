@@ -12,11 +12,17 @@ allowed_scope: ["Minimized baseline and parenthesized controls; original release
 non_goals: ["No UVM/app source changes or compliance claim for nonstandard syntax.", "No unrestricted unparenthesized expressions or unrelated parser redesign."]
 required_gates: ["Both editions redbaseline/greencandidate,strict rejection,standard parenthesized behavior and delay timing controls.", "No new parser conflicts;focused,independent review,legacy/JSON/VPI/negative/runtime,UVM,NFA,makecheck,isolatedfrontend,release matrix."]
 stop_after_completion: false
-next_action: "Await integrated62003 and UVM39509; run fullJSON only after integrated terminal, then frontend alone after other gates terminal. No installs/source changes."
+next_action: "Await UVM39509; JSON1773/0 and release matrix complete. Run frontend alone after UVM terminal. No installs/source changes."
 next_command: "tail -n 12 ../evidence/campaign-20260908/u07/integrated.log ../evidence/campaign-20260908/u07/uvm.log"
 
 root_cause: "delay1 accepts only delay_value_simple or parenthesized expression; simple value has only IDENTIFIER. Both baseline editions reject #setting.offset while parenthesized timing control passes. Extend only dotted name carrier under existing gn_icarus_misc_flag; ordinary PEIdent elaboration and delay lowering unchanged."
 
 u07_candidate: "NewJSON8/0,legacy8/0,delayneighbors40/0; baselinecompatfailsboth/controlpassesboth. Bison563SR1122RR unchanged; all209normalizedconflictstate signatures unchanged. Original1.2 progresses to DD021 elaboration/constraint frontiers, stillCOMPILE_FAIL. Fullrequiredgatespending."
 candidate_revision: "a83731194"
-u07_live_gates: {integrated: 62003, UVM: 39509, NFA: 1896}
+u07_live_gates: {UVM: 39509}
+
+u07_integrated_terminal: "62003 exit0; legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. NFA58/58 and makecheck passed; fullJSON started after legacy/VPI terminal."
+
+u07_release_results: "results-4r1diuop complete/baseline_valid;8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. Newly passing2017.1.0/1.1 exact marker and zeroW/E/F;2017.0.9 compiles then300second timeout with empty runtime log. Terminal96191 exit1 for known release gaps. U07 required validation remains pending."
+
+u07_json_terminal: "40182 exit0;1773tests0failures. UVM39509 running; isolated frontend unstarted."

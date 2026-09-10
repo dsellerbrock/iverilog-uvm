@@ -69,7 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `051aeee8e` (U06, L09, L11 and L10 argument fixes).
+2026-09-10, native ARM64, candidate source `a83731194` (U07 member-delay compatibility, following validated L10).
+The release sweep is complete; U07 integrated validation is still pending.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -79,15 +80,15 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 
 | Release | Result | First compile failure / smoke scope |
 | --- | --- | --- |
-| 1.0p1 | COMPILE_FAIL | `process` class lookup, followed by component delay syntax |
-| 1.1a | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 1.1b | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 1.1c | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 1.1d | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 1.2 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 2017.0.9 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 2017.1.0 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
-| 2017.1.1 | COMPILE_FAIL | Unparenthesized member delay in `uvm_component.svh` |
+| 1.0p1 | COMPILE_FAIL | `process` class lookup |
+| 1.1a | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
+| 1.1b | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
+| 1.1c | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
+| 1.1d | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
+| 1.2 | COMPILE_FAIL | String struct-member index and automatic traversal references; ignored constraint also remains (DD021) |
+| 2017.0.9 | RUNTIME_TIMEOUT | Compiles; runtime times out after 300 seconds without output (DD022) |
+| 2017.1.0 | SMOKE_PASS | All smoke checks passed through time1 after U07; zero UVM warnings/errors/fatals |
+| 2017.1.1 | SMOKE_PASS | All smoke checks passed through time1 after U07; zero UVM warnings/errors/fatals |
 | 2020.1.0 | SMOKE_PASS | All smoke checks passed through time1 after U06; zero UVM warnings/errors/fatals |
 | 2020.1.1 | SMOKE_PASS | All smoke checks passed through time1 after U06; zero UVM warnings/errors/fatals |
 | 2020.2.0 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
@@ -95,15 +96,14 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 6 passed compile plus runtime smoke and 9 failed
-compilation. These are observed compatibility gaps, not waived
-requirements or standards-conformance verdicts. The first syntax failure in a
-legacy library still needs classification against the applicable language
-edition before being called a compiler defect. Full UVM regressions,
+All 15 sources were acquired; 8 passed compile plus runtime smoke, 6 failed
+compilation and 1 timed out at runtime. These are observed compatibility gaps, not waived
+requirements or standards-conformance verdicts. U07 classifies unparenthesized member delays as compatibility syntax under
+`-gicarus-misc`; strict IEEE mode still requires parentheses. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-jhzl92on/results.json`, with per-release
+`third_party/uvm-releases/results-4r1diuop/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -116,7 +116,7 @@ continues through later releases after an earlier failure.
 All release sources remain unmodified. L08, U05, U04 and U06 record the scoped
 compiler, DPI and runtime compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `4b08d4e3f174bf52233c2b54e79bf6477bd98151751d2d421d535fb6f6b420ca`
+- `ivl` SHA-256: `c5f60e1a156a0da501a81e5b3e2bf37b7745bc9472d54652ee4dd5262238cc17`
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 

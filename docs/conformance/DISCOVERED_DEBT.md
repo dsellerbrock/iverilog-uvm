@@ -331,3 +331,13 @@ A uvm_sequence_base.svh1255 pick_sequence constraint item is also reported
 unrepresentable and ignored. These remain separate semantic/diagnostic
 frontiers; no UVM pass or waiver. Source trees unchanged; record-only during
 U07, reduce/classify at a later coordinator boundary.
+
+### DD022 — Original UVM 2017.0.9 smoke runtime timeout
+
+U07 full release sweep `third_party/uvm-releases/results-4r1diuop`
+compiles unchanged 2017.0.9 successfully, then its runtime times out after
+300.059 seconds with an empty log. The earlier baseline rejected member-delay
+syntax before runtime. Source hash and exact commands are preserved in results.json.
+No causal runtime diagnosis yet; timeout is not proof of a scheduler defect.
+2017.1.0 and 2017.1.1 now pass all smoke checks. Record-only during U07;
+reduce and classify at a later coordination boundary. Full release remains open.
