@@ -761,3 +761,17 @@ single-clock one start/two failing endpoints produces2 failures instead of1.
 Existing NFA verdict dispatch is the causal mechanism. Preserve endpoint/local
 state while aggregating parent truth; no multiclock architecture change in S03.
 Last validated implementation2be79b2c0; all new implementation gates pending.
+
+S03 candidate retains parent identity across consequence records, aggregates
+child failure once and waits for antecedent closure/all-child success. Tracks
+vacuous actions separately from nonvacuous callbacks; retains endpoint locals,
+kill/disable and owner recycling. Independent review supports capacities and
+EOS aggregation; corrected the unbounded antecedent oracle to remain pending.
+Paired minimal red2fail/green1fail, eight mixed overlap/nonoverlap controls and
+cancellation pass. Focus55legacy/20JSON passes. Old fanout golds were wrong:
+reviewed per-parent expectations include vacuity and distinct-start counts.
+Added single-parent/two-child strong EOS and cover-count controls. Final NFA97660,
+integrated1023 and real-DPI UVM58507 pending; make check45947 passed. Full JSON
+must run after integrated. Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c,
+runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+Candidate source/tests uncommitted; last fully validated revision2be79b2c0.

@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S03
-phase: spec_grounded
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 2be79b2c0
@@ -11,11 +11,11 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S03 correct existing NFA verdict aggregation before reconsidering S02.
-next_action: Trace NFA pool lifetime, cancellation and EOS; design per-attempt aggregation.
-next_command: "sed -n '16660,16740p;17465,17610p' pform.cc"
+next_action: Poll integrated1023/UVM58507/NFA97660; launch full JSON only after integrated finishes.
+next_command: "tail -8 ../evidence/campaign-20260908/s03/integrated.log ../evidence/campaign-20260908/s03/uvm.log ../evidence/campaign-20260908/s03/nfa-final.log"
 next_command_cwd: repository root
-candidate_state: S03 paired red proves duplicate failure actions; no implementation changes.
-installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: All V03 local gates/review pass, including final real-DPI UVM57001 completed355/0/0. No running test processes.
-next_validation: S03 semantic review confirms one failure per attempt; all implementation gates pending.
+candidate_state: S03 uncommitted parent aggregation candidate; red/green and focus55/20 pass.
+installed_tools: Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: Integrated1023 and real-DPI UVM58507 running. NFA97660 final controls pending. make check45947 passed. No dependent implementation.
+next_validation: Full JSON after integrated; resolve every candidate regression before completion.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
