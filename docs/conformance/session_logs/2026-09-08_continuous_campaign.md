@@ -1605,3 +1605,15 @@ The helper walks detached children of the physical root but misses those
 owned by its synchronous task frames; later frame reaping reparents them alive.
 Select P04 as a separate prerequisite; no claim that it explains all U01
 warning variability, and no expansion to terminal-parent kill DD-014.
+
+P04 candidate adds seven lines to the existing kill helper: traverse joined
+frames' detached descendants before frame teardown can reparent them. Six
+paired regressions fail on preserved baseline runtime and pass on candidate:
+nested automatic/static frames, joined subprocesses, unrelated sibling,
+self-kill, and blocked mailbox cancellation with later resource activity.
+Focused legacy6/6 and JSON6/6, neighbors24/14, makecheck and NFA58/58 pass.
+Independent initial source review found no concrete ownership defect and
+requested the now-passing resource control. Runtime candidate76132e1224af6b73
+is frozen; integrated29287 and real-DPIUVM5922 remain live. FullJSON follows
+integrated termination. P04 is awaiting validation, not closed; last validated
+semantic baseline remains9a1b6beb3.

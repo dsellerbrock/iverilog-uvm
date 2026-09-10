@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: P04
-phase: reproduced
+phase: awaiting_integrated_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
@@ -11,13 +11,13 @@ pending_gates: [P04_focused_and_integrated_validation, U01_application_qualifica
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: After U01 diagnostic review, assess one justified remaining standards/application blocker; no repository-wide audit.
-next_action: Implement bounded P04 live-parent descendant traversal after caller/ownership trace; preserve U01 diagnostics.
-next_command: "rg -n 'kill_detached_subprocesses_' vvp/vthread.cc"
+next_action: Wait for P04 integrated29287/UVM5922; then fullJSON serially after integrated. No dependent fix before validation.
+next_command: "tail -10 ../evidence/campaign-20260908/p04/integrated.log"
 next_command_cwd: repository root
-candidate_state: P04 reducer fails in2017/2023; no implementation yet. U01 safely suspended with reviewed evidence.
-installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; driver75f4c2cb.
+candidate_state: P04 seven-line runtime traversal and six paired regressions; focused and neighbor gates pass; required integrated gates pending.
+installed_tools: Frozen L07 compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c; P04 candidate runtime76132e1224af6b73eef0a1e0df5714286062a070022e04c7790f2b29d4716522; validated baseline copied to evidence/p04/vvp-baseline.
 validation_state: L07 all local gates pass;4837legacy total,1729JSON,355real-DPIUVM,58NFA,105VPI,149negative,15runtime controls; required remote CI remains pending.
-next_validation: Independent review of U01 diagnostic interpretation; no compiler patch or required local gate running.
+next_validation: integrated29287 and UVM5922 live; fullJSON must follow integrated terminal; no toolchain mutation.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802

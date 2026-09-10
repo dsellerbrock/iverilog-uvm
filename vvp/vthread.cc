@@ -24106,6 +24106,13 @@ static void kill_detached_subprocesses_(vthread_t thr)
 {
       if (!thr) return;
 
+        /* Synchronous task/block frames and joined subprocesses can own
+           detached children too. Drain them before do_disable() reaps the
+           frames and reparents those children outside the killed subtree. */
+      for (set<vthread_t>::iterator cur = thr->children.begin()
+                 ; cur != thr->children.end() ; ++cur)
+            kill_detached_subprocesses_(*cur);
+
       while (!thr->detached_children.empty()) {
 	    size_t before = thr->detached_children.size();
 	    vthread_t kid = *(thr->detached_children.begin());
