@@ -1,7 +1,7 @@
 id: L05
 title: Preserve associative class-member foreach index type
 status: in_progress
-phase: reproduce
+phase: awaiting_validation
 base_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 standards:
   - IEEE1800-2017 and IEEE1800-2023 12.7.3 and associative array rules; verify primary text before implementation.
@@ -26,4 +26,13 @@ completion: Qualify only exact repaired member-key type resolution; broader fore
 discovery_policy: Unrelated discoveries are record-only; proven prerequisites require explicit suspension with preserved work.
 stop_after_completion: false
 last_validated_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
-next_action: Reproduce retained typed.sv in both editions; query canonical graph for pform_make_foreach_declarations and foreach_index_type_t, then verify primary index-type semantics.
+next_action: Await integrated66792,NFA93662,real-DPIUVM42794; fullJSON only after integrated terminal result. Source/tests/tools frozen.
+
+causal_trace: Both selected-member parser actions discard selector structure for declaration typing (null target for expression selector, unindexed path for identifier selector); declaration helper also rejects indexed paths. Existing selected-path helper consequently cannot traverse the array element to its class member.
+planned_fix: Preserve selected member target through both parser actions and foreach_index_type_t; reuse PEIdent::test_type_of_ident from enclosing scope without evaluating selectors, then resolve terminal array index type. Keep established unselected route and selected-array non-member production unchanged.
+
+semantic_review: Same-name selector/loop-key positive control withdrawn. IEEE12.7.3 references12.7.1 implicit declarations before wholeloop; both Slang editions bind header key to newstringindex and reject it. Runtime target binding remains unchanged.
+
+focused_validation: Paired10/10legacy+JSON; foreach neighbors53/53legacy+34/34JSON; makecheck and final independent review pass.
+current_toolchain: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754. Comment-only rebuild produced identical fingerprints.
+residual_scope: Selected-array non-member production and invalid header index validation DD-009 remain unqualified by this increment; no runtime target-binding change.

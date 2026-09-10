@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L05
-phase: reproduce
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L05_reducer_and_semantics, L05_focused_and_full_validation, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [L05_integrated66792, L05_NFA93662, L05_real_DPI_UVM42794, L05_fullJSON_after_integrated, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: L05 from DD-002: selected associative class-member foreach key type.
-next_action: Reproduce retained typed.sv and trace index declaration type before implementation.
-next_command: "local-install/bin/iverilog -g2017 -o ../evidence/campaign-20260908/l05/reducer-2017.vvp ../evidence/campaign-20260908/l01/typed.sv && local-install/bin/vvp ../evidence/campaign-20260908/l05/reducer-2017.vvp"
+next_action: Await integrated66792,NFA93662,UVM42794; start fullJSON only after integrated completes.
+next_command: "tail -20 ../evidence/campaign-20260908/l05/integrated.log"
 next_command_cwd: repository root
-candidate_state: L03 locally validated 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb; U01 replay still fails teardown checks; L05 selected with no source edits.
-installed_tools: Compiler core aec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
-validation_state: All L03 gates passed. U01 fresh replay115requests230items0errors0fatals2SEQPRTZMBwarnings,TEST FAILED CHECKS;360exportedfiles unchanged.
-next_validation: L05 paired reducer and standards-grounded source trace before patch.
+candidate_state: L05 reviewed candidate source/tests frozen; last validated implementation4bcbd9c7b.
+installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
+validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; full gates running.
+next_validation: FullJSON after integrated; no dependent fixes before required local validation completes.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
