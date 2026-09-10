@@ -52,7 +52,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### U01 — Xbar runtime/scoreboard/outstanding-request failures
 
 - **Area / edition:** UVM and applications / edition-agnostic
-- **State:** IN_PROGRESS (resumed: sequence-parent warnings after checked traffic completes)
+- **State:** OPEN (checked traffic completes; pinned workload/UVM teardown qualification remains)
 - **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
   (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
@@ -118,8 +118,8 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 
 - **Area / edition:** Functional coverage / edition-agnostic
-- **State:** OPEN
-- **Confidence:** SOURCE
+- **State:** IN_PROGRESS
+- **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage` uses a
   maximum registered dynamic-family size raised to the hit count — not an
   exact union for arbitrary disjoint instance bin sets.
@@ -129,7 +129,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Closure requirements:** Disjoint and overlapping instance domains with
   known union sizes, including partial (non-100%) coverage results checked
   against a hand-computed oracle, not just "coverage reaches 100%."
-- **Last verified revision:** not re-verified since the audit.
+- **Last verified revision:** 9218751e2; paired LRM19.11.3 overlapping-range reducer returns100 rather than66.666667 percent. Evidence/campaign-20260908/v01/union.sv.
 
 ### F00 — Hardware formal proof backend (PROGRAM item, not a bug)
 

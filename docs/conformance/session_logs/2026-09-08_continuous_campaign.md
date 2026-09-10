@@ -525,3 +525,25 @@ predicate. Do not suppress or waive them. Close only L02 bounded local scope,
 resume U01 to trace parent-process guard teardown and establish baseline/reducer
 evidence before any further implementation. Remote CI remains pending before
 merge. Last validated implementation9218751e2; no live validation processes.
+
+U01 coordination boundary: normal replay has4 sequence-parent warnings;
+high-verbosity/scb logging replay has1 (not4). Both perform115 request and115
+response checks. Pinned smoke leaves device sequences running after its body;
+UVM explicitly warns on caller termination without sequence.kill. A bounded
+control emits1 warning with parent.kill and0 with sequence.kill, on candidate
+and pre-L02 compiler layout, both using current runtime. This does NOT exclude
+an L02 runtime contribution or prove reference equivalence. Independent review
+supports leaving U01 OPEN, preserving warning-count sensitivity and future
+teardown/scheduling qualification. No warning suppressed, no application pass.
+Suspended U01 contract lives in evidence/u01-sequence-parent/suspended-u01.yaml.
+
+Select independent V01 for correctness impact: inflated type coverage can
+falsely imply completion. Both supplied LRM editions19.11.3 explicitly define
+merged bin union and give overlapping [0:1]/[1:2] value-bin example. Current
+9218751e2 returns100 instead of66.666667 in both editions with explicit
+merge_instances=1. Contract now V01, phase root_cause_trace, no code edits.
+Broader ignored merge_instances/default weighted-average model remains a
+separate obligation, not implicitly solved by an exact merged denominator.
+Next command: rg -n 'dyn_type_total|dyn_type_register|covgrp_dyn'
+vvp/class_type.h vvp/class_type.cc. Last validated revision9218751e2.
+Worktree audit unchanged; unrelated trees preserved. No running test sessions.
