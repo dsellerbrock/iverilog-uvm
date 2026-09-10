@@ -864,3 +864,39 @@ Required focused-neighbor, integrated ivtest/VPI/negative/runtime, full JSON,
 real-DPI UVM, make check and final review gates remain pending, as does remote
 CI before merge. Resume with `sed -n '21370,21820p' pform.cc` in the campaign
 tree, retaining this partial patch and reducers. Do not repeat a broad audit.
+
+
+### S04 parameter repetition and reviewed NFA oracles (2026-09-09)
+
+The parameter-repeat producer now adds vacuity only for failed source ages
+below the minimum length, plus false enabled prefixes. Existing mature ages
+are excluded. Its user pass action uses the shared dispatcher. The window
+normalizer passes `endpoint_only=true` to prevent fictitious synthetic-repeat
+vacuity while its original antecedent progress remains unfinished.
+`parameter-vacuity.sv` was red0/0, now green4/0 in both editions/modes.
+Permanent paired parameter controls cover false prefixes, matched-age exclusion
+and empty-repeat independence from keep (not complete empty-repeat timing).
+Current focused legacy and JSON gates both pass4/4.
+
+Independent stimulus enumeration resolved six NFA oracle mismatches:
+impl_window_goto33starts gives32passes for each assertion; local_var_window
+18starts gives17vac+1tagged pass; midchain_unbounded has9passes;
+midchain_window9passes/failure85; overlap_midchain12m1passes/failures125and85;
+window_goto_isolation16vacpasses/1failure. Exact times and unchanged cover/
+pending diagnostics were preserved. Current NFA sweep passes58/58.
+
+Next reducer `s04/window-vacuity.sv` compiles its flat and named equal-span
+OR/AND antecedents and fails with0/0/0 versus1/1/1 at time6. Preserve original
+antecedent structure before normalization. Track branch continuation and
+combine with original OR/AND topology; only whole-parent loss is vacuity.
+Feed enabled endpoint matches to symbolic consequence machinery and do not
+count the synthetic[*1] as a separate starting attempt. Preserve asynchronous
+disable and kill resets. This remains active S04, not a new blocker.
+
+Compiler SHA256 b4791cfe0d7e19b7b9e171a75f3a71126aa03e827ff8435c5b08544d2006f486;
+runtime unchanged. All builds/test handles terminal; worktrees audited and
+preserved. Dirty implementation/tests retained. Last fully validated revision
+61ca5f336; full integrated/JSON/UVM/check/final-review gates remain pending.
+Evidence includes build/install-parameter, parameter red/green, window-red,
+nfa-parameter and focus-parameter logs. Resume window lowering at
+`sed -n '21845,22035p' pform.cc`; do not repeat the broad audit.

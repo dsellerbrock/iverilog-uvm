@@ -11,11 +11,11 @@ pending_gates: [S04_complete_implementation_and_required_validation, U01_teardow
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S04 selected from reproduced DD005; S02 remains at its documented design boundary.
-next_action: Finish S04 parameter repetition/window antecedent progress and vacuity; inspect six NFA output mismatches before updating expectations.
-next_command: "sed -n '21370,21820p' pform.cc"
+next_action: Finish S04 parameter-window original antecedent progress and vacuity for flat/OR/AND trees.
+next_command: "sed -n '21845,22035p' pform.cc"
 next_command_cwd: repository root
-candidate_state: Partial dirty S04 NFA/general legacy/genvar implementation plus initial permanent regression; specialized parameter paths unfinished. No S04 implementation commit or closure.
-installed_tools: Compiler949afd48c853bb41b4ecf21c6ea69e2a03b4437dab58e495a31f02a243c1d6eb; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: S04 initial focus2/2 legacy and2/2 JSON; NFA52pass6mismatches. All launched S04 builds/tests terminal, no running validation processes. S03 remains last fully validated implementation.
-next_validation: Add parameter-path red/green and cancellation/callback controls, resolve NFA oracle mismatches, then required focused/integrated/JSON/UVM/check/review gates.
+candidate_state: Partial dirty S04 NFA/general legacy/genvar/parameter-repeat implementation plus two paired permanent regressions; parameter-window path unfinished. No S04 implementation commit or closure.
+installed_tools: Compilerb4791cfe0d7e19b7b9e171a75f3a71126aa03e827ff8435c5b08544d2006f486; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: S04 focus4/4 legacy and4/4 JSON; NFA58pass0fail. All launched S04 builds/tests terminal, no running validation processes. S03 remains last fully validated implementation.
+next_validation: Repair window-vacuity.sv red0/0/0 versus expected1/1/1; add branch continuation and cancellation/callback controls, then required integrated gates.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
