@@ -2219,6 +2219,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <let_port_itm> let_port_item
 
 %type <pform_name> hierarchy_identifier implicit_class_handle class_hierarchy_identifier
+%type <pform_name> delay_member_identifier
 %type <pform_name> nettype_scope_path
 %type <scoped_name> nettype_resolution_name nettype_resolution_opt
 %destructor { delete $$; }
@@ -9907,10 +9908,38 @@ defparam_assign_list
   | defparam_assign_list ',' defparam_assign
   ;
 
+/* Legacy UVM uses #setting.offset without the IEEE-required parentheses.
+   Keep this dotted-name extension separate from general delay expressions. */
+delay_member_identifier
+  : IDENTIFIER '.' IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$1;
+	delete[]$3;
+      }
+  | delay_member_identifier '.' IDENTIFIER
+      { $$ = $1;
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	delete[]$3;
+      }
+  ;
+
 delay1
   : '#' delay_value_simple
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($2);
+	$$ = tmp;
+      }
+  | '#' delay_member_identifier
+      { std::list<PExpr*>*tmp = new std::list<PExpr*>;
+	PEIdent*expr = new PEIdent(*$2, @2.lexical_pos);
+	FILE_NAME(expr, @2);
+	if (!gn_icarus_misc_flag)
+	      yyerror(@2, "error: Unparenthesized member delay is an Icarus "
+		      "Verilog extension. Use parentheses or -gicarus-misc.");
+	tmp->push_back(expr);
+	delete $2;
 	$$ = tmp;
       }
   | '#' K_1step

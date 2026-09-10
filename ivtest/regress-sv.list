@@ -2873,3 +2873,11 @@ sv_fixed_property_output_invalid normal,-g2017,-s,sv_fixed_property_output_inval
 sv_fixed_property_output_invalid_2023 normal,-g2023,-s,sv_fixed_property_output_invalid ivltests gold=sv_fixed_property_output_invalid.gold
 sv_fixed_property_output_string_fail CE,-g2017,-s,sv_fixed_property_output_string_fail ivltests gold=sv_fixed_property_output_string_fail.gold
 sv_fixed_property_output_string_fail_2023 CE,-g2023,-s,sv_fixed_property_output_string_fail ivltests gold=sv_fixed_property_output_string_fail.gold
+sv_member_delay_compat normal,-g2017,-s,sv_member_delay_compat ivltests gold=sv_member_delay_compat.gold
+sv_member_delay_compat_2023 normal,-g2023,-s,sv_member_delay_compat ivltests gold=sv_member_delay_compat.gold
+sv_member_delay_parenthesized normal,-g2017,-gno-icarus-misc,-s,sv_member_delay_parenthesized ivltests gold=sv_member_delay_parenthesized.gold
+sv_member_delay_parenthesized_2023 normal,-g2023,-gno-icarus-misc,-s,sv_member_delay_parenthesized ivltests gold=sv_member_delay_parenthesized.gold
+sv_member_delay_strict_fail CE,-g2017,-gno-icarus-misc,-s,sv_member_delay_strict_fail ivltests gold=sv_member_delay_strict_fail.gold
+sv_member_delay_strict_fail_2023 CE,-g2023,-gno-icarus-misc,-s,sv_member_delay_strict_fail ivltests gold=sv_member_delay_strict_fail.gold
+sv_member_delay_expression_fail CE,-g2017,-s,sv_member_delay_expression_fail ivltests gold=sv_member_delay_expression_fail.gold
+sv_member_delay_expression_fail_2023 CE,-g2023,-s,sv_member_delay_expression_fail ivltests gold=sv_member_delay_expression_fail.gold

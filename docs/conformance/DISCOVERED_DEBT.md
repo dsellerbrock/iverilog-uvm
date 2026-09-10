@@ -319,3 +319,15 @@ diagnostic debt is record-only. L10 now rejects the fixed-property output
 mismatch so its new typed stores cannot execute a mismatched load opcode.
 
 DD019 resolved by L10 at051aeee8e after validatedL11 prerequisite and all required local gates.
+
+
+### DD021 — UVM1.2 frontiers after member-delay parsing
+
+U07 candidate original1.2 probe `third_party/uvm-releases/results-sv_woyjp`
+gets past #setting.offset but fails elaboration: uvm_printer.svh1172 reports
+an unsupported index on struct member val, and uvm_traversal.svh284-285 reports
+hierarchical references to automatically allocated compiled_regex in visit.
+A uvm_sequence_base.svh1255 pick_sequence constraint item is also reported
+unrepresentable and ignored. These remain separate semantic/diagnostic
+frontiers; no UVM pass or waiver. Source trees unchanged; record-only during
+U07, reduce/classify at a later coordinator boundary.

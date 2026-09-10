@@ -164,9 +164,11 @@ standards, this behaviour should be disabled.
 .TP 8
 .B -gicarus-misc\fI|\fP-gno-icarus-misc
 Enable (default) or disable support for miscellaneous Icarus Verilog
-extensions. This includes the binary bitwise NAND and NOR operators
-and allowing the binary arithmetic modulus operator to operate on real
-operands.
+extensions. This includes the binary bitwise NAND and NOR operators,
+allowing the binary arithmetic modulus operator to operate on real
+operands, and unparenthesized dotted-name delays such as #setting.offset
+used by legacy UVM libraries. For IEEE delay syntax use #(setting.offset);
+-gno-icarus-misc rejects the unparenthesized member form.
 .TP 8
 .B -I\fIincludedir\fP
 Append directory \fIincludedir\fP to list of directories searched

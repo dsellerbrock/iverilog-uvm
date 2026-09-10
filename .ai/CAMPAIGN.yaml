@@ -1,20 +1,20 @@
 status: active
-branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: "publication"
+branch: "agent/campaign-function-arguments-main-20260910"
+current_blocker: "U07"
+phase: "selected"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "051aeee8e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["next_milestone_remote_CI_before_merge", "U01_application_qualification"]
+pending_gates: ["PR274_remote_CI_before_merge", "U01_application_qualification"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After L10 exact closure, inspect shared legacy-UVM compile frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
-next_action: "Publish reviewed campaign tree in a branch descended from refreshed main, preserving history; then select legacy UVM1.2 compile blocker."
-next_command: "git fetch origin; verify origin/main tree equals previous published edacb3d62 tree before publication merge."
+next_action: "Reduce #setting.offset, compare parenthesized form and trace delay1 grammar before scoped parser extension."
+next_command: "sed -n 9910,9928p parse.y"
 next_command_cwd: repository root
-candidate_state: "L10 closed; four validated increments U06,L09,L11,L10 and README ready for one next main PR."
+candidate_state: "U07 selected; no implementation yet. PR274 publishes validated U06,L09,L11,L10 andREADME."
 installed_tools: "Frozen L10 candidate fingerprints evidence/l10/candidate-sha256.txt; runtime/compiler/DPI unchanged from L11, onlytargetupdated. No installs duringgates."
 validation_state: "L10 legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
 next_validation: "Remote CI for next publication; next blocker reducer/standards before implementation."
@@ -128,7 +128,7 @@ published_batches:
     external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
     external_merge_base: agent/campaign-automatic-events-20260910
 publication_queue: []
-publication_next_action: "Wait for fresh PR273 CI/review; continue autonomous campaign and batch next roughly3-5validated increments. No new PR or merge now."
+publication_next_action: "Accumulate next roughly3-5validated increments; no per-blockerPR, no mergeauthorization."
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
 
@@ -148,8 +148,8 @@ consolidated_main_pr:
   outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
-last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-validated_increments_since_publication: 4
+last_publication_semantic_revision: "051aeee8e"
+validated_increments_since_publication: 0
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -242,7 +242,7 @@ u04_nfa: Passed58/58 terminal6429 exit0.
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
 
-candidate_revision: "051aeee8e"
+candidate_revision: null
 
 l09_live_gates: {}
 l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."
@@ -282,3 +282,14 @@ l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json com
 
 l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
 l10_closure: "051aeee8e; legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
+
+function_arguments_pr:
+  url: https://github.com/dsellerbrock/iverilog-uvm/pull/274
+  branch: agent/campaign-function-arguments-main-20260910
+  base: main
+  head: eb88527483988ed7747c5c2e32fb58d7820b3aab
+  source_snapshot: 51993d3fb77067d3bd34111c9fac4a9493e1a538
+  semantic_revision: 051aeee8e
+  scope: U06,L09,L11,L10,READMEversionusage
+  validation: Allrequiredlocalgatespassed;fresh6CIjobsqueued/running;noagentmerge.
+  history: Two-parentpublicationmergea075e5b63 preservedmainandcampaignwithreviewedtree19f5007c;followingupeb8852748 removesoneblankEOFlineonly.

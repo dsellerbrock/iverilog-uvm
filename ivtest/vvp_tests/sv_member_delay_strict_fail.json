@@ -1,0 +1,11 @@
+{
+    "type": "CE",
+    "source": "sv_member_delay_strict_fail.v",
+    "iverilog-args": [
+        "-g2017",
+        "-gno-icarus-misc",
+        "-s",
+        "sv_member_delay_strict_fail"
+    ],
+    "gold": "sv_member_delay_strict_fail"
+}

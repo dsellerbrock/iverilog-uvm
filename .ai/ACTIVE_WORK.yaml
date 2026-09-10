@@ -1,35 +1,20 @@
-id: "L10"
-title: "Copy output values into fixed-array class-property elements"
-status: "closed"
-phase: "documented"
-base_revision: "b32df9a29"
-last_validated_revision: "b32df9a29"
-selection_reason: "DD019 silently skips legal output actuals at a shared emitter path; concrete correctness gap discovered during L09, now independently selected after validated baseline."
-reproducer: "../evidence/campaign-20260908/l09/fixed_property_output.sv"
-expected_behavior: "A legal scalar output/inout actual naming a fixed-array class-property element receives the formal value on return; preserve caller receiver/index, bounds, types and exactly-once evaluation."
-observed_behavior: "Compiler warns Skipping indexed property copy-out; destination remains unchanged."
-standards: "IEEE1800-2017/2023 13.5 output/inout actuals are procedural assignment lvalues; returned values update corresponding actual variables. Class properties and fixed-array indexing retain applicable bounds and value semantics."
-allowed_scope: ["Minimize reducers, standards and causal trace.", "tgt-vvp/draw_ufunc.c indexed fixed-property copy-out using existing typed property store operations and slot checks, only after root cause and red proof.", "Permanent ivtest regression families and required validation.", "Existing ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT,matrix and session log."]
-non_goals: ["No UVM/application edits; no dynamic/associative array feature expansion or ref redesign.", "No runtime architecture change; record unrelated discoveries."]
-required_gates: ["Baseline red/candidate green in both editions; scalar types, bounds/index/receiver controls.", "Focused regression, independent review, integrated legacy/JSON/VPI/negative/runtime,real-DPIUVM,NFA,makecheck,isolated frontend."]
-completion: "Close only validated fixed-property element output scope; retain all broader obligations."
+id: "U07"
+title: "Support legacy UVM member delay syntax through existing compatibility mode"
+status: "in_progress"
+phase: "focused_tested"
+base_revision: "051aeee8e"
+last_validated_revision: "051aeee8e"
+selection_reason: "User prioritizes pinned UVM1.2 for OpenTitan; nine old releases stop at shared unparenthesized member delay syntax."
+reproducer: "Original1.2 uvm_component.svh3616 #setting.offset; reduce struct member delay with measured time."
+expected_behavior: "Existing miscellaneous-extension mode accepts the legacy member delay with normal runtime delay semantics; -gno-icarus-misc rejects it, while parenthesized IEEE expression passes both modes."
+standards: "Both IEEE editions AnnexA delay_value permits ps_identifier=[package_scope]identifier, not member selectors. This is compatibility syntax, not a mandatory IEEE feature gain. Preserve 9.4.1 delay expression/timing semantics."
+allowed_scope: ["Minimized baseline and parenthesized controls; original release compile replay.", "parse.y narrow member-delay syntax guarded by existing gn_icarus_misc_flag, only after reducer/rootcause; no runtime special casing or library edits.", "Permanent regression,strict-mode diagnostics,bison conflict checks and all required integrated gates.", "Existing docs/driver option documentation,README if needed,campaign records."]
+non_goals: ["No UVM/app source changes or compliance claim for nonstandard syntax.", "No unrestricted unparenthesized expressions or unrelated parser redesign."]
+required_gates: ["Both editions redbaseline/greencandidate,strict rejection,standard parenthesized behavior and delay timing controls.", "No new parser conflicts;focused,independent review,legacy/JSON/VPI/negative/runtime,UVM,NFA,makecheck,isolatedfrontend,release matrix."]
 stop_after_completion: false
-next_action: "Await integrated30122 and UVM16983; full JSON after integrated terminal, then frontend alone after every other gate terminal. No source/install changes."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l10/integrated.log ../evidence/campaign-20260908/l10/uvm.log"
+next_action: "Reduce #setting.offset, compare parenthesized form and trace delay1 grammar before scoped parser extension."
+next_command: "sed -n 9910,9928p parse.y"
 
-root_cause: "Value-returning function emitter only enters fixed property slot path for runtime-container-valued elements. Scalar typed element copies fall to warning/return; void calls use ordinary typed assignment and pass. Both modes baseline compile0/run1 for nonvoid; void control pass."
+root_cause: "delay1 accepts only delay_value_simple or parenthesized expression; simple value has only IDENTIFIER. Both baseline editions reject #setting.offset while parenthesized timing control passes. Extend only dotted name carrier under existing gn_icarus_misc_flag; ordinary PEIdent elaboration and delay lowering unchanged."
 
-prerequisite: "L11 closed at b32df9a29 after all required gates; resume exact preserved L10 patch."
-
-l10_candidate: "Resumed after validated L11; fixed-property scalar typed stores reuse slot checks and L09 context phases. Destination numeric conversion includes width/sign,two-state,real/int. String/non-string outputs rejected (6.16,6.22.3). Three positive families red on L11 baseline/pass both editions; paired CE mismatch cases,JSON50/0,legacy8/0. Full gates and final review pending."
-candidate_revision: "051aeee8e"
-l10_live_gates: {}
-
-l10_integrated_terminal: "30122 exit0;4873total4868pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON39499 running after terminal; UVM16983 live; releaseprobe49747 live; frontendunstarted."
-
-l10_json_terminal: "39499 exit0;1765tests0failures. UVM16983 remains live; frontendunstarted."
-l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json complete/baseline_valid;6SMOKE_PASS9knownCOMPILE_FAIL,terminal49747 exit1 due compile gaps."
-
-l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
-
-l10_closure: "legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
+u07_candidate: "NewJSON8/0,legacy8/0,delayneighbors40/0; baselinecompatfailsboth/controlpassesboth. Bison563SR1122RR unchanged; all209normalizedconflictstate signatures unchanged. Original1.2 progresses to DD021 elaboration/constraint frontiers, stillCOMPILE_FAIL. Fullrequiredgatespending."
