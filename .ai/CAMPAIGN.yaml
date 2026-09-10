@@ -7,15 +7,37 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L05_integrated66792, L05_NFA93662, L05_real_DPI_UVM42794, L05_fullJSON_after_integrated, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [L05_real_DPI_UVM42794, L05_fullJSON84561, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: L05 from DD-002: selected associative class-member foreach key type.
-next_action: Await integrated66792,NFA93662,UVM42794; start fullJSON only after integrated completes.
-next_command: "tail -20 ../evidence/campaign-20260908/l05/integrated.log"
+next_action: Await UVM42794 and fullJSON84561; publish remaining cohesive validated batches.
+next_command: "tail -20 ../evidence/campaign-20260908/l05/full-json.log"
 next_command_cwd: repository root
 candidate_state: L05 reviewed candidate source/tests frozen; last validated implementation4bcbd9c7b.
 installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
-validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; full gates running.
+validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; NFA58/58 and integrated4765/4770 with zero unexpected failures pass; UVM/fullJSON running.
 next_validation: FullJSON after integrated; no dependent fixes before required local validation completes.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
+
+publication_policy_checkpoint: 61001162b
+publication_cadence: Create or update draft PRs at coherent locally validated checkpoints; inspect and drain unpublished validated backlog at resume/checkpoint boundaries. No merge authorization or gate waiver.
+published_batches:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
+    scope: P03/P01/P02 fork process identity and scheduling; continuous campaign and publication policies.
+    branch: agent/campaign-fork-processes-20260910
+    semantic_revision: b9de0be7f7702b7aba7d07d24f76c439322d3773
+    publication_revision: a3744e5b7647bad0854b2ea59a47412d75d24f27
+    base: main
+    state: draft
+    outstanding: Required remote CI and review before any separately authorized merge.
+publication_queue:
+  - Z01A/C01 bounded solver stages and untranslated inline-constraint rejection through c57fbe3c5.
+  - L01/L02 selected foreach and automatic activation history through 9218751e2.
+  - V01A/V02/V03 bounded coverage semantics through 2be79b2c0.
+  - S03/S04 assertion parent verdicts and vacuous actions through 2cdaec5bc.
+  - S05/S06 symbolic repetition and instance-valued delays through 6f49fe1eb.
+  - S07 nested sequence aliases through 4a879babc.
+  - L04/L03 automatic defaults and Boolean activation history through 4bcbd9c7b.
+  - L05 only after outstanding required local gates pass.
+publication_next_action: Publish the next cohesive validated batch as an explicitly dependent draft; review its exact diff and record base/head/CI.

@@ -1141,3 +1141,20 @@ L05 paired retained reducer failszeroentries on validated L03. Source confirms s
 L05 permanent5pairedcases cover string order/count/sum,signed16bit keys,class-method keys,inherited parameterized members,expression/bare selectors,valid body shadowing,concurrent automatic dynamic receivers and skipped fixed dimensions. Saved pre-L05 compiler fails all new cases; candidate focus10/10legacy+JSON,foreach neighbors53/53+34/34,makecheck and final review pass. Bison563shift/reduce1122reduce/reduce counts unchanged; final comment-only rebuild produces identical fingerprints. Candidate compiler98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226/runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754 frozen. Integrated66792,NFA93662,real-DPIUVM42794 running; fullJSON waits for integrated. L05 awaits validation; last fully validated4bcbd9c7b.
 
 User requested periodic GitHub PR creation. Updated AGENTS.md to publish/update reviewable draft PRs at validated checkpoints, inspect and drain unpublished validated backlog, and record semantic heads/dependencies/CI in CAMPAIGN. Publication is authorized; merge permissions and all gates remain unchanged. Refreshed origin/main remains49505f514; no open PRs were found. First publication is the validated cohesive P03/P01/P02 fork-process batch through b9de0be7f, with the new PR-cadence policy only added above that semantic head. L05 remains frozen awaiting full local validation.
+
+
+### Periodic GitHub publication requested; first batch published
+
+User explicitly requested periodic pull requests. AGENTS.md policy checkpoint
+61001162b requires publication at coherent locally validated checkpoints and
+catch-up of the unpublished backlog, while preserving required CI and merge
+permissions. Draft PR https://github.com/dsellerbrock/iverilog-uvm/pull/263
+publishes P03/P01/P02 at validated semantic revision b9de0be7f; publication
+revision a3744e5b7 adds only the PR-cadence policy. No open PR existed before
+publication. Remaining cohesive batches are recorded in CAMPAIGN.yaml.
+
+L05 source/tests/tools remain frozen. Integrated66792 exited0: 4770 total,
+4765 pass, zero failures,2 not implemented,3 expected failures; VPI105/105,
+negative149/149 and runtime invariants pass. NFA93662 exited0 with58/58.
+FullJSON84561 started only after integrated completed; UVM42794 remains running.
+Last fully locally validated semantic revision remains4bcbd9c7b.
