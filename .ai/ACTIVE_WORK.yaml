@@ -1,7 +1,7 @@
 id: V03
 title: Honor covergroup type weight in overall coverage
 status: in_progress
-phase: bytecode_compatibility_repair
+phase: required_validation
 base_revision: ac60732f3
 standards:
   - IEEE1800-2017 and IEEE1800-2023 19.7.1 table19-3, 19.9 and 19.11.
@@ -35,4 +35,4 @@ completion: Close only the exact qualified group-level type-weight scope after a
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: ac60732f3
-next_action: Finish tagged rebuild14218; verify old five-field record before a property, rerun focus75/65 and metadata/check, then required integrated/full JSON/UVM gates.
+next_action: Await integrated87863 and real-DPI UVM57001; after integrated completes run full JSON serially with unchanged installed tools.

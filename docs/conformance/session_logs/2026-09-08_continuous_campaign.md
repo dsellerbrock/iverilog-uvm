@@ -715,3 +715,14 @@ ordering does not reset it. Added permanent old-record-before-property boundary
 fixture. Tagged rebuild/install14218 pending; all focus/metadata/check evidence
 must be refreshed for final tagged candidate before integrated gates. No V03
 integrated/full JSON/UVM run yet; last validated baselineac60732f3.
+
+V03 tagged rebuild14218 succeeded; old-five-field-before-property reducer now
+passes, as do permanent metadata boundary/malformed controls and make check
+(23255 terminal0). Focus75533 passes75 legacy/65 JSON. Final independent review
+has no remaining actionable finding. Required integrated87863 and real-DPI
+UVM57001 started against compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246
+and runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+Full JSON must follow integrated serially. V03 remains uncommitted and awaiting
+validation; last complete local baselineac60732f3. Next poll87863/57001, launch
+full JSON after87863 completes, then checkpoint exact V03 scope only if all
+required local gates pass. No dependent implementation while gates pending.

@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: V03
-phase: bytecode_compatibility_repair
+phase: required_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: ac60732f3
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V03_semantics_and_required_validation, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V03_integrated_87863, V03_full_JSON, V03_real_DPI_UVM_57001, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
 next_selection: V03 selected from paired current-source evidence; U01 and broader V01 remain open.
-next_action: Await tagged build/install14218; verify preserved old-options-before-property reducer, rerun focus and metadata/check, then integrated/full JSON/UVM gates.
-next_command: "tail -12 ../evidence/campaign-20260908/v03/tagged-build.log"
+next_action: Await integrated87863 and real-DPI UVM57001; launch full JSON after integrated releases shared ivtest logs.
+next_command: "tail -20 ../evidence/campaign-20260908/v03/integrated.log ../evidence/campaign-20260908/v03/uvm.log"
 next_command_cwd: repository root
-candidate_state: V03 numeric sixth-field draft replaced with separate .covgrp_type_weight tag after review reproduced old-bytecode property-row ambiguity. Tagged rebuild14218 pending.
-installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7ffe60f0eb39167b80d62ad7868e91423be1e686b6767db7be51e6dc770cc5a4.
-validation_state: Pre-tag V03 focus75/65 and metadata/check passed. Review then found/reproduced old five-field record before property failing syntax; separate tag implemented, not yet validated. Last fully validatedac60732f3.
-next_validation: Paired old-bytecode compatibility replay, focus75/65, metadata/check, final review, then integrated/full JSON/real-DPI UVM.
+candidate_state: Uncommitted V03 group type-weight metadata/aggregation with separate .covgrp_type_weight tag; old options grammar and record ordering preserved.
+installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: Tagged focus75/65, metadata bounds, old-bytecode reducer and make check pass. Final independent review has no actionable finding. Integrated87863 and real-DPI UVM57001 live; full JSON not launched yet. Last validatedac60732f3.
+next_validation: After integrated87863, run full JSON with unchanged tools; await UVM57001 before checkpointing V03 and returning to selection.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
