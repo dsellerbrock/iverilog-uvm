@@ -1,32 +1,19 @@
-id: "U07"
-title: "Support legacy UVM member delay syntax through existing compatibility mode"
-status: "closed"
-phase: "closed"
-base_revision: "051aeee8e"
+id: "L12"
+title: "Read indexed string members of unpacked structs"
+status: "in_progress"
+phase: "reproduced"
+base_revision: "a83731194"
 last_validated_revision: "a83731194"
-selection_reason: "User prioritizes pinned UVM1.2 for OpenTitan; nine old releases stop at shared unparenthesized member delay syntax."
-reproducer: "Original1.2 uvm_component.svh3616 #setting.offset; reduce struct member delay with measured time."
-expected_behavior: "Existing miscellaneous-extension mode accepts the legacy member delay with normal runtime delay semantics; -gno-icarus-misc rejects it, while parenthesized IEEE expression passes both modes."
-standards: "Both IEEE editions AnnexA delay_value permits ps_identifier=[package_scope]identifier, not member selectors. This is compatibility syntax, not a mandatory IEEE feature gain. Preserve 9.4.1 delay expression/timing semantics."
-allowed_scope: ["Minimized baseline and parenthesized controls; original release compile replay.", "parse.y narrow member-delay syntax guarded by existing gn_icarus_misc_flag, only after reducer/rootcause; no runtime special casing or library edits.", "Permanent regression,strict-mode diagnostics,bison conflict checks and all required integrated gates.", "Existing docs/driver option documentation,README if needed,campaign records."]
-non_goals: ["No UVM/app source changes or compliance claim for nonstandard syntax.", "No unrestricted unparenthesized expressions or unrelated parser redesign."]
-required_gates: ["Both editions redbaseline/greencandidate,strict rejection,standard parenthesized behavior and delay timing controls.", "No new parser conflicts;focused,independent review,legacy/JSON/VPI/negative/runtime,UVM,NFA,makecheck,isolatedfrontend,release matrix."]
+selection_reason: "DD021 blocks original UVM1.1 and1.2 printer row.val[0]; user prioritizes pinned1.2 for OpenTitan."
+reproducer: "Minimal unpacked struct containing string, read s.val[0] and variable indices; compare ordinary string control."
+expected_behavior: "String character selection on an unpacked struct member behaves like ordinary string indexing with correct byte type, value, bounds and index evaluation. Verify both editions before implementation."
+standards: "Both IEEE editions6.16 and string-operator table: indexed character is byte, indices0..N-1, out-of-range returns0, equivalent to getc. Verify struct and expression typing clauses before code."
+root_cause_hypothesis: "Unpacked-struct member expression traversal constructs NetEProperty then only accepts netvector_t selectors; string members fall into explicit unsupported diagnostic instead of existing string NetESelect lowering."
+allowed_scope: ["String member rvalue indexing reducer, relevant elaboration/type inference and existing lowering reuse if needed.", "Permanent paired-edition regressions and required integrated gates; original UVM1.2 compile replay.", "Existing canonical campaign documentation."]
+non_goals: ["No UVM source edits, static-local traversal or constraint changes.", "No string part-select extension, unrelated container redesign or application-pass claim."]
+required_gates: ["Both-edition baseline failure and ordinary-string control; standards-grounded read semantics, valid/invalid indices and side effects.", "Focused legacy/JSON, independent review, integrated legacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,isolatedfrontend,release replay."]
 stop_after_completion: false
-next_action: "Select and reduce DD021 string struct-member indexing for UVM1.2."
-next_command: "tail -n 12 ../evidence/campaign-20260908/u07/integrated.log ../evidence/campaign-20260908/u07/uvm.log"
+next_action: "Reducer fails both editions with two unsupported diagnostics; ordinary string controls compile/run PASSED. Trace struct traversal and type inference, compare ordinary NetESelect string lowering, then design permanent boundary coverage before code."
+next_command: "sed -n '25380,25530p' elab_expr.cc"
 
-root_cause: "delay1 accepts only delay_value_simple or parenthesized expression; simple value has only IDENTIFIER. Both baseline editions reject #setting.offset while parenthesized timing control passes. Extend only dotted name carrier under existing gn_icarus_misc_flag; ordinary PEIdent elaboration and delay lowering unchanged."
-
-u07_candidate: "NewJSON8/0,legacy8/0,delayneighbors40/0; baselinecompatfailsboth/controlpassesboth. Bison563SR1122RR unchanged; all209normalizedconflictstate signatures unchanged. Original1.2 progresses to DD021 elaboration/constraint frontiers, stillCOMPILE_FAIL. Fullrequiredgatespending."
-candidate_revision: "a83731194"
-u07_live_gates: {}
-
-u07_integrated_terminal: "62003 exit0; legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. NFA58/58 and makecheck passed; fullJSON started after legacy/VPI terminal."
-
-u07_release_results: "results-4r1diuop complete/baseline_valid;8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. Newly passing2017.1.0/1.1 exact marker and zeroW/E/F;2017.0.9 compiles then300second timeout with empty runtime log. Terminal96191 exit1 for known release gaps. U07 required validation remains pending."
-
-u07_json_terminal: "40182 exit0;1773tests0failures. UVM39509 running; isolated frontend unstarted."
-
-u07_uvm_terminal: "39509 exit0; real-DPI355passed0failed0skipped. Frontend13719 running alone; fingerprints matched before start."
-
-closure: "legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"
+evidence: "../evidence/campaign-20260908/l12/baseline-results.json; candidate still validated U07 a83731194, no L12 implementation edits. Both-edition 6.16 text inspected in /tmp/u06-lrm2017.txt and /tmp/u06-lrm2023.txt."

@@ -757,3 +757,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Classification:** Nonstandard unparenthesized member delay; both IEEE editions require parentheses. Use existing miscellaneous extension switch, preserving strict rejection and normal delay semantics; no library patches.
 
 - **U07 validation:** legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged. Eight release smoke passes; six compile gaps and one runtime timeout remain. This closes only compatibility syntax under the existing miscellaneous-extension mode, not IEEE/UVM parent qualification.
+
+### L12 — String character reads through unpacked struct members
+
+- **State:** OPEN, selected after validated U07.
+- **Evidence:** DD021 original UVM1.2 printer row.val[0] receives explicit unsupported struct-member index diagnostic.
+- **Scope:** Correct bounded rvalue string indexing, preserving byte type, bounds and index evaluation. Static-local references and constraints remain separate blockers.
