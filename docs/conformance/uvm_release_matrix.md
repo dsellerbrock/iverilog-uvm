@@ -69,7 +69,7 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `9baa5a9c3` (L13 signed character reads and typed string parameter byte selection).
+2026-09-10, native ARM64, validated source `849a779ea` (L13 signed character reads and typed string parameter byte selection).
 The release sweep and all required L13 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-6pvdp6vh/results.json`, with per-release
+`third_party/uvm-releases/results-m_3ysaa5/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -116,7 +116,7 @@ continues through later releases after an earlier failure.
 All release sources remain unmodified. L08, U05, U04 and U06 record the scoped
 compiler, DPI and runtime compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `8c38595c05d3d7461ebfa592d11665e901cbfb41d4b9faaaea4fd36bcd9412b8`
+- `ivl` SHA-256: `c46692c84774d4dd06b3a1fabbc7ba768da8a71df2a0836cddc40de47a824ec0`
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 
@@ -137,4 +137,4 @@ passing is repaired; L09, L11 and L10 subsequently repair bounded output
 copy-out contexts, defaults and fixed-property elements. Full argument
 qualification remains separate.
 
-L13 qualification reopened after the above sweep: narrow two-state typed-parameter indices were misinterpreted as negative. Historical release results remain unchanged; corrected compiler validation is pending.
+L13 was reopened when narrow two-state typed-parameter indices were misinterpreted as negative. Corrected source849a779ea passes all required local gates; all15 source fingerprints, statuses and normalized compiler diagnostics match the prior sweep.

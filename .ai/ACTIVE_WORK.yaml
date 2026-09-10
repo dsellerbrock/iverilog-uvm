@@ -1,9 +1,9 @@
 id: "L13"
 title: "Preserve signed byte semantics of string character reads"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "closed"
 base_revision: "a83731194"
-last_validated_revision: "9baa5a9c3"
+last_validated_revision: "849a779ea"
 suspended_parent: "L12; partial source patch, tests and contract preserved in evidence/campaign-20260908/l12. Restore only after validated prerequisite."
 reproducer: "String containing octal377: assignment s[0] to int yields255, while s.getc(0) and byte cast yield-1. Both editions required."
 expected_behavior: "Character selection yields signed byte, including widened assignments, arithmetic and typed arguments, consistent with getc. Ordinary packed vector bit/part selects retain unsigned semantics."
@@ -13,7 +13,7 @@ allowed_scope: ["Shared string character result type, sizing and elaboration pat
 non_goals: ["No L12 struct-member support until prerequisite validated.", "No UVM source edits, unrelated traversal/constraint changes, string part-select extension."]
 required_gates: ["Paired-edition signed highbit ASCII/zero/bounds controls, widened assignments/arithmetic/formals and packed-vector unsigned controls.", "Independent review,focusedlegacy/JSON,integratedlegacy/VPI/negative/runtime,JSON,UVM,NFA,makecheck,isolatedfrontend,release smoke replay."]
 stop_after_completion: false
-next_action: "Await real-DPI UVM12635; then run isolated frontend and verify root restoration and width-sha256.txt before L13 closure. Resume L12 from evidence/l12/resume2 afterward."
+next_action: "Resume L12 preserved in evidence/l12/resume2 with explicit index resize and separate signed cast."
 next_command: "tail -n 15 ../evidence/campaign-20260908/l13/width-uvm.log"
 
 root_cause: "resolve_type_ assigns unsigned atom2u8 after consuming a string index; shared untyped NetESelect constructor initializes unsigned. Both PEIdent width inference and lowered select must carry signed byte. Change only string character (width8) result, leaving vector select construction unsigned. Restored compiler fingerprints match U07 before candidate."
@@ -48,3 +48,5 @@ width_gate_checkpoint: "Candidate849a779ea; integrated97512,UVM12635,release5909
 width_integrated_terminal: "97512 exit0; legacy4887total0unexpected,VPI105,negative149,runtime15/15,copyout6/6. JSON16047 running; UVM12635/releases59096 pending; frontend last alone. Next command: tail -n15 ../evidence/campaign-20260908/l13/width-json.log ../evidence/campaign-20260908/l13/width-uvm.log"
 
 l13_width_json_release_terminal: "JSON16047 exit0,1779/0. Release59096 exit1 for known gaps: results-m_3ysaa5 complete/baseline_valid,8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. All15 status/source fingerprints/normalized compiler logs match previous9b sweep (width-release-comparison.json). Frozen installed hashes unchanged. UVM12635 verified live, frontend unstarted."
+
+corrected_closure: "849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics."
