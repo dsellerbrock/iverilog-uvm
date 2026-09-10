@@ -511,3 +511,17 @@ All required local semantic gates now pass on the coherent candidate.
 Checkpoint the implementation before replaying pinned unmodified U01.
 L02 remains awaiting application replay, and remote CI remains required before
 merge. No broader lifetime or application-completion claim is made.
+
+L02 implementation checkpoint9218751e2 passed unchanged U01 replay for its
+bounded lifetime scope: runtime finishes in11.629s at36742796ps, 115 requests,
+230 scoreboard items, zero UVM errors/fatals. Diagnostic UVM_HIGH/scb_logging
+replay confirms115 request and115 response checks, including the previously
+stalled fourth response. Actual source list and360 exported files are identical
+with post-L01 input; only wrapper absolute output path differs. No corpus edits.
+
+The application remains RUNTIME_FAIL: four SEQPRTZMB parent-process warnings.
+OpenTitan dv_report_server.sv explicitly includes warnings in its failure
+predicate. Do not suppress or waive them. Close only L02 bounded local scope,
+resume U01 to trace parent-process guard teardown and establish baseline/reducer
+evidence before any further implementation. Remote CI remains pending before
+merge. Last validated implementation9218751e2; no live validation processes.

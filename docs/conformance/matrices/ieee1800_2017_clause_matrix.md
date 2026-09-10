@@ -800,8 +800,9 @@ replay confirms corrected routing and three checked responses. DD-002
 associative string index typing remains a separate unqualified gap. U01 is
 still open for the fourth-response stall; no application pass is established.
 
-L02: AWAITING VALIDATION for automatic block reentry and scalar event history
+L02: IMPLEMENTED (bounded local scope, unmerged) for automatic block reentry and scalar event history
 (2017/2023 6.21, 6.8 and 9.4.2). Candidate preserves distinct block frames
 and ancestor-owned scalar history; all required local semantic gates and
-review pass, including recursive event ownership. U01 replay remains pending. General Boolean event-expression context
+review pass, including recursive event ownership. Unchanged U01 replay completes
+115 requests and230 checked items; four sequence-parent warnings keep U01 open. General Boolean event-expression context
 (DD-003) and silent-default edge initialization remain unqualified.
