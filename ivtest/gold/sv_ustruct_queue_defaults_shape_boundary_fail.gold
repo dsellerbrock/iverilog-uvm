@@ -1,0 +1,2 @@
+./ivltests/sv_ustruct_queue_defaults_shape_boundary_fail.v:5: sorry: unpacked-struct default member initializers are not yet supported for fixed-size unpacked array variable declaration `fixed_queues'; provide an explicit whole-variable initializer.
+./ivltests/sv_ustruct_queue_defaults_shape_boundary_fail.v:7: sorry: unpacked-struct default member initializers are not yet supported through fixed-size unpacked array member `fixed_queues' of variable `wrapper'.

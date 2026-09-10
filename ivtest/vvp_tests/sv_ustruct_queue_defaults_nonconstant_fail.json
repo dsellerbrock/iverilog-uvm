@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_ustruct_queue_defaults_nonconstant_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_ustruct_queue_defaults_nonconstant_fail"
+}

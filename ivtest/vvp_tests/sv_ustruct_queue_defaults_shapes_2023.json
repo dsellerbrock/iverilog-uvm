@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_ustruct_queue_defaults_shapes.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_ustruct_queue_defaults_shapes"
+}
