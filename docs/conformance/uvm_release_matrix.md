@@ -69,7 +69,7 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated compiler/runtime implementation `03caa64c8`.
+2026-09-10, native ARM64, validated compiler/runtime implementation `9a1b6beb3`.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -93,9 +93,9 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2020.2.0 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.0 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
-| 2020.3.2 | COMPILE_FAIL | Unpacked-struct default member initializers for queue `accesses` |
+| 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 3 passed compile plus runtime smoke and 12
+All 15 sources were acquired; 4 passed compile plus runtime smoke and 11
 failed compilation. These are observed compatibility gaps, not waived
 requirements or standards-conformance verdicts. The first syntax failure in a
 legacy library still needs classification against the applicable language
@@ -103,7 +103,7 @@ edition before being called a compiler defect. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-pv87b5yu/results.json`, with per-release
+`third_party/uvm-releases/results-jdbvlt0_/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes

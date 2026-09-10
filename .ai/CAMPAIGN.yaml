@@ -132,8 +132,8 @@ publication_next_action: Publication catch-up stopped at user request. No new PR
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
 
-latest_remote_main: 3fe277c253412ddf7686e4ab15db7c1516a580c3
-main_landed_scope: Fork batch PR263 only at last ancestry/content check; later PRs merged into stacked base branches.
+latest_remote_main: 9821855164b179e1a1f7fb0298320f576646bc15
+main_landed_scope: PR272 externally merged campaign through L05 to main982185516.
 
 consolidated_main_pr:
   url: https://github.com/dsellerbrock/iverilog-uvm/pull/272
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-validated_increments_since_publication: 4
+validated_increments_since_publication: 5
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -197,3 +197,5 @@ l07_integrated_terminal: 27702 exited0;4837total4832pass0fail2NI3EF,VPI105,negat
 publication_milestone_candidate: After L07 validation, V07/U02/L06/U03/L07 comprise five increments; inspect refreshed main and prefer one coherent update to existing requested main PR273, preserving content and file modes. No publication before required local gates pass.
 
 l07_json_terminal: 98943 exited0;1729tests0failures. UVM33056 re-polled live at m1b_darray_elem_partsel_test; only remaining local required gate.
+
+l07_closure: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848; all required local gates pass; latest15release report results-jdbvlt0_ has4smoke passes and11compile failures.

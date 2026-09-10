@@ -212,3 +212,5 @@ requires parking. Use the format above for the next agent's discoveries.
   at elab_lval.cc1335 use_sel==SEL_NONE in2017/2023. Four logs preserve proof.
 - **Triage:** Proven preexisting next-blocker candidate; not caused by L06,
   not repaired in its patch. UVM2020.3.2 is still COMPILE_FAIL/unqualified.
+
+- **L07 follow-up:** Direct queue-variable element assignment fixed and locally validated at `9a1b6beb3`. Unmodified2020.3.2 now passes the release smoke. Class-property/root-member last-index forms remain outside the resolved scope.

@@ -650,7 +650,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L07 — Queue-last element assignment aborts elaboration
 
 - **Area / editions:** Queue lvalues, IEEE1800-2017 and IEEE1800-2023 7.10/7.10.1.
-- **State:** IN_PROGRESS — selected from DD013 after U03 validation.
+- **State:** CLOSED at `9a1b6beb3` for direct queue-variable element lvalues; class-member and other parent forms remain unqualified.
 - **Evidence:** Unmodified UVM2020.3.2 uvm_field_op.svh112 assigns msg_queue[$].
   Minimal string queue assignment aborts both saved baseline and L06 candidate.
 - **Root candidate:** Plain queue lvalue dispatch handles SEL_BIT but omits
@@ -663,3 +663,10 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Closure:** Standards evidence, baseline red, permanent paired regressions,
   smallest causal patch, required integrated validation and official release
   replay. Removing the assertion alone is not implementation.
+
+- **Final evidence:** Baseline aborts in both editions. Ten paired legacy/JSON
+  tests, neighbors21/13, make check, independent review, integrated4837 total
+  with zero unexpected failures, VPI105, negative149, runtime15/15, JSON1729/0,
+  NFA58/58 and real-DPI UVM355/0/0 pass. Full 15-release replay is complete and
+  baseline-valid: four smoke passes, eleven compile failures. No broad queue,
+  UVM, application or formal-program completion claim is made.
