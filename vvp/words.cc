@@ -339,7 +339,7 @@ void compile_variable(char*label, char*name,
 	    init = BIT4_X;
 
       if (use_auto) {
-	    vvp_fun_signal4_aa*tmp = new vvp_fun_signal4_aa(wid, init);
+	    vvp_fun_signal4_aa*tmp = new vvp_fun_signal4_aa(net, wid, init);
 	    net->fil = tmp;
             net->fun = tmp;
       } else {

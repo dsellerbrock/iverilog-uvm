@@ -950,7 +950,7 @@ inline perm_string peek_tail_name(const pform_scoped_name_t &that)
 }
 
 struct foreach_index_type_t : public data_type_t {
-      explicit foreach_index_type_t(const std::vector<perm_string>&path,
+      explicit foreach_index_type_t(const pform_name_t&path,
 				    size_t idx_depth,
 				    unsigned lex_pos)
       : target_path(path), index_depth(idx_depth), lexical_pos(lex_pos) { }
@@ -958,7 +958,7 @@ struct foreach_index_type_t : public data_type_t {
       virtual std::ostream& debug_dump(std::ostream&out) const override;
       ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override;
 
-      std::vector<perm_string> target_path;
+      pform_name_t target_path;
       size_t index_depth;
       unsigned lexical_pos;
 };

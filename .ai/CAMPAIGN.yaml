@@ -1,21 +1,69 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L03
-phase: reproduce
+current_blocker: L05
+phase: checkpointing
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
+last_integrated_good_revision: 4bcbd9c7b8ab2cdb7d602f222225f10ee5112bfb
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [ U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
-next_selection: DD-003 promoted to L03 for concurrent automatic event-expression correctness after S07 local qualification.
-next_action: Reproduce retained Boolean expression activation reducer and trace shared driver state.
-next_command: "cat ../evidence/campaign-20260908/u01-loop/history-expression-preexisting.sv"
+suspended_parent: S02 design boundary retained.
+next_selection: L05 from DD-002: selected associative class-member foreach key type.
+next_action: Checkpoint validated L05, then select the next justified blocker and continue PR publication.
+next_command: "tail -20 ../evidence/campaign-20260908/l05/uvm.log"
 next_command_cwd: repository root
-candidate_state: S07 implemented in 4a879babc833c052cc3b5b80e7e03aacbc2c05aa with all local gates passed; L03 investigation only.
-installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Last fully validated 4a879babc833c052cc3b5b80e7e03aacbc2c05aa; all sessions terminal. U01 still unqualified with4teardown warnings.
-next_validation: Fresh paired L03 reducer/direct controls before implementation.
-completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
+candidate_state: L05 reviewed candidate passes all local gates; checkpoint in progress.
+installed_tools: Compiler core98664d54ee654aae600915142565f9c8a539c4373a053cddf908000843af5226; runtime da5f9d47ed813dcb145cc871be440830f4a2661c205ba9de26c992ace4142754.
+validation_state: L05focus10/10+10/10,foreach neighbors53/34,makecheck and final review pass; NFA58/58 and integrated4765/4770 with zero unexpected failures pass; fullJSON1662/0 pass; real-DPIUVM355/0/0 pass.
+next_validation: Required remote CI/review before merging; all L05 local gates passed.
+completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
+
+publication_policy_checkpoint: 61001162b
+publication_cadence: Create or update draft PRs at coherent locally validated checkpoints; inspect and drain unpublished validated backlog at resume/checkpoint boundaries. No merge authorization or gate waiver.
+published_batches:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
+    scope: P03/P01/P02 fork process identity and scheduling; continuous campaign and publication policies.
+    branch: agent/campaign-fork-processes-20260910
+    semantic_revision: b9de0be7f7702b7aba7d07d24f76c439322d3773
+    publication_revision: a3744e5b7647bad0854b2ea59a47412d75d24f27
+    base: main
+    state: draft
+    outstanding: Required remote CI and review before any separately authorized merge.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/264
+    scope: Z01A bounded joint stages and C01 silent inline-constraint omission.
+    branch: agent/campaign-constraints-20260910
+    semantic_revision: c57fbe3c5
+    publication_revision: 0bac0a8511ac8d11a414786420008ea490968358
+    base: agent/campaign-fork-processes-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/263
+    state: draft
+    outstanding: Required remote CI/review; retarget and revalidate after prerequisite lands; no merge authorization.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/265
+    scope: L01 selected foreach and L02 automatic activation history.
+    branch: agent/campaign-foreach-activation-20260910
+    semantic_revision: 9218751e2
+    qualification_documentation_revision: 20b7aee6d
+    publication_revision: 4175060234aaed865e7713d8d1e474bf05f3301d
+    base: agent/campaign-constraints-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/264
+    state: draft
+    outstanding: Required remote CI/review; retarget and revalidate after prerequisites land; no merge authorization.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/266
+    scope: V01A exact value-bin union, V02 instance averaging, V03 group type weights.
+    branch: agent/campaign-coverage-20260910
+    semantic_revision: 2be79b2c0
+    qualification_documentation_revision: 2394da653
+    publication_revision: 2193f80c0f171558a40fb90148d2122bee82220e
+    base: agent/campaign-foreach-activation-20260910
+    depends_on: https://github.com/dsellerbrock/iverilog-uvm/pull/265
+    state: draft
+    outstanding: Required remote CI/review and prerequisite merges; no merge authorization.
+publication_queue:
+  - S03/S04 assertion parent verdicts and vacuous actions through 2cdaec5bc.
+  - S05/S06 symbolic repetition and instance-valued delays through 6f49fe1eb.
+  - S07 nested sequence aliases through 4a879babc.
+  - L04/L03 automatic defaults and Boolean activation history through 4bcbd9c7b.
+  - L05 all local gates now pass; publish after preceding cohesive batches.
+publication_next_action: Publish the next cohesive validated batch as an explicitly dependent draft; review its exact diff and record base/head/CI.

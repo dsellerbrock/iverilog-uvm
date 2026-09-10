@@ -18,6 +18,7 @@
  */
 
 # include  "logic.h"
+# include  "scalar_event_history.h"
 # include  "compile.h"
 # include  "bufif.h"
 # include  "npmos.h"
@@ -29,45 +30,157 @@
 # include  <cassert>
 # include  <cstdlib>
 
+struct vvp_boolean_state {
+      vvp_vector4_t input[4];
+      uint64_t stamp[4];
+      bool dirty;
+};
+
 vvp_fun_boolean_::vvp_fun_boolean_(unsigned wid)
 {
       net_ = 0;
       for (unsigned idx = 0 ;  idx < 4 ;  idx += 1)
 	    input_[idx] = vvp_vector4_t(wid, BIT4_Z);
+      __vpiScope*scope = vpip_peek_context_scope();
+      if (scope->has_automatic_context()) {
+            scope_ = scope;
+            context_idx_ = vpip_add_item_to_context(this, scope_);
+            history_ = new scalar_event_history(scope_);
+      }
 }
 
 vvp_fun_boolean_::~vvp_fun_boolean_()
 {
 }
 
-void vvp_fun_boolean_::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
-                                 vvp_context_t)
+vvp_boolean_state* vvp_fun_boolean_::state(vvp_context_t context)
 {
-      unsigned port = ptr.port();
-      if (input_[port] .eeq( bit )) return;
+      auto*value = static_cast<vvp_boolean_state*>(vvp_get_context_item(context, context_idx_));
+      for (unsigned port = 0; port < 4; ++port)
+            if (const auto*old = history_->previous(context, port, value->stamp[port])) {
+                  value->input[port] = old->vector;
+                  value->stamp[port] = old->stamp;
+            }
+      return value;
+}
 
-      input_[port] = bit;
-      if (net_ == 0) {
-	    net_ = ptr.ptr();
-	    schedule_functor(this);
+void vvp_fun_boolean_::alloc_instance(vvp_context_t context)
+{
+      vvp_set_context_item(context, context_idx_, new vvp_boolean_state);
+      reset_instance(context);
+}
+
+void vvp_fun_boolean_::reset_instance(vvp_context_t context)
+{
+      auto*value = static_cast<vvp_boolean_state*>(vvp_get_context_item(context, context_idx_));
+      for (unsigned port = 0; port < 4; ++port) {
+            value->input[port] = input_[port];
+            value->stamp[port] = history_->static_stamp(port);
+      }
+      value->dirty = false;
+}
+
+void vvp_fun_boolean_::initialize_instance(vvp_context_t context)
+{
+      output_->send_vec4(calculate(state(context)->input), context);
+}
+
+#ifdef CHECK_WITH_VALGRIND
+void vvp_fun_boolean_::free_instance(vvp_context_t context)
+{
+      delete static_cast<vvp_boolean_state*>(vvp_get_context_item(context, context_idx_));
+}
+#endif
+
+void vvp_fun_boolean_::update(vvp_context_t context, unsigned port,
+      const vvp_vector4_t&bit, uint64_t stamp, unsigned base, bool partial)
+{
+      auto*value = state(context);
+      value->stamp[port] = stamp;
+      bool changed;
+      if (partial) changed = value->input[port].set_vec(base, bit);
+      else {
+            changed = !value->input[port].eeq(bit);
+            value->input[port] = bit;
+      }
+      if (!changed) return;
+      if (vthread_context_is_initializing(context)) {
+            output_->send_vec4(calculate(value->input), context);
+      } else {
+            value->dirty = true;
+            if (!net_) {
+                  net_ = output_;
+                  schedule_functor(this);
+            }
       }
 }
 
-void vvp_fun_boolean_::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
-				    unsigned base, unsigned vwid, vvp_context_t)
+void vvp_fun_boolean_::receive(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+      vvp_context_t source, unsigned base, bool partial)
 {
       unsigned port = ptr.port();
+      if (scope_) {
+            uint64_t stamp = history_->next();
+            __vpiScope*source_scope = automatic_event_source_scope_(source, scope_);
+            vvp_context_t context = scalar_event_native_context_(source, source_scope, scope_);
+            if (context) update(context, port, bit, stamp, base, partial);
+            else {
+                  for (context = scope_->live_contexts; context; context = vvp_get_next_context(context))
+                        if (!source_scope || vthread_recover_stacked_context_for_scope(context, source_scope) == source)
+                              update(context, port, bit, stamp, base, partial);
+            }
+            // Retain raw ancestor operands even before a child activation exists.
+            vvp_vector4_t sample = bit;
+            if (partial) {
+                  sample = input_[port];
+                  if (const auto*old = history_->previous(source, port, history_->static_stamp(port)))
+                        sample = old->vector;
+                  sample.set_vec(base, bit);
+            }
+            if (!source_scope && !context && stamp >= history_->static_stamp(port))
+                  input_[port] = sample;
+            history_->remember(source, port, stamp, sample);
+            return;
+      }
+      bool changed;
+      if (partial) changed = input_[port].set_vec(base, bit);
+      else {
+            changed = !input_[port].eeq(bit);
+            input_[port] = bit;
+      }
+      if (changed && !net_) {
+            net_ = ptr.ptr();
+            schedule_functor(this);
+      }
+}
 
+void vvp_fun_boolean_::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+                                 vvp_context_t context)
+{
+      receive(ptr, bit, context, 0, false);
+}
+
+void vvp_fun_boolean_::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+      unsigned base, unsigned vwid, vvp_context_t context)
+{
       assert(base + bit.size() <= vwid);
+      receive(ptr, bit, context, base, true);
+}
 
-	// Set the part for the input. If nothing changes, then break.
-      bool flag = input_[port] .set_vec(base, bit);
-      if (flag == false)
-	    return;
-
-      if (net_ == 0) {
-	    net_ = ptr.ptr();
-	    schedule_functor(this);
+void vvp_fun_boolean_::run_run()
+{
+      vvp_net_t*ptr = net_;
+      net_ = nullptr;
+      if (!scope_) {
+            ptr->send_vec4(calculate(input_), 0);
+            return;
+      }
+      // Queued work belongs to live frame slots, never saved context pointers.
+      for (vvp_context_t context = scope_->live_contexts; context; context = vvp_get_next_context(context)) {
+            auto*value = state(context);
+            if (!value->dirty) continue;
+            value->dirty = false;
+            output_->send_vec4(calculate(value->input), context);
       }
 }
 
@@ -87,22 +200,19 @@ vvp_fun_and::~vvp_fun_and()
 {
 }
 
-void vvp_fun_and::run_run()
+vvp_vector4_t vvp_fun_and::calculate(const vvp_vector4_t input[4]) const
 {
-      vvp_net_t*ptr = net_;
-      net_ = 0;
-
-      vvp_vector4_t result (input_[0]);
+      vvp_vector4_t result (input[0]);
 
       for (unsigned idx = 0 ;  idx < result.size() ;  idx += 1) {
 	    vvp_bit4_t bitbit = result.value(idx);
 	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1) {
-		  if (input_[pdx].size() < idx) {
+		  if (input[pdx].size() < idx) {
 			bitbit = BIT4_X;
 			break;
 		  }
 
-		  bitbit = bitbit & input_[pdx].value(idx);
+		  bitbit = bitbit & input[pdx].value(idx);
 	    }
 
 	    if (invert_)
@@ -110,7 +220,7 @@ void vvp_fun_and::run_run()
 	    result.set_bit(idx, bitbit);
       }
 
-      ptr->send_vec4(result, 0);
+      return result;
 }
 
 vvp_fun_equiv::vvp_fun_equiv()
@@ -123,18 +233,15 @@ vvp_fun_equiv::~vvp_fun_equiv()
 {
 }
 
-void vvp_fun_equiv::run_run()
+vvp_vector4_t vvp_fun_equiv::calculate(const vvp_vector4_t input[4]) const
 {
-      vvp_net_t*ptr = net_;
-      net_ = 0;
+      assert(input[0].size() == 1);
+      assert(input[1].size() == 1);
 
-      assert(input_[0].size() == 1);
-      assert(input_[1].size() == 1);
-
-      vvp_bit4_t bit = ~(input_[0].value(0) ^ input_[1].value(0));
+      vvp_bit4_t bit = ~(input[0].value(0) ^ input[1].value(0));
       vvp_vector4_t result (1, bit);
 
-      ptr->send_vec4(result, 0);
+      return result;
 }
 
 vvp_fun_impl::vvp_fun_impl()
@@ -147,18 +254,15 @@ vvp_fun_impl::~vvp_fun_impl()
 {
 }
 
-void vvp_fun_impl::run_run()
+vvp_vector4_t vvp_fun_impl::calculate(const vvp_vector4_t input[4]) const
 {
-      vvp_net_t*ptr = net_;
-      net_ = 0;
+      assert(input[0].size() == 1);
+      assert(input[1].size() == 1);
 
-      assert(input_[0].size() == 1);
-      assert(input_[1].size() == 1);
-
-      vvp_bit4_t bit = ~input_[0].value(0) | input_[1].value(0);
+      vvp_bit4_t bit = ~input[0].value(0) | input[1].value(0);
       vvp_vector4_t result (1, bit);
 
-      ptr->send_vec4(result, 0);
+      return result;
 }
 
 vvp_fun_buf_not_::vvp_fun_buf_not_(unsigned wid)
@@ -528,22 +632,19 @@ vvp_fun_or::~vvp_fun_or()
 {
 }
 
-void vvp_fun_or::run_run()
+vvp_vector4_t vvp_fun_or::calculate(const vvp_vector4_t input[4]) const
 {
-      vvp_net_t*ptr = net_;
-      net_ = 0;
-
-      vvp_vector4_t result (input_[0]);
+      vvp_vector4_t result (input[0]);
 
       for (unsigned idx = 0 ;  idx < result.size() ;  idx += 1) {
 	    vvp_bit4_t bitbit = result.value(idx);
 	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1) {
-		  if (input_[pdx].size() < idx) {
+		  if (input[pdx].size() < idx) {
 			bitbit = BIT4_X;
 			break;
 		  }
 
-		  bitbit = bitbit | input_[pdx].value(idx);
+		  bitbit = bitbit | input[pdx].value(idx);
 	    }
 
 	    if (invert_)
@@ -551,7 +652,7 @@ void vvp_fun_or::run_run()
 	    result.set_bit(idx, bitbit);
       }
 
-      ptr->send_vec4(result, 0);
+      return result;
 }
 
 vvp_fun_xor::vvp_fun_xor(unsigned wid, bool invert)
@@ -564,22 +665,19 @@ vvp_fun_xor::~vvp_fun_xor()
 {
 }
 
-void vvp_fun_xor::run_run()
+vvp_vector4_t vvp_fun_xor::calculate(const vvp_vector4_t input[4]) const
 {
-      vvp_net_t*ptr = net_;
-      net_ = 0;
-
-      vvp_vector4_t result (input_[0]);
+      vvp_vector4_t result (input[0]);
 
       for (unsigned idx = 0 ;  idx < result.size() ;  idx += 1) {
 	    vvp_bit4_t bitbit = result.value(idx);
 	    for (unsigned pdx = 1 ;  pdx < 4 ;  pdx += 1) {
-		  if (input_[pdx].size() < idx) {
+		  if (input[pdx].size() < idx) {
 			bitbit = BIT4_X;
 			break;
 		  }
 
-		  bitbit = bitbit ^ input_[pdx].value(idx);
+		  bitbit = bitbit ^ input[pdx].value(idx);
 	    }
 
 	    if (invert_)
@@ -587,7 +685,7 @@ void vvp_fun_xor::run_run()
 	    result.set_bit(idx, bitbit);
       }
 
-      ptr->send_vec4(result, 0);
+      return result;
 }
 
 /*
@@ -692,6 +790,7 @@ void compile_functor(char*label, char*type, unsigned width,
       assert(argc <= 4);
       vvp_net_t*net = new vvp_net_t;
       net->fun = obj;
+      if (auto*boolean = dynamic_cast<vvp_fun_boolean_*>(obj)) boolean->bind_net(net);
 
       inputs_connect(net, argc, argv);
       free(argv);

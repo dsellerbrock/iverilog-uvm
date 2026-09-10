@@ -179,6 +179,8 @@ extern vvp_context_t vthread_get_wt_context();
  * function to be read from the task/function local variables.
  */
 extern vvp_context_t vthread_get_rd_context();
+/* True only for the frame whose post-link initialization is executing. */
+extern bool vthread_context_is_initializing(vvp_context_t context);
 
 /*
  * This function returns a handle to an item in the writable context

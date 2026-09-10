@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_automatic_boolean_chained_operands.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_automatic_boolean_chained_operands"
+}

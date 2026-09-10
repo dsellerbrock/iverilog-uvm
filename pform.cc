@@ -2033,18 +2033,6 @@ void pform_make_foreach_declarations(const struct vlltype&loc,
 				     const pform_name_t*array_name,
 				     std::list<perm_string>*loop_vars)
 {
-      bool resolvable_target = array_name != 0;
-      std::vector<perm_string> target_path;
-      if (array_name) {
-	    for (pform_name_t::const_iterator cur = array_name->begin()
-		       ; cur != array_name->end() ; ++cur) {
-		  if (!cur->index.empty()) {
-			resolvable_target = false;
-			break;
-		  }
-		  target_path.push_back(cur->name);
-	    }
-      }
       size_t index_depth = 0;
 
       for (list<perm_string>::const_iterator cur = loop_vars->begin()
@@ -2057,9 +2045,9 @@ void pform_make_foreach_declarations(const struct vlltype&loc,
 	    tmp_assign->name = { lex_strings.make(*cur), 0 };
 	    assign_list.push_back(tmp_assign);
 
-	    data_type_t*index_type = resolvable_target
+	    data_type_t*index_type = array_name
 		  ? static_cast<data_type_t*>(new foreach_index_type_t(
-			target_path, index_depth, loc.lexical_pos))
+			*array_name, index_depth, loc.lexical_pos))
 		  : static_cast<data_type_t*>(new atom_type_t(atom_type_t::INT, true));
 	    pform_make_var(loc, &assign_list, index_type);
       }

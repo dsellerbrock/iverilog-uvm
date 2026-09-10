@@ -65,7 +65,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
   probe, reduce the simulator mechanism it exposes, and demonstrate at least
   one xbar smoke reaching normal completion with matched, checked
   request/response traffic and zero outstanding transactions at end of test.
-- **Last verified revision:** b0ac00f47 fresh unmodified-source smoke: L01 fixes address routing and scoreboard mismatch; three responses match, fourth response is aborted as before L01, outstanding-request error and 300s timeout remain. U01 remains unqualified.
+- **Last verified revision:** 4bcbd9c7b fresh unmodified smoke completes115requests/230scoreboarditems with0UVMerrors/0fatals, but2SEQPRTZMBwarnings and TEST FAILED CHECKS. All360exportedfiles match prior replay. Earlier four-warning teardown frontier and reduced parent-kill mechanism are preserved; warning-count change does not qualify the application. Evidence: campaign-20260908/u01-after-l03.
 
 ### Z01 — Joint solve-before stages unsupported
 
@@ -430,11 +430,61 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L03 — Automatic Boolean event expressions share activation state
 
 - **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.21,9.4.2.
-- **State:** IN_PROGRESS — DD-003 selected after S07 local qualification.
+- **State:** LOCALLY VALIDATED — reviewed Boolean activation state and supported input chains; remote CI before merge.
 - **Evidence:** u01-loop/history-expression-preexisting.sv; two automatic
   invocations of posedge(value[2] | 1'b0) both trigger at2 instead of2,3.
-  Previously reproduced before L02; fresh current check pending.
+  Freshly reproduced after validated L04 in both editions; mixed parent/local
+  OR also wakes2,2 instead2,3 (evidence/l03/after-l04-* and mixed-*).
 - **Scope:** Shared Boolean driver activation state/context and directly
   necessary selection, preserving existing runtime lifetime mechanisms.
 - **Closure:** Paired reducer and lifetime/static controls, all required
   local gates and review; remote CI before merge.
+
+- **L03 validation:** Paired focus12/12legacy+JSON,L02neighbors93/50,
+  L04neighbors4/4,PART_PV ancestor history/reuse,NFA58/58,integrated4760total
+  4755pass0fail2NI3EF,VPI105/105,negative149/149,runtime invariants,
+  JSON1652/0,real-DPIUVM355/0/0,makecheck and final review pass.
+- **L03 residuals:** BUF,NOT,mux and other expression families remain
+  unchanged/unqualified; no general expression or application closure.
+
+### L04 — Automatic integral defaults do not seed event history
+
+- **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.8,6.21,9.4.2.
+- **State:** LOCALLY VALIDATED — reviewed integral initialization prerequisite; remote CI before merge.
+- **Evidence:** Paired current4a879babc default-negedge reducer fires at1 on
+  unchanged partial zero write instead of actual negedge at3; evidence/l04.
+- **Mechanism:** Integral slot reset sets storage without initial publication;
+  current hooks precede context stack/live linkage.
+- **Scope:** Post-link hook using existing activation infrastructure and
+  automatic integral initial-value propagation, all allocation callers audited.
+- **Closure:** Paired default/lifetime controls and all required gates/review;
+  resume L03 only after validated baseline. Remote CI before merge.
+
+- **L04 validation:** Paired focus4/4 legacy+JSON,L02neighbors93/93+50/50,
+  mixedlifetime7/7+7/7,eventcontrols14/14+14/14,NFA58/58;
+  integrated4748total4743pass0fail2NI3EF,VPI105,negative149,runtime15;
+  JSON1640/0,real-DPIUVM355/0/0,makecheck and final review pass.
+- **L04 residuals:** Qualification covers integral signal default publication;
+  derived Boolean contexts (L03),other value types and broader initialization
+  obligations remain separate.
+
+
+### L05 — Selected associative class-member foreach loses index type
+
+- **Area / edition:** Foreach/arrays / IEEE1800-2017 and1800-2023 12.7.3.
+- **State:** LOCALLY VALIDATED — reviewed selected-member index typing; remote CI before merge.
+- **Evidence:** campaign-20260908/l01/typed.sv: values[string] member loop
+  index becomes int and visits zero entries, also seen before L01.
+- **Scope:** Exact implicit-index type resolution and necessary selected-member
+  elaboration, preserving prefix selection and existing iteration behavior.
+- **Closure:** Paired reducer, key/selection/lifetime controls, all required
+  local gates and review; remote CI before merge.
+
+- **L05 mechanism:** Preserve selected target paths through parser declarations
+  and foreach index typing; reuse existing type-only lookup to reach the
+  terminal array key type without evaluating selectors.
+- **L05 validation:** Focus10/10 legacy+JSON, foreach neighbors53/34,
+  makecheck/review, NFA58/58, integrated4765/4770 with zero unexpected failures,
+  VPI105, negative149, runtime checks, fullJSON1662/0 and real-DPI UVM355/0/0 pass.
+- **L05 residuals:** Invalid same-name header selectors (DD-009), selected-array
+  non-member typing and broader container obligations are not qualified here.

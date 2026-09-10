@@ -186,6 +186,9 @@ if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
         bash tests/vvp_runtime/run_ufunc_resolver_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
+        bash tests/vvp_runtime/run_boolean_automatic_history.sh \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
+   || ! VVP="$runtime_vvp" \
         python3 tests/vvp_runtime/run_state_foreach_invariants.py \
         >> "$WORK/vvp-runtime.log" 2>&1; then
     cat "$WORK/vvp-runtime.log" 2>/dev/null || true

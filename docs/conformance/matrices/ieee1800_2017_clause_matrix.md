@@ -797,7 +797,7 @@ only terminal loop variables are introduced. Both-edition lookup and traversal
 controls pass, along with 53 legacy/34 JSON focused cases and unchanged Bison
 automaton. All local semantic gates and review passed; fresh unmodified U01
 replay confirms corrected routing and three checked responses. DD-002
-associative string index typing remains a separate unqualified gap. U01 is
+associative string index typing is addressed by the later bounded L05 increment. U01 is
 still open for the fourth-response stall; no application pass is established.
 
 L02: IMPLEMENTED (bounded local scope, unmerged) for automatic block reentry and scalar event history
@@ -923,3 +923,56 @@ actual scope, mutual/branching/actual-self cycles. Evidence: campaign-20260908/s
 Complete global dependency-graph validation across separate instances,
 pre-existing parameterized declaration-owned lookup and broader sequence
 composition remain unqualified. Remote CI is required before merge.
+
+
+L04: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.8 Table6-7,6.21,9.4.2. Automatic integral signal defaults
+are published after all activation items exist, ownership is live and applicable
+stack linkage is established, before argument/user writes. The optional
+initialization hook covers ordinary allocations, virtual override calls,
+DPI exports and continuous automatic function calls. Root frames remain roots.
+Slot reset/default values are unchanged; native signal publication seeds
+activation-specific event history, so unchanged partial zero writes no longer
+manufacture negedges. Default X and real subsequent transitions are preserved.
+
+Qualification: paired focus4/4 legacy+JSON; lifetime neighbors93/93+50/50,
+mixedlifetime7/7+7/7,eventcontrols14/14+14/14; NFA58/58; integrated4748total
+4743pass0fail2NI3EF,VPI105/105,negative149/149,runtime15/15; JSON1640/0;
+real-DPIUVM355/0/0,makecheck and final independent review. Tests cover whole/
+partial unchanged writes,0/X defaults,pos/negedges,concurrent/recursive frames
+and reuse. Evidence: campaign-20260908/l04.
+
+Derived Boolean activation state remains L03; other value types and broader
+initialization obligations are not qualified here. Remote CI before merge.
+
+
+L03: IMPLEMENTED with reviewed local qualification (unmerged),
+IEEE1800-2017/2023 6.21,9.4.2. The shared Boolean functor family retains
+per-activation operands and ancestor input history, combining parent and
+child operands only within the correct activation. Post-link initialization
+propagates derived baselines synchronously for the initializing frame;
+ordinary evaluation remains queued Active with frame-owned pending flags.
+No queued raw context survives frame reuse. Static truth functions are shared
+without changing their scheduling.
+
+Qualification: paired focus12/12legacy+JSON,L02neighbors93/50,L04neighbors4/4,
+direct PART_PV pre-child history/untouched bits/live updates/frame reuse,
+NFA58/58,integrated4760total4755pass0fail2NI3EF,VPI105/105,negative149/149,
+runtime invariants,JSON1652/0,real-DPIUVM355/0/0,makecheck and final independent
+review. Cases cover mixed parent/child operands,chained initialization,
+concurrent/recursive activations,reuse and NBA coalescing. Evidence:
+campaign-20260908/l03. BUF,NOT,mux and other expression families are unchanged
+and remain unqualified by this increment; application/formal status remains
+separate. Remote CI is required before merge.
+
+
+L05: IMPLEMENTED (bounded local qualification, unmerged), IEEE 1800-2017
+and 1800-2023 12.7.3: selected class-member foreach preserves the terminal
+associative key type through both identifier and expression prefix paths.
+Paired tests cover string order, signed narrow integral keys, class-handle keys,
+inherited parameterized members, nested selection, outer-name preservation,
+concurrent/reused automatic loops and terminal static dimensions. Existing
+runtime selector binding is unchanged (12.7.1/12.7.3); invalid same-name header
+selectors are recorded separately as DD-009. Selected-array non-member typing
+and broader container obligations remain unqualified. All required local gates
+and independent review pass; remote CI/review and merging remain outstanding.

@@ -9225,6 +9225,24 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       return context;
 }
 
+// Initial values must reach probes only after all state items exist and
+// activation recovery can identify the new frame (possibly a root).
+static vvp_context_t initializing_context = nullptr;
+
+bool vthread_context_is_initializing(vvp_context_t context)
+{
+      return context && context == initializing_context;
+}
+
+static void vthread_initialize_context(__vpiScope*scope, vvp_context_t context)
+{
+      vvp_context_t saved = initializing_context;
+      initializing_context = context;
+      for (unsigned idx = 0; idx < scope->nitem; ++idx)
+            scope->item[idx]->initialize_instance(context);
+      initializing_context = saved;
+}
+
 /*
  * Free a context previously allocated to a child thread by pushing it
  * onto the freed context stack. Remove it from the list of live contexts
@@ -11434,6 +11452,7 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
       thr->pending_alloc_prev_wt = prev_wt;
       thr->pending_alloc_prev_rd = prev_rd;
 
+      vthread_initialize_context(ctx_scope, child_context);
       trace_context_event_("alloc", thr, ctx_scope, child_context);
 
       return true;
@@ -12821,6 +12840,7 @@ static bool maybe_dispatch_virtual_method_call_(vthread_t thr, vvp_code_t cp,
       }
 
       vvp_context_t override_context = vthread_alloc_context(override_scope);
+      vthread_initialize_context(override_scope, override_context);
       if (!write_handle_object_to_context_(override_this, this_obj, override_context)) {
             restore_staged_scope_reads_(thr, staged_reads, saved_rd_context);
             if (virtual_dispatch_trace_enabled_())
@@ -18335,6 +18355,7 @@ static bool dpi_export_run_(const char*cname, int nargs, ivl_dpi_arg_t*args,
 	    child->rd_context = exp_context;
 	    child->owns_automatic_context = 1;
 	    child->owned_context = exp_context;
+            vthread_initialize_context(scope, exp_context);
       }
 
 	/* Marshal the C arguments into the subroutine's argument nets. */
@@ -30891,6 +30912,7 @@ static bool do_exec_ufunc(vthread_t thr, vvp_code_t cp, vthread_t child)
             child_context = vthread_alloc_context(ctx_scope);
             thr->wt_context = child_context;
             thr->rd_context = child_context;
+            vthread_initialize_context(ctx_scope, child_context);
       }
 
       child->wt_context = child_context;
