@@ -626,7 +626,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### U03 — Select a pinned UVM release from the iverilog command line
 
 - **Area:** User-requested driver and release acquisition integration.
-- **State:** IN_PROGRESS — driver candidate passes focused and installed frontend tests; integrated validation pending.
+- **State:** CLOSED at `c35d2ef36` — focused, registration, selected real-DPI smoke, installed frontend, review, integrated and full JSON gates passed.
 - **Authorization:** User requests a UVM version picker in iverilog similar to VCS.
 - **Gap:** The driver accepts --uvm-home but has no release-ID selector or
   available-release listing. Existing --uvm-version reports the bundled version.
@@ -642,3 +642,24 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Boundary:** B01 is safely suspended awaiting external Windows CI; U03 is
   independent of the export-map correction. L06 passed all local gates before
   installing the candidate driver. U03 is the sole active implementation task.
+
+- **Final validation:** Integrated 4827 total / 4822 pass / 0 unexpected
+  failures / 2 NI / 3 EF; VPI105, negative149, runtime15/15; JSON1719/0.
+  Availability is separate from compatibility and IEEE1800.2 qualification.
+
+### L07 — Queue-last element assignment aborts elaboration
+
+- **Area / editions:** Queue lvalues, IEEE1800-2017 and IEEE1800-2023 7.10/7.10.1.
+- **State:** IN_PROGRESS — selected from DD013 after U03 validation.
+- **Evidence:** Unmodified UVM2020.3.2 uvm_field_op.svh112 assigns msg_queue[$].
+  Minimal string queue assignment aborts both saved baseline and L06 candidate.
+- **Root candidate:** Plain queue lvalue dispatch handles SEL_BIT but omits
+  SEL_BIT_LAST and reaches the SEL_NONE assertion. Trace all related consumers
+  before correcting the shared lowering path.
+- **Scope:** Runtime last-element selection for direct queue variables and
+  affected ordinary element assignment paths; retain empty/bounded queue,
+  element-type, index evaluation and existing member-selection semantics.
+  Any unsupported parent shapes remain explicitly scoped and recorded.
+- **Closure:** Standards evidence, baseline red, permanent paired regressions,
+  smallest causal patch, required integrated validation and official release
+  replay. Removing the assertion alone is not implementation.

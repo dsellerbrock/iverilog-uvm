@@ -1,24 +1,23 @@
-id: U03
-title: Select an acquired pinned UVM release in the iverilog driver
+id: L07
+title: Implement queue-last element assignment without elaborator abort
 status: in_progress
-phase: regression_testing
-user_authorization: Explicit request for a UVM version picker similar to VCS; use pinned submodules or fallback downloader.
-prerequisite: U02 pinned acquisition tooling completed140c58b14; L06 local semantic gates passed at4965219df. No dependence on B01 Windows export mechanism.
-suspended_work: B01 awaiting external Windows CI at PR273/c189df5b8; contract saved in evidence/u03/suspended-b01.yaml. No gate waiver or closure.
-contract:
-  - --uvm=VERSION selects an acquired release and implies UVM; --uvm-list lists available releases.
-  - Preserve -uvm bundled default, --uvm-home path selection, and --uvm-version reporting.
-  - Reject malformed/missing release IDs and conflicting explicit home/version selectors; never silently fall back.
-  - Release directories default to lib/ivl/uvm/releases; IVERILOG_UVM_RELEASES overrides the catalog directory.
-  - Acquisition script optionally registers verified releases as source-directory links; preserve conflicting existing paths.
-  - No compiler-time download, source rewriting, runtime redesign, or claims that a selected release is qualified.
+phase: selected
+base_revision: c35d2ef36
+last_validated_revision: c35d2ef36
+standards: IEEE1800-2017 and IEEE1800-2023 7.10 and7.10.1.
+selection_reason: Unmodified official UVM2020.3.2 now reaches msg_queue[$] assignment; DD013 reducer aborts before runtime on both previous baseline and current compiler.
+expected_behavior: Dollar selects the current last queue element at lvalue evaluation; legal assignments update exactly that element. Preserve all other elements, bounds, type conversion, lifetime and assignment scheduling semantics.
+allowed_scope:
+  - Queue last-index lvalue dispatch and shared elaboration helpers; causal callers only.
+  - Permanent paired regressions for types, lifetime, size changes, existing ordinary indices and supported member paths; expose empty/bounded behavior honestly.
+  - Full standards/source trace, required local gates, independent review and official UVM2020.3.2 replay.
+non_goals:
+  - No blanket parser rewrite, duplicate evaluation, library edits, unrelated type/array redesign or broad queue qualification claim.
+  - No suppression of diagnostics or silent success for unsupported legal shapes.
 required_gates:
-  - Baseline missing-selector reducer; permanent driver resolution, listing, invalid/missing/conflicting option and spaced-path checks.
-  - Acquisition registration preservation check; existing UVM frontend controls; real-DPI selected known-release smoke.
-  - Independent review and required integrated validation; preserve frozen installed tools until ready to validate candidate driver.
-next_action: Await fullJSON31236; integrated90425 passed. Close U03 exact picker scope after the final gate.
+  - Paired baseline red and exact standards semantics; focused positive/negative/boundary regressions and affected neighbors.
+  - Integrated ivtest,VPI,negative,runtime,fullJSON,NFA,real-DPI UVM,makecheck and independent review.
+  - Official UVM2020.3.2 replay; progress is not a release pass.
+suspended_work: B01 remote Windows correction at PR273/c189df5b8 remains awaiting CI; no merge authorization or waiver.
+next_action: Reproduce on frozen validated tools, trace SEL_BIT_LAST lvalue consumers, then choose the smallest correct lowering change.
 stop_after_completion: false
-
-local_evidence: Baseline rejects --uvm-list; candidate picker controls pass; seven acquisition integrity tests pass; all15 registered; selected2020.3.1 real-DPI smoke passes with zero warning/error/fatal.
-validation_running: FullJSON31236; integrated90425 passed4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; frontend92166 passed all scenarios, final review clear.
-next_command: tail -20 ../evidence/campaign-20260908/u03/full-json.log

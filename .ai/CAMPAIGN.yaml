@@ -1,6 +1,6 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U03
+current_blocker: L07
 phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-validated_increments_since_publication: 2
+validated_increments_since_publication: 4
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -186,3 +186,6 @@ last_locally_validated_semantic_revision: 4965219df (L06; compiler9915d687, runt
 
 l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
 u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
+
+u03_closure: c35d2ef36 all required local gates passed; fullJSON31236 terminal0,1719/0.
+l07_selection: DD013 queue-last lvalue crash on validated c35d2ef36; sole active implementation. B01 remote CI still pending.
