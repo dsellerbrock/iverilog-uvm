@@ -1115,3 +1115,5 @@ L04 integrated3537 terminated0:4748total4743pass0fail2NI3EF,VPI105/105,negative1
 L04 fullJSON8381 terminated0:1640tests/0failures. Only real-DPIUVM88516 remains among required local gates; remote CI remains required before merge.
 
 L04 real-DPIUVM88516 terminated0:355passed,0failed,0skipped with real DPI umbrella loaded. All required local gates and final review pass; frozen runtime fingerprint e7a71e1ef3de401d931988a5dc2e1487b6f90cade059553f7412597a7b2e8abb matches. Qualify exact integral default publication and checkpoint, then resume L03 on this validated prerequisite. Remote CI before merge remains required.
+
+L04 implementation755b48a09 checkpointed; completed contract preserved in evidence/l04. Resume original L03 from preserved contract on validated initialization baseline. New post-link hook permits per-child Boolean baseline setup without broadcasting a mixed-scope parent result to unrelated child operands. No dependent patch existed before L04 qualification.

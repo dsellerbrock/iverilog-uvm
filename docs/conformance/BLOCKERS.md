@@ -430,7 +430,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L03 — Automatic Boolean event expressions share activation state
 
 - **Area / edition:** Lifetime/events / IEEE1800-2017 and1800-2023 6.21,9.4.2.
-- **State:** SUSPENDED — proven initial-value publication prerequisite L04; reducer/design evidence preserved.
+- **State:** IN_PROGRESS — resumed after validated L04 initialization prerequisite; original reducer preserved.
 - **Evidence:** u01-loop/history-expression-preexisting.sv; two automatic
   invocations of posedge(value[2] | 1'b0) both trigger at2 instead of2,3.
   Previously reproduced before L02; fresh current check pending.

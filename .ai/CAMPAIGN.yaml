@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: L04
-phase: awaiting_validation
+current_blocker: L03
+phase: design_after_prerequisite
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 4a879babc833c052cc3b5b80e7e03aacbc2c05aa
+last_integrated_good_revision: 755b48a09920bced3832409b1548c8437c884976
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: L03 prerequisite boundary (contract/reducer in evidence/l03); S02 design boundary retained.
-next_selection: L04 promoted from DD-004 as proven initialization prerequisite for mixed-scope L03 Boolean event evaluation.
-next_action: Await frozen L04 integrated3537,NFA96096,UVM88516; fullJSON after integrated.
-next_command: "tail -30 ../evidence/campaign-20260908/l04/integrated.log"
+suspended_parent: S02 design boundary retained; L03 resumed after validatedL04.
+next_selection: L03 resumes from preserved contract after initialization prerequisite 755b48a09920bced3832409b1548c8437c884976.
+next_action: Reverify retained L03 reducer and design per-activation Boolean state using validated post-link initialization.
+next_command: "local-install/bin/vvp ../evidence/campaign-20260908/l03/reducer-2017.vvp"
 next_command_cwd: repository root
-candidate_state: Uncommitted reviewed L04 hook/integral publication patch and4paired tests; no L03 implementation.
+candidate_state: L04 committed 755b48a09920bced3832409b1548c8437c884976; L03 design resumed, no unvalidated implementation patch.
 installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtimee7a71e1ef3de401d931988a5dc2e1487b6f90cade059553f7412597a7b2e8abb.
-validation_state: L04 focused/neighbor/check/finalreview green; integrated3537,NFA96096,UVM88516 live. Last fully validated4a879babc.
-next_validation: FullJSON serially after integrated; all full gates before L04 closure/L03 resume.
+validation_state: All L04 local gates pass; no live processes. Last validated 755b48a09920bced3832409b1548c8437c884976.
+next_validation: L03 mixed-scope/concurrent controls and reviewed state model before implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
