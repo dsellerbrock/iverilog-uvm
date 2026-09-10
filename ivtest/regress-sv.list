@@ -2660,3 +2660,7 @@ sv_foreach_selected_missing CE,-g2017,-s,main ivltests gold=sv_foreach_selected_
 sv_foreach_selected_missing_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_selected_missing.gold
 sv_foreach_selected_comma CE,-g2017,-s,main ivltests gold=sv_foreach_selected_comma.gold
 sv_foreach_selected_comma_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_selected_comma.gold
+sv_auto_block_reentry normal,-g2017,-s,main ivltests gold=sv_auto_block_reentry.gold
+sv_auto_block_reentry_2023 normal,-g2023,-s,main ivltests gold=sv_auto_block_reentry.gold
+sv_auto_event_ancestor_history normal,-g2017,-s,main ivltests gold=sv_auto_event_ancestor_history.gold
+sv_auto_event_ancestor_history_2023 normal,-g2023,-s,main ivltests gold=sv_auto_event_ancestor_history.gold

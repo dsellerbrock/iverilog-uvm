@@ -802,6 +802,6 @@ still open for the fourth-response stall; no application pass is established.
 
 L02: AWAITING VALIDATION for automatic block reentry and scalar event history
 (2017/2023 6.21, 6.8 and 9.4.2). Candidate preserves distinct block frames
-and ancestor-owned scalar history; focus and review pass. Integrated gates
-and U01 replay remain pending. General Boolean event-expression context
+and ancestor-owned scalar history; all required local semantic gates and
+review pass, including recursive event ownership. U01 replay remains pending. General Boolean event-expression context
 (DD-003) and silent-default edge initialization remain unqualified.

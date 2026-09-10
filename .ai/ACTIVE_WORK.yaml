@@ -1,7 +1,7 @@
 id: L02
 title: Restore automatic block storage on each entry
 status: awaiting_validation
-phase: integrated_validation
+phase: application_replay
 base_revision: e0dab7221
 parent: U01
 standards:
@@ -14,6 +14,7 @@ allowed_scope:
   - elab_scope.cc automatic block frame selection
   - vvp/event.cc and event.h scalar event routing/history across nested automatic frames (automatic_events2 and event-history regressions)
   - ivtest permanent block reentry and lifetime controls
+  - tests/auto_task_frame_sharing_test.sv (correct architecture-specific comments)
   - .ai/ACTIVE_WORK.yaml
   - .ai/CAMPAIGN.yaml
   - docs/conformance/BLOCKERS.md
@@ -34,5 +35,5 @@ required_gates:
 completion: Bounded automatic block reentry scope only; U01 requires checked normal application completion separately.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-implementation_state: Frame selection and scalar ancestor-history repair pass focused tests; full integrated gates pending.
-validation: Final coherent focus 93 legacy / 50 JSON and make check pass; independent review has no actionable finding.
+implementation_state: Frame selection, ancestor history and recursive ownership repair passed all required local semantic gates and independent review.
+validation: Focus93/50, integrated4666/4661/0/2/3, VPI103, negative149, runtime15, JSON1558/0, UVM355/0/0 real DPI and make check passed. U01 replay pending; remote CI before merge.

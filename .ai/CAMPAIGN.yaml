@@ -1,20 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: L02
-phase: integrated_validation
+phase: application_replay
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: b0ac00f47
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [L02_semantic_validation, U01_replay, remote_CI_before_merge]
+pending_gates: [U01_replay, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: U01
 next_selection: Resume U01 after L02 validated baseline.
-next_action: Await full JSON and UVM, then checkpoint validated semantic source before replaying U01.
-next_command: "tail -12 ../evidence/campaign-20260908/u01-loop/history-json.log ../evidence/campaign-20260908/u01-loop/history-uvm.log"
+next_action: Checkpoint locally validated semantic patch and execute pinned U01 replay.
+next_command: bash ../evidence/campaign-20260908/u01-after-l02/replay.sh
 next_command_cwd: repository root
-candidate_state: Uncommitted frame selection plus scalar ancestor-history repair; required integrated gates pending.
-installed_tools: Coherent compiler a90ef338a4fe and runtime 875c35bd2ba2 match build outputs.
-validation_state: Focus 93 legacy / 50 JSON and make check pass; independent review no actionable finding. Integrated passed 4666 total / 4661 pass / 0 fail / 2 NI / 3 EF; VPI103, negative149, runtime15 pass. Full JSON session 88801 running; real-DPI UVM session 61703 running.
-next_validation: Full JSON after integrated; all local gates before fresh U01 replay. Remote CI required before merge.
+candidate_state: L02 semantic patch passed all required local gates; awaiting application replay.
+installed_tools: Coherent compiler a90ef338a4fe and runtime 7a5b2e9d9d19 match build outputs.
+validation_state: Focus93/50, integrated4666/4661/0/2/3, VPI103, negative149, runtime15, JSON1558/0, UVM355/0/0 real DPI, make check and independent review passed.
+next_validation: Fresh unchanged U01 replay; remote CI required before merge.
+prepared_replay: bash ../evidence/campaign-20260908/u01-after-l02/replay.sh

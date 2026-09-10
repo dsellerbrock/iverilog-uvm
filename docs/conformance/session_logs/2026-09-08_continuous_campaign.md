@@ -478,3 +478,36 @@ L02 history-integrated gate exited0: 4666 total, 4661 passed, zero failed,
 2 not implemented, 3 expected failures; name-diff clean. VPI103/103,
 negative149/149, runtime15/15. Full JSON now running; real-DPI UVM still
 pending. No semantic baseline checkpoint or U01 replay until both pass.
+
+L02 full JSON exited0: 1558 tests, zero failures. UVM61703 is still live.
+Prepared u01-after-l02/replay.sh with identical pinned core/providers/options
+and fresh output root; syntax checked only, not executed before UVM passes.
+
+L02 history UVM completed with 354 pass / 1 fail / 0 skip: recursive
+`auto_task_frame_sharing_test` deadlocked. A recursive ancestor source also
+had its caller child scope on the stack; stacked recovery incorrectly took
+precedence over ancestor ownership. The shared scalar routing helper and
+history recording now prioritize known ancestor ownership. All scalar paths
+and event-or use the helper. A permanent recursive factorial/wait reducer
+fails by timeout on the prior runtime and passes on the repair. Existing
+frame-sharing runtime test passes; only obsolete architecture-specific test
+comments changed. Independent review found no actionable finding.
+
+Fresh recursive-history focus passed93 legacy/50 JSON, and make check passed.
+Build/install compiler hashes match a90ef338a4fe and runtime7a5b2e9d9d19.
+Fresh required integrated session42484 and UVM session14938 are running;
+full JSON follows integrated serially. Previous integrated/JSON results are
+historical, not qualification of this changed runtime. Last validated source
+remains b0ac00f47. U01 replay remains prepared but unexecuted. Worktree audit
+unchanged; unrelated dirty and non-ancestor trees remain preserved.
+
+L02 recursive-history integrated exited0: 4666 total/4661 pass/0 fail/2 NI/3 EF,
+name-diff clean, VPI103, negative149 and runtime15 passed. Full JSON exited0:
+1558 tests, zero failures. Fresh UVM14938 remains live; its previously failing
+recursive frame-sharing test now passed. U01 replay still awaits full UVM.
+
+L02 final UVM exited0: 355 pass, zero fail/skip, real DPI umbrella loaded.
+All required local semantic gates now pass on the coherent candidate.
+Checkpoint the implementation before replaying pinned unmodified U01.
+L02 remains awaiting application replay, and remote CI remains required before
+merge. No broader lifetime or application-completion claim is made.

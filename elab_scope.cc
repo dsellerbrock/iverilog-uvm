@@ -489,19 +489,6 @@ static void collect_scope_signals(NetScope*scope,
       }
 }
 
-static bool scope_has_automatic_signal_locals_(
-      const map<perm_string,PWire*>&wires)
-{
-      for (map<perm_string,PWire*>::const_iterator cur = wires.begin()
-		 ; cur != wires.end() ; ++ cur ) {
-	    const PWire*wire = cur->second;
-	    if (wire && wire->lifetime_override() == IVL_VLT_AUTOMATIC)
-		  return true;
-      }
-
-      return false;
-}
-
 /*
  * Elaborate the enumeration into the given scope.
  */
@@ -5969,33 +5956,14 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	      // lifetime marker and the backend gives this otherwise-static
 	      // block a context solely for those marked locals.
             my_scope->is_auto(scope->is_auto());
-	      // Automatic block scopes that run to completion before the
-	      // parent resumes — named begin blocks and blocking fork/join
-	      // — are collapsed into the enclosing activation frame when
-	      // the parent scope is automatic: their locals get context
-	      // indices in the frame-owning ancestor scope and no
-	      // %alloc/%free is emitted for them (upstream
-	      // single-task-frame model). A frame of its own remains for
-	      // join_any/join_none forks (detached branches outlive the
-	      // statement) and for automatic blocks with a static parent
-	      // (no enclosing frame exists).
-	      //
-	      // Exception (IEEE 1800-2017 9.3.2): a block that declares
-	      // its own automatic locals AND lexically contains a detached
-	      // fork (join_none/join_any) must keep a per-entry frame.
-	      // Collapsing it into the shared task frame would give every
-	      // loop iteration the same storage slot, so a detached branch
-	      // that captures the local by reference — and reads it after
-	      // the iteration completes — would see only the final value
-	      // instead of that iteration's copy. Keeping the frame makes
-	      // each entry allocate a fresh copy that the spawned branch
-	      // retains, matching the module-scope behaviour.
-	    bool keeps_frame_for_capture =
-		  scope_has_automatic_signal_locals_(wires)
-		  && contains_detached_fork();
+	      // Locals need a fresh activation on every block entry, even
+	      // without explicit initializers (IEEE 1800-2017/2023 6.21).
+	      // Sharing the task frame would retain values on loop reentry
+	      // and alias locals captured by detached children. Empty blocking
+	      // scopes can still use the enclosing activation.
 	    if (my_scope->is_auto() && scope->is_auto()
 		&& (bl_type_ == BL_SEQ || bl_type_ == BL_PAR)
-		&& !keeps_frame_for_capture)
+		&& wires.empty() && events.empty())
 		  my_scope->auto_frame(false);
 	    my_scope->add_imports(&explicit_imports);
 	    my_scope->add_typedefs(&typedefs);
