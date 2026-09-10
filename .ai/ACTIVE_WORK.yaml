@@ -1,7 +1,7 @@
 id: S05
 title: Aggregate symbolic repetition implication verdicts per starting attempt
 status: active
-phase: spec_grounded
+phase: awaiting_validation
 base_revision: 2cdaec5bc
 standards:
   - IEEE1800-2017 and IEEE1800-2023 16.9.2,16.12.7,16.14.1.
@@ -35,4 +35,20 @@ completion: Qualify the exact repaired symbolic implication scope; retain any un
 discovery_policy: Unrelated discoveries are record-only; regressions from this patch remain in scope.
 stop_after_completion: false
 last_validated_revision: 2cdaec5bc
-next_action: Trace endpoint/age ownership through all symbolic callers and verify empty-match semantics before implementing the smallest complete parent-state correction.
+next_action: Build the parent-verdict correction and run paired reducers; complete empty-match/window controls and all required qualification gates.
+
+implementation_evidence:
+  - Existing age bits and mature count retain parent identity; failed parents retire before extension and success waits for closure.
+  - Terminal r_due retains the final delayed child; contiguous matches make a separate due-owner mask unnecessary.
+  - Empty direct nonoverlapped matches start their window on the current tick; zero-count starts respect assertion enable.
+  - Empty-only overlapped antecedents rejected per instance; mixed empty/nonempty overlap uses nonempty matches.
+validation_progress:
+  - Paired initial and boundary reducers red before parent correction, green after.
+  - Focus14/14 legacy and14/14 JSON in default and explicit legacy engines.
+  - Neighbor focus17/17 legacy and8/8 JSON after reviewed smoke/override oracle correction.
+  - VPI parent callback and delayed action control1/1 passes.
+  - Independent implementation review no findings; final test/diff review and full gates pending.
+live_gates:
+  - Integrated session74997, evidence/s05/integrated.log.
+  - Real-DPI UVM session66260, evidence/s05/uvm.log.
+remaining_gates: [integrated, full_JSON, real_DPI_UVM, NFA, make_check, final_review, remote_CI_before_merge]

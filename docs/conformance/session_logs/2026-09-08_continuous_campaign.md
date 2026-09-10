@@ -1039,3 +1039,14 @@ that property truth. Exact new ACTIVE_WORK contract includes all accepted
 symbolic caller shapes, cancellation and empty/nonempty match timing; no source
 edit yet. Trace the actual age/endpoint mechanism before choosing parent state.
 No new worktree, install, merge or dependent unvalidated baseline was introduced.
+
+
+### S05 parent correction — 2026-09-10, awaiting full validation
+
+Validated baseline remains2cdaec5bc; current branchHEADd3f7b492c plus uncommitted S05 patch. IEEE2017/2023 16.12.7 and16.14.1 require one parent verdict across all antecedent endpoints;16.12.22 distinguishes legal mixed empty/nonempty overlap from illegal empty-only overlap. Independent review confirmed contiguous matches allow the existing age bits and mature count to identify delayed owners. Terminal r_due retains only a final delayed child after HI retirement. Parents fail once before any further extension; successful parents wait for closure. Cover endpoint counting and exact-window single endpoints remain separate. Direct empty |=> windows start now; prefixed zero repetitions end on the nonempty prefix and retain next-tick |=> timing. Empty-start enable gating corrected.
+
+Both editions reproduced early/duplicate parent verdicts and empty-window timing defects; corrected reducers pass. Permanent paired cases cover fixed/delayed, direct/prefixed, bounded/unbounded, LO0, overlapping failures/new starts, X/Z, empty nonzero-window offsets, per-instance illegal-empty rejection, async/NBA/kill mature cancellation, and Off preservation. Focus14/14 legacy+JSON passes in both default and explicit legacy engines. Neighbor focus17/17+8/8 passes after independently derived old override totals10/0,9/1 and smoke68/2,68/0; smoke now explicitly closes two remaining unbounded parents and checks70/0. VPI callback/delayed-action control1/1 passes (one nonvacuous success, one failure, vacuous action separate).
+
+One initial focus run overlapped the VPI harness and read its shared a.out result (the failed parent's log contained the callback PASS line). Both harnesses rerun serially and pass; no semantic failure inferred from that invalid concurrent run. Initial negative gold formatting was corrected for legacy ./ivltests vs JSON ivltests and VPI compiler banner; diagnostics and callback values unchanged. DD-008 records an independent symbolic consequent-delay override defect, not repaired here.
+
+Compiler SHA256cd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d, runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec. Source/tests frozen for integrated74997 and real-DPIUVM66260. Full JSON, NFA, make check, final review and remote CI remain required; S05 is not CLOSED. Worktree audit leaves all prior dirty/nonancestor trees preserved.

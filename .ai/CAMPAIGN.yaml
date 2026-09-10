@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S05
-phase: spec_grounded
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 2cdaec5bc73f646107d19ed5bf908930a9908089
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [S05_integrated, S05_full_JSON, S05_UVM, S05_NFA, S05_make_check, S05_final_review, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S05 selected from DD-007 after S04 local qualification; early pass and duplicate failure confirmed in both editions.
-next_action: Trace symbolic repetition endpoint/age ownership and all accepted caller shapes, including empty-match timing, before implementing S05.
-next_command: "sed -n '21310,21950p' pform.cc"
+next_action: Wait for integrated session74997 and UVM session66260; do not rebuild or edit test sources while gates run. Run full JSON after integrated is terminal.
+next_command: "tail -n 20 ../evidence/campaign-20260908/s05/integrated.log ../evidence/campaign-20260908/s05/uvm.log"
 next_command_cwd: repository root
-candidate_state: S05 reducer red in both editions on validated2cdaec5bc; no implementation changes.
-installed_tools: Compiler5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: All S04 final local gates and review pass; integrated4700/4695/0/2/3,VPI104,negative149,runtime15,JSON1592,UVM355. All sessions terminal.
-next_validation: Establish full S05 parent-state contract and focused semantic controls; required implementation gates remain pending.
+candidate_state: S05 implementation and permanent regressions uncommitted; focused gates pass; full qualification pending.
+installed_tools: Compilercd91c31bd800d12808a40e182a712d8b939c280746df11ebb79637015ed9fc8d; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: S05 focus14/14 legacy+JSON in both engines, neighbors17/17+8/8, VPI1/1. Integrated74997 and UVM66260 running. Last complete local baseline remains S04 2cdaec5bc.
+next_validation: After integrated terminates, full JSON; NFA and make check; final independent review. All required gates must pass before S05 closure.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
