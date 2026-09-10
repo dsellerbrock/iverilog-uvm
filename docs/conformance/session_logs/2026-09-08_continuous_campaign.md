@@ -983,3 +983,20 @@ changed. Last fully validated implementation remains61ca5f336. Resume by polling
 1309 and11066, then full JSON after the integrated handle is terminal. Current
 logs: integrated-cancellation.log,uvm-cancellation.log,focus-cancellation.log,
 nfa-cancellation.log,uvm-focus-cancellation.log,check-cancellation.log under s04.
+
+
+### S04 integrated retry after transient editing error (2026-09-09)
+
+All four permanent reducers additionally pass explicit legacy mode under both
+editions against installed5dbb2dc7. Integrated1309 then ended4700total/4694pass/
+1fail/2NI/3EF; VPI104/104,negative149/149,runtime15/15 passed. The sole failure
+was a transient syntax error in sv_assert_repeat_parameter_override while its
+DD-007 comment was moved: a text insertion matched `module` inside a comment.
+The source was immediately corrected and its isolated compile/run gives the
+reviewed14/0 and11/1 compatibility counts. This is an editing error, not evidence
+of a compiler defect, and the failed gate does not qualify the candidate.
+
+Sources/tests are now frozen. Integrated24044 reruns into integrated-final.log;
+UVM11066 remains live on the same installed compiler. Await both terminal,
+then ensure FPGA install prerequisite and run full JSON. No new blocker,
+allowlist relaxation, implementation commit or qualification claim was made.

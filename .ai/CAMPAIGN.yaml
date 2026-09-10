@@ -11,11 +11,11 @@ pending_gates: [S04_complete_implementation_and_required_validation, U01_teardow
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S04 selected from reproduced DD005; S02 remains at its documented design boundary.
-next_action: Await integrated1309 and UVM11066; run full JSON after integrated terminal, inspect all results and checkpoint only after required local gates pass.
-next_command: "tail -20 ../evidence/campaign-20260908/s04/integrated-cancellation.log"
+next_action: Await integrated24044 and UVM11066; then install/verify FPGA target and run full JSON serially. Source/test edits are frozen.
+next_command: "tail -20 ../evidence/campaign-20260908/s04/integrated-final.log"
 next_command_cwd: repository root
 candidate_state: S04 candidate installed, four paired reducers plus VPI and reviewed existing oracles. Final code review clear; implementation uncommitted while full gates pending.
 installed_tools: Compiler5dbb2dc757808ede38a6877a21e14746c7f3aa637421a8144ed59133f6703116; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Integrated1309 and full UVM11066 live. Focus17/17legacy,8/8JSON,NFA58/58,focused real-DPI UVM9/9,make check0 and independent final review pass. Previous initial full UVM50563 terminal346/9/0; all nine stale oracles corrected and focused green.
-next_validation: Full JSON after integrated1309 terminal (shared ivtest/log); ensure make -C tgt-fpga install prerequisite. Required remote CI remains before merge.
+validation_state: Integrated24044 and full UVM11066 live. Prior1309 terminal1 due transient test-comment edit; corrected source passes isolated check. Focus17/17legacy,8/8JSON,NFA58/58,focused real-DPI UVM9/9,make check0 and independent final review pass. Previous initial full UVM50563 terminal346/9/0; all nine stale oracles corrected and focused green.
+next_validation: Full JSON after integrated24044 and UVM11066 terminal (shared ivtest/log); ensure make -C tgt-fpga install prerequisite. Required remote CI remains before merge.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

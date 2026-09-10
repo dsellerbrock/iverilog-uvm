@@ -843,3 +843,16 @@ cover mixed/forbidden consequences, vacuity, parent/child reuse, cancellation,
 cover counts and strong EOS; required local suites pass including real-DPI
 UVM355. Existing finite cyclic-pool limits remain; DD005 nonfanout vacuity and
 S02 multiclock identity remain unqualified. Assertions as a whole stay PARTIAL.
+
+
+S04: implementation present, full qualification pending (unmerged),
+IEEE1800-2017/2023 16.12.7 and16.14.1. NFA, fixed legacy, genvar delay,
+symbolic repetition and fixed/OR/AND antecedents before parameter windows
+execute previously omitted vacuous user pass actions. Shared Reactive dispatch
+keeps them distinct from nonvacuous-success callbacks. Antecedent progress
+and pre-match age counts avoid startup ghosts and repeated vacuity. Disable
+level checks run in Observed; asynchronous cancellation recognizes integral
+logical truth including nonunit values. Four paired reducers and callback
+coverage are locally focused-green; required full gates are still pending.
+Symbolic nonvacuous parent-verdict aggregation remains DD-007, and broader
+SVA, multiclock S02 and formal qualification remain PARTIAL/open.
