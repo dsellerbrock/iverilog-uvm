@@ -13,12 +13,12 @@ allowed_scope: ["Shared string character result type, sizing and elaboration pat
 non_goals: ["No L12 struct-member support until prerequisite validated.", "No UVM source edits, unrelated traversal/constraint changes, string part-select extension."]
 required_gates: ["Paired-edition signed highbit ASCII/zero/bounds controls, widened assignments/arithmetic/formals and packed-vector unsigned controls.", "Independent review,focusedlegacy/JSON,integratedlegacy/VPI/negative/runtime,JSON,UVM,NFA,makecheck,isolatedfrontend,release smoke replay."]
 stop_after_completion: false
-next_action: "Await JSON99705,UVM41207,release1174; integrated4286 passed. Run frontend alone after all other gates terminal, then verify restored root/hashes. No source changes/installs. L12 remains suspended."
+next_action: "Await UVM41207; JSON1779/0 and release sweep complete. Run frontend alone after UVM terminal, then verify restored root/hashes. L12 remains suspended."
 next_command: "tail -n 12 ../evidence/campaign-20260908/l13/integrated-final.log ../evidence/campaign-20260908/l13/uvm-final.log"
 
 root_cause: "resolve_type_ assigns unsigned atom2u8 after consuming a string index; shared untyped NetESelect constructor initializes unsigned. Both PEIdent width inference and lowered select must carry signed byte. Change only string character (width8) result, leaving vector select construction unsigned. Restored compiler fingerprints match U07 before candidate."
 
-l13_live_gates: {JSON: 99705, UVM: 41207, release_matrix: 1174}
+l13_live_gates: {UVM: 41207}
 l13_candidate: "f5c9a0305; JSON4/0,legacy4/0,stringneighbors40/0,independent review clear. NFA58/58 and makecheck passed. No installs or source changes during gates."
 
 l13_candidate_revision_gap: "Parameter byte probe octal200,A,377 yields-1,-1,-1, revealing preexisting one-bit parameter selector hidden by sign extension. Within active result-width/type scope. Integrated77859/UVM67427/release76597 deliberately terminated143 before modifying compiler; no pass claim. NFA/focused results remain scoped to f5c9a0305. Route typed string parameter to string character NetESelect and fold constant strings as bytes, not packed bits; add permanent parameter coverage before rerunning gates."
@@ -30,3 +30,7 @@ l13_final_candidate: "9baa5a9c3; finalfocused6/0,neighbors42/0,reviewclear,makec
 l13_final_nfa_terminal: "21037 exit0;58passed0failed. Final makecheck also exit0; other required gates pending."
 
 l13_integrated_terminal: "4286 exit0; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. FullJSON99705 started after legacy/VPI terminal."
+
+l13_release_terminal: "1174 exit1 due known release gaps; results-6pvdp6vh complete/baseline_valid.8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT; every row status and source tree fingerprint matches validated U07. Source9baa5a9c3; full qualification still pending other gates."
+
+l13_json_terminal: "99705 exit0;1779tests0failures. UVM41207 still live; frontend unstarted."

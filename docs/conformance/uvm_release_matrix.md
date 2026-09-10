@@ -82,8 +82,8 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | --- | --- | --- |
 | 1.0p1 | COMPILE_FAIL | `process` class lookup |
 | 1.1a | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
-| 1.1b | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
-| 1.1c | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
+| 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
+| 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1d | COMPILE_FAIL | Index on string struct member in `uvm_printer.svh`; other diagnostics retained in logs |
 | 1.2 | COMPILE_FAIL | String struct-member index and automatic traversal references; ignored constraint also remains (DD021) |
 | 2017.0.9 | RUNTIME_TIMEOUT | Compiles; runtime times out after 300 seconds without output (DD022) |
