@@ -11,6 +11,21 @@ C0x1 .class "repeat_boundary" "top.repeat_boundary" [1]
  .covgrp_item 1 1 0 "cp" "" 2147483648
  ;
     .scope S_top;
+C0x90 .class "old_group_options" "top.old_group_options" [2]
+   0: "weight", "q0:sb32"
+   1: "get_inst", "q0:b1"
+ .covgrp_options 0 1 1 0 2
+ ;
+C0x91 .class "new_group_options" "top.new_group_options" [2]
+   0: "weight", "q0:sb32"
+   1: "get_inst", "q0:b1"
+ .covgrp_type_weight 2147483647
+ .covgrp_options 0 1 1 0 2
+ ;
+C0x92 .class "old_options_before_property" "top.old_options_before_property" [1]
+ .covgrp_options 0 1 0 0 0
+   0: "value", "q0:sb32"
+ ;
 T_0 ;
     %covgrp/get_all;
     %pop/real 1;

@@ -2945,6 +2945,25 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 		  return 0;
 	    }
 
+            if (owner_class && owner_class->is_covergroup()
+                  && member_cur.name == perm_string::literal("option")
+                  && member_cur.index.empty() && !member_path.empty()
+                  && member_path.front().index.empty()) {
+                  perm_string option = member_path.front().name;
+                  if (option == perm_string::literal("get_inst_coverage")) {
+                        cerr << get_fileline() << ": error: option.get_inst_coverage "
+                             << "can only be set in a covergroup definition." << endl;
+                        des->errors += 1;
+                        return 0;
+                  }
+                  int property = owner_class->covgrp_option_prop(option);
+                  if (property >= 0) {
+                        member_cur.name = lex_strings.make(
+                              owner_class->get_prop_name(property));
+                        member_path.pop_front();
+                  }
+            }
+
 	      // IEEE 1800-2023 19.5/19.7.1: coverpoint and cross labels form
 	      // pseudo hierarchy under a covergroup instance. Rewrite the two
 	      // supported mutable item options to the synthesized scalar slot on

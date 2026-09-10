@@ -525,3 +525,220 @@ predicate. Do not suppress or waive them. Close only L02 bounded local scope,
 resume U01 to trace parent-process guard teardown and establish baseline/reducer
 evidence before any further implementation. Remote CI remains pending before
 merge. Last validated implementation9218751e2; no live validation processes.
+
+U01 coordination boundary: normal replay has4 sequence-parent warnings;
+high-verbosity/scb logging replay has1 (not4). Both perform115 request and115
+response checks. Pinned smoke leaves device sequences running after its body;
+UVM explicitly warns on caller termination without sequence.kill. A bounded
+control emits1 warning with parent.kill and0 with sequence.kill, on candidate
+and pre-L02 compiler layout, both using current runtime. This does NOT exclude
+an L02 runtime contribution or prove reference equivalence. Independent review
+supports leaving U01 OPEN, preserving warning-count sensitivity and future
+teardown/scheduling qualification. No warning suppressed, no application pass.
+Suspended U01 contract lives in evidence/u01-sequence-parent/suspended-u01.yaml.
+
+Select independent V01 for correctness impact: inflated type coverage can
+falsely imply completion. Both supplied LRM editions19.11.3 explicitly define
+merged bin union and give overlapping [0:1]/[1:2] value-bin example. Current
+9218751e2 returns100 instead of66.666667 in both editions with explicit
+merge_instances=1. Contract now V01, phase root_cause_trace, no code edits.
+Broader ignored merge_instances/default weighted-average model remains a
+separate obligation, not implicitly solved by an exact merged denominator.
+Next command: rg -n 'dyn_type_total|dyn_type_register|covgrp_dyn'
+vvp/class_type.h vvp/class_type.cc. Last validated revision9218751e2.
+Worktree audit unchanged; unrelated trees preserved. No running test sessions.
+
+V01 causal trace confirms sole registration caller covgrp_dyn_states_ discarded
+resolved ranges and retained only maximum size. Candidate passes intervals for
+unsized bins and merges them at type registration; scalar/fixed indexed bins
+retain maximum count. Removes hit-driven denominator growth. uint128 cardinality
+and guarded adjacency preserve full64-bit range without enumerating values.
+Permanent paired regression covers LRM overlap, disjoint/unsampled/retired sets,
+threshold accumulation, signed crossing, fixed/scalar identity and wide range.
+Previous installed runtime fails first oracle; candidate passes both editions.
+First focus had a2023 wrapper include-path error; corrected to existing suite
+convention, rerun53legacy/43JSON passed. make check passed. Independent review
+no actionable finding. Existing downstream wide-total saturation and default
+merge_instances weighted averaging are not qualified by this bounded change.
+Required integrated and real-DPI UVM launched; full JSON must follow integrated.
+Last validated source9218751e2, V01 code uncommitted until required gates pass.
+
+V01 live gate handles: integrated23417, UVM72988. Installed compiler
+a90ef338a4fe and runtime2de024fb402d. No full JSON launched until integrated
+finishes; no dependent semantic work until gates pass.
+
+V01 integrated exited0:4668 total/4663 pass/0fail/2NI/3EF, name-diff clean,
+VPI103, negative149 and runtime15 pass. Full JSON exited0:1560/0. Real-DPI
+UVM72988 remains live; implementation remains uncommitted pending that gate.
+
+V01 real-DPI UVM completed355/0/0. All required local gates and review pass.
+Name this completed increment V01A to preserve the parent V01 broader scope.
+Checkpoint exact constructor-dependent value-bin union, then return to selection.
+Worktree audit unchanged; no unrelated files touched, no running gates. Remote
+CI remains required before merge; U01 teardown qualification remains open.
+
+V01A implementation checkpoint6eee0480c is the latest validated baseline.
+Continue with V02: default merge_instances=false must average instance coverage
+in both LRMs19.11.3 (table19-3 default0). Two separate50-percent instances with
+complementary hits currently return100; paired reducer confirms false completion.
+V02 contract activated, no implementation edits yet. Next trace existing
+instance query and retention plus metadata path; reuse those rather than add a
+parallel coverage engine. Remote CI and U01 teardown qualification stay open.
+No live test sessions. Current exact next commands preserved in CAMPAIGN.yaml.
+
+V02 trace checkpoint: existing instance coverage computation is
+of_COVGRP_GET_INST_COVERAGE in vvp/vthread.cc8790-8970; reuse/extract rather
+than duplicate. class_type has covgrp_live_ and destructor removal, but retains
+only retired at_least options. Runtime type_coverage is always merged; option
+merge_instances appears only in elaborate.cc accepted-name list. Actual VVP
+emitter is tgt-vvp/draw_class.c (corrected tentative contract filename).
+Next inspect netclass.h520-570, draw_class.c550-600 and option-property lowering
+to narrow metadata/snapshot scope. No V02 implementation code changed. Latest
+validated6eee0480c; no live gates. Required V02 tests/gates still outstanding.
+
+V02 implementation underway: raw instance computation extracted without a
+parallel engine; additive .covgrp_options record carries declared merge mode,
+weight and get_inst option values/IR/property slots. Old VVP without record
+retains old query defaults. New compilation uses normative default merge0.
+Live registry plus raw-pointer retirement snapshots avoids object resurrection;
+zero-denominator eligibility accompanies raw score. Direct get_inst query mode
+is coupled: merge1/get_inst0 returns type coverage. IEEE19.7 disallows procedural
+get_inst writes; read path supported, writes reject; weight remains mutable.
+Design review caught this restriction and zero-denominator handling before
+qualification. First full build passed. Coherent rebuild/install then paired
+options reducer running in session2509. No required semantic gates passed yet;
+last validated revision6eee0480c. New test covers weights, retirement, empty bins
+and merged/public-instance dispatch. No application or unrelated-tree changes.
+
+V02 review repair checkpoint: paired averaging/empty/parent-option and illegal
+procedural get_inst write regressions added. Corrected bit width/truncation,
+parent-link initialization timing and ordinary-class coverage classification.
+Focused suite61 legacy/51 JSON, metadata bounds and make check completed
+successfully in session50570. No integrated/full JSON/real-DPI UVM gates run.
+
+A subsequent paired reducer four-state-option.sv fails: constructor logic2'bx1
+assigned to bit get_inst_coverage becomes0 instead of1; public instance query
+therefore returns100 rather than50. Integer IR atom evaluation rejects the
+whole word at X/Z and the initializer falls back to default0. Do not coerce
+operands before expression evaluation. Bounded independent design review
+recommends ordinary compiled typed assignments via a synthesized initializer
+wrapper, reusing NetEUFunc machinery and evaluating constructor actuals once.
+Embedded groups lack a class scope, so this needs deliberate wrapper integration;
+no replacement implementation yet. Keep V02 active and unvalidated, with
+6eee0480c the last locally validated semantic revision. Worktree audit unchanged;
+unrelated trees retained. No gate processes running after session50570 completed.
+
+V02 native initializer implemented using an automatic NetEUFunc wrapper and
+ordinary typed property assignments. Constructor actuals are evaluated once by
+existing NetENew initialization, then read from captured properties; enclosing
+object is an explicit wrapper argument. Paired original four-state reducer,
+compound X/Z with once-only actual, averaging, parent-options and empty-group
+controls all pass the first native build. Review found no actionable wrapper
+issue and requested lexical/method/concurrency controls; these are now permanent
+paired tests. Removed obsolete group IR metadata and mutable-parent evaluator
+relaxation; no new four-state evaluator. Final simplified metadata rebuild/install
+session2394 pending. Required focus now65 legacy/55 JSON; remaining integrated,
+full JSON, real-DPI UVM, metadata/check and final review still outstanding.
+
+V02 simplified native candidate rebuilt/installed successfully. Focus65 legacy/
+55 JSON, metadata bounds and make check all pass (16028/69600 terminal0).
+Installed compiler0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a
+and runtime7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
+Required integrated55247 and real-DPI UVM11766 now live; full JSON must wait for
+integrated to finish because ivtest shares logs. Final independent review
+requested. No source edits or dependent blocker work during these gates.
+Last fully validated semantic baseline remains6eee0480c; V02 stays open.
+
+Final independent V02 review has no remaining actionable finding; all requested
+initializer controls pass. Blocker state is AWAITING_VALIDATION. Integrated,
+full JSON and UVM gates remain outstanding. No coverage-parent closure implied.
+
+V02 integrated55247 completed0:4680 total/4675pass/0fail/2NI/3EF; name-diff
+clean, VPI103/103, negative149/149, runtime15/15. Full JSON56399 now running
+after integrated logs are released; real-DPI UVM11766 remains live. No source
+changes since native focused validation; final review passed. V02 still awaits
+remaining gates before implementation checkpoint/closure and next selection.
+
+V02 full JSON56399 completed0:1572 tests/0fail. Only real-DPI UVM11766
+remains pending among local validation gates. Current installed tools unchanged.
+
+V02 UVM11766 finished354pass/1fail/0skip with real DPI. Sole failure:
+m11_coverage_cross_query_test expected merged100 from two half-covered
+instances without setting merge_instances. Historical test correction explicitly
+sets merge_instances1 and get_inst_coverage1 in class ct, preserving all ten
+assertions including separate instance50 and start/stop. Direct2017/2023 replay
+passes10/10; bounded independent review approves the semantic correction.
+No compiler/runtime change. Full real-DPI UVM rerun9300 is active, logging
+v02/native-uvm-final.log. Integrated/full JSON/focus/metadata/check evidence
+remains valid for unchanged implementation. Last validated revision6eee0480c;
+V02 remains AWAITING_VALIDATION, implementation uncommitted, remote CI before
+merge. Exact next step: await9300; if pass checkpoint V02 implementation and
+bounded qualification, then select next justified blocker. Do not rebuild or
+start dependent work while this gate is outstanding.
+
+V02 final real-DPI UVM9300 completed355pass/0fail/0skip. All required local
+gates and review pass; implementation checkpointac60732f3. Bounded V02 local
+scope closed, parentV01/U01 and remote CI remain open. Worktree audit unchanged,
+unrelated trees preserved. Return to selection; assess unqualified aggregate
+type-option weight semantics using current source and a concrete reducer.
+
+V03 selected after V02 qualification: default overall arithmetic mean ignores
+explicit group type_option.weight. Paired reducer onac60732f3 has type scores
+50/100 and weights1/3, expected87.5, actual75. LRMs19.7.1 table19-3 require
+nonnegative integral type weights for overall cumulative coverage;19.9 defines
+$get_coverage overall score. Sourceof_COVGRP_GET_ALL adds each eligible type
+once; no type-weight metadata exists. Exact contract activated, no implementation
+edits yet. Next settle typed constant conversion and extend existing metadata/
+aggregation minimally; no parentV01/U01 completion claim. No active test handles.
+
+V03 implementation adds group type_weight(default1), extends numeric metadata
+with an optional sixth field preserving old five-field input, and weights the
+existing eligible type scores in GET_ALL. Zero total weight still returns100.
+Declaration conversion uses ordinary elaborate_rval_expr with int target before
+checking converted value0..INT32_MAX; initial low-level typed helper call skipped
+scalar sizing and was corrected after -1/X controls caught it. No generic
+elaborator changes. Paired exact original reducer now87.5, normal/zero and
+negative/nonconstant/signed-domain controls pass. Main includes64-bit truncation,
+X-to-zero conversion, INT32_MAX, unused/empty types, retirement and independent
+individual type scores. Runtime old/new metadata boundary fixtures and malformed
+upper bound pass; make check passes. Focus75 legacy passed; six JSON CE golds
+needed only the harness-specific path prefix correction; rerun95619 live.
+No integrated/full JSON/UVM gate started yet; implementation remains uncommitted.
+
+V03 focused rerun95619 completed75 legacy/65 JSON pass. Independent review
+then identified optional numeric field ambiguity: an old five-field options row
+before a numbered property consumes the property index as the new weight.
+Preserved reducerold-options-before-property.vvp reproduces syntax error.
+Replaced sixth-field extension with separate .covgrp_type_weight tag; original
+five-field grammar unchanged and runtime weight stored independently so tag
+ordering does not reset it. Added permanent old-record-before-property boundary
+fixture. Tagged rebuild/install14218 pending; all focus/metadata/check evidence
+must be refreshed for final tagged candidate before integrated gates. No V03
+integrated/full JSON/UVM run yet; last validated baselineac60732f3.
+
+V03 tagged rebuild14218 succeeded; old-five-field-before-property reducer now
+passes, as do permanent metadata boundary/malformed controls and make check
+(23255 terminal0). Focus75533 passes75 legacy/65 JSON. Final independent review
+has no remaining actionable finding. Required integrated87863 and real-DPI
+UVM57001 started against compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246
+and runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+Full JSON must follow integrated serially. V03 remains uncommitted and awaiting
+validation; last complete local baselineac60732f3. Next poll87863/57001, launch
+full JSON after87863 completes, then checkpoint exact V03 scope only if all
+required local gates pass. No dependent implementation while gates pending.
+
+V03 integrated87863 completed0:4690 total/4685pass/0fail/2NI/3EF, name-diff
+clean, VPI103/103, negative149/149, runtime15/15. Full JSON10521 launched
+after integrated released ivtest logs; real-DPI UVM57001 still live. Unchanged
+installed candidate, no dependent work while required gates remain pending.
+
+V03 full JSON10521 completed0:1582/0. Real-DPI UVM57001 remains the only
+pending local gate; no compiler/runtime source changes since focused validation.
+
+V03 real-DPI UVM57001 completed355/0/0. All local gates and review pass;
+implementation checkpoint2be79b2c0. Bounded group type-weight scope closed
+locally; coverpoint/cross weights, procedural static options, parentV01/U01 and
+remote CI remain open. Worktree audit unchanged, unrelated changes preserved.
+Return to selection and verify existing S01 cross-clock overlapping implication
+against current implementation and LRM rather than assuming old boundary notes
+still describe present behavior. No broad audit or parallel implementation.

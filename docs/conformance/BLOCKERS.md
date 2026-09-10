@@ -52,7 +52,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### U01 — Xbar runtime/scoreboard/outstanding-request failures
 
 - **Area / edition:** UVM and applications / edition-agnostic
-- **State:** IN_PROGRESS (resumed: sequence-parent warnings after checked traffic completes)
+- **State:** OPEN (checked traffic completes; pinned workload/UVM teardown qualification remains)
 - **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `docs/conformance/session_logs/2026-09-04_global_constraint_solver.md`
   (5 xbar runtime logs show scoreboard mismatches; all 8 report outstanding
@@ -118,8 +118,8 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 
 - **Area / edition:** Functional coverage / edition-agnostic
-- **State:** OPEN
-- **Confidence:** SOURCE
+- **State:** OPEN (V01A resolves bounded dynamic value-bin union locally)
+- **Confidence:** REPRODUCED
 - **Evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage` uses a
   maximum registered dynamic-family size raised to the hit count — not an
   exact union for arbitrary disjoint instance bin sets.
@@ -129,7 +129,7 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 - **Closure requirements:** Disjoint and overlapping instance domains with
   known union sizes, including partial (non-100%) coverage results checked
   against a hand-computed oracle, not just "coverage reaches 100%."
-- **Last verified revision:** not re-verified since the audit.
+- **Last verified revision:** 9218751e2; paired LRM19.11.3 overlapping-range reducer returns100 rather than66.666667 percent. Evidence/campaign-20260908/v01/union.sv.
 
 ### F00 — Hardware formal proof backend (PROGRAM item, not a bug)
 
@@ -235,3 +235,37 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Evidence:** Class-task for-loop bit local returns 1 on entry 2 instead of default 0. Emitted autobegin.shared stores it in the task frame. Same driver structure leaves rsp_done set after the first response.
 - **Closure requirements:** Fresh per-entry storage/defaults with static and capture controls; required local gates, review and U01 replay.
 - **Last verified revision:** e0dab7221 red in both editions. Candidate now passes 93 legacy / 50 JSON focus and make check, including automatic_events2, ancestor history 2,3, and recursive event ownership (prior UVM deadlock repaired). Independent review has no actionable finding. All local semantic gates pass: integrated4666/4661/0/2/3, VPI103, negative149, runtime15, JSON1558/0, UVM355/0/0 real DPI. Unchanged U01 replay on9218751e2 completes115 requests/230 checked items; zero errors/fatals. Four sequence-parent warnings still prevent application qualification.
+
+### V01A — Exact constructor-dependent value-bin union
+
+- **Area / edition:** Coverage / IEEE1800-2017 and2023 19.11.3.
+- **State:** CLOSED (bounded local scope; remote CI before merge)
+- **Parent:** V01; no complete type-option or arbitrary cross/transition universe claim.
+- **Confidence:** REPRODUCED and ROOT_CAUSED
+- **Evidence:** Paired sv_covergroup_merged_value_union; original LRM example returned100 instead of66.666667.
+- **Implementation:** Register and merge resolved intervals for unsized value bins; preserve name/index identity for scalar/fixed bins. Unsampled and retired instances remain represented.
+- **Validation:** Focus53/43, integrated4668/4663/0/2/3, VPI103, negative149, runtime15, JSON1560/0, real-DPI UVM355/0/0, make check and independent review passed.
+- **Limits:** Default merge_instances weighted averaging and downstream huge-total saturation remain unqualified.
+
+### V02 — Default type coverage silently merges instances
+
+- **Area / edition:** Coverage / IEEE1800-2017 and2023 19.11.3, table19-3.
+- **State:** CLOSED (bounded local scope; remote CI before merge)
+- **Confidence:** REPRODUCED
+- **Evidence:** evidence/campaign-20260908/v02/average.sv, both editions on6eee0480c return100 rather than50 for two equal-weight half-covered instances.
+- **What it blocks:** Trustworthy default type coverage; current result falsely reports complete coverage.
+- **Closure requirements:** Respect default/explicit merge mode and instance weighting with paired controls, complete required gates and independent review.
+- **Last verified revision:** ac60732f3 implements default weighted instance averaging and explicit merged/public-instance dispatch with native typed option initialization. Focus65/55, integrated4680/4675/0/2/3, VPI103, negative149, runtime15, full JSON1572/0, real-DPI UVM355/0/0, make check and independent review pass.
+- **Limits:** Parent V01 remains open. General type_option weighting, procedural static type-option assignment, goals/strobe and arbitrary cross/transition universes are not qualified by this increment.
+
+### V03 — Overall coverage ignores covergroup type weights
+
+- **Area / edition:** Coverage / IEEE1800-2017 and2023 19.7.1 table19-3,19.9,19.11.
+- **State:** CLOSED (bounded local scope; remote CI before merge)
+- **Confidence:** REPRODUCED and ROOT_CAUSED
+- **Evidence:** evidence/campaign-20260908/v03/type-weight.sv; both editions onac60732f3 return75 instead of87.5 for scores50/100 with type weights1/3.
+- **What it blocks:** Correct overall coverage; declared type priority is silently ignored.
+- **Causal trace:** of_COVGRP_GET_ALL computes an unweighted arithmetic mean; group type-weight metadata is absent.
+- **Closure requirements:** Exact group-level type weights, default/zero/eligibility controls, valid constant conversion, all required local gates and independent review.
+- **Limits:** Coverpoint/cross type weights and procedural static option access remain separate obligations.
+- **Last verified revision:** 2be79b2c0 implements group-level declared type weights in overall coverage. Focus75/65, integrated4690/4685/0/2/3, VPI103, negative149, runtime15, full JSON1582/0, real-DPI UVM355/0/0, make check and independent review pass. Separate type-weight tag preserves old bytecode/property ordering.

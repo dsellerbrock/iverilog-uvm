@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_covergroup_four_state_options.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_covergroup_four_state_options"
+}

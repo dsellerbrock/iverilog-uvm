@@ -28,6 +28,7 @@
 # include  "vvp_net_sig.h"
 # include  "config.h"
 # include  <cstddef>
+# include  <algorithm>
 # include  <cinttypes>
 # include  <cctype>
 # include  <cerrno>
@@ -2877,6 +2878,44 @@ void compile_class_covgrp_item(uint64_t at_least, uint64_t weight,
       free(weight_ir);
 }
 
+void compile_class_covgrp_options(uint64_t merge, uint64_t weight,
+      uint64_t weight_prop, uint64_t get_inst, uint64_t get_inst_prop)
+{
+      assert(compile_class);
+      auto valid_property = [&](uint64_t encoded, unsigned width) {
+            if (encoded == 0) return true;
+            if (encoded > (uint64_t)std::numeric_limits<int>::max() + 1)
+                  return false;
+            size_t prop = static_cast<size_t>(encoded - 1);
+            return prop < compile_class->property_count()
+                  && compile_class->property_vec4_width(prop) == width
+                  && compile_class->property_array_size(prop) == 1
+                  && !compile_class->property_is_static(prop);
+      };
+      if (merge > 1 || weight > std::numeric_limits<unsigned>::max()
+            || get_inst > 1
+            || !valid_property(weight_prop, 32) || !valid_property(get_inst_prop, 1)) {
+            yyerror("invalid .covgrp_options metadata value");
+      } else {
+            class_type::covgrp_options_t options;
+            options.merge_instances = merge != 0;
+            options.weight = (unsigned)weight;
+            options.weight_prop = weight_prop ? (int)(weight_prop - 1) : -1;
+            options.get_inst_coverage = (unsigned)get_inst;
+            options.get_inst_coverage_prop = get_inst_prop ? (int)(get_inst_prop - 1) : -1;
+            compile_class->set_covgrp_options(options);
+      }
+}
+
+void compile_class_covgrp_type_weight(uint64_t weight)
+{
+      assert(compile_class);
+      if (weight > INT32_MAX)
+            yyerror("invalid .covgrp_type_weight metadata value");
+      else
+            compile_class->covgrp_type_weight((unsigned)weight);
+}
+
 void compile_class_covgrp_item_options(uint64_t item_idx,
 				       uint64_t at_least_prop,
 				       uint64_t weight_prop)
@@ -3301,6 +3340,20 @@ static unsigned covgrp_option_prop_value_(const class_type*defn,
       return (unsigned)bits;
 }
 
+unsigned class_type::covgrp_weight(vvp_cobject*obj) const
+{
+      return covgrp_option_prop_value_(this, obj, covgrp_options_.weight_prop,
+                                       covgrp_options_.weight);
+}
+
+bool class_type::covgrp_get_inst_coverage(vvp_cobject*obj) const
+{
+      return !covgrp_options_.merge_instances
+            || covgrp_option_prop_value_(this, obj,
+                  covgrp_options_.get_inst_coverage_prop,
+                  covgrp_options_.get_inst_coverage) != 0;
+}
+
 unsigned class_type::covgrp_item_at_least(vvp_cobject*obj, size_t idx) const
 {
       if (idx >= covgrp_items_.size()) return 1;
@@ -3343,6 +3396,14 @@ void class_type::covgrp_live_add(vvp_cobject*obj) const
 void class_type::covgrp_live_remove(vvp_cobject*obj) const
 {
       if (obj && obj->get_defn() == this) {
+            bool contributes = false;
+            double score = vvp_covgrp_instance_coverage(obj, &contributes);
+            if (contributes) {
+                  unsigned weight = covgrp_weight(obj);
+                  covgrp_retired_weight_ += weight;
+                  covgrp_retired_weighted_ += (long double)weight * score;
+            }
+
 	    if (covgrp_retired_at_least_.size() < covgrp_items_.size())
 		  covgrp_retired_at_least_.resize(covgrp_items_.size(), 0);
 	    for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1)
@@ -3366,12 +3427,16 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
 
       auto store = [&](int prop, unsigned value) {
 	    if (prop < 0 || (size_t)prop >= property_count()) return;
-	    vvp_vector4_t bits(32, BIT4_0);
-	    for (unsigned idx = 0; idx < 32; idx += 1)
+	    unsigned width = property_vec4_width((size_t)prop);
+            vvp_vector4_t bits(width, BIT4_0);
+	    for (unsigned idx = 0; idx < width; idx += 1)
 		  if (value & ((uint64_t)1 << idx))
 			bits.set_bit(idx, BIT4_1);
 	    obj->set_vec4((size_t)prop, bits);
       };
+
+      store(covgrp_options_.weight_prop, covgrp_options_.weight);
+      store(covgrp_options_.get_inst_coverage_prop, covgrp_options_.get_inst_coverage);
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
 	    const cov_item_t&item = covgrp_items_[idx];
@@ -3490,8 +3555,47 @@ unsigned class_type::covgrp_trans_family_item(unsigned family) const
       return 0;
 }
 
-double class_type::type_coverage(vvp_cobject*) const
+void class_type::dyn_type_register_ranges(unsigned family,
+      const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const
 {
+      auto&universe = covgrp_dyn_type_ranges_[family];
+      universe.insert(universe.end(), ranges.begin(), ranges.end());
+      std::sort(universe.begin(), universe.end());
+      size_t count = 0;
+      for (const auto&range : universe) {
+            if (count == 0 || (universe[count-1].second != UINT64_MAX
+                  && range.first > universe[count-1].second + 1)) {
+                  universe[count++] = range;
+            } else {
+                  universe[count-1].second = std::max(
+                        universe[count-1].second, range.second);
+            }
+      }
+      universe.resize(count);
+      unsigned __int128 total = 0;
+      for (const auto&range : universe)
+            total += (unsigned __int128)range.second - range.first + 1;
+      covgrp_dyn_type_totals_[family] = total;
+}
+
+double class_type::type_coverage(vvp_cobject*, bool*contributes) const
+{
+      if (contributes) *contributes = false;
+      if (!covgrp_options_.merge_instances) {
+            long double weights = covgrp_retired_weight_;
+            long double weighted = covgrp_retired_weighted_;
+            for (vvp_cobject*obj : covgrp_live_) {
+                  bool instance_contributes = false;
+                  double score = vvp_covgrp_instance_coverage(obj, &instance_contributes);
+                  if (!instance_contributes) continue;
+                  unsigned weight = covgrp_weight(obj);
+                  weights += weight;
+                  weighted += (long double)weight * score;
+            }
+            if (contributes) *contributes = weights != 0;
+            return weights != 0 ? (double)(weighted / weights) : 0.0;
+      }
+
 	// Same per-item weighted model as instance coverage, computed
 	// over the type-level counters. Until the complete 19.11.3
 	// merge_instances/type_option model is represented, use stable
@@ -3541,12 +3645,9 @@ double class_type::type_coverage(vvp_cobject*) const
 		  ? covgrp_cumulative_at_least_(rec.item_idx) : 1;
 	    uint64_t hits = at_least == 0
 		  ? 0 : dyn_type_hits(rec.family, at_least);
-	      // The registered size is the widest set any instance resolved;
-	      // the hit map is a true union, so a genuinely disjoint
-	      // resolution across instances raises the denominator instead of
-	      // reporting more hits than bins.
-	    unsigned __int128 sized = dyn_type_total(rec.family);
-	    if ((unsigned __int128)hits > sized) sized = hits;
+            // Construction registers the complete bin-name universe,
+            // including bins in instances that have never been sampled.
+            unsigned __int128 sized = dyn_type_total(rec.family);
 	    if (sized == 0) continue;
 	    uint64_t total = sized > (unsigned __int128)UINT64_MAX
 		  ? UINT64_MAX : (uint64_t)sized;
@@ -3582,6 +3683,7 @@ double class_type::type_coverage(vvp_cobject*) const
 	    wcov += (double)weight
 		  * (100.0 * (double)hits / (double)total);
       }
+      if (contributes) *contributes = wsum > 0.0;
       return (wsum > 0.0) ? (wcov / wsum) : 0.0;
 }
 

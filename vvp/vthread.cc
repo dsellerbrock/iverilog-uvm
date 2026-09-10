@@ -7248,8 +7248,11 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  const covgrp_dyn_state_t&state = entry.second;
 		  if (!state.valid || !state.meta) continue;
 		  if ((state.meta->kind & 7) != 0) continue;
-		  defn->dyn_type_register_total(entry.first,
-					   covgrp_dyn_logical_count_(state));
+		  if (state.meta->array_size == 0)
+                        defn->dyn_type_register_ranges(entry.first, state.ranges);
+                  else
+                        defn->dyn_type_register_total(entry.first,
+                              covgrp_dyn_logical_count_(state));
 	    }
       }
 
@@ -8825,15 +8828,22 @@ bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/get_all — $get_coverage (19.9): the mean of the type
- * coverage over all covergroup types in the design. */
+/* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
+ * scores weighted by their covergroup-level type_option.weight. */
 bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
 {
       const std::vector<const class_type*>&reg = class_type::covgrp_registry();
-      double sum = 0.0;
-      for (const class_type*ct : reg)
-	    sum += ct->type_coverage();
-      thr->push_real(reg.empty() ? 100.0 : sum / (double)reg.size());
+      long double sum = 0.0, weights = 0.0;
+      for (const class_type*ct : reg) {
+            unsigned weight = ct->covgrp_type_weight();
+            if (weight == 0) continue;
+            bool contributes = false;
+            double score = ct->type_coverage(nullptr, &contributes);
+            if (!contributes) continue;
+            sum += (long double)weight * score;
+            weights += weight;
+      }
+      thr->push_real(weights == 0 ? 100.0 : (double)(sum / weights));
       return true;
 }
 
@@ -8844,12 +8854,9 @@ bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t)
  * Ignore records have no counter; illegal and default bins are
  * excluded from both numerator and denominator (19.11 option model).
  */
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-
+      if (contributes) *contributes = false;
       double result = 0.0;
       if (cobj) {
 	    const class_type*defn = cobj->get_defn();
@@ -8952,10 +8959,24 @@ bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
 		  wsum += (double)weight;
 		  wcov += (double)weight * icov;
 	    }
-	    if (wsum > 0.0)
-		  result = wcov / wsum;
+	    if (wsum > 0.0) {
+                  result = wcov / wsum;
+                  if (contributes) *contributes = true;
+            } else if (defn->covgrp_weight(cobj) == 0) {
+                  result = 100.0;
+            }
       }
-      thr->push_real(result);
+      return result;
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      thr->push_real(cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
+            ? cobj->get_defn()->type_coverage(cobj)
+            : vvp_covgrp_instance_coverage(cobj));
       return true;
 }
 

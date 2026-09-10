@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_inst_option_write_fail.v:6: error: option.get_inst_coverage can only be set in a covergroup definition.
+1 error(s) during elaboration.

@@ -806,3 +806,26 @@ and ancestor-owned scalar history; all required local semantic gates and
 review pass, including recursive event ownership. Unchanged U01 replay completes
 115 requests and230 checked items; four sequence-parent warnings keep U01 open. General Boolean event-expression context
 (DD-003) and silent-default edge initialization remain unqualified.
+
+V01A: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.11.3:
+constructor-dependent unsized value bins contribute their exact registered
+interval union to merged type coverage, including unsampled/retired instances.
+Partial overlap/disjoint, threshold, signed and fixed/scalar controls pass all
+required local gates. Parent V01 and general huge-total percentage calculations remain unqualified.
+Default merge_instances averaging is separately qualified by V02 below.
+
+V02: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.7/19.11.3:
+default type coverage averages eligible instances using option.weight, including
+unsampled and retired objects; explicit merge mode and get_inst_coverage query
+selection retain separate semantics. Native typed initializer assignments preserve
+four-state conversion, lexical scope, parent methods and once-only constructor
+actuals. Procedural get_inst writes are rejected per19.7; weight stays mutable.
+All required local gates and review pass onac60732f3. Global type_option weights,
+goals/strobe and remaining parentV01 obligations remain unqualified.
+
+V03: IMPLEMENTED (bounded local scope, unmerged), 2017/2023 19.7.1 table19-3,
+19.9 and19.11: declared covergroup type weights contribute to overall coverage
+with existing eligibility exclusions; zero aggregate weight returns100. Typed
+constant conversion and nonnegative domain are checked, and old VVP options
+records remain compatible. All local gates/review pass on2be79b2c0. Coverpoint/
+cross type weights and procedural static type-option updates remain unqualified.

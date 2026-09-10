@@ -1,21 +1,21 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U01
-phase: reduce_sequence_parent_warnings
+current_blocker: null
+phase: selection
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 9218751e2
+last_integrated_good_revision: 2be79b2c0
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [U01_checked_completion, remote_CI_before_merge]
+pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
-next_selection: Evidence-driven U01 sequence-parent warning mechanism.
-next_action: Trace the four SEQPRTZMB warnings and establish a bounded process-guard reducer before selecting any semantic prerequisite.
-next_command: "rg -n m_parent_process_guard uvm-core/src/seq/uvm_sequence_base.svh"
+next_selection: Verify existing S01 cross-clock overlapping implication; preserve U01 and remaining coverage obligations.
+next_action: Run focused graph/source/LRM verification for S01 and establish current reducer before implementation.
+next_command: "graphify query 'cross-clock overlapping implication' --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: L02 bounded local scope closed at9218751e2; U01 resumed with warnings preventing qualification.
-installed_tools: Coherent compiler a90ef338a4fe and runtime 7a5b2e9d9d19 match build outputs.
-validation_state: Focus93/50, integrated4666/4661/0/2/3, VPI103, negative149, runtime15, JSON1558/0, UVM355/0/0 real DPI, make check and independent review passed.
-next_validation: U01 warning reducer and baseline evidence; remote CI before merge.
-prepared_replay: bash ../evidence/campaign-20260908/u01-after-l02/replay.sh
+candidate_state: V03 locally qualified and committed2be79b2c0; no active implementation blocker.
+installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: All V03 local gates/review pass, including final real-DPI UVM57001 completed355/0/0. No running test processes.
+next_validation: Verify S01 actual current behavior; select exact next scope from evidence.
+completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
