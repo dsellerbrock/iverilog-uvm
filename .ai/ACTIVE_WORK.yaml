@@ -27,3 +27,7 @@ l12_current_scope: "Single integral character index on string member of ordinary
 index_conversion: "Source-signed cast_to_width(32) followed by separate signed32 NetECast preserves narrow unsigned extension, signed negatives, wide truncation and partial X/Z conversion. Both editions6.16/getc(int),6.11.2 and7.2 apply."
 
 second_resume: "L13 correction849a779ea fully validated and closed451aa7eeb. Fresh baseline both editions still rejects member index; evidence/l12/resume2/validated-l13-red.json. Preserve signed byte type and integral index conversion; unrelated discoveries remain record-only."
+
+live_gates: {integrated: 46193, uvm: 61496, nfa: 78999, releases: 64954}
+candidate_revision: "a85a256b1"
+validation_checkpoint: "makecheckexit0; frozen evidence/l12/resume2/sha256.txt. JSON only after integrated terminal; frontend last alone, then verify installed root and hashes before closure."
