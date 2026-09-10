@@ -33,7 +33,7 @@ discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
 last_validated_revision: 2be79b2c0
 next_action: Add parent identity and terminal aggregation using existing NFA pools; independently review capacity and EOS semantics before implementation is finalized.
-validation_state: Paired red/green and mixed verdict/cancellation tests pass; focus55/20 and reviewed corrected NFA expectations pass. Final NFA with cover/EOS controls, integrated1023 and UVM58507 pending; full JSON follows integrated serially.
+validation_state: NFA58/0, final focus55/20, paired16verdict modes plus cancellation/recycling, cover/EOS and VPI2/2 pass. Integrated1023 exposed a stale VPI oracle; corrected from reviewed timing/vacuity. JSON56004/UVM58507 live, integrated repeat required.
 implementation_state: Uncommitted pform.cc parent identity/aggregation candidate; no runtime changes.
 installed_compiler: 61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c
 installed_runtime: 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec

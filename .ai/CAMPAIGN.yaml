@@ -11,11 +11,11 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: S03 correct existing NFA verdict aggregation before reconsidering S02.
-next_action: Poll integrated1023/UVM58507/NFA97660; launch full JSON only after integrated finishes.
-next_command: "tail -8 ../evidence/campaign-20260908/s03/integrated.log ../evidence/campaign-20260908/s03/uvm.log ../evidence/campaign-20260908/s03/nfa-final.log"
+next_action: Poll JSON56004 and UVM58507; repeat integrated after JSON releases ivtest logs.
+next_command: "tail -8 ../evidence/campaign-20260908/s03/json-full.log ../evidence/campaign-20260908/s03/uvm.log"
 next_command_cwd: repository root
 candidate_state: S03 uncommitted parent aggregation candidate; red/green and focus55/20 pass.
 installed_tools: Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: Integrated1023 and real-DPI UVM58507 running. NFA97660 final controls pending. make check45947 passed. No dependent implementation.
-next_validation: Full JSON after integrated; resolve every candidate regression before completion.
+validation_state: NFA58/0, focus55/20 and VPI2/2 pass. Initial integrated1023 failed one stale VPI oracle (legacy4692/4687/0/2/3, negative149/runtime15 pass). Corrected reviewed VPI timing/vacuity; JSON56004 and UVM58507 live.
+next_validation: Repeat integrated including corrected VPI oracle after full JSON; no dependent implementation.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

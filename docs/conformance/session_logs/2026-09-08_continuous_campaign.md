@@ -775,3 +775,15 @@ integrated1023 and real-DPI UVM58507 pending; make check45947 passed. Full JSON
 must run after integrated. Compiler61fb4516ad3825384303a70927015dc733f0ca9e233d2a63e109cc8a2622bd2c,
 runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 Candidate source/tests uncommitted; last fully validated revision2be79b2c0.
+
+S03 final NFA97660 completed58/0; paired cover/EOS controls pass both editions.
+Extended mixed test to16 modes including forbidden consequences and exact
+same-tick failed-owner recycling. Final focus25578 passed55/20. Integrated1023
+completed1: legacy4692/4687/0/2/3, negative149/runtime15 pass, VPI102/103.
+The failing VPI endpoint oracle expected success before the second antecedent
+closed and omitted vacuous user actions. Preserved vpi-red.log; corrected test
+timing to45,5user pass actions/2nonvacuous callbacks,2fail actions and6vacuous
+actions across fail/EOS properties. Independent review confirms; VPI2/2green.
+JSON56004 and UVM58507 live. Repeat integrated after JSON releases sharedlogs.
+No semantic source changes after the original candidate build; only clarified
+source comments and strengthened/reviewed tests. Source remains uncommitted.
