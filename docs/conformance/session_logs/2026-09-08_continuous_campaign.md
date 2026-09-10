@@ -1345,3 +1345,50 @@ explicit type_option.weight0 to preserve their intended bin-count oracle.
 This correction must not weaken bin assertions. V06 contract is now active;
 no implementation source edits yet. Next trace existing metadata and validate
 minimal backward-compatible extension. No new PR after two increments.
+
+V06 candidate propagates item type weights through IR/API and tagged VVP
+metadata, with old-record fallback and independent defaults for all newly
+compiled items. Serial build27393/install2980 completed0; VVP grammar retains
+14SR/5RR conflict profile. Four positive controls pass in both editions; native
+new/legacy weights and five malformed-tag cases pass. Existing V04/V05
+isolation tests now explicitly set matching type weights without changing
+bin-count assertions. Three invalid-weight controls reject as expected.
+Compound constructor shadow arg+0 incorrectly binds an outer constant and is
+accepted; this must be corrected before focused/full validation. Test manifest
+generation intentionally stopped at that failed negative assertion, so only
+sources and three negative gold pairs currently exist. Independent reviewer
+requested to identify proper binding scope while preserving legal $bits(arg).
+The initial int-state recollection was contradicted by supplied primary2023PDF
+page110 and both edition6.11.2 extracts; retain existing typed conversion.
+Installed candidate compiler700d3cb6/runtimef38e482b; saved validated V05 tools
+in evidence/v06. No full V06 gates and no source checkpoint yet. No new PR.
+
+V06 compound binding root identified: group validation precedes temporary
+formal aliases; cross validation follows their removal. Shared type-weight
+validator now installs typed ctor then sample aliases for its own evaluation,
+deletes the expression and restores aliases in reverse order. This reuses
+existing cache-aware binding; legal $bits(ctor/sample) works and compound
+runtime-value references reject at group/point/cross levels. Serial rebuild32192
+and install19700 completed0. All22 permanent entries now pass in both harnesses,
+including exact negative diagnostics. V04 neighbors2/2,V05 13/13,coverage75/65,
+metadata bounds/compatibility and makecheck pass. Full integrated95424,
+real-DPIUVM26530,NFA50661 started; JSON must wait until integrated terminates.
+Final independent review requested. Frozen compiler07b302c2/runtimef38e482b.
+V06 remains uncommitted and unvalidated until all required gates/review pass;
+last validated baseline59d8f345a. No new PR yet.
+V06 final review's outer-function discriminator passes both editions and is
+now permanent in the scope test. Temporary aliases preserve lexical function
+constants despite same-name constructor formals; type-query widths3/5 and
+group/item function weight3 are jointly checked. Standalone final-scope logs
+pass. Adding an uninstantiated merged type exposed separate pre-existing
+eligibility bug DD-010; candidate and saved V05 runtime both return50 vs100
+in an isolated reducer. Recorded only; V06 scope test constructs all groups
+before its explicit aggregate oracle. Full gates continue on frozen tools.
+
+V06 NFA50661 completed0 with58/58. Independent final review cleared outer
+function scope and all current source/metadata controls; no remaining review
+blocker. Integrated95424 and UVM26530 re-polled and confirmed live, no failure
+reported so far. FullJSON remains unstarted and must follow integrated.
+Checkpoint exact pending gates and frozen fingerprints; do not restart live
+sessions or claim candidate completion. Source/test changes remain uncommitted;
+validated semantic baseline59d8f345a. DD010 record-only. No new PR.

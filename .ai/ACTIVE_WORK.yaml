@@ -1,7 +1,7 @@
 id: V06
 title: Honor declared coverpoint and cross type weights in merged coverage
 status: in_progress
-phase: reproduced
+phase: awaiting_validation
 base_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 last_validated_revision: 59d8f345afd37845012ef5bbf79f82018546cc6b
 standards:
@@ -28,4 +28,14 @@ required_gates:
 completion: Close exact declaration-time item type-weight scope only after all required local gates and review pass; other parentV01 and type-option obligations remain open.
 stop_after_completion: false
 discovery_policy: Unrelated discoveries record-only; any proven prerequisite requires preserved parent work and a deliberate coordination boundary.
-next_action: Trace existing group type-weight validation/metadata and item aggregation; choose the smallest complete metadata extension with backward compatibility before source edits.
+next_action: Await integrated95424 and UVM26530; NFA50661 completed0 and independent final review clear. Run full JSON serially after integrated terminates. Do not close V06 until every required gate passes.
+
+candidate: Declared item type weights propagated through class IR/API and new tagged metadata; merged aggregation uses independent type weights; old bytecode retains prior untagged interpretation.
+focused_status: All22 paired cases pass in legacy and JSON; group/point/cross compound-formal rejection and legal type queries verified. V04 neighbors2/2,V05 13/13,coverage75/65,metadata bounds/compatibility and makecheck pass. Final review and full gates pending.
+parser_status: VVP grammar conflict profile unchanged at14 shift/reduce and5 reduce/reduce; new tag parses before following numeric property declarations.
+standards_resolution: Retain existing typed int conversion; reviewer visually verified2023PDF page110 and both edition6.11.2 extracts, plus official Accellera committee discussion. No unknown-weight semantic change authorized by contrary recollection.
+
+binding_correction: Shared validator temporarily installs typed ctor then sample aliases, runs normal typed constant evaluation, deletes expression, restores aliases in reverse order. Reuses existing alias/cache invalidation machinery; no AST blacklist or constructor-scope guessing.
+active_sessions: integrated95424,UVM26530 confirmed live; NFA50661 completed0. FullJSON not yet started and must wait for integrated.
+
+final_review: No remaining V06 blocker after permanent outer-function lexical-scope control; all full gates still required. DD010 eligibility defect is separately recorded and unchanged.

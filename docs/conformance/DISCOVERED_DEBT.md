@@ -149,3 +149,22 @@ requires parking. Use the format above for the next agent's discoveries.
   reducer and pre-existing validation mechanism remain to be isolated.
 - **Triage status:** record-only; no repair or invalid-header qualification
   is included in L05's legal selected-member index-type increment.
+
+### DD-010 — Uninstantiated merged covergroup type enters overall denominator
+
+- **Discovered while working:** V06 final scope-control review.
+- **Observation:** One fully covered instantiated type plus a declared but
+  uninstantiated merged type produces overall50 rather than100 percent.
+- **File/function:** vvp/class_type.cc type_coverage/registry eligibility and
+  vvp/vthread.cc of_COVGRP_GET_ALL; exact correction not yet selected.
+- **Possible clause:** IEEE1800-2017/2023 19.9,19.11,19.11.3; complete eligibility
+  semantics require review at selection.
+- **Evidence:** campaign-20260908/v06/uninstantiated-type.sv and candidate/v05
+  logs. Both candidate and saved validated V05 runtime reproduce50 vs100.
+  For V05 compatibility only the new item-type-weight tags were removed from
+  emitted bytecode; every item/type weight in this reducer is1.
+- **Reproducer status:** Pre-existing runtime failure established on V05;
+  no source repair or broad application qualification inferred.
+- **Triage status:** record-only during V06. V06 function-scope test instantiates
+  all intended groups before checking their weighted aggregate; its bin/type
+  weight assertions remain explicit and independently checked.
