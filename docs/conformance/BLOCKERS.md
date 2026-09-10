@@ -269,3 +269,17 @@ seed set was drawn from, and for the complete excluded/reconciled list.
 - **Closure requirements:** Exact group-level type weights, default/zero/eligibility controls, valid constant conversion, all required local gates and independent review.
 - **Limits:** Coverpoint/cross type weights and procedural static option access remain separate obligations.
 - **Last verified revision:** 2be79b2c0 implements group-level declared type weights in overall coverage. Focus75/65, integrated4690/4685/0/2/3, VPI103, negative149, runtime15, full JSON1582/0, real-DPI UVM355/0/0, make check and independent review pass. Separate type-weight tag preserves old bytecode/property ordering.
+
+### S02 — Bounded variable-length multiclock antecedents
+
+- **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7, 16.13.3.
+- **State:** ACTIVE — specification and causal trace.
+- **Confidence:** REPRODUCED compile rejection at `2be79b2c0` in both editions.
+- **Evidence:** `../evidence/campaign-20260908/s02/antecedent.sv` and paired
+  compile logs; legal `a[*1:2] |=> @(posedge c2) b` is rejected.
+- **Mechanism:** Two-domain and N-domain callers of `sva_mc_expand_chain_`
+  require fixed antecedents. Mere request-count expansion does not establish
+  the per-start implication verdict required when several endpoints match.
+- **Closure:** Preserve each endpoint evaluation, aggregate truth and required
+  action semantics, clock timing, sampling and cancellation for the exact
+  claimed bounded subset. Initial action-count expectation awaits verification.

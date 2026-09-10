@@ -1,41 +1,36 @@
-id: V03
-title: Honor covergroup type weight in overall coverage
-status: completed_local
-phase: selection
-base_revision: ac60732f3
+id: S02
+title: Preserve bounded variable-length multiclock antecedent obligations
+status: active
+phase: spec_grounded
+base_revision: 2be79b2c0
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 19.7.1 table19-3, 19.9 and 19.11.
-expected_behavior: Eligible covergroup types contribute to overall coverage according to type_option.weight; scores50 and100 with weights1 and3 produce87.5.
-observed_behavior: Both editions produce75.0; type_option.weight is accepted but ignored by the overall arithmetic mean.
-reproducer: ../evidence/campaign-20260908/v03/type-weight.sv
-causal_hypothesis: Group type weight has no runtime metadata; of_COVGRP_GET_ALL adds each eligible type once without consulting a weight.
+  - IEEE1800-2017 and IEEE1800-2023 16.12.7 and 16.13.3.
+expected_behavior: Every successful antecedent endpoint starts a separately evaluated consequent at the prescribed destination tick; aggregate implication truth remains per starting attempt.
+observed_behavior: Both editions reject a[*1:2] as a non-fixed antecedent before simulation.
+reproducer: ../evidence/campaign-20260908/s02/antecedent.sv
+reproducer_caveat: Compile rejection is established; initial three-failure action expectation is provisional pending per-attempt verdict analysis and must not be adopted as a gold.
+causal_hypothesis: Both multiclock lowerings require fixed antecedent slots and transfer scalar request counts; variable endpoints require preservation of originating attempt identity as well as multiplicity.
 allowed_scope:
-  - elaborate.cc and netclass.h covergroup type-option declaration metadata and constant semantics.
-  - ivl_target.h, t-dll-api.cc, tgt-vvp/draw_class.c and vvp lexer/parse/compile/class_type metadata as required by the actual trace.
-  - vvp/vthread.cc overall coverage aggregation using existing eligibility and type coverage computations.
-  - Paired ivtest type-weight regressions and existing malformed runtime metadata fixture.
-  - .ai/ACTIVE_WORK.yaml and .ai/CAMPAIGN.yaml.
-  - docs/conformance/BLOCKERS.md, session log and clause matrix bounded updates.
+  - pform.cc multiclock antecedent lowering and existing NFA construction helpers if directly required.
+  - Existing multiclock handoff and result bookkeeping required to preserve per-attempt semantics.
+  - Permanent paired assertion regressions and focused manifests, affected negative test migration only after correct implementation.
+  - Active contract, campaign checkpoint, blocker registry, clause matrix and session log.
 non_goals:
-  - No redesign of the coverage engine, database persistence or unrelated coverage goals/strobe.
-  - Coverpoint/cross type-option weights and procedural static option access remain separate obligations unless proven prerequisites.
-  - No U01 application changes or complete parentV01 qualification claim.
+  - No scheduler architecture redesign, arbitrary property-local support or unbounded antecedents.
+  - No unrelated SVA defects, application modifications or complete assertion/formal qualification claim.
 invariants:
-  - Preserve V02 default instance weighting and explicit merged mode.
-  - Reuse eligibility rules; exclude zero type weights and retain100 overall when none contribute.
-  - Type weight is distinct from instance option.weight.
-  - Check nonnegative integral constant semantics against the typed static option declaration before implementing conversion.
-  - Preserve old bytecode defaults and validate new metadata.
+  - Preserve endpoint multiplicity without substituting endpoint counts for per-attempt truth.
+  - Preserve Preponed sampling, evaluation/report regions, cancellation and clock boundary timing.
+  - Inspect both two-domain and N-domain callers; do not silently accept unsupported siblings.
+  - Reuse existing mechanisms; record and escalate a proven architecture boundary before broadening.
 required_gates:
-  - Paired red/green weighted overall coverage; defaults, zero weights, excluded/empty types and reversed proportions.
-  - Constant-domain validation and independent review.
-  - Focused legacy/JSON, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
+  - Paired red/green controls for separate endpoints, mixed consequence outcomes and verdict identity.
+  - Overlap/nonoverlap, coincident and later ticks, fixed-chain controls, cancellation and vacuity for the claimed subset.
+  - Independent semantic review and implementation review.
+  - SVA NFA suite, focused legacy/JSON, integrated ivtest/VPI/negative/runtime, full JSON, real-DPI UVM and make check.
   - Remote CI before merge.
-completion: Close only the exact qualified group-level type-weight scope after all required local gates; keep other weighting and parent coverage obligations open.
+completion: Close only the exact qualified bounded antecedent scope after required local gates; retain unsupported shapes explicitly.
 discovery_policy: Unrelated discoveries are record-only.
 stop_after_completion: false
-last_validated_revision: ac60732f3
-implementation_revision: 2be79b2c0
-validation: Focus75/65, integrated4690/4685/0/2/3, VPI103, negative149, runtime15, JSON1582/0, real-DPI UVM355/0/0, make check and review pass.
-remaining_merge_gate: Remote CI before merge.
-next_action: Verify existing S01 cross-clock overlapping implication against current source and applicable LRM.
+last_validated_revision: 2be79b2c0
+next_action: Resolve per-start verdict semantics and trace reusable NFA endpoint bookkeeping before implementation.

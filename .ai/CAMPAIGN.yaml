@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: selection
+current_blocker: S02
+phase: spec_grounded
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 2be79b2c0
@@ -10,12 +10,12 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
-next_selection: Verify existing S01 cross-clock overlapping implication; preserve U01 and remaining coverage obligations.
-next_action: Run focused graph/source/LRM verification for S01 and establish current reducer before implementation.
-next_command: "graphify query 'cross-clock overlapping implication' --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+next_selection: S02 bounded variable-length multiclock antecedents; S01 verified superseded.
+next_action: Resolve per-start verdict semantics and trace both multiclock lowerings before patching.
+next_command: "sed -n '16660,16740p;17465,17610p' pform.cc"
 next_command_cwd: repository root
-candidate_state: V03 locally qualified and committed2be79b2c0; no active implementation blocker.
+candidate_state: S02 compile rejection reproduced in both editions; no implementation changes.
 installed_tools: Compiler a3937469c1cd61277cbe5bfc94da22628ff2eb88db6eec7fb1612d10b3dc9246; runtime 7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
 validation_state: All V03 local gates/review pass, including final real-DPI UVM57001 completed355/0/0. No running test processes.
-next_validation: Verify S01 actual current behavior; select exact next scope from evidence.
+next_validation: Review reducer expected verdict counts before fixing; all S02 gates pending.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
