@@ -357,5 +357,7 @@ l12_closure: "a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/
 
 publication_next_milestone: "U07,L13,L12 are fully validated unpublished increments. Prefer expanding existing main-target PR274 at the next coherent checkpoint (within3-5increments), preserving existing required remoteCI and no merge permission."
 
-l14_live_gates: {integrated: 21445, uvm: 66826, nfa: 93204, releases: 84865}
+l14_live_gates: {integrated: 21445, uvm: 66826, releases: 84865}
 l14_makecheck: "exit0; remaining gates pending; final scoped review clear."
+
+l14_nfa_terminal: "93204 exit0;58/58. Integrated21445,UVM66826,release84865 still running; JSON/frontend unstarted."
