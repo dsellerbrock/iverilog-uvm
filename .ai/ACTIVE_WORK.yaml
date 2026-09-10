@@ -1,33 +1,40 @@
-id: L07
-title: Implement queue-last element assignment without elaborator abort
-status: complete
-phase: locally_validated
-base_revision: c35d2ef36
-last_validated_revision: c35d2ef36
-standards: IEEE1800-2017 and IEEE1800-2023 7.10 and7.10.1.
-selection_reason: Unmodified official UVM2020.3.2 now reaches msg_queue[$] assignment; DD013 reducer aborts before runtime on both previous baseline and current compiler.
-expected_behavior: Dollar selects the current last queue element at lvalue evaluation; legal assignments update exactly that element. Preserve all other elements, bounds, type conversion, lifetime and assignment scheduling semantics.
+id: U01
+title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+status: in_progress
+phase: fresh_application_replay
+base_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+standards:
+  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
+expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
+observed_behavior: Post-L03 replay completed115 requests and230 scoreboard items with zero errors/fatals, but two SEQPRTZMB warnings and TEST FAILED CHECKS. Re-establish the frontier after L05 and V04-V07; no application pass inferred.
+reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
 allowed_scope:
-  - Queue last-index lvalue dispatch and shared elaboration helpers; causal callers only.
-  - Permanent paired regressions for types, lifetime, size changes, existing ordinary indices and supported member paths; expose empty/bounded behavior honestly.
-  - Full standards/source trace, required local gates, independent review and official UVM2020.3.2 replay.
+  - Read-only application corpus and current harness/source inspection.
+  - Fresh evidence/campaign-20260908/u01-after-l07 build/log/reducer artifacts; preserve earlier evidence.
+  - .ai/ACTIVE_WORK.yaml
+  - .ai/CAMPAIGN.yaml
+  - docs/conformance/BLOCKERS.md
+  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - No blanket parser rewrite, duplicate evaluation, library edits, unrelated type/array redesign or broad queue qualification claim.
-  - No suppression of diagnostics or silent success for unsupported legal shapes.
+  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
+  - No compiler implementation until a causal reducer and exact scope are established.
+invariants:
+  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
+  - Preserve 300-second per-process CPU guard and bounded wall time.
+  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
 required_gates:
-  - Paired baseline red and exact standards semantics; focused positive/negative/boundary regressions and affected neighbors.
-  - Integrated ivtest,VPI,negative,runtime,fullJSON,NFA,real-DPI UVM,makecheck and independent review.
-  - Official UVM2020.3.2 replay; progress is not a release pass.
-suspended_work: B01 remote Windows correction at PR273/c189df5b8 remains awaiting CI; no merge authorization or waiver.
-next_action: Await UVM33056; fullJSON98943 passed1729/0; integrated27702 passed4837total4832pass0fail2NI3EF,VPI105,negative149,runtime15/15; NFA58/58. Preserve frozen tools.
+  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
+  - First divergence from current-source replay, with traffic and scoreboard evidence.
+  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
+completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false
+last_validated_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
+selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
+next_action: Run the preserved pinned smoke in a fresh native build root, compare exported inputs and exact traffic/teardown observations, then reduce only a justified simulator divergence.
+current_replay: u01-after-v07/result.json RUNTIME_FAIL;115requests,230scoreboarditems,0errors/0fatals,4SEQPRTZMBwarnings,TEST FAILED CHECKS; all360exportedfiles unchanged.
+current_controls: Paired2017/2023 parent.kill emits1warning and sequence.kill emits0; all guard controls pass.
+compatibility_evidence: Pinned OpenTitan VCS/Questa configs select UVM1.2; campaign uses current bundled UVM. Clean local UVM1.2 revision c68f035f9c8e965807082495c5a667729afe3aa8 lacks the newer sequence-parent guard.
+next_triage: Native --uvm-home diagnostic with original application sources and correct matrix cwd fails first at uvm_component.svh3616 (#setting.offset), then legacy macro invocations. Check applicable delay grammar and macro semantics before classifying any compiler defect or selecting a prerequisite; do not edit corpus or suppress diagnostics.
 
-causal_patch: elab_lval.cc reuses NetELast through a shared direct-container index helper; whole, bit, part and indexed-part stores retain existing runtime operations. Class-member last selectors remain outside this bounded direct-variable scope.
-focused_validation: 10paired legacy and JSON tests pass;21legacy/13JSON neighbors and makecheck pass; final independent review clear.
-release_replay: Official unmodified2020.3.2 SMOKE_PASS, complete and baseline_valid true; results-23s62a5a/results.json. No broader qualification claim.
-installed_tools: Driver75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad/compiler809332576d4d92e74b4aedbdff5859ad30565f4c1d77ecb9304e7fc652a8585c/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337.
-next_command: tail -20 ../evidence/campaign-20260908/l07/uvm.log
-
-validated_revision: 9a1b6beb3544b4b783a0a67cbd5be6e53c619848
-final_validation: All required local gates passed; UVM33056 terminal0,355/0/0. Full15release replay39227 terminal1 reflects11compile failures and4smoke passes; complete and baseline_valid true.
-coordination_next_action: Publish five-increment milestone in existing PR273, then resume the unmodified application qualification frontier.
+current_action: Replay the same original xbar smoke with the unchanged bundled UVM first, on validated L07 tools, in a fresh native output root. Do not substitute a library or suppress sequence-parent warnings.
