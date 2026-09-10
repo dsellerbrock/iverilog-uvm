@@ -16,9 +16,9 @@ required_gates:
   - Baseline missing-selector reducer; permanent driver resolution, listing, invalid/missing/conflicting option and spaced-path checks.
   - Acquisition registration preservation check; existing UVM frontend controls; real-DPI selected known-release smoke.
   - Independent review and required integrated validation; preserve frozen installed tools until ready to validate candidate driver.
-next_action: Await integrated90425, then run full JSON serially; checkpoint U03 after required gates.
+next_action: Await fullJSON31236; integrated90425 passed. Close U03 exact picker scope after the final gate.
 stop_after_completion: false
 
 local_evidence: Baseline rejects --uvm-list; candidate picker controls pass; seven acquisition integrity tests pass; all15 registered; selected2020.3.1 real-DPI smoke passes with zero warning/error/fatal.
-validation_running: Integrated90425; frontend92166 passed all scenarios, final independent review clear.
-next_command: tail -20 ../evidence/campaign-20260908/u03/integrated.log
+validation_running: FullJSON31236; integrated90425 passed4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; frontend92166 passed all scenarios, final review clear.
+next_command: tail -20 ../evidence/campaign-20260908/u03/full-json.log

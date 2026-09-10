@@ -594,14 +594,22 @@ qualification remain open. Evidence: campaign-20260908/s03.
 ### L06 — Empty queues of structs with member defaults are rejected
 
 - **Area / edition:** Data types / IEEE1800-2017 and1800-2023 7.10,7.2.2.
-- **State:** IN_PROGRESS — selected from DD011 on validated03caa64c8.
+- **State:** CLOSED for empty queue-container initialization at `4965219df`; broader structure defaults remain open.
 - **Evidence:** OfficialUVM2020.3.2 uvm_reg_map.svh2058 declares
   uvm_reg_bus_op accesses[$]; the element has data=0. Compiler emits an
   unsupported-default diagnostic for the queue declaration.
 - **Expected:** An uninitialized queue is empty; no nonexistent element gets
   member initialization. Preserve valid scalar defaults and invalid-type errors.
-- **Closure:** Paired reducer, smallest shared correction, full required gates
-  and release replay; partial progress is not UVM/application qualification.
+- **Validation:** Fourteen paired legacy/JSON regressions, 27/26 neighbors,
+  integrated 4827 total / 4822 pass / 0 unexpected failures / 2 NI / 3 EF,
+  VPI 105, negative 149, runtime invariants, JSON 1719/0, NFA 58/58,
+  real-DPI UVM 355/0/0, make check and independent review passed.
+- **Release replay:** Unmodified UVM2020.3.2 passes the former declaration
+  failure, then reaches the independently preexisting DD013 queue-last lvalue
+  assertion. This is not a release/application pass. Unsupported array shapes
+  and invalid member-default diagnostics remain explicitly covered.
+- **Publication:** Local semantic qualification is complete. Separate B01
+  Windows export correction and required remote merge gates remain pending.
 
 
 ### B01 — Windows coverage API import-library exports missing

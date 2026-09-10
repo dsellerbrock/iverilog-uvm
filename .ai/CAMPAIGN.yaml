@@ -183,3 +183,6 @@ b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores ex
 u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
 u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
 last_locally_validated_semantic_revision: 4965219df (L06; compiler9915d687, runtime3b162fd9); remote Windows build gate remains separate and pending.
+
+l06_closure: 4965219df bounded empty queue-container initialization; all original local required gates and release replay reviewed, no UVM2020.3.2 pass. B01 external Windows gate remains pending independently.
+u03_gate_progress: Integrated90425 terminal0 with4827total4822pass0fail2NI3EF,VPI105,negative149,runtime15/15; fullJSON31236 running.
