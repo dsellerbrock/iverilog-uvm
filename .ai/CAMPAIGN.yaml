@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9baa5a9c3"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "integrated97512,UVM12635,release59096,fullJSON,isolatedfrontend; PR274 four remote jobs; application1.2 qualification"
+pending_gates: ["real-DPI UVM12635", "isolated frontend and restoration", "PR274 remaining CI", "application1.2 qualification"]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "Await JSON16047, UVM12635 and release59096; then run frontend alone and verify tool restoration before L13 closure."
-next_command: "tail -n 15 ../evidence/campaign-20260908/l13/width-json.log ../evidence/campaign-20260908/l13/width-uvm.log"
+next_action: "Await real-DPI UVM12635; then run isolated frontend and verify root restoration and width-sha256.txt before L13 closure. Resume L12 from evidence/l12/resume2 afterward."
+next_command: "tail -n 15 ../evidence/campaign-20260908/l13/width-uvm.log"
 next_command_cwd: repository root
 candidate_state: "849a779ea built and installed; focusedJSON6/0,legacy6/0,neighbors42/0,reviewclear. L12 suspended in evidence/l12/resume2."
 installed_tools: "Frozen evidence/l13/width-sha256.txt; do not rebuild/install during gates."
@@ -334,8 +334,10 @@ l13_reopened: "Prior 9baa5a9c3 gates passed but missed narrow two-state paramete
 
 l13_width_candidate: "Separate resize and signed two-state cast; focusedJSON6/0,legacy6/0,neighborJSON42/0,reviewclear. Wrong neighbor harness initially reported missing sources; rerun correct JSON harness passed42/0. Integrated gates required before L12 resumes."
 
-l13_width_live_gates: {json: 16047, uvm: 12635, releases: 59096}
+l13_width_live_gates: {uvm: 12635}
 l13_width_completed: "NFA8558 exit0,58/58; makecheckexit0. All dependent L12 implementation remains suspended."
 pr274_latest_ci: "OPEN at eb8852748: Ubuntu22.04 and24.04 success; macOS and three Windows jobs in progress. No merge."
 
 l13_width_integrated_terminal: "97512 exit0: legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON16047 started after terminal. UVM12635/release59096 remain live; isolatedfrontend unstarted."
+
+l13_width_json_release_terminal: "JSON16047 exit0,1779/0. Release59096 exit1 for known gaps: results-m_3ysaa5 complete/baseline_valid,8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. All15 status/source fingerprints/normalized compiler logs match previous9b sweep (width-release-comparison.json). Frozen installed hashes unchanged. UVM12635 verified live, frontend unstarted."
