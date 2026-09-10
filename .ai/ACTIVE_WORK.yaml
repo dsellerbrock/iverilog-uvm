@@ -1,10 +1,10 @@
 id: S07
 title: Expand nested parameterized sequence aliases
 status: in_progress
-phase: reproduce
+phase: awaiting_validation
 base_revision: 6f49fe1eb
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 sequence declaration/argument rules; exact clause to verify before implementation.
+  - IEEE1800-2017 and IEEE1800-2023 16.8 sequence declaration/argument binding and cyclic-instantiation rules.
 expected_behavior: A named sequence alias containing a parameterized sequence invocation has the same temporal meaning as the directly expanded sequence, with each invocation binding its own actuals.
 observed_behavior: Retained S04 reducer Left/Right aliases containing Pair(a,b)/Pair(c,d) report No function named Pair; direct invocations work. Reverify on current validated source.
 reproducer: ../evidence/campaign-20260908/s04/window-nested-alias.sv
@@ -26,4 +26,19 @@ completion: Close only the reproduced nested sequence expansion scope; broader S
 discovery_policy: Unrelated findings record-only; prerequisite tickets require deliberate boundary and preserved parent work.
 stop_after_completion: false
 last_validated_revision: 6f49fe1eb
-next_action: Reproduce retained alias failure in both editions and compare direct expansion; query shared graph then trace sequence expansion.
+next_action: Await integrated82704,NFA32199,UVM10750; run fullJSON serially after integrated. Preserve source/test freeze.
+
+causal_mechanism: Shared splicer recursively expanded parameterized calls but copied bare alias bodies without recursively resolving their contents; Pair calls reached ordinary function elaboration.
+implementation:
+  - Recursively expand cloned bare alias body before insertion and release replaced identifier.
+  - Bare alias nested sequence lookup uses declaration generate scope; parameterized substituted actual lookup retains caller scope.
+  - Active declaration path rejects reentry before cloning; newly detected errors stop sibling expansion, preserving depth safeguard and avoiding exponential branching cycles.
+focused_validation: Paired12/12 legacy+JSON both engines; S06neighbors18/18+18/18,S04neighbors17/17+8/8,makecheck pass. Original/deep nested,shadow,actual-scope and cycle controls pass both editions.
+qualification_limits:
+  - Complete global dependency-graph validation across independent instances is not established by active-path detection.
+  - Pre-existing parameterized declaration-owned name lookup and other sequence argument forms remain unqualified.
+remaining_gates: [NFA,integrated,full_JSON,real_DPI_UVM,remote_CI_before_merge]
+
+final_review: Independent source/test review clear; no blocking findings in bounded scope.
+current_sessions: Integrated82704,NFA32199,real-DPIUVM10750 running.
+current_toolchain: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.

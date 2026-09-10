@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: S07
-phase: reproduce
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 6f49fe1eb0077529ce0b5bc045e37b0e0a37c3e7
@@ -11,11 +11,11 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 (design boundary; contract and reducer preserved in evidence/s02)
 next_selection: DD-006 promoted to S07 after U01 fresh replay still fails teardown checks without a proven simulator mechanism.
-next_action: Reproduce nested parameterized sequence aliases on validated6f49fe1eb, then standards/causal tracing.
-next_command: "local-install/bin/iverilog -g2017 -o ../evidence/campaign-20260908/s07/nested.vvp ../evidence/campaign-20260908/s04/window-nested-alias.sv"
+next_action: Await frozen S07 integrated82704,NFA32199,UVM10750; full JSON after integrated.
+next_command: "tail -30 ../evidence/campaign-20260908/s07/integrated.log"
 next_command_cwd: repository root
-candidate_state: S07 investigation only; no unvalidated implementation changes.
-installed_tools: Compiler24a6c712130d707d08feccad018134cc0b16ba0c458e0892eede3a49adcb5672; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
-validation_state: S06 all local gates pass; U01 fresh replay115requests/230items/0errors/0fatals/4warnings RUNTIME_FAIL. All sessions terminal.
-next_validation: Paired S07 red/direct controls before source edits.
+candidate_state: S07 pform.cc shared-splicer patch and12paired permanent tests; focused green, full gates pending.
+installed_tools: Compileraec395fb981c81bc1a425769e15eeab265031a4b14465632b13fe0f6f7fd95cd; runtime7741c43f2751a27930cc0376a2f95e64443812923768ec4786808ba903bde0ec.
+validation_state: S07 focused/neighbor/check and finalreview green; integrated82704,NFA32199,UVM10750 live. Last fully validated6f49fe1eb.
+next_validation: FullJSON serially after integrated; required full gates before S07 closure.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)
