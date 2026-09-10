@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
 current_blocker: U03
-phase: focused_validation
+phase: awaiting_validation
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
@@ -11,8 +11,8 @@ pending_gates: [B01_Windows_CI, U01_teardown_qualification, remote_CI_before_mer
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: Resume suspended L06 after B01 required Windows CI and L06 UVM gates pass; then select user-requested U03 version picker before discretionary DD013.
-next_action: Await PR273 CI at08b86b949 ; L06 UVM passed355/0/0; inspect any failure before resuming L06. Preserve frozen tools.
-next_command: "gh pr view 273 --json headRefOid,statusCheckRollup"
+next_action: Await U03 integrated90425, then run full JSON serially; recheck PR273 CI atc189df5b8.
+next_command: "tail -20 ../evidence/campaign-20260908/u03/integrated.log"
 next_command_cwd: repository root
 candidate_state: L06 pform.cc candidate passes14/14focused,27/26neighbors,makecheck and finalreview. UVM2020.3.2 reaches preexisting q[$] lvalue crash (bothbaseline/candidate reproduce).
 installed_tools: Frozen compiler9915d6877914a1eeae199a2fb8796cae95240c355c7d5be112f76455f643a8a3/runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337; saved validated core in evidence/l06/baseline-root.
@@ -181,3 +181,5 @@ u03_validation: Focused selector and registration tests pass; real-DPI selected2
 b01_publication_correction: c189df5b8d90f438c726fd69745a917976bbc5ad restores executable ivtest gate mode lost during publication; fresh CI required.
 
 u03_current_gate: Integrated90425 live; fullJSON must follow its terminal result. Frontend92166 passed; final review clear. Frozen installed driver75f4c2cb, compiler9915d687, runtime3b162fd9.
+u03_checkpoint: c35d2ef36; installed candidate driver; all focused, acquisition, selected real-DPI smoke, frontend and review pass; integrated90425 pending, fullJSON unstarted.
+last_locally_validated_semantic_revision: 4965219df (L06; compiler9915d687, runtime3b162fd9); remote Windows build gate remains separate and pending.
