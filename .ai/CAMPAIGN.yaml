@@ -1,7 +1,7 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: U01
-phase: library_compatibility_triage
+current_blocker: U02
+phase: coordination
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
@@ -11,13 +11,13 @@ pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: U01 current unmodified xbar teardown qualification; V07 validated03caa64c832a9c1b22b82a5692fda7764c94ebc9
-next_action: Classify UVM1.2 diagnostic compile frontier against primary delay grammar and macro invocation semantics; preserve current-library warnings and application failure.
-next_command: "sed -n '77160,77177p' ../evidence/campaign-20260908-lrm2023.txt"
+next_action: Checkpoint U02 release matrix and restore U01 compatibility triage from preserved contract; no new per-blocker PR.
+next_command: "cat ../evidence/campaign-20260908/u01-after-v07/suspended-before-uvm-matrix.yaml"
 next_command_cwd: repository root
-candidate_state: V07 validated03caa64c8; U01 replay and paired guard controls complete. No compiler patch selected. UVM1.2 diagnostic compile has unresolved syntax/macro gaps; no runtime or ABI qualification inferred.
+candidate_state: U02 acquisition/probe tooling locally validated;15available,3smoke passes,12compile gaps recorded as DD011. Last validated compiler/runtime03caa64c8 unchanged.
 installed_tools: Frozen compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a and V07 runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337. Saved validated V06 runtime in evidence/v07/baseline-vvp.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Fresh pinned unmodified xbar smoke with current tools; preserve failing checks and warnings, separate qualification from compiler progress.
+next_validation: Subsequent semantic work requires its own reducer/contract and standard grounding; U01 remains unqualified.
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -149,7 +149,7 @@ consolidated_main_pr:
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
 last_publication_semantic_revision: 59e5e07c7b24ff779dca3b511e832ada099c7644
-validated_increments_since_publication: 1
+validated_increments_since_publication: 2
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -164,3 +164,6 @@ coverage_milestone_pr:
   pending: Required GitHub CI and review; no agent merge.
   preservation: Active V07 source/tests remain untouched in the campaign worktree.
 v07_latest_checkpoint: Candidate built and installed; paired standalone tests passed in both editions, baseline red for population and cross cases, baseline green for mode controls. Session38942 completed0. Focused harnesses, integrated gates and final review remain required.
+
+uvm_release_matrix: docs/conformance/uvm_release_matrix.md; official Git pins plus archive-only downloads,15releases,3smoke passes,12compile failures.
+uvm_release_results: third_party/uvm-releases/results-pv87b5yu/results.json; complete and baseline_valid true.

@@ -173,3 +173,19 @@ requires parking. Use the format above for the next agent's discoveries.
   paired lifecycle controls and full required local gates. Never-instantiated
   types are excluded; zero-weight retired merged instances remain represented.
   Remote CI and broader coverage qualification remain separate.
+
+
+### DD-011 — UVM release-matrix compile frontiers
+
+- **Discovered while working:** U02 user-requested release acquisition/probes.
+- **Evidence:** `docs/conformance/uvm_release_matrix.md` and local
+  `third_party/uvm-releases/results-pv87b5yu/results.json`; unmodified releases,
+  compiler/runtime implementation03caa64c8, actual-g2012.
+- **Observed:** Legacy1.x/2017 libraries encounter member-delay syntax (1.0p1
+  also reports process class lookup);2020.1.0/1.1 encounter nested resource
+  queue type/assignment errors;2020.3.2 rejects default-initialized unpacked
+  struct queue `accesses` in uvm_reg_map.svh2058. Later diagnostics may cascade.
+- **Classification:** Reproduced compile gaps, not yet reduced/standards-classified.
+  Do not label nonstandard library syntax a mandatory IEEE compiler defect.
+- **Triage:** Record-only during U02; select and ground one causal mechanism
+  before any semantic fix. No archived library or application source patched.

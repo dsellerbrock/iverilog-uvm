@@ -1482,3 +1482,24 @@ Classify the corrected first syntax/macro frontier against primary standards
 before any prerequisite implementation. No UVM library install, corpus edit,
 warning suppression, application pass or DPI compatibility claim. V07 remains
 last validated implementation03caa64c8; U01 is active read-only triage.
+
+User requested older/all major UVM revisions downloaded, compiled and kept in
+repo, then specified pinned submodules with downloader for archive-only releases.
+U01 preserved in u01-after-v07/suspended-before-uvm-matrix.yaml; U02 active.
+Official Accellera inventory supplies15archives, including2017.0.9prerelease and
+2020.3.2. Added exact official Git pins for2020.2.0/.3.0 and reused unchanged
+uvm-core78c06547 for official2020.3.1; other releases use checksum-pinned
+archive extraction. No third-party source patch or installed-tool mutation.
+
+Final matrix10357 completed1 as intended for observed compile failures:
+15acquired,3SMOKE_PASS(2020.2.0/.3.0/.3.1),12COMPILE_FAIL. Machine-readable
+results-pv87b5yu records complete/baseline_valid true with exact input/tool
+fingerprints, commands, source hashes and logs. Actual-g2012 smoke checks
+factory/clone/field independence,phase/objections,regex and HDL read using the
+installed real Icarus DPI backend; not per-release ABI or full qualification.
+Independent review found and prompted fixes for summary false passes and
+machine-readable drift invalidation; final source review clear. Six permanent
+offline checks pass, including dirty/divergent Git preservation and process-tree
+timeout. DD011 records compile families without authorizing semantic fixes.
+U02 tooling scope complete; restore U01 triage after checkpoint. No new PR at
+this two-increment milestone; retain the user's less-frequent publication cadence.

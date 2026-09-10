@@ -573,3 +573,19 @@ qualification remain open. Evidence: campaign-20260908/s03.
   negative149,runtime,JSON1705/0,NFA58/58,UVM355/0/0 realDPI actual-g2012,
   makecheck and independent review pass. Existing live/retired state suffices;
   no metadata, ABI or scheduler changes. Broader qualification remains open.
+
+
+### U02 — Published UVM revision compatibility matrix
+
+- **Area:** UVM release compatibility / qualification tooling.
+- **State:** LOCALLY VALIDATED — requested acquisition/probe tooling complete; release compatibility remains partial.
+- **Evidence:** Accellera official downloads lists 1.0/1.1/1.2,2017 and2020 families; current U01 encounters a UVM-version boundary.
+- **Scope:** Pin official sources, keep releases available locally, run isolated unmodified-library compile/smoke probes and record exact failures.
+- **Closure:** Reproducible acquisition and honest per-release evidence. Does not require all versions to pass or establish IEEE1800.2/application qualification; discovered compiler gaps are record-only during U02.
+
+- **U02 result:** 15 releases available;2020.2.0/2020.3.0/2020.3.1 compile and
+  execute factory/copy/phase/regex/HDL smoke with zero warnings/errors/fatals.
+  Twelve versions fail compilation; see `uvm_release_matrix.md`. Official Git
+  releases use pinned submodules, others verified archive downloads. Six offline
+  evidence-integrity/source-preservation controls pass. No compiler fix or
+  broad UVM/application/ABI qualification is included in this tooling closure.
