@@ -344,5 +344,7 @@ l13_width_json_release_terminal: "JSON16047 exit0,1779/0. Release59096 exit1 for
 
 l13_corrected_closure: "849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics."
 
-l12_live_gates: {integrated: 46193, uvm: 61496, nfa: 78999, releases: 64954}
+l12_live_gates: {integrated: 46193, uvm: 61496, releases: 64954}
 l12_makecheck: "exit0 on a85a256b1; remaining required gates pending."
+
+l12_nfa_terminal: "78999 exit0;58/58. Release sweep results-qb7873zh still live; original1.1d now compiles but smokeRUNTIME_FAIL, original1.2 remaining4compiled_regex reference errors. DD027/DD021 record-only while L12 gates run."
