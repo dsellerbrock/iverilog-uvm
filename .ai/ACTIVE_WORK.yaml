@@ -29,7 +29,7 @@ required_gates:
   - Run required focused and integrated gates and independent review before closure.
 completion: Close only the exact validated DPI loading or ABI subcase; historical releases and application qualification remain separate.
 stop_after_completion: false
-next_action: "Await U04 integrated88113, UVM73729 and NFA6429; start fullJSON only after integrated terminates. Original2020.1.0/1.1 direct ABI checks pass both editions, but fullsmoke lacks its completion marker at time0 and remains RUNTIME_FAIL."
+next_action: "NFA6429 passed58/58 terminal0. Await U04 integrated88113 and UVM73729; start fullJSON only after integrated terminates. Original2020.1.0/1.1 direct ABI checks pass both editions, but fullsmoke lacks its completion marker at time0 and remains RUNTIME_FAIL."
 next_command: "tail -5 ../evidence/campaign-20260908/u04/integrated.log ../evidence/campaign-20260908/u04/uvm.log"
 prerequisite_resolution: U05 validated at a5eb76ebb; standalone m__uvm_report_dpi dispatches six arguments through existing runtime ABI, all required local gates passed.
 root_cause: Selected legacy SV sources import C uvm_re_match and uvm_glob_to_re; installed modern UVM umbrella exports lower-level uvm_re APIs because modern SV implements those names as wrappers. No legacy symbols exist in installed library.
@@ -38,7 +38,9 @@ design_review: Blind delegation changes strict invalid-regex behavior and return
 abi_contract: Official2020.1 declarations are context int uvm_re_match(string,string) and context string uvm_glob_to_re(string), mapped to C int/const char pointers by IEEE2017/2023 TableH.1. Match uses strict POSIX ERE, optional paired slash delimiters, zero for match and nonzero for mismatch/invalid regex; invalid regex increments UVM_ERROR. Explicit ^$ matches only the empty string; raw empty ERE is delegated to the native implementation (Darwin returns14), not given an invented portable result. Singleton slash is literal. Glob empty/slash becomes /^$/, bracketed regex remains bracketed per documented intent; preserve2040 input limit and reportoversize returning original input. Allocate enough conversion storage for worst-case expansion instead of reproducing old buffer overflow.
 implementation_decision: Modern combined matcher changes error codes and retries invalid patterns as globs. Modern deglob helper has different length accounting. Implement legacy entry points directly using POSIX and std::string, retaining native caller signatures and U05 reporting; original vendor sources untouched.
 
-u04_live_gates: [integrated88113, UVM73729, NFA6429]
+u04_live_gates: [integrated88113, UVM73729]
 u04_unstarted_gates: [full_JSON_after_integrated]
 u04_candidate_revision: aa172f5f9
 u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
+
+u04_nfa: Passed58/58 terminal6429 exit0.

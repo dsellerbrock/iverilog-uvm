@@ -11,7 +11,7 @@ pending_gates: [U01_application_qualification, PR273_remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
 next_selection: "After U04 exact scope closes, select by remaining correctness and application evidence."
-next_action: "Await U04 integrated88113, UVM73729 and NFA6429; start fullJSON only after integrated terminates. Original2020.1.0/1.1 direct ABI checks pass both editions, but fullsmoke lacks its completion marker at time0 and remains RUNTIME_FAIL."
+next_action: "NFA6429 passed58/58 terminal0. Await U04 integrated88113 and UVM73729; start fullJSON only after integrated terminates. Original2020.1.0/1.1 direct ABI checks pass both editions, but fullsmoke lacks its completion marker at time0 and remains RUNTIME_FAIL."
 next_command: "tail -5 ../evidence/campaign-20260908/u04/integrated.log ../evidence/campaign-20260908/u04/uvm.log"
 next_command_cwd: repository root
 candidate_state: "Legacy C ABI adapter built/installed; strict POSIX matching plus safe glob expansion and actual UVM errors pass both editions and relocated frontend. Review clear including requestedboundarytests. Full gates pending."
@@ -231,7 +231,9 @@ u05_candidate_revision: a5eb76ebb
 
 u05_nfa: Terminal71460 exit0;58passed0failed.
 
-u04_live_gates: [integrated88113, UVM73729, NFA6429]
+u04_live_gates: [integrated88113, UVM73729]
 u04_unstarted_gates: [full_JSON_after_integrated]
 u04_candidate_revision: aa172f5f9
 u04_release_evidence: results-9mvpk_8f complete and baseline_valid; both original releases compile0/runtime0 with zero severity errors but no required marker, so RUNTIME_FAIL. Direct original ABI tests4/4 pass.
+
+u04_nfa: Passed58/58 terminal6429 exit0.
