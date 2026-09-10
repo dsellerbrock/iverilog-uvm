@@ -1461,3 +1461,10 @@ eligibility. Completed contract preserved in evidence/v07. Worktree audit
 unchanged; all unrelated dirty/non-ancestor siblings retained. This is one
 validated increment since PR273; no new PR. Return to coordinator selection
 with U01 unmodified application teardown as the next evidence-driven candidate.
+
+V07 checkpoint03caa64c832a9c1b22b82a5692fda7764c94ebc9 complete. Coordinator resumed U01 from preserved
+teardown contract after canonical Graphify query and scoped current-source
+inspection. Pinned UVM explicitly warns on parent process termination without
+sequence.kill; prior reduced controls distinguish caller.kill from sequence.kill.
+Fresh unmodified replay is required before attributing a simulator defect.
+No compiler edits authorized in this read-only qualification/reduction phase.

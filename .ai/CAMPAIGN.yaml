@@ -1,23 +1,23 @@
 status: active
 branch: agent/continuous-conformance-20260908
-current_blocker: V07
-phase: coordination
+current_blocker: U01
+phase: current_baseline_replay
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
+last_integrated_good_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: [U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: S02 design boundary retained.
-next_selection: V07 never-instantiated type eligibility (DD010); V06 validated421b50abd.
-next_action: Checkpoint V07, then assess U01 application teardown on the current validated baseline.
-next_command: "cat ../evidence/campaign-20260908/u01-after-l03/replay.sh"
+next_selection: U01 current unmodified xbar teardown qualification; V07 validated03caa64c832a9c1b22b82a5692fda7764c94ebc9
+next_action: Run fresh u01-after-v07/replay.sh using frozen validated V07 tools; compare input provenance and traffic/teardown to prior replay.
+next_command: "bash ../evidence/campaign-20260908/u01-after-v07/replay.sh"
 next_command_cwd: repository root
-candidate_state: V07 all required local gates and independent review passed; source ready for semantic checkpoint.
+candidate_state: V07 checkpoint03caa64c832a9c1b22b82a5692fda7764c94ebc9 is fully locally validated. U01 read-only replay/reduction contract active; no compiler edits authorized yet.
 installed_tools: Frozen compiler07b302c2c24b66f0b034ae225fc51a621eded450e565c9cd40d26aedc4d91d8a and V07 runtime3b162fd92a10cb221af69321fc072bda01c04f3a5fd62445b89e869d470a1337. Saved validated V06 runtime in evidence/v07/baseline-vvp.
 validation_state: V06 focus22/22 legacy+JSON,V04 neighbors2/2,V05 13/13,coverage75/65,metadata boundaries/compatibility,integrated4807total4802pass0fail2NI3EF,VPI105,negative149,runtime,JSON1699/0,UVM355/0/0,NFA58/58,makecheck and final review pass.
-next_validation: Next blocker requires an exact contract and current evidence. V07 completed with UVM355/0/0 realDPI actual-g2012.
+next_validation: Fresh pinned unmodified xbar smoke with current tools; preserve failing checks and warnings, separate qualification from compiler progress.
 completed_replay: ../evidence/campaign-20260908/u01-after-l03/result.json (RUNTIME_FAIL, two sequence-parent warnings)
 
 publication_policy_checkpoint: bfb4f1802

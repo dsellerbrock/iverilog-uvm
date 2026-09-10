@@ -1,33 +1,34 @@
-id: V07
-title: Exclude never-instantiated covergroup types from cumulative coverage
-status: locally_validated
-phase: done
-base_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
-last_validated_revision: 421b50abdcef1b09f9106fa8a35a430a66753928
+id: U01
+title: Reproduce the current unmodified Darjeeling debug-xbar DV frontier
+status: in_progress
+phase: current_baseline_replay
+base_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
 standards:
-  - IEEE1800-2017 and IEEE1800-2023 19.9,19.11,19.11.3.
-expected_behavior: Overall coverage excludes never-instantiated types and returns100 when no eligible coverage exists; constructed types remain eligible according to their actual bin model even after retirement, including instances whose instance weight is zero under merge1.
-observed_behavior: Declared merged types with static bins yield overall0 before any instance and50 instead100 after constructing and fully covering only one of two types; paired editions reproduce on validated421b50abd.
-reproducer: ../evidence/campaign-20260908/v07/uninstantiated-type.sv
-selection_reason: DD010 is a proven remaining eligibility defect that corrupts routine overall completion reports; correcting it completes the current coherent coverage reporting milestone without claiming full parentV01 coverage.
-root_cause: compile_class_done registers covergroup types before any object exists; merge1 type_coverage counts static bin metadata with no eligibility check. Existing covgrp_live_ and covgrp_has_retired_options_ already distinguish never-created from live/retired populations, independently of instance weights and bin cardinality.
+  - Application DV and UVM execution; precise IEEE mechanism to be established from first divergence.
+expected_behavior: The original xbar smoke test completes with checked matched request/response traffic and zero outstanding transactions.
+observed_behavior: Post-L03 replay completed115 requests and230 scoreboard items with zero errors/fatals, but two SEQPRTZMB warnings and TEST FAILED CHECKS. Re-establish the frontier after L05 and V04-V07; no application pass inferred.
+reproducer: lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1, xbar_smoke, pinned OpenTitan 7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19.
 allowed_scope:
-  - Shared type_coverage eligibility using existing live and retired-instance state.
-  - Paired no-instance,unused-type,construction,retirement,zero-weight,merged/weighted-mode and static/dynamic/transition/cross controls.
-  - Required local full gates, independent review and precise canonical records.
+  - Read-only application corpus and current harness/source inspection.
+  - Fresh evidence/campaign-20260908/u01-after-v07 and u01-sequence-parent build/log/reducer artifacts.
+  - .ai/ACTIVE_WORK.yaml
+  - .ai/CAMPAIGN.yaml
+  - docs/conformance/BLOCKERS.md
+  - docs/conformance/session_logs/2026-09-08_continuous_campaign.md
 non_goals:
-  - No metadata/ABI/parser changes or new lifetime registry.
-  - No procedural static option assignment, unsupported topology/cardinality or application changes.
+  - No application source edits, disabled checks, weakened smoke traffic, or broad census.
+  - No compiler implementation until a causal reducer and exact scope are established.
 invariants:
-  - Retired types must not disappear from cumulative coverage.
-  - Zero instance weight is not proof of nonexistence under merge1; preserve independent type weighting.
-  - Bin counts, thresholds, weighting, event sampling and existing empty-denominator behavior remain intact.
+  - Use campaign native tools, pinned Python 3.13/FuseSoC, fresh output root, original providers and source list.
+  - Preserve 300-second per-process CPU guard and bounded wall time.
+  - Compilation, reaching a later failure, or a pass banner without meaningful checking is not application qualification.
 required_gates:
-  - Primary2017/2023 19.11 and19.11.3 with paired baseline red evidence.
-  - Permanent focused controls, coverage and V04/V05/V06 neighbors, integrated,VPI,negative,runtime,NFA,fullJSON,real-DPIUVM,makecheck and independent review.
-  - Remote CI before separately authorized merge; publication cadence3-5 validated increments.
-completion: Close never-instantiated-type eligibility only after all required local gates and review; parentV01 and broader qualification remain open.
+  - Corpus/toolchain fingerprints and exact command/source/provider provenance.
+  - First divergence from current-source replay, with traffic and scoreboard evidence.
+  - Any subsequent semantic patch must establish edition-specific semantics and full required regression gates before closure.
+completion: U01 remains open until normal smoke completion and checked traffic are proven; a new earlier blocker requires a deliberate prerequisite boundary.
+discovery_policy: Unrelated findings are record-only.
 stop_after_completion: false
-discovery_policy: Unrelated discoveries record-only; preserve parent work before any deliberate prerequisite switch.
-next_action: Checkpoint exact V07 scope, then coordinator selection; no parent coverage completion claim.
-validation: Focus6/6 each harness,V04 2/2,V05 13/13,V06 22/22,coverage75/65,integrated4813total4808pass0fail2NI3EF,VPI105,negative149,runtime,JSON1705/0,NFA58/58,UVM355/0/0 realDPI actual-g2012,makecheck,independent review pass.
+last_validated_revision: 03caa64c832a9c1b22b82a5692fda7764c94ebc9
+selection_reason: Revisit meaningful unmodified DV after the validated coverage milestone; distinguish remaining simulator defects from pinned application or UVM-version teardown behavior without suppressing warnings.
+next_action: Run the preserved pinned smoke in a fresh native build root, compare exported inputs and exact traffic/teardown observations, then reduce only a justified simulator divergence.
