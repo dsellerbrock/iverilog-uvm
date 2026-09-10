@@ -631,6 +631,6 @@ qualification remain open. Evidence: campaign-20260908/s03.
   real-DPI compile/run smoke using a known passing pinned release. Required
   repository gates and independent review remain in force. Selecting a release
   does not qualify its language support or turn current compile failures into passes.
-- **Boundary:** B01 remains active awaiting Windows CI; L06 source and frozen
-  tools remain preserved. Select U03 deliberately after those validation gates,
-  ahead of discretionary DD013 implementation.
+- **Boundary:** B01 is safely suspended awaiting external Windows CI; U03 is
+  independent of the export-map correction. L06 passed all local gates before
+  installing the candidate driver. U03 is the sole active implementation task.

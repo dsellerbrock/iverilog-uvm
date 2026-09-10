@@ -4,7 +4,7 @@ status: in_progress
 phase: regression_testing
 user_authorization: Explicit request for a UVM version picker similar to VCS; use pinned submodules or fallback downloader.
 prerequisite: U02 pinned acquisition tooling completed140c58b14; L06 local semantic gates passed at4965219df. No dependence on B01 Windows export mechanism.
-suspended_work: B01 awaiting external Windows CI atPR273/08b86b949; contract saved in evidence/u03/suspended-b01.yaml. No gate waiver or closure.
+suspended_work: B01 awaiting external Windows CI at PR273/c189df5b8; contract saved in evidence/u03/suspended-b01.yaml. No gate waiver or closure.
 contract:
   - --uvm=VERSION selects an acquired release and implies UVM; --uvm-list lists available releases.
   - Preserve -uvm bundled default, --uvm-home path selection, and --uvm-version reporting.
