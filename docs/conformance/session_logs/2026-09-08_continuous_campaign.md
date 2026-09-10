@@ -1909,3 +1909,9 @@ packed-parameter controls pass. FinalfocusedJSON6/0,legacy6/0,neighbors42/0,
 independent review clear. Fullrequiredgates restart on the final source.
 Constant function string-argument evaluation returningX is priorDD026,
 separate from direct typed-parameter selection; no broad qualification claim.
+
+
+### L13 closure at9baa5a9c3
+
+legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged.
+Fullrelease results-6pvdp6vh complete/baseline_valid with8SMOKE_PASS,6COMPILE_FAIL,1RUNTIME_TIMEOUT. Every source hash/status and normalized compiler diagnostic matches U07. PR274 remains OPEN atpublishedhead eb8852748; local L13 is unpublished, no agent merge. Resume preserved L12 after this validated prerequisite.

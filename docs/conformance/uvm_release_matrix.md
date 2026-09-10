@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `a83731194` (U07 member-delay compatibility, following validated L10).
-The release sweep and all required U07 local validation gates are complete.
+2026-09-10, native ARM64, validated source `9baa5a9c3` (L13 signed character reads and typed string parameter byte selection).
+The release sweep and all required L13 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-4r1diuop/results.json`, with per-release
+`third_party/uvm-releases/results-6pvdp6vh/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -116,7 +116,7 @@ continues through later releases after an earlier failure.
 All release sources remain unmodified. L08, U05, U04 and U06 record the scoped
 compiler, DPI and runtime compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `c5f60e1a156a0da501a81e5b3e2bf37b7745bc9472d54652ee4dd5262238cc17`
+- `ivl` SHA-256: `8c38595c05d3d7461ebfa592d11665e901cbfb41d4b9faaaea4fd36bcd9412b8`
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 

@@ -354,7 +354,7 @@ Needs standards classification; not claimed qualified and record-only for L12.
 
 ### DD024 — String character selection loses signed byte type
 
-L12 high-bit control shows ordinary and proposed member indexing widen0xff to255, while getc/byte cast yield-1. Both-edition6.16 and6.11.3 require signed byte. Selected as prerequisite L13; L12 partial work preserved and source restored before new baseline.
+L12 high-bit control shows ordinary and proposed member indexing widen0xff to255, while getc/byte cast yield-1. Both-edition6.16 and6.11.3 require signed byte. Selected as prerequisite L13; L12 partial work preserved and source restored before new baseline. Closed at9baa5a9c3 after all required local gates, including typed string parameter byte width/folding.
 
 ### DD025 — Class string-property character index uses property slot
 

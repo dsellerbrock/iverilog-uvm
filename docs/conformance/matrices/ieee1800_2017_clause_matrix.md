@@ -1060,7 +1060,7 @@ L11. No general dynamic/associative element or complete argument qualification
 is inferred; broader language/UVM/application/formal obligations remain open.
 
 
-L13 candidate9baa5a9c3: PARTIAL, awaiting required integrated validation.
+L13 at9baa5a9c3: IMPLEMENTED (bounded local qualification, unmerged).
 IEEE1800-2017 and IEEE1800-2023 6.16,6.16.3 and6.11.3 require signed byte
 results for character reads. The candidate preserves signed8bit results
 through ordinary string and string-array indexing, assignment widening,
@@ -1068,8 +1068,7 @@ arithmetic and function inputs. Typed string parameter selection reads
 left-to-right characters, including constant folding and runtime indices,
 with zero for negative/after-end/empty reads. Untyped packed parameters and
 packed bit/part selects retain unsigned bit semantics; unsigned contexts
-still determine their expression conversions. Paired focused cases and
-neighbor tests pass; fullrequiredgates are pending, so this is not CLOSED
-or QUALIFIED. Class string-property index dispatch (DD025), constant-function
+still determine their expression conversions. Paired focused cases, neighbor tests and all required local gates pass.
+The exact L13 blocker is closed; full string/edition qualification is not claimed. Class string-property index dispatch (DD025), constant-function
 string evaluation (DD026) and the suspended struct-member blockerL12 remain
 separate open scopes. No parent string/UVM/IEEE completion is inferred.

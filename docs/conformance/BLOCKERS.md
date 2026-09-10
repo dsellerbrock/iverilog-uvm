@@ -766,6 +766,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L13 — Signed byte semantics of string character reads
 
-- **State:** OPEN, prerequisite for L12 selected at deliberate coordination boundary.
+- **State:** CLOSED at9baa5a9c3 after all required local gates.
 - **Evidence:** Ordinary s[0] with octal377 yields255 when widened, while getc and byte cast yield-1. Both editions6.16/6.16.3/6.11.3 specify signed byte semantics.
 - **Scope:** Shared character-select typing and expression sizing, preserving unsigned packed bit/part selects.
+
+- **L13 validation:** legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged. Fullrelease results-6pvdp6vh retain8smokepasses,6compilegaps,1timeout; normalized diagnostics and source hashes match U07. General class-property dispatch and constant-function string evaluation remain open.
