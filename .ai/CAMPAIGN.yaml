@@ -7,15 +7,15 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: 6eee0480c
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: [V02_integrated_55247, V02_full_JSON, V02_real_DPI_UVM_11766, V02_final_review, U01_teardown_qualification, remote_CI_before_merge]
+pending_gates: [V02_real_DPI_UVM_9300, U01_teardown_qualification, remote_CI_before_merge]
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: null
 next_selection: V02 default type coverage correctness; U01 preserved for later teardown qualification.
-next_action: Await integrated55247 and real-DPI UVM11766; after integrated finishes run full JSON serially; resolve failures before closing V02.
-next_command: "tail -20 ../evidence/campaign-20260908/v02/native-integrated.log ../evidence/campaign-20260908/v02/native-uvm.log"
+next_action: Await real-DPI UVM9300; resolve failures before checkpointing and closing exact V02 scope.
+next_command: "tail -20 ../evidence/campaign-20260908/v02/native-full-json.log ../evidence/campaign-20260908/v02/native-uvm-final.log"
 next_command_cwd: repository root
 candidate_state: Uncommitted V02 averaging and native typed initializer implementation; permanent paired scope/four-state/lifetime/option regressions pass. Required gates running.
 installed_tools: Compiler 0b6a11ec37dee4c0087c7f8133e245a4d7224b5fd91456b1ef2dc3cbff54428a; runtime 7c575b6c3d221e635159b846add44e3816b9d393320dc0057e7143580131f81e.
-validation_state: Native final focus65 legacy/55 JSON, metadata bounds and make check pass. Integrated session55247 and real-DPI UVM11766 live. Full JSON not yet launched; final independent review pending. Last fully validated revision6eee0480c.
-next_validation: After integrated55247 completes, run full JSON with the same installed tools; retain UVM11766 and final independent review gates.
+validation_state: Native final focus65 legacy/55 JSON, metadata bounds and make check pass. Integrated55247 passed4680/4675/0/2/3, VPI103, negative149, runtime15. Full JSON56399 passed1572/0; First real-DPI UVM11766 ended354/1 due to a historical implicit-merge expectation. Test explicitly requests merged mode now and passes10/10 in both editions; bounded review passed. Full UVM9300 rerun live. Last fully validated revision6eee0480c.
+next_validation: Await real-DPI UVM9300 using unchanged installed tools.
 completed_replay: ../evidence/campaign-20260908/u01-after-l02/result.json (RUNTIME_FAIL, teardown warnings)

@@ -648,3 +648,30 @@ Required integrated55247 and real-DPI UVM11766 now live; full JSON must wait for
 integrated to finish because ivtest shares logs. Final independent review
 requested. No source edits or dependent blocker work during these gates.
 Last fully validated semantic baseline remains6eee0480c; V02 stays open.
+
+Final independent V02 review has no remaining actionable finding; all requested
+initializer controls pass. Blocker state is AWAITING_VALIDATION. Integrated,
+full JSON and UVM gates remain outstanding. No coverage-parent closure implied.
+
+V02 integrated55247 completed0:4680 total/4675pass/0fail/2NI/3EF; name-diff
+clean, VPI103/103, negative149/149, runtime15/15. Full JSON56399 now running
+after integrated logs are released; real-DPI UVM11766 remains live. No source
+changes since native focused validation; final review passed. V02 still awaits
+remaining gates before implementation checkpoint/closure and next selection.
+
+V02 full JSON56399 completed0:1572 tests/0fail. Only real-DPI UVM11766
+remains pending among local validation gates. Current installed tools unchanged.
+
+V02 UVM11766 finished354pass/1fail/0skip with real DPI. Sole failure:
+m11_coverage_cross_query_test expected merged100 from two half-covered
+instances without setting merge_instances. Historical test correction explicitly
+sets merge_instances1 and get_inst_coverage1 in class ct, preserving all ten
+assertions including separate instance50 and start/stop. Direct2017/2023 replay
+passes10/10; bounded independent review approves the semantic correction.
+No compiler/runtime change. Full real-DPI UVM rerun9300 is active, logging
+v02/native-uvm-final.log. Integrated/full JSON/focus/metadata/check evidence
+remains valid for unchanged implementation. Last validated revision6eee0480c;
+V02 remains AWAITING_VALIDATION, implementation uncommitted, remote CI before
+merge. Exact next step: await9300; if pass checkpoint V02 implementation and
+bounded qualification, then select next justified blocker. Do not rebuild or
+start dependent work while this gate is outstanding.
