@@ -1,19 +1,20 @@
-id: "U15"
-title: "Lossless native packed, real and string recording value capture"
+id: "L32"
+title: "Correct VPI string literal vector byte order and word boundaries"
 status: "active"
-phase: "reproducing"
-base_revision: "2f128bb7d"
+phase: "implementing"
+base_revision: "f2fa3045f"
 last_validated_revision: "729edce3c"
-parent: "DD038 full typed legacy recording; original1.1b/c macro reducers preserved"
-reproducer: "../evidence/campaign-20260908/u15/values.sv: valid U14 lifecycle setup then missing native attribute operation on65bit four-state signed,real,string values."
-expected_behavior: "Native recording retains actual packed width/sign and every aval/bval bit without artificial width cap,exact real value representation and string contents. Route each attribute to the native transaction owner,validate registered transaction lifetime and report actual failures. Single evaluation of supplied expressions. This bounded encoding is not complete declared aggregate/enum/object schema qualification."
-standards: ["Applicable IEEE1800-2017/2023 VPI value access and SystemVerilog integral/real/string representation; verify exact clauses before implementation. Accellera1.1b/c recording macro type-preservation/no-artificial-width-limit contract defines parent obligation. Native API is compatibility infrastructure,not IEEE1800.2 qualification."]
-root_cause: "U14 implements native lifecycle only; no native attribute capture entry point exists. Text formatting cannot substitute for lossless values. Existing VPI typed value machinery may supply encoding; actual argument metadata routes require source review."
-allowed_scope: ["Native attribute value capture using existing backend and VPI/DPI mechanisms; necessary bounded argument metadata repair proven by reducer; permanent value/lifetime/side-effect tests and required integration. Review concrete API before implementation."]
-non_goals: ["No macro/default installation or modified UVM sources; no parentDD038 closure or15release smoke claim. Aggregate schema,enum metadata,object identity/cycles and deterministic bootstrap remain explicit required follow-ups; do not label their absence complete typed recording. No unrelated fallback fixes."]
-validation_contract: "Both editions: word-boundary and2053bit vectors,2/4state actual values,sign/width,real exact bits,escaped/empty strings,expression single evaluation; unknown/freed/wrong-kind transaction rejection and output failure. Preserve real U14 lifecycle checks. Permanent regression,independent design/code review,makecheck,focused neighbors and required integrated/JSON/UVM/NFA/release/frontend-last gates. Freeze candidate before fullvalidation."
-discovery_policy: "Unrelated discoveries record-only; patch-caused regressions stay in scope. No dependent implementation before validated baseline."
-evidence: "../evidence/campaign-20260908/u15/"
-next_action: "Run preimplementation reducer on validated installed U14 in both editions, inspect actual VPI argument value/type paths, reconcile independent API review. Finalize exact value/schema contract before editing implementation."
-next_command: "local-install/bin/iverilog -g2017 -m \"$PWD/local-install/lib/ivl/uvm_dpi.vpi\" -s main -o ../evidence/campaign-20260908/u15/red2017.vvp ../evidence/campaign-20260908/u15/values.sv"
+parent: "U15 suspended native recording value capture; DD038 fulltyped recording remains open"
+reproducer: "../evidence/campaign-20260908/u15/literal_vector.c/.sv and literal-vector-red.json: both editions return ABCD as44434241 and ABCDE low44434241/high45; expected41424344 and low42434445/high41."
+expected_behavior: "vpiVectorVal of a literal matches its packed integral byte order with LSB in word0; every bval is0, high-bit bytes do not sign extend, unused upperword bits are0. Initialize and write only required vector words,including empty and word-aligned cases. Preserve existing vpiSize metadata; do not claim full string/VPI qualification."
+standards: ["IEEE1800-2017 and2023 clauses5.9 (literal packed/integral order) and38.15 (vpi_get_value,s_vpi_vecval LSB/word mapping). Clause6.16 excludes NUL from string variables; raw literals may contain zero bytes and must retain them in vector representation."]
+root_cause: "__vpiStringConst::vpi_get_value vpiVectorVal iterates source bytes into least-significant positions first; shifts signed char and initializes an extra word after every fourthbyte,including past final requestedword."
+allowed_scope: ["Shared literal vpiVectorVal conversion in vvp/vpi_const.cc, permanent VPI regressions both editions and direct/integrated validation; exact conformance evidence updates."]
+non_goals: ["No recorder-specific serializer,no literal string-display/decimal changes,no string variable or temporary metadata redesign,no complete typed recorder/schema claim,no unrelated fallback fixes. U15 resumes after required validation."]
+validation_contract: "Prepatchred and permanent VPI golden cases for lengths0,1,3,4,5,8,9,highbyte and embeddedzero rawliteral; verify all aval/bval words and tails. Both editions; independentreview,makecheck,fullVPIneighbors and required integrated/JSON/UVM/NFA/releases/frontend-last. Freeze installedcandidate before fullgates."
+discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
+evidence: "../evidence/campaign-20260908/l32/"
+preserved_parent: "../evidence/campaign-20260908/u15/ACTIVE_WORK.suspended.yaml plusvalues.sv/red.json andliteral-vector-red.json"
+next_action: "Add permanent literal-vector reducer,prove red,repair only shared packing loop; rebuild/focusedvalidate before fullgates."
+next_command: "sed -n '210,238p' vvp/vpi_const.cc"
 stop_after_completion: false

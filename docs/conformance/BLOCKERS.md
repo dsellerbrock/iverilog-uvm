@@ -1082,7 +1082,7 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 
 ### U15 — Lossless native recording value capture
 
-- **Status:** ACTIVE; DD038 prerequisite after validated U14.
+- **Status:** SUSPENDED before implementation for proven L32 prerequisite; contract/reducers preserved under evidence/campaign-20260908/u15.
 - **Scope:** Native packed width/sign/four-state bits, exact real values and
   strings, valid transaction routing and single evaluation. Review existing
   VPI metadata routes before committing to the API.
@@ -1090,3 +1090,15 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   identity/cycles and deterministic default installation remain mandatory.
   No missing-macro workaround or full1.1b/c qualification in this increment.
 - **Evidence:** `evidence/campaign-20260908/u15/`; ACTIVE_WORK owns contract.
+
+
+### L32 — VPI string literal vector extraction
+
+- **Status:** ACTIVE; proven prerequisite for U15.
+- **Reducer:** Both editions return `"ABCD"` as0x44434241 instead of0x41424344;
+  `"ABCDE"` also has reversed word placement. Shared loop additionally shifts
+  signed bytes and initializes a word beyond the required allocation.
+- **Scope:** Repair shared literal vector packing; preserve metadata and other
+  conversions. IEEE5.9 and38.15; full typed recording remains open.
+- **Evidence:** `evidence/campaign-20260908/u15/literal-vector-red.json` and
+  `evidence/campaign-20260908/l32/`. Resume U15 after fullvalidation.
