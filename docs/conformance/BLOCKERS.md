@@ -936,3 +936,12 @@ U11 final validation: e18128369;both-edition red failed missing old DPI entrypoi
   no compiler changes or repair of underlying runtime diagnostics.
 
 U12 final validation: 1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match.
+
+### L25 — Integral function-name variable passed by reference
+
+- **State:** SELECTED/REPRODUCED after validated U11/U12.
+- **Evidence:** Both-edition7-to12 ref-update reducer fails; three original1.0p1
+  build_coverage functions bind a ref formal to an omitted return signal.
+- **Scope:** True reference storage under13.4.1/13.5.2, retaining return and
+  lifetime semantics. Addressable-storage design remains pending; no patch yet.
+  Callback cast/typeidentity diagnostics remain separate.

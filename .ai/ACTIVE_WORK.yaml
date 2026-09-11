@@ -1,16 +1,16 @@
-id: "U12"
-title: "Reject simulator diagnostics in release smoke classification"
-status: "closed"
-phase: "completed"
-base_revision: "c37f5b9c8"
+id: "L25"
+title: "Integral function return variable used as a ref actual"
+status: "in_progress"
+phase: "reproduced"
+base_revision: "e6ea5810f"
 last_validated_revision: "e18128369"
-reproducer: "DD043 results-zyhh1jv9/1.0p1/runtime.log: rawSMOKE_PASS despite3placeholder-net and2cast errors;permanent offline classifier negative."
-expected_behavior: "Zero exit and clean UVM summaries cannot override simulator runtime errors, fatal/warning diagnostics or unresolved placeholder nets. Preserve required marker,summary,timeout checks and legitimate informational output."
-standards: ["Evidence-integrity harness correction;no new IEEE language implementation claim."]
-root_cause: "smoke_passed validates exit/timeout/exactmarker/UVM summary only;does not reject simulator diagnostics outside UVM reporting."
-allowed_scope: ["Shared smoke_passed classifier,existing offline test_matrix controls,full original15release replay and directly affected documentation."]
-non_goals: ["No compiler/runtime/DPI changes,originalsource edits,1.0p1cast/functor repair,1.1b/cmacro/parser repair or new qualification claims."]
-required_gates: ["Pre-fix false-positive proof;all offline matrix tests;historical runtime log polarity controls;fresh15release matrix and unchanged tool/source fingerprints;independent review. Existing e18128369 full compiler gates remain baseline;harness-only change does not require rebuild or duplicate compiler sweeps."]
-next_action: "Inspect remaining original1.0p1 runtime diagnostics and select exact causal blocker."
-next_command: "sed -n '460,492p' third_party/uvm-releases/sources/1.0p1/uvm-1.0p1/src/base/uvm_callback.svh"
+reproducer: "evidence/campaign-20260908/l25/red.sv/red.json: result=7;bump(result) by ref must return12;both2017/2023 compile0 then fail with unresolvedfunctor placeholder and wrongreturn. Original1.0p1 build_coverage three sites match."
+expected_behavior: "The function-name variable declared by13.4.1 is real variable storage;an equivalent-type ref aliases it under13.5.2,including observation during a call. Preserve return-expression override,recursive/automatic context ownership and existing ordinary-return semantics."
+standards: ["IEEE1800-2017/2023 13.4.1 implicit function-name variable and return override;13.5.2 true reference,equivalenttypes;6.21 lifetime where applicable."]
+root_cause: "tgt-vvp/vvp_scope.c omits integral return signal in favor of stackret;draw_ufunc.c ref_actual_is_nameable_ and task $ivl_ref_bind emission reference absent vSIGNAL_0. Runtime final-resolution placeholder is downstream symptom. Smallest correct addressable-storage design not yet chosen."
+allowed_scope: ["Integral function-name ref actual storage/binding using existing return/context architecture;shared function/task call paths and regression tests. Broader changes require causal justification at deliberate boundary."]
+non_goals: ["No placeholder suppression,fabricated return,copy-in/out pretending to be ref,unrelated1.0p1 callback cast/typeidentity fixes,string/real/nonintegral return qualification,fullsubroutine/UVM closure."]
+required_gates: ["Both-edition failing reducer;truealias/read-during-call/recursive return/lifetime and return-override controls;independent design/code review;nativebuild/makecheck/focusedneighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes. No source changes yet."]
+next_action: "Trace return-slot and context lowering;choose smallest true-alias storage mechanism before source edits. Preserve callback cast issues separately."
+next_command: "sed -n '338,355p' tgt-vvp/vvp_scope.c; sed -n '69,132p' tgt-vvp/draw_ufunc.c"
 stop_after_completion: false
