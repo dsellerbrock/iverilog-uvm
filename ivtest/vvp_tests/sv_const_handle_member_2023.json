@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_const_handle_member.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_const_handle_member"
+    ],
+    "gold": "sv_const_handle_member"
+}

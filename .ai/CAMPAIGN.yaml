@@ -1,24 +1,24 @@
 status: active
-branch: agent/continuous-conformance-20260908
-current_blocker: null
-phase: "publication"
+branch: "agent/campaign-legacy-uvm-main-20260910"
+current_blocker: "selection"
+phase: "publishing_validated_batch"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "051aeee8e"
+last_integrated_good_revision: "34787868e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: ["next_milestone_remote_CI_before_merge", "U01_application_qualification"]
+pending_gates: "L30 requiredlocalgates complete. FreshCI required after publishing L28/L29/L30 batch;no mergeauthorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
-suspended_parent: S02 design boundary retained.
-next_selection: "After L10 exact closure, inspect shared legacy-UVM compile frontier and prioritize pinned1.2 qualification for OpenTitan; retain older2020.3.1 applicationevidence."
-next_action: "Publish reviewed campaign tree in a branch descended from refreshed main, preserving history; then select legacy UVM1.2 compile blocker."
-next_command: "git fetch origin; verify origin/main tree equals previous published edacb3d62 tree before publication merge."
+suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
+next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
+next_action: "Update existingPR275 with validatedL28/L29/L30 batch,then return to evidence-driven selection."
+next_command: "gh pr view 275 --json state,headRefOid"
 next_command_cwd: repository root
-candidate_state: "L10 closed; four validated increments U06,L09,L11,L10 and README ready for one next main PR."
-installed_tools: "Frozen L10 candidate fingerprints evidence/l10/candidate-sha256.txt; runtime/compiler/DPI unchanged from L11, onlytargetupdated. No installs duringgates."
-validation_state: "L10 legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
-next_validation: "Remote CI for next publication; next blocker reducer/standards before implementation."
-completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
+candidate_state: "L30 closed34787868e;13/15 boundedrelease smoke passes. Publish coherentL28/L29/L30 batch,then select nextblocker."
+installed_tools: "34787868e validated;l30/sha256.txt restored/unchanged."
+validation_state: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
+next_validation: "Fresh publishedCI;next selectedblocker red/spec/root evidence."
+completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
@@ -128,7 +128,7 @@ published_batches:
     external_merge_revision: 1c75101f74dbc17789cadeddb3fc71c19a33d7bd
     external_merge_base: agent/campaign-automatic-events-20260910
 publication_queue: []
-publication_next_action: "Wait for fresh PR273 CI/review; continue autonomous campaign and batch next roughly3-5validated increments. No new PR or merge now."
+publication_next_action: "Accumulate next roughly3-5validated increments; no per-blockerPR, no mergeauthorization."
 
 remote_state_note: PR state changed outside this task during publication; merged into a stack base does not imply landed on main. PR263 reached main3fe277c25 while its CI remained in progress at inspection. Do not count outstanding CI as passed.
 
@@ -148,8 +148,8 @@ consolidated_main_pr:
   outstanding: Required GitHub CI/review; user intends to merge, no agent merge performed.
   authorization: User explicitly requested one PR directly to main containing all earlier campaign commits.
 
-last_publication_semantic_revision: "aa172f5f91dd8f1edfbcbe347e88e4579c6ffa0a"
-validated_increments_since_publication: 4
+last_publication_semantic_revision: "051aeee8e"
+validated_increments_since_publication: 0
 
 consolidated_main_merge: PR272 externally merged to main9821855164b179e1a1f7fb0298320f576646bc15; implementation/tests verified identical to validated59e5e07c7.
 
@@ -242,7 +242,7 @@ u04_nfa: Passed58/58 terminal6429 exit0.
 
 u06_trace_evidence: evidence/campaign-20260908/u06/phase-2020.1.0.log andphase-2020.2.0.log; both replayexit0,old127lines/no marker/no uvm_test_top objections,new270lines/marker/objection raise0 drop1. Kernel phase scheduling alone does not prove callback execution.
 
-candidate_revision: "051aeee8e"
+candidate_revision: "69ff60cc6"
 
 l09_live_gates: {}
 l09_release_results: "third_party/uvm-releases/results-p31gasib/results.json; complete/baseline_valid,6SMOKE_PASS9knownCOMPILE_FAIL; source3c44fd13b."
@@ -282,3 +282,444 @@ l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json com
 
 l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
 l10_closure: "051aeee8e; legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
+
+function_arguments_pr:
+  url: https://github.com/dsellerbrock/iverilog-uvm/pull/274
+  branch: agent/campaign-function-arguments-main-20260910
+  base: main
+  head: eb88527483988ed7747c5c2e32fb58d7820b3aab
+  source_snapshot: 51993d3fb77067d3bd34111c9fac4a9493e1a538
+  semantic_revision: 051aeee8e
+  scope: U06,L09,L11,L10,READMEversionusage
+  validation: Allrequiredlocalgatespassed;fresh6CIjobsqueued/running;noagentmerge.
+  history: Two-parentpublicationmergea075e5b63 preservedmainandcampaignwithreviewedtree19f5007c;followingupeb8852748 removesoneblankEOFlineonly.
+u07_live_gates: {}
+
+u07_integrated_terminal: "62003 exit0; legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. NFA58/58 and makecheck passed; fullJSON started after legacy/VPI terminal."
+
+u07_release_results: "results-4r1diuop complete/baseline_valid;8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. Newly passing2017.1.0/1.1 exact marker and zeroW/E/F;2017.0.9 compiles then300second timeout with empty runtime log. Terminal96191 exit1 for known release gaps. U07 required validation remains pending."
+
+u07_json_terminal: "40182 exit0;1773tests0failures. UVM39509 running; isolated frontend unstarted."
+
+u07_uvm_terminal: "39509 exit0; real-DPI355passed0failed0skipped. Frontend13719 running alone; fingerprints matched before start."
+
+u07_closure: "a83731194;legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"
+
+l12_baseline: "Both2017/2023 struct-string reducer compile2 with unsupported index diagnostics; ordinary string controls compile0/runtime0/PASSED. Evidence/l12/baseline-results.json. Last validated semantic revisiona83731194; no live local test processes."
+
+l13_prerequisite: "L12 suspended before permanent registration; patch/tests/contract saved in evidence/l12. Shared direct string character unsigned result contradicts signed byte/getc primary wording; baseline restoration required before new candidate. DD024."
+
+l13_live_gates: {}
+l13_candidate: "f5c9a0305; JSON4/0,legacy4/0,stringneighbors40/0,independent review clear. NFA58/58 and makecheck passed. No installs or source changes during gates."
+
+l13_candidate_revision_gap: "Parameter byte probe octal200,A,377 yields-1,-1,-1, revealing preexisting one-bit parameter selector hidden by sign extension. Within active result-width/type scope. Integrated77859/UVM67427/release76597 deliberately terminated143 before modifying compiler; no pass claim. NFA/focused results remain scoped to f5c9a0305. Route typed string parameter to string character NetESelect and fold constant strings as bytes, not packed bits; add permanent parameter coverage before rerunning gates."
+
+l13_final_candidate: "9baa5a9c3; finalfocused6/0,neighbors42/0,reviewclear,makecheckpass. Fullintegrated4286,UVM41207,NFA21037 running; fullJSON/frontendunstarted."
+
+l13_final_nfa_terminal: "21037 exit0;58passed0failed. Final makecheck also exit0; other required gates pending."
+
+l13_integrated_terminal: "4286 exit0; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6. FullJSON99705 started after legacy/VPI terminal."
+
+l13_release_terminal: "1174 exit1 due known release gaps; results-6pvdp6vh complete/baseline_valid.8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT; every row status and source tree fingerprint matches validated U07. Source9baa5a9c3; full qualification still pending other gates."
+
+l13_json_terminal: "99705 exit0;1779tests0failures. UVM41207 still live; frontend unstarted."
+
+l13_uvm_terminal: "41207 exit0;355passed0failed0skipped,realDPI. Frozen fingerprints unchanged before isolatedfrontend78098 start."
+
+l13_closure: "9baa5a9c3;legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged"
+
+l12_resumed: "L13 validated9baa5a9c3; closurea7908140c. Fresh redbaseline both editions preserved; baseline compiler copied under evidence/l12. Resume original struct-member selector with signed byte result."
+
+l13_reopened: "Prior 9baa5a9c3 gates passed but missed narrow two-state parameter indices. Reopened for confirmed regression; L12 suspended and preserved at evidence/l12/resume2. Prior closure is historical, not current qualification."
+
+l13_width_candidate: "Separate resize and signed two-state cast; focusedJSON6/0,legacy6/0,neighborJSON42/0,reviewclear. Wrong neighbor harness initially reported missing sources; rerun correct JSON harness passed42/0. Integrated gates required before L12 resumes."
+
+l13_width_live_gates: {}
+l13_width_completed: "NFA8558 exit0,58/58; makecheckexit0. All dependent L12 implementation remains suspended."
+pr274_latest_ci: "OPEN at eb8852748: Ubuntu22.04 and24.04 success; macOS and three Windows jobs in progress. No merge."
+
+l13_width_integrated_terminal: "97512 exit0: legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON16047 started after terminal. UVM12635/release59096 remain live; isolatedfrontend unstarted."
+
+l13_width_json_release_terminal: "JSON16047 exit0,1779/0. Release59096 exit1 for known gaps: results-m_3ysaa5 complete/baseline_valid,8SMOKE_PASS6COMPILE_FAIL1RUNTIME_TIMEOUT. All15 status/source fingerprints/normalized compiler logs match previous9b sweep (width-release-comparison.json). Frozen installed hashes unchanged. UVM12635 verified live, frontend unstarted."
+
+l13_corrected_closure: "849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics."
+
+l12_live_gates: {}
+l12_makecheck: "exit0 on a85a256b1; remaining required gates pending."
+
+l12_nfa_terminal: "78999 exit0;58/58. Release sweep results-qb7873zh still live; original1.1d now compiles but smokeRUNTIME_FAIL, original1.2 remaining4compiled_regex reference errors. DD027/DD021 record-only while L12 gates run."
+
+l12_integrated_terminal: "46193 exit0;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON68078 started after terminal. UVM61496 and release64954 verified live. NFA78999 exit0,58/58; makecheckexit0; frontend unstarted."
+
+l12_json_release_terminal: "JSON68078 exit0,1785/0. Releases64954 exit1 for known qualification gaps; results-qb7873zh complete/baseline_valid,8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. All15 sources unchanged; three original1.x printer-index diagnostics removed; other12 normalized compiler logs identical. Original1.1d now reaches codegen null-fallback warnings and runtime missing uvm_dpi_regcomp with4UVM_ERROR/1FATAL. Record-only DD027. Frozen tools unchanged; UVM61496 still running and frontend unstarted."
+
+l12_closure: "a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT."
+
+publication_next_milestone: "U07,L13,L12 are fully validated unpublished increments. Prefer expanding existing main-target PR274 at the next coherent checkpoint (within3-5increments), preserving existing required remoteCI and no merge permission."
+
+l14_live_gates: {}
+l14_makecheck: "exit0; remaining gates pending; final scoped review clear."
+
+l14_nfa_terminal: "93204 exit0;58/58. Integrated21445,UVM66826,release84865 still running; JSON/frontend unstarted."
+
+l14_integrated_terminal: "21445 exit0;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON26820 started after terminal. UVM66826 and releases84865 live; frontend unstarted."
+
+l14_uvm12_frontier: "results-f9qr050b/1.2 compile0, runtime300.061s timeout/empty log, return-9. DD028 record-only while L14 gates run. Original source fingerprint unchanged; no smoke or application pass."
+
+l14_json_terminal: "26820 exit0;1797tests0failures. UVM66826 and releases84865 remain live; isolatedfrontend unstarted. No installs or compiler edits during gates."
+
+l14_closure: "69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical."
+pr274_merge_observed: "Externally squash-merged at188da200b8d4c7998c3e20e5983c7246f8ce5b0e; publishedhead eb8852748 tree exactly matches main. Five CI successes, macOS pending at last observation. Reconcile new4increment batch without changing validated tree; no agent merge."
+
+legacy_uvm_publication_snapshot: "Validated semantic69ff60cc6, closure801c10a67, ancestry merge dad99abde preserves exact801c10a67 tree. Main188da200b tree equals previously published eb8852748, so no main changes discarded. Canonical main fast-forwarded; shared graph update running from canonical checkout. Four validated increments; no agent merge."
+
+legacy_uvm_pr: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "652c1a1c2", base: "main", semantic_revision: "69ff60cc6", scope: "U07,L13,L12,L14", state: "open", remaining: "fresh remoteCI, no merge permission"}
+main_graph_after274: "Canonical main188da200b; graph update70279 exit0,49171nodes92988edges. Preserved all sibling worktrees; no removal eligible from active audit."
+
+user_pause_checkpoint: "User requested pause. Last fully validated semantic revision69ff60cc6; PR275 published652c1a1c2. U08 uncommitted symbol_search candidate and contract preserved in worktree and evidence/u08/paused-working.patch. Candidate build65221 completed; small inherited-method reducer passes2017/2023. Access probe wrongly accepts private base method; static-context probe has a syntax error and is inconclusive. No U08 permanent regressions or integrated gates run. Diagnostic processes73232/97808 terminated and reaped; no active local gate handles. Do not resume until user explicitly requests it."
+
+u08_resumed: "Explicit user Continue received. Dirty candidate preserved; refreshed origin/main remains188da200b. PR275 all six CI jobs SUCCESS, still OPEN; no merge. Method visibility metadata gap identified before U08 qualification."
+
+u08_candidate: "Permanent JSON6/0,legacy6/0,neighbors32/0,makecheckpass; exact209 parser conflict state signatures unchanged. UVM1.2 development replay results-pqt3anxi starts test then5ERROR/1FATAL due missing legacy DPI exports (DD030). External Claude review running77171; full required validation next. No U08 closure or application pass."
+
+u08_live_gates: {}
+u08_gate_baseline: "c9626a449; frozen evidence/u08/sha256.txt. Independent correction review clear. FullJSON must follow integrated terminal; isolated frontend last alone after all local gates. No source/build/install changes while gates run."
+
+u08_release_terminal: "92634 exit1 for known gaps; results-eb3ghca7 complete/baseline_valid.9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL, all15 source hashes unchanged.2017.0.9 timeout becomes smokePASS;1.2 timeout becomes regexDPI runtimeFAIL. NFA7867 exit0,58/58."
+
+u08_external_review_terminal: "77171 exit0,ClaudeSonnet5 success. Two findings reconciled against full source: protected-production concern false diff-context flag; error-result concern unsupported by helper contract/main error gate and numeric/string/chandle negatives, all exit1/no artifact. No additional source change. Raw review and reconciliation in evidence/u08."
+
+u08_integrated_terminal: "75031 exit0;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal. RealDPIUVM96030 still live; isolatedfrontend unstarted."
+
+u08_json_terminal: "36389 exit0;1803tests0failures. UVM96030 still running. Frontend unstarted and must run last alone; frozen installed fingerprints unchanged."
+
+u08_uvm_terminal: "96030 exit0;355passed0failed0skipped, real DPI. Frozen fingerprints checked unchanged. Isolated frontend38629 launched after every other local gate terminated; must verify root restoration and frozen hashes afterward."
+
+u08_closure: "c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged."
+next_coordinator_action: "Select OpenTitan1.2 configuration/provenance; retain batched PR cadence."
+
+u09_selection: "Selected after validated U08/closure3c61cc09d. Missing legacy cached-regex exports proven. User requests legacy DPI. Preserve original sources and native modern backend; bounded UVM1.2 API semantics, not full1.1d invalid-error identity or application qualification."
+
+u09_focused: "10/10 final ABI checks; original1.2 and1.1d smoke pass in development replay results-lmal0dvl. Missing callback on1.1d required native diagnostic; dot lookup regression reproduced and corrected to uvmpkg:: syntax. Initial failed focused records retained. No original-source edits."
+
+u09_live_gates: {}
+u09_candidate_baseline: "19e7f5592; frozen evidence/u09/sha256.txt. Final scoped review clear after runtime-proven :: callback lookup correction. No source/install changes while gates run; JSON after integrated terminal, frontend last alone."
+
+u09_release_terminal: "66873 exit1 due four compile gaps; results-n2m35ki0 complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL. Original1.1d/1.2 now smokePASS; all15 source hashes unchanged. NFA31231 exit0,58/58. Integrated66564 and UVM97178 pending; JSON/frontend unstarted."
+post_u09_candidate: "After all U09 gates, qualify/pin OpenTitan runtime to original1.2 with accurate source fingerprinting. Existing scripts/opentitan_matrix.py injects bundled -uvm and fingerprints installed uvmsrc; existing evidence/u01-after-v07/replay.sh preserves core, corpus, ARM64venv and authoritative traffic/checker setup. No dependent replay launched before U09 validation."
+
+u09_integrated_terminal: "66564 exit0;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON started after terminal; realDPIUVM97178 still running. Frontend unstarted."
+
+u09_json_terminal: "2557 exit0;1803tests0failures. RealDPIUVM97178 running, isolatedfrontend unstarted. Source/install frozen at19e7f5592; complete15release sweep11smokePASS4compileFAIL."
+
+u09_closure: "19e7f5592; focused10/10,legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Full15release sweep11SMOKE_PASS4COMPILE_FAIL, all source hashes unchanged."
+
+u10_closure: "aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier."
+
+legacy_uvm_pr_updated: {"url": "https://github.com/dsellerbrock/iverilog-uvm/pull/275", "head": "f148d7462", "scope": "U07,L13,L12,L14,U08,U09,U10", "state": "open", "remaining": "Fresh remoteCI; no merge authorization"}
+
+l15_candidate: "aa356ab4d; legacy macrofocus24/0,JSON6/0,makecheck,independent design/final review clear. Undefined completed-name diagnostic both modes passes; initial2023 include fixture path error fixed. Frozen evidence/l15/sha256.txt includes ivlpp. No source/build/install changes during required gates."
+l15_live_gates: {frontend: 31822}
+
+l15_release_terminal: "17034 exit1 due four known compile gaps; results-n1_l078l complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL; all15 statuses and source hashes match U09. NFA69455 exit0,58/58. Integrated10932/UVM37943 still live; JSON/frontend unstarted."
+
+l15_integrated_terminal: "10932 exit0;legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON77434 started only after integrated terminal. UVM37943 still live; isolatedfrontend unstarted."
+
+l15_json_terminal: "77434 exit0;1805tests0failures. UVM37943 live; isolatedfrontend unstarted. Installed sources/tools frozen ataa356ab4d."
+
+l15_uvm_terminal: "37943 exit0;355passed0failed0skipped,realDPI. Frontend31822 started last alone after every other local gate terminated; restoration/hash checks required afterward."
+
+l15_local_validation: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent reviews,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL, all statuses/source hashes unchanged."
+
+l15_closure: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+
+l16_candidate: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,makecheck and independent design/final reviews clear. No source/install changes while required gates run. Frozen evidence/l16/sha256.txt; last fully validated semantic aa356ab4d. DD033/DD034 limitations remain separate."
+l16_live_gates: {frontend: 11034}
+
+l16_release_terminal: "93399 exit1 due four known compile gaps; results-syc0rzby complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL, all15 statuses/source hashes unchanged. NFA53870 exit0,58/58. Integrated37220/UVM94168 running; JSON/frontend unstarted."
+
+l16_integrated_terminal: "37220 exit0;legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON started after terminal; UVM94168 still live; isolatedfrontend unstarted."
+
+l16_json_terminal: "31680 exit0;1813tests0failures. UVM94168 live; frontend unstarted. Frozen5ba60567f source/install unchanged."
+
+l16_uvm_terminal: "94168 exit0;355passed0failed0skipped,realDPI. Frontend11034 started last alone; restoration/hash checks required afterward."
+
+l16_local_validation: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+
+l16_closure: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+
+l17_suspension: "Partial target fix/permanent tests preserved in evidence/campaign-20260908/l17/partial.patch and removed from working tree with git apply --reverse --index. Red and focus failure retained. Prerequisites: resolved property signedness L18; wide operand/four-state preservation DD036. Do not resume L17 before validated prerequisites."
+l18_selection: "Standalone signed scalar property division reproduces wrong2147483616 versus-32. Current installed target temporarily contains removed L17 partial patch; rebuild/install clean source before recording L18 red provenance. Last fully validated semantic5ba60567f."
+
+l18_focused: "Both-edition red compile0/runtime1 on restored L16 target. Patched focusedlegacy2/0,JSON2/0; neighborslegacy9/0,JSON15/0;makecheck;independent review clear. Signedness only. Associative expansion still uses legacy signed flag, no assoc qualification. All required integrated gates pending."
+
+l18_live_gates: {integrated: 23070, uvm: 18719, nfa: 6417, releases: 62731}
+
+l18_release_terminal: "62731 exit1 due four known compile gaps; results-fkkvk_f2 complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL; all15 statuses/source/archive hashes match L16. NFA6417 exit0,58/58. Integrated23070,UVM18719 pending;JSON/frontend unstarted."
+
+l18_failed_candidate: "f9b0021d0 introduced assign_op_type failure: singleton concatenation incorrectly became signed when resolved type overrode deliberate unsigned flag. Integrated23070 and UVM18719 terminated143 after regression; process groups empty. JSON/frontend never started. Narrow correction to actual property index>=0; add existing assign_op_type to permanent focus. All required gates restart on corrected revision; prior NFA/release passes are invalid for new candidate."
+
+l18_corrected_focused: "Correction retains original lvalue signed flag except actual integral property selections. Legacyfocus3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck pass. Singletonconcatenation asserted in both editions; existing assign_op_type permanent focus. All broad gates restart on corrected revision."
+
+l18_final_focus: "Read-only review found singleton property concat also reuses property lvalue; explicit PEConcat exclusion added before restarting broad gates. Permanent paired {h.value} case added. Final focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck pass. Final independent review clear. No semantic gates from earlier candidates count for final revision."
+
+l18_final_live_gates: {integrated: 50506, uvm: 62965, nfa: 7325, releases: 59045}
+
+l18_final_release_terminal: "59045 exit1 due four known compile gaps; results-p70mxdbu complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL; all15 statuses/source/archive hashes match L16. Final NFA7325 exit0,58/58. Integrated50506,UVM62965 pending;JSON/frontend unstarted."
+
+l18_final_integrated_terminal: "50506 exit0;legacy4923total4918pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM62965 pending;frontend unstarted."
+
+l18_final_json_terminal: "6499 exit0;1815tests0failures. UVM62965 still live;isolatedfrontend unstarted. Final source/install9791e6411 unchanged."
+
+l18_final_uvm_terminal: "62965 exit0;355passed0failed0skipped,realDPI. Isolated frontend launched last alone after all other gate sessions terminated;root restoration/final frozen hashes required afterward."
+
+l18_closure: "9791e6411; focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent final review,legacy4923total4918pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1815/0,realDPIUVM355/0/0,NFA58/58,frontend39433exit0 all scenarios;root restored and sha256-final fingerprints match. Complete15release results-p70mxdbu11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
+
+legacy_uvm_pr_second_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "1d83b9dd3", state: "open", scope: "Added L15,L16,L18", remaining: "Fresh remoteCI; no merge authorization"}
+l19_selection: "DD036 split at coordination boundary: first preserve four-state operands, then repair width. Standalone both-edition reducer fails on validated9791e6411; no parent target patch applied."
+
+l19_focused: "Two premature casts fixed: elaboration destinationBOOL and target whole-property cast2. Initial property failure retained. Final focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent final review clear. Width remains DD036. All required broad gates pending."
+
+l19_live_gates: {integrated: 4311, uvm: 85031, nfa: 67666, releases: 58784}
+
+l19_release_terminal: "58784 exit1 due four known compile gaps;results-rqvzvoej complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match validatedL18. NFA67666 exit0,58/58. Integrated4311,UVM85031 pending;JSON/frontend unstarted."
+
+l19_integrated_terminal: "4311 exit0;legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM85031 pending;frontend unstarted."
+
+l19_json_terminal: "85309 exit0;1817tests0failures. UVM85031 live;isolatedfrontend unstarted. Source/install72a97c038 frozen."
+
+l19_uvm_terminal: "85031 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend started last alone after all other gate sessions terminated;root restoration/frozen hashes required afterward."
+
+l19_closure: "72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
+
+l20_selection: "Standalone logic8bit /=32bit256 reducer fails both editions on validated72a97c038. Design review supports natural RHS width plus existing-operator helper; migrate existing vector compound callers to avoid divergent sizing. No new runtime instructions."
+
+l20_focused: "Paired widthfocuslegacy2/0,JSON2/0;neighborlegacy35/0,JSON40/0 including state/signedness/propertyoffset/event/carrier checks;makecheck and independent final review clear. Both-edition Table11-21 verified arithmetic max width and selfdetermined shiftcounts. Associative frontend expansion remains separate debt; no blanket compound qualification."
+
+l20_live_gates: {integrated: 65922, uvm: 58111, nfa: 48566, releases: 24558}
+
+l20_release_terminal: "24558 exit1 due four known compile gaps;results-l9qgrxtz complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match validatedL19. NFA48566 exit0,58/58. Integrated65922,UVM58111 pending;JSON/frontend unstarted."
+
+l20_integrated_terminal: "65922 exit0;legacy4927total4922pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON56495 launched after terminal;UVM58111 pending;frontend unstarted."
+
+l20_json_terminal: "56495 exit0;1819tests0failures. UVM58111 live;isolatedfrontend unstarted. Source/installfe12166bd frozen."
+
+l20_closure: "fe12166bd;focuslegacy2/0,JSON2/0,neighborlegacy35/0,JSON40/0,makecheck,independent review,legacy4927total4922pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1819/0,realDPIUVM355/0/0,NFA58/58,frontend93046exit0 all;root restored and frozen hashes match. Complete15release results-l9qgrxtz11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
+
+l17_resumption: "After validatedL18/L19/L20,restore preserved source/tests. Whole patch check failed only appended manifests;adapt those explicitly. Original partial/reducers remain unchanged outside tree. Use L20 shared sizing helper;all L17 gates rerun."
+
+l17_second_suspension: "Resumed focus passes arithmetic/width/sign/index/bounds, fails receiver capture: original14 correct,h restoredold14 insteadreplacement100. Standalone scalar property reproduces same runtime bug. Preserved full resumed source/tests patch partial-after-l20.patch and reversed it before L21 selection. No L17 closure."
+
+l21_focused: "Standalone red both editions on restored validatedL20. Patched focuslegacy2/0,JSON2/0;property-event13/0 and mailbox8/0 in both harnesses;makecheck and independent final review clear. Captured nonstruct class root identity only;no valueaggregate/VIF notification redesign."
+
+l21_live_gates: {integrated: 18865, uvm: 96943, nfa: 74419, releases: 64863}
+
+l21_release_terminal: "64863 exit1 due four known compile gaps;results-0pqsi0dl complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match validatedL20. NFA74419 exit0,58/58. Integrated18865,UVM96943 pending;JSON/frontend unstarted."
+
+l21_integrated_terminal: "18865 exit0;legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM96943 pending;frontend unstarted."
+
+l21_json_terminal: "3607 exit0;1821tests0failures. UVM96943 live;isolatedfrontend unstarted. Source/install1146d2187 frozen."
+
+l21_closure: "1146d2187;focuslegacy2/0,JSON2/0,property-event13/0 andmailbox8/0 inbothharnesses,makecheck,independent review,legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1821/0,realDPIUVM355/0/0,NFA58/58,frontend22482exit0 all;root restored/frozen hashes match. Complete15release results-0pqsi0dl11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
+
+l17_third_activation: "L18,L19,L20,L21 fullyvalidated;resuming exact preserved partial-after-l20.patch on1146d2187. All parent gates/application replay remain required;no broad audit."
+
+l17_final_focused: "Original red now compiles/runs0,PASSED/no diagnostics both editions;permanentfocuslegacy2/0,JSON2/0;neighborslegacy24/0,JSON23/0,makecheck and independent final review clear. Capturedarray/index/invalidflag plus validated shared operator helper;wholeelement integral scope only. All full gates/application replay pending."
+
+l17_final_live_gates: {integrated: 7231, uvm: 13529, nfa: 58609, releases: 93954}
+
+l17_final_release_terminal: "93954 exit1 due four known compile gaps;results-3d_bbaiu complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match validatedL21. NFA58609 exit0,58/58. Integrated7231,UVM13529 pending;JSON/frontend/application replay unstarted."
+
+l17_final_integrated_terminal: "7231 exit0;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM13529 pending;frontend/application replay unstarted."
+
+l17_final_json_terminal: "28517 exit0;1823tests0failures. UVM13529 live;frontend/application replay unstarted. Source/install d8e974913 frozen."
+
+l17_final_uvm_terminal: "13529 exit0;355passed0failed0skipped,realDPI. Isolated frontend launched last alone after all other local gates terminal;restoration/frozen hashes required before application replay."
+
+l17_final_frontend_terminal: "97109 exit0 all scenarios;install restored and five frozen binary hashes match d8e974913. All required local gates terminal. Fresh original1.2 OpenTitan replay launched;L17 remains awaiting application validation."
+
+l17_closure: "d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,original red passes both editions,makecheck,independent source review;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1823/0,realDPIUVM355/0/0,NFA58/58,frontend97109exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-3d_bbaiu11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L21."
+l17_application_replay: "Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value."
+
+l17_final_evidence_review: "Independent read-only review clear: actual transaction comparisons and queue checks enabled,all seven recorded component hashes match,source clean,embedded DPI loaded,no extra fallback/waiver. Application scope -g2012/defaultseed/singlecore only."
+
+legacy_uvm_pr_third_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "f543fede06debe8ee7190d8577286a1dab69a3e2", state: "open", scope: "Added L19,L20,L21,L17 and original1.2 debug-crossbar smoke PASS", remaining: "Fresh remote CI;no merge authorization"}
+
+l22_focused: "Both-edition original red now passes;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review clear. Shared nominal enum metadata/constants/status and narrow builtin type lookup;no runtime changes. Review corrected empty-root registration and escaped-name collision;permanent controls pass. Bison563SR1122RR,parse.output byteidentical. DD039 bare class-scoped module declaration grammar remains separate."
+
+l22_live_gates: {integrated: 96875, uvm: 53847, nfa: 20962, releases: 5490}
+
+l22_release_terminal: "5490 exit1;results-p7axbpcu complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17. UVM1.0p1 process::state error removed;next errors fork/join_any in function and void casts of void functions,plus visible unsupported cast/constraint diagnostics. NFA20962 exit0,58/58. Integrated96875,UVM53847 live;JSON/frontend unstarted."
+
+l22_integrated_terminal: "96875 exit0;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM53847 pending;frontend unstarted."
+
+l22_json_terminal: "65369 exit0;1829tests0failures. UVM53847 live;isolatedfrontend unstarted. Source/install4a102ee47 frozen."
+
+l22_uvm_terminal: "53847 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other gate sessions terminal;root restoration/frozen hashes required afterward."
+
+l22_closure: "4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed."
+
+l23_focused: "Original red compiles/runs0,PASSED/no diagnostics both editions;focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review clear. One existing fork-depth legality guard;no runtime/scheduling changes. All required full gates pending."
+
+l23_live_gates: {integrated: 6738, uvm: 84430, nfa: 70552, releases: 7010}
+
+l23_release_terminal: "7010 exit1;results-2hbuhcyt complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;both retain three void-cast-of-void errors. NFA70552 exit0,58/58. Integrated6738,UVM84430 pending;JSON/frontend unstarted."
+
+l23_integrated_terminal: "6738 exit0;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM84430 pending;frontend unstarted."
+
+l23_json_terminal: "44219 exit0;1833tests0failures. UVM84430 live;isolatedfrontend unstarted. Source/install58edf8034 frozen."
+
+l23_uvm_terminal: "84430 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other gate sessions terminal;root restoration/frozen hashes required afterward."
+
+l23_closure: "58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors."
+
+l24_focused: "Originalred compiles/runs0,PASSED/no diagnostics both editions;focuslegacy4/0,JSON4/0,neighborslegacy23/0,JSON23/0,makecheck and final independent review clear. Removed only resolved user void-function statement rejection;actual call effects/dispatch/copyback retained. Taskcast/voidexpression/deferredaction negatives unchanged. All required full gates pending."
+
+l24_live_gates: {integrated: 94711, uvm: 7768, nfa: 51508, releases: 35204}
+
+l24_release_terminal: "35204 exit1;results-6_pvcxya complete/baseline_valid,11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL. All15 original source/archive hashes match L23. 1.0p1/1.1a now compile and start,fail missing dpi_get_next_arg_c/dpi_regcomp;1.0p1 also unresolved functor/$cast diagnostics. No new smoke pass;other13 statuses unchanged. NFA51508 exit0,58/58. Integrated94711,UVM7768 live;JSON/frontend unstarted."
+
+l24_gate_reconciliation: "Integrated94711 exit1: sole legacy failure sv_void_cast_fail1 expected the newly permitted dedicated statement to fail. VPI105/0,negative149/0,runtime15/15 passed before gate exit. UVM7768 stopped143 and reaped before test edit;not a completed pass. Replaced obsolete negative with direct void-function expression rejection,verified exact diagnostic;retained task/arbitrary-call negatives. Focus7/0. Independent review agrees;paired2017/2023 positives establish current scope,2005 acceptance remains unqualified. No compiler/install changes;five frozen hashes must match. Required integrated/UVM rerun,JSON/frontend pending. Old logs preserved. "
+
+l24_reconciled_live_gates: {integrated: 14015, uvm: 50856, semantic_candidate: "795d9f360", test_reconciliation: "8afc61443", remaining: "JSON after integrated terminal;frontend last alone;NFA/release results retained on identical five-hash binaries"}
+
+l24_reconciled_integrated_terminal: "14015 exit0;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON10375 launched after terminal;UVM50856 live;frontend unstarted. Native hashes unchanged. "
+
+l24_json_terminal: "10375 exit0;1837tests0failures. UVM50856 live;frontend unstarted. Candidate binaries unchanged795d9f360. "
+
+l24_uvm_terminal: "50856 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other local gates terminal;restore/frozen hashes required afterward. "
+
+l24_closure: "795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics."
+
+legacy_uvm_pr_fourth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "d39880176", state: "open", scope: "L22/L23/L24 validated", remaining: "Fresh CI;no merge authorization"}
+
+u11_focused: "Both editions old-ABI red failed unresolved dpi_get_next_arg_c;native adapters now pass oldABI+three existing regexfixtures8/0 total,actualargv/restart/metadata/crossAPIhandles/strictinvalidregex;makecheck and independent review clear. Full gates pending. MacOS bash3.2 empty-array trap avoided in frontend runner. "
+
+u11_live_gates: {integrated: 57437, uvm: 82773, nfa: 71466, releases: 83776}
+
+u11_release_terminal: "83776 exit1;results-zyhh1jv9 complete/baseline_valid,raw13SMOKE_PASS2COMPILE_FAIL;all15source/archive hashes unchanged. IMPORTANT raw1.0p1SMOKE_PASS is rejected by manual evidence review:3placeholder-net and2cast errors remain;harness misses simulator diagnostics (DD043). Reviewed count12clean smoke passes,1runtime-debt row,2compilefail. 1.1a clean through time1,zero UVMwarnings/errors/fatals. NFA71466exit0,58/58. Other gates pending. "
+
+u11_integrated_terminal: "57437 exit0;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM82773 live;frontend unstarted. "
+
+u11_json_terminal: "2027exit0;1837tests0failures. UVM82773 live;frontend unstarted. Candidatee18128369 remains frozen. "
+
+u11_uvm_terminal: "82773exit0;355passed0failed0skipped realDPI. Frontend41504 launched last alone;restore/frozen hashes required afterward. "
+
+u11_closure: "e18128369;both-edition red failed missing old DPI entrypoint;focused8/0,makecheck,independent code/evidence review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend41504exit0 all scenarios including oldABI both editions;install restored and five frozen hashes match. Release results-zyhh1jv9 complete/baseline_valid,all15source/archive hashes unchanged. Reviewed12clean smoke passes,1disqualified1.0p1 runtime,2compilefails;raw1.0p1SMOKE_PASS rejected due existing3placeholder and2cast diagnostics. 1.1a clean new smoke pass through time1."
+
+u12_focused: "New negative test failed8subcases before classifier fix;all8offline matrix tests now pass. All13historical runtime logs have correct polarity12accept/1.0p1reject. No compiler/DPI changes. Fresh15release sweep and independent review pending. "
+
+u12_closure: "1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match."
+
+l25_red: "Both2017/2023 compile0 then runtime1,return-ref update lost with one unresolvedfunctorplaceholder. Original1.0p1 three build_coverage sites emit ref/bind to absent return-signals. Exact reducer/rawlogs in l25. No implementation changes yet;return storage design is next. "
+
+l25_focused: "Both-edition red and interactions nowPASSED,no diagnostics;permanentfocuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent review clear. Existing internalattr materializes only whole scalarintegral returnref storage;normalcontext/lifetime,fallthrough and internalreturn stackpublication. Initialvoidreturn nullguard corrected. Both9.6.2 forbid ordinaryfunctiondisable,which is untouched;no newruntimeinstructions or broaderreturn qualification. Fullgates pending. "
+
+l25_live_gates: {integrated: 23895, uvm: 26951, nfa: 77311, releases: 67704}
+
+l25_release_terminal: "67704exit1;results-3v03d7qs complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. NFA77311exit0,58/58. Integrated23895/UVM26951 live;JSON/frontend unstarted. "
+
+l25_integrated_terminal: "23895exit0;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON67320 launched after terminal;UVM26951 live;frontend unstarted. Candidatec58035f49 unchanged. "
+
+l25_json_terminal: "67320exit0;1839tests0failures. UVM26951 live;isolatedfrontend unstarted. Candidatec58035f49 remains frozen. "
+
+l25_uvm_terminal: "26951exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allothergates terminal;restore/frozen hashes required afterward. "
+
+l25_closure: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."
+
+legacy_uvm_pr_fifth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "2785d1d5d6053a1d0c779f62b403176153f66111", state: "open", scope: "ValidatedU11/U12/L25", remaining: "FreshCI;no mergeauthorization"}
+
+l26_focused: "Both-edition15line red nowPASSED;focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent-default/seedneighbors6/0each,makecheck and independent design/code review clear. Larger forward-registry stillfails one generic-seedcast;not a pass and separate. All required integrated gates pending."
+
+l26_live_gates: {integrated: 44052, uvm: 5253, nfa: 16068, releases: 27838}
+
+l26_gate_reconciliation: "034b10837 broad eligibility exposed eager nested-default probe in definition scope: originaluvm_traversal Visitor#(STRUCTURE) error. Integrated44052/UVM5253 stopped143 and reaped before edits;NFA16068exit0,58/58;releases27838exit1 results-8ja11q2o regression,notvalidbaseline. Candidate narrowing retains old dependent-default eligibility and adds diagnostic-free all-bare-class-default eligibility. Nesteddefault control added. Required gates restart after focused/review/build;oldlogs preserved."
+
+l26_reconciled_focused: "Narrowed eligibility preserves original dependent-default branch and admits only bare nominal class defaults,excluding array wrappers through aliases. Both focus harnesses2/0 with nested/array controls,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and final independent review clear. All fullgates must restart;034b10837 is not validated."
+
+l26_final_live_gates: {integrated: 89741, uvm: 44461, nfa: 61140, releases: 67992}
+
+l26_final_release_terminal: "67992exit1;results-8054igtp complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes match L25. Original1.0p1 stilltwo callbackcasts;no newapplicationpass. NFA61140exit0,58/58. Integrated89741/UVM44461 live;JSON/frontend unstarted."
+
+l26_final_integrated_terminal: "89741exit0;legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM44461 live;frontend unstarted."
+
+l26_final_json_terminal: "5072exit0;1841tests0failures. UVM44461 live;frontend unstarted. e3666fd07 candidate frozen."
+
+l26_final_uvm_terminal: "44461exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allothergates terminal;installrestore/frozenfinalhashes required afterward."
+
+l26_closure: "e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts."
+
+l27_focused_reconciliation: "Initial initializer-analysis guard passed red/focus2each but neighbor sv_class_static_const_init failed missing-initialization diagnostic;legacy36pass1fail,JSONunstarted. Corrected guard retains analysis for const bookkeeping and deletes only unregistered generic-master NetProcTop;destructor owns statements. Added const control;no fullgates started."
+
+l27_focused: "Both-edition red nowPASSED;focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and final independent review clear. Preserve const initializer analysis,delete only unscheduled generic-master process. All required fullgates pending."
+
+l27_live_gates: {integrated: 85909, uvm: 92736, nfa: 39349, releases: 74656}
+
+l27_release_terminal: "74656exit1;results-ni3wgjii complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26. Original1.0p1 stilltwo callbackcasts,no newreleasepass. NFA39349exit0,58/58. Integrated85909/UVM92736 live;JSON/frontend unstarted."
+
+l27_integrated_terminal: "85909exit0;legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM92736 live;frontend unstarted."
+
+l27_json_terminal: "6070exit0;1843tests0failures. UVM92736 live;frontend unstarted. Candidate8f2252dd3 frozen."
+
+l27_uvm_terminal: "92736exit0;355passed0failed0skipped realDPI. Isolatedfrontend launched last alone after allothergates terminal;installrestore/frozenhashes required afterward."
+
+l27_closure: "8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts."
+
+l28_selection_evidence: "forward-seed-init.sv has unused Forward#T with Generic#T member and one real Generic#bit;expectedone registration got2 in both editions on8f2252dd3. Preserved l28/sv/json;not active while U13 CIregression corrected."
+
+u13_local_validation: "One invocation separator;all existing exactargv/regex checks unchanged. Frontend35171exit0 allscenarios;restore/fivefrozen8f2252dd3hashesmatch;independentreviewclear. Linux22/24 oldlogs confirm same pre-runtime invalidoption-f. U13 remains awaiting freshLinuxCI;publish coherentL26/L27/U13 batch."
+
+legacy_uvm_pr_sixth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "9006baa152b1da5c684f86af59f9d2128500bc1f", state: "open", scope: "ValidatedL26/L27 plus localvalidatedU13", remaining: "FreshLinuxCI requiredforU13;allrequiredPRchecks/no mergeauthorization"}
+
+independent_external_validation: "U13 exact harness scope closed on9006baa15 after Ubuntu22job103200770181 andUbuntu24job103200770250 succeeded;both legacy_10_dpi edition checks verified. OtherPR275checks pending."
+
+l28_focused: "Counterandcallbackreds both editionsPASSED/no diagnostics;permanentfocus4/0each;static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code review clear. Existing deferredtypeformal lineage suppresses only runtimeinit;analysis/concreteschedulingretained. Nestedtypeexpressions remain unqualified. Required fullgates pending;U13 stillawaitingindependentLinuxCI."
+
+l28_live_gates: {integrated: 44315, uvm: 47643, nfa: 79231, releases: 23238}
+
+l28_release_terminal: "23238exit1;results-edrgslxb complete/baseline_valid,13SMOKE_PASS2COMPILE_FAIL;only1.0p1 status RUNTIME_FAIL->SMOKE_PASS,all15source/archivehashes unchanged vsL27. Original1.0p1 cleanruntime throughmarker/time1,zeroUVMwarnings/errors/fatals,no callbackcasts. Bounded smoke only;independent evidence review pending. NFA79231exit0,58/58. Integrated44315/UVM47643 live;JSON/frontend unstarted."
+
+l28_release_review: "Independent review confirms intact smokeclone/copy/compare/nonalias,regexpolarity,delayedHDLread/checkedflag andmarker;1.0p1 runtimeclean/time1. Priorcompileignoredpick_sequence constraint andphasecastbitsreinterpret warnings remain;notwarning-freecompilation orfullUVMqualification. Allsource/archive/inputhashes unchanged;only1.0p1 runtime statusimproves."
+
+l28_integrated_terminal: "44315exit0;legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM47643 live;frontend unstarted."
+
+l28_json_terminal: "71959exit0;1847tests0failures. UVM47643 live;frontend unstarted. Candidate77cce610b frozen;U13 independentCI stilllive."
+
+l28_uvm_terminal: "47643exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allotherlocalgates terminal;restore/frozenhashes required afterward. U13 independent remoteCI retained."
+
+l28_closure: "77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification."
+
+l29_selection: "Both-edition malformed nested procedural-block reducer abort134; existing parser trace proves discarded untyped begin carrier leaves lexical scope above for loop. Activate robustness-only scope cleanup; original1.1b/c recording adapter remains independent design boundary. No compiler edits yet. Last validated77cce610b; U13 Linux job103200770181 remains live in UVM step."
+
+l29_focused: "9229c24e7 candidate; originalred now ordinarysyntaxreject both editions; focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck,independentdesign/code/testreviews clear. Bison baseline/candidate563SR1122RR sameuselessproductions. Frozenfivehashes l29/sha256.txt; no source/build mutations duringgates."
+l29_live_gates: {integrated: 79700, uvm: 11005, nfa: 99686, releases: 11691}
+
+l29_release_terminal: "11691exit1;complete/baseline_valid results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all15status/archive/sourcehashes unchanged vsL28. 1.1b/c now normalcompile32/noassert,not applicationpasses. NFA99686exit0,58/58. Integrated79700/UVM11005 stilllive;JSON/frontend unstarted."
+u13_ubuntu24_terminal: "Fresh job103200770250 success on published9006baa15;downloaded log confirms legacy_10_dpi IEEE2017 and2023 PASS. Ubuntu22job103200770181 stilllive in UVMstep,soU13 remainsopen. Logs l29/ubuntu2404.plain.log."
+
+l29_integrated_terminal: "79700exit0;legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON14368 launched after integratedterminal;UVM11005 remainslive. Frontend unstarted."
+
+l29_json_terminal: "14368exit0;1859tests0failures. Fivefrozen9229c24e7installedhashes verifiedunchanged. UVM11005 stilllive/progressing;frontend unstarted. U13Ubuntu22job103200770181 remainslive."
+
+u13_closure: "9006baa15 exact invocationseparator only;localfrontend35171exit0 withrestorehashes;independentreviewclear;freshUbuntu22/24jobs103200770181/103200770250 SUCCESS,legacy_10_dpi2017/2023PASSboth. OtherPR275platformchecks pending;no mergepermission. L29localcandidate unchanged."
+
+l29_uvm_terminal: "11005exit0;355passed0failed0skipped,realDPI. Isolatedfrontend74117 started last alone after allotherlocalgates terminal. Required restore/fivefrozenhashes check afterward."
+
+l29_closure: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."
+
+l30_selection: "DD039 directcompleteclass nested typedef variable atmodulescope failsboth editions compile2 onvalidated9229c24e7. Trace confirms moduleinstantiationfrontier;reusable classscopedtypehelper exists. L30 soleactiveimplementation. DD038 remains realrecordingbackend design boundary;no emptymacro/vendorimpersonation."
+
+l30_focused: "34787868e;originalredcompile0/no diagnostics both editions;focus12legacy/12JSON,neighbors43legacy/32JSON,makecheck,independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Frozenfivehashes l30/sha256.txt. Requiredfullgatespending."
+l30_live_gates: {integrated: 26735, uvm: 62168, nfa: 58271, releases: 20924}
+
+l30_release_terminal: "20924exit1;results-jz6zk_cb complete/baseline_valid,13SMOKE_PASS2COMPILE_FAIL. All15statuses/archive/sourcehashes unchanged vsL29;1.1b/c normalcompile32/notimeout. NFA58271exit0,58/58. Integrated26735/UVM62168 stilllive;JSON/frontend unstarted."
+
+legacy_uvm_published_ci_green: "PR275 remainsOPEN at9006baa152b1da5c684f86af59f9d2128500bc1f;all6platformchecks SUCCESS (macOS,Ubuntu22/24,MINGW64,UCRT64,CLANG64),snapshot l30/published-ci.json. No mergeperformed. L28/L29/L30 local batch waits L30 requiredvalidation beforepublication."
+
+l30_integrated_terminal: "26735exit0;legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON22478 launched after terminal;UVM62168 stilllive;frontend unstarted. Candidate34787868e remainsfrozen."
+
+l30_json_terminal: "22478exit0;1871tests0failures. UVM62168 remainslive/progressing;frontend unstarted. Candidate34787868e frozen. Prepared unpublished batch notes l30/publication-additions.md;do not publish until requiredgates complete."
+
+l30_uvm_terminal: "62168exit0;355passed0failed0skipped,realDPI. Isolatedfrontend21313 launched lastalone after allotherlocalgates terminal. Restoreinstallation/fivefrozenhashes required afterward."
+
+l30_closure: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."

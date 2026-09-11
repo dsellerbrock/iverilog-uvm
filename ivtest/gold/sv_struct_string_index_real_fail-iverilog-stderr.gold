@@ -1,0 +1,2 @@
+ivltests/sv_struct_string_index_real_fail.v:7: error: String character index must be an integral expression.
+1 error(s) during elaboration.

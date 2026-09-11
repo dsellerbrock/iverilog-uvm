@@ -1770,7 +1770,8 @@ bool class_type_parameter_is_deferred(Design*des,
 }
 
 static bool is_bare_class_reference_(const data_type_t*type,
-				      std::set<const typedef_t*>&seen)
+				      std::set<const typedef_t*>&seen,
+				      bool allow_array = true)
 {
       if (!type)
 	    return false;
@@ -1780,7 +1781,8 @@ static bool is_bare_class_reference_(const data_type_t*type,
 
       if (const array_base_t*array_type =
 		dynamic_cast<const array_base_t*>(type))
-	    return is_bare_class_reference_(array_type->base_type.get(), seen);
+	    return allow_array
+		  && is_bare_class_reference_(array_type->base_type.get(), seen);
 
       const typeref_t*type_ref = dynamic_cast<const typeref_t*>(type);
       if (!type_ref || type_ref->parameter_values())
@@ -1790,7 +1792,7 @@ static bool is_bare_class_reference_(const data_type_t*type,
       if (!td || !seen.insert(td).second)
 	    return false;
 
-      return is_bare_class_reference_(td->get_data_type(), seen);
+      return is_bare_class_reference_(td->get_data_type(), seen, allow_array);
 }
 
 static const netclass_t* resolve_bare_class_reference_(
@@ -3460,14 +3462,17 @@ static std::string canonical_specialization_parm_key_(
 	    return out.str();
       }
 
-	/* Keep the broad semantic cache limited to the multi-parameter class
-	 * pattern it was introduced for. The single-parameter path above rejects
-	 * unresolved forwarded/scope-sensitive keys, and bare generic-master uses
-	 * are deferred before reaching this helper. */
+	/* Normalize concrete class-type actuals across omitted, named and
+	 * positional forms, including independent defaults. Unresolved forwarding
+	 * and non-class types still retain their source-sensitive keys below. */
       if (pclass->parameter_order.size() < 2)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
+	/* A nested default such as Visitor#(STRUCTURE) needs the effective
+	 * earlier formals, not the declaration's enclosing scope. Do not probe
+	 * those broader dependency graphs while constructing a cache key. */
       bool has_bare_dependent_default = false;
+      bool all_bare_class_defaults = true;
       std::set<perm_string> prior_formals;
       for (std::list<perm_string>::const_iterator name_it =
 		   pclass->parameter_order.begin()
@@ -3483,9 +3488,16 @@ static std::string canonical_specialization_parm_key_(
 			}
 		  }
 	    }
+	    const PETypename*default_type =
+		  formal != pclass->parameters.end() && formal->second
+		  ? dynamic_cast<const PETypename*>(formal->second->expr) : 0;
+	    std::set<const typedef_t*> seen;
+	    if (!default_type
+		|| !is_bare_class_reference_(default_type->get_type(), seen, false))
+		  all_bare_class_defaults = false;
 	    prior_formals.insert(*name_it);
       }
-      if (!has_bare_dependent_default)
+      if (!has_bare_dependent_default && !all_bare_class_defaults)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       std::map<perm_string,const PExpr*> supplied;

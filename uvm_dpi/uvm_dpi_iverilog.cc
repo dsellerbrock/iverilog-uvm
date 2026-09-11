@@ -79,10 +79,69 @@ static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
 // regcomp wrapper above deliberately retries some invalid patterns as globs.
 static void uvm_ivl_legacy_regex_error(const char*id, const char*message)
 {
+      // Older UVM (including 1.1d) prints native diagnostics and has no
+      // SV report callback. Do not dispatch an export it does not define.
+      if (!svGetScopeFromName("uvm_pkg::m__uvm_report_dpi")) {
+            vpi_printf("%s: %s\n", id, message);
+            return;
+      }
       m_uvm_report_dpi(M_UVM_ERROR, const_cast<char*>(id),
                       const_cast<char*>(message), M_UVM_NONE,
                       const_cast<char*>(__FILE__), __LINE__);
 }
+
+// UVM 1.1/1.2 import the cached-regex API directly from C. Keep its
+// strict ERE compilation separate from the modern glob-retry wrapper.
+regex_t*uvm_dpi_regcomp(const char*pattern)
+{
+      if (!pattern) return nullptr;
+      regex_t*compiled = static_cast<regex_t*>(malloc(sizeof(regex_t)));
+      if (!compiled) {
+            uvm_ivl_legacy_regex_error("UVM/DPI/REGCOMP", "regex allocation failed");
+            return nullptr;
+      }
+      int status = regcomp(compiled, pattern, REG_NOSUB | REG_EXTENDED);
+      if (status != 0) {
+            char message[UVM_REGEX_MAX_LENGTH];
+            regerror(status, compiled, message, sizeof message);
+            free(compiled);
+            uvm_ivl_legacy_regex_error("UVM/DPI/REGCOMP", message);
+            return nullptr;
+      }
+      return compiled;
+}
+
+int uvm_dpi_regexec(regex_t*compiled, const char*str)
+{
+      return compiled && str ? regexec(compiled, str, 0, nullptr, 0) : 1;
+}
+
+void uvm_dpi_regfree(regex_t*compiled)
+{
+      if (!compiled) return;
+      regfree(compiled);
+      free(compiled);
+}
+
+// UVM 1.0p1/1.1a use unprefixed names and restart argv iteration after NULL.
+// Icarus VPI supplies flat argc/argv, not vendor -f pointer-stack extensions.
+const char*dpi_get_next_arg_c()
+{
+      static int index = 0;
+      s_vpi_vlog_info info;
+      if (!vpi_get_vlog_info(&info)) return nullptr;
+      if (index >= info.argc) {
+            index = 0;
+            return nullptr;
+      }
+      return info.argv[index++];
+}
+
+char*dpi_get_tool_name_c() { return uvm_dpi_get_tool_name_c(); }
+char*dpi_get_tool_version_c() { return uvm_dpi_get_tool_version_c(); }
+regex_t*dpi_regcomp(const char*pattern) { return uvm_dpi_regcomp(pattern); }
+int dpi_regexec(regex_t*compiled, const char*str) { return uvm_dpi_regexec(compiled, str); }
+void dpi_regfree(regex_t*compiled) { uvm_dpi_regfree(compiled); }
 
 int uvm_re_match(const char*re, const char*str)
 {

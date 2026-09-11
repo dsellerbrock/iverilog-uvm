@@ -20,3 +20,5 @@ sv_macro3b normal,-g2009 ivltests gold=sv_macro3.gold
 sv_macro_definition_context normal,-g2012 ivltests gold=sv_macro_definition_context.gold
 sv_macro_unterminated_string_fail CE,-g2012 ivltests gold=sv_macro_unterminated_string_fail.gold
 sv_macro_recursion_limit_fail CE,-g2012 ivltests gold=sv_macro_recursion_limit_fail.gold
+sv_macro_pasted_function_name normal,-g2017,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
+sv_macro_pasted_function_name_2023 normal,-g2023,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold

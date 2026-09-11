@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_void_function_cast_statement.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_void_function_cast_statement"
+    ],
+    "gold": "sv_void_function_cast_statement"
+}

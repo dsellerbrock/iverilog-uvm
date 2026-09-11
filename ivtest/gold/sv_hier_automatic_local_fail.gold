@@ -1,0 +1,5 @@
+./ivltests/sv_hier_automatic_local_fail.v:12: error: Hierarchical reference to automatically allocated item `count' in path `transient'
+./ivltests/sv_hier_automatic_local_fail.v:12: error: Hierarchical reference to automatically allocated item `count' in path `transient'
+./ivltests/sv_hier_automatic_local_fail.v:12: error: Hierarchical reference to automatically allocated item `count' in path `transient'
+./ivltests/sv_hier_automatic_local_fail.v:13: error: Hierarchical reference to automatically allocated item `value' in path `persistent_scope'
+4 error(s) during elaboration.

@@ -2873,3 +2873,115 @@ sv_fixed_property_output_invalid normal,-g2017,-s,sv_fixed_property_output_inval
 sv_fixed_property_output_invalid_2023 normal,-g2023,-s,sv_fixed_property_output_invalid ivltests gold=sv_fixed_property_output_invalid.gold
 sv_fixed_property_output_string_fail CE,-g2017,-s,sv_fixed_property_output_string_fail ivltests gold=sv_fixed_property_output_string_fail.gold
 sv_fixed_property_output_string_fail_2023 CE,-g2023,-s,sv_fixed_property_output_string_fail ivltests gold=sv_fixed_property_output_string_fail.gold
+sv_member_delay_compat normal,-g2017,-s,sv_member_delay_compat ivltests gold=sv_member_delay_compat.gold
+sv_member_delay_compat_2023 normal,-g2023,-s,sv_member_delay_compat ivltests gold=sv_member_delay_compat.gold
+sv_member_delay_parenthesized normal,-g2017,-gno-icarus-misc,-s,sv_member_delay_parenthesized ivltests gold=sv_member_delay_parenthesized.gold
+sv_member_delay_parenthesized_2023 normal,-g2023,-gno-icarus-misc,-s,sv_member_delay_parenthesized ivltests gold=sv_member_delay_parenthesized.gold
+sv_member_delay_strict_fail CE,-g2017,-gno-icarus-misc,-s,sv_member_delay_strict_fail ivltests gold=sv_member_delay_strict_fail.gold
+sv_member_delay_strict_fail_2023 CE,-g2023,-gno-icarus-misc,-s,sv_member_delay_strict_fail ivltests gold=sv_member_delay_strict_fail.gold
+sv_member_delay_expression_fail CE,-g2017,-s,sv_member_delay_expression_fail ivltests gold=sv_member_delay_expression_fail.gold
+sv_member_delay_expression_fail_2023 CE,-g2023,-s,sv_member_delay_expression_fail ivltests gold=sv_member_delay_expression_fail.gold
+sv_string_byte_signed normal,-g2017,-s,sv_string_byte_signed ivltests gold=sv_string_byte_signed.gold
+sv_string_byte_signed_2023 normal,-g2023,-s,sv_string_byte_signed ivltests gold=sv_string_byte_signed.gold
+sv_string_byte_unsigned_context normal,-g2017,-s,sv_string_byte_unsigned_context ivltests gold=sv_string_byte_unsigned_context.gold
+sv_string_byte_unsigned_context_2023 normal,-g2023,-s,sv_string_byte_unsigned_context ivltests gold=sv_string_byte_unsigned_context.gold
+sv_string_parameter_byte normal,-g2017,-s,sv_string_parameter_byte ivltests gold=sv_string_parameter_byte.gold
+sv_string_parameter_byte_2023 normal,-g2023,-s,sv_string_parameter_byte ivltests gold=sv_string_parameter_byte.gold
+sv_struct_string_index normal,-g2017,-s,sv_struct_string_index ivltests gold=sv_struct_string_index.gold
+sv_struct_string_index_2023 normal,-g2023,-s,sv_struct_string_index ivltests gold=sv_struct_string_index.gold
+sv_struct_string_index_bounds normal,-g2017,-s,sv_struct_string_index_bounds ivltests gold=sv_struct_string_index_bounds.gold
+sv_struct_string_index_bounds_2023 normal,-g2023,-s,sv_struct_string_index_bounds ivltests gold=sv_struct_string_index_bounds.gold
+sv_struct_string_index_real_fail CE,-g2017,-s,sv_struct_string_index_real_fail ivltests gold=sv_struct_string_index_real_fail.gold
+sv_struct_string_index_real_fail_2023 CE,-g2023,-s,sv_struct_string_index_real_fail ivltests gold=sv_struct_string_index_real_fail.gold
+sv_hier_static_local normal,-g2017,-s,sv_hier_static_local ivltests gold=sv_hier_static_local.gold
+sv_hier_static_local_2023 normal,-g2023,-s,sv_hier_static_local ivltests gold=sv_hier_static_local.gold
+sv_hier_static_event normal,-g2017,-s,sv_hier_static_event ivltests gold=sv_hier_static_event.gold
+sv_hier_static_event_2023 normal,-g2023,-s,sv_hier_static_event ivltests gold=sv_hier_static_event.gold
+sv_hier_automatic_local_fail CE,-g2017,-s,sv_hier_automatic_local_fail ivltests gold=sv_hier_automatic_local_fail.gold
+sv_hier_automatic_local_fail_2023 CE,-g2023,-s,sv_hier_automatic_local_fail ivltests gold=sv_hier_automatic_local_fail.gold
+sv_hier_automatic_nested_fail CE,-g2017,-s,sv_hier_automatic_nested_fail ivltests gold=sv_hier_automatic_nested_fail.gold
+sv_hier_automatic_nested_fail_2023 CE,-g2023,-s,sv_hier_automatic_nested_fail ivltests gold=sv_hier_automatic_nested_fail.gold
+sv_hier_automatic_event_fail CE,-g2017,-s,sv_hier_automatic_event_fail ivltests gold=sv_hier_automatic_event_fail.gold
+sv_hier_automatic_event_fail_2023 CE,-g2023,-s,sv_hier_automatic_event_fail ivltests gold=sv_hier_automatic_event_fail.gold
+sv_hier_unnamed_static_fail CE,-g2017,-s,sv_hier_unnamed_static_fail ivltests gold=sv_hier_unnamed_static_fail.gold
+sv_hier_unnamed_static_fail_2023 CE,-g2023,-s,sv_hier_unnamed_static_fail ivltests gold=sv_hier_unnamed_static_fail.gold
+sv_inherited_method_lookup normal,-g2017,-s,sv_inherited_method_lookup ivltests gold=sv_inherited_method_lookup.gold
+sv_inherited_method_lookup_2023 normal,-g2023,-s,sv_inherited_method_lookup ivltests gold=sv_inherited_method_lookup.gold
+sv_inherited_method_visibility normal,-g2017,-s,sv_inherited_method_visibility ivltests gold=sv_inherited_method_visibility.gold
+sv_inherited_method_visibility_2023 normal,-g2023,-s,sv_inherited_method_visibility ivltests gold=sv_inherited_method_visibility.gold
+sv_inherited_method_static_fail CE,-g2017,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
+sv_inherited_method_static_fail_2023 CE,-g2023,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
+sv_macro_pasted_function_name normal,-g2017,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
+sv_macro_pasted_function_name_2023 normal,-g2023,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
+sv_const_handle_member normal,-g2017,-s,sv_const_handle_member ivltests gold=sv_const_handle_member.gold
+sv_const_handle_member_2023 normal,-g2023,-s,sv_const_handle_member ivltests gold=sv_const_handle_member.gold
+sv_const_handle_rebind_fail CE,-g2017,-s,sv_const_handle_rebind_fail ivltests gold=sv_const_handle_rebind_fail.gold
+sv_const_handle_rebind_fail_2023 CE,-g2023,-s,sv_const_handle_rebind_fail ivltests gold=sv_const_handle_rebind_fail.gold
+sv_const_handle_property_fail CE,-g2017,-s,sv_const_handle_property_fail ivltests gold=sv_const_handle_property_fail.gold
+sv_const_handle_property_fail_2023 CE,-g2023,-s,sv_const_handle_property_fail ivltests gold=sv_const_handle_property_fail.gold
+sv_const_value_member_fail CE,-g2017,-s,sv_const_value_member_fail ivltests gold=sv_const_value_member_fail.gold
+sv_const_value_member_fail_2023 CE,-g2023,-s,sv_const_value_member_fail ivltests gold=sv_const_value_member_fail.gold
+
+sv_property_compound_signed normal,-g2017,-s,sv_property_compound_signed ivltests gold=sv_property_compound_signed.gold
+sv_property_compound_signed_2023 normal,-g2023,-s,sv_property_compound_signed ivltests gold=sv_property_compound_signed.gold
+
+sv_compound_four_state_operand normal,-g2017,-s,sv_compound_four_state_operand ivltests gold=sv_compound_four_state_operand.gold
+sv_compound_four_state_operand_2023 normal,-g2023,-s,sv_compound_four_state_operand ivltests gold=sv_compound_four_state_operand.gold
+
+sv_compound_operation_width normal,-g2017,-s,sv_compound_operation_width ivltests gold=sv_compound_operation_width.gold
+sv_compound_operation_width_2023 normal,-g2023,-s,sv_compound_operation_width ivltests gold=sv_compound_operation_width.gold
+
+sv_captured_class_root_rebind normal,-g2017,-s,sv_captured_class_root_rebind ivltests gold=sv_captured_class_root_rebind.gold
+sv_captured_class_root_rebind_2023 normal,-g2023,-s,sv_captured_class_root_rebind ivltests gold=sv_captured_class_root_rebind.gold
+
+sv_darray_property_compound normal,-g2017,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold
+sv_darray_property_compound_2023 normal,-g2023,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold
+
+sv_process_state_type normal,-g2017 ivltests
+sv_process_state_type_2023 normal,-g2023 ivltests
+sv_process_state_type_fail CE,-g2017 ivltests gold=sv_process_state_type_fail.gold
+sv_process_state_type_fail_2023 CE,-g2023 ivltests gold=sv_process_state_type_fail.gold
+sv_process_state_missing_root CE,-g2017,-sno_such_process_state_top ivltests gold=sv_process_state_missing_root.gold
+sv_process_state_missing_root_2023 CE,-g2023,-sno_such_process_state_top ivltests gold=sv_process_state_missing_root.gold
+sv_function_background_join normal,-g2017 ivltests
+sv_function_background_join_2023 normal,-g2023 ivltests
+sv_function_background_join_fail CE,-g2017 ivltests gold=sv_function_background_join_fail.gold
+sv_function_background_join_fail_2023 CE,-g2023 ivltests gold=sv_function_background_join_fail.gold
+sv_void_function_cast_statement normal,-g2017 ivltests
+sv_void_function_cast_statement_2023 normal,-g2023 ivltests
+sv_void_function_cast_restrictions CE,-g2017 ivltests gold=sv_void_function_cast_restrictions.gold
+sv_void_function_cast_restrictions_2023 CE,-g2023 ivltests gold=sv_void_function_cast_restrictions.gold
+sv_function_return_ref normal,-g2017 ivltests
+sv_function_return_ref_2023 normal,-g2023 ivltests
+sv_class_independent_defaults normal,-g2017 ivltests
+sv_class_independent_defaults_2023 normal,-g2023 ivltests
+sv_generic_master_static_init normal,-g2017 ivltests
+sv_generic_master_static_init_2023 normal,-g2023 ivltests
+sv_forwarded_type_static_init normal,-g2017 ivltests
+sv_forwarded_type_static_init_2023 normal,-g2023 ivltests
+sv_forwarded_callback_init normal,-g2017 ivltests
+sv_forwarded_callback_init_2023 normal,-g2023 ivltests
+sv_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_block_scope_recovery_fail.gold
+sv_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_block_scope_recovery_fail_2023.gold
+sv_named_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_named_block_scope_recovery_fail.gold
+sv_named_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_named_block_scope_recovery_fail_2023.gold
+sv_labeled_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_labeled_block_scope_recovery_fail.gold
+sv_labeled_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_labeled_block_scope_recovery_fail_2023.gold
+sv_compat_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_compat_block_scope_recovery_fail.gold
+sv_compat_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_compat_block_scope_recovery_fail_2023.gold
+sv_fork_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_fork_scope_recovery_fail.gold
+sv_fork_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_fork_scope_recovery_fail_2023.gold
+sv_block_scope_lifetimes normal,-g2017,-I./ivltests ivltests gold=sv_block_scope_lifetimes.gold
+sv_block_scope_lifetimes_2023 normal,-g2023,-I./ivltests ivltests gold=sv_block_scope_lifetimes_2023.gold
+sv_module_class_type normal,-g2017,-I./ivltests,-stest ivltests gold=sv_module_class_type.gold
+sv_module_class_type_2023 normal,-g2023,-I./ivltests,-stest ivltests gold=sv_module_class_type_2023.gold
+sv_module_class_type_missing_fail CE,-g2017,-I./ivltests,-stest ivltests gold=sv_module_class_type_missing_fail.gold
+sv_module_class_type_missing_fail_2023 CE,-g2023,-I./ivltests,-stest ivltests gold=sv_module_class_type_missing_fail_2023.gold
+sv_module_class_type_non_type_fail CE,-g2017,-I./ivltests,-stest ivltests gold=sv_module_class_type_non_type_fail.gold
+sv_module_class_type_non_type_fail_2023 CE,-g2023,-I./ivltests,-stest ivltests gold=sv_module_class_type_non_type_fail_2023.gold
+sv_module_class_type_incomplete_fail CE,-g2017,-I./ivltests,-stest ivltests gold=sv_module_class_type_incomplete_fail.gold
+sv_module_class_type_incomplete_fail_2023 CE,-g2023,-I./ivltests,-stest ivltests gold=sv_module_class_type_incomplete_fail_2023.gold
+sv_module_class_type_parameter_fail CE,-g2017,-I./ivltests,-stest ivltests gold=sv_module_class_type_parameter_fail.gold
+sv_module_class_type_parameter_fail_2023 CE,-g2023,-I./ivltests,-stest ivltests gold=sv_module_class_type_parameter_fail_2023.gold
+sv_module_class_type_enum_mismatch_fail CE,-g2017,-I./ivltests,-stest ivltests gold=sv_module_class_type_enum_mismatch_fail.gold
+sv_module_class_type_enum_mismatch_fail_2023 CE,-g2023,-I./ivltests,-stest ivltests gold=sv_module_class_type_enum_mismatch_fail_2023.gold

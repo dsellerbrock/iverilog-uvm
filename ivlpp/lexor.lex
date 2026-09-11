@@ -44,6 +44,7 @@ static void  do_define(void);
 static int   def_is_done(void);
 static void  def_continue(void);
 static int   is_defined(const char*name);
+static int   is_defined_without_args(const char*name);
 
 static int   macro_needs_args(const char*name);
 static void  macro_start_args(void);
@@ -157,9 +158,10 @@ static void ifdef_leave(void)
 	result = (rc == 0) ? YY_NULL : rc;                              \
     } else {                                                            \
 	/* We are expanding a macro. Handle the SV `` delimiter.        \
-	   If the delimiter terminates a defined macro usage, leave     \
+	   If it terminates an object-like macro usage, leave           \
 	   it in place, otherwise remove it now. */                     \
-	if (!(yytext[0] == '`' && is_defined(yytext+1))) {              \
+	if (!(yytext[0] == '`' &&                                    \
+	      is_defined_without_args(yytext+1))) {                     \
 	    while ((istack->str[0] == '`') &&                           \
 	           (istack->str[1] == '`')) {                           \
 	        istack->str += 2;                                       \
@@ -987,6 +989,14 @@ static struct define_t* def_lookup(const char*name)
 static int is_defined(const char*name)
 {
     return def_lookup(name) != 0;
+}
+
+/* A function-like name can still acquire a pasted suffix before its '('.
+ * Do not commit to a shorter defined prefix while scanning that name. */
+static int is_defined_without_args(const char*name)
+{
+    struct define_t*def = def_lookup(name);
+    return def && def->argc <= 1;
 }
 
 /*

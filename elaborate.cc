@@ -7503,6 +7503,13 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	// equivalent uncompressed assignments. This means we need
 	// to take the type of the LHS into account when determining
 	// the type of the RHS expression.
+      bool lval_signed = lv->get_signed();
+        // Property lvalues need not carry the root signal's signed flag.
+        // Keep the unsigned flag of concatenations and part-select wrappers.
+      if (lv->get_property_idx() >= 0 && lv->net_type()
+          && !dynamic_cast<const PEConcat*>(lval())
+          && type_is_vectorable(lv->expr_type()))
+            lval_signed = lv->net_type()->get_signed();
       bool force_unsigned;
       switch (op_) {
 	  case 'l':
@@ -7513,18 +7520,37 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	    force_unsigned = false;
 	    break;
 	  default:
-	    force_unsigned = !lv->get_signed();
+	    force_unsigned = !lval_signed;
 	    break;
       }
-      NetExpr*rv = elaborate_rval_(des, scope, 0, lv->expr_type(),
-				   count_lval_width(lv), force_unsigned);
+        // A compound operand is not yet the assignment result. Preserve
+        // X/Z through the operator; the final store converts a bit target.
+      ivl_variable_type_t operand_type = lv->expr_type();
+      if (operand_type == IVL_VT_BOOL)
+            operand_type = IVL_VT_LOGIC;
+      unsigned operand_width = count_lval_width(lv);
+      if (operand_type == IVL_VT_LOGIC) {
+            NetScope*operand_scope = elaborate_rval_scope_(des, scope);
+            if (!operand_scope) return 0;
+            PExpr::width_mode_t mode = PExpr::SIZED;
+            rval()->test_width(des, operand_scope, mode);
+            if (type_is_vectorable(rval()->expr_type())) {
+                  unsigned natural_width = rval()->expr_width();
+                  if (op_ == 'l' || op_ == 'r' || op_ == 'R')
+                        operand_width = natural_width;
+                  else
+                        operand_width = max(operand_width, natural_width);
+            }
+      }
+      NetExpr*rv = elaborate_rval_(des, scope, 0, operand_type,
+				   operand_width, force_unsigned);
       if (rv == 0) return 0;
 
 	// The ivl_target API doesn't support signalling the type
 	// of a lval, so convert arithmetic shifts into logical
 	// shifts now if the lval is unsigned.
       char op = op_;
-      if ((op == 'R') && !lv->get_signed())
+      if ((op == 'R') && !lval_signed)
 	    op = 'r';
 
 	// Associative-array element compound assignment (a[k]++, a[k]+=x).
@@ -10227,9 +10253,11 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	   zero-time. Check the lexical routine scope rather than just the
 	   immediate scope: named begin/fork blocks introduce intervening
 	   BEGIN_END/FORK_JOIN scopes, and a lazily elaborated task must not
-	   inherit a function caller's restriction. */
+	   inherit a function caller's restriction. Within a join_none child,
+	   13.4.4 permits all task-legal statements, including blocking joins.
+	   Fork depth is isolated when entering a separate subroutine body. */
       if ((bl_type_ == PBlock::BL_PAR || bl_type_ == PBlock::BL_JOIN_ANY)
-	  && scope_is_within_function_(scope)) {
+	  && scope_is_within_function_(scope) && !des->is_in_fork()) {
 	    cerr << get_fileline() << ": error: A fork..."
 		 << (bl_type_ == PBlock::BL_PAR ? "join" : "join_any")
 		 << " statement is not permitted in a function; only "
@@ -13733,6 +13761,24 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		    return noop;
 	      }
 
+      // Use lexical class lookup before the task-only package search. This
+      // also preserves inherited task/function precedence and implicit this.
+      if (!package_ && path_.size() == 1 && scope->get_class_scope()) {
+	    symbol_search_results sr;
+	    unsigned errors_before = des->errors;
+	    bool found = symbol_search(this, des, scope, path_, UINT_MAX, &sr);
+	    if (des->errors != errors_before)
+		  return 0;
+	    if (found && sr.is_scope() && sr.scope->get_class_scope()
+		&& (sr.scope->type() == NetScope::TASK
+		    || sr.scope->type() == NetScope::FUNC))
+		  return elaborate_method_(des, scope, true);
+	    // A package function used as a statement must not be retried as
+	    // an implicit-this call (which could expose a local base method).
+	    if (found && sr.is_scope() && sr.scope->type() == NetScope::FUNC)
+		  return elaborate_function_(des, scope);
+      }
+
       NetScope*task = des->find_task(pscope, path_);
       if (gn_system_verilog() && path_.size() > 1
 	  && !has_indexed_path_component
@@ -16612,6 +16658,7 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	   arguments still ends at the one real variable. */
       NetESignal*formal_e = new NetESignal(port);
       formal_e->set_line(*this);
+      materialize_ref_return(sig);
       NetESignal*actual_e = new NetESignal(sig);
       actual_e->set_line(*this);
 
@@ -16898,11 +16945,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  return elaborate_non_void_function_(des, scope);
 	    def = tmp;
 
-	    if (void_cast_) {
-		  cerr << get_fileline() << ": error: void casting user void function '"
-		       << peek_tail_name(path_) << "' is not allowed." << endl;
-		  des->errors++;
-	    }
+	    // IEEE 1800-2017/2023 13.5: void'(function_subroutine_call)
+	    // is a statement form. A resolved void function uses the same
+	    // call machinery, including argument effects and copyback.
       }
 
       /* The caller has checked the parms_ size to make sure it
@@ -30103,7 +30148,20 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // Without this, code patterns like UVM `uvm_register_cb`
 		    // see the spec's `static = 0` reset wipe state set by a
 		    // user-class static initializer that called into the spec.
-		    if (this->specialized_instance())
+		    // Analyze generic initializers for const-initialization checks,
+		    // but generic masters and unresolved type forwarding are not
+		    // concrete runtime types (IEEE 1800 8.25).
+		    bool deferred_init = pclass->has_parameter_port_list
+			  && !specialized_instance();
+		    for (perm_string name : pclass->parameter_order) {
+			  if (class_type_parameter_is_deferred(des, class_scope_, name)) {
+				deferred_init = true;
+				break;
+			  }
+		    }
+		    if (deferred_init)
+			  delete top;
+		    else if (this->specialized_instance())
 			  des->add_process_at_tail(top);
 		    else
 			  des->add_process(top);

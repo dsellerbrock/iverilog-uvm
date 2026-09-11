@@ -1274,6 +1274,15 @@ NetEConst* NetESelect::eval_tree()
       if (expr == 0) return 0;
 
       verinum eval = expr->value();
+      if (base_ && expr->expr_type() == IVL_VT_STRING && expr_width() == 8) {
+	    // String indices count characters from the left, unlike packed bits.
+	    const string value = eval.as_raw_string();
+	    unsigned byte = bval >= 0 && static_cast<size_t>(bval) < value.size()
+		  ? static_cast<unsigned char>(value[bval]) : 0;
+	    verinum result(static_cast<uint64_t>(byte), 8);
+	    result.has_sign(has_sign());
+	    return new NetEConst(result);
+      }
       verinum oval (verinum::V0, expr_width(), true);
 
       verinum::V pad_bit = verinum::Vx;

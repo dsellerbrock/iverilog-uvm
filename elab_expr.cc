@@ -2055,19 +2055,13 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
 /* Clocking-block member path rewrites are shared with l-value
    elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 
-static long builtin_process_state_value_(perm_string name)
+static NetEConstEnum* builtin_process_state_constant_(Design*des,
+                                                     perm_string name)
 {
-      if (name == perm_string::literal("FINISHED"))
-	    return 0;
-      if (name == perm_string::literal("RUNNING"))
-	    return 1;
-      if (name == perm_string::literal("WAITING"))
-	    return 2;
-      if (name == perm_string::literal("SUSPENDED"))
-	    return 3;
-      if (name == perm_string::literal("KILLED"))
-	    return 4;
-      return 0;
+      const netenum_t*type = builtin_process_state_type(des);
+      netenum_t::iterator value = type->find_name(name);
+      assert(value != type->end_name());
+      return new NetEConstEnum(name, type, value->second);
 }
 
 bool type_is_vectorable(ivl_variable_type_t type)
@@ -11742,6 +11736,33 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		    // callers propagated as x / a blank $display argument / a
 		    // zero compound-assign operand.
 		  if (!member_comp.index.empty()) {
+			if (cur_type->base_type() == IVL_VT_STRING
+			    && member_comp.index.size() == 1
+			    && member_comp.index.front().sel == index_component_t::SEL_BIT) {
+			      NetExpr*idx = elab_and_eval(des, scope,
+				    member_comp.index.front().msb, -1, false);
+			      if (!idx) {
+				    delete base_expr;
+				    return nullptr;
+			      }
+			      if (!type_is_vectorable(idx->expr_type())) {
+				    cerr << li->get_fileline() << ": error: String character"
+					 << " index must be an integral expression." << endl;
+				    des->errors += 1;
+				    delete idx;
+				    delete base_expr;
+				    return nullptr;
+			      }
+			      // IEEE 1800 6.16: select a character from the
+			      // member value using the ordinary string read path.
+			      idx = cast_to_width(idx, 32, idx->has_sign(), *li);
+			      idx = new NetECast('2', idx, 32, true);
+			      idx->set_line(*li);
+			      cur_type = &netvector_t::atom2s8;
+			      base_expr = new NetESelect(base_expr, idx, 8, cur_type);
+			      base_expr->set_line(*li);
+			      continue;
+			}
 			const netvector_t*mvec =
 			      dynamic_cast<const netvector_t*>(cur_type);
 			if (!mvec) {
@@ -13384,11 +13405,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      && cur_class->get_name() == perm_string::literal("process")
 		      && cur_class->method_from_name(tail_comp.name) == 0) {
 			NetESFunc*sfunc = new NetESFunc("$ivl_process$status",
-							&netvector_t::atom2s32, 1);
+							builtin_process_state_type(des), 1);
 			sfunc->set_line(*this);
 			sfunc->parm(0, base_expr);
 			base_expr = sfunc;
-			cur_type = &netvector_t::atom2s32;
+			cur_type = builtin_process_state_type(des);
 			continue;
 		  }
 
@@ -15676,6 +15697,11 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			continue;
 		  }
 
+		  if (formal->port_type() == NetNet::PREF) {
+			if (NetESignal*actual = dynamic_cast<NetESignal*>(parms[pidx]))
+			      materialize_ref_return(actual->sig());
+		  }
+
 		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (parms[pidx])) {
 			cerr << evt->get_fileline() << ": error: An event '"
 			     << evt->event()->name() << "' can not be a user "
@@ -16954,7 +16980,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			    // live process state; it is not a stored
 			    // property.
 			  NetESFunc*tmp = new NetESFunc("$ivl_process$status",
-							&netvector_t::atom2s32, 1);
+							builtin_process_state_type(des), 1);
 			  tmp->set_line(*this);
 			  tmp->parm(0, sub_expr);
 			  return tmp;
@@ -19349,7 +19375,7 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 		  if (type == &netstring_t::type_string) {
 			index++;
 			index_depth--;
-			type = &netvector_t::atom2u8;
+			type = &netvector_t::atom2s8;
 		  } else if (auto array = dynamic_cast<const netsarray_t*>(type)) {
 			auto array_size = array->static_dimensions().size();
 
@@ -22516,11 +22542,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    || tail_comp.name == perm_string::literal("WAITING")
 				    || tail_comp.name == perm_string::literal("SUSPENDED")
 				    || tail_comp.name == perm_string::literal("KILLED")) {
-				      // Compile-progress fallback for built-in process
-				      // status enum literals when they arrive as an
+				      // Built-in process state enum literals arriving as an
 				      // unresolved two-component identifier form.
-				      NetEConst*tmp = make_const_val(
-					      builtin_process_state_value_(tail_comp.name));
+				      NetEConstEnum*tmp = builtin_process_state_constant_(des, tail_comp.name);
 				      tmp->set_line(*this);
 				      return tmp;
 				}
@@ -22733,8 +22757,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		|| state_name == perm_string::literal("WAITING")
 		|| state_name == perm_string::literal("SUSPENDED")
 		|| state_name == perm_string::literal("KILLED")) {
-		  NetEConst*tmp = make_const_val(
-			builtin_process_state_value_(state_name));
+		  NetEConstEnum*tmp = builtin_process_state_constant_(des, state_name);
 		  tmp->set_line(*this);
 		  return tmp;
 	    }
@@ -23954,6 +23977,19 @@ NetExpr* PEIdent::elaborate_expr_param_bit_(Design*des, NetScope*scope,
 	         << "] cannot be a real value." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+      if (par_type && par_type->base_type() == IVL_VT_STRING) {
+	    // 6.16: character indexing is equivalent to getc(int), not a bit select.
+	    sel = cast_to_width(sel, 32, sel->has_sign(), *this);
+	    // Keep source extension signedness separate from the signed int result.
+	    sel = new NetECast('2', sel, 32, true);
+	    sel->set_line(*this);
+	    NetECString*value = new NetECString(par_ex->value());
+	    value->set_line(*this);
+	    NetESelect*res = new NetESelect(value, sel, 8);
+	    res->set_line(*this);
+	    return res;
       }
 
       if (debug_elaborate)

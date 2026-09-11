@@ -247,6 +247,12 @@ void pform_set_this_class(const struct vlltype&loc, PTaskFunc*net)
       pform_recent_class_method_ = net;
 }
 
+void pform_set_recent_class_method_qualifiers(property_qualifier_t qual)
+{
+      if (pform_recent_class_method_)
+	    pform_recent_class_method_->set_method_qualifiers(qual);
+}
+
 void pform_mark_recent_class_method_virtual(void)
 {
       if (pform_recent_class_method_)
@@ -372,6 +378,7 @@ void pform_bind_extern_func(PFunction*func)
 		  func->set_method_type_only(proto->method_of());
 	    if (!func->is_virtual_method() && proto->is_virtual_method())
 		  func->set_virtual_method(true);
+	    func->set_method_qualifiers(proto->method_qualifiers());
 	    it->second = func;
       } else {
 	    pform_cur_class->funcs[name] = func;
@@ -397,6 +404,7 @@ void pform_bind_extern_task(PTask*task)
 		  task->set_method_type_only(proto->method_of());
 	    if (!task->is_virtual_method() && proto->is_virtual_method())
 		  task->set_virtual_method(true);
+	    task->set_method_qualifiers(proto->method_qualifiers());
 	    it->second = task;
       } else {
 	    pform_cur_class->tasks[name] = task;

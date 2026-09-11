@@ -1,0 +1,7 @@
+sv_void_function_cast_statement normal,-g2017 ivltests
+sv_void_function_cast_statement_2023 normal,-g2023 ivltests
+sv_void_function_cast_restrictions CE,-g2017 ivltests gold=sv_void_function_cast_restrictions.gold
+sv_void_function_cast_restrictions_2023 CE,-g2023 ivltests gold=sv_void_function_cast_restrictions.gold
+sv_void_cast_fail1 CE,-g2005-sv ivltests
+sv_void_cast_fail2 CE,-g2005-sv ivltests
+sv_void_cast_fail3 CE,-g2005-sv ivltests

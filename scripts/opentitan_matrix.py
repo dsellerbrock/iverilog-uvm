@@ -870,7 +870,9 @@ def directory_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
-def compiler_fingerprint(iverilog: Path, vvp: Path) -> dict[str, object]:
+def compiler_fingerprint(
+    iverilog: Path, vvp: Path, uvm_home: Path | None = None
+) -> dict[str, object]:
     """Fingerprint the engine and targets, not only the stable driver binary."""
     ivl_root = iverilog.parent.parent / "lib" / "ivl"
     candidates = {
@@ -887,7 +889,7 @@ def compiler_fingerprint(iverilog: Path, vvp: Path) -> dict[str, object]:
         for name, path in candidates.items()
         if path.is_file()
     }
-    uvm_sources = ivl_root / "uvm" / "src"
+    uvm_sources = uvm_home or ivl_root / "uvm" / "src"
     result: dict[str, object] = {"components": components}
     if uvm_sources.is_dir():
         result["uvm_sources"] = {
@@ -1981,6 +1983,7 @@ def compile_command(
     source_list: Path,
     top_options: Sequence[str],
     output: Path,
+    uvm_home: Path | None = None,
 ) -> list[str]:
     command = [str(iverilog), "-g2012", *top_options]
     if job.lane == "rtl":
@@ -2013,6 +2016,8 @@ def compile_command(
             )
         command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
         command.extend(UVM_EXTRA_DEFINES.get(job.core.vlnv, ()))
+    if uvm_home is not None and "-uvm" in command:
+        command.append(f"--uvm-home={uvm_home}")
     command.extend(["-o", str(output), "-c", str(source_list)])
     return command
 
@@ -2184,7 +2189,7 @@ def run_job(
     executable = work_root / f"matrix-{job.lane}.vvp"
     compile_result = command_result(
         compile_command(
-            job, iverilog, compiler_source_list, top_options, executable
+            job, iverilog, compiler_source_list, top_options, executable, args.uvm_home
         ),
         cwd=source_list.parent,
         env=env,
@@ -2615,6 +2620,41 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         Path("aes-sva.vvp"),
     )
     assert "-uvm" not in pure_sva_compile
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        selected = root / "legacy UVM" / "src"
+        selected.mkdir(parents=True)
+        (selected / "uvm_pkg.sv").write_text("package uvm_pkg; endpackage\n")
+        driver = root / "bin" / "iverilog"
+        bundled = root / "lib" / "ivl" / "uvm" / "src"
+        bundled.mkdir(parents=True)
+        (bundled / "uvm_pkg.sv").write_text("bundled sentinel\n")
+        before = compiler_fingerprint(driver, root / "bin" / "vvp", selected)
+        assert before["uvm_sources"]["path"] == str(selected)
+        assert before["uvm_sources"]["sha256"] == directory_sha256(selected)
+        (selected / "uvm_pkg.sv").write_text("changed legacy source\n")
+        after = compiler_fingerprint(driver, root / "bin" / "vvp", selected)
+        assert before["uvm_sources"]["sha256"] != after["uvm_sources"]["sha256"]
+        assert compiler_fingerprint(driver, root / "bin" / "vvp")[
+            "uvm_sources"
+        ]["path"] == str(bundled)
+        for job, uses_uvm in (
+            (Job("runtime", Core(parsed[0], ""), uvm_target), True),
+            (Job("uvm", Core(parsed[0], ""), uvm_target), True),
+            (Job("runtime", directed_core, directed_target), False),
+            (Job("runtime", directed_core, directed_with_uvm_import), True),
+            (Job("sva", Core(parsed[1], "")), True),
+            (Job("sva", pure_sva), False),
+            (Job("rtl", directed_core), False),
+        ):
+            command = compile_command(
+                job, driver, root / "in.scr", [], root / "out.vvp", selected
+            )
+            assert (f"--uvm-home={selected}" in command) == uses_uvm
+            assert ("--uvm-no-dpi" in command) == (
+                job.lane == "sva" and uses_uvm
+            )
     formal_targets = {"lowrisc:ip:keymgr:0.1", fpv.vlnv}
     assert core_supports_lane(
         Core("lowrisc:ip:keymgr:0.1", ""), "sva", formal_targets
@@ -2756,6 +2796,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--opentitan-root", type=Path)
     result.add_argument("--build-root", type=Path)
     result.add_argument("--iverilog", type=Path)
+    result.add_argument(
+        "--uvm-home", type=Path,
+        help="Acquired UVM root or src directory; use pinned1.2 for OpenTitan. "
+             "Defaults to IVERILOG_UVM_HOME or the compiler-bundled library.",
+    )
     result.add_argument("--fusesoc", type=Path)
     result.add_argument(
         "--fusesoc-python",
@@ -2833,6 +2878,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             + ", ".join(str(path) for path in missing_dpi_libraries)
         )
     args.dpi_library = dpi_libraries
+    uvm_home = args.uvm_home or os.environ.get("IVERILOG_UVM_HOME")
+    if uvm_home:
+        source_root = Path(uvm_home).expanduser().resolve()
+        if not (source_root / "uvm_pkg.sv").is_file():
+            source_root = source_root / "src"
+        if not (source_root / "uvm_pkg.sv").is_file():
+            parser().error(f"UVM home does not contain uvm_pkg.sv: {uvm_home}")
+        args.uvm_home = source_root
 
     opentitan_root = args.opentitan_root.expanduser().resolve()
     build_root = args.build_root.expanduser().resolve()
@@ -2910,7 +2963,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "iverilog": str(iverilog),
         "iverilog_sha256": file_sha256(iverilog),
         "iverilog_version": tool_version([str(iverilog), "-V"], opentitan_root, env),
-        "compiler_fingerprint": compiler_fingerprint(iverilog, vvp),
+        "compiler_fingerprint": compiler_fingerprint(iverilog, vvp, args.uvm_home),
         "fusesoc": str(fusesoc),
         "fusesoc_real_executable": str(fusesoc.resolve()),
         "fusesoc_sha256": file_sha256(fusesoc),

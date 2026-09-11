@@ -919,7 +919,13 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		    }
 	      }
 
-	      if (reg->get_const() && !is_init) {
+      // IEEE 1800 6.20.6 protects the handle, not its mutable object members.
+      // Leave the actual property's const check to class-member elaboration.
+      const bool class_member_write = !member_path.empty()
+            && reg->unpacked_dimensions() == 0
+            && !sr.path_head.empty() && sr.path_head.back().index.empty()
+            && dynamic_cast<const netclass_t*>(reg->net_type());
+      if (reg->get_const() && !is_init && !class_member_write) {
 	    cerr << get_fileline() << ": error: Assignment to const signal `"
 	         << reg->name() << "` is not allowed." << endl;
 	    des->errors++;

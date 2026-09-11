@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_property_compound_signed.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_property_compound_signed"
+    ],
+    "gold": "sv_property_compound_signed"
+}

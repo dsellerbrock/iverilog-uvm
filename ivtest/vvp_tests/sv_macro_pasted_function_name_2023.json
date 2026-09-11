@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_macro_pasted_function_name.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_macro_pasted_function_name"
+    ],
+    "gold": "sv_macro_pasted_function_name"
+}

@@ -1,0 +1,6 @@
+sv_inherited_method_lookup normal,-g2017,-s,sv_inherited_method_lookup ivltests gold=sv_inherited_method_lookup.gold
+sv_inherited_method_lookup_2023 normal,-g2023,-s,sv_inherited_method_lookup ivltests gold=sv_inherited_method_lookup.gold
+sv_inherited_method_visibility normal,-g2017,-s,sv_inherited_method_visibility ivltests gold=sv_inherited_method_visibility.gold
+sv_inherited_method_visibility_2023 normal,-g2023,-s,sv_inherited_method_visibility ivltests gold=sv_inherited_method_visibility.gold
+sv_inherited_method_static_fail CE,-g2017,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
+sv_inherited_method_static_fail_2023 CE,-g2023,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold

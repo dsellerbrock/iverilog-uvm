@@ -1,0 +1,4 @@
+ivltests/sv_process_state_type_fail.v:7: error: This assignment requires an explicit cast.
+ivltests/sv_process_state_type_fail.v:8: error: Enumeration type mismatch in assignment.
+ivltests/sv_process_state_type_fail.v:9: error: Enumeration type mismatch in assignment.
+3 error(s) during elaboration.

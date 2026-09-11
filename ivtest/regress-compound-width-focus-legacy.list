@@ -1,0 +1,2 @@
+sv_compound_operation_width normal,-g2017,-s,sv_compound_operation_width ivltests gold=sv_compound_operation_width.gold
+sv_compound_operation_width_2023 normal,-g2023,-s,sv_compound_operation_width ivltests gold=sv_compound_operation_width.gold

@@ -30,6 +30,7 @@
 # include  <string>
 
 class Design;
+class netenum_t;
 class NetExpr;
 class NetNet;
 class NetScope;
@@ -799,5 +800,6 @@ inline NetScope*netclass_t::definition_scope(void)
 }
 
 extern netclass_t* builtin_class_type(perm_string name);
+extern netenum_t* builtin_process_state_type(Design*des = nullptr);
 
 #endif /* IVL_netclass_H */

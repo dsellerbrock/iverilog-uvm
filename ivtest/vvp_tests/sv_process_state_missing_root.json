@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_process_state_missing_root.v",
+    "iverilog-args": [
+        "-g2017",
+        "-sno_such_process_state_top"
+    ],
+    "gold": "sv_process_state_missing_root"
+}

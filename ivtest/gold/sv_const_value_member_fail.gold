@@ -1,0 +1,2 @@
+./ivltests/sv_const_value_member_fail.v:4: error: Assignment to const signal `frozen` is not allowed.
+Elaboration failed

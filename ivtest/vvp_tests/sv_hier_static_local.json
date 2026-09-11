@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_hier_static_local.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_hier_static_local"
+    ],
+    "gold": "sv_hier_static_local"
+}

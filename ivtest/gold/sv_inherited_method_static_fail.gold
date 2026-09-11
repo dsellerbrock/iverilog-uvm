@@ -1,0 +1,2 @@
+./ivltests/sv_inherited_method_static_fail.v:9: error: Static method cannot call inherited non-static method `enabled' without an object.
+1 error(s) during elaboration.

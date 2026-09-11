@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_compound_operation_width.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_compound_operation_width"
+    ],
+    "gold": "sv_compound_operation_width"
+}

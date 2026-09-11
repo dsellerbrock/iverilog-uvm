@@ -1916,6 +1916,29 @@ static void draw_stmt_assign_vector_opcode(unsigned char opcode, bool is_signed)
       }
 }
 
+/* A compound update has its old l-value on the vector stack. Size the
+   operation before evaluating it, and only then truncate for assignment.
+   Opcode zero also serves plain stores in the shared property paths. */
+static void draw_stmt_assign_vector_rhs(ivl_statement_t net, unsigned wid)
+{
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      unsigned char op = ivl_stmt_opcode(net);
+      bool shift = op == 'l' || op == 'r' || op == 'R';
+      unsigned op_wid = wid;
+      if (op && !shift && ivl_expr_width(rval) > op_wid)
+            op_wid = ivl_expr_width(rval);
+      if (op)
+            fprintf(vvp_out, "    %%pad/%c %u;\n",
+                    ivl_expr_signed(rval) ? 's' : 'u', op_wid);
+      draw_eval_vec4(rval);
+      if (!shift)
+            fprintf(vvp_out, "    %%pad/%c %u;\n",
+                    ivl_expr_signed(rval) ? 's' : 'u', op_wid);
+      draw_stmt_assign_vector_opcode(op, ivl_expr_signed(rval));
+      if (op_wid > wid)
+            fprintf(vvp_out, "    %%pad/u %u;\n", wid);
+}
+
 static int show_stmt_assign_vector(ivl_statement_t net)
 {
       ivl_expr_t rval = ivl_stmt_rval(net);
@@ -1939,10 +1962,7 @@ static int show_stmt_assign_vector(ivl_statement_t net)
 
 	    fprintf(vvp_out, "    ; show_stmt_assign_vector: Get l-value for compressed %c= operand\n", ivl_stmt_opcode(net));
 	    get_vec_from_lval(net, slices);
-	    draw_eval_vec4(rval);
-	    resize_vec4_wid(rval, wid);
-	    draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					   ivl_expr_signed(rval));
+	    draw_stmt_assign_vector_rhs(net, wid);
 	    put_vec_to_lval(net, slices);
 	    free(slices);
       } else {
@@ -2695,10 +2715,7 @@ static void show_stmt_assign_sig_darray_queue_mux(ivl_statement_t net)
 		  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
 		  fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", var);
-		  draw_eval_vec4(rval);
-		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					         ivl_expr_signed(rval));
+		  draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
 		  clr_flag(flag);
@@ -3662,16 +3679,10 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
                   wid = ivl_stmt_lwidth(net);
             if (use_signal_scalar_ops && ivl_stmt_opcode(net) != 0) {
                   fprintf(vvp_out, "    %%aa/load/sig/v/obj v%p_0, %u;\n", var, wid);
-                  draw_eval_vec4(rval);
-                  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
-                  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-                                                 ivl_expr_signed(rval));
+                  draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
             } else if (ivl_stmt_opcode(net) != 0) {
                   fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
-                  draw_eval_vec4(rval);
-                  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
-                  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-                                                 ivl_expr_signed(rval));
+                  draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
             } else {
                   draw_eval_vec4(rval);
                   resize_vec4_wid(rval, ivl_stmt_lwidth(net));
@@ -3794,10 +3805,7 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 		      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 		      fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
-		      draw_eval_vec4(rval);
-		      resize_vec4_wid(rval, ivl_stmt_lwidth(net));
-		      draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					             ivl_expr_signed(rval));
+		      draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
 		      fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 		      fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
 		      fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
@@ -3872,11 +3880,13 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
       if (!idx_expr || !prop_type || ivl_type_base(prop_type) != IVL_VT_DARRAY)
             return -1;
 
-      if (ivl_stmt_opcode(net) != 0)
-            return -1;
-
       element_type = ivl_type_element(prop_type);
       if (!element_type)
+            return -1;
+
+      if (ivl_stmt_opcode(net) != 0
+          && ivl_type_base(element_type) != IVL_VT_BOOL
+          && ivl_type_base(element_type) != IVL_VT_LOGIC)
             return -1;
 
       switch (ivl_type_base(element_type)) {
@@ -3912,6 +3922,32 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
             int idx_word = allocate_word();
             if (wid == 0)
                   wid = ivl_stmt_lwidth(net);
+
+            if (ivl_stmt_opcode(net) != 0) {
+                  int idx_flag = allocate_flag();
+                  unsigned skip = local_count++;
+
+                    /* Retain the selected array, not a receiver reloaded
+                       after RHS side effects. Evaluate its index once. */
+                  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+                  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+                  draw_eval_expr_into_integer(idx_expr, 3);
+                  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", idx_word);
+                  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", idx_flag);
+                  fprintf(vvp_out, "    %%dup/obj/ref;\n");
+                  fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
+                  draw_stmt_assign_vector_rhs(net, wid);
+                  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
+                  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+                          thread_count, skip);
+                  fprintf(vvp_out, "    %%set/dar/obj/vec4 %d;\n", idx_word);
+                  fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
+                  fprintf(vvp_out, "    %%pop/vec4 1;\n");
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+                  clr_flag(idx_flag);
+                  clr_word(idx_word);
+                  return errors;
+            }
 
             draw_eval_vec4(rval);
             resize_vec4_wid(rval, ivl_stmt_lwidth(net));
@@ -4001,10 +4037,7 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 		  wid = ivl_stmt_lwidth(net);
 	    if (ivl_stmt_opcode(net) != 0) {
 		  fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", key_kind, wid);
-		  draw_eval_vec4(rval);
-		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					         ivl_expr_signed(rval));
+		  draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
 	    } else {
 		  draw_eval_vec4(rval);
 		  resize_vec4_wid(rval, ivl_stmt_lwidth(net));
@@ -4215,20 +4248,14 @@ static int show_stmt_assign_nested_index_vec4(ivl_statement_t net)
 			fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 		  }
 
-		  draw_eval_vec4(rval);
-		  resize_vec4_wid(rval, lval_wid);
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					 ivl_expr_signed(rval));
+		  draw_stmt_assign_vector_rhs(net, lval_wid);
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
 		  fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
 			  off_word, lval_wid);
 		  clr_flag(off_flag);
 		  clr_word(off_word);
 	    } else {
-		  draw_eval_vec4(rval);
-		  resize_vec4_wid(rval, elem_wid);
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					 ivl_expr_signed(rval));
+		  draw_stmt_assign_vector_rhs(net, elem_wid);
 	    }
 
 	    fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", key_kind, elem_wid);
@@ -4277,20 +4304,14 @@ static int show_stmt_assign_nested_index_vec4(ivl_statement_t net)
 			fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 		  }
 
-		  draw_eval_vec4(rval);
-		  resize_vec4_wid(rval, lval_wid);
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					 ivl_expr_signed(rval));
+		  draw_stmt_assign_vector_rhs(net, lval_wid);
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
 		  fprintf(vvp_out, "    %%setbits/vec4/x %d, %u;\n",
 			  off_word, lval_wid);
 		  clr_flag(off_flag);
 		  clr_word(off_word);
 	    } else {
-		  draw_eval_vec4(rval);
-		  resize_vec4_wid(rval, elem_wid);
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					 ivl_expr_signed(rval));
+		  draw_stmt_assign_vector_rhs(net, elem_wid);
 	    }
 
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
@@ -4917,13 +4938,9 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      fprintf(vvp_out, "    %%parti/u %u, %u, 32;\n",
 				      lwid, bitoff);
 			}
-			draw_eval_vec4(rval);
-			/* %store/prop/v/bits pops lwid bits. Force the run-time
-			   value to that width even when the static expression width
-			   happens to match (a specialized VIF can still differ). */
-			resize_property_vec4_wid(rval, lwid);
-			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-						       ivl_expr_signed(rval));
+			/* The helper forces runtime sizing even when the static
+			   expression width matches (specialized VIF properties). */
+			draw_stmt_assign_vector_rhs(net, lwid);
 			fprintf(vvp_out,
 				"    %%store/prop/v/bits %d, %u, %u;"
 				" Store field [%u+:%u] of property %s\n",
@@ -4978,10 +4995,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      fprintf(vvp_out, "    %%flag_mov %d, 4;\n",
 				      off_flag);
 			}
-			draw_eval_vec4(rval);
-			resize_property_vec4_wid(rval, lwid);
-			draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-						       ivl_expr_signed(rval));
+			draw_stmt_assign_vector_rhs(net, lwid);
 			  /* R-value evaluation and a compound opcode may change flag
 			     4. Restore the offset-validity flag immediately before
 			     the run-time partial store consumes it. */
@@ -5071,14 +5085,11 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				ivl_type_signed(value_type) ? "s" : "u", lwid);
 		  }
 
-		  draw_eval_vec4(rval);
-		  resize_property_vec4_wid(rval, lwid);
+		  draw_stmt_assign_vector_rhs(net, lwid);
+
 		  if (ivl_type_base(value_type) == IVL_VT_BOOL &&
 		      ivl_expr_value(rval) != IVL_VT_BOOL)
 			fprintf(vvp_out, "    %%cast2;\n");
-
-		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
-					         ivl_expr_signed(rval));
 
 		  if (prop_word_idx)
 			fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u; Store in logic property %s\n",

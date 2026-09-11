@@ -233,7 +233,7 @@ netclass_t* make_builtin_process_type_()
 	    builtin_process_type = new netclass_t(perm_string::literal("process"), 0);
 	    builtin_process_type->set_property(perm_string::literal("status"),
 					       property_qualifier_t::make_none(),
-					       &netvector_t::atom2s32);
+					       builtin_process_state_type());
       }
       return builtin_process_type;
 }
@@ -1274,6 +1274,33 @@ ivl_type_t resolve_class_type_reference(Design*des, NetScope*scope,
 	    des, scope, type);
       return specialize_bare_class_at_concrete_use(
 	    des, scope, type, resolved, false);
+}
+
+/* IEEE 1800-2017/2023 9.7: one nominal state enum across all scopes.
+ * Register its metadata once so enum methods use the normal target path. */
+netenum_t* builtin_process_state_type(Design*des)
+{
+      static enum_type_t declaration(nullptr);
+      static netenum_t*type = nullptr;
+      if (!type) {
+            type = new netenum_t(&netvector_t::atom2s32, 5, true);
+            type->set_nominal_identity(&declaration, "process");
+            static const char*names[] = {
+                  "FINISHED", "RUNNING", "WAITING", "SUSPENDED", "KILLED"
+            };
+            for (unsigned idx = 0; idx < 5; ++idx) {
+                  verinum value(uint64_t(idx), 32U);
+                  value.has_sign(true);
+                  type->insert_name(idx, perm_string::literal(names[idx]), value);
+            }
+            type->insert_name_close();
+      }
+      if (des && !des->find_root_scopes().empty()) {
+            NetScope*owner = des->find_root_scope();
+            if (!owner->enumeration_for_key(&declaration))
+                  owner->add_enumeration_set(&declaration, type);
+      }
+      return type;
 }
 
 netclass_t* builtin_class_type(perm_string name)
@@ -3155,6 +3182,9 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 
 ivl_type_t type_parameter_t::elaborate_type_raw(Design *des, NetScope*scope) const
 {
+      if (name == perm_string::literal("process state"))
+            return builtin_process_state_type(des);
+
       ivl_type_t type;
 
       scope->get_parameter(des, name, type);

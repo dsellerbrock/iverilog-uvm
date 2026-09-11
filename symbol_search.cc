@@ -247,7 +247,21 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			     << "Prefix scope " << scope_path(scope) << endl;
 		  }
 
-		  if (scope->is_auto()) {
+		  // 6.21 permits static locals inside automatic tasks/functions.
+		  // Intermediate named scopes have no variable lifetime of their own.
+		  ivl_lifetime_t lifetime = IVL_VLT_INHERITED;
+		  bool child_scope = false;
+		  if (NetNet*net = scope->find_signal(path_tail.name))
+			lifetime = net->lifetime_override();
+		  else if (PWire*wire = scope->find_signal_placeholder(path_tail.name))
+			lifetime = wire->lifetime_override();
+		  else if (NetEvent*event = scope->find_event(path_tail.name))
+			lifetime = event->lifetime_override();
+		  else
+			child_scope = scope->child_byname(path_tail.name);
+		  bool automatic_item = lifetime == IVL_VLT_AUTOMATIC
+			|| (lifetime == IVL_VLT_INHERITED && scope->is_auto());
+		  if (automatic_item && !child_scope) {
 			cerr << li->get_fileline() << ": error: Hierarchical "
 			      "reference to automatically allocated item "
 			      "`" << path_tail.name << "' in path `" << path << "'" << endl;
@@ -644,6 +658,42 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		  } else if (NetScope*chld = scope->child(path_item)) {
 			path.push_back(path_tail);
 			res->scope = chld;
+			res->path_head = path;
+			return true;
+		  }
+	    }
+
+	    // 8.13: inherited methods are members of this class and take
+	    // precedence over functions in its enclosing package or unit.
+	    if (scope->type() == NetScope::CLASS && path_tail.index.empty()) {
+		  const netclass_t*cls = scope->class_def();
+		  NetScope*method = cls ? cls->method_from_name(path_tail.name) : 0;
+		  const PTaskFunc*definition = method ? method->func_pform() : 0;
+		  if (method && !definition)
+			definition = method->task_pform();
+		  // 8.18: local methods are not visible in subclasses.
+		  if (definition && definition->method_qualifiers().test_local())
+			method = 0;
+		  if (method && (method->type() == NetScope::FUNC
+			     || method->type() == NetScope::TASK)) {
+			// An implicit receiver is unavailable in a static method (8.10).
+			if (definition && !definition->method_qualifiers().test_static()
+			    && !prefix_scope) {
+			      for (NetScope*caller = start_scope; caller && caller != scope;
+				   caller = caller->parent()) {
+				    const PTaskFunc*proc = caller->func_pform();
+				    if (!proc) proc = caller->task_pform();
+				    if (proc && proc->method_qualifiers().test_static()) {
+					  cerr << li->get_fileline()
+					       << ": error: Static method cannot call inherited non-static method `"
+					       << path_tail.name << "' without an object." << endl;
+					  des->errors += 1;
+					  break;
+				    }
+			      }
+			}
+			path.push_back(path_tail);
+			res->scope = method;
 			res->path_head = path;
 			return true;
 		  }

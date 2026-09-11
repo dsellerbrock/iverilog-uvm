@@ -1,35 +1,23 @@
-id: "L10"
-title: "Copy output values into fixed-array class-property elements"
+id: "L30"
+title: "Direct complete-class scoped type declarations at module scope"
 status: "closed"
-phase: "documented"
-base_revision: "b32df9a29"
-last_validated_revision: "b32df9a29"
-selection_reason: "DD019 silently skips legal output actuals at a shared emitter path; concrete correctness gap discovered during L09, now independently selected after validated baseline."
-reproducer: "../evidence/campaign-20260908/l09/fixed_property_output.sv"
-expected_behavior: "A legal scalar output/inout actual naming a fixed-array class-property element receives the formal value on return; preserve caller receiver/index, bounds, types and exactly-once evaluation."
-observed_behavior: "Compiler warns Skipping indexed property copy-out; destination remains unchanged."
-standards: "IEEE1800-2017/2023 13.5 output/inout actuals are procedural assignment lvalues; returned values update corresponding actual variables. Class properties and fixed-array indexing retain applicable bounds and value semantics."
-allowed_scope: ["Minimize reducers, standards and causal trace.", "tgt-vvp/draw_ufunc.c indexed fixed-property copy-out using existing typed property store operations and slot checks, only after root cause and red proof.", "Permanent ivtest regression families and required validation.", "Existing ACTIVE_WORK,CAMPAIGN,BLOCKERS,DISCOVERED_DEBT,matrix and session log."]
-non_goals: ["No UVM/application edits; no dynamic/associative array feature expansion or ref redesign.", "No runtime architecture change; record unrelated discoveries."]
-required_gates: ["Baseline red/candidate green in both editions; scalar types, bounds/index/receiver controls.", "Focused regression, independent review, integrated legacy/JSON/VPI/negative/runtime,real-DPIUVM,NFA,makecheck,isolated frontend."]
-completion: "Close only validated fixed-property element output scope; retain all broader obligations."
+phase: "completed"
+base_revision: "cfb4c4e68"
+last_validated_revision: "34787868e"
+reproducer: "../evidence/campaign-20260908/l30/module-scoped-type.sv and red.json; direct class holder defines typedef int state,module declares holder::state s;both editions compile2 invalid module instantiation."
+expected_behavior: "A direct declaration using a public nested type of an already complete class must retain that type and permit normal variable initialization/access at module scope. Illegal non-type/private/incomplete/typeparameter prefixes must remain rejected."
+standards: ["IEEE1800-2017 6.18/8.23 and2023 6.18/8.23; direct complete-class member type reference allowed. Restricted unresolved-prefix contexts differ between editions,but neither permits the direct incomplete-prefix data declaration targeted by negative controls."]
+root_cause: "module_item has explicit TYPE_IDENTIFIER instantiation/declaration routes; direct class scope resolution cannot reach generic data_type route and falls into invalid module instantiation. Existing class_scoped_type_identifier/make_class_scoped_typeref provides reusable type resolution."
+allowed_scope: ["Existing module declaration frontier and class-scoped type helper as causally needed; direct complete-class nested type,packed/unpacked variable shape and initialization controls; exact negative restrictions and neighbors; scoped evidence/docs."]
+non_goals: ["No general parser redesign, unresolved prefix relaxation, arbitrary nested/parameterized class grammar expansion, UVM recording adapter, source modifications to upstream libraries, or fullclass completion claim."]
+dependencies: ["Fully validated9229c24e7; L29 and U13 closed."]
+required_gates: ["Both-edition reducer and permanent runtime type/value/shape/enum controls; negative visibility/missing type/incompleteprefix controls; independent design/code review; Bison conflict comparison; native build/focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone and frozenhashrestore."]
+evidence: "../evidence/campaign-20260908/l30/"
+discovery_policy: "Unrelated discoveries record-only; regressions from this patch remain in scope."
+next_action: "Publish validated L28/L29/L30 batch to existing PR275,then return to selection."
+next_command: "gh pr view 275 --json state,headRefOid"
 stop_after_completion: false
-next_action: "Await integrated30122 and UVM16983; full JSON after integrated terminal, then frontend alone after every other gate terminal. No source/install changes."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l10/integrated.log ../evidence/campaign-20260908/l10/uvm.log"
 
-root_cause: "Value-returning function emitter only enters fixed property slot path for runtime-container-valued elements. Scalar typed element copies fall to warning/return; void calls use ordinary typed assignment and pass. Both modes baseline compile0/run1 for nonvoid; void control pass."
+focused_validation: "Original red nowcompile0/nodiagnostics both editions; permanentfocus12legacy/12JSON;neighbors43legacy/32JSON;nativebuild44815exit0/makecheck;independentdesign/code/ownershipreviewclear. Error-path ranges/attributes fully released,nofallbacktype. Bison563SR1122RR unchanged. Fullgates pending."
 
-prerequisite: "L11 closed at b32df9a29 after all required gates; resume exact preserved L10 patch."
-
-l10_candidate: "Resumed after validated L11; fixed-property scalar typed stores reuse slot checks and L09 context phases. Destination numeric conversion includes width/sign,two-state,real/int. String/non-string outputs rejected (6.16,6.22.3). Three positive families red on L11 baseline/pass both editions; paired CE mismatch cases,JSON50/0,legacy8/0. Full gates and final review pending."
-candidate_revision: "051aeee8e"
-l10_live_gates: {}
-
-l10_integrated_terminal: "30122 exit0;4873total4868pass0fail2NI3EF,VPI105,negative149,runtime15/15,copyout6/6. JSON39499 running after terminal; UVM16983 live; releaseprobe49747 live; frontendunstarted."
-
-l10_json_terminal: "39499 exit0;1765tests0failures. UVM16983 remains live; frontendunstarted."
-l10_release_results: "third_party/uvm-releases/results-jhzl92on/results.json complete/baseline_valid;6SMOKE_PASS9knownCOMPILE_FAIL,terminal49747 exit1 due compile gaps."
-
-l10_uvm_terminal: "16983 exit0,real-DPI355passed0failed0skipped. Frontend52318 running alone; require restoration/hash verification before closing."
-
-l10_closure: "legacy4873total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1765/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON50/0,focusedlegacy8/0,independent review,frontendS1-S10; restored root and unchanged frozen fingerprints"
+validation_result: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."

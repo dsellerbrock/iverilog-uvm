@@ -1,0 +1,6 @@
+ivltests/sv_member_delay_expression_fail.v:4: syntax error
+ivltests/sv_member_delay_expression_fail.v:4: error: Malformed statement
+ivltests/sv_member_delay_expression_fail.v:5: syntax error
+ivltests/sv_member_delay_expression_fail.v:5: error: Malformed statement
+ivltests/sv_member_delay_expression_fail.v:6: syntax error
+ivltests/sv_member_delay_expression_fail.v:6: error: Malformed statement

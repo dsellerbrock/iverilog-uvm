@@ -1,0 +1,5 @@
+./ivltests/sv_hier_unnamed_static_fail.v:8: error: Hierarchical reference to automatically allocated item `hidden' in path `t'
+./ivltests/sv_hier_unnamed_static_fail.v:8: error: Hierarchical reference to automatically allocated item `hidden' in path `t'
+./ivltests/sv_hier_unnamed_static_fail.v:8: error: Hierarchical reference to automatically allocated item `hidden' in path `t'
+./ivltests/sv_hier_unnamed_static_fail.v:8: error: Unable to bind wire/reg/memory `t.hidden' in `sv_hier_unnamed_static_fail'
+4 error(s) during elaboration.

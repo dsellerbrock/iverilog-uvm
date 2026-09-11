@@ -223,11 +223,37 @@ python3 scripts/uvm_release_matrix.py --prefix "$PWD/install" --release 2020.3.1
 ```
 
 Availability in `--uvm-list` does not imply compatibility: the recorded matrix
-has six smoke passes and nine compile gaps. See the
+has thirteen runtime smoke passes and two compile gaps. See the
 [release matrix](docs/conformance/uvm_release_matrix.md) for exact versions,
 checks and limitations. For an existing external source tree, use
 `iverilog -g2017 --uvm-home=/path/to/uvm -o sim.vvp my_testbench.sv`;
 `--uvm-home` and `--uvm=<release>` are mutually exclusive.
+
+For legacy UVM 1.2, use `--uvm=1.2` after registration. Its original
+DPI sources arrive with the pinned archive; the installed Icarus DPI backend
+now supplies the legacy cached-regex functions automatically. There is no
+separate legacy DPI download or build step for this usage. UVM 1.1d and 1.2
+pass the recorded smoke checks; full application qualification remains open.
+
+UVM 1.0p1 and 1.1a also ship their original DPI in `src/dpi`; the installed
+backend supplies their older command-line and regex APIs. Both now pass the
+recorded runtime smoke checks, bringing the total to 13 of 15 releases. Existing
+compile-time constraint/cast limitations and full UVM qualification remain open.
+To acquire just one older release,
+use the following command, then select it with `--uvm=1.1a`:
+
+```bash
+python3 scripts/uvm_release_matrix.py --fetch-only --release 1.1a --register --prefix "$PWD/install"
+```
+
+The OpenTitan matrix accepts the same source selection. For the pinned
+OpenTitan corpus, select its declared UVM 1.2 library by adding
+`--uvm-home="$PWD/third_party/uvm-releases/sources/1.2/uvm-1.2"` to
+`scripts/opentitan_matrix.py`. The report fingerprints that selected source
+tree. The original UVM 1.2 debug-crossbar smoke replay now passes: 152 host
+requests, 288 scoreboard items, zero UVM warnings/errors/fatals and no
+compile-time value-substitution warnings. This is one default-seed `-g2012` workload;
+full OpenTitan and UVM qualification remain open.
 
 Advanced overrides (a different UVM library, disabling DPI, raw module
 loading) are all still available — see **[docs/uvm_frontend.md](docs/uvm_frontend.md)**

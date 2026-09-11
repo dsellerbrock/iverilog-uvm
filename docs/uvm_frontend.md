@@ -259,3 +259,12 @@ sources or substitutes another release when the requested one is missing.
 `--uvm=<release>`. The installed Icarus DPI backend is used for every selection.
 See [the release matrix](conformance/uvm_release_matrix.md) for acquisition details
 and measured compatibility; availability alone does not establish a passing release.
+
+
+Legacy UVM libraries using `#setting.offset` rely on miscellaneous syntax
+extensions (`-gicarus-misc`, enabled by default). `-gno-icarus-misc` rejects
+this unparenthesized dotted-name delay; the IEEE form is `#(setting.offset)`.
+This compatibility syntax reuses ordinary delay evaluation and is not an
+IEEE language-coverage gain. Arithmetic, indexed and call expressions still
+require parentheses. Other library compatibility gaps remain in the release
+matrix; accepting this syntax alone does not qualify a release.

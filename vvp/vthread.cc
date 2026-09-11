@@ -19433,6 +19433,20 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                     root_obj.test_nil() ? 1 : 0);
       }
 
+      auto send_root = [&](const vvp_object_t&root) {
+            vvp_cobject*class_root = root.peek<vvp_cobject>();
+            if (class_root && !class_root->get_defn()->is_struct_type()) {
+                  /* RHS evaluation or alias callbacks may have rebound the
+                     source variable. Notify retained objects, but never
+                     restore their captured handle into that variable. */
+                  vvp_fun_signal_object*fun = signal_object_fun_(root_net);
+                  if (!fun || fun->peek_object() != root)
+                        return;
+            }
+            vvp_send_object(vvp_net_ptr_t(root_net, 0), root,
+                            ensure_write_context_(thr, where));
+      };
+
       /* Class/interface property setters already performed the precise
          value-change notification. Re-touching the receiver here would turn
          a filtered @(obj.property) subscription back into an any-property
@@ -19449,8 +19463,7 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
             if (root_net) {
                   const vvp_object_t&deliver = root_obj.test_nil()
                                                 ? recv : root_obj;
-                  vvp_send_object(vvp_net_ptr_t(root_net, 0), deliver,
-                                  ensure_write_context_(thr, where));
+                  send_root(deliver);
             }
             return;
       }
@@ -19471,8 +19484,7 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
             root_obj.touch();
             root_obj.notify_signal_aliases();
       }
-      vvp_send_object(vvp_net_ptr_t(root_net, 0), root_obj,
-                      ensure_write_context_(thr, where));
+      send_root(root_obj);
 }
 
 static vvp_fun_signal_string* signal_string_fun_(vvp_net_t*net)

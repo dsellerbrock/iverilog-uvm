@@ -319,3 +319,298 @@ diagnostic debt is record-only. L10 now rejects the fixed-property output
 mismatch so its new typed stores cannot execute a mismatched load opcode.
 
 DD019 resolved by L10 at051aeee8e after validatedL11 prerequisite and all required local gates.
+
+
+### DD021 — UVM1.2 frontiers after member-delay parsing
+
+U07 candidate original1.2 probe `third_party/uvm-releases/results-sv_woyjp`
+gets past #setting.offset but fails elaboration: uvm_printer.svh1172 reports
+an unsupported index on struct member val, and uvm_traversal.svh284-285 reports
+hierarchical references to automatically allocated compiled_regex in visit.
+The upstream declaration is explicitly `static chandle compiled_regex`;
+reduce lifetime handling and hierarchical lookup rather than assuming the diagnostic is correct.
+A uvm_sequence_base.svh1255 pick_sequence constraint item is also reported
+unrepresentable and ignored. These remain separate semantic/diagnostic
+frontiers; no UVM pass or waiver. Source trees unchanged; record-only during
+U07, reduce/classify at a later coordinator boundary.
+
+### DD022 — Original UVM 2017.0.9 smoke runtime timeout
+
+U07 full release sweep `third_party/uvm-releases/results-4r1diuop`
+compiles unchanged 2017.0.9 successfully, then its runtime times out after
+300.059 seconds with an empty log. The earlier baseline rejected member-delay
+syntax before runtime. Source hash and exact commands are preserved in results.json.
+No causal runtime diagnosis yet; timeout is not proof of a scheduler defect.
+2017.1.0 and 2017.1.1 now pass all smoke checks. Record-only during U07;
+reduce and classify at a later coordination boundary. Full release remains open.
+
+### DD023 — Unknown ordinary string index behavior
+
+During L12 control testing, an ordinary string `s="@abc"` read at integer
+X or Z index returns character64 for both `s[i]` and `s.getc(i)`. Negative
+and length indices return0. The runtime string select reads an integer word
+without its unknown flag. Evidence `evidence/campaign-20260908/l12/bounds_control.sv`.
+Needs standards classification; not claimed qualified and record-only for L12.
+
+### DD024 — String character selection loses signed byte type
+
+L12 high-bit control shows ordinary and proposed member indexing widen0xff to255, while getc/byte cast yield-1. Both-edition6.16 and6.11.3 require signed byte. Selected as prerequisite L13; L12 partial work preserved and source restored before new baseline. Prior9baa5a9c3 gates passed, but reopened after narrow two-state parameter index2 returned0 instead of the third byte. Corrected by849a779ea with source-signed resize and separate signed int cast; all required gates pass. L12 may resume.
+
+### DD025 — Class string-property character index uses property slot
+
+L13 control `c.s[1]` with `c.s="abc"` aborts in class_type.cc get_string
+array_size assertion on both saved L10 compiler and L13 candidate. Index0
+returns whole string instead of character. Exact reducer `evidence/l13/class_control.sv`
+and L12 byte_type probe retained. Distinct property dispatch defect, not
+introduced by signed-byte typing; record-only, no class-property character
+qualification claimed by L13.
+
+### DD026 — Constant function string argument character result unknown
+
+L13 `constant_probe.sv` contains automatic int function get_value(input string s)
+returning s[0], evaluated for a localparam. Both saved L10 and L13 candidates
+produce X for that constant-function result; direct typed parameter selection
+is a distinct L13 width issue now in scope. Evidence/l13/constant_probe_results.json.
+Record-only for constant-function argument/evaluation classification; no
+constant-function string qualification claim.
+
+DD023 follow-up during resumed L12: with "abcde" and a four-state integer
+index ending in1x, ordinary s[idx] and initial L12 member path returned'a',
+while getc(idx) returned'c'. Both editions6.16/getc(int) and6.11.2 require
+per-bit two-state conversion. L12 now uses the existing int2/32 cast for its
+new member path; ordinary string index lowering remains a separate proven
+gap. Evidence/l12/index_conversion.sv. No ordinary-selector fix included.
+
+### DD027 — Original UVM1.1d compiles but does not pass smoke
+
+L12 candidatea85a256b1 removes the member-string elaboration frontier. Original1.1d now compiles with ignored-constraint and object-expression null-fallback warnings, then runtime exits0 but fails the smoke qualification checks. Evidence third_party/uvm-releases/results-qb7873zh/1.1d/{compile,runtime}.log. Runtime reports missing DPI symbol uvm_dpi_regcomp, four command-line regex UVM_ERRORs and one BUILDERR UVM_FATAL, then exits0 before smoke completion. Exit0 is not a smoke pass. Record-only during L12 required validation.
+
+DD021 follow-up: L12 candidate removes original1.2 printer string-index errors. Four remaining compilation errors at uvm_traversal.svh284-285 concern compiled_regex in visit, plus the existing ignored pick_sequence constraint warning. Original1.1a now reaches fork/join_any-in-function and void-cast-of-void diagnostics; standards legality must be verified before selecting changes. No library edits or qualification claims.
+
+### DD028 — Original UVM1.2 smoke runtime produces no output before timeout
+
+L14 candidate69ff60cc6 removes all four visit.compiled_regex reference errors. Original1.2 compiles0 in0.635s, then runtime times out after300.061s with empty runtime.log (return-9). Evidence third_party/uvm-releases/results-f9qr050b/1.2 and results.json. Ignored pick_sequence constraint and newly reached object-codegen null-fallback warnings remain visible. No relationship to the already known2017.0.9 timeout is proven. Select and reduce after L14 required gates; do not infer startup, scheduler, DPI or initialization cause from an empty log alone.
+
+### DD029 — General class method visibility fallback gaps
+
+U08 review observed local base methods still accessible when no enclosing homonym exists, and through explicit class qualification. Existing method_from_name and later call fallbacks do not enforce complete method access control. U08 is bounded to inherited lexical precedence over enclosing homonyms; it retains qualifier metadata and prevents a package-selected statement call being re-resolved to a local base method. General no-homonym/explicit-qualified access checks remain separate qualification debt, not a completed8.18 feature.
+
+### DD030 — Original UVM1.2 reaches missing legacy regex DPI
+
+U08 development replay results-pqt3anxi removes the root-construction recursion and starts release_test, then reports missing uvm_dpi_regcomp, five command-line regex UVM_ERRORs and one BUILDERR UVM_FATAL. Result RUNTIME_FAIL, not smoke/application pass. Original source tree unchanged. Pinned1.2 src/dpi/uvm_svcmd_dpi.c already defines uvm_dpi_regcomp/regexec/regfree using POSIX REG_NOSUB|REG_EXTENDED; current fork umbrella includes the modern source, which lacks those exported entry points. User requested investigation. Preserve legacy strict regex semantics, allocation/free behavior and error reporting when selecting DPI work after U08 validation; do not simply alias to the modern glob-retry wrapper.
+
+
+DD027/DD030 resolution (U09,19e7f5592): cached-regex exports and callback-aware
+error reporting now pass focused original1.1d/1.2 checks in both editions.
+Full required local gates pass. Both original releases pass smoke in
+results-n2m35ki0 with unchanged source fingerprints. Other compile-time
+constraint/codegen warnings and full application qualification remain open.
+
+### DD031 — OpenTitan original1.2 macro expansion frontier
+
+U10 replay uses explicit original1.2 root and records src hash
+885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0.
+Pinned7a3ad34 debug crossbar compile exits74; first diagnostics are missing
+argument list for uvm_print_aa_string_int at dv_base_env_cfg.sv112/114,
+followed by parser cascades. No simulation or traffic ran.
+Evidence evidence/campaign-20260908/u10/result.json and matrix-compile.log.
+Record-only during U10 harness qualification; macro source/expansion and both
+LRM editions require investigation before selecting any compiler change.
+
+DD031 resolution (L15,aa356ab4d): complete pasted function-like names now expand
+correctly under both editions and all required local gates pass. Fresh original1.2
+OpenTitan replay removes the macro errors and cascades with unchanged UVM source
+hash; compilation now exits3 at the distinct const-handle assignment frontier.
+
+### DD032 — Mutable member assignment through a const class handle rejected
+
+After validated L15, original1.2 OpenTitan debug crossbar compile fails three
+times at dv_base_test.sv92: uvm_top.enable_print_topology = print_topology.
+The diagnostic says assignment to const signal uvm_top is not allowed, although
+the target is a mutable member of its referenced object. Evidence
+evidence/campaign-20260908/l15/opentitan/result.json and matrix-compile.log;
+source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0.
+No simulation ran. Record-only during L15 closure; verify both editions and
+reduce before selecting a const-handle elaboration fix.
+
+### DD033 — Explicit package-qualified member compound assignment parser gap
+
+L16 development positive fixture used const_handle_pkg::shared.value += 2 and
+both editions rejected its statement syntax before elaboration. Imported
+shared.value += 2 works and is the selected const-handle test. Preserved
+evidence/l16/development.json; explicit qualified compound assignment is
+record-only and not part of L16's bounded direct handle const check.
+
+### DD034 — Existing class-member lookup/const-chain limitations
+
+L16 independent source review confirmed the existing class-member walker can
+warn and discard an unknown property write, and rejects traversal through an
+intermediate const class-handle property even when the leaf is mutable.
+L16 enables only direct scalar const-handle variables with existing writable
+members; it does not qualify unknown-member diagnostics or const property
+chains. These source-inspection findings need dedicated reducers before
+implementation; no correctness claim for those paths.
+
+DD032 resolution (L16,5ba60567f): mutable member writes through scalar const
+class-handle variables pass both editions and full required gates. Original1.2
+OpenTitan const-handle errors are removed. Replay runs normally with
+152requests/288scoreboard items and zero UVM warnings/errors/fatals, but overall
+DEBT remains because five compile-time null-substitution diagnostics persist.
+
+### DD035 — Integral compound updates of UVM register item array members emit null
+
+Validated L16 original1.2 OpenTitan replay reports five draw_eval_object
+null-fallback warnings: uvm_reg.svh2501 (rw.value[0] &= ~wo_mask),2173
+(rw.value[0] &= ((1 << m_n_bits)-1)), uvm_reg_field.svh1483,
+uvm_reg_map.svh2109 (rw.value[val_idx] |= shifted data), and
+uvm_reg_predictor.svh192 (reg_item.value[0] |= shifted data).
+These integral selected-element operations should not take object-RHS
+evaluation. Evidence evidence/campaign-20260908/l16/opentitan/{result.json,
+matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-compile.log}.
+Runtime0/pass banner/zero UVM severities does not waive compile-time semantic
+debt. Reduce and trace a concrete selected-element compound assignment before
+selecting an implementation change; full UVM/application qualification open.
+
+DD035 resolution: L17 d8e974913 implements integral whole-element dynamic-array
+property compound updates after validated operand/receiver prerequisites. All
+required gates pass; fresh original1.2 debug-crossbar smoke reports PASS with
+all five substitution warnings absent. Full container/UVM qualification remains open.
+
+### DD036 — Compound operands prematurely converted to destination width/state
+
+During L17 focused review, byte property >>=32'd256 reaches VVP as an8bit
+zero shift count; /=32'd256 also reaches division with zero divisor, whose
+unknown result was masked by the two-state destination. netmisc.cc
+elab_and_eval destination casting loses width/state before target lowering.
+Four-state RHS into two-state compound target must retain X until the final
+result conversion. Preserve l17/focus.vvp,focus.log,partial.patch. Separate
+prerequisite selection required after L18; not repaired by target width logic.
+
+L18 review note: associative compound expansion in elaborate.cc independently
+reads the old get_signed flag. Existing source-inspection limitation, no
+new reducer or qualification claim; outside scalar-property L18 scope.
+
+DD036 L20 review boundary: existing associative front-end expansion builds
+its binary expression at destination width before the compressed target
+helper. Migrating the target's associative callers does not qualify that
+separate expansion; preserve as residual width debt requiring its own reducer.
+L20 claims the ordinary compressed vector paths and permanent tested shapes.
+
+### DD037 — Captured class mutation notification undoes handle rebinding
+
+L17 resumed receiver test and standalone scalar-property reducer show
+notify_mutated_object_root_ sending captured root_obj back to root_net after
+RHS rebinds it. Original object updates correctly but h reverts to old handle.
+Evidence l17/receiver-debug and l21/red; vvp/vthread.cc19414. Selected as
+L21 prerequisite at deliberate suspension boundary; no value-aggregate or
+static-overlay correctness claim beyond tested contexts.
+
+### DD038 — Legacy 1.1b/c vendor-only recording macro
+
+At L17/L22 selection, unchanged1.1b/c macros/uvm_object_defines.svh defines
+uvm_record_attribute only for QUESTA/VCS/INCA, but generic payload calls it
+unconditionally. Current compiler warns undefined macro then parser recovery
+asserts. Do not define a commercial-vendor macro or empty recording operation
+to claim support. Recording compatibility and parser robustness require separate
+assessment; original sources unchanged. Evidence results-3d_bbaiu compile logs.
+
+### DD039 — Bare class-scoped module variable declarations
+
+During L22 negative-test construction, bare process::state s at module scope
+parses as invalid instantiation. Independent ordinary class reducer
+`class holder; typedef int state; endclass` followed by module holder::state s
+fails the same way, outside the new builtin-specific lookup branch. Local
+procedural declarations and typedef aliases work. Record-only general parser
+gap; no grammar expansion under L22. Evidence l22/direct-module-state.sv and
+ordinary-class-scoped-module.{sv,json}; bare module scope remains unqualified.
+
+DD039 direct complete-class module declaration scope resolved by L30 at34787868e
+after all required local gates. Enum identity, packed/unpacked shapes, initializers,
+inherited typedefs, concrete aliases and process::state controls pass both editions.
+Missing/non-type/incomplete/typeparameter prefixes remain rejected. Arbitrary
+nested or parameterized class grammar and complete class qualification remain open.
+
+### DD040 — Nested fork in a function-spawned background process
+
+L22 release sweep now reaches UVM1.0p1 uvm_objection.svh m_forked_drop:
+a function contains outer fork/join_none with nested fork/join_any in its
+child begin/end. Existing diagnostic rejects inner join_any as function code.
+IEEE1800-2023 13.4.4 allows task-legal statements inside function fork/join_none;
+2017 wording and actual elaboration context need reducer/trace before selection.
+UVM1.1a reports the same frontier. Record-only under L22; no dependent patch
+on the unvalidated baseline. Evidence results-p7axbpcu/1.0p1/compile.log.
+
+DD040 resolution: L23 58edf8034 permits blocking joins inside function-spawned
+background children, retains direct-function rejection, and passes all required
+gates. Original1.0p1/1.1a nested-fork errors removed; no full release pass.
+
+### DD041 — Void function call in dedicated void-cast statement form
+
+L23 original1.0p1/1.1a replay reaches three void'(void_function()) errors
+(find_all/get_args). Independent standards review: both editions13.5 Syntax13-3
+and AnnexA.6.9 allow void'(function_subroutine_call); A.8.2 does not restrict
+return type. 13.4.1 forbids void functions as expressions but does not explicitly
+forbid this dedicated statement form; ordinary6.24.1 cast grammar excludes void.
+Candidate overly restrictive diagnostic, not established upstream-invalid source.
+Permitted-statement reading is an inference needing a scoped ticket/reducer;
+no relaxation or implementation during L23. Preserve calls/arguments/restrictions,
+never fabricate a value or generalize to task/arbitrary-expression casts.
+Evidence results-2hbuhcyt1.0p1/1.1a compile logs and original source.
+
+### DD042 — Pre-1.1d command-line and regex DPI entry points
+
+L24 makes original1.0p1/1.1a compile and start. Both then fail unresolved
+DPI symbols dpi_get_next_arg_c/dpi_regcomp, producing four UVM command-line
+regex errors (1.1a terminates BUILDERR at time0). 1.0p1 reaches smoke banner but
+has errors and unresolved-functor/$cast diagnostics, so remains RUNTIME_FAIL.
+Old native ABI must be inspected before reusing newer U09 cached-regex helpers;
+no fabricated empty argv/regex match or DPI-disabled bypass. Record-only under
+L24. Evidence results-6_pvcxya/{1.0p1,1.1a}/runtime.log.
+
+### DD043 — Release smoke harness misses simulator runtime errors
+
+During U11, original1.0p1 has no missing DPI and reaches its marker with zero
+UVM summary counts, but still prints three unresolved-functor placeholder-net
+and two failed-$cast runtime error lines already present under L24. The unchanged
+smoke_passed helper checks exit/marker/UVM summaries only and incorrectly emits
+SMOKE_PASS in results-zyhh1jv9. That raw row is explicitly disqualified; no clean
+pass or full implementation claim. Original1.1a is a clean new smoke pass.
+Record-only during U11; select a bounded harness-classification ticket at next
+coordination boundary, retaining offending logs as negative regression evidence.
+No compiler workaround or filtering of errors. 1.0p1 actual semantic gaps remain
+separate from fixing the false-positive classifier.
+
+DD043 resolved by U12 at1654dc4c9: fresh results-fm8uvyiv classifies1.0p1
+RUNTIME_FAIL;quoted UVM_INFO remains informational. Underlying1.0p1 runtime
+errors remain open. No original source or compiler changes.
+
+### DD044 — Generic-seed callback initialization remains after L26 reducer fix
+
+The larger `l26/forward-registry.sv` reducer has two failed casts before L26
+and one after the concrete default-identity fix. The remaining failing method
+belongs to a specialization keyed with unresolved forwarding from a generic
+master, yet a static initialization thread calls it. Original UVM1.0p1 still
+has two callback cast diagnostics in results-8054igtp and remains RUNTIME_FAIL.
+This is evidence for the next bounded investigation, not yet a complete causal
+explanation of both original errors. Keep unresolved generic type identities
+distinct; do not equate runtime class names or suppress the cast diagnostics.
+The standards say a generic class is not itself a type (both editions8.25).
+Record-only during L26; preserve the original trace and failing/passing controls
+before deciding the next implementation contract.
+
+DD044 bounded direct/multilevel type-formal forwarding scope resolved by L28
+at77cce610b after all required local gates. Both-edition counter/callback
+reducers pass; original1.0p1 callback diagnostics are gone and its runtime
+smoke passes. No runtime type-name equivalence or error suppression. Nested
+type-expression/value-parameter lineage and complete class/UVM qualification
+remain open; existing compile constraint/cast limitations are not resolved.
+
+### DD045 — Foreach parser scope carrier recovery remains unqualified
+
+L29 review found that foreach has its own untyped parser scope carriers. L29
+repairs procedural begin/fork ownership; it does not redesign foreach recovery.
+The nested malformed begin inside foreach rejects normally in both editions
+after L29, but discarding the foreach carrier itself is a separate unqualified
+robustness case. No independent failing reducer yet; record-only during L29.
+Source: parse.y foreach productions; standards scope context12.7.3; do not claim
+all parser recovery qualified.

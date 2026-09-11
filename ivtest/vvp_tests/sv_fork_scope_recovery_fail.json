@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_fork_scope_recovery_fail.v",
+    "iverilog-args": [
+        "-g2017",
+        "-I./ivltests"
+    ],
+    "gold": "sv_fork_scope_recovery_fail"
+}

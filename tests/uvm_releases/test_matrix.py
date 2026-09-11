@@ -81,6 +81,26 @@ class MatrixTests(unittest.TestCase):
         self.assertFalse(matrix.smoke_passed({"returncode": 1, "timed_out": False}, output))
         self.assertFalse(matrix.smoke_passed({"returncode": 0, "timed_out": True}, output))
 
+    def test_simulator_diagnostics_disqualify_clean_uvm_summary(self):
+        result = {"returncode": 0, "timed_out": False}
+        clean = "UVM_RELEASE_SMOKE_PASSED\nUVM_ERROR : 0\nUVM_FATAL : 0\nUVM_WARNING : 0\n"
+        for diagnostic in (
+                "unresolved functor stub: v0x123_0; created placeholder net",
+                "uvm_callback.svh:482: error: $cast failed: source not compatible",
+                "C:/uvm path/uvm_callback.svh:482: error: $cast failed",
+                "DPI error: symbol 'dpi_regcomp' not found",
+                "ERROR: smoke.sv:7: actual comparison failed",
+                "FATAL: smoke.sv:8: fatal check",
+                "WARNING: smoke.sv:9: unsupported behavior",
+                "smoke.sv:10: warning: unsupported behavior"):
+            with self.subTest(diagnostic=diagnostic):
+                self.assertFalse(matrix.smoke_passed(result, diagnostic + "\n" + clean))
+                self.assertFalse(matrix.smoke_passed(result, clean + diagnostic + "\n"))
+        self.assertTrue(matrix.smoke_passed(result, clean +
+                        "UVM_INFO @ 1: reporter [CHECK] error: value checked\n"
+                        "UVM_INFO @ 1: reporter [CHECK] expected foo.sv:7: error: example\n"
+                        "uvm_root.svh:408: $finish called at 1 (1s)\n"))
+
     def test_archive_integrity_and_source_preservation(self):
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory)

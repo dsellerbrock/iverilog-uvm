@@ -748,3 +748,286 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Scope:** Native output argument setup must skip caller reads, initialize automatic formals to defaults, retain static formals and preserve DPI open-array handling.
 
 - **L11 validation:** legacy4865total0unexpected,VPI105,negative149,runtime15/15,copyout6/6,JSON1757/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focused42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged.
+
+
+### U07 — Legacy UVM member delay compatibility
+
+- **State:** CLOSED at a83731194 after all required local gates.
+- **Evidence:** Original1.2 #setting.offset fails parsing; same first frontier in older releases.
+- **Classification:** Nonstandard unparenthesized member delay; both IEEE editions require parentheses. Use existing miscellaneous extension switch, preserving strict rejection and normal delay semantics; no library patches.
+
+- **U07 validation:** legacy4881total4876pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1773/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON8/0,legacy8/0,delayneighbors40/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged. Eight release smoke passes; six compile gaps and one runtime timeout remain. This closes only compatibility syntax under the existing miscellaneous-extension mode, not IEEE/UVM parent qualification.
+
+### L12 — String character reads through unpacked struct members
+
+- **State:** CLOSED at a85a256b1 after all required gates.
+- **Evidence:** DD021 original UVM1.2 printer row.val[0] receives explicit unsupported struct-member index diagnostic.
+- **Scope:** Correct bounded rvalue string indexing, preserving byte type, bounds and index evaluation. Static-local references and constraints remain separate blockers.
+
+### L13 — Signed byte semantics of string character reads
+
+- **State:** CLOSED at849a779ea after corrected index conversion and all required gates.
+- **Evidence:** Ordinary s[0] with octal377 yields255 when widened, while getc and byte cast yield-1. Both editions6.16/6.16.3/6.11.3 specify signed byte semantics.
+- **Scope:** Shared character-select typing and expression sizing, preserving unsigned packed bit/part selects.
+
+- **L13 validation:** legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,stringneighbors42/0,independent review,frontendS1-S10; installed root restored and frozen hashes unchanged. Fullrelease results-6pvdp6vh retain8smokepasses,6compilegaps,1timeout; normalized diagnostics and source hashes match U07. General class-property dispatch and constant-function string evaluation remain open.
+
+- **L13 corrected validation:** 849a779ea; legacy4887total4882pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1779/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors42/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-m_3ysaa5 retains8passes6compilefail1timeout with matching row sources and normalized diagnostics.
+
+- **L12 validation:** a85a256b1;legacy4893total4888pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1785/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors71/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Original release sweep results-qb7873zh:8SMOKE_PASS5COMPILE_FAIL1RUNTIME_FAIL1RUNTIME_TIMEOUT. Full UVM release and application qualification remain open.
+
+### L14 — Static local hierarchical references inside automatic scopes
+
+- **State:** CLOSED at69ff60cc6 after all required gates.
+- **Evidence:** Original1.2 visit.compiled_regex read/write rejected as automatic despite explicit static chandle declaration.
+- **Semantics:** Both IEEE editions6.21 explicitly permit static-variable hierarchical references inside automatic tasks/functions, except unnamed blocks. Preserve automatic-variable rejection.
+
+- **L14 validation:** 69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical. UVM1.2 runtime timeout remains DD028.
+
+### U08 — Inherited-method lookup causes UVM1.2 root recursion
+
+- **State:** CLOSED at c9626a449 after all required local gates.
+- **Evidence:** DD028, original1.2 compiles then times out300s with no runtime output.
+- **Resolved scope:** Inherited unqualified method precedence over enclosing homonyms; receiver/task/virtual binding, local visibility and static-caller diagnostics covered under both editions. General access control remains DD029; original1.2 still fails legacy regex DPI (DD030).
+
+- **U08 validation:** c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged. Release results-eb3ghca7:9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL; no source changes.2017.0.9 now passes;1.2 reaches regex DPI errors.
+
+### U09 — Legacy UVM regex DPI entry points
+
+- **State:** CLOSED at19e7f5592 after all required local gates.
+- **Evidence:** DD030/DD027, original1.2 and1.1d import uvm_dpi_regcomp/regexec/regfree; installed modern umbrella exports none of those names. Pinned legacy sources already contain the implementation.
+- **Scope:** Provide the legacy C ABI on the Icarus backend with strict regex semantics, error reporting and handle lifetime; permanent coverage and original-release replay. No library-source edits or full application claim.
+
+
+- **U09 validation:** Focused10/10 under2017/2023; legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review and frontendS1–S10. Installed root restored and frozen hashes unchanged. Original15release sweep results-n2m35ki0:11SMOKE_PASS4COMPILE_FAIL; all source hashes unchanged. Exact cached-regex gap closed, full release/application qualification remains open.
+
+### U10 — OpenTitan UVM1.2 selection and provenance
+
+- **State:** CLOSED at aaf8df44c for source selection/provenance; application qualification remains open.
+- **Gap:** Replay harness selects and fingerprints bundled UVM despite pinned OpenTitan commercial configurations selecting1.2.
+- **Scope:** Forward an explicit acquired source root, record its actual fingerprint and replay the pinned debug crossbar with original1.2. Keep all application checking and failure criteria.
+
+- **U10 validation:** aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier.
+
+### L15 — Pasted function-like macro names with numeric suffix
+
+- **State:** CLOSED at aa356ab4d after required local validation and original1.2 replay.
+- **Evidence:** DD031 original1.2 OpenTitan field macro pastes uvm_print_aa_string_int3 but reports a missing argument list for its shorter prefix.
+- **Scope:** Prove text-substitution semantics, correct the causal preprocessor boundary and preserve permanent paired-edition regression. No upstream source modifications.
+
+- **L15 validation:** aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged. OpenTitan macro errors/cascades removed; next failure is three const-handle member assignment diagnostics, DD032. No application pass.
+
+### L16 — Mutable property through a const class-handle variable
+
+- **State:** CLOSED at5ba60567f after required local validation and original1.2 replay.
+- **Evidence:** DD032, original1.2 OpenTitan rejects uvm_top.enable_print_topology assignment.
+- **Scope:** Both-edition6.20.6 direct const-handle variable member writes, retaining handle/const-property/value-aggregate protection. No complete const qualification claim.
+
+- **L16 validation:** 5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged. Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits.
+
+### L17 — Integral compound updates of dynamic-array properties
+
+- **State:** CLOSED at d8e974913 after all required local gates and original1.2 application replay.
+- **Evidence:** DD035, five original1.2 register-item array updates emit null fallbacks.
+- **Scope:** Typed integral element compound updates with single index evaluation, receiver/width preservation and invalid-index no-write behavior. No full compound/container qualification claim.
+
+### L18 — Resolved property signedness in compound assignment
+
+- **Status:** CLOSED at9791e6411; signedness prerequisite for suspended L17.
+- **Evidence:** Signed scalar class property -64 /= 2 produces2147483616, expected-32. NetAssign_ signed_ is default-false for property shapes.
+- **Scope:** Use resolved integral selected type in compressed-assignment elaboration. Paired signed/unsigned/part-select regressions and all required gates. No dynamic-array compound qualification before L17 resumes.
+
+L17 coordination boundary: suspended with full partial patch/tests at
+`evidence/campaign-20260908/l17/partial.patch`. Focus exposed prerequisite
+operand width/state loss and signedness loss before target lowering. L18
+handles signedness; DD036 preserves width/state debt. No L17 closure.
+
+L18 closure: focused paired-edition/neighbor tests, independent review and all
+required local gates pass; original15release statuses unchanged. Only direct
+integral property signedness is resolved. DD036 width/state preservation and
+L17 dynamic-array lowering remain open.
+
+### L19 — Preserve four-state compound operands
+
+- **Status:** CLOSED at72a97c038; state-conversion prerequisite for suspended L17.
+- **Evidence:** On validated9791e6411, bit[7:0] value=1;value+=logic X yields1 in both editions; expected0 after unknown arithmetic result is assigned to bit.
+- **Scope:** Delay destination two-state conversion until after the integral compound operator. Width preservation remains separate DD036 work. All required gates apply.
+
+L19 closure: paired four-state operand and two-state result checks, signedness/
+concatenation neighbors, independent review and all required local gates pass.
+DD036 operand width and L17 target lowering remain open.
+
+### L20 — Integral compound operation widths
+
+- **Status:** CLOSED atfe12166bd; compressed-vector width prerequisite for suspended L17.
+- **Evidence:** On validated72a97c038, logic8bit128 /=32'd256 producesX instead0 in both editions. L17 also demonstrates wide shift count truncation.
+- **Scope:** Natural/context RHS width through compressed elaboration and shared vector operation sizing before final result truncation. Preserve existing receiver/index lowering; no new runtime instructions. All required gates apply.
+
+L20 closure: paired constant/runtime widths, signedness/context, self-determined
+shift counts, property parts and array/queue cases pass with all required
+local gates. Associative front-end expansion remains residual DD036 debt; no
+complete associative or parent compound qualification. L17 can now resume.
+
+L17 resumes after validated L18/L19/L20 onfe12166bd. Original red/partial patch
+are preserved; adapt append-only manifests and reuse the validated width helper.
+All L17 gates/application replay remain required before exact-scope closure.
+
+### L21 — Captured class-root notification preserves rebound handles
+
+- **Status:** CLOSED at1146d2187; captured class-root runtime prerequisite for resuspended L17.
+- **Evidence:** Standalone scalar h.value+=rebind() mutates original but restores old h during notification. Captured root delivery overwrites RHS reassignment.
+- **Scope:** Guard captured class-root delivery with live binding identity while preserving alias/property events and contexts. All required gates apply. L17 resumed patch is preserved as partial-after-l20.patch.
+
+L21 closure: replacement/null rebind, retained-alias/property events, unchanged
+root and automatic-context controls pass with all required local gates. Guard
+is limited to captured non-struct class roots; value aggregates/VIF remain
+unchanged. L17 can resume on the validated runtime.
+
+L17 closure after validated L18/L19/L20/L21 prerequisites: d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,original red passes both editions,makecheck,independent source review;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1823/0,realDPIUVM355/0/0,NFA58/58,frontend97109exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-3d_bbaiu11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L21.
+
+Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value.
+
+### L22 — Built-in process::state nominal enum type
+
+- **State:** CLOSED at4a102ee47 after all required gates.
+- **Evidence:** Original UVM1.0p1 uvm_phases.svh2824 function return type fails visible-class lookup on d8e974913.
+- **Scope:** 2017/2023 9.7 declared state enum and typed status/constants, preserving 6.19 nominal enum semantics. No scheduling redesign or full UVM1.0p1 qualification.
+
+L22 validation: 4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed.
+
+Bare class-scoped module declarations remain DD039; no full process or UVM1.0p1 qualification. Next exposed nested-background fork error is DD040.
+
+### L23 — Nested joins in function-spawned background processes
+
+- **State:** CLOSED at58edf8034 after required validation.
+- **Evidence:** DD040 and both-edition reducer reject join_any within outer function fork/join_none.
+- **Scope:** 13.4.4 task-legal background children using existing isolated elaboration context; retain direct function blocking-join errors. No scheduling/lifetime redesign or full UVM qualification.
+
+L23 validation: 58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors.
+
+### L24 — Void function calls in void-cast statements
+
+- **State:** CLOSED at795d9f360 with test reconciliation8afc61443 after required validation.
+- **Evidence:** DD041, both-edition calls with argument/output effects rejected; original1.0p1/1.1a each fail three such calls.
+- **Scope:** Dedicated13.5/A.6.9 function-call statement grammar, preserving actual effects and task/void-expression/deferred-action restrictions. The grammar/prose reading is explicitly recorded as inference; no compatibility bypass or upstream source edits.
+
+L24 validation reconciliation: the initial integrated run found the legacy-only
+`sv_void_cast_fail1` expected the dedicated statement to be rejected. That obsolete
+expectation is replaced by direct void-function expression rejection; the new
+paired tests own legal-statement coverage. Independent review agrees. This does
+not qualify historical2005 acceptance. Required rerun remains pending.
+
+L24 final validation: 795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics.
+
+### U11 — Original UVM1.0p1/1.1a DPI entry points
+
+- **State:** CLOSED at e18128369 after required validation.
+- **Evidence:** DD042 missing old command-line/regex symbols in unmodified sources.
+- **Scope:** Real argv iteration/restart and metadata, strict cached regex adapters;
+  no original-source edits or unrelated legacy runtime/recording fixes.
+
+U11 final validation: e18128369;both-edition red failed missing old DPI entrypoint;focused8/0,makecheck,independent code/evidence review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend41504exit0 all scenarios including oldABI both editions;install restored and five frozen hashes match. Release results-zyhh1jv9 complete/baseline_valid,all15source/archive hashes unchanged. Reviewed12clean smoke passes,1disqualified1.0p1 runtime,2compilefails;raw1.0p1SMOKE_PASS rejected due existing3placeholder and2cast diagnostics. 1.1a clean new smoke pass through time1.
+
+### U12 — Simulator diagnostics cannot be clean release smoke passes
+
+- **State:** CLOSED at1654dc4c9 after required harness validation.
+- **Evidence:** DD043 original1.0p1 false-positive runtime row.
+- **Scope:** Existing shared classifier/offline tests and fresh release evidence;
+  no compiler changes or repair of underlying runtime diagnostics.
+
+U12 final validation: 1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match.
+
+### L25 — Integral function-name variable passed by reference
+
+- **State:** CLOSED atc58035f49 after requiredvalidation.
+- **Evidence:** Both-edition7-to12 ref-update reducer fails; three original1.0p1
+  build_coverage functions bind a ref formal to an omitted return signal.
+- **Scope:** True reference storage under13.4.1/13.5.2, retaining return and
+  lifetime semantics. Address-taken return variables use existing signal/context storage.
+  Callback cast/typeidentity diagnostics remain separate.
+
+L25 final validation: c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain.
+
+### L26 — Matching class parameters with independent defaults
+
+- **State:** CLOSED at e3666fd07 after required validation.
+- **Semantics:** Both IEEE editions 8.25 require matching effective class-type
+  parameters of the same generic declaration to select one type.
+- **Cause:** Existing canonical key path requires a dependent default, so
+  independent omitted/explicit defaults incorrectly retain source identity.
+- **Scope:** Concrete multi-class-type parameters with bare nominal class defaults; preserve unresolved
+  forwarding and owner identity. Generic-template initialization remains separate.
+- **Evidence:** `evidence/campaign-20260908/l26/default-pair.sv` and `.json`;
+  larger original-callback reducer and passing controls retained.
+
+L26 final validation: e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts.
+
+### L27 — Generic master static initialization
+
+- **State:** CLOSED at8f2252dd3 after required validation.
+- **Semantics:** Both8.25 assign static storage to concrete specializations;
+  the generic class itself is not a type.
+- **Cause:** `netclass_t::elaborate` emits a static initializer process even
+  for the unspecialized generic master. One requested specialization causes
+  two registration side effects.
+- **Scope:** Generic masters only; preserve actual concrete/default and ordinary
+  class initialization. Seed-derived forwarding lifecycle remains DD044.
+- **Evidence:** `evidence/campaign-20260908/l27/seed-init.sv` and `.json`.
+
+L27 final validation: 8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts.
+
+### U13 — Literal legacy DPI arguments versus GNU runtime options
+
+- **State:** CLOSED, exact harness scope on9006baa15. Prior published2785
+  Linux CI failed before simulation with `vvp: invalid option -- f`.
+- **Cause:** The fixture invocation lacks `--` before the program/argv.
+  `vvp/main.cc` deliberately allows GNU getopt permutation.
+- **Scope:** Invocation separator only; retain literal `-f` iteration assertions,
+  metadata/regex behavior, and all diagnostics. Local frontend and fresh Linux
+  CI are required; no compiler/DPI semantic change.
+
+U13 validation complete: local isolated frontend35171exit0 with all original
+argv/regex checks retained and installed hashes restored. Fresh published
+9006baa15 jobs103200770181 (Ubuntu22.04) and103200770250 (Ubuntu24.04)
+both succeeded; logs confirm legacy_10_dpi IEEE2017 and2023 PASS on both.
+Evidence: `evidence/campaign-20260908/l29/ubuntu2204.plain.log` and
+`ubuntu2404.plain.log`. Independent review clear. Other PR275 platform
+checks remain pending; this closure is not PR readiness or merge permission.
+
+### L28 — Unresolved forwarded type initializer side effects
+
+- **State:** CLOSED at77cce610b after required local validation.
+- **Cause:** Symbolic forwarding requests have specialized-instance metadata
+  while their actual retains generic source lineage; static init ignores this.
+- **Scope:** Existing deferred-type predicate at process registration; preserve
+  concrete cache reuse, initialization analysis and ordering. DD044 evidence.
+- **Coordination:** U13 remains awaiting fresh Linux CI on9006baa15; it only
+  changes a fixture command. L28 has no dependency on that pending harness gate.
+
+L28 final validation: 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.
+
+### L29 — Abandoned procedural block scope during parser recovery
+
+- **Status:** CLOSED at9229c24e7, bounded procedural-block recovery; robustness only.
+- **Evidence:** `evidence/campaign-20260908/l29/one-loop.sv`, both editions
+  abort134 on validated77cce610b; legal replacement compiles0. Existing parser
+  trace shows a discarded begin midrule leaves lexical scope active, then
+  normal enclosing for reduction reaches a scope assertion.
+- **Scope:** Release discarded procedural block scopes at their ownership
+  boundary; retain syntax rejection and valid nested/named/loop behavior.
+- **Not claimed:** Recording support, another UVM release pass, or all parser
+  recovery. Foreach carrier recovery remains DD045. U13 Linux CI has passed.
+
+L29 final validation: 9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes.
+
+### L30 — Direct class-scoped type declarations at module scope
+
+- **Status:** CLOSED at34787868e; bounded DD039 direct complete-class type route.
+- **Reducer:** Complete class holder with typedef int state; module declares
+  holder::state s. Both editions reject as invalid module instantiation.
+- **Scope:** Reuse class type resolution at the module declaration frontier;
+  preserve type identity, variable shapes and illegal-prefix/access rejection.
+- **Authority:** Both editions6.18/8.23; unresolved prefix restrictions remain.
+- **Evidence:** `evidence/campaign-20260908/l30/`; no fullclass/UVM claim.
+
+L30 final validation: 34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim.

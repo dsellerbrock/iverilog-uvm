@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_class_independent_defaults.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_class_independent_defaults"
+    ],
+    "gold": "sv_class_independent_defaults"
+}
