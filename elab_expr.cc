@@ -15697,6 +15697,11 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			continue;
 		  }
 
+		  if (formal->port_type() == NetNet::PREF) {
+			if (NetESignal*actual = dynamic_cast<NetESignal*>(parms[pidx]))
+			      materialize_ref_return(actual->sig());
+		  }
+
 		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (parms[pidx])) {
 			cerr << evt->get_fileline() << ": error: An event '"
 			     << evt->event()->name() << "' can not be a user "

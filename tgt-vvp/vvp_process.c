@@ -2622,6 +2622,18 @@ static int show_stmt_delayx(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
+static void publish_materialized_return(ivl_scope_t scope)
+{
+      ivl_signal_t sig;
+      if (ivl_scope_type(scope) != IVL_SCT_FUNCTION || ivl_scope_ports(scope) == 0)
+	    return;
+      sig = ivl_scope_port(scope, 0);
+      if (!signal_is_materialized_return(sig))
+	    return;
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", sig);
+      fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", ivl_signal_width(sig));
+}
+
 static int show_stmt_disable(ivl_statement_t net, ivl_scope_t sscope)
 {
       int rc = 0;
@@ -2632,6 +2644,7 @@ static int show_stmt_disable(ivl_statement_t net, ivl_scope_t sscope)
 	/* A normal disable statement. */
       if (target) {
 	    if (ivl_stmt_flow_control(net)) {
+		  publish_materialized_return(target);
 		  show_stmt_file_line(net, "Flow control disable statement.");
 		  fprintf(vvp_out, "    %%disable/flow S_%p;\n", target);
 	    } else {
@@ -7994,6 +8007,7 @@ int draw_func_definition(ivl_scope_t scope)
 	    draw_dpi_func_body(scope, 0);
       } else {
 	    rc += show_statement(def, scope);
+	    publish_materialized_return(scope);
       }
 
       fprintf(vvp_out, "    %%end;\n");

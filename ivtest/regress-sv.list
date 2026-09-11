@@ -2951,3 +2951,5 @@ sv_void_function_cast_statement normal,-g2017 ivltests
 sv_void_function_cast_statement_2023 normal,-g2023 ivltests
 sv_void_function_cast_restrictions CE,-g2017 ivltests gold=sv_void_function_cast_restrictions.gold
 sv_void_function_cast_restrictions_2023 CE,-g2023 ivltests gold=sv_void_function_cast_restrictions.gold
+sv_function_return_ref normal,-g2017 ivltests
+sv_function_return_ref_2023 normal,-g2023 ivltests

@@ -16658,6 +16658,7 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 	   arguments still ends at the one real variable. */
       NetESignal*formal_e = new NetESignal(port);
       formal_e->set_line(*this);
+      materialize_ref_return(sig);
       NetESignal*actual_e = new NetESignal(sig);
       actual_e->set_line(*this);
 

@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L25"
-phase: "reproduced"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "e18128369"
@@ -612,3 +612,5 @@ u12_focused: "New negative test failed8subcases before classifier fix;all8offlin
 u12_closure: "1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match."
 
 l25_red: "Both2017/2023 compile0 then runtime1,return-ref update lost with one unresolvedfunctorplaceholder. Original1.0p1 three build_coverage sites emit ref/bind to absent return-signals. Exact reducer/rawlogs in l25. No implementation changes yet;return storage design is next. "
+
+l25_focused: "Both-edition red and interactions nowPASSED,no diagnostics;permanentfocuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent review clear. Existing internalattr materializes only whole scalarintegral returnref storage;normalcontext/lifetime,fallthrough and internalreturn stackpublication. Initialvoidreturn nullguard corrected. Both9.6.2 forbid ordinaryfunctiondisable,which is untouched;no newruntimeinstructions or broaderreturn qualification. Fullgates pending. "

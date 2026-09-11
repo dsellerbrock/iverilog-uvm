@@ -339,8 +339,23 @@ static unsigned is_netlist_signal(const ivl_net_logic_t net, ivl_nexus_t nex)
       return rtn;
 }
 
+int signal_is_materialized_return(ivl_signal_t sig)
+{
+      if (!sig) return 0;
+      ivl_scope_t scope = ivl_signal_scope(sig);
+      return ivl_scope_type(scope) == IVL_SCT_FUNCTION
+	  && strcmp(ivl_signal_basename(sig), ivl_scope_basename(scope)) == 0
+	  && ivl_signal_dimensions(sig) == 0
+	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC)
+	  && ivl_signal_attr(sig, "_ivl_materialize_return") != 0;
+}
+
+/* Return variables backed by the call stack can omit ordinary signal storage. */
 int signal_is_return_value(ivl_signal_t sig)
 {
+      if (signal_is_materialized_return(sig))
+	    return 0;
       ivl_scope_t sig_scope = ivl_signal_scope(sig);
       if (ivl_scope_type(sig_scope) != IVL_SCT_FUNCTION)
 	    return 0;

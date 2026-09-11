@@ -28,6 +28,16 @@ class Statement;
 class PExpr;
 class netclass_t;
 
+// A referenced integral function-name variable needs addressable storage.
+inline void materialize_ref_return(NetNet*sig)
+{
+      if (sig && sig->scope()->type() == NetScope::FUNC
+          && sig->name() == sig->scope()->basename()
+          && sig->unpacked_dimensions() == 0
+          && (sig->data_type() == IVL_VT_BOOL || sig->data_type() == IVL_VT_LOGIC))
+            sig->attribute(perm_string::literal("_ivl_materialize_return"), verinum("1"));
+}
+
 /*
  * Search for a hierarchical name. The input path is one or more name
  * components (name_component_t) which describe a path to the object. The
