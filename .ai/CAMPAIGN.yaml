@@ -1,16 +1,16 @@
 status: active
 branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "none (L34 closed; next DD046 candidate not yet selected)"
+current_blocker: "none (L34 closed; DD046 curated-table re-triage complete, 11/12 rows resolved; next candidate not yet selected)"
 phase: "blocker_selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "b396fe0a8"
+last_integrated_good_revision: "a6057eb1b"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: "None. L34 closed with all six required gates exit0 (evidence/campaign-20260908/l34/). vvp and vvp.tgt are the only frozen hashes that changed vs the L33 baseline; re-baselined in l34/installed-frozen-sha256.json."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33 (string) and L34 (integral, its explicit follow-on) both closed this pass; both required a mid-pass real-bug fix caught by the ivtest gate (L34's array-indexed-signal-base gap, which also retroactively closed a latent hole in L33's shared helper -- see BLOCKERS.md). Remaining candidates: (a) real-typed (IVL_VT_REAL) nested class-property VPI-lvalue, same architecture likely applies, not yet attempted; (b) unexamined items in evidence/campaign-20260908/fallback-tracked-candidates.tsv/.json; select ONE bounded candidate per the targeted-fix protocol, do not batch."
+next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33 (string) and L34 (integral, its explicit follow-on) both closed this pass; both required a mid-pass real-bug fix caught by the ivtest gate. Followed by a comprehensive re-triage of DD046's 12-row curated candidate table (all 12 checked; 11 resolved/already-loud, only 'Lost expression typing' in netmisc.cc remains genuinely open and needs a deeper investigation pass before a reducer is even possible). Remaining next-step options, none yet selected: (a) the Lost-expression-typing row itself; (b) mine the raw 12849-line fallback-tracked-candidates.tsv for fresh uncurated candidates; (c) the real-typed (IVL_VT_REAL) nested class-property VPI-lvalue gap (L33/L34's named follow-on, sized as needing a new runtime class + grammar token, bigger than L33/L34's reuse pattern); (d) shift to the user's third priority phase (broader implementation work) since DD046's quickly-bounded candidates are exhausted for now."
 next_action: "PR #276 (whole post-275 batch through L33) is open; L34 landed as a new commit directly in that same branch/PR per campaign publication policy (no new PR, no CI gating per explicit user instruction). Select and reduce the next DD046 candidate."
 next_command: "resume DD046 triage: grep the fallback-tracked-candidates inventory for the next unexamined line, or write a real-typed nested-property reducer analogous to c7_int_nested.sv."
 next_command_cwd: repository root
