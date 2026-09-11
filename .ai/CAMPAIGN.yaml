@@ -11,8 +11,8 @@ pending_gates: "None for L32 (closed; l32/closure.json). U15 has no candidate ye
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "U15 active. After U15 closes, assess one PR to main for L31+U14+L32+U15; no merge authorization. DD047 is a candidate next blocker."
-next_action: "U15: run the pre-implementation reducer on the validated install in both editions, verify single evaluation for vvp thread-stack arguments with an i++ reducer, then finalize the API and contract before editing."
-next_command: "local-install/bin/iverilog -g2017 -m \"$PWD/local-install/lib/ivl/uvm_dpi.vpi\" -s main -o ../evidence/campaign-20260908/u15/red2017.vvp ../evidence/campaign-20260908/u15/values.sv"
+next_action: "U15 design review done, unimplemented (design-facts-20260911.md, ACTIVE_WORK.yaml). Next: registration smoke test for a new $ivl_uvm_record_attribute calltf in uvm_dpi/uvm_recording.cc, verified under both -m uvm_dpi and the baked :vpi_module path, before building the packed/real/string encoder."
+next_command: "see .ai/ACTIVE_WORK.yaml next_command (systf registration smoke test)"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
