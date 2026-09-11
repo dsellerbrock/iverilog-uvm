@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L29"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "77cce610b"
@@ -11,8 +11,8 @@ pending_gates: "L28 localgates complete. U13 independentLinuxCI9006baa15 remains
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "DD038 original1.1b/c recording macro gap;not empty macro bypass or vendor impersonation."
-next_action: "Repair L29 abandoned procedural block scope ownership after independent design review."
-next_command: "sed -n '17370,17470p' parse.y"
+next_action: "Wait running L29 gates; full JSON after integrated; frontend last alone; U13 independent Linux CI remains pending."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l29/integrated.log"
 next_command_cwd: repository root
 candidate_state: "L28 closed77cce610b;13/15 boundedruntime smoke passes;nextimplementation selection. U13openawaitingCI."
 installed_tools: "77cce610b validated;l28/sha256.txt restored/unchanged."
@@ -690,3 +690,6 @@ l28_uvm_terminal: "47643exit0;355passed0failed0skipped,realDPI. Isolatedfrontend
 l28_closure: "77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification."
 
 l29_selection: "Both-edition malformed nested procedural-block reducer abort134; existing parser trace proves discarded untyped begin carrier leaves lexical scope above for loop. Activate robustness-only scope cleanup; original1.1b/c recording adapter remains independent design boundary. No compiler edits yet. Last validated77cce610b; U13 Linux job103200770181 remains live in UVM step."
+
+l29_focused: "9229c24e7 candidate; originalred now ordinarysyntaxreject both editions; focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck,independentdesign/code/testreviews clear. Bison baseline/candidate563SR1122RR sameuselessproductions. Frozenfivehashes l29/sha256.txt; no source/build mutations duringgates."
+l29_live_gates: {integrated: 79700, uvm: 11005, nfa: 99686, releases: 11691}

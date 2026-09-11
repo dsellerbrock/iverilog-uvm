@@ -1,7 +1,7 @@
 id: "L29"
 title: "Release abandoned procedural block scopes during parser recovery"
 status: "active"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "3527d3107"
 last_validated_revision: "77cce610b"
 classification: "parser robustness; not legal-feature or UVM qualification"
@@ -17,8 +17,8 @@ dependencies: ["Fully validated compiler77cce610b; U13 harness-only Linux CI ind
 required_gates: ["Both-edition pre-fix/green negative and positive controls; independent design/code review; native serial build and Bison conflict signature; focus and neighboring legacy/JSON; makecheck/integrated/JSON/UVM/NFA/releases; isolated frontend last and restored frozen hashes."]
 evidence: "../evidence/campaign-20260908/l29/"
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
-next_action: "Review shared block carrier ownership and implement smallest destructor-based recovery."
-next_command: "sed -n '17370,17470p' parse.y"
+next_action: "Wait for running integrated/UVM/NFA/releases; then full JSON after integrated and frontend last alone."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l29/integrated.log"
 stop_after_completion: false
 
 focused_validation: "Native build/install53597exit0; focus12/12 legacy and12/0 JSON; neighbors68legacy/57JSON; makecheck; independent code review clear. Original and additional named nondecl/foreach reducers reject normally,both editions. Bison baseline/candidate563SR1122RR and same three useless-rule productions. Required full gates pending."
