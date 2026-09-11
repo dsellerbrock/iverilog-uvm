@@ -1065,3 +1065,14 @@ and remaining semantic triage. This is discovery work, not another governance
 bootstrap. Fix behavior-changing cases after UVM smoke, with one active blocker.
 
 L31 final validation: 0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim.
+
+
+### U14 — Native legacy recording ownership and lifecycle
+
+- **Status:** ACTIVE; first reviewed native backend prerequisite for DD038.
+- **Gap:** Native owner/lifecycle API absent; both-edition DPI owner reducer
+  compiles but fails at runtime. Original1.1b/c recording macro gaps preserved.
+- **Scope:** Explicit legacy recorder, real lifecycle journal, owner/kind/state
+  validation and cross-owner links using original1.1d API. No automatic install
+  or fake attribute macro. Full typed capture/bootstrap remain required.
+- **Evidence:** `evidence/campaign-20260908/u14/`; ACTIVE_WORK owns exact contract.

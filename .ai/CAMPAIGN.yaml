@@ -1,20 +1,20 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L31"
-phase: "selection"
+current_blocker: "U14"
+phase: "spec_grounded"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "0a4e7d639"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None for L31; published PR2756506fc7a2 remote macOS/Windows still pending at last read."
+pending_gates: "U14 implementation and allvalidation notyetperformed; L31fullyvalidated. Published PR275 remote macOS/Windows pending atlastread."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL31validation/closure select DD038 native handle-ownership/lifecycle prerequisite; preserve original typed-attribute objective and1.1b/c reducers. Independent review rejects text adapter; no empty macro or vendor impersonation."
-next_action: "Activate reviewed DD038 native recording handle-ownership/lifecycle prerequisite; preserve original1.1b/c reducers and full typed-value objective."
-next_command: "sed -n '508,558p' docs/conformance/DISCOVERED_DEBT.md"
+next_action: "Finalize reviewed U14 DPI lifecycle contract and explicit original1.1d adapter; full lifecycle red before code. Preserve DD038 typed capture/bootstrap obligations and1.1b/c reducers."
+next_command: "sed -n '245,365p' third_party/uvm-releases/sources/1.1d/uvm-1.1d/src/base/uvm_recorder.svh"
 next_command_cwd: repository root
-candidate_state: "L31closed at0a4e7d639 after allrequiredlocalgates; return to selection."
+candidate_state: "U14spec_grounded,no implementation edits; installed0a4e7d639 validatedbaseline."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
 validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
 next_validation: "Next selected prerequisite requires its own reducer,contract,review and fullgates."
@@ -746,3 +746,5 @@ l31_integrated_terminal: "Recovery92982exit0:legacy4981total4976pass0fail2NI3EF,
 l31_uvm_terminal: "32316exit0;355passed0failed0skipped,REAL DPIumbrella; prior basic/real failures do not reproduce in recovered harness. Frontend49875 started only after all other gates terminal;freeze remains in force."
 
 l31_closure: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
+
+u14_selection: "DD038 native recording ownership/lifecycle prerequisite activated after L31closure907e66850. Both-edition native owner reducer compile0/runtime1 missingDPIAPI. Original1.1d has samelegacyrecorderAPI;1.2 differs. Independent review rejects text-onlymacro substitution and records ownership,linking,customhandle,bootstrap hazards. No native implementation yet."
