@@ -1,21 +1,21 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L24"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "58edf8034"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L23 all required gates complete;PR275 remote CI separate,no merge authorization. Two validated unpublished increments L22/L23 after f543fede0."
+pending_gates: "L24 integrated94711,UVM7768,NFA51508,releases35204 live;JSON after integrated terminal;frontend last alone/restore/hashes. PR275 remote CI separate;no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Implement L24 bounded dedicated void-function call statement correction and paired effect/rejection checks."
-next_command: "sed -n '16905,16960p' elaborate.cc"
+next_action: "Complete frozen L24 full gates;JSON after integrated terminal;frontend last alone/restore/hashes."
+next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated.log"
 next_command_cwd: repository root
 candidate_state: "L22/L23 two validated unpublished increments after PR275 f543fede0;L24 selected."
-installed_tools: "58edf8034 fullyvalidated;L24 source not yet modified."
+installed_tools: "795d9f360 candidate;frozen evidence/campaign-20260908/l24/sha256.txt;last fullyvalidated58edf8034."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -574,3 +574,5 @@ l23_uvm_terminal: "84430 exit0;355passed0failed0skipped,realDPI. Isolatedfronten
 l23_closure: "58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors."
 
 l24_focused: "Originalred compiles/runs0,PASSED/no diagnostics both editions;focuslegacy4/0,JSON4/0,neighborslegacy23/0,JSON23/0,makecheck and final independent review clear. Removed only resolved user void-function statement rejection;actual call effects/dispatch/copyback retained. Taskcast/voidexpression/deferredaction negatives unchanged. All required full gates pending."
+
+l24_live_gates: {integrated: 94711, uvm: 7768, nfa: 51508, releases: 35204}

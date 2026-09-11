@@ -1,7 +1,7 @@
 id: "L24"
 title: "Void function calls in dedicated void-cast statement form"
 status: "in_progress"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "0a691c8e2"
 last_validated_revision: "58edf8034"
 reproducer: "evidence/campaign-20260908/l24/red.sv;original1.0p1/1.1a find_all/get_args calls each yield three void-cast-of-void errors."
