@@ -405,3 +405,14 @@ error reporting now pass focused original1.1d/1.2 checks in both editions.
 Full required local gates pass. Both original releases pass smoke in
 results-n2m35ki0 with unchanged source fingerprints. Other compile-time
 constraint/codegen warnings and full application qualification remain open.
+
+### DD031 — OpenTitan original1.2 macro expansion frontier
+
+U10 replay uses explicit original1.2 root and records src hash
+885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0.
+Pinned7a3ad34 debug crossbar compile exits74; first diagnostics are missing
+argument list for uvm_print_aa_string_int at dv_base_env_cfg.sv112/114,
+followed by parser cascades. No simulation or traffic ran.
+Evidence evidence/campaign-20260908/u10/result.json and matrix-compile.log.
+Record-only during U10 harness qualification; macro source/expansion and both
+LRM editions require investigation before selecting any compiler change.

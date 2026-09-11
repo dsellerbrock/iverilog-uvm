@@ -235,6 +235,13 @@ now supplies the legacy cached-regex functions automatically. There is no
 separate legacy DPI download or build step for this usage. UVM 1.1d and 1.2
 pass the recorded smoke checks; full application qualification remains open.
 
+The OpenTitan matrix accepts the same source selection. For the pinned
+OpenTitan corpus, select its declared UVM 1.2 library by adding
+`--uvm-home="$PWD/third_party/uvm-releases/sources/1.2/uvm-1.2"` to
+`scripts/opentitan_matrix.py`. The report fingerprints that selected source
+tree. The first original1.2 debug-crossbar replay currently fails compilation
+at `uvm_print_aa_string_int`; it is not an application pass.
+
 Advanced overrides (a different UVM library, disabling DPI, raw module
 loading) are all still available — see **[docs/uvm_frontend.md](docs/uvm_frontend.md)**
 for the front-end architecture and **[docs/uvm.md](docs/uvm.md)** for the
