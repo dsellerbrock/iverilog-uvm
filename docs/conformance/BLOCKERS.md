@@ -859,6 +859,11 @@ DD036 operand width and L17 target lowering remain open.
 
 ### L20 — Integral compound operation widths
 
-- **Status:** ACTIVE; remaining DD036 prerequisite for suspended L17.
+- **Status:** CLOSED atfe12166bd; compressed-vector width prerequisite for suspended L17.
 - **Evidence:** On validated72a97c038, logic8bit128 /=32'd256 producesX instead0 in both editions. L17 also demonstrates wide shift count truncation.
 - **Scope:** Natural/context RHS width through compressed elaboration and shared vector operation sizing before final result truncation. Preserve existing receiver/index lowering; no new runtime instructions. All required gates apply.
+
+L20 closure: paired constant/runtime widths, signedness/context, self-determined
+shift counts, property parts and array/queue cases pass with all required
+local gates. Associative front-end expansion remains residual DD036 debt; no
+complete associative or parent compound qualification. L17 can now resume.

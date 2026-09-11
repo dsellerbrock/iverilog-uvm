@@ -2089,3 +2089,16 @@ Independent review is clear. Width remains a separate prerequisite; L17
 partial patch/reducers remain preserved and unapplied.
 
 Final validation: 72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged.
+
+### L20 — Compound operation width
+
+On validated72a97c038, logic8bit128 /=32'd256 yieldedX instead0 in both
+editions; the divisor was truncated before division. Existing compressed
+elaboration now retains natural RHS width (maximum with destination except
+self-determined shifts). One helper migrates13 existing vector operation
+callers, sizes operands before calculation and truncates the result. No new
+runtime instructions or receiver/index rewriting. Independent review verified
+stack/partial-store handling and retained associative front-end expansion as
+separate debt. Original L17 partial patch remains preserved for restoration.
+
+Final validation: fe12166bd;focuslegacy2/0,JSON2/0,neighborlegacy35/0,JSON40/0,makecheck,independent review,legacy4927total4922pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1819/0,realDPIUVM355/0/0,NFA58/58,frontend93046exit0 all;root restored and frozen hashes match. Complete15release results-l9qgrxtz11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged.

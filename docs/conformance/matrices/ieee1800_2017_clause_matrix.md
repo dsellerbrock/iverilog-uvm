@@ -1103,3 +1103,14 @@ RHS evaluation once, ordinary assignment and four-state destination controls.
 The elaborator and direct-property target both had premature conversions. All
 required local gates pass. Operand width remains DD036; full compound or
 container qualification is not claimed.
+
+### L20 — Compressed vector operation widths (11.4.1/11.6/11.8.2)
+
+Validatedfe12166bd preserves natural/context operand width for integral
+compound operations and uses self-determined shift counts. One target helper
+sizes loaded operands before existing operations and truncates only the result.
+Both editions test constants/runtime divisors and counts, signed/mixed
+extension, context widening, unbased shift count, concatenations, direct
+properties/parts, array index once and queue shifts. Required local gates pass.
+Associative front-end expansion remains residual debt and L17 dynamic-array
+property lowering remains separate; no blanket11.4.1 qualification.
