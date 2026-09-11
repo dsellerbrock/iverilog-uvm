@@ -366,3 +366,5 @@ void (*vlog_startup_routines[])(void) = { 0 };
 #ifdef __cplusplus
 }
 #endif
+
+#include "uvm_recording.cc"

@@ -1,20 +1,20 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U14"
-phase: "spec_grounded"
+phase: "implementing"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "0a4e7d639"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "U14 implementation and allvalidation notyetperformed; L31fullyvalidated. Published PR275 remote macOS/Windows pending atlastread."
+pending_gates: "U14 nativefocused3checks pass; reallegacyadapter/integration,neighbors/makecheck andallrequiredfullgates pending. No tests running."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL31validation/closure select DD038 native handle-ownership/lifecycle prerequisite; preserve original typed-attribute objective and1.1b/c reducers. Independent review rejects text adapter; no empty macro or vendor impersonation."
-next_action: "Finalize reviewed U14 DPI lifecycle contract and explicit original1.1d adapter; full lifecycle red before code. Preserve DD038 typed capture/bootstrap obligations and1.1b/c reducers."
+next_action: "Integrate explicit original1.1d recorder with native registry; actual child/component tests,allocation rollback/output collision handling; then fullvalidation."
 next_command: "sed -n '245,365p' third_party/uvm-releases/sources/1.1d/uvm-1.1d/src/base/uvm_recorder.svh"
 next_command_cwd: repository root
-candidate_state: "U14spec_grounded,no implementation edits; installed0a4e7d639 validatedbaseline."
+candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
 validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
 next_validation: "Next selected prerequisite requires its own reducer,contract,review and fullgates."
@@ -750,3 +750,5 @@ l31_closure: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and loc
 u14_selection: "DD038 native recording ownership/lifecycle prerequisite activated after L31closure907e66850. Both-edition native owner reducer compile0/runtime1 missingDPIAPI. Original1.1d has samelegacyrecorderAPI;1.2 differs. Independent review rejects text-onlymacro substitution and records ownership,linking,customhandle,bootstrap hazards. No native implementation yet."
 
 u14_api_review: "Completed independent concrete lifecycle review; findings recorded under DD038. Resolve globalTransactionvsownerFiber queries,childlinkorientation,journalfailurepoisoning,allocationrollback and exclusive native/superclass output before implementation. No source edits yet; parent fulltypedcontract unchanged."
+
+u14_native_slice: "Nativeowner/lifecycle implementation with permanent directAPI JSONchecks both editions andPOSIXIOfailure injection allPASS; two independent code review passes clear. Frontend S11 integrates checks; not yet runfullfrontend. Explicit legacyrecorders/componentcallbacks stillpending. Nativebuildlogs/native-green.json/native-check.log in u14; installed5hashes matchL31baseline."

@@ -1,7 +1,7 @@
 id: "U14"
 title: "Native legacy UVM recording handle ownership and lifecycle"
 status: "active"
-phase: "spec_grounded"
+phase: "implementing"
 base_revision: "907e66850"
 last_validated_revision: "0a4e7d639"
 parent: "DD038: original1.1b/c typed recording API; preserved results-322hzu4s compile reducers"
@@ -11,13 +11,15 @@ standards: ["Accellera original1.1b/1.1c/1.1d uvm_recorder lifecycle and recordi
 root_cause: "Fork UVM DPI backend has no native recording ownership/lifecycle API. Upstream static handles provide allocation but not owner/kind validation; files are per-instance. Plain string formatter/macro replacement cannot implement the typed recording contract."
 allowed_scope: ["Native recording registry and actual lifecycle journal in existing Icarus UVM backend; explicit legacy recorder integration against original1.1d; build/install dependencies and permanent focused/integrated regression coverage; documentation of API,lifecycle and ownership constraints."]
 non_goals: ["No attribute no-op or fake success, no missing macro definition before real attribute implementation, no UVM source edits or vendor impersonation, no automatic default-recorder replacement in this increment, no complete typed serialization or full DD038 closure. Future typed capture and deterministic installation remain required."]
-api_contract: "Use existing native DPI linkage. Open a recorder journal returns positive owner or explicit failure; register real superclass stream/transaction handles with that owner; begin/link/end/free/close operations validate state before writing/mutating. Distinct active recorder destinations must not overwrite each other. Failed allocation is never registered. Cross-owner links include both endpoint identities. Wrong-owner end/free is explicit rejection; no silent rebinding. No hidden assumption that check_handle_kind supplies ownership."
+api_contract: "Use existing native DPI linkage. Open a recorder journal returns positive owner or explicit failure; register real superclass stream/transaction handles with that owner; begin/link/end/free operations and simulation-end cleanup validate state before writing/mutating. Distinct active recorder destinations must not overwrite each other. Failed allocation is never registered. Cross-owner links include both endpoint identities. Wrong-owner end/free is explicit rejection; no silent rebinding. No hidden assumption that check_handle_kind supplies ownership."
 validation_contract: "Two explicitly created original1.1d-compatible recorder instances with distinct outputs; real transaction/component lifecycle,nonzero handles,ordered stream/begin/link/end/free records,cross-owner links,end-without-free then link,freed/unknown/wrong-kind/wrong-owner rejection and file-open failure. Compare parsed journal contents,not just PASS strings. Verify default/custom recorders not globally replaced. Native DPI reducer both editions; permanent regression,independent API/code review,focused neighbors,makecheck,integrated/JSON/UVM/NFA/15releases/frontend-lastalone and frozen hashes."
 dependencies: ["Fullyvalidated0a4e7d639; DD038 independent design review recorded in DISCOVERED_DEBT. Use original1.1d (legacy API);1.2 recorder API differs and is not interchangeable."]
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
 evidence: "../evidence/campaign-20260908/u14/"
-next_action: "Finalize native DPI lifecycle signatures and explicit legacy adapter ownership/error behavior with focused contract review; establish full lifecycle failing test before implementing registry."
+next_action: "Native registry slice implemented/focused-tested/reviewed; integrate explicit original1.1d derived recorder and actual child/component lifecycle. Resolve superclass/native output collision and allocation rollback. Then requiredfullgates; no globaldefault/attribute macro yet."
 next_command: "sed -n '245,365p' third_party/uvm-releases/sources/1.1d/uvm-1.1d/src/base/uvm_recorder.svh"
 stop_after_completion: false
 
 api_review: "Concrete review found source-owned link and owner-scoped Transaction query incompatible with actual child/component callers. Fiber queries owner-aware,Transaction queries global; mutation ownership separate. Nativejournal authoritative,poison onIOfailure,allocation rollback,no atomic dualjournalclaim;exclusiveoutput/noaliascollision and per-simulation cleanup required. Actualcrossownerchild/componenttests mandatory. No implementation edits yet."
+
+native_slice: "uvm_dpi/uvm_recording.cc included by existingumbrella; nativeowner/stream/begin/link/end/free/kind APIs,exclusivejournalcreation,kind/ownervalidation,poisonedownerfailure and cleanup. Permanent test_recording.py passes both editions plus actualPOSIXfilelimit IOfailure; parsedJSON asserts8rejections,eventorder,crossownerlinks,64bittimes/nameescaping. Independentcodeandfailurepathreviewclear. No legacyadapter or integratedvalidation yet. Installedbaselinehashes unchanged0a4e7d639; tests explicitlyload buildtreeuvm_dpi.vpi."

@@ -369,7 +369,7 @@ vpidir = $(libdir)/ivl$(suffix)
 # build_uvm_dpi.sh. Best effort: a failure here warns but does not abort the
 # install (the -uvm front end then falls back to UVM_NO_DPI with a clear
 # diagnostic), so a toolchain build never breaks on the DPI umbrella.
-uvm_dpi.vpi: $(UVM_DPI_SRC) $(UVM_DPI_BUILD)
+uvm_dpi.vpi: $(UVM_DPI_SRC) $(srcdir)/uvm_dpi/uvm_recording.cc $(UVM_DPI_BUILD)
 	IVPI=./iverilog-vpi VVP_DEF=$(srcdir)/vvp/vvp.def \
 	    sh $(UVM_DPI_BUILD) --name=uvm_dpi \
 	    -I$(srcdir) -I. -I$(UVM_CORE_SRC)/dpi -Lvpi $(UVM_DPI_SRC)
