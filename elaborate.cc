@@ -30149,8 +30149,17 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // see the spec's `static = 0` reset wipe state set by a
 		    // user-class static initializer that called into the spec.
 		    // Analyze generic initializers for const-initialization checks,
-		    // but a generic master is not a runtime type (IEEE 1800 8.25).
-		    if (pclass->has_parameter_port_list && !specialized_instance())
+		    // but generic masters and unresolved type forwarding are not
+		    // concrete runtime types (IEEE 1800 8.25).
+		    bool deferred_init = pclass->has_parameter_port_list
+			  && !specialized_instance();
+		    for (perm_string name : pclass->parameter_order) {
+			  if (class_type_parameter_is_deferred(des, class_scope_, name)) {
+				deferred_init = true;
+				break;
+			  }
+		    }
+		    if (deferred_init)
 			  delete top;
 		    else if (this->specialized_instance())
 			  des->add_process_at_tail(top);

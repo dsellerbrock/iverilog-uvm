@@ -672,3 +672,5 @@ u13_local_validation: "One invocation separator;all existing exactargv/regex che
 legacy_uvm_pr_sixth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "9006baa152b1da5c684f86af59f9d2128500bc1f", state: "open", scope: "ValidatedL26/L27 plus localvalidatedU13", remaining: "FreshLinuxCI requiredforU13;allrequiredPRchecks/no mergeauthorization"}
 
 independent_external_validation: "U13 awaitingLinuxCI9006baa15;preserved l28/U13-awaiting-ci.yaml. Safe coordination boundary: harness-only change has no semantic dependency for L28,which starts from fullyvalidated8f2252dd3. Keep U13 open and publishedhead unchanged."
+
+l28_focused: "Counterandcallbackreds both editionsPASSED/no diagnostics;permanentfocus4/0each;static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code review clear. Existing deferredtypeformal lineage suppresses only runtimeinit;analysis/concreteschedulingretained. Nestedtypeexpressions remain unqualified. Required fullgates pending;U13 stillawaitingindependentLinuxCI."

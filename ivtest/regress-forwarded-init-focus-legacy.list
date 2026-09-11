@@ -1,0 +1,4 @@
+sv_forwarded_type_static_init normal,-g2017 ivltests
+sv_forwarded_type_static_init_2023 normal,-g2023 ivltests
+sv_forwarded_callback_init normal,-g2017 ivltests
+sv_forwarded_callback_init_2023 normal,-g2023 ivltests

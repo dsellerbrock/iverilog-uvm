@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_forwarded_callback_init.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_forwarded_callback_init"
+    ],
+    "gold": "sv_forwarded_callback_init"
+}

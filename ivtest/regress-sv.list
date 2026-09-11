@@ -2957,3 +2957,7 @@ sv_class_independent_defaults normal,-g2017 ivltests
 sv_class_independent_defaults_2023 normal,-g2023 ivltests
 sv_generic_master_static_init normal,-g2017 ivltests
 sv_generic_master_static_init_2023 normal,-g2023 ivltests
+sv_forwarded_type_static_init normal,-g2017 ivltests
+sv_forwarded_type_static_init_2023 normal,-g2023 ivltests
+sv_forwarded_callback_init normal,-g2017 ivltests
+sv_forwarded_callback_init_2023 normal,-g2023 ivltests
