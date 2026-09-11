@@ -616,3 +616,5 @@ l25_red: "Both2017/2023 compile0 then runtime1,return-ref update lost with one u
 l25_focused: "Both-edition red and interactions nowPASSED,no diagnostics;permanentfocuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent review clear. Existing internalattr materializes only whole scalarintegral returnref storage;normalcontext/lifetime,fallthrough and internalreturn stackpublication. Initialvoidreturn nullguard corrected. Both9.6.2 forbid ordinaryfunctiondisable,which is untouched;no newruntimeinstructions or broaderreturn qualification. Fullgates pending. "
 
 l25_live_gates: {integrated: 23895, uvm: 26951, nfa: 77311, releases: 67704}
+
+l25_release_terminal: "67704exit1;results-3v03d7qs complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. NFA77311exit0,58/58. Integrated23895/UVM26951 live;JSON/frontend unstarted. "
