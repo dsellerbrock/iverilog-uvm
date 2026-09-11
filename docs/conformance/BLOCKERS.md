@@ -978,13 +978,21 @@ L27 final validation: 8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0
 
 ### U13 — Literal legacy DPI arguments versus GNU runtime options
 
-- **State:** ACTIVE; published2785 Linux CI fails the old-DPI fixture in both
-  editions with `vvp: invalid option -- f` before simulation.
+- **State:** CLOSED, exact harness scope on9006baa15. Prior published2785
+  Linux CI failed before simulation with `vvp: invalid option -- f`.
 - **Cause:** The fixture invocation lacks `--` before the program/argv.
   `vvp/main.cc` deliberately allows GNU getopt permutation.
 - **Scope:** Invocation separator only; retain literal `-f` iteration assertions,
   metadata/regex behavior, and all diagnostics. Local frontend and fresh Linux
   CI are required; no compiler/DPI semantic change.
+
+U13 validation complete: local isolated frontend35171exit0 with all original
+argv/regex checks retained and installed hashes restored. Fresh published
+9006baa15 jobs103200770181 (Ubuntu22.04) and103200770250 (Ubuntu24.04)
+both succeeded; logs confirm legacy_10_dpi IEEE2017 and2023 PASS on both.
+Evidence: `evidence/campaign-20260908/l29/ubuntu2204.plain.log` and
+`ubuntu2404.plain.log`. Independent review clear. Other PR275 platform
+checks remain pending; this closure is not PR readiness or merge permission.
 
 ### L28 — Unresolved forwarded type initializer side effects
 

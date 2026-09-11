@@ -13,7 +13,7 @@ root_cause: "Bison trace shows discarded untyped begin-scope midrule without cle
 suspected_symbols: ["parse.y procedural begin/fork scope carriers", "current_block_stack", "pform_finish_for_variable_declarations", "pform_finish_for_nondeclaration"]
 allowed_scope: ["Owned procedural-block parser scope cleanup at shared recovery boundary; focused malformed/nested/named/loop controls and permanent regressions; required validation and scoped documentation."]
 non_goals: ["No recording macro adapter, vendor impersonation, UVM source edits, parser redesign, disabled assertions or accepted malformed input."]
-dependencies: ["Fully validated compiler77cce610b; U13 harness-only Linux CI independently pending and not a semantic dependency."]
+dependencies: ["Fully validated compiler77cce610b; U13 harness-only Linux CI now passed on both Ubuntu22/24; exact harness scope closed."]
 required_gates: ["Both-edition pre-fix/green negative and positive controls; independent design/code review; native serial build and Bison conflict signature; focus and neighboring legacy/JSON; makecheck/integrated/JSON/UVM/NFA/releases; isolated frontend last and restored frozen hashes."]
 evidence: "../evidence/campaign-20260908/l29/"
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."

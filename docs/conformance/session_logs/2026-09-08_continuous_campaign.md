@@ -2278,3 +2278,13 @@ U13 remains open awaiting independent Linux CI on9006baa15; its fixture-only
 change is not a semantic dependency. L28 started on fully validated8f2252dd3.
 
 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.
+
+### U13 — Fresh Linux validation completes the harness-only repair
+
+Both fresh Ubuntu22.04 and24.04 jobs on published9006baa15 succeeded.
+Downloaded job logs confirm the legacy_10_dpi fixture passes in2017 and2023
+on each platform; IDs103200770181/103200770250, evidence under l29.
+Together with the preserved local isolated frontend and independent review,
+this closes U13's exact invocation-separator scope. Compiler/DPI semantics
+are unchanged. PR275 macOS/Windows checks remain pending; no merge performed.
+L29 remains the one active implementation blocker, awaiting local validation.
