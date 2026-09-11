@@ -504,3 +504,22 @@ RHS rebinds it. Original object updates correctly but h reverts to old handle.
 Evidence l17/receiver-debug and l21/red; vvp/vthread.cc19414. Selected as
 L21 prerequisite at deliberate suspension boundary; no value-aggregate or
 static-overlay correctness claim beyond tested contexts.
+
+### DD038 — Legacy 1.1b/c vendor-only recording macro
+
+At L17/L22 selection, unchanged1.1b/c macros/uvm_object_defines.svh defines
+uvm_record_attribute only for QUESTA/VCS/INCA, but generic payload calls it
+unconditionally. Current compiler warns undefined macro then parser recovery
+asserts. Do not define a commercial-vendor macro or empty recording operation
+to claim support. Recording compatibility and parser robustness require separate
+assessment; original sources unchanged. Evidence results-3d_bbaiu compile logs.
+
+### DD039 — Bare class-scoped module variable declarations
+
+During L22 negative-test construction, bare process::state s at module scope
+parses as invalid instantiation. Independent ordinary class reducer
+`class holder; typedef int state; endclass` followed by module holder::state s
+fails the same way, outside the new builtin-specific lookup branch. Local
+procedural declarations and typedef aliases work. Record-only general parser
+gap; no grammar expansion under L22. Evidence l22/direct-module-state.sv and
+ordinary-class-scoped-module.{sv,json}; bare module scope remains unqualified.

@@ -2936,3 +2936,10 @@ sv_captured_class_root_rebind_2023 normal,-g2023,-s,sv_captured_class_root_rebin
 
 sv_darray_property_compound normal,-g2017,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold
 sv_darray_property_compound_2023 normal,-g2023,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold
+
+sv_process_state_type normal,-g2017 ivltests
+sv_process_state_type_2023 normal,-g2023 ivltests
+sv_process_state_type_fail CE,-g2017 ivltests gold=sv_process_state_type_fail.gold
+sv_process_state_type_fail_2023 CE,-g2023 ivltests gold=sv_process_state_type_fail.gold
+sv_process_state_missing_root CE,-g2017,-sno_such_process_state_top ivltests gold=sv_process_state_missing_root.gold
+sv_process_state_missing_root_2023 CE,-g2023,-sno_such_process_state_top ivltests gold=sv_process_state_missing_root.gold

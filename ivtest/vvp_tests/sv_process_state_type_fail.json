@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_process_state_type_fail.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_process_state_type_fail"
+    ],
+    "gold": "sv_process_state_type_fail"
+}

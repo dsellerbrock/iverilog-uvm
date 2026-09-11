@@ -1,7 +1,7 @@
 id: "L22"
 title: "Built-in process::state enum type and status return identity"
 status: "in_progress"
-phase: "selected"
+phase: "focused_tested"
 base_revision: "f543fede0"
 last_validated_revision: "d8e974913"
 reproducer: "evidence/campaign-20260908/l22/red.sv; original UVM1.0p1 uvm_phases.svh2824 returns process::state and fails visible-class lookup."
@@ -9,8 +9,8 @@ expected_behavior: "The built-in process class exposes nominal enum state with F
 standards: ["IEEE1800-2017/2023 9.7 built-in process prototype;6.19 enum identity/assignment rules"]
 root_cause: "Parser class-scoped typedef lookup requires a PClass, while process exists only as a special typedef/built-in netclass. Existing status expressions/constants use raw integers; causal investigation underway."
 allowed_scope: ["Built-in process state type lookup, shared enum representation and typed state constants/status expressions; paired positive/negative regressions and required gates."]
-non_goals: ["No process scheduling redesign, generic class-lookup rewrite, user-library edits, integer alias substituted for enum, full process/legacy UVM qualification."]
+non_goals: ["No bare class-scoped module declaration grammar repair (DD039), process scheduling redesign, generic class-lookup rewrite, user-library edits, integer alias substituted for enum, full process/legacy UVM qualification."]
 required_gates: ["Both-edition reducer and enum identity/width/sign/name/assignment controls;process status/control neighbors;independent review;native serial build/makecheck/full integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Reproduce both editions,trace enum registration and parser builtin type path,review smallest nominal-enum design before implementation."
-next_command: "local-install/bin/iverilog -g2017 -sprocess_state_return -o ../evidence/campaign-20260908/l22/red.vvp ../evidence/campaign-20260908/l22/red.sv"
+next_action: "Run all required gates on frozen candidate;JSON after integrated terminal,frontend last alone and verify restore/hashes."
+next_command: "PATH='$PWD/local-install/bin:$PATH' bash .github/ivtest_gate.sh"
 stop_after_completion: false

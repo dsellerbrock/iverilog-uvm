@@ -2055,19 +2055,13 @@ static int ensure_class_property_idx_(Design*des, const netclass_t*class_type,
 /* Clocking-block member path rewrites are shared with l-value
    elaboration — see rewrite_*_clocking_member_path* in netmisc.cc. */
 
-static long builtin_process_state_value_(perm_string name)
+static NetEConstEnum* builtin_process_state_constant_(Design*des,
+                                                     perm_string name)
 {
-      if (name == perm_string::literal("FINISHED"))
-	    return 0;
-      if (name == perm_string::literal("RUNNING"))
-	    return 1;
-      if (name == perm_string::literal("WAITING"))
-	    return 2;
-      if (name == perm_string::literal("SUSPENDED"))
-	    return 3;
-      if (name == perm_string::literal("KILLED"))
-	    return 4;
-      return 0;
+      const netenum_t*type = builtin_process_state_type(des);
+      netenum_t::iterator value = type->find_name(name);
+      assert(value != type->end_name());
+      return new NetEConstEnum(name, type, value->second);
 }
 
 bool type_is_vectorable(ivl_variable_type_t type)
@@ -13411,11 +13405,11 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		      && cur_class->get_name() == perm_string::literal("process")
 		      && cur_class->method_from_name(tail_comp.name) == 0) {
 			NetESFunc*sfunc = new NetESFunc("$ivl_process$status",
-							&netvector_t::atom2s32, 1);
+							builtin_process_state_type(des), 1);
 			sfunc->set_line(*this);
 			sfunc->parm(0, base_expr);
 			base_expr = sfunc;
-			cur_type = &netvector_t::atom2s32;
+			cur_type = builtin_process_state_type(des);
 			continue;
 		  }
 
@@ -16981,7 +16975,7 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			    // live process state; it is not a stored
 			    // property.
 			  NetESFunc*tmp = new NetESFunc("$ivl_process$status",
-							&netvector_t::atom2s32, 1);
+							builtin_process_state_type(des), 1);
 			  tmp->set_line(*this);
 			  tmp->parm(0, sub_expr);
 			  return tmp;
@@ -22543,11 +22537,9 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				    || tail_comp.name == perm_string::literal("WAITING")
 				    || tail_comp.name == perm_string::literal("SUSPENDED")
 				    || tail_comp.name == perm_string::literal("KILLED")) {
-				      // Compile-progress fallback for built-in process
-				      // status enum literals when they arrive as an
+				      // Built-in process state enum literals arriving as an
 				      // unresolved two-component identifier form.
-				      NetEConst*tmp = make_const_val(
-					      builtin_process_state_value_(tail_comp.name));
+				      NetEConstEnum*tmp = builtin_process_state_constant_(des, tail_comp.name);
 				      tmp->set_line(*this);
 				      return tmp;
 				}
@@ -22760,8 +22752,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		|| state_name == perm_string::literal("WAITING")
 		|| state_name == perm_string::literal("SUSPENDED")
 		|| state_name == perm_string::literal("KILLED")) {
-		  NetEConst*tmp = make_const_val(
-			builtin_process_state_value_(state_name));
+		  NetEConstEnum*tmp = builtin_process_state_constant_(des, state_name);
 		  tmp->set_line(*this);
 		  return tmp;
 	    }

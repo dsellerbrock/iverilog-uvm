@@ -739,6 +739,16 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
       perm_string class_key = lex_strings.make(class_name);
       perm_string member_key = lex_strings.make(member_name);
 
+      if (!package_scope && !class_type_args
+          && class_key == perm_string::literal("process")
+          && member_key == perm_string::literal("state")) {
+            // Whitespace cannot occur in a user identifier, even escaped.
+            data_type_t*type = new type_parameter_t(
+                  perm_string::literal("process state"));
+            FILE_NAME(type, member_loc);
+            return type;
+      }
+
       auto find_visible_class_scope = [] (LexicalScope*start, perm_string name) -> PClass* {
 	    for (LexicalScope*scope = start ; scope ; scope = scope->parent_scope()) {
 		  if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {

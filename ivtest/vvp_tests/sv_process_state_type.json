@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_process_state_type.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_process_state_type"
+    ],
+    "gold": "sv_process_state_type"
+}

@@ -1,13 +1,13 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L22"
-phase: "selected"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "d8e974913"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L17 local/application gates complete;final evidence review and four-increment PR publication pending;fresh remote CI required, no merge authorization."
+pending_gates: "L22 integrated/UVM/NFA/releases;JSON after integrated terminal;frontend last alone/restore/frozen hashes. Fresh PR275 remote CI remains separate;no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
@@ -544,3 +544,5 @@ l17_application_replay: "Original1.2 OpenTitan debug-crossbar replay6645: PASS,c
 l17_final_evidence_review: "Independent read-only review clear: actual transaction comparisons and queue checks enabled,all seven recorded component hashes match,source clean,embedded DPI loaded,no extra fallback/waiver. Application scope -g2012/defaultseed/singlecore only."
 
 legacy_uvm_pr_third_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "f543fede06debe8ee7190d8577286a1dab69a3e2", state: "open", scope: "Added L19,L20,L21,L17 and original1.2 debug-crossbar smoke PASS", remaining: "Fresh remote CI;no merge authorization"}
+
+l22_focused: "Both-edition original red now passes;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review clear. Shared nominal enum metadata/constants/status and narrow builtin type lookup;no runtime changes. Review corrected empty-root registration and escaped-name collision;permanent controls pass. Bison563SR1122RR,parse.output byteidentical. DD039 bare class-scoped module declaration grammar remains separate."
