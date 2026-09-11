@@ -15,8 +15,8 @@ validation_contract: "Prepatchred and permanent VPI golden cases for lengths0,1,
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
 evidence: "../evidence/campaign-20260908/l32/"
 preserved_parent: "../evidence/campaign-20260908/u15/ACTIVE_WORK.suspended.yaml plusvalues.sv/red.json andliteral-vector-red.json"
-next_action: "Collect integrated36861,UVM45709,NFA1979,releases6583 terminal results. Run full JSON only after integrated terminal; frontend last and alone after all other gates. Verify sixhash freeze/restoration; no source/build/install changes during validation. Then close L32 and resume preserved U15."
-next_command: "tail -20 ../evidence/campaign-20260908/l32/integrated-full.log"
+next_action: "Wait for l32/integrated-recovery.exit and l32/uvm-recovery.exit. Then run JSON (vvp_reg.py) with l32/json-full.exit; then frontend last and alone with l32/frontend-full.exit; re-verify hashes. Then close L32 and resume U15."
+next_command: "cat ../evidence/campaign-20260908/l32/integrated-recovery.exit ../evidence/campaign-20260908/l32/uvm-recovery.exit"
 stop_after_completion: false
 
 l32_focused: "Both permanent editions fail beforepatch andpass after; raw literal lengths0,1,3,4,5,8,9,highbytes andembeddedzeros compare everyaval/bvalword. Emptyliteral lowers8bit0,existingmetadata preserved. Six VPIneighbors andmakecheck pass; independentcode/wordboundaryreviewclear. Nativeinstall40901 exit0. Six installed hashes frozen; fullgatespending. No U15 implementation."
