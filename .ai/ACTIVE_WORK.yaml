@@ -1,16 +1,17 @@
-id: "L23"
-title: "Blocking joins inside function-spawned background processes"
-status: "closed"
-phase: "done"
-base_revision: "b22bf23e1"
+id: "L24"
+title: "Void function calls in dedicated void-cast statement form"
+status: "in_progress"
+phase: "root_caused"
+base_revision: "0a691c8e2"
 last_validated_revision: "58edf8034"
-reproducer: "evidence/campaign-20260908/l23/red.sv, both editions reject nested join_any; UVM1.0p1/1.1a m_forked_drop outer join_none background process."
-expected_behavior: "A function returns immediately after spawning join_none children; those children may execute blocking join/join_any and task-legal statements. Direct blocking forks in the executing function remain errors."
-standards: ["IEEE1800-2017/2023 13.4.4;9.3.2 nested joins and process lifetime"]
-root_cause: "PBlock::elaborate checks lexical function ancestry without distinguishing the current background child. Existing Design fork depth tracks actual child elaboration and is reset across lazily elaborated routines; verify all callers before reuse."
-allowed_scope: ["PBlock blocking-fork legality check using existing isolated elaboration context;paired runtime/negative tests and required gates."]
-non_goals: ["No scheduler,frame lifetime or generic routine redesign; no UVM source edits/void-cast relaxation;no full background-process qualification."]
-required_gates: ["Both-edition reducer/nestedjoin/join_any timing,completion,cancellation and direct-function negative controls;process/fork/routine context neighbors;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Select DD041 void function call in dedicated void-cast statement form;reduce and verify exact grammar/prose interpretation."
-next_command: "sed -n '16905,16975p' elaborate.cc"
+reproducer: "evidence/campaign-20260908/l24/red.sv;original1.0p1/1.1a find_all/get_args calls each yield three void-cast-of-void errors."
+expected_behavior: "The dedicated void'(function_subroutine_call); statement executes the resolved void function exactly once with ordinary receiver, argument, output/ref and dispatch semantics. It does not turn void calls into expressions or permit task casts."
+standards: ["IEEE1800-2017/2023 13.5 Syntax13-3;AnnexA.6.9/A.8.2;13.4.1 contrasts expression use;6.24.1 ordinary expression casts exclude void"]
+semantic_interpretation: "Both editions grammar admits function_subroutine_call without a nonvoid restriction;prose explains nonvoid discards but contains no prohibition for the dedicated statement. Permitted reading is an explicit grammar/prose inference independently reviewed,not a quoted affirmative sentence or vendor bypass."
+root_cause: "PCallTask::elaborate_build_call_ resolves a genuine void function and retains normal call lowering,then unconditionally adds an error solely because void_cast_ is set. Remove only that overrestriction."
+allowed_scope: ["Resolved user void-function statement legality in PCallTask shared call builder;paired effects/dispatch/output/ref and rejection controls,required gates."]
+non_goals: ["No arbitrary void expressions/task casts,deferred assertion action relaxation,new runtime ops,library-specific behavior or UVM source edits;no full call/UVM qualification."]
+required_gates: ["Both-edition reducer/call effects/empty/virtual/output/ref and direct-call parity;task-cast/void-expression/deferred-action negatives;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
+next_action: "Review exact resolved call path,remove only void-function statement rejection,then paired regressions."
+next_command: "sed -n '16905,16960p' elaborate.cc"
 stop_after_completion: false
