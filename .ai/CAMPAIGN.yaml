@@ -1,21 +1,21 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L21"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "fe12166bd"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L21 focus/all required gates unstarted;L17 resuspended unvalidated;PR275 remoteCI independent."
+pending_gates: "L21 integrated18865,UVM96943,NFA74419,15release64863 live;JSON after integrated terminal;frontend last alone,restore/frozen hashes afterward."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Repair proven captured class-root notification prerequisite L21;validate fully before reapplying L17 partial-after-l20.patch."
-next_command: "sed -n '19414,19482p' vvp/vthread.cc"
+next_action: "Finish L21 required gates;then restore L17 partial-after-l20.patch on validated runtime baseline."
+next_command: "tail -8 ../evidence/campaign-20260908/l21/{integrated,uvm,nfa,releases}.log"
 next_command_cwd: repository root
 candidate_state: "L19/L20 two validated unpublished increments since PR275 update."
-installed_tools: "fe12166bd fullyvalidated;frozen evidence/campaign-20260908/l20/sha256.txt."
+installed_tools: "1146d2187 candidate;frozen evidence/campaign-20260908/l21/sha256.txt;last fullyvalidatedfe12166bd."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -511,3 +511,5 @@ l17_resumption: "After validatedL18/L19/L20,restore preserved source/tests. Whol
 l17_second_suspension: "Resumed focus passes arithmetic/width/sign/index/bounds, fails receiver capture: original14 correct,h restoredold14 insteadreplacement100. Standalone scalar property reproduces same runtime bug. Preserved full resumed source/tests patch partial-after-l20.patch and reversed it before L21 selection. No L17 closure."
 
 l21_focused: "Standalone red both editions on restored validatedL20. Patched focuslegacy2/0,JSON2/0;property-event13/0 and mailbox8/0 in both harnesses;makecheck and independent final review clear. Captured nonstruct class root identity only;no valueaggregate/VIF notification redesign."
+
+l21_live_gates: {integrated: 18865, uvm: 96943, nfa: 74419, releases: 64863}
