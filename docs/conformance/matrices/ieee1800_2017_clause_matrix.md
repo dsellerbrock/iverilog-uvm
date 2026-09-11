@@ -1204,3 +1204,12 @@ and callback registration. All required local gates pass. Original1.0p1 runtime
 smoke now passes; compile constraint/cast limitations remain. Nested type
 expressions, forwarded value parameters and full class/UVM qualification remain
 open; concrete identities and initializer analysis are preserved.
+
+### L29 — Procedural block parser recovery (9.3.1/12.7.1 context)
+
+Validated9229c24e7 restores abandoned procedural begin/fork scopes when error
+recovery discards their parser carriers. Both editions retain syntax rejection,
+with exact negative diagnostics and positive loop-local lifetime/label/foreach/
+fork checks. All required local gates pass. This is bounded parser robustness,
+not implementation of the malformed recording macro or a standards feature.
+Foreach's own carrier recovery and complete parser recovery remain unqualified.

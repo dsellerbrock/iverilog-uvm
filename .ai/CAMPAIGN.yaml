@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L29"
-phase: "awaiting_validation"
+current_blocker: "selection"
+phase: "assessing_recording_adapter"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "77cce610b"
+last_integrated_good_revision: "9229c24e7"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L29 isolatedfrontend74117 running;restore/fivehashes afterward. Allotherlocalgates passed except unchanged knownreleasecompilegaps. U13closed;other PR275platformchecks pending."
+pending_gates: "L29 localgates complete;U13closed. PR275 otherplatformchecks on9006baa15 remain pending;L28/L29 local increments unpublished."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Wait running L29 gates; full JSON after integrated; frontend last alone; U13 independent Linux CI remains pending."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l29/uvm.log"
+next_action: "Assess DD038 real recording adapter design and its qualification contract;no no-op or vendor impersonation."
+next_command: "sed -n '508,530p' docs/conformance/DISCOVERED_DEBT.md"
 next_command_cwd: repository root
-candidate_state: "L29 compiler9229c24e7 frozen/awaitingrequiredlocalvalidation;last fullyvalidated77cce610b. L28closed;U13closed."
-installed_tools: "L29 candidate9229c24e7;l29/sha256.txt frozen;not yet fullyvalidated."
-validation_state: "77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification."
-next_validation: "Wait UVM11005;frontend last alone and restorefivehashes."
+candidate_state: "L29 closed9229c24e7;13/15 boundedruntime smoke passes. U13closed. Return to selection."
+installed_tools: "9229c24e7 validated;l29/sha256.txt restored/unchanged."
+validation_state: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."
+next_validation: "Next selected blocker reducer/spec/root evidence;existingPRplatform CI."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -704,3 +704,5 @@ l29_json_terminal: "14368exit0;1859tests0failures. Fivefrozen9229c24e7installedh
 u13_closure: "9006baa15 exact invocationseparator only;localfrontend35171exit0 withrestorehashes;independentreviewclear;freshUbuntu22/24jobs103200770181/103200770250 SUCCESS,legacy_10_dpi2017/2023PASSboth. OtherPR275platformchecks pending;no mergepermission. L29localcandidate unchanged."
 
 l29_uvm_terminal: "11005exit0;355passed0failed0skipped,realDPI. Isolatedfrontend74117 started last alone after allotherlocalgates terminal. Required restore/fivefrozenhashes check afterward."
+
+l29_closure: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."

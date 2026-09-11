@@ -1008,12 +1008,14 @@ L28 final validation: 77cce610b; counter and callback reds both editions PASSED/
 
 ### L29 — Abandoned procedural block scope during parser recovery
 
-- **Status:** ACTIVE, root-caused; robustness only.
+- **Status:** CLOSED at9229c24e7, bounded procedural-block recovery; robustness only.
 - **Evidence:** `evidence/campaign-20260908/l29/one-loop.sv`, both editions
   abort134 on validated77cce610b; legal replacement compiles0. Existing parser
   trace shows a discarded begin midrule leaves lexical scope active, then
   normal enclosing for reduction reaches a scope assertion.
 - **Scope:** Release discarded procedural block scopes at their ownership
   boundary; retain syntax rejection and valid nested/named/loop behavior.
-- **Not claimed:** Recording support or another UVM release pass. U13 Linux CI
-  remains independently awaiting validation; no dependency on pending semantics.
+- **Not claimed:** Recording support, another UVM release pass, or all parser
+  recovery. Foreach carrier recovery remains DD045. U13 Linux CI has passed.
+
+L29 final validation: 9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes.

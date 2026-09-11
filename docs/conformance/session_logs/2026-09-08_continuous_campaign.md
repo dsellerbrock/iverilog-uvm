@@ -2288,3 +2288,14 @@ Together with the preserved local isolated frontend and independent review,
 this closes U13's exact invocation-separator scope. Compiler/DPI semantics
 are unchanged. PR275 macOS/Windows checks remain pending; no merge performed.
 L29 remains the one active implementation blocker, awaiting local validation.
+
+### L29 — Procedural block recovery validated
+
+9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes.
+
+The existing parser trace proved a discarded untyped begin carrier left its
+scope live before normal enclosing for reduction. Shared cleanup now owns
+ordinary/named/labeled/compatibility begin and fork scopes until reduction;
+normal reduction detaches ownership, discard unwinds and deletes only its
+owned block. Existing for assertions and valid empty-scope/join rules remain.
+DD045 records separate foreach-carrier qualification. Return to selection.
