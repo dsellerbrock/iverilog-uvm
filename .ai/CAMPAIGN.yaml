@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "none (L33 closed; next DD046 candidate not yet selected)"
+current_blocker: "none (L34 closed; next DD046 candidate not yet selected)"
 phase: "blocker_selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "716917e4b"
+last_integrated_good_revision: "b396fe0a8"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None. L33 closed with all six required gates exit0 (evidence/campaign-20260908/l33/). vvp and vvp.tgt are the only frozen hashes that changed vs the U15 baseline; re-baselined in l33/installed-frozen-sha256.json."
-merge_requirements: Required remote CI and existing merge permissions remain in force.
+pending_gates: "None. L34 closed with all six required gates exit0 (evidence/campaign-20260908/l34/). vvp and vvp.tgt are the only frozen hashes that changed vs the L33 baseline; re-baselined in l34/installed-frozen-sha256.json."
+merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33 (class string property VPI-lvalue chain) closed this pass. Remaining candidates in evidence/campaign-20260908/fallback-tracked-candidates.tsv/.json still unexamined; select ONE bounded candidate per the targeted-fix protocol; do not batch. Also open: the integral/vec4 (CPV) sibling of L33's nested-property gap, named as an explicit follow-on in BLOCKERS.md L33, not yet its own blocker ID."
-next_action: "Publication decision pending: this branch is 351 commits ahead of origin/main (everything since PR275); publication_cadence below says batch 3-5 blockers and prefer updating an existing PR, but no PR exists for this branch. Asked the user to choose between a whole-batch PR (large, only the L32/U15/U16/L33 portion can be described first-hand) and a narrower one before publishing. Once resolved, select the next DD046 candidate or begin the user's third phase (broader implementation work) per the explicit priority order already satisfied for phases 1-2 (UVM smokes, compile fallbacks in progress)."
-next_command: "gh pr create ... (after user answers the PR-scope question) OR resume DD046 triage: grep the fallback-tracked-candidates inventory for the next unexamined line."
+next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33 (string) and L34 (integral, its explicit follow-on) both closed this pass; both required a mid-pass real-bug fix caught by the ivtest gate (L34's array-indexed-signal-base gap, which also retroactively closed a latent hole in L33's shared helper -- see BLOCKERS.md). Remaining candidates: (a) real-typed (IVL_VT_REAL) nested class-property VPI-lvalue, same architecture likely applies, not yet attempted; (b) unexamined items in evidence/campaign-20260908/fallback-tracked-candidates.tsv/.json; select ONE bounded candidate per the targeted-fix protocol, do not batch."
+next_action: "PR #276 (whole post-275 batch through L33) is open; L34 landed as a new commit directly in that same branch/PR per campaign publication policy (no new PR, no CI gating per explicit user instruction). Select and reduce the next DD046 candidate."
+next_command: "resume DD046 triage: grep the fallback-tracked-candidates inventory for the next unexamined line, or write a real-typed nested-property reducer analogous to c7_int_nested.sv."
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
