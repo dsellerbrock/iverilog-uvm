@@ -1,17 +1,17 @@
-id: "L17"
-title: "Integral compound updates of dynamic-array class properties"
+id: "L21"
+title: "Preserve rebound class handles during captured-object mutation notification"
 status: "in_progress"
 phase: "root_caused"
-base_revision: "c7c2c3d23"
+base_revision: "e7d5b40fb"
 last_validated_revision: "fe12166bd"
-reproducer: "Original red.sv and failed pre-prerequisite focus preserved in evidence/campaign-20260908/l17; DD035 five original1.2 array compound updates took whole-object null fallback."
-expected_behavior: "Update selected integral whole element with correct width/signedness/four-state behavior, one index evaluation, captured receiver identity and invalid-index no-write semantics; never replace array with null."
-standards: ["IEEE1800-2017/2023 11.4.1,11.6,11.8;invalid array indices2017 7.4.6 and2023 7.4.5."]
-root_cause: "show_stmt_assign_sig_prop_darray_index returns-1 for compound opcode; caller treats it as whole-array assignment. Retain array/index, read typed element, use validated shared vector RHS helper, skip invalid store."
-allowed_scope: ["tgt-vvp/stmt_assign.c direct integral whole-element dynamic-array property lowering; preserved permanent paired tests and required gates; direct docs."]
-non_goals: ["No full container/compound qualification, real/string compound feature, original UVM/OpenTitan changes, new runtime instructions or unrelated associative/index/receiver fixes."]
-validated_prerequisites: ["L18 signedness9791e6411", "L19 four-state operands72a97c038", "L20 operation widthsfe12166bd"]
-required_gates: ["Originalred/both-edition focus/width/state/receiver/index/bounds and neighbors;independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restore/hashes;original1.2 OpenTitan replay after full local validation."]
-next_action: "Restore preserved L17 source/tests with manifest adaptation; replace duplicated arithmetic sizing with validated L20 helper; run focus."
-next_command: "git apply --exclude=.ai/ACTIVE_WORK.yaml --exclude=ivtest/regress-sv.list --exclude=ivtest/regress-vvp.list ../evidence/campaign-20260908/l17/partial.patch"
+reproducer: "evidence/campaign-20260908/l21/red.sv: scalar h.value+=rebind() updates captured original correctly but notification restores old h, undoing RHS reassignment."
+expected_behavior: "Mutate the captured class object and notify its actual aliases; do not assign its old handle back into a variable rebound during RHS evaluation. Preserve existing property-change filtering and context/alias delivery."
+standards: ["IEEE1800-2017/2023 8.4 object handles;11.4.1 compound update;9.4.2 event sensitivity where applicable;verify exact relevant semantics in both editions."]
+root_cause: "notify_mutated_object_root_ unconditionally sends captured root_obj to root_net, even when RHS reassigned that source variable to another class object."
+allowed_scope: ["vvp/vthread.cc captured class-root notification identity check using existing signal/context helpers; permanent paired rebind/alias/event controls and required gates;direct docs."]
+non_goals: ["No L17 target restore yet; no general value-aggregate copyback, static overlay or scheduler redesign; no unrelated stale-root paths without proof or application-source changes."]
+required_gates: ["Both-edition red/focus,receiver reassignment/null/alias/event and ordinary mutation controls;independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restore/hashes."]
+suspended_parent: "L17 originalpartial.patch plus resumed partial-after-l20.patch, contract and receiver-debug evidence preserved in evidence/campaign-20260908/l17; resumed patch reversed from worktree."
+next_action: "Verify live class-root identity/context and alias notification semantics; implement smallest guard preserving rebound variable, then validate."
+next_command: "sed -n '19414,19482p' vvp/vthread.cc"
 stop_after_completion: false

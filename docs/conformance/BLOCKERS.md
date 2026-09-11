@@ -871,3 +871,9 @@ complete associative or parent compound qualification. L17 can now resume.
 L17 resumes after validated L18/L19/L20 onfe12166bd. Original red/partial patch
 are preserved; adapt append-only manifests and reuse the validated width helper.
 All L17 gates/application replay remain required before exact-scope closure.
+
+### L21 — Captured class-root notification preserves rebound handles
+
+- **Status:** ACTIVE; runtime prerequisite for resuspended L17.
+- **Evidence:** Standalone scalar h.value+=rebind() mutates original but restores old h during notification. Captured root delivery overwrites RHS reassignment.
+- **Scope:** Guard captured class-root delivery with live binding identity while preserving alias/property events and contexts. All required gates apply. L17 resumed patch is preserved as partial-after-l20.patch.

@@ -490,3 +490,12 @@ its binary expression at destination width before the compressed target
 helper. Migrating the target's associative callers does not qualify that
 separate expansion; preserve as residual width debt requiring its own reducer.
 L20 claims the ordinary compressed vector paths and permanent tested shapes.
+
+### DD037 — Captured class mutation notification undoes handle rebinding
+
+L17 resumed receiver test and standalone scalar-property reducer show
+notify_mutated_object_root_ sending captured root_obj back to root_net after
+RHS rebinds it. Original object updates correctly but h reverts to old handle.
+Evidence l17/receiver-debug and l21/red; vvp/vthread.cc19414. Selected as
+L21 prerequisite at deliberate suspension boundary; no value-aggregate or
+static-overlay correctness claim beyond tested contexts.

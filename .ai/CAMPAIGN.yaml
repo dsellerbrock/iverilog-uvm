@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L17"
+current_blocker: "L21"
 phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "fe12166bd"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Resumed L17 focus and all required gates unstarted;validated prerequisites complete."
+pending_gates: "L21 focus/all required gates unstarted;L17 resuspended unvalidated;PR275 remoteCI independent."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Restore L17 on validated L18/L19/L20 baseline;adapt manifests and reuse shared width helper;run full required validation before application replay."
-next_command: "git apply --exclude=.ai/ACTIVE_WORK.yaml --exclude=ivtest/regress-sv.list --exclude=ivtest/regress-vvp.list ../evidence/campaign-20260908/l17/partial.patch"
+next_action: "Repair proven captured class-root notification prerequisite L21;validate fully before reapplying L17 partial-after-l20.patch."
+next_command: "sed -n '19414,19482p' vvp/vthread.cc"
 next_command_cwd: repository root
 candidate_state: "L19/L20 two validated unpublished increments since PR275 update."
 installed_tools: "fe12166bd fullyvalidated;frozen evidence/campaign-20260908/l20/sha256.txt."
@@ -507,3 +507,5 @@ l20_json_terminal: "56495 exit0;1819tests0failures. UVM58111 live;isolatedfronte
 l20_closure: "fe12166bd;focuslegacy2/0,JSON2/0,neighborlegacy35/0,JSON40/0,makecheck,independent review,legacy4927total4922pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1819/0,realDPIUVM355/0/0,NFA58/58,frontend93046exit0 all;root restored and frozen hashes match. Complete15release results-l9qgrxtz11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
 
 l17_resumption: "After validatedL18/L19/L20,restore preserved source/tests. Whole patch check failed only appended manifests;adapt those explicitly. Original partial/reducers remain unchanged outside tree. Use L20 shared sizing helper;all L17 gates rerun."
+
+l17_second_suspension: "Resumed focus passes arithmetic/width/sign/index/bounds, fails receiver capture: original14 correct,h restoredold14 insteadreplacement100. Standalone scalar property reproduces same runtime bug. Preserved full resumed source/tests patch partial-after-l20.patch and reversed it before L21 selection. No L17 closure."
