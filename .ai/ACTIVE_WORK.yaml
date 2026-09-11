@@ -1,7 +1,7 @@
 id: "L26"
 title: "Matching multi-class-parameter specializations with independent defaults"
 status: "active"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "2785d1d5d"
 last_validated_revision: "c58035f49"
 reproducer: "../evidence/campaign-20260908/l26/default-pair.sv and .json: Pair#(A) versus Pair#(A,B), B the declared default; both editions compile0 then cast fails runtime1. Larger forward-registry reducer and passing controls preserved."
