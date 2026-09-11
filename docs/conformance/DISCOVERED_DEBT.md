@@ -470,3 +470,13 @@ matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-compile.log}.
 Runtime0/pass banner/zero UVM severities does not waive compile-time semantic
 debt. Reduce and trace a concrete selected-element compound assignment before
 selecting an implementation change; full UVM/application qualification open.
+
+### DD036 — Compound operands prematurely converted to destination width/state
+
+During L17 focused review, byte property >>=32'd256 reaches VVP as an8bit
+zero shift count; /=32'd256 also reaches division with zero divisor, whose
+unknown result was masked by the two-state destination. netmisc.cc
+elab_and_eval destination casting loses width/state before target lowering.
+Four-state RHS into two-state compound target must retain X until the final
+result conversion. Preserve l17/focus.vvp,focus.log,partial.patch. Separate
+prerequisite selection required after L18; not repaired by target width logic.

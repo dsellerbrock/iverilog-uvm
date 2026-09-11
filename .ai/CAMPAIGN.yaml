@@ -1,13 +1,13 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L17"
-phase: "spec_grounded"
+current_blocker: "L18"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "5ba60567f"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L17 reducer/focus/review/full gates not run; PR275 remoteCI separate."
+pending_gates: "L18 focused and all required integrated gates unstarted; L17 suspended unvalidated; PR275 remoteCI separate."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
@@ -447,3 +447,6 @@ l16_uvm_terminal: "94168 exit0;355passed0failed0skipped,realDPI. Frontend11034 s
 l16_local_validation: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 
 l16_closure: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+
+l17_suspension: "Partial target fix/permanent tests preserved in evidence/campaign-20260908/l17/partial.patch and removed from working tree with git apply --reverse --index. Red and focus failure retained. Prerequisites: resolved property signedness L18; wide operand/four-state preservation DD036. Do not resume L17 before validated prerequisites."
+l18_selection: "Standalone signed scalar property division reproduces wrong2147483616 versus-32. Current installed target temporarily contains removed L17 partial patch; rebuild/install clean source before recording L18 red provenance. Last fully validated semantic5ba60567f."

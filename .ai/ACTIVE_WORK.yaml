@@ -1,16 +1,17 @@
-id: "L17"
-title: "Integral compound updates of dynamic-array class properties"
+id: "L18"
+title: "Resolved integral property signedness in compound assignment"
 status: "in_progress"
-phase: "spec_grounded"
-base_revision: "8b7c35ba5"
+phase: "root_caused"
+base_revision: "33ce0abbf"
 last_validated_revision: "5ba60567f"
-reproducer: "DD035 five original1.2 register-library compound integral array-element updates emit object-RHS null fallbacks; original1.2 OpenTitan overallDEBT despite runtime checking."
-expected_behavior: "Update the selected integral dynamic-array property element using the compound operator, with correct width/signedness, one index evaluation, preserved receiver identity and invalid-index no-write semantics. Never replace the array property with null."
-standards: ["IEEE1800-2017/2023 11.4.1 compound assignment equals corresponding blocking update with LHS index evaluated once; verify both editions11.8 sizing and7.4.6 invalid-index semantics."]
-root_cause: "show_stmt_assign_sig_prop_darray_index rejects every nonzero compound opcode by returning-1, which caller interprets as whole-array assignment and sends integral RHS to object evaluator. Existing typed container load/store and vector operator helpers can implement the selected element update."
-allowed_scope: ["tgt-vvp/stmt_assign.c integral selected dynamic-array property compound path; permanent paired-edition tests and required validation; directly affected docs."]
-non_goals: ["No original UVM/OpenTitan source changes, new runtime architecture, general real/string compound feature, or unrelated queue/assoc rewrite."]
-required_gates: ["Red reducer and exact no-fallback runtime result; both-edition permanent operator/index/width/receiver/bounds cases; focused neighbors and independent review.", "Native build,integrated/JSON/UVM/NFA/makecheck/15release sweep;isolatedfrontend last/restoration/hashes;original1.2 OpenTitan replay after validation."]
-next_action: "Establish reducer, verify existing typed container opcodes and index error flag semantics, implement smallest correct integral path."
-next_command: "sed -n '3855,3949p' tgt-vvp/stmt_assign.c"
+reproducer: "evidence/campaign-20260908/l18/red.sv: signed int class property -64 /= 2 produces2147483616 instead of-32."
+expected_behavior: "Compound division/modulo and arithmetic right shift use the resolved selected integral type signedness. Unsigned and packed-select operations remain unsigned."
+standards: ["IEEE1800-2017 and2023 11.4.1 compound assignment;11.8.1 operand signedness;11.4.10 shift semantics."]
+root_cause: "PAssign::elaborate_compressed_ uses NetAssign_::signed_ initialized false for property lvalues, although net_type() resolves the declared signed element/property type. It forces unsigned RHS and rewrites arithmetic shift before target lowering."
+allowed_scope: ["elaborate.cc compressed assignment selected integral signedness; permanent paired-edition signed/unsigned/part-select tests; required gates and direct docs."]
+non_goals: ["Do not apply suspended L17 target patch or claim dynamic-array compound support; wide operand and premature two-state conversion prerequisites remain separately recorded."]
+required_gates: ["Both-edition red/focus/neighbor tests and independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;isolatedfrontend last/restoration/fingerprints."]
+suspended_parent: "L17 original reducer/failing focus/VVP and complete partial.patch in evidence/campaign-20260908/l17; restore only after all prerequisites validated."
+next_action: "Derive compressed integral LHS signedness from resolved type; preserve other paths; run paired focused tests."
+next_command: "sed -n '7499,7533p' elaborate.cc"
 stop_after_completion: false
