@@ -1958,3 +1958,17 @@ Development UVM1.2 replay results-pqt3anxi starts release_test and fails with fi
 ### U08 closure
 
 c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged. Full release sweep results-eb3ghca7:9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL. Original sources unchanged;2017.0.9 now passes,1.2 reaches legacy DPI errors. U08 closes only the proven inherited-homonym/root-recursion scope. DD030/U09 is the next selected candidate. External ClaudeSonnet5 review completed; both findings were reconciled against complete source and targeted negative probes without an additional code change.
+
+### U09 candidate — awaiting validation
+
+19e7f5592 provides the three cached-regex C exports expected by original1.1d/1.2. The legacy source was already present in pinned archives; the modern included DPI source no longer exports these names. Both-edition red fixture compiled then failed on missing uvm_dpi_regcomp. The adapter uses native strict REG_NOSUB|REG_EXTENDED, independent allocated handles and native execution/free, retaining modern behavior.
+
+Invalid-pattern testing revealed1.1d lacks the later SV reporting export. The existing legacy error helper now checks the actual package-qualified callback name and emits a visible native diagnostic when absent. Initial dotted lookup failed the modern/1.2 reporting tests; corrected VPI package syntax `uvm_pkg::m__uvm_report_dpi` passes10/10 focused cases, including original1.1d/1.2 under both IEEE modes, original uncached ABI, and permanent no-callback coverage. Review's initial dotted-name assurance was wrong; actual runtime evidence drove the correction, which was re-reviewed clear. Original1.1d print-only text identity is not claimed, but diagnostic visibility and unchanged UVM severity counts are tested.
+
+Initial smoke replay results-lmal0dvl passes both original1.1d/1.2. Full15release, integratedlegacy/VPI/negative/runtime,JSON,realDPIUVM,NFA and final isolatedfrontend gates remain required. No OpenTitan application pass or full UVM qualification claim.
+
+### U09 closure
+
+19e7f5592; focused10/10,legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Full15release sweep11SMOKE_PASS4COMPILE_FAIL, all source hashes unchanged.
+
+Original sources include the legacy DPI; the installed backend supplies its three cached-regex exports without a separate download/build. No full UVM or OpenTitan pass is claimed. Next selection: original1.2 OpenTitan runtime configuration/provenance and replay.

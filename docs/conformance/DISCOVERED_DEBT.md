@@ -398,3 +398,10 @@ U08 review observed local base methods still accessible when no enclosing homony
 ### DD030 — Original UVM1.2 reaches missing legacy regex DPI
 
 U08 development replay results-pqt3anxi removes the root-construction recursion and starts release_test, then reports missing uvm_dpi_regcomp, five command-line regex UVM_ERRORs and one BUILDERR UVM_FATAL. Result RUNTIME_FAIL, not smoke/application pass. Original source tree unchanged. Pinned1.2 src/dpi/uvm_svcmd_dpi.c already defines uvm_dpi_regcomp/regexec/regfree using POSIX REG_NOSUB|REG_EXTENDED; current fork umbrella includes the modern source, which lacks those exported entry points. User requested investigation. Preserve legacy strict regex semantics, allocation/free behavior and error reporting when selecting DPI work after U08 validation; do not simply alias to the modern glob-retry wrapper.
+
+
+DD027/DD030 resolution (U09,19e7f5592): cached-regex exports and callback-aware
+error reporting now pass focused original1.1d/1.2 checks in both editions.
+Full required local gates pass. Both original releases pass smoke in
+results-n2m35ki0 with unchanged source fingerprints. Other compile-time
+constraint/codegen warnings and full application qualification remain open.

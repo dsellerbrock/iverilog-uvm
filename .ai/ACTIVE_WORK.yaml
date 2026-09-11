@@ -1,9 +1,9 @@
 id: "U09"
 title: "Legacy UVM cached-regex DPI entry points"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "done"
 base_revision: "c9626a449"
-last_validated_revision: "c9626a449"
+last_validated_revision: "19e7f5592"
 selection_reason: "User requested legacy DPI; DD030/DD027 identify missing C exports in original1.2/1.1d. Pinned source already acquired; U08 fully validated before selection."
 reproducer: "results-eb3ghca7 original1.2/1.1d runtime logs: missing uvm_dpi_regcomp, command-line regex errors and BUILDERR fatal. nm confirms regcomp/regexec/regfree exports absent."
 expected_behavior: "Expose uvm_dpi_regcomp/regexec/regfree with the UVM1.2 cached POSIX ERE contract: compile REG_NOSUB|REG_EXTENDED without glob retry, reusable opaque handles, match/nonmatch polarity, null handling, release allocated regex, report invalid compilation and return null."
@@ -13,8 +13,8 @@ allowed_scope: ["Add the three missing C entry points to fork-owned uvm_dpi/uvm_
 non_goals: ["No changes to pinned library source, compiler semantics, modern regex/glob behavior or general visibility debt.", "No UVM1.2 application pass claim from smoke alone.", "UVM1.1d valid-pattern compatibility is tested; its historical print-only invalid-pattern diagnostics are not claimed identical to UVM1.2 error reporting."]
 required_gates: ["Pre-fix missing-export reducer; both-edition standalone fixture positive/negative/handle-lifetime/error-count checks; independent review.", "Native build/export check; full integrated legacy/VPI/negative/runtime,JSON,real-DPIUVM,NFA,makecheck,full15release sweep; isolatedfrontend last and restored hashes."]
 discovery_policy: "Unrelated discoveries record-only. Regression caused by this patch remains in scope."
-next_action: "Write and run cached-regex red fixture before adding exports."
-next_command: "nm -gU local-install/lib/ivl/uvm_dpi.vpi"
+next_action: "Select OpenTitan original1.2 runtime configuration/provenance and replay."
+next_command: "sed -n '873,930p' scripts/opentitan_matrix.py"
 stop_after_completion: false
 
 red_evidence: "evidence/u09/red.json: both2017/2023 compile0 then run1; missing uvm_dpi_regcomp and fatal legacy regex compilation. PrimaryDPI mapping is AnnexH scalar mapping (chandle void*) plus35.5.5/35.5.6 return/formal types, checked against both local editions."

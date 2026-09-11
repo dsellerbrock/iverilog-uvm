@@ -223,11 +223,17 @@ python3 scripts/uvm_release_matrix.py --prefix "$PWD/install" --release 2020.3.1
 ```
 
 Availability in `--uvm-list` does not imply compatibility: the recorded matrix
-has nine smoke passes, four compile gaps and two runtime failures. See the
+has eleven smoke passes and four compile gaps. See the
 [release matrix](docs/conformance/uvm_release_matrix.md) for exact versions,
 checks and limitations. For an existing external source tree, use
 `iverilog -g2017 --uvm-home=/path/to/uvm -o sim.vvp my_testbench.sv`;
 `--uvm-home` and `--uvm=<release>` are mutually exclusive.
+
+For legacy UVM 1.2, use `--uvm=1.2` after registration. Its original
+DPI sources arrive with the pinned archive; the installed Icarus DPI backend
+now supplies the legacy cached-regex functions automatically. There is no
+separate legacy DPI download or build step for this usage. UVM 1.1d and 1.2
+pass the recorded smoke checks; full application qualification remains open.
 
 Advanced overrides (a different UVM library, disabling DPI, raw module
 loading) are all still available — see **[docs/uvm_frontend.md](docs/uvm_frontend.md)**
