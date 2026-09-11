@@ -573,3 +573,7 @@ Record-only during U11; select a bounded harness-classification ticket at next
 coordination boundary, retaining offending logs as negative regression evidence.
 No compiler workaround or filtering of errors. 1.0p1 actual semantic gaps remain
 separate from fixing the false-positive classifier.
+
+DD043 resolved by U12 at1654dc4c9: fresh results-fm8uvyiv classifies1.0p1
+RUNTIME_FAIL;quoted UVM_INFO remains informational. Underlying1.0p1 runtime
+errors remain open. No original source or compiler changes.

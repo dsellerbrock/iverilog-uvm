@@ -1,7 +1,7 @@
 id: "U12"
 title: "Reject simulator diagnostics in release smoke classification"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "completed"
 base_revision: "c37f5b9c8"
 last_validated_revision: "e18128369"
 reproducer: "DD043 results-zyhh1jv9/1.0p1/runtime.log: rawSMOKE_PASS despite3placeholder-net and2cast errors;permanent offline classifier negative."
@@ -11,6 +11,6 @@ root_cause: "smoke_passed validates exit/timeout/exactmarker/UVM summary only;do
 allowed_scope: ["Shared smoke_passed classifier,existing offline test_matrix controls,full original15release replay and directly affected documentation."]
 non_goals: ["No compiler/runtime/DPI changes,originalsource edits,1.0p1cast/functor repair,1.1b/cmacro/parser repair or new qualification claims."]
 required_gates: ["Pre-fix false-positive proof;all offline matrix tests;historical runtime log polarity controls;fresh15release matrix and unchanged tool/source fingerprints;independent review. Existing e18128369 full compiler gates remain baseline;harness-only change does not require rebuild or duplicate compiler sweeps."]
-next_action: "Run fresh15release replay and final independent review;no compiler changes."
-next_command: "python3 tests/uvm_releases/test_matrix.py"
+next_action: "Inspect remaining original1.0p1 runtime diagnostics and select exact causal blocker."
+next_command: "sed -n '460,492p' third_party/uvm-releases/sources/1.0p1/uvm-1.0p1/src/base/uvm_callback.svh"
 stop_after_completion: false

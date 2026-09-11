@@ -2188,3 +2188,13 @@ false positive was exposed and recorded DD043: original1.0p1 raw pass is rejecte
 while1.1a is a clean new smoke pass. Do not confuse the two statuses.
 
 Final validation: e18128369;both-edition red failed missing old DPI entrypoint;focused8/0,makecheck,independent code/evidence review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend41504exit0 all scenarios including oldABI both editions;install restored and five frozen hashes match. Release results-zyhh1jv9 complete/baseline_valid,all15source/archive hashes unchanged. Reviewed12clean smoke passes,1disqualified1.0p1 runtime,2compilefails;raw1.0p1SMOKE_PASS rejected due existing3placeholder and2cast diagnostics. 1.1a clean new smoke pass through time1.
+
+### U12 — Correct runtime smoke classification
+
+The shared helper now rejects actual simulator diagnostics independently of
+UVM summaries. Anchored error/fatal/warning, DPI errors and unresolved-functor
+placeholder lines cannot pass with zero exit/status counts. Information messages
+quoting diagnostics remain allowed after independent review caught that edge.
+This is evidence-integrity work, not a compiler fix or qualification increase.
+
+Final validation: 1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match.

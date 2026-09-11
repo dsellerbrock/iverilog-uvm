@@ -930,7 +930,9 @@ U11 final validation: e18128369;both-edition red failed missing old DPI entrypoi
 
 ### U12 — Simulator diagnostics cannot be clean release smoke passes
 
-- **State:** SELECTED after validated U11.
+- **State:** CLOSED at1654dc4c9 after required harness validation.
 - **Evidence:** DD043 original1.0p1 false-positive runtime row.
 - **Scope:** Existing shared classifier/offline tests and fresh release evidence;
   no compiler changes or repair of underlying runtime diagnostics.
+
+U12 final validation: 1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match.
