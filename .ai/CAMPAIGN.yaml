@@ -7,15 +7,15 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "5ba60567f"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L18 integrated23070,UVM18719,NFA6417,15release62731 live;JSON unstarted until integrated terminal;frontend last alone, then restoration/hash checks. No source/install edits."
+pending_gates: "L18 final integrated50506,UVM62965,NFA7325,15release59045 live;JSON after integrated terminal;frontend last alone then restore/hash check."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
 next_action: "Finish L18 required validation; full JSON after integrated gate terminal, isolated frontend last alone. Then close exact signedness scope and select DD036 before restoring L17."
-next_command: "tail -8 ../evidence/campaign-20260908/l18/{integrated,uvm,nfa,releases}.log"
+next_command: "tail -8 ../evidence/campaign-20260908/l18/{integrated,uvm,nfa,releases}-final.log"
 next_command_cwd: repository root
 candidate_state: "L15/L16 two validated unpublished increments since PR275 update."
-installed_tools: "f9b0021d0 candidate; frozen evidence/campaign-20260908/l18/sha256.txt. Last fully validated5ba60567f."
+installed_tools: "9791e6411 final candidate; frozen evidence/campaign-20260908/l18/sha256-final.txt; last fully validated5ba60567f."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -462,3 +462,5 @@ l18_failed_candidate: "f9b0021d0 introduced assign_op_type failure: singleton co
 l18_corrected_focused: "Correction retains original lvalue signed flag except actual integral property selections. Legacyfocus3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck pass. Singletonconcatenation asserted in both editions; existing assign_op_type permanent focus. All broad gates restart on corrected revision."
 
 l18_final_focus: "Read-only review found singleton property concat also reuses property lvalue; explicit PEConcat exclusion added before restarting broad gates. Permanent paired {h.value} case added. Final focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck pass. Final independent review clear. No semantic gates from earlier candidates count for final revision."
+
+l18_final_live_gates: {integrated: 50506, uvm: 62965, nfa: 7325, releases: 59045}
