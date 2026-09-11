@@ -2159,3 +2159,18 @@ prove immediate return, nested join/all and join_any/first timing, cancellation,
 sibling survival and separate invalid-function rejection. Final review clear.
 
 Final validation: 58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors.
+
+### L24 — Dedicated void-function cast statements
+
+Both2017/2023 13.5 Syntax13-3 and AnnexA.6.9/A.8.2 admit a function call
+without a nonvoid-return restriction. 13.4.1 prohibits void values in expressions;
+the permitted dedicated-statement reading is a reviewed grammar/prose inference.
+Removed only the resolved void-function statement rejection in the shared call
+builder; ordinary argument/receiver/output/ref/virtual dispatch remains intact.
+Permanent positives check actual effects and negatives preserve task casts,
+void expressions and deferred-action restrictions. Initial integrated failure
+was the obsolete sv_void_cast_fail1 statement-rejection expectation; replaced
+with direct void-expression rejection, not waived. Historical2005 acceptance
+is not qualified. Source/install unchanged during all gates.
+
+Final validation: 795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics.

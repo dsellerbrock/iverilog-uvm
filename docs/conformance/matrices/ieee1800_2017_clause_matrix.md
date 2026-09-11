@@ -1156,3 +1156,12 @@ all-child and first-child completion, remaining-child cancellation and unrelated
 sibling survival. Separate invalid functions called from a background child
 still fail; all required gates pass. No scheduling/lifetime changes or full
 background-process/UVM qualification claim.
+
+### L24 — Void-function cast statements (13.5/A.6.9)
+
+Validated795d9f360 permits the dedicated void'(function_call); form for a
+resolved void function. Both2017/2023 grammar/prose interpretation was independently
+reviewed; it is an inference, not an affirmative prose quote. Actual arguments,
+output/ref copyback, empty-body argument effects and virtual dispatch are tested.
+Task casts and void-function expressions remain illegal; all required gates pass.
+Historical2005 acceptance and full subroutine/UVM qualification remain open.

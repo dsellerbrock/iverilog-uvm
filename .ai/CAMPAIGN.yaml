@@ -1,22 +1,22 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L24"
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "58edf8034"
+last_integrated_good_revision: "795d9f360"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L24 reconciled integrated14015/UVM50856 live;JSON after integrated terminal;frontend last alone/restore/hashes. NFA58/58/releases complete on unchanged binaries. PR275 CI separate;no merge authorization."
+pending_gates: "None locally for L24;PR275 remote CI separate,no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated L24, assess DD042 pre-1.1d DPI command-line/regex entry points using pinned original source and existing backend helpers."
-next_action: "Complete L24 reconciled gates;JSON after integrated terminal;frontend last alone/restore/hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated-reconciled.log"
+next_action: "Publish coherent validated L22/L23/L24 batch to existing PR275;select DD042 older DPI ABI."
+next_command: "gh pr view 275 --json state,headRefOid,statusCheckRollup"
 next_command_cwd: repository root
-candidate_state: "L22/L23 two validated unpublished increments after PR275 f543fede0;L24 selected."
-installed_tools: "795d9f360 candidate;frozen evidence/campaign-20260908/l24/sha256.txt;last fullyvalidated58edf8034."
-validation_state: "Last fullyvalidated58edf8034 L23;closure details below. L24 candidate795d9f360 has passing focus,makecheck,NFA and completed release census;initial integrated failure reconciled by test-only8afc61443,required reruns pending."
+candidate_state: "L22/L23/L24 three fullyvalidated unpublished increments after PR275 f543fede0."
+installed_tools: "795d9f360 validated with test reconciliation8afc61443;frozen l24/sha256.txt."
+validation_state: "795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics."
 next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
@@ -582,3 +582,11 @@ l24_release_terminal: "35204 exit1;results-6_pvcxya complete/baseline_valid,11SM
 l24_gate_reconciliation: "Integrated94711 exit1: sole legacy failure sv_void_cast_fail1 expected the newly permitted dedicated statement to fail. VPI105/0,negative149/0,runtime15/15 passed before gate exit. UVM7768 stopped143 and reaped before test edit;not a completed pass. Replaced obsolete negative with direct void-function expression rejection,verified exact diagnostic;retained task/arbitrary-call negatives. Focus7/0. Independent review agrees;paired2017/2023 positives establish current scope,2005 acceptance remains unqualified. No compiler/install changes;five frozen hashes must match. Required integrated/UVM rerun,JSON/frontend pending. Old logs preserved. "
 
 l24_reconciled_live_gates: {integrated: 14015, uvm: 50856, semantic_candidate: "795d9f360", test_reconciliation: "8afc61443", remaining: "JSON after integrated terminal;frontend last alone;NFA/release results retained on identical five-hash binaries"}
+
+l24_reconciled_integrated_terminal: "14015 exit0;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON10375 launched after terminal;UVM50856 live;frontend unstarted. Native hashes unchanged. "
+
+l24_json_terminal: "10375 exit0;1837tests0failures. UVM50856 live;frontend unstarted. Candidate binaries unchanged795d9f360. "
+
+l24_uvm_terminal: "50856 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other local gates terminal;restore/frozen hashes required afterward. "
+
+l24_closure: "795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics."
