@@ -985,3 +985,13 @@ L27 final validation: 8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0
 - **Scope:** Invocation separator only; retain literal `-f` iteration assertions,
   metadata/regex behavior, and all diagnostics. Local frontend and fresh Linux
   CI are required; no compiler/DPI semantic change.
+
+### L28 — Unresolved forwarded type initializer side effects
+
+- **State:** ACTIVE; both-edition counter reducer fails on validated8f2252dd3.
+- **Cause:** Symbolic forwarding requests have specialized-instance metadata
+  while their actual retains generic source lineage; static init ignores this.
+- **Scope:** Existing deferred-type predicate at process registration; preserve
+  concrete cache reuse, initialization analysis and ordering. DD044 evidence.
+- **Coordination:** U13 remains awaiting fresh Linux CI on9006baa15; it only
+  changes a fixture command. L28 has no dependency on that pending harness gate.

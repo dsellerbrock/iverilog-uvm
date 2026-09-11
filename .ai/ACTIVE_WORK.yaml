@@ -1,18 +1,17 @@
-id: "U13"
-title: "Protect literal legacy DPI argv from runtime option parsing"
+id: "L28"
+title: "Unresolved forwarded type specializations must not execute static initialization"
 status: "active"
-phase: "awaiting_linux_ci"
-base_revision: "8e30e020c"
+phase: "root_caused"
+base_revision: "24562d1b1"
 last_validated_revision: "8f2252dd3"
-reproducer: "Published2785d1d5d GitHub run34575850689 Ubuntu22.04 job103188016019: legacy_10_dpi fails both editions before simulation with vvp invalid option -- f. Log archived under l27/ubuntu2204.plain.log. Ubuntu24.04 also failed; inspect matching log."
-expected_behavior: "The standalone old-DPI fixture receives exactly its program name and four literal arguments, including -f, then verifies real iteration/restart and regex/metadata behavior."
-standards: ["Runtime getopt option boundary;this is a harness invocation fix,not a new IEEE semantic qualification."]
-root_cause: "vvp/main.cc intentionally permits GNU getopt argument permutation. Frontend S10 passes an option-looking test argument without --,so Linux consumes it before VPI/DPI sees argv."
-allowed_scope: ["Insert end-of-options separator in the legacy_10_dpi fixture invocation only;retain all literal argv assertions and required diagnostics;local frontend restore/hash validation and fresh published Linux CI."]
-non_goals: ["No runtime option-parser change,POSIXLY_CORRECT workaround,removed -f assertion,DPI behavior changes or forwarded-template implementation. L28 reducer preserved for later selection."]
-required_gates: ["Existing Linux failure log;unchanged exact-argv fixture passes both editions locally;isolatedfrontend last alone with installationrestore/frozenhashes;fresh Linux CI confirms correction before final closure."]
-next_action: "Await fresh Linux CI on published9006baa15;close U13 only after evidence,then select preservedL28."
-next_command: 'gh pr view 275 --json state,headRefOid,statusCheckRollup'
+reproducer: "../evidence/campaign-20260908/l28/forward-seed-init.sv and .json: unused Forward#T declares Generic#T;one real Generic#bit causes two registrations,both editions compile0/runtime1. DD044 larger callback reducer preserved."
+expected_behavior: "A specialization request whose type actual still refers to an unspecialized generic formal remains symbolic and contributes no runtime static initialization. Real concrete specializations initialize exactly once,including concrete keys first encountered from template bodies."
+standards: ["Both IEEE1800-2017/2023 8.25: generic class is not a type;static storage belongs to concrete specializations."]
+root_cause: "Forwarded symbolic requests have specialized_instance metadata but existing class_type_parameter_is_deferred retains their generic source lineage. Static initializer process emission currently ignores that distinction."
+allowed_scope: ["Use existing deferred-type-parameter predicate at static initializer process registration;retain initializer analysis,const checks,concrete identity/ordering;permanent symbolic/concrete reuse and callback controls."]
+non_goals: ["No blanket seed_derived suppression,identity merging,value-parameter generalization or parser redesign;no automaticfullUVM/callback claim."]
+required_gates: ["Both-edition red/green and realconcrete cache-reuse/forwarding/default/const controls;independent review;nativebuild/makecheck/focus/neighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/frozenhashes."]
+independent_pending_work: "U13 remains open awaiting freshLinuxCI on9006baa15;contract preserved in l28/U13-awaiting-ci.yaml. It changes only fixture invocation;L28 depends on fully validated semantic8f2252dd3,not pendingU13. Do not close U13 or change publishedCIcandidate while gates run."
+next_action: "Implement bounded staticinit registration guard using existing deferred type lineage predicate;validate concrete reuse."
+next_command: 'sed -n "30120,30168p" elaborate.cc'
 stop_after_completion: false
-
-local_validation: "Frontend35171exit0 allscenarios,including exact oldDPI argv both editions;installation restored/five8f2252dd3hashesmatch;independent review clear. Both Linux failurelogs confirm same getopt-f cause. Fresh Linux CI required."
