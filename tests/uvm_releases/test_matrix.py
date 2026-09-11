@@ -98,6 +98,7 @@ class MatrixTests(unittest.TestCase):
                 self.assertFalse(matrix.smoke_passed(result, clean + diagnostic + "\n"))
         self.assertTrue(matrix.smoke_passed(result, clean +
                         "UVM_INFO @ 1: reporter [CHECK] error: value checked\n"
+                        "UVM_INFO @ 1: reporter [CHECK] expected foo.sv:7: error: example\n"
                         "uvm_root.svh:408: $finish called at 1 (1s)\n"))
 
     def test_archive_integrity_and_source_preservation(self):

@@ -128,7 +128,7 @@ def smoke_passed(result, output):
     if "UVM_RELEASE_SMOKE_PASSED" not in output.splitlines():
         return False
     # Simulator diagnostics bypass UVM reporting and can leave a zero exit code.
-    if re.search(r"^(?:(?:.*:\d+:[ \t]*)?(?:error|fatal|warning):|"
+    if re.search(r"^(?!UVM_INFO[ \t])(?:(?:.*:\d+:[ \t]*)?(?:error|fatal|warning):|"
                  r"DPI error:|unresolved functor stub:)", output, re.MULTILINE | re.IGNORECASE):
         return False
     for severity in ("ERROR", "FATAL", "WARNING"):
