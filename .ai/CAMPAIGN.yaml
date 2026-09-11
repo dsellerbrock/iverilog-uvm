@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L30"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9229c24e7"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L29 localgates complete;U13closed. PR275 otherplatformchecks on9006baa15 remain pending;L28/L29 local increments unpublished."
+pending_gates: "L30 integrated26735,UVM62168,NFA58271,releases20924 live;JSON/frontend unstarted."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Repair L30 complete-class scoped module declarations after checking existing helper restrictions and parser trace."
-next_command: "sed -n '14710,14795p' parse.y"
+next_action: "Wait running L30 gates;fullJSON afterintegrated,frontend lastalone;preservefrozen candidate."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l30/integrated.log"
 next_command_cwd: repository root
-candidate_state: "L29 closed9229c24e7;13/15 boundedruntime smoke passes. U13closed. Return to selection."
-installed_tools: "9229c24e7 validated;l29/sha256.txt restored/unchanged."
+candidate_state: "L30 candidate34787868e frozen/requiredgatesrunning;lastfullyvalidated9229c24e7. L29/U13closed."
+installed_tools: "34787868e candidate;l30/sha256.txt frozen;notyetfullyvalidated."
 validation_state: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."
-next_validation: "Next selected blocker reducer/spec/root evidence;existingPRplatform CI."
+next_validation: "FullJSON afterintegrated terminal;frontend onlyafterallothergates terminal;restorehashes."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -708,3 +708,6 @@ l29_uvm_terminal: "11005exit0;355passed0failed0skipped,realDPI. Isolatedfrontend
 l29_closure: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."
 
 l30_selection: "DD039 directcompleteclass nested typedef variable atmodulescope failsboth editions compile2 onvalidated9229c24e7. Trace confirms moduleinstantiationfrontier;reusable classscopedtypehelper exists. L30 soleactiveimplementation. DD038 remains realrecordingbackend design boundary;no emptymacro/vendorimpersonation."
+
+l30_focused: "34787868e;originalredcompile0/no diagnostics both editions;focus12legacy/12JSON,neighbors43legacy/32JSON,makecheck,independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Frozenfivehashes l30/sha256.txt. Requiredfullgatespending."
+l30_live_gates: {integrated: 26735, uvm: 62168, nfa: 58271, releases: 20924}
