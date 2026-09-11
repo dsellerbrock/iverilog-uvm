@@ -2961,3 +2961,15 @@ sv_forwarded_type_static_init normal,-g2017 ivltests
 sv_forwarded_type_static_init_2023 normal,-g2023 ivltests
 sv_forwarded_callback_init normal,-g2017 ivltests
 sv_forwarded_callback_init_2023 normal,-g2023 ivltests
+sv_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_block_scope_recovery_fail.gold
+sv_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_block_scope_recovery_fail_2023.gold
+sv_named_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_named_block_scope_recovery_fail.gold
+sv_named_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_named_block_scope_recovery_fail_2023.gold
+sv_labeled_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_labeled_block_scope_recovery_fail.gold
+sv_labeled_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_labeled_block_scope_recovery_fail_2023.gold
+sv_compat_block_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_compat_block_scope_recovery_fail.gold
+sv_compat_block_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_compat_block_scope_recovery_fail_2023.gold
+sv_fork_scope_recovery_fail CE,-g2017,-I./ivltests ivltests gold=sv_fork_scope_recovery_fail.gold
+sv_fork_scope_recovery_fail_2023 CE,-g2023,-I./ivltests ivltests gold=sv_fork_scope_recovery_fail_2023.gold
+sv_block_scope_lifetimes normal,-g2017,-I./ivltests ivltests gold=sv_block_scope_lifetimes.gold
+sv_block_scope_lifetimes_2023 normal,-g2023,-I./ivltests ivltests gold=sv_block_scope_lifetimes_2023.gold

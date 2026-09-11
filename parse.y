@@ -1125,21 +1125,24 @@ enum for_initialization_kind_t {
       FOR_INIT_EMPTY
 };
 
-struct for_variable_scope_t {
-      struct vlltype loc;
+struct parser_block_scope_t {
       PBlock*block;
       LexicalScope*parent_scope;
       size_t block_stack_depth;
+      bool active;
+};
+
+struct for_variable_scope_t : parser_block_scope_t {
+      struct vlltype loc;
       PExpr*lvalue;
       PExpr*initialization;
       PExpr*condition;
       Statement*step;
       for_initialization_kind_t kind;
       bool source_named;
-      bool active;
 };
 
-static void pform_unwind_for_variable_scope(for_variable_scope_t*scope)
+static void pform_unwind_parser_block_scope(parser_block_scope_t*scope)
 {
       if (!scope || !scope->active)
 	    return;
@@ -1163,7 +1166,7 @@ static void pform_unwind_for_variable_scope(for_variable_scope_t*scope)
       scope->active = false;
 }
 
-static void pform_delete_abandoned_for_block(for_variable_scope_t*scope)
+static void pform_delete_abandoned_parser_block(parser_block_scope_t*scope)
 {
       if (!scope || !scope->block)
 	    return;
@@ -1184,6 +1187,46 @@ static void pform_delete_abandoned_for_block(for_variable_scope_t*scope)
       scope->block = nullptr;
 }
 
+/* Procedural blocks own their scope until their statement is reduced. The
+   named parser carrier is destroyed if error recovery discards that block. */
+struct procedural_block_scope_t : parser_block_scope_t {
+      char*label;
+};
+
+static procedural_block_scope_t* pform_start_procedural_block(
+      const struct vlltype&loc, char*label, PBlock::BL_TYPE kind)
+{
+      auto*scope = new procedural_block_scope_t;
+      scope->parent_scope = pform_peek_scope();
+      scope->block_stack_depth = current_block_stack.size();
+      scope->label = label;
+      scope->block = pform_push_block_scope(loc, label, kind);
+      current_block_stack.push(scope->block);
+      scope->active = true;
+      return scope;
+}
+
+static void pform_destroy_procedural_block(procedural_block_scope_t*scope)
+{
+      if (!scope) return;
+      pform_unwind_parser_block_scope(scope);
+      pform_delete_abandoned_parser_block(scope);
+      delete[] scope->label;
+      delete scope;
+}
+
+static PBlock* pform_finish_procedural_block(procedural_block_scope_t*scope)
+{
+      assert(scope && scope->active);
+      assert(pform_peek_scope() == scope->block);
+      assert(current_block_stack.size() == scope->block_stack_depth + 1);
+      assert(current_block_stack.top() == scope->block);
+      pform_unwind_parser_block_scope(scope);
+      PBlock*block = scope->block;
+      scope->block = nullptr;
+      return block;
+}
+
 /* A declaring for-loop must install its implicit scope before parsing the
    body, so use a typed midrule guard. Bison invokes its destructor while
    discarding a malformed loop, which prevents that scope from leaking into
@@ -1194,8 +1237,8 @@ static void pform_destroy_for_variable_scope(for_variable_scope_t*scope)
       if (!scope)
 	    return;
 
-      pform_unwind_for_variable_scope(scope);
-      pform_delete_abandoned_for_block(scope);
+      pform_unwind_parser_block_scope(scope);
+      pform_delete_abandoned_parser_block(scope);
 
       delete scope->lvalue;
       delete scope->initialization;
@@ -1461,8 +1504,8 @@ static for_variable_scope_t* pform_prepare_for_nondeclaration(
       if (!scope->source_named) {
 	    assert(pform_peek_scope() == scope->block);
 	    assert(current_block_stack.size() == scope->block_stack_depth + 1);
-	    pform_unwind_for_variable_scope(scope);
-	    pform_delete_abandoned_for_block(scope);
+	    pform_unwind_parser_block_scope(scope);
+	    pform_delete_abandoned_parser_block(scope);
       }
 
       return scope;
@@ -1509,7 +1552,7 @@ static Statement* pform_finish_for_nondeclaration(
 	    assert(scope->source_named);
 	    assert(pform_peek_scope() == scope->block);
 	    assert(current_block_stack.size() == scope->block_stack_depth + 1);
-	    pform_unwind_for_variable_scope(scope);
+	    pform_unwind_parser_block_scope(scope);
 	    PBlock*named = scope->block;
 	    scope->block = nullptr;
 	    vector<Statement*>items(1, result);
@@ -1538,7 +1581,7 @@ static PBlock* pform_finish_for_variable_declarations(
       scope->condition = nullptr;
       scope->step = nullptr;
 
-      pform_unwind_for_variable_scope(scope);
+      pform_unwind_parser_block_scope(scope);
       PBlock*tmp_blk = scope->block;
       scope->block = nullptr;
       pform_destroy_for_variable_scope(scope);
@@ -1891,6 +1934,7 @@ static Module::port_t *module_declare_port_continuation(
       for_var_decl_t*for_var_decl;
       std::vector<for_var_decl_t>*for_var_decls;
       for_variable_scope_t*for_variable_scope;
+      procedural_block_scope_t* procedural_block_scope;
 
       struct_member_t*struct_member;
       std::list<struct_member_t*>*struct_members;
@@ -2107,6 +2151,9 @@ static Module::port_t *module_declare_port_continuation(
 %type <wires> net_variable_list
 
 %type <text> label_opt class_declaration_endlabel_opt fork_block_start
+%type <procedural_block_scope> begin_scope_start labeled_begin_scope_start
+%type <procedural_block_scope> compat_begin_scope_start fork_scope_start
+%destructor { pform_destroy_procedural_block($$); } <procedural_block_scope>
 %type <text> block_identifier_opt
 %type <text> identifier_name typedef_identifier_name bins_name class_cg_port_prefix package_cg_port_prefix module_cg_port_prefix
 %type <text> for_variable_identifier
@@ -5798,6 +5845,26 @@ fork_block_start
       { pform_requires_sv(@1, "Statement label");
 	$$ = $1;
       }
+  ;
+
+begin_scope_start
+  : K_begin label_opt
+      { $$ = pform_start_procedural_block(@1, $2, PBlock::BL_SEQ); }
+  ;
+
+labeled_begin_scope_start
+  : IDENTIFIER ':' K_begin
+      { $$ = pform_start_procedural_block(@1, $1, PBlock::BL_SEQ); }
+  ;
+
+compat_begin_scope_start
+  : ')' K_begin label_opt
+      { $$ = pform_start_procedural_block(@2, $3, PBlock::BL_SEQ); }
+  ;
+
+fork_scope_start
+  : fork_block_start
+      { $$ = pform_start_procedural_block(@1, $1, PBlock::BL_PAR); }
   ;
 
 jump_statement /* IEEE1800-2005: A.6.5 */
@@ -16891,41 +16958,31 @@ statement_item /* This is roughly statement_item in the LRM */
   /* IEEE 1800-2017 9.3.1 permits a statement label before a sequential
      block (`name: begin ... end`). Treat it as the equivalent named block
      form `begin : name ... end`, preserving its scope and disable target. */
-  | IDENTIFIER ':' K_begin
-      { PBlock*tmp = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-      }
+  | labeled_begin_scope_start
     block_item_decls_opt
-      { if ($5) pform_block_decls_requires_sv(); }
+      { if ($2) pform_block_decls_requires_sv(); }
     statement_or_null_list_opt K_end label_opt
-      { pform_pop_scope();
-	assert(!current_block_stack.empty());
-	PBlock*tmp = current_block_stack.top();
-	current_block_stack.pop();
-	if ($7) tmp->set_statement(*$7);
-	delete $7;
-	check_end_label(@9, "block", $1, $9);
-	delete[] $1;
+      { PBlock*tmp = pform_finish_procedural_block($1);
+	if ($4) tmp->set_statement(*$4);
+	delete $4;
+	check_end_label(@6, "block", $1->label, $6);
+	pform_destroy_procedural_block($1);
+	$1 = nullptr;
 	$$ = tmp;
       }
   /* Work around ivlpp macro-default-arg expansion that may emit a stray
      ')' token immediately before a begin-end statement block. */
-  | ')' K_begin label_opt
-      { PBlock*tmp = pform_push_block_scope(@2, $3, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-      }
+  | compat_begin_scope_start
     block_item_decls_opt
-      { if ($5) pform_block_decls_requires_sv(); }
+      { if ($2) pform_block_decls_requires_sv(); }
     statement_or_null_list_opt K_end label_opt
       { PBlock*tmp;
-	pform_pop_scope();
-	assert(! current_block_stack.empty());
-	tmp = current_block_stack.top();
-	current_block_stack.pop();
-	if ($7) tmp->set_statement(*$7);
-	delete $7;
-	check_end_label(@9, "block", $3, $9);
-	delete[]$3;
+	tmp = pform_finish_procedural_block($1);
+	if ($4) tmp->set_statement(*$4);
+	delete $4;
+	check_end_label(@6, "block", $1->label, $6);
+	pform_destroy_procedural_block($1);
+	$1 = nullptr;
 	$$ = tmp;
       }
 
@@ -17375,33 +17432,28 @@ statement_item /* This is roughly statement_item in the LRM */
      the declarations. The scope is popped at the end of the block. */
 
   /* In SystemVerilog an unnamed block can contain variable declarations. */
-  | K_begin label_opt
-      { PBlock*tmp = pform_push_block_scope(@1, $2, PBlock::BL_SEQ);
-	current_block_stack.push(tmp);
-      }
+  | begin_scope_start
 	    block_item_decls_opt
 	      {
-		if (!$2 && $4) pform_block_decls_requires_sv();
+		if (!$1->label && $2) pform_block_decls_requires_sv();
 	      }
 	    statement_or_null_list_opt K_end label_opt
 	      { PBlock*tmp;
 		/* Inline SV-style var decls in statements also need the SV check. */
-		if (!$2 && !$4 && !pform_block_scope_is_empty())
+		if (!$1->label && !$2 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
-		bool scope_empty = !$2 && !$4 && pform_block_scope_is_empty();
-		pform_pop_scope();
-		assert(! current_block_stack.empty());
-		tmp = current_block_stack.top();
-		current_block_stack.pop();
+		bool scope_empty = !$1->label && !$2 && pform_block_scope_is_empty();
+		tmp = pform_finish_procedural_block($1);
 		if (scope_empty) {
 		      delete tmp;
 		      tmp = new PBlock(PBlock::BL_SEQ);
 		      FILE_NAME(tmp, @1);
 		}
-	if ($6) tmp->set_statement(*$6);
-	delete $6;
-	check_end_label(@8, "block", $2, $8);
-	delete[]$2;
+	if ($4) tmp->set_statement(*$4);
+	delete $4;
+	check_end_label(@6, "block", $1->label, $6);
+	pform_destroy_procedural_block($1);
+	$1 = nullptr;
 	$$ = tmp;
       }
 
@@ -17411,18 +17463,15 @@ statement_item /* This is roughly statement_item in the LRM */
      code generator can do the right thing. */
 
   /* In SystemVerilog an unnamed block can contain variable declarations. */
-  | fork_block_start
-      { PBlock*tmp = pform_push_block_scope(@1, $1, PBlock::BL_PAR);
-	current_block_stack.push(tmp);
-      }
+  | fork_scope_start
 	    block_item_decls_opt
 	      {
-		if (!$1 && $3) pform_requires_sv(@3, "Variable declaration in unnamed block");
+		if (!$1->label && $2) pform_requires_sv(@2, "Variable declaration in unnamed block");
 	      }
 	    parallel_statement_or_null_list_opt join_keyword label_opt
 	      { PBlock*tmp;
 		/* Inline SV-style var decls in statements also need the SV check. */
-		if (!$1 && !$3 && !pform_block_scope_is_empty())
+		if (!$1->label && !$2 && !pform_block_scope_is_empty())
 		      pform_block_decls_requires_sv();
 		/* An unnamed fork with no declarations of its own needs no
 		   scope: keeping the synthesized $unm_blk scope makes the
@@ -17444,22 +17493,20 @@ statement_item /* This is roughly statement_item in the LRM */
 		   forked process with the caller (breaks the UVM sequencer
 		   handshake). So inside a routine the scope is kept even
 		   when empty. */
-		bool scope_empty = !$1 && !$3 && pform_block_scope_is_empty()
-		      && ($6 == PBlock::BL_PAR || !pform_scope_in_routine());
-		pform_pop_scope();
-		assert(! current_block_stack.empty());
-		tmp = current_block_stack.top();
-		current_block_stack.pop();
+		bool scope_empty = !$1->label && !$2 && pform_block_scope_is_empty()
+		      && ($5 == PBlock::BL_PAR || !pform_scope_in_routine());
+		tmp = pform_finish_procedural_block($1);
 		if (scope_empty) {
 		      delete tmp;
 		      tmp = new PBlock(PBlock::BL_PAR);
 		      FILE_NAME(tmp, @1);
 		}
-		tmp->set_join_type($6);
-	if ($5) tmp->set_statement(*$5);
-	delete $5;
-	check_end_label(@7, "fork", $1, $7);
-	delete[]$1;
+		tmp->set_join_type($5);
+	if ($4) tmp->set_statement(*$4);
+	delete $4;
+	check_end_label(@6, "fork", $1->label, $6);
+	pform_destroy_procedural_block($1);
+	$1 = nullptr;
 	$$ = tmp;
       }
 

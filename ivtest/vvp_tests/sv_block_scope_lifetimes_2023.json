@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_block_scope_lifetimes_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-I./ivltests"
+    ],
+    "gold": "sv_block_scope_lifetimes_2023"
+}

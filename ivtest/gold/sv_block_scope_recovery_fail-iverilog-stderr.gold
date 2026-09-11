@@ -1,0 +1,6 @@
+ivltests/sv_block_scope_recovery_fail.v:5: syntax error
+ivltests/sv_block_scope_recovery_fail.v:6: error: Malformed statement
+ivltests/sv_block_scope_recovery_fail.v:8: syntax error
+ivltests/sv_block_scope_recovery_fail.v:9: error: Malformed statement
+ivltests/sv_block_scope_recovery_fail.v:9: syntax error
+I give up.

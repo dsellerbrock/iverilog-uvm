@@ -1,7 +1,7 @@
 id: "L29"
 title: "Release abandoned procedural block scopes during parser recovery"
 status: "active"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "3527d3107"
 last_validated_revision: "77cce610b"
 classification: "parser robustness; not legal-feature or UVM qualification"
@@ -20,3 +20,5 @@ discovery_policy: "Unrelated discoveries record-only; patch-caused regressions r
 next_action: "Review shared block carrier ownership and implement smallest destructor-based recovery."
 next_command: "sed -n '17370,17470p' parse.y"
 stop_after_completion: false
+
+focused_validation: "Native build/install53597exit0; focus12/12 legacy and12/0 JSON; neighbors68legacy/57JSON; makecheck; independent code review clear. Original and additional named nondecl/foreach reducers reject normally,both editions. Bison baseline/candidate563SR1122RR and same three useless-rule productions. Required full gates pending."

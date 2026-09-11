@@ -598,3 +598,13 @@ reducers pass; original1.0p1 callback diagnostics are gone and its runtime
 smoke passes. No runtime type-name equivalence or error suppression. Nested
 type-expression/value-parameter lineage and complete class/UVM qualification
 remain open; existing compile constraint/cast limitations are not resolved.
+
+### DD045 — Foreach parser scope carrier recovery remains unqualified
+
+L29 review found that foreach has its own untyped parser scope carriers. L29
+repairs procedural begin/fork ownership; it does not redesign foreach recovery.
+The nested malformed begin inside foreach rejects normally in both editions
+after L29, but discarding the foreach carrier itself is a separate unqualified
+robustness case. No independent failing reducer yet; record-only during L29.
+Source: parse.y foreach productions; standards scope context12.7.3; do not claim
+all parser recovery qualified.

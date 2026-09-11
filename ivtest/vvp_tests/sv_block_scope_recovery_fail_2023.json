@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_block_scope_recovery_fail_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-I./ivltests"
+    ],
+    "gold": "sv_block_scope_recovery_fail_2023"
+}
