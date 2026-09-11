@@ -1040,3 +1040,19 @@ L30 final validation: 34787868e; originalredcompile0/no diagnostics both edition
 - **Scope:** Resolved element signedness and binary operand width/state through
   final store; mixed unsigned and self-determined shift controls required.
 - **Authority:** Both editions11.4.1/11.6/11.8; evidence l31.
+
+### Campaign priority — Eliminate remaining behavior-changing compile-progress paths
+
+User-directed follow-on after the UVM smoke campaign: implement and qualify
+correct semantics for every remaining compile-progress stub or fallback that
+emits incorrect behavior. This includes silent degradation, not only diagnostics.
+An unsupported error, removed warning, or smoke pass does not close a legal
+feature. Select one concrete blocker at a time using reducers and applicable
+IEEE semantics; existing registries are not an exhaustive inventory.
+
+Confirmed initial evidence is original1.0p1 `results-jz6zk_cb/compile.log`
+(per-release `1.0p1/compile.log`): ignored `pick_sequence` constraint at
+uvm_sequence_base.svh949, and class-cast bits reinterpretation at
+uvm_phases.svh1951. Reproduce exact semantic effects before selecting each
+implementation contract. A constant-loop warning alone is not a stub.
+L31 remains active; this priority does not authorize unrelated edits in its patch.
