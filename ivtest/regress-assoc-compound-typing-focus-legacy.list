@@ -1,0 +1,2 @@
+sv_assoc_compound_typing normal,-g2017,-I./ivltests,-stest ivltests gold=sv_assoc_compound_typing.gold
+sv_assoc_compound_typing_2023 normal,-g2023,-I./ivltests,-stest ivltests gold=sv_assoc_compound_typing_2023.gold

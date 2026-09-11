@@ -1,7 +1,7 @@
 id: "L31"
 title: "Associative compound assignment expression signedness and sizing"
 status: "active"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "39475cf98"
 last_validated_revision: "34787868e"
 reproducer: "../evidence/campaign-20260908/l31/assoc-compound.sv and red.json; signed byte associative element -64/=2 produces96 in both editions,compile0/runtime1."
@@ -18,3 +18,5 @@ discovery_policy: "Unrelated discoveries record-only; regressions remain in scop
 next_action: "Expand discriminating mixed-sign/wide/fourstate controls;review smallest shared expression-typing correction before source edits."
 next_command: "sed -n '7498,7588p' elaborate.cc"
 stop_after_completion: false
+
+focused_validation: "Original/expanded reds nowPASS both editions/no diagnostics;permanentfocus2legacy/2JSON;neighbors125legacy/92JSON;makecheck and independent design/code/ownership reviews clear. Nativebuild24224exit0. Integral typingguard preservesreal path;unsigned selections/concats unchanged. Fullgates pending."
