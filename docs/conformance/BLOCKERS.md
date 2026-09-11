@@ -824,3 +824,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Scope:** Both-edition6.20.6 direct const-handle variable member writes, retaining handle/const-property/value-aggregate protection. No complete const qualification claim.
 
 - **L16 validation:** 5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged. Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits.
+
+### L17 — Integral compound updates of dynamic-array properties
+
+- **State:** SELECTED after validated L16.
+- **Evidence:** DD035, five original1.2 register-item array updates emit null fallbacks.
+- **Scope:** Typed integral element compound updates with single index evaluation, receiver/width preservation and invalid-index no-write behavior. No full compound/container qualification claim.

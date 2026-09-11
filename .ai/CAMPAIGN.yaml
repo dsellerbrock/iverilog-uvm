@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L16"
-phase: "selection"
+current_blocker: "L17"
+phase: "spec_grounded"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "5ba60567f"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None for L16 local closure. PR275 macOS/Windows checks pending; both Ubuntu jobs pass."
+pending_gates: "L17 reducer/focus/review/full gates not run; PR275 remoteCI separate."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Select DD035 compound class array-member updates; retain OpenTitan DEBT and original sources."
-next_command: "graphify query \"compound assignment class array member\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+next_action: "Establish reducer, verify existing typed container opcodes and index error flag semantics, implement smallest correct integral path."
+next_command: "sed -n '3855,3949p' tgt-vvp/stmt_assign.c"
 next_command_cwd: repository root
 candidate_state: "L15/L16 two validated unpublished increments since PR275 update."
 installed_tools: "Frozen evidence/u09/sha256.txt at19e7f5592; do not build/install while gates run."

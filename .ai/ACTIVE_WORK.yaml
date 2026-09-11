@@ -1,16 +1,16 @@
-id: "L16"
-title: "Mutable member assignment through a const class-handle variable"
-status: "closed"
-phase: "done"
-base_revision: "7ae2dd01e"
+id: "L17"
+title: "Integral compound updates of dynamic-array class properties"
+status: "in_progress"
+phase: "spec_grounded"
+base_revision: "8b7c35ba5"
 last_validated_revision: "5ba60567f"
-reproducer: "Original1.2 OpenTitan dv_base_test.sv92 assigns uvm_top.enable_print_topology but is rejected as assignment to const uvm_top; three class specializations report the same error."
-expected_behavior: "A const class-handle variable cannot be rebound, but ordinary writable properties of its object can be assigned. Preserve rejection of const properties, const value aggregates, and rebinding the handle."
-standards: ["IEEE1800-2017 and2023 6.20.6 explicitly permit writing members of an object referenced by a const handle, except members themselves declared const. Primary local texts checked at2017 lines7594 and2023 lines7942."]
-root_cause: "PEIdent::elaborate_lval rejects reg->get_const before distinguishing assignment to the handle from assignment to its member_path. Existing downstream class-property checks must remain authoritative for actual const members."
-allowed_scope: ["Bounded direct class-handle variable l-value guard and permanent both-edition positive/negative regression. Required gates and original1.2 OpenTitan replay after validation; directly affected docs."]
-non_goals: ["No general const/property/constructor redesign, source modifications to UVM/OpenTitan, or full6.20.6/8.18 qualification claim. No const aggregate or handle rebinding exemption."]
-required_gates: ["Red reducer; permanent mutable-property writes and alias/readback, handle rebinding/const-property/value-aggregate negatives; focused neighbors; independent review.", "Native build, integrated/JSON/UVM/NFA/makecheck/15release sweep; isolatedfrontend last, hashes restored; then original1.2 OpenTitan replay."]
-next_action: "Select DD035 integral compound assignment to class array members."
-next_command: "graphify query \"compound assignment class array member\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+reproducer: "DD035 five original1.2 register-library compound integral array-element updates emit object-RHS null fallbacks; original1.2 OpenTitan overallDEBT despite runtime checking."
+expected_behavior: "Update the selected integral dynamic-array property element using the compound operator, with correct width/signedness, one index evaluation, preserved receiver identity and invalid-index no-write semantics. Never replace the array property with null."
+standards: ["IEEE1800-2017/2023 11.4.1 compound assignment equals corresponding blocking update with LHS index evaluated once; verify both editions11.8 sizing and7.4.6 invalid-index semantics."]
+root_cause: "show_stmt_assign_sig_prop_darray_index rejects every nonzero compound opcode by returning-1, which caller interprets as whole-array assignment and sends integral RHS to object evaluator. Existing typed container load/store and vector operator helpers can implement the selected element update."
+allowed_scope: ["tgt-vvp/stmt_assign.c integral selected dynamic-array property compound path; permanent paired-edition tests and required validation; directly affected docs."]
+non_goals: ["No original UVM/OpenTitan source changes, new runtime architecture, general real/string compound feature, or unrelated queue/assoc rewrite."]
+required_gates: ["Red reducer and exact no-fallback runtime result; both-edition permanent operator/index/width/receiver/bounds cases; focused neighbors and independent review.", "Native build,integrated/JSON/UVM/NFA/makecheck/15release sweep;isolatedfrontend last/restoration/hashes;original1.2 OpenTitan replay after validation."]
+next_action: "Establish reducer, verify existing typed container opcodes and index error flag semantics, implement smallest correct integral path."
+next_command: "sed -n '3855,3949p' tgt-vvp/stmt_assign.c"
 stop_after_completion: false
