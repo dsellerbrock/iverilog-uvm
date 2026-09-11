@@ -79,6 +79,20 @@ static void report_vinterface_property_write_()
       vpip_set_return_value(1);
 }
 
+/* L33: a nested class-property write (e.g. obj.inner.s) chains through an
+   intermediate object-typed property. If that intermediate handle is
+   still null (the containing class hasn't run `inner = new;` yet), there
+   is nowhere to write. Silently dropping the write is exactly the bug
+   this class exists to avoid one level up, so this stays loud. */
+static void report_null_property_container_write_()
+{
+      fprintf(stderr, "vvp error: class property write through a null "
+                      "intermediate class handle in a nested property "
+                      "chain (e.g. obj.inner.s where obj.inner is not "
+                      "yet assigned).\n");
+      vpip_set_return_value(1);
+}
+
 }
 
 /* Shared object -> `'{name:value, ...}` renderer for %p and object string
@@ -1405,11 +1419,17 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
  * captured property index. Virtual-interface properties remain readable,
  * but writes are rejected loudly: direct mutation here would bypass modport
  * direction checks and clocking-block sampling/drive scheduling.
+ *
+ * L33: prop_path_ may hold more than one index for a nested class-property
+ * chain (e.g. obj.inner.s): every entry but the last is an intermediate
+ * object-typed property hop, walked at each access since the class handle
+ * stored there can change at runtime; the last entry is the leaf string
+ * property on whatever object that walk lands on.
  */
 class __vpiClassPropertyStringVar : public __vpiHandle {
     public:
-      __vpiClassPropertyStringVar(size_t prop_idx)
-            : cobj_net_(nullptr), prop_idx_(prop_idx) {}
+      __vpiClassPropertyStringVar(const std::vector<size_t>&prop_path)
+            : cobj_net_(nullptr), prop_path_(prop_path) {}
 
       vvp_net_t*cobj_net_;
 
@@ -1454,9 +1474,13 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
       vpiHandle vpi_handle(int) override { return nullptr; }
 
     private:
-      size_t prop_idx_;
+      std::vector<size_t> prop_path_;
 
-      std::string read_property_string_()
+      /* Walk every hop but the last as an intermediate object-typed
+         property, landing on whatever object owns the leaf string
+         property (prop_path_.back()). An empty result means either the
+         root signal has no object yet or a hop mid-chain is null. */
+      vvp_object_t resolve_container_()
       {
             vvp_object_t obj;
             vvp_fun_signal_object*fun =
@@ -1464,33 +1488,44 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
             if (!fun)
                   fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
             if (fun) obj = fun->peek_object();
+            for (size_t i = 0 ; i + 1 < prop_path_.size() ; i += 1) {
+                  vvp_cobject*cobj = obj.peek<vvp_cobject>();
+                  if (!cobj) return vvp_object_t();
+                  vvp_object_t next;
+                  cobj->get_object(prop_path_[i], next, 0);
+                  obj = next;
+            }
+            return obj;
+      }
+
+      std::string read_property_string_()
+      {
+            vvp_object_t obj = resolve_container_();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-                  return cobj->get_string(prop_idx_);
+                  return cobj->get_string(prop_path_.back());
             if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
-                  return vif->get_string(prop_idx_);
+                  return vif->get_string(prop_path_.back());
             return std::string();
       }
 
       void write_property_string_(const char*s)
       {
-            vvp_object_t obj;
-            vvp_fun_signal_object*fun =
-                  cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
-            if (!fun)
-                  fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
-            if (!fun) return;
-            obj = fun->peek_object();
+            vvp_object_t obj = resolve_container_();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-                  cobj->set_string(prop_idx_, std::string(s));
+                  cobj->set_string(prop_path_.back(), std::string(s));
             else if (obj.peek<vvp_vinterface>())
                   report_vinterface_property_write_();
+            else
+                  report_null_property_container_write_();
       }
 
 };
 
-vpiHandle vpip_make_cobject_property_string_var(char*label, size_t prop_idx)
+vpiHandle vpip_make_cobject_property_string_var(char*label, unsigned prop_cnt,
+                                                 long*prop_idx)
 {
-      __vpiClassPropertyStringVar*obj = new __vpiClassPropertyStringVar(prop_idx);
+      std::vector<size_t> path(prop_idx, prop_idx + prop_cnt);
+      __vpiClassPropertyStringVar*obj = new __vpiClassPropertyStringVar(path);
       functor_ref_lookup(&obj->cobj_net_, label);
       return obj;
 }

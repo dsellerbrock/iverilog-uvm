@@ -1509,8 +1509,11 @@ symbol_access
       { $$ = vpip_make_PV($3, $5, $7); }
   | K_APV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_vthr_APV($3, $5, $7, $9); }
-  | K_CPS '<' T_SYMBOL ',' T_NUMBER '>'
-      { $$ = vpip_make_cobject_property_string_var($3, $5); }
+  | K_CPS '<' T_SYMBOL ',' numbers '>'
+      /* L33: numbers is 1 index for a direct property (obj.s) and more
+         for a nested chain (obj.inner.s -> [inner_idx, s_idx]); see the
+         vpip_make_cobject_property_string_var doc comment. */
+      { $$ = vpip_make_cobject_property_string_var($3, $5.cnt, $5.nvec); }
   | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_cobject_property_vec_var($3, $5, $7, $9); }
   ;

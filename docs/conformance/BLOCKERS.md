@@ -1172,3 +1172,85 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   conversions. IEEE5.9 and38.15; full typed recording remains open.
 - **Evidence:** `evidence/campaign-20260908/u15/literal-vector-red.json` and
   `evidence/campaign-20260908/l32/`. Resume U15 after fullvalidation.
+
+### L33 — Nested class-property VPI lvalue silently drops writes
+
+- **Status:** CLOSED 2026-09-11. Selected from the DD046 fallback-inventory
+  triage (`evidence/campaign-20260908/dd046/triage-20260911.md`, "Candidate 2,
+  revised"). All required gates pass, durable exit files in
+  `evidence/campaign-20260908/l33/`: integrated (legacy ivtest) exit0
+  4981/4976/0/2NI/3EF, VPI107, negative149, runtime15/15 (a first run showed
+  822 false failures from a stray orphaned `vvp_reg.pl` process racing the
+  tracked run on the shared `ivtest/vsim` output file, confirmed by process
+  inspection and a clean rerun -- not a real regression); JSON exit0 1873/0;
+  UVM exit0 356/0/0 (baseline355 +1, the new permanent regression, both
+  `plusargs_class_string_nested_test` and the existing direct-case
+  `plusargs_class_string_test` PASS); NFA 58/58; releases unchanged 15/15
+  SMOKE_PASS; frontend exit0 all S1-S12 scenarios including the new
+  attribute-capture and recording scenarios from U15/U16. Install restored:
+  `iverilog`/`ivl`/`uvm_dpi.vpi`/`uvm_legacy_recorder.svh` hashes unchanged
+  from the U15 baseline; `vvp`/`vvp.tgt` changed, matching the four files this
+  fix actually touched (`evidence/campaign-20260908/l33/installed-frozen-sha256.json`).
+- **Symptom:** A `$value$plusargs`/similar VPI-lvalue write to a class string
+  property reachable only through another class-typed property (e.g.
+  `obj.inner.s`, IEEE1800 clause38.15 vpiStringVal/vpiVectorVal write path)
+  silently discarded the value. `tgt-vvp/draw_vpi.c`'s `get_vpi_taskfunc_signal_arg`
+  already emitted a working `&CPS<vSIG,pidx>` property-aware VPI handle for a
+  DIRECT class-string-property base (`obj.s`, Phase51/U15), but its own comment
+  said "Only handle the simple case (direct signal base, not nested)" -- a
+  nested chain fell back to `draw_eval_string`, an rvalue-only stack temporary
+  whose `vpi_put_value` result is discarded once the systf call returns. No
+  error was printed; the plusarg's own matched/not-matched status was
+  unaffected, so this was a genuinely silent data-loss path.
+- **Root cause:** `ivl_expr_signal()` on an `IVL_EX_PROPERTY` node is a
+  shortcut elaboration takes only for a single, non-chained property access.
+  Once a property access is itself used as the BASE of a further property
+  access, elaboration builds the intermediate node through the generic
+  base-expression path (`ivl_expr_oper2()`) instead, even when that base is
+  in fact a plain signal -- so `expr_signal_base_()`, and the old fast-path's
+  `!ivl_expr_signal(expr)` guard, saw a null signal and bailed to the
+  rvalue-only fallback for any chain longer than one hop.
+- **Fix:** `tgt-vvp/draw_vpi.c` gained `collect_property_chain_()`, which walks
+  an arbitrary-depth string-property chain down to its root signal (stopping
+  at either the direct-signal shortcut or a plain-signal base), rejecting any
+  hop that is array-indexed (`ivl_expr_oper1()` set) as out of scope. The
+  matched chain now emits a variable-arity `&CPS<vSIG_0,idx0,idx1,...>` (was
+  fixed two-field). `vvp/parse.y`'s `K_CPS` production now takes the existing
+  `numbers` list nonterminal instead of one `T_NUMBER` (zero new grammar
+  conflicts -- bison table diffed against the unmodified baseline, only the
+  touched production and its own states differ). `vvp/vpi_cobject.cc`'s
+  `__vpiClassPropertyStringVar` now holds a property-index PATH rather than a
+  single index: every hop but the last is walked via `vvp_cobject::get_object()`
+  at each access (the intermediate class handle can change at runtime), and a
+  null handle mid-chain on a WRITE reports loudly (`vvp error: class property
+  write through a null intermediate class handle...`, matching the existing
+  virtual-interface-write-rejection convention) rather than dropping silently
+  -- the exact failure mode this blocker exists to remove, not reintroduced
+  one level up. Reads through a null intermediate stay silently empty,
+  matching this class's pre-existing convention for "no object at all".
+- **Scope (deliberately bounded, per AGENTS.md "do not claim a parent feature
+  complete after fixing one subcase"):** STRING class properties only.
+  Integral (vec4/`CPV`) nested class properties have the identical gap
+  (`get_vpi_taskfunc_signal_arg`'s CPV branch still requires a direct signal
+  base) and are explicitly NOT fixed here -- recorded as follow-on work, not
+  silently left ambiguous. Array-indexed hops anywhere in a chain (`arr[i].s`,
+  `obj.arr[i].s`) and virtual/polymorphic dispatch are out of scope and still
+  fall back to the rvalue-only path (unchanged pre-existing behavior, not a
+  regression). Verified: 1-level (`obj.inner.s`), 2-level/3-hop
+  (`obj.mid.leaf.s`), and the null-intermediate-handle write all behave as
+  designed; array-indexed hop falls back without crashing.
+- **Reducers:** `evidence/campaign-20260908/dd046/c2.sv` (direct case, must
+  keep working), `c3.sv` (the original 1-level nested repro), `c4_deep.sv`
+  (3-level nesting, confirms the recursion generalizes beyond 1 hop),
+  `c5_null.sv` (write through a null intermediate handle -- must error
+  loudly, not drop silently), `c6_arrhop.sv` (array-indexed hop -- must fall
+  back to the rvalue-only path without crashing, confirmed out of scope).
+- **Permanent regression:** `tests/plusargs_class_string_nested_test.sv`
+  (new), registered in `.github/uvm_test.sh`'s `plusargs_for()`. Sibling of
+  the existing Phase51 `tests/plusargs_class_string_test.sv`, which covers the
+  direct (non-nested) case and must keep passing unchanged.
+- **Validation:** full required sequence passed (integrated/JSON/UVM/NFA/
+  releases/frontend-last); see the Status line above for exact counts and
+  `evidence/campaign-20260908/l33/` for durable exit files.
+- **Evidence:** `evidence/campaign-20260908/l33/`,
+  `evidence/campaign-20260908/dd046/triage-20260911.md`.

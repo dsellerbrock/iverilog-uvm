@@ -1122,9 +1122,17 @@ extern value_callback*vpip_array_change_target(p_cb_data data,
 
 /* Phase 51: VPI handle targeting a specific string property of a
  * class instance. tgt-vvp emits this for class string property
- * lvalues passed to sysfuncs such as `$value$plusargs`. */
+ * lvalues passed to sysfuncs such as `$value$plusargs`.
+ *
+ * L33: prop_idx is now a path of prop_cnt indices rather than a single
+ * index, so a nested class-property chain (e.g. obj.inner.s) can be
+ * addressed as a writable VPI lvalue too -- every index but the last is
+ * an intermediate object-typed property hop, and the last is the leaf
+ * string property. prop_cnt is always >= 1; a single-entry path is the
+ * original direct-property case. */
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
-                                                       size_t prop_idx);
+                                                       unsigned prop_cnt,
+                                                       long*prop_idx);
 extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
                                                     size_t prop_idx,
                                                     unsigned width,

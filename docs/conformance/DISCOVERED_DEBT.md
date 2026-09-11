@@ -692,11 +692,16 @@ all parser recovery qualified.
   2026-09-11, after the UVM smoke campaign closed (U15/U16, 15/15
   SMOKE_PASS). First triage pass:
   `evidence/campaign-20260908/dd046/triage-20260911.md`. Two candidates
-  examined in `vvp/vpi_cobject.cc`; neither implemented yet. One
-  (`vpiLineNo`) proved architecture-wide and was split out as DD049, not
-  forced into a bounded fix. The other (a class string property's VPI write
-  silently dropping) is plausibly bounded but its construction site was not
-  yet located; next step recorded in ACTIVE_WORK.
+  examined in `vvp/vpi_cobject.cc`. One (`vpiLineNo`) proved
+  architecture-wide and was split out as DD049, not forced into a bounded
+  fix. The other (a class string property's VPI write silently dropping
+  when reached through a NESTED class-typed property, e.g. `obj.inner.s`)
+  was root-caused, reduced (`evidence/campaign-20260908/dd046/c3.sv`), and
+  resolved as **L33** (see `docs/conformance/BLOCKERS.md`) -- scoped to
+  string properties only; the identical gap for integral (vec4/CPV) nested
+  properties is named there as an explicit, un-fixed follow-on, not
+  silently folded in. `.ai/ACTIVE_WORK.yaml` now tracks L33's gate sweep,
+  not this DD046-TRIAGE-1 placeholder.
 - **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
   Include parser/name/type resolution, elaboration, code generation, simulator,
   DPI/VPI, other compiler targets and qualification harnesses. Include silent
