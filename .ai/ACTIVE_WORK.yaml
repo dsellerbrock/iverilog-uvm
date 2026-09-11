@@ -1,7 +1,7 @@
 id: "L23"
 title: "Blocking joins inside function-spawned background processes"
 status: "in_progress"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "b22bf23e1"
 last_validated_revision: "4a102ee47"
 reproducer: "evidence/campaign-20260908/l23/red.sv, both editions reject nested join_any; UVM1.0p1/1.1a m_forked_drop outer join_none background process."
