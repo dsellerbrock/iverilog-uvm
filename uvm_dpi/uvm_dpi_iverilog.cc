@@ -123,6 +123,26 @@ void uvm_dpi_regfree(regex_t*compiled)
       free(compiled);
 }
 
+// UVM 1.0p1/1.1a use unprefixed names and restart argv iteration after NULL.
+// Icarus VPI supplies flat argc/argv, not vendor -f pointer-stack extensions.
+const char*dpi_get_next_arg_c()
+{
+      static int index = 0;
+      s_vpi_vlog_info info;
+      if (!vpi_get_vlog_info(&info)) return nullptr;
+      if (index >= info.argc) {
+            index = 0;
+            return nullptr;
+      }
+      return info.argv[index++];
+}
+
+char*dpi_get_tool_name_c() { return uvm_dpi_get_tool_name_c(); }
+char*dpi_get_tool_version_c() { return uvm_dpi_get_tool_version_c(); }
+regex_t*dpi_regcomp(const char*pattern) { return uvm_dpi_regcomp(pattern); }
+int dpi_regexec(regex_t*compiled, const char*str) { return uvm_dpi_regexec(compiled, str); }
+void dpi_regfree(regex_t*compiled) { uvm_dpi_regfree(compiled); }
+
 int uvm_re_match(const char*re, const char*str)
 {
       if (!re || !str) return 1;

@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U11"
-phase: "reproducing"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "795d9f360"
@@ -592,3 +592,5 @@ l24_uvm_terminal: "50856 exit0;355passed0failed0skipped,realDPI. Isolatedfronten
 l24_closure: "795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics."
 
 legacy_uvm_pr_fourth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "d39880176", state: "open", scope: "L22/L23/L24 validated", remaining: "Fresh CI;no merge authorization"}
+
+u11_focused: "Both editions old-ABI red failed unresolved dpi_get_next_arg_c;native adapters now pass oldABI+three existing regexfixtures8/0 total,actualargv/restart/metadata/crossAPIhandles/strictinvalidregex;makecheck and independent review clear. Full gates pending. MacOS bash3.2 empty-array trap avoided in frontend runner. "
