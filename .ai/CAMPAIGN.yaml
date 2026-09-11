@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "0a4e7d639"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "U14 final build/install85793 running. All integrated/JSON/UVM/NFA/release/frontend gates pending. Installed candidate unvalidated; last validated semantic revision remains0a4e7d639."
+pending_gates: "U14 candidate729edce3c (ancestry merge6c8b71afc identical tree): integrated20014,UVM57598,NFA45081,releases32494 running. JSON and frontend unstarted. Installed6hash freeze active; makecheck and focused installed checks pass."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After U14 validated closure, continue DD038 typed capture/bootstrap prerequisites; full1.1b/c contract retained."
-next_action: "Finish install and focused verification, checkpoint/freeze candidate, run required full gates; frontend last and alone."
-next_command: "tail -30 ../evidence/campaign-20260908/u14/final-install.log"
+next_action: "Collect integrated20014,UVM57598,NFA45081,releases32494 terminal results. Start full JSON only after integrated ends. Frontend last and alone after all other gates. No source/build/install changes until validation completes."
+next_command: "tail -15 ../evidence/campaign-20260908/u14/integrated-full.log"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
@@ -758,3 +758,5 @@ u14_adapter_checkpoint: "Native plus explicit original1.1d lifecycle integration
 publication_after275: "Fetched origin/main469002b7b; PR275 externally merged2026-09-11T14:00:25Z with published6506fc7a2. Main tree exactly equals6506fc7a2. New branch agent/campaign-recording-after275-20260911 preserves all unpublished work in same active tree; no new worktree. Canonical main fast-forwarded and graph update64326 running. L31 one validated increment since publishedbatch; no new PR yet."
 
 u14_installed_focus: "Final build/install85793 exit0; installed native3checks and original1.1d adapter both editions pass. Candidate installed hashes frozen in u14/installed-frozen-sha256.json (compiler,runtime,ivl,vvp target,DPI,header). Independent code reviews clear. Canonical graph64326 exit0 updated49627nodes; HTML visualization retained stale due node limit. Required full gates unstarted; no closure."
+
+u14_full_gate_start: "Candidate729edce3c; ancestry merge6c8b71afc records origin/main469002b7b without tree change (main exactly equals published6506fc7a2). Integrated20014,UVM57598,NFA45081,releases32494 running; JSON/frontend pending. makecheck3714 exit0. Six installed hashes frozen. Full legacy adapter and native focused tests pass on installed candidate. No source changes during gates; U14 open."

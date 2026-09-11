@@ -16,8 +16,8 @@ validation_contract: "Two explicitly created original1.1d-compatible recorder in
 dependencies: ["Fullyvalidated0a4e7d639; DD038 independent design review recorded in DISCOVERED_DEBT. Use original1.1d (legacy API);1.2 recorder API differs and is not interchangeable."]
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
 evidence: "../evidence/campaign-20260908/u14/"
-next_action: "Complete final install and focused checks, freeze installed hashes including adapter header, then integrated/JSON/UVM/NFA/release gates. Frontend last and alone. U14 remains active; typed capture and 1.1b/c smoke unresolved."
-next_command: "tail -30 ../evidence/campaign-20260908/u14/final-install.log"
+next_action: "Collect integrated20014,UVM57598,NFA45081,releases32494 terminal results. Start full JSON only after integrated ends. Frontend last and alone after all other gates. No source/build/install changes until validation completes."
+next_command: "tail -15 ../evidence/campaign-20260908/u14/integrated-full.log"
 stop_after_completion: false
 
 api_review: "Concrete review found source-owned link and owner-scoped Transaction query incompatible with actual child/component callers. Fiber queries owner-aware,Transaction queries global; mutation ownership separate. Nativejournal authoritative,poison onIOfailure,allocation rollback,no atomic dualjournalclaim;exclusiveoutput/noaliascollision and per-simulation cleanup required. Actualcrossownerchild/componenttests mandatory. No implementation edits yet."
@@ -27,3 +27,5 @@ native_slice: "uvm_dpi/uvm_recording.cc included by existingumbrella; nativeowne
 adapter_checkpoint: "Explicit original1.1d recorder and real child/component tests implemented. Retained VPI text descriptor prevents pathname replacement truncation; wx creation implemented with O_EXCL for MSVCRT compatibility. Native failures roll back superclass membership directly. Both-mode tests cover normal lifecycle,wrong owner,existing file,stream and transaction collision rollback,component recorder switch; POSIX replacement and actual journal-failure rollback. Old rollback reproduces ROLLBACK_FAILED in rollback-red-check.log; corrected tests pass. Build/install85793 in progress; installed tree is an UNVALIDATED U14 candidate, not L31 baseline. All full gates pending. Review clear; Windows CI still required."
 
 u14_installed_focus: "Final build/install85793 exit0; installed native3checks and original1.1d adapter both editions pass. Candidate installed hashes frozen in u14/installed-frozen-sha256.json (compiler,runtime,ivl,vvp target,DPI,header). Independent code reviews clear. Canonical graph64326 exit0 updated49627nodes; HTML visualization retained stale due node limit. Required full gates unstarted; no closure."
+
+u14_full_gate_start: "Candidate729edce3c; ancestry merge6c8b71afc records origin/main469002b7b without tree change (main exactly equals published6506fc7a2). Integrated20014,UVM57598,NFA45081,releases32494 running; JSON/frontend pending. makecheck3714 exit0. Six installed hashes frozen. Full legacy adapter and native focused tests pass on installed candidate. No source changes during gates; U14 open."
