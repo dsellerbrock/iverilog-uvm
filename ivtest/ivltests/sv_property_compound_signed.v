@@ -44,6 +44,9 @@ module sv_property_compound_signed;
     scalar = 4;
     {scalar} += small_signed;
     if (scalar !== 19) $fatal(1, "unsigned singleton concatenation");
+    h.value = 4;
+    {h.value} += small_signed;
+    if (h.value !== 19) $fatal(1, "unsigned property concatenation");
     $display("PASSED");
   end
 endmodule

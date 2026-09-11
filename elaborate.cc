@@ -7507,6 +7507,7 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
         // Property lvalues need not carry the root signal's signed flag.
         // Keep the unsigned flag of concatenations and part-select wrappers.
       if (lv->get_property_idx() >= 0 && lv->net_type()
+          && !dynamic_cast<const PEConcat*>(lval())
           && type_is_vectorable(lv->expr_type()))
             lval_signed = lv->net_type()->get_signed();
       bool force_unsigned;
