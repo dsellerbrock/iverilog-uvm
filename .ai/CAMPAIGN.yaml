@@ -7,15 +7,15 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "e18128369"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L25 storage design/review/implementation and all validation unstarted;pairedred preserved. No live gates. U11/U12 complete. PR275 CI separate."
+pending_gates: "L25 integrated23895/UVM26951/NFA77311/releases67704 live;JSON after integrated terminal;frontend last alone/restore/hashes. No source/install edits while gates live."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "L25 active;original1.0p1 callbackcast/typeidentity symptoms separate."
-next_action: "Trace L25 return-slot/context lowering and choose true-alias storage design;no source edits yet."
-next_command: "sed -n '338,355p' tgt-vvp/vvp_scope.c; sed -n '69,132p' tgt-vvp/draw_ufunc.c"
+next_action: "Poll exact L25 gate handles;JSON after integrated terminal;frontend last alone. Preserve old1.0p1callbackcast issue separately."
+next_command: "tail -12 ../evidence/campaign-20260908/l25/integrated.log"
 next_command_cwd: repository root
-candidate_state: "L25 pairedred reproduced on validatede18128369;U11/U12 two validated unpublished increments."
-installed_tools: "e18128369 validated;u11/sha256.txt unchanged after restored frontend."
+candidate_state: "L25c58035f49 committed/frozen awaitingfullvalidation;U11/U12 two validated unpublished increments."
+installed_tools: "L25c58035f49 frozen evidence/campaign-20260908/l25/sha256.txt;last fullyvalidated compilere18128369/harness1654dc4c9."
 validation_state: "Compiler/DPIe18128369 fullyvalidated;harness1654dc4c9 allrequiredtests/replaypassed,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL."
 next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -614,3 +614,5 @@ u12_closure: "1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offl
 l25_red: "Both2017/2023 compile0 then runtime1,return-ref update lost with one unresolvedfunctorplaceholder. Original1.0p1 three build_coverage sites emit ref/bind to absent return-signals. Exact reducer/rawlogs in l25. No implementation changes yet;return storage design is next. "
 
 l25_focused: "Both-edition red and interactions nowPASSED,no diagnostics;permanentfocuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent review clear. Existing internalattr materializes only whole scalarintegral returnref storage;normalcontext/lifetime,fallthrough and internalreturn stackpublication. Initialvoidreturn nullguard corrected. Both9.6.2 forbid ordinaryfunctiondisable,which is untouched;no newruntimeinstructions or broaderreturn qualification. Fullgates pending. "
+
+l25_live_gates: {integrated: 23895, uvm: 26951, nfa: 77311, releases: 67704}
