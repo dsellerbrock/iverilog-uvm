@@ -16944,11 +16944,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  return elaborate_non_void_function_(des, scope);
 	    def = tmp;
 
-	    if (void_cast_) {
-		  cerr << get_fileline() << ": error: void casting user void function '"
-		       << peek_tail_name(path_) << "' is not allowed." << endl;
-		  des->errors++;
-	    }
+	    // IEEE 1800-2017/2023 13.5: void'(function_subroutine_call)
+	    // is a statement form. A resolved void function uses the same
+	    // call machinery, including argument effects and copyback.
       }
 
       /* The caller has checked the parms_ size to make sure it

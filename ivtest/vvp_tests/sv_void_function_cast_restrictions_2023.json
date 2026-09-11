@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_void_function_cast_restrictions.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_void_function_cast_restrictions"
+    ],
+    "gold": "sv_void_function_cast_restrictions"
+}

@@ -1,7 +1,7 @@
 id: "L24"
 title: "Void function calls in dedicated void-cast statement form"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "0a691c8e2"
 last_validated_revision: "58edf8034"
 reproducer: "evidence/campaign-20260908/l24/red.sv;original1.0p1/1.1a find_all/get_args calls each yield three void-cast-of-void errors."
@@ -12,6 +12,6 @@ root_cause: "PCallTask::elaborate_build_call_ resolves a genuine void function a
 allowed_scope: ["Resolved user void-function statement legality in PCallTask shared call builder;paired effects/dispatch/output/ref and rejection controls,required gates."]
 non_goals: ["No arbitrary void expressions/task casts,deferred assertion action relaxation,new runtime ops,library-specific behavior or UVM source edits;no full call/UVM qualification."]
 required_gates: ["Both-edition reducer/call effects/empty/virtual/output/ref and direct-call parity;task-cast/void-expression/deferred-action negatives;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Review exact resolved call path,remove only void-function statement rejection,then paired regressions."
-next_command: "sed -n '16905,16960p' elaborate.cc"
+next_action: "Run required full gates on frozen candidate;JSON after integrated terminal;frontend last alone/restore/hashes."
+next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated.log"
 stop_after_completion: false

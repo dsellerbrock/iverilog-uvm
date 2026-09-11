@@ -1,0 +1,3 @@
+./ivltests/sv_void_function_cast_restrictions.v:6: error: void casting user task 'not_a_function' is not allowed.
+./ivltests/sv_void_function_cast_restrictions.v:7: error: void function `no_value` can not be called in an expression.
+2 error(s) during elaboration.
