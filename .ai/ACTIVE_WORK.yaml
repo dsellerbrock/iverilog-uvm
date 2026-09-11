@@ -31,3 +31,5 @@ u14_installed_focus: "Final build/install85793 exit0; installed native3checks an
 u14_full_gate_start: "Candidate729edce3c; ancestry merge6c8b71afc records origin/main469002b7b without tree change (main exactly equals published6506fc7a2). Integrated20014,UVM57598,NFA45081,releases32494 running; JSON/frontend pending. makecheck3714 exit0. Six installed hashes frozen. Full legacy adapter and native focused tests pass on installed candidate. No source changes during gates; U14 open."
 
 u14_release_terminal: "NFA45081 exit0:58/58. Releases32494 exit1 for preserved1.1b/c compile gaps; results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL, all15statuses/archive/source hashes identical to L31. New1.1d lifecycle gate return0 both editions. Integrated20014/UVM57598 running; JSON/frontend unstarted. No closure."
+
+u14_integrated_terminal: "Integrated20014 exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 started only after integrated terminal. UVM57598 stilllive; frontend unstarted. Candidate freeze remains active."
