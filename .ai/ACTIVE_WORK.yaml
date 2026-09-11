@@ -16,8 +16,8 @@ validation_contract: "Two explicitly created original1.1d-compatible recorder in
 dependencies: ["Fullyvalidated0a4e7d639; DD038 independent design review recorded in DISCOVERED_DEBT. Use original1.1d (legacy API);1.2 recorder API differs and is not interchangeable."]
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
 evidence: "../evidence/campaign-20260908/u14/"
-next_action: "Collect integrated20014,UVM57598,NFA45081,releases32494 terminal results. Start full JSON only after integrated ends. Frontend last and alone after all other gates. No source/build/install changes until validation completes."
-next_command: "tail -15 ../evidence/campaign-20260908/u14/integrated-full.log"
+next_action: "Collect isolated frontend97996 terminal result; verify installation restoration and six frozen hashes. Only then close bounded U14 scope and select typed-capture prerequisite."
+next_command: "tail -25 ../evidence/campaign-20260908/u14/frontend-full.log"
 stop_after_completion: false
 
 api_review: "Concrete review found source-owned link and owner-scoped Transaction query incompatible with actual child/component callers. Fiber queries owner-aware,Transaction queries global; mutation ownership separate. Nativejournal authoritative,poison onIOfailure,allocation rollback,no atomic dualjournalclaim;exclusiveoutput/noaliascollision and per-simulation cleanup required. Actualcrossownerchild/componenttests mandatory. No implementation edits yet."
@@ -33,3 +33,5 @@ u14_full_gate_start: "Candidate729edce3c; ancestry merge6c8b71afc records origin
 u14_release_terminal: "NFA45081 exit0:58/58. Releases32494 exit1 for preserved1.1b/c compile gaps; results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL, all15statuses/archive/source hashes identical to L31. New1.1d lifecycle gate return0 both editions. Integrated20014/UVM57598 running; JSON/frontend unstarted. No closure."
 
 u14_integrated_terminal: "Integrated20014 exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 started only after integrated terminal. UVM57598 stilllive; frontend unstarted. Candidate freeze remains active."
+
+u14_uvm_json_terminal: "JSON82380 exit0:1873/0. UVM57598 exit0:355pass0fail0skip,REAL DPIumbrella. All nonfrontend full gates terminal. Reviewed test-only79885f484 adds direct exclusive-text API coverage and existing Windows hard CI hook; local native3checks pass,workflowYAML parses. Compiler/runtime/DPI/header frozen729edce3c unchanged. Frontend97996 launched last/alone; pending. Remote Windows execution remains batch CI evidence,not locally claimed."
