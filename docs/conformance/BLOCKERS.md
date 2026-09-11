@@ -849,6 +849,10 @@ L17 dynamic-array lowering remain open.
 
 ### L19 — Preserve four-state compound operands
 
-- **Status:** ACTIVE; prerequisite for suspended L17.
+- **Status:** CLOSED at72a97c038; state-conversion prerequisite for suspended L17.
 - **Evidence:** On validated9791e6411, bit[7:0] value=1;value+=logic X yields1 in both editions; expected0 after unknown arithmetic result is assigned to bit.
 - **Scope:** Delay destination two-state conversion until after the integral compound operator. Width preservation remains separate DD036 work. All required gates apply.
+
+L19 closure: paired four-state operand and two-state result checks, signedness/
+concatenation neighbors, independent review and all required local gates pass.
+DD036 operand width and L17 target lowering remain open.

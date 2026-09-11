@@ -2077,3 +2077,15 @@ Complete15release results-p70mxdbu retains11smokePASS/4compileFAIL and every
 source/archive hash. L18 closes only direct-property signedness; L17 remains
 suspended for DD036. Next publish the three validated L15/L16/L18 increments
 as an update to PR275, then continue prerequisite selection.
+
+### L19 — Compound operand state conversion
+
+On validated9791e6411, a bit[7:0] value1 plus a logic X returned1 instead
+of0 in both editions. IEEE2017/2023 11.4.1/11.4.3/6.11.2 require unknown
+arithmetic first, then two-state result conversion. Compressed elaboration
+requested BOOL RHS and whole-property lowering also cast before the operator.
+The first focused run caught the latter; both corrections are in72a97c038.
+Independent review is clear. Width remains a separate prerequisite; L17
+partial patch/reducers remain preserved and unapplied.
+
+Final validation: 72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged.

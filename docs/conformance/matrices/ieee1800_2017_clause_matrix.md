@@ -1093,3 +1093,13 @@ semantics. Focused/neighbor tests, independent review and all required local
 gates pass. This is bounded direct-property support; compound operand
 width/state conversion (DD036), associative lowering and dynamic-array
 property operations (L17) remain separately unqualified.
+
+### L19 — Compound operand four-state preservation (11.4.1/6.11.2)
+
+Validated72a97c038 retains RHS X/Z through integral compound operations before
+converting the result for a two-state target. Both2017/2023 cover scalar and
+direct class properties, arithmetic, bitwise known bits, unknown shift count,
+RHS evaluation once, ordinary assignment and four-state destination controls.
+The elaborator and direct-property target both had premature conversions. All
+required local gates pass. Operand width remains DD036; full compound or
+container qualification is not claimed.

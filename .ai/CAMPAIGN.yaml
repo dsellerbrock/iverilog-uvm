@@ -1,21 +1,21 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L19"
-phase: "awaiting_validation"
+current_blocker: null
+phase: "selecting"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "9791e6411"
+last_integrated_good_revision: "72a97c038"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L19 integrated4311,UVM85031,NFA67666,15release58784 live;JSON after integrated terminal;isolatedfrontend last alone then restoration/hashes."
+pending_gates: "L19 local gates complete;PR275 remoteCI independent."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Finish L19 required validation, close exact state-conversion scope only, then select remaining DD036 width prerequisite before L17 restore."
-next_command: "tail -8 ../evidence/campaign-20260908/l19/{integrated,uvm,nfa,releases}.log"
+next_action: "Select remaining DD036 compound operand width prerequisite before restoring L17. L19 is one unpublished validated increment;retain batched cadence."
+next_command: "sed -n '1756,1810p' netmisc.cc"
 next_command_cwd: repository root
-candidate_state: "L15/L16/L18 validated batch published to PR275 at1d83b9dd3."
-installed_tools: "72a97c038 candidate frozen evidence/campaign-20260908/l19/sha256.txt;last fullyvalidated9791e6411."
+candidate_state: "L19 one validated unpublished increment since PR275 update."
+installed_tools: "72a97c038 fullyvalidated;frozen evidence/campaign-20260908/l19/sha256.txt."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -481,3 +481,13 @@ l19_selection: "DD036 split at coordination boundary: first preserve four-state 
 l19_focused: "Two premature casts fixed: elaboration destinationBOOL and target whole-property cast2. Initial property failure retained. Final focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent final review clear. Width remains DD036. All required broad gates pending."
 
 l19_live_gates: {integrated: 4311, uvm: 85031, nfa: 67666, releases: 58784}
+
+l19_release_terminal: "58784 exit1 due four known compile gaps;results-rqvzvoej complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match validatedL18. NFA67666 exit0,58/58. Integrated4311,UVM85031 pending;JSON/frontend unstarted."
+
+l19_integrated_terminal: "4311 exit0;legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM85031 pending;frontend unstarted."
+
+l19_json_terminal: "85309 exit0;1817tests0failures. UVM85031 live;isolatedfrontend unstarted. Source/install72a97c038 frozen."
+
+l19_uvm_terminal: "85031 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend started last alone after all other gate sessions terminated;root restoration/frozen hashes required afterward."
+
+l19_closure: "72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."

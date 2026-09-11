@@ -1,9 +1,9 @@
 id: "L19"
 title: "Preserve four-state compound operands until result assignment"
-status: "in_progress"
-phase: "focused_tested"
+status: "closed"
+phase: "done"
 base_revision: "1d83b9dd3"
-last_validated_revision: "9791e6411"
+last_validated_revision: "72a97c038"
 reproducer: "evidence/campaign-20260908/l19/red.sv: bit[7:0] value=1; value += logic X yields1 instead of0 in both2017/2023."
 expected_behavior: "Integral compound arithmetic consumes original four-state RHS values; only final assignment to two-state destination converts X/Z to zero. Preserve known-bit behavior and ordinary assignment conversions."
 standards: ["IEEE1800-2017/2023 11.4.1 compound equivalence;11.4.3 arithmetic X propagation;6.11.2 two-state assignment conversion;verify both editions."]
@@ -15,3 +15,5 @@ suspended_parent: "L17 full partial.patch and reducers preserved in evidence/cam
 next_action: "Verify both editions and preserve integral four-state RHS through compressed elaboration, then run focused tests."
 next_command: "sed -n '7500,7534p' elaborate.cc"
 stop_after_completion: false
+
+closure: "72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
