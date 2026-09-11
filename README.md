@@ -223,7 +223,7 @@ python3 scripts/uvm_release_matrix.py --prefix "$PWD/install" --release 2020.3.1
 ```
 
 Availability in `--uvm-list` does not imply compatibility: the recorded matrix
-has eleven smoke passes, two compile gaps and two runtime gaps. See the
+has twelve clean smoke passes, two compile gaps and one disqualified runtime. See the
 [release matrix](docs/conformance/uvm_release_matrix.md) for exact versions,
 checks and limitations. For an existing external source tree, use
 `iverilog -g2017 --uvm-home=/path/to/uvm -o sim.vvp my_testbench.sv`;
@@ -234,6 +234,13 @@ DPI sources arrive with the pinned archive; the installed Icarus DPI backend
 now supplies the legacy cached-regex functions automatically. There is no
 separate legacy DPI download or build step for this usage. UVM 1.1d and 1.2
 pass the recorded smoke checks; full application qualification remains open.
+
+UVM 1.0p1 and 1.1a also ship their original DPI in `src/dpi`; the installed
+backend supplies their older command-line and regex APIs. UVM 1.1a now passes
+the recorded smoke check. UVM 1.0p1 still has runtime errors despite its smoke
+marker, so it is not counted as a clean pass. To acquire just one older release,
+use `python3 scripts/uvm_release_matrix.py --fetch-only --release 1.1a --register
+--prefix "$PWD/install"`, then select it with `--uvm=1.1a`.
 
 The OpenTitan matrix accepts the same source selection. For the pinned
 OpenTitan corpus, select its declared UVM 1.2 library by adding

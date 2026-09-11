@@ -1,9 +1,9 @@
 id: "U11"
 title: "Original UVM1.0p1/1.1a command-line and regex DPI ABI"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "completed"
 base_revision: "d39880176"
-last_validated_revision: "795d9f360"
+last_validated_revision: "e18128369"
 reproducer: "Original release results-6_pvcxya: missing dpi_get_next_arg_c/dpi_regcomp;standalone old-ABI fixture to pin iteration and regex semantics."
 expected_behavior: "Old zero-argument iterator returns actual VPI argv in order,ends with null and restarts next call;tool metadata is actual VPI data. Old cached-regex API uses strict POSIX ERE with real handles,match/nonmatch and cleanup."
 standards: ["IEEE1800-2017/2023 35.5.5/35.5.6,AnnexH DPI C-compatible string/chandle ABI;original pinned Accellera1.0p1/1.1a src/dpi/uvm_svcmd_dpi.c/.svh define release-specific API"]
@@ -11,6 +11,6 @@ root_cause: "Installed backend exports modern initialized iterator and prefixed 
 allowed_scope: ["Fork-owned DPI umbrella old entrypoints;reuse existing regex/tool metadata helpers;standalone paired-edition regression and frontend registration;original source release replay and directly affected documentation."]
 non_goals: ["No original UVM edits,DPI disabling,empty argv/match stubs,full native release backend qualification;no unrelated1.0p1 unresolved-functor/cast or1.1b/c recording/parser fixes."]
 required_gates: ["Pre-fix missing-entrypoint proof;both editions actual argv/restart/metadata/regex/lifetime controls;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/fivehashes."]
-next_action: "Run required integrated/UVM/NFA/release gates;JSON after integrated terminal;frontend last alone."
-next_command: "tail -12 ../evidence/campaign-20260908/u11/integrated.log"
+next_action: "Select DD043 false-positive release classifier."
+next_command: "sed -n '117,137p' scripts/uvm_release_matrix.py"
 stop_after_completion: false

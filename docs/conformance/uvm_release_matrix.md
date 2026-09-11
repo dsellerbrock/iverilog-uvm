@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-11, native ARM64, validated source `795d9f360` (L24 void-function call statements).
-The release sweep and all required L24 local validation gates are complete.
+2026-09-11, native ARM64, validated source `e18128369` (U11 original legacy DPI adapters).
+The release sweep and all required U11 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -80,8 +80,8 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 
 | Release | Result | First compile failure / smoke scope |
 | --- | --- | --- |
-| 1.0p1 | RUNTIME_FAIL | Missing older command-line/regex DPI entries (DD042); unresolved-functor and cast diagnostics also remain |
-| 1.1a | RUNTIME_FAIL | Missing older command-line/regex DPI entries (DD042), UVM errors and BUILDERR at time0 |
+| 1.0p1 | DISQUALIFIED_RUNTIME | Raw harness SMOKE_PASS is invalid: three placeholder-net diagnostics and two cast errors remain (DD043). Older DPI now resolves |
+| 1.1a | SMOKE_PASS | All smoke checks passed through time1 after U11; zero UVM warnings/errors/fatals |
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1d | SMOKE_PASS | All smoke checks passed through time1 after U09; zero UVM warnings/errors/fatals. Compile-time constraint/codegen warnings remain visible |
@@ -96,14 +96,14 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 11 passed compile plus runtime smoke, 2 failed
-compilation and 2 failed at runtime. These are observed compatibility gaps, not waived
+All 15 sources were acquired; 12 passed clean compile/runtime smoke, 2 failed
+compilation and 1 has disqualifying runtime diagnostics. These are observed compatibility gaps, not waived
 requirements or standards-conformance verdicts. U07 classifies unparenthesized member delays as compatibility syntax under
 `-gicarus-misc`; strict IEEE mode still requires parentheses. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-6_pvcxya/results.json`, with per-release
+`third_party/uvm-releases/results-zyhh1jv9/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -187,3 +187,8 @@ and archive fingerprints and result statuses remain unchanged.
 L24 permits the dedicated void-function statements; original1.0p1/1.1a now
 compile and start. Both fail at the older DPI ABI, so neither gains a smoke pass.
 All15 original source/archive fingerprints remain unchanged.
+
+U11 supplies the old1.0p1/1.1a command-line/regex ABI and clears missing-DPI errors.
+The raw report says13SMOKE_PASS, but its1.0p1 row is explicitly disqualified by
+review of runtime errors: the current classifier misses non-UVM diagnostics.
+DD043 tracks that harness defect. Reviewed count is12 clean,1disqualified,2compilefail.

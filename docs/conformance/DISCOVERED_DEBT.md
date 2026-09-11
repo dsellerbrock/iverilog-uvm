@@ -560,3 +560,16 @@ has errors and unresolved-functor/$cast diagnostics, so remains RUNTIME_FAIL.
 Old native ABI must be inspected before reusing newer U09 cached-regex helpers;
 no fabricated empty argv/regex match or DPI-disabled bypass. Record-only under
 L24. Evidence results-6_pvcxya/{1.0p1,1.1a}/runtime.log.
+
+### DD043 — Release smoke harness misses simulator runtime errors
+
+During U11, original1.0p1 has no missing DPI and reaches its marker with zero
+UVM summary counts, but still prints three unresolved-functor placeholder-net
+and two failed-$cast runtime error lines already present under L24. The unchanged
+smoke_passed helper checks exit/marker/UVM summaries only and incorrectly emits
+SMOKE_PASS in results-zyhh1jv9. That raw row is explicitly disqualified; no clean
+pass or full implementation claim. Original1.1a is a clean new smoke pass.
+Record-only during U11; select a bounded harness-classification ticket at next
+coordination boundary, retaining offending logs as negative regression evidence.
+No compiler workaround or filtering of errors. 1.0p1 actual semantic gaps remain
+separate from fixing the false-positive classifier.
