@@ -1,9 +1,9 @@
 id: "U08"
 title: "Original UVM1.2 smoke runtime timeout"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "done"
 base_revision: "69ff60cc6"
-last_validated_revision: "69ff60cc6"
+last_validated_revision: "c9626a449"
 selection_reason: "DD028: user prioritizes original1.2 for OpenTitan; original sources now compile but smoke times out300s without runtime output."
 reproducer: "third_party/uvm-releases/results-f9qr050b/1.2/smoke.vvp on validated active vvp; compiler0, runtime timeout300.061s, empty log."
 expected_behavior: "Original pinned1.2 must execute intended factory/copy/phase/regex/HDL-read smoke checking. Determine the exact runtime mechanism and applicable language/DPI/phase semantics before implementation."
@@ -27,3 +27,6 @@ interaction_scope: "Receiver probe proves task statement lookup bypasses symbol_
 focused_validation: "Permanent JSON6/0 and legacy6/0; neighborJSON32/0; makecheckpass. Review statement-call finding corrected and covered. External Claude review requested by user and running. Required integrated gates not yet started."
 
 validation_candidate: "U08 inherited homonym precedence, permanent tests6/0 in both harnesses, neighbors32/0, makecheckpass; Bison563SR1122RR and209 exact state signatures unchanged. External review and required integrated gates pending. Scope excludes DD029 general access-control gaps; DD030 legacy DPI queued after validation."
+
+resolved_scope: "Inherited unqualified method precedence over enclosing homonyms; UVM root recursion removed. Full general method access control and original1.2 smoke/application qualification remain open (DD029/DD030)."
+closure: "c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged."

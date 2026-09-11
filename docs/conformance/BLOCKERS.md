@@ -784,8 +784,16 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 - **L14 validation:** 69ff60cc6;legacy4905total4900pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,JSON1797/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON12/0,legacy12/0,neighbors18/0,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Release results-f9qr050b:8SMOKE_PASS4COMPILE_FAIL1RUNTIME_FAIL2RUNTIME_TIMEOUT; all15 source hashes unchanged, other14 normalized compile logs identical. UVM1.2 runtime timeout remains DD028.
 
-### U08 — Original UVM1.2 runtime timeout
+### U08 — Inherited-method lookup causes UVM1.2 root recursion
 
-- **State:** OPEN, selected after validated L14.
+- **State:** CLOSED at c9626a449 after all required local gates.
 - **Evidence:** DD028, original1.2 compiles then times out300s with no runtime output.
-- **Scope:** Identify and repair the proven runtime mechanism; preserve original source and intended checking. No assumed cause or parent qualification.
+- **Resolved scope:** Inherited unqualified method precedence over enclosing homonyms; receiver/task/virtual binding, local visibility and static-caller diagnostics covered under both editions. General access control remains DD029; original1.2 still fails legacy regex DPI (DD030).
+
+- **U08 validation:** c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged. Release results-eb3ghca7:9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL; no source changes.2017.0.9 now passes;1.2 reaches regex DPI errors.
+
+### U09 — Legacy UVM regex DPI entry points
+
+- **State:** READY after validated U08.
+- **Evidence:** DD030/DD027, original1.2 and1.1d import uvm_dpi_regcomp/regexec/regfree; installed modern umbrella exports none of those names. Pinned legacy sources already contain the implementation.
+- **Scope:** Provide the legacy C ABI on the Icarus backend with strict regex semantics, error reporting and handle lifetime; permanent coverage and original-release replay. No library-source edits or full application claim.

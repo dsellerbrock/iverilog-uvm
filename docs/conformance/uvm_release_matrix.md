@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `69ff60cc6` (L14 static local hierarchical references).
-The release sweep and all required L14 local validation gates are complete.
+2026-09-10, native ARM64, validated source `c9626a449` (U08 inherited method lookup).
+The release sweep and all required U08 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -85,8 +85,8 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1d | RUNTIME_FAIL | Missing `uvm_dpi_regcomp`; four UVM errors and one fatal before smoke completion; codegen fallback warnings remain visible |
-| 1.2 | RUNTIME_TIMEOUT | Compilation succeeds; runtime produces no output before300-second limit. Constraint and codegen fallback warnings remain visible |
-| 2017.0.9 | RUNTIME_TIMEOUT | Compiles; runtime times out after 300 seconds without output (DD022) |
+| 1.2 | RUNTIME_FAIL | Root recursion removed; missing `uvm_dpi_regcomp`, five UVM errors and one fatal before smoke completion. Constraint/codegen warnings remain visible |
+| 2017.0.9 | SMOKE_PASS | All smoke checks passed through time1 after U08; zero UVM warnings/errors/fatals |
 | 2017.1.0 | SMOKE_PASS | All smoke checks passed through time1 after U07; zero UVM warnings/errors/fatals |
 | 2017.1.1 | SMOKE_PASS | All smoke checks passed through time1 after U07; zero UVM warnings/errors/fatals |
 | 2020.1.0 | SMOKE_PASS | All smoke checks passed through time1 after U06; zero UVM warnings/errors/fatals |
@@ -96,14 +96,14 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 8 passed compile plus runtime smoke, 4 failed
-compilation, 1 failed runtime checking and 2 timed out at runtime. These are observed compatibility gaps, not waived
+All 15 sources were acquired; 9 passed compile plus runtime smoke, 4 failed
+compilation and 2 failed runtime checking. These are observed compatibility gaps, not waived
 requirements or standards-conformance verdicts. U07 classifies unparenthesized member delays as compatibility syntax under
 `-gicarus-misc`; strict IEEE mode still requires parentheses. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-f9qr050b/results.json`, with per-release
+`third_party/uvm-releases/results-eb3ghca7/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -116,7 +116,7 @@ continues through later releases after an earlier failure.
 All release sources remain unmodified. L08, U05, U04 and U06 record the scoped
 compiler, DPI and runtime compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `d137346bfc704a4947503e35e2783b92e9004a52f5e3f92951cd2d0fe9213e4c`
+- `ivl` SHA-256: `aa57713aeb8493c09fa1da2015a17d46a7df2d37f57b51875336dfc986a37faf`
 
 - `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
 

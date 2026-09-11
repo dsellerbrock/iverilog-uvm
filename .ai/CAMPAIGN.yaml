@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U08"
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "69ff60cc6"
+last_integrated_good_revision: "c9626a449"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: "U08 diagnosis,reducer,implementation and required validation; PR275 freshCI; application1.2 qualification"
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "User resumed. Retain method qualifiers and preserve local visibility during inherited lookup; prove receiver and static-context behavior before required gates."
-next_command: "git diff --check"
+next_action: "Await U08 integrated and real-DPI UVM gates and external review. After integrated terminal, run full JSON; frontend last alone. Then close only validated inherited homonym scope and select DD030 legacy DPI."
+next_command: "PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner sh -c 'cd ivtest && python3 vvp_reg.py'"
 next_command_cwd: repository root
-candidate_state: "L14 declaration-lifetime candidate built/installed; focusedJSON12/0,legacy12/0,neighbors18/0,independent review clear."
-installed_tools: "Frozen evidence/l14/sha256.txt. Do not rebuild or install while gates run."
-validation_state: "U07 a83731194 last fully validated semantic revision: legacy4881total0unexpected,JSON1773/0,UVM355/0/0,NFA58/58,VPI105,negative149,runtime15/15,copyout6/6,frontendS1-S10. L13 candidate pending integrated/JSON/UVM/frontend; NFA/makecheck/focused/review passed."
-next_validation: "L13 integrated,JSON,UVM,NFA,makecheck,release replay and isolatedfrontend required."
+candidate_state: "U08 semantic candidate c9626a449 built and frozen; focused JSON6/0,legacy6/0,neighbors32/0,makecheck and NFA58/58 passed."
+installed_tools: "Frozen evidence/u08/sha256.txt at c9626a449. Do not rebuild or install while gates run."
+validation_state: "U08 integrated75031 and real-DPIUVM96030 pending; fullJSON/frontend unstarted. ExternalClaude77171 pending. NFA7867 terminal0,58/58. Release92634 terminal1 due known gaps:9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL; sources unchanged."
+next_validation: "After integrated75031 terminal, fullJSON; isolated frontend after all local gates terminal."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -381,3 +381,19 @@ user_pause_checkpoint: "User requested pause. Last fully validated semantic revi
 u08_resumed: "Explicit user Continue received. Dirty candidate preserved; refreshed origin/main remains188da200b. PR275 all six CI jobs SUCCESS, still OPEN; no merge. Method visibility metadata gap identified before U08 qualification."
 
 u08_candidate: "Permanent JSON6/0,legacy6/0,neighbors32/0,makecheckpass; exact209 parser conflict state signatures unchanged. UVM1.2 development replay results-pqt3anxi starts test then5ERROR/1FATAL due missing legacy DPI exports (DD030). External Claude review running77171; full required validation next. No U08 closure or application pass."
+
+u08_live_gates: {}
+u08_gate_baseline: "c9626a449; frozen evidence/u08/sha256.txt. Independent correction review clear. FullJSON must follow integrated terminal; isolated frontend last alone after all local gates. No source/build/install changes while gates run."
+
+u08_release_terminal: "92634 exit1 for known gaps; results-eb3ghca7 complete/baseline_valid.9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL, all15 source hashes unchanged.2017.0.9 timeout becomes smokePASS;1.2 timeout becomes regexDPI runtimeFAIL. NFA7867 exit0,58/58."
+
+u08_external_review_terminal: "77171 exit0,ClaudeSonnet5 success. Two findings reconciled against full source: protected-production concern false diff-context flag; error-result concern unsupported by helper contract/main error gate and numeric/string/chandle negatives, all exit1/no artifact. No additional source change. Raw review and reconciliation in evidence/u08."
+
+u08_integrated_terminal: "75031 exit0;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal. RealDPIUVM96030 still live; isolatedfrontend unstarted."
+
+u08_json_terminal: "36389 exit0;1803tests0failures. UVM96030 still running. Frontend unstarted and must run last alone; frozen installed fingerprints unchanged."
+
+u08_uvm_terminal: "96030 exit0;355passed0failed0skipped, real DPI. Frozen fingerprints checked unchanged. Isolated frontend38629 launched after every other local gate terminated; must verify root restoration and frozen hashes afterward."
+
+u08_closure: "c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged."
+next_coordinator_action: "Select DD030 legacy regex DPI entry points; user requested investigation and source/export mismatch is proven. U08 is one unpublished validated increment; retain batched PR cadence. PR275 remains OPEN, six CI passes, no merge."
