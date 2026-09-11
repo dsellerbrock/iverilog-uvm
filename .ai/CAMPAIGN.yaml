@@ -1,21 +1,21 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L19"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9791e6411"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L19 focus/all required gates unstarted;PR275 new remoteCI separate."
+pending_gates: "L19 integrated4311,UVM85031,NFA67666,15release58784 live;JSON after integrated terminal;isolatedfrontend last alone then restoration/hashes."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Fix premature compound RHS two-state conversion L19; width preservation remains next prerequisite before L17 restore."
-next_command: "sed -n '7500,7534p' elaborate.cc"
+next_action: "Finish L19 required validation, close exact state-conversion scope only, then select remaining DD036 width prerequisite before L17 restore."
+next_command: "tail -8 ../evidence/campaign-20260908/l19/{integrated,uvm,nfa,releases}.log"
 next_command_cwd: repository root
 candidate_state: "L15/L16/L18 validated batch published to PR275 at1d83b9dd3."
-installed_tools: "9791e6411 fullyvalidated; evidence/campaign-20260908/l18/sha256-final.txt."
+installed_tools: "72a97c038 candidate frozen evidence/campaign-20260908/l19/sha256.txt;last fullyvalidated9791e6411."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -479,3 +479,5 @@ legacy_uvm_pr_second_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/
 l19_selection: "DD036 split at coordination boundary: first preserve four-state operands, then repair width. Standalone both-edition reducer fails on validated9791e6411; no parent target patch applied."
 
 l19_focused: "Two premature casts fixed: elaboration destinationBOOL and target whole-property cast2. Initial property failure retained. Final focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent final review clear. Width remains DD036. All required broad gates pending."
+
+l19_live_gates: {integrated: 4311, uvm: 85031, nfa: 67666, releases: 58784}
