@@ -1918,12 +1918,21 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  }
 		  return;
 	    }
-	    /* Queue/darray held in an expression (e.g. a class property):
-	     * push the value then the container object and use the
-	     * object-stack form of the opcode. */
+	    /* Queue/darray held in an expression (e.g. a class property, or
+	     * a non-signal expression such as a function call result): push
+	     * the value then the container object and use the object-stack
+	     * form of the opcode. L38: the comment already said "Queue/
+	     * darray" but the check only tested IVL_VT_DARRAY -- a QUEUE-
+	     * valued expression that is not itself a property (e.g.
+	     * `x inside {some_func_returning_a_queue()}') fell through to
+	     * the "unsupported container operand" fallback below and forced
+	     * the result to 0, even though the identical queue as a class
+	     * property already worked via the IVL_EX_PROPERTY arm of this
+	     * same condition. */
 	    if (arr_arg && val_arg
 		&& (ivl_expr_type(arr_arg) == IVL_EX_PROPERTY
-		    || ivl_expr_value(arr_arg) == IVL_VT_DARRAY)) {
+		    || ivl_expr_value(arr_arg) == IVL_VT_DARRAY
+		    || ivl_expr_value(arr_arg) == IVL_VT_QUEUE)) {
 		  if (string_value)
 			draw_eval_string(val_arg);
 		  else

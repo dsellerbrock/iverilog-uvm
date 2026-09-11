@@ -1709,7 +1709,43 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // shape (uvm_svcmd_dpi.svh regcomp). The only illegal
 		  // null form, null-into-LOGIC, is already intercepted
 		  // above by null_to_logic (br_gh440).
-		  bool class_rval_degrade_ok = in_class_scope
+		  // L40: `in_class_scope' is deliberately broad (see the two
+		  // documented exemptions above), and a first attempt at
+		  // narrowing it wholesale to `in_unspecialized_param_class'
+		  // was REVERTED after the UVM gate caught a real regression --
+		  // `uvm_vreg::allocate()`'s `this.mem = mam.get_memory();' (an
+		  // ordinary, zero-generics uvm_mem-to-uvm_mem property
+		  // assignment) started hard-erroring. Instrumenting the guard
+		  // showed why: `uvm_vreg.svh`/`uvm_mem_mam.svh` forward-declare
+		  // each other (`typedef class uvm_mem_mam;` / `typedef class
+		  // uvm_mem;`), and that circular forward-reference collapses
+		  // `this.mem`'s target to a 2-state placeholder (cast_type ==
+		  // IVL_VT_BOOL) -- the exact same "forward-referenced class
+		  // collapses to an implicit type" mechanism case (b) above
+		  // already names for LOGIC, just landing on the 2-state atom
+		  // instead of the 4-state one this time. `in_class_scope`'s
+		  // broad permissiveness was the only thing covering that BOOL
+		  // variant, since `cast_type == IVL_VT_LOGIC` doesn't match it.
+		  //
+		  // Rather than widen the cast_type checks (which would touch
+		  // every class-scope degrade, not just the one L40 targets),
+		  // carve out only the exact case L40 needs to hard-error: a
+		  // REAL, executing specialization of a parameterized class
+		  // (as opposed to the never-executed template-seed pass case
+		  // (a) already exempts). `in_class_scope` keeps covering
+		  // everything else -- including this BOOL forward-ref
+		  // collapse -- completely unchanged.
+		  bool in_real_specialized_param_class = false;
+		  if (const NetScope*cscope2 =
+			    scope ? scope->get_class_scope() : 0) {
+			const netclass_t*cd2 = cscope2->class_def();
+			const PClass*pclass2 = cscope2->class_pform();
+			in_real_specialized_param_class =
+			      cd2 && pclass2 && pclass2->has_parameter_port_list
+			   && cd2->specialized_instance() && !cd2->seed_derived();
+		  }
+		  bool class_rval_degrade_ok =
+			(in_class_scope && !in_real_specialized_param_class)
 			|| cast_type == IVL_VT_LOGIC
 			|| dynamic_cast<const PENull*>(pe);
 		  if (!need_const && !null_to_logic && !class_new_hard_error
