@@ -1082,7 +1082,7 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 
 ### U15 — Lossless native recording value capture
 
-- **Status:** SUSPENDED before implementation for proven L32 prerequisite; contract/reducers preserved under evidence/campaign-20260908/u15.
+- **Status:** ACTIVE (pre-implementation review) after L32 validation; contract in `.ai/ACTIVE_WORK.yaml`, reducers and design facts under evidence/campaign-20260908/u15.
 - **Scope:** Native packed width/sign/four-state bits, exact real values and
   strings, valid transaction routing and single evaluation. Review existing
   VPI metadata routes before committing to the API.
@@ -1094,7 +1094,18 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 
 ### L32 — VPI string literal vector extraction
 
-- **Status:** ACTIVE; proven prerequisite for U15.
+- **Status:** CLOSED 2026-09-11 for the literal/parameter vpiVectorVal scope.
+  Semantic `ab54351c3`; test oracle correction `fc90f1fa2`. The `swrite` endian
+  probe relied on the old reversed literal order. `%u` of a literal now equals
+  `%u` of the equivalent vector, as 5.9 and the format specifications clause
+  (2017 21.2.1.2, 2023 21.2.1.1) require, so only the probe expectation changed.
+  Gates, all with durable exit files: integrated exit0 4981/4976/0/2NI/3EF,
+  VPI107, negative149, runtime15; JSON exit0 1873/0 with rows identical to U14;
+  UVM exit0 REAL DPI 355/0/0 with rows identical; frontend exit0 all scenarios,
+  install restored and six hashes match; NFA 58/58; releases unchanged 13
+  SMOKE_PASS/2 COMPILE_FAIL. The string-parameter sibling path is verified in both
+  editions. The TEMP subclass is reachable only from interactive `$stop`
+  commands and is untested; the vlog95 swrite variant is not run. DD047 found.
 - **Reducer:** Both editions return `"ABCD"` as0x44434241 instead of0x41424344;
   `"ABCDE"` also has reversed word placement. Shared loop additionally shifts
   signed bytes and initializes a word beyond the required allocation.

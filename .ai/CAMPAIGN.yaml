@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "L32"
-phase: "awaiting_validation"
+current_blocker: "U15"
+phase: "pre_implementation_review"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "729edce3c"
+last_integrated_good_revision: "fcd69dfd0"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L32 ab54351c3 plus test-only fc90f1fa2 (swrite endian-probe oracle correction). First integrated run: ivtest 1 new fail swrite (probe depended on old literal order), VPI107/negative149/runtime15; exit UNKNOWN. First UVM run: 355/0/0 REAL DPI; exit UNKNOWN. Both re-running with durable exits: l32/integrated-recovery.{log,exit}, l32/uvm-recovery.{log,exit}. NFA 58/58 exit0 and releases (exit1, preserved 1.1b/c gaps, 13 SMOKE_PASS) already terminal. JSON after integrated; frontend last and alone. Six frozen hashes re-verified.  Parameter sibling path verified (l32/param-sibling.log). DD047 recorded."
+pending_gates: "None for L32 (closed; l32/closure.json). U15 has no candidate yet."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "Resume preserved U15 after fullyvalidated L32; fullDD038 schema/object/bootstrap remains required."
-next_action: "Wait for l32/integrated-recovery.exit and l32/uvm-recovery.exit. Then run JSON (vvp_reg.py) with l32/json-full.exit; then frontend last and alone with l32/frontend-full.exit; re-verify hashes. Then close L32 and resume U15."
-next_command: "cat ../evidence/campaign-20260908/l32/integrated-recovery.exit ../evidence/campaign-20260908/l32/uvm-recovery.exit"
+next_selection: "U15 active. After U15 closes, assess one PR to main for L31+U14+L32+U15; no merge authorization. DD047 is a candidate next blocker."
+next_action: "U15: run the pre-implementation reducer on the validated install in both editions, verify single evaluation for vvp thread-stack arguments with an i++ reducer, then finalize the API and contract before editing."
+next_command: "local-install/bin/iverilog -g2017 -m \"$PWD/local-install/lib/ivl/uvm_dpi.vpi\" -s main -o ../evidence/campaign-20260908/u15/red2017.vvp ../evidence/campaign-20260908/u15/values.sv"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."

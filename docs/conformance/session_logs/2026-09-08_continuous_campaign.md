@@ -2375,3 +2375,26 @@ Review's proposed NUL-string prerequisite was rejected against both LRMs6.16:
 string variables cannot containNUL; raw literals can, and L32tests retain those
 bits. Separate VPI temporary-string metadata and complete typed schemas remain
 unqualified; no recorder-formatting workaround was added.
+
+
+### L32 closure
+
+The first integrated run on `ab54351c3` failed only `swrite`. Its host-endian
+probe `$swrite(result,"%u","Help")` expected the pre-L32 reversed literal bytes.
+A scratch reducer showed `%u` of the literal and of an equal-valued `reg` are now
+identical, as 5.9 and the format specifications clause (2017 21.2.1.2 / 2023
+21.2.1.1) require for packed data. `fc90f1fa2` corrects only the probe
+expectation. The 13 value oracles and the gold file are unchanged, and the
+edited test matches gold byte-for-byte. Upstream master still has both the old
+loop and the old probe.
+
+Re-runs with durable exit files: integrated exit0 4981/4976/0/2NI/3EF, VPI107,
+negative149, runtime15, copy-out6, exports66. JSON exit0 1873/0, UVM exit0
+REAL DPI 355/0/0, and frontend exit0 on all scenarios; each has rows identical
+to U14, with frontend temp directory names masked. The install was restored and
+the six frozen hashes match. The first integrated and UVM runs had no recorded
+exit status, so they are not counted. String parameters inherit the fixed getter
+and were verified in both editions. DD047 (tgt-vvp high-bit literal
+sign-extension) was recorded, not fixed. Resume U15 from the restored contract.
+Publication is deferred until U15 so the recording batch is coherent: L31, U14
+and L32 are validated, and no PR is open.
