@@ -390,3 +390,11 @@ DD021 follow-up: L12 candidate removes original1.2 printer string-index errors. 
 ### DD028 — Original UVM1.2 smoke runtime produces no output before timeout
 
 L14 candidate69ff60cc6 removes all four visit.compiled_regex reference errors. Original1.2 compiles0 in0.635s, then runtime times out after300.061s with empty runtime.log (return-9). Evidence third_party/uvm-releases/results-f9qr050b/1.2 and results.json. Ignored pick_sequence constraint and newly reached object-codegen null-fallback warnings remain visible. No relationship to the already known2017.0.9 timeout is proven. Select and reduce after L14 required gates; do not infer startup, scheduler, DPI or initialization cause from an empty log alone.
+
+### DD029 — General class method visibility fallback gaps
+
+U08 review observed local base methods still accessible when no enclosing homonym exists, and through explicit class qualification. Existing method_from_name and later call fallbacks do not enforce complete method access control. U08 is bounded to inherited lexical precedence over enclosing homonyms; it retains qualifier metadata and prevents a package-selected statement call being re-resolved to a local base method. General no-homonym/explicit-qualified access checks remain separate qualification debt, not a completed8.18 feature.
+
+### DD030 — Original UVM1.2 reaches missing legacy regex DPI
+
+U08 development replay results-pqt3anxi removes the root-construction recursion and starts release_test, then reports missing uvm_dpi_regcomp, five command-line regex UVM_ERRORs and one BUILDERR UVM_FATAL. Result RUNTIME_FAIL, not smoke/application pass. Original source tree unchanged. Pinned1.2 src/dpi/uvm_svcmd_dpi.c already defines uvm_dpi_regcomp/regexec/regfree using POSIX REG_NOSUB|REG_EXTENDED; current fork umbrella includes the modern source, which lacks those exported entry points. User requested investigation. Preserve legacy strict regex semantics, allocation/free behavior and error reporting when selecting DPI work after U08 validation; do not simply alias to the modern glob-retry wrapper.

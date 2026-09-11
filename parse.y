@@ -3124,48 +3124,50 @@ class_item /* IEEE1800-2005: A.1.8 */
       { if ($2) pform_mark_recent_class_method_virtual(); }
 
   | method_qualifier_opt class_item_qualifier_opt task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers($2); }
 
   | method_qualifier_opt class_item_qualifier_opt function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers($2); }
 
   | class_item_qualifier_opt method_qualifier_opt task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers($1); }
 
   | class_item_qualifier_opt method_qualifier_opt function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers($1); }
 
   | class_item_qualifier_opt K_virtual task_declaration
-      { pform_mark_recent_class_method_virtual(); }
+      { pform_set_recent_class_method_qualifiers($1);
+        pform_mark_recent_class_method_virtual(); }
 
   | class_item_qualifier_opt K_virtual function_declaration
-      { pform_mark_recent_class_method_virtual(); }
+      { pform_set_recent_class_method_qualifiers($1);
+        pform_mark_recent_class_method_virtual(); }
 
   | class_item_qualifier_opt task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers($1); }
 
   | class_item_qualifier_opt function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers($1); }
   | K_protected task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_protected()); }
   | K_protected function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_protected()); }
   | K_protected K_static task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_protected() | property_qualifier_t::make_static()); }
   | K_protected K_static function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_protected() | property_qualifier_t::make_static()); }
   | K_static K_protected task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_protected() | property_qualifier_t::make_static()); }
   | K_static K_protected function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_protected() | property_qualifier_t::make_static()); }
   | K_local K_static task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_local() | property_qualifier_t::make_static()); }
   | K_local K_static function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_local() | property_qualifier_t::make_static()); }
   | K_static K_local task_declaration
-      { /* The task_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_local() | property_qualifier_t::make_static()); }
   | K_static K_local function_declaration
-      { /* The function_declaration rule puts this into the class */ }
+      { pform_set_recent_class_method_qualifiers(property_qualifier_t::make_local() | property_qualifier_t::make_static()); }
 
     /* Pure method prototypes in virtual classes. */
   | K_pure method_qualifier_opt K_function data_type_or_implicit_or_void function_identifier
@@ -3217,6 +3219,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function->set_return($5);
 	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid(false);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3229,6 +3232,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function->set_return($5);
 	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid(false);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3240,6 +3244,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task->set_ports($8);
 	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid(false);
+	current_task->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3251,6 +3256,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task->set_ports($8);
 	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid(false);
+	current_task->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3263,6 +3269,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function->set_return($5);
 	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($3.mask() == 0);
+	current_function->set_method_qualifiers($3);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3274,6 +3281,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task->set_ports($7);
 	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($3.mask() == 0);
+	current_task->set_method_qualifiers($3);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3286,6 +3294,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function->set_return($5);
 	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($3.mask() == 0);
+	current_function->set_method_qualifiers($3);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3297,6 +3306,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task->set_ports($8);
 	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($3.mask() == 0);
+	current_task->set_method_qualifiers($3);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3309,6 +3319,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function->set_return($5);
 	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($2.mask() == 0);
+	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3320,6 +3331,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task->set_ports($8);
 	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($2.mask() == 0);
+	current_task->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3332,6 +3344,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_function->set_return($5);
 	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($2.mask() == 0);
+	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3343,6 +3356,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task->set_ports($8);
 	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($2.mask() == 0);
+	current_task->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3416,6 +3430,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
+	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3426,6 +3441,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
+	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3435,6 +3451,7 @@ class_item /* IEEE1800-2005: A.1.8 */
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_method_qualifiers($2);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3446,6 +3463,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
+	current_function->set_method_qualifiers($3);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3456,6 +3474,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
+	current_function->set_method_qualifiers($3);
 	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3466,6 +3485,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_method_qualifiers($3);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3477,6 +3497,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
+	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3487,6 +3508,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
+	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3497,6 +3519,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_method_qualifiers($2);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3508,6 +3531,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3518,6 +3542,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	pform_set_constructor_return(current_function);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3528,6 +3553,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3539,6 +3565,7 @@ class_item /* IEEE1800-2005: A.1.8 */
     tf_port_list_parens_opt ';'
       { current_function->set_ports($9);
 	current_function->set_return($6);
+	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@7, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -3549,6 +3576,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3559,6 +3587,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	current_task->set_virtual_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
+	current_task->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -3713,9 +3742,9 @@ virtual_class_item
   | function_declaration
       { $$ = true; }
   | class_item_qualifier_opt task_declaration
-      { $$ = true; }
+      { pform_set_recent_class_method_qualifiers($1); $$ = true; }
   | class_item_qualifier_opt function_declaration
-      { $$ = true; }
+      { pform_set_recent_class_method_qualifiers($1); $$ = true; }
   | virtual_interface_type list_of_variable_decl_assignments ';'
       { pform_class_property(@1, property_qualifier_t::make_none(), $1, $2);
 	$$ = false; }

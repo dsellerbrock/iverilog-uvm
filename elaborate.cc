@@ -13733,6 +13733,24 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		    return noop;
 	      }
 
+      // Use lexical class lookup before the task-only package search. This
+      // also preserves inherited task/function precedence and implicit this.
+      if (!package_ && path_.size() == 1 && scope->get_class_scope()) {
+	    symbol_search_results sr;
+	    unsigned errors_before = des->errors;
+	    bool found = symbol_search(this, des, scope, path_, UINT_MAX, &sr);
+	    if (des->errors != errors_before)
+		  return 0;
+	    if (found && sr.is_scope() && sr.scope->get_class_scope()
+		&& (sr.scope->type() == NetScope::TASK
+		    || sr.scope->type() == NetScope::FUNC))
+		  return elaborate_method_(des, scope, true);
+	    // A package function used as a statement must not be retried as
+	    // an implicit-this call (which could expose a local base method).
+	    if (found && sr.is_scope() && sr.scope->type() == NetScope::FUNC)
+		  return elaborate_function_(des, scope);
+      }
+
       NetScope*task = des->find_task(pscope, path_);
       if (gn_system_verilog() && path_.size() > 1
 	  && !has_indexed_path_component

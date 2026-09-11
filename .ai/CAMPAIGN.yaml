@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U08"
-phase: "reproduced"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "69ff60cc6"
@@ -11,8 +11,8 @@ pending_gates: "U08 diagnosis,reducer,implementation and required validation; PR
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "Use bounded verbose runtime and process sample to distinguish VVP loading/linking from event execution before reducing package initialization or phase behavior."
-next_command: "local-install/bin/vvp -v third_party/uvm-releases/results-f9qr050b/1.2/smoke.vvp"
+next_action: "User resumed. Retain method qualifiers and preserve local visibility during inherited lookup; prove receiver and static-context behavior before required gates."
+next_command: "git diff --check"
 next_command_cwd: repository root
 candidate_state: "L14 declaration-lifetime candidate built/installed; focusedJSON12/0,legacy12/0,neighbors18/0,independent review clear."
 installed_tools: "Frozen evidence/l14/sha256.txt. Do not rebuild or install while gates run."
@@ -375,3 +375,9 @@ legacy_uvm_publication_snapshot: "Validated semantic69ff60cc6, closure801c10a67,
 
 legacy_uvm_pr: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "652c1a1c2", base: "main", semantic_revision: "69ff60cc6", scope: "U07,L13,L12,L14", state: "open", remaining: "fresh remoteCI, no merge permission"}
 main_graph_after274: "Canonical main188da200b; graph update70279 exit0,49171nodes92988edges. Preserved all sibling worktrees; no removal eligible from active audit."
+
+user_pause_checkpoint: "User requested pause. Last fully validated semantic revision69ff60cc6; PR275 published652c1a1c2. U08 uncommitted symbol_search candidate and contract preserved in worktree and evidence/u08/paused-working.patch. Candidate build65221 completed; small inherited-method reducer passes2017/2023. Access probe wrongly accepts private base method; static-context probe has a syntax error and is inconclusive. No U08 permanent regressions or integrated gates run. Diagnostic processes73232/97808 terminated and reaped; no active local gate handles. Do not resume until user explicitly requests it."
+
+u08_resumed: "Explicit user Continue received. Dirty candidate preserved; refreshed origin/main remains188da200b. PR275 all six CI jobs SUCCESS, still OPEN; no merge. Method visibility metadata gap identified before U08 qualification."
+
+u08_candidate: "Permanent JSON6/0,legacy6/0,neighbors32/0,makecheckpass; exact209 parser conflict state signatures unchanged. UVM1.2 development replay results-pqt3anxi starts test then5ERROR/1FATAL due missing legacy DPI exports (DD030). External Claude review running77171; full required validation next. No U08 closure or application pass."

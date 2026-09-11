@@ -61,6 +61,9 @@ class PTaskFunc : public PScope, public PNamedItem {
 	// to the class type.
       inline class_type_t* method_of() const { return this_type_; }
 
+      property_qualifier_t method_qualifiers() const { return method_qualifiers_; }
+      void set_method_qualifiers(property_qualifier_t q) { method_qualifiers_ = q; }
+
       inline bool is_virtual_method() const { return is_virtual_; }
       inline void set_virtual_method(bool v) { is_virtual_ = v; }
 
@@ -121,6 +124,7 @@ class PTaskFunc : public PScope, public PNamedItem {
 
     private:
       class_type_t*this_type_;
+      property_qualifier_t method_qualifiers_ = property_qualifier_t::make_none();
       bool is_virtual_ = false;
       bool is_pure_ = false;
       bool interface_qualifier_valid_ = true;

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_inherited_method_lookup.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_inherited_method_lookup"
+    ],
+    "gold": "sv_inherited_method_lookup"
+}
