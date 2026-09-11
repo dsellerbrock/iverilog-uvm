@@ -2309,3 +2309,14 @@ instead of data-type resolution. A dedicated module-item route reuses the class
 member-type resolver and ordinary variable declaration builder. No fallback type;
 error paths release pending range/attribute/initializer expressions. Return to
 selection after publishing the coherent L28/L29/L30 batch.
+
+### L31 — Associative compound expression typing validated
+
+0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim.
+
+The expansion used default lvalue signedness and destination-width arithmetic.
+It now uses the resolved element type and shared binary context rules before
+extension/store; real paths and unsigned selections remain unchanged. Interrupted
+initial integrated/UVM runs were not counted; recovered gates passed, including
+both DPI tests that failed in the interrupted run. No source change was made
+to bypass those failures. Return to reviewed DD038 recording prerequisites.

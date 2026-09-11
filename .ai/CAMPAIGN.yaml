@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L31"
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "34787868e"
+last_integrated_good_revision: "0a4e7d639"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L31 UVM32316exit0 REAL DPI355pass0fail0skip; integrated/JSON/NFA/releases terminal evidence retained. Frontend49875 running lastalone; installation restoration/fivefrozenhashes pending."
+pending_gates: "None for L31; published PR2756506fc7a2 remote macOS/Windows still pending at last read."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL31validation/closure select DD038 native handle-ownership/lifecycle prerequisite; preserve original typed-attribute objective and1.1b/c reducers. Independent review rejects text adapter; no empty macro or vendor impersonation."
-next_action: "Poll frontend49875; verify full terminal PASS,local-install restored,no reloc-hidden directory,and allfivefrozenhashes. Then close exactL31scope and select reviewed DD038 prerequisite."
-next_command: "tail -n 15 ../evidence/campaign-20260908/l31/frontend.log"
+next_action: "Activate reviewed DD038 native recording handle-ownership/lifecycle prerequisite; preserve original1.1b/c reducers and full typed-value objective."
+next_command: "sed -n '508,558p' docs/conformance/DISCOVERED_DEBT.md"
 next_command_cwd: repository root
-candidate_state: "L31candidate0a4e7d639 frozen/awaitingrequiredgates;lastfullyvalidated34787868e."
-installed_tools: "0a4e7d639 candidate;l31/sha256.txt frozen;notyetfullyvalidated."
-validation_state: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
-next_validation: "FullJSONafterintegratedterminal;frontendafterallotherlocalgates terminal;restorehashes."
+candidate_state: "L31closed at0a4e7d639 after allrequiredlocalgates; return to selection."
+installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
+validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
+next_validation: "Next selected prerequisite requires its own reducer,contract,review and fullgates."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -744,3 +744,5 @@ l31_recovery: "Fresh direct C companions with frozen candidate pass DPI BASIC6/6
 l31_integrated_terminal: "Recovery92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,exports66,copyout6/6. FullJSON7147started after integrated terminal. UVM32316 stilllive; DPI basic/real PASS in recovered fullharness. Frontend unstarted. Published6506fc7a2 PR275 remainsOPEN;bothUbuntu checksSUCCESS,macOS/MINGW64/UCRT64/CLANG64 stillIN_PROGRESS at current read."
 
 l31_uvm_terminal: "32316exit0;355passed0failed0skipped,REAL DPIumbrella; prior basic/real failures do not reproduce in recovered harness. Frontend49875 started only after all other gates terminal;freeze remains in force."
+
+l31_closure: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."

@@ -1034,7 +1034,7 @@ L30 final validation: 34787868e; originalredcompile0/no diagnostics both edition
 
 ### L31 — Associative compound expression typing
 
-- **Status:** ACTIVE; DD036 reproduced on34787868e.
+- **Status:** CLOSED at0a4e7d639; bounded DD036 associative expression typing.
 - **Reducer:** Signed byte associative element -64/=2 gives96 instead of-32
   in both editions. Expansion emits unsigned division.
 - **Scope:** Resolved element signedness and binary operand width/state through
@@ -1063,3 +1063,5 @@ silent paths and qualification-harness substitutions. DD046 records the first
 tracked-source inventory, source-confirmed categories, false-positive rules,
 and remaining semantic triage. This is discovery work, not another governance
 bootstrap. Fix behavior-changing cases after UVM smoke, with one active blocker.
+
+L31 final validation: 0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim.

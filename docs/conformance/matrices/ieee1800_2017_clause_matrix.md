@@ -1224,3 +1224,12 @@ and incomplete/typeparameter prefixes remain rejected without a fallback type.
 All required local gates pass; arbitrary nested/parameterized class syntax and
 full class qualification remain open. Existing edition-specific restricted-prefix
 contexts are not broadened by this increment.
+
+### L31 — Associative compound expression typing (11.4.1/11.6/11.8)
+
+Validated0a4e7d639 corrects associative element signedness and binary expression
+width/state before final assignment conversion. Both editions cover signed
+arithmetic, mixed unsigned operands, wide arithmetic, self-determined shifts,
+four-state propagation, class properties and unsigned selections. All required
+local gates pass. Key/receiver single-evaluation and full associative compound
+qualification remain separate; this is not complete feature qualification.

@@ -496,6 +496,13 @@ helper. Migrating the target's associative callers does not qualify that
 separate expansion; preserve as residual width debt requiring its own reducer.
 L20 claims the ordinary compressed vector paths and permanent tested shapes.
 
+DD036 associative expression width/sign/state scope resolved by L31 at0a4e7d639
+after allrequiredlocalgates. Declared element signedness and binary context now
+precede extension, with final assignment conversion at store. Mixed unsigned,
+wide arithmetic, self-determined shifts, state and local/property controls pass.
+This does not qualify all associative compound semantics: preexisting key/receiver
+reevaluation in the expansion remains a separate unqualified scope.
+
 ### DD037 — Captured class mutation notification undoes handle rebinding
 
 L17 resumed receiver test and standalone scalar-property reducer show

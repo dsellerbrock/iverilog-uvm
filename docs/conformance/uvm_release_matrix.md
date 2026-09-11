@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-11, native ARM64, validated source `34787868e` (L30 class-qualified module declarations).
-The release sweep uses classifier `1654dc4c9` (U12); all required L30 local
+2026-09-11, native ARM64, validated source `0a4e7d639` (L31 associative compound expression typing).
+The release sweep uses classifier `1654dc4c9` (U12); all required L31 local
 compiler and release validation gates are complete. U13 Linux fixture-invocation
 CI passed on both Ubuntu22.04 and24.04 for published9006baa15.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
@@ -106,7 +106,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-jz6zk_cb/results.json`, with per-release
+`third_party/uvm-releases/results-322hzu4s/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -209,4 +209,4 @@ original source/archive hashes:12 smoke passes,1 runtime failure,2 compile
 failures. Generic-master initializer removal does not resolve original1.0p1's
 two callback cast errors. All required local gates passed.
 
-L28 final validation: 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.
+L28 final validation: 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.
