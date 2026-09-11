@@ -2398,3 +2398,45 @@ and were verified in both editions. DD047 (tgt-vvp high-bit literal
 sign-extension) was recorded, not fixed. Resume U15 from the restored contract.
 Publication is deferred until U15 so the recording batch is coherent: L31, U14
 and L32 are validated, and no PR is open.
+
+
+### U15 closed; U16 (all 15 UVM smokes) closed
+
+U15's native `$ivl_uvm_record_attribute` systf now captures packed, real and
+string transaction attributes losslessly, dispatching on
+`vpi_get_value(vpiObjTypeVal)`. A real bug was found and fixed before any
+gate validated it: the first version used `vpiType`/`vpiConstType` to decide
+when to retry a string argument with `vpiVectorVal`, which cannot distinguish
+a bare literal from an enum `.name()`, function-call or concatenation result
+-- all report the identical signature, yet only a literal's `__vpiStringConst`
+supports `vpiVectorVal`; a runtime `__vpiVThrStrStack` temporary (DD048)
+rejects it with an unconditional stderr diagnostic. Since `.name()` is the
+most common string field in real UVM `do_record` bodies, this was the primary
+path, not an edge case. Fixed by reading `vpiStringVal` first and retrying
+only on a length mismatch against `vpiSize` under either unit convention the
+two backing classes use (also discovered here) -- reachable in practice only
+for a literal with an embedded NUL, which is exactly L32's scope. All six
+required gates pass with durable exit files: integrated 4981/4976/0/2NI/3EF,
+JSON 1873/0 (both reused unaffected from the corrected commit), UVM 355/0/0
+REAL DPI, NFA 58/58, releases 15/15 SMOKE_PASS, frontend all scenarios
+including new S12. Five of six frozen hashes unchanged; `uvm_dpi.vpi` changed
+as expected and is U15's new baseline.
+
+U16 closed the user-requested "all 15 UVM smokes" goal: uvm-1.1b/1.1c leave
+`uvm_record_attribute` undefined on any non-QUESTA/VCS/INCA simulator (no
+fallback branch at all, unlike 1.1d). Per `docs/uvm_frontend.md`'s "no
+compatibility macros on the normal path" invariant and the prohibition on
+vendor impersonation, the fix is a harness-only compat file that
+`scripts/uvm_release_matrix.py` compiles ahead of a release's own
+`uvm_pkg.sv`, gated by a per-release manifest field, routing to U15's real
+systf rather than a no-op. `uvm_release_matrix.py` now reaches 15/15
+SMOKE_PASS, complete/baseline_valid true, 1.1d's lifecycle qualification
+included; the 13 previously-passing releases are unaffected.
+
+DD047 (high-bit literal sign-extension in tgt-vvp) and DD048
+(`__vpiVThrStrStack` has no `vpiVectorVal` path) remain OPEN, record-only.
+
+Per explicit user instruction, next selection is DD046 (the authorized sweep
+of fallback and compile-progress paths), followed by broader implementation
+work. L31/U14/L32/U15/U16 are five validated increments since merged PR275;
+assess a coherent PR milestone before or alongside starting DD046.

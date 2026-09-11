@@ -1082,14 +1082,73 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 
 ### U15 — Lossless native recording value capture
 
-- **Status:** ACTIVE (pre-implementation review) after L32 validation; contract in `.ai/ACTIVE_WORK.yaml`, reducers and design facts under evidence/campaign-20260908/u15.
-- **Scope:** Native packed width/sign/four-state bits, exact real values and
-  strings, valid transaction routing and single evaluation. Review existing
-  VPI metadata routes before committing to the API.
-- **Remaining parent scope:** Complete declared schema, aggregates, object
-  identity/cycles and deterministic default installation remain mandatory.
-  No missing-macro workaround or full1.1b/c qualification in this increment.
-- **Evidence:** `evidence/campaign-20260908/u15/`; ACTIVE_WORK owns contract.
+- **Status:** CLOSED 2026-09-11 for the packed/real/string attribute-capture
+  scope. Semantic `7db0431ff` (registration) + `da8d8c58c` (encoder) +
+  `c0a8592eb` (string-dispatch fix). A new systf, `$ivl_uvm_record_attribute`
+  (uvm_dpi/uvm_recording.cc), dispatches on `vpi_get_value(vpiObjTypeVal)`:
+  packed captures every aval/bval word with declared size/sign; real captures
+  exact IEEE754 bits (not decimal text); string reads `vpiStringVal` first
+  and retries with `vpiVectorVal` only on a length mismatch against `vpiSize`
+  under either unit convention the two backing VPI classes use, which is
+  reachable in practice only for a literal whose value contains an embedded
+  NUL (38.15 licenses that retry for `vpiStringConst`; L32 is the prerequisite
+  that makes it correct). Unknown, wrong-kind, already-ended and
+  already-freed transaction handles are all rejected before any journal
+  write, with a nonzero simulation exit status since the task has no other
+  return channel. All six required gates pass with durable exit files:
+  integrated exit0 (unaffected by this change, reused from `c0a8592eb`'s run:
+  4981/4976/0/2NI/3EF, VPI107, negative149, runtime15), JSON exit0 (unaffected,
+  reused: 1873/0), UVM exit0 355/0/0 REAL DPI, NFA exit0 58/58, releases
+  exit0 15/15 SMOKE_PASS (see U16), frontend exit0 all scenarios including
+  new S12. Install restored; five of six frozen hashes unchanged, the sixth
+  (`uvm_dpi.vpi`) changed as expected and is reframed as U15's new baseline
+  (`evidence/campaign-20260908/u15/installed-frozen-sha256.json`).
+- **Scope actually closed:** Native packed width/sign/four-state bits, exact
+  real values, `string`-variable and string-literal values (including an
+  embedded zero byte), valid transaction routing, and single evaluation of
+  the value argument (verified: `single-eval-20260911.log`).
+- **Bug found and fixed before closure:** the first committed encoder used
+  `vpiType`/`vpiConstType` to decide when to retry with `vpiVectorVal`, which
+  cannot distinguish a literal from a `.name()`/function-call/concatenation
+  result -- all report the identical signature as a systf argument, yet only
+  a literal supports `vpiVectorVal` (DD048). `.name()` is the single most
+  common string field in real UVM `do_record` bodies, so the bug was on the
+  primary path, not an edge case; corrected before any gate ran on it.
+- **Remaining parent scope (DD038, still OPEN):** Complete declared schema,
+  aggregates, object identity/cycles and deterministic default installation.
+  No default-recorder installation in this increment; see U16 for the
+  narrower, harness-scoped 1.1b/1.1c macro fix, which is deliberately kept
+  separate from this native-capture scope.
+- **Discovered, record-only:** DD048 (`__vpiVThrStrStack` has no
+  `vpiVectorVal` path and reports `vpiSize` in a different unit than
+  `__vpiStringConst`).
+- **Evidence:** `evidence/campaign-20260908/u15/`.
+
+
+### U16 — Legacy UVM release smoke compatibility (1.1b/1.1c)
+
+- **Status:** CLOSED 2026-09-11. Semantic `90e95c339`.
+- **Scope:** uvm-1.1b and uvm-1.1c guard `uvm_record_attribute` with
+  `ifdef QUESTA/VCS/INCA` and no unguarded fallback branch (1.1d added one;
+  these two omit it), so the macro is undefined on any simulator that is none
+  of those three and `uvm_tlm2_generic_payload.svh` fails to parse -- a real
+  omission in the archives, not a disagreement with them. `docs/uvm_frontend.md`
+  states the normal `-uvm`/`--uvm-home` path defines no compatibility macros,
+  and `-D` cannot express a function-like macro from the CLI at all, so the
+  fix is a harness-only compat file
+  (`scripts/uvm-release-compat/legacy_record_attribute.svh`) that
+  `scripts/uvm_release_matrix.py` compiles ahead of a release's own
+  `uvm_pkg.sv`, only for the two release ids a new `record_attribute_compat`
+  manifest field names. It routes to U15's real, tested
+  `$ivl_uvm_record_attribute`, not a no-op stub. No pinned archive edited, no
+  vendor impersonated, no change to the normal path.
+- **Result:** `scripts/uvm_release_matrix.py` reaches 15/15 SMOKE_PASS,
+  `complete=true`/`baseline_valid=true`, including 1.1d's separate
+  recording-lifecycle qualification
+  (`evidence/campaign-20260908/u15/releases-full.log`, exit0). All 13
+  previously passing releases are unaffected (gated on the manifest field).
+- **Evidence:** `evidence/campaign-20260908/u15/releases-full.log`;
+  `third_party/uvm-releases/results-xz9vnb6n/results.json`.
 
 
 ### L32 — VPI string literal vector extraction

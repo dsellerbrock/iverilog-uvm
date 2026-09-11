@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "U15"
-phase: "pre_implementation_review"
+current_blocker: "DD046-TRIAGE-1"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "fcd69dfd0"
+last_integrated_good_revision: "90e95c339"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None for L32 (closed; l32/closure.json). U15 has no candidate yet."
+pending_gates: "None. U15 and U16 both closed with all six required gates exit0 (l32 evidence dir carries the shared pre-U15 baseline; u15 evidence dir carries the U15/U16 sweep). uvm_dpi.vpi is the only frozen hash that changed; re-baselined in u15/installed-frozen-sha256.json."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "U15 active. After U15 closes, assess one PR to main for L31+U14+L32+U15; no merge authorization. DD047 is a candidate next blocker."
-next_action: "U15 design review done, unimplemented (design-facts-20260911.md, ACTIVE_WORK.yaml). Next: registration smoke test for a new $ivl_uvm_record_attribute calltf in uvm_dpi/uvm_recording.cc, verified under both -m uvm_dpi and the baked :vpi_module path, before building the packed/real/string encoder."
-next_command: "see .ai/ACTIVE_WORK.yaml next_command (systf registration smoke test)"
+next_selection: "DD046 fallback-inventory triage (user-directed: smokes -> compile fallbacks -> implementations). Select ONE bounded candidate per the targeted-fix protocol; do not batch."
+next_action: "Triage evidence/campaign-20260908/fallback-tracked-candidates.tsv for one reachable, standards-relevant candidate; write a reducer before any implementation."
+next_command: "wc -l ../evidence/campaign-20260908/fallback-tracked-candidates.tsv; head -40 ../evidence/campaign-20260908/fallback-tracked-candidates.tsv"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
