@@ -693,3 +693,6 @@ l29_selection: "Both-edition malformed nested procedural-block reducer abort134;
 
 l29_focused: "9229c24e7 candidate; originalred now ordinarysyntaxreject both editions; focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck,independentdesign/code/testreviews clear. Bison baseline/candidate563SR1122RR sameuselessproductions. Frozenfivehashes l29/sha256.txt; no source/build mutations duringgates."
 l29_live_gates: {integrated: 79700, uvm: 11005, nfa: 99686, releases: 11691}
+
+l29_release_terminal: "11691exit1;complete/baseline_valid results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all15status/archive/sourcehashes unchanged vsL28. 1.1b/c now normalcompile32/noassert,not applicationpasses. NFA99686exit0,58/58. Integrated79700/UVM11005 stilllive;JSON/frontend unstarted."
+u13_ubuntu24_terminal: "Fresh job103200770250 success on published9006baa15;downloaded log confirms legacy_10_dpi IEEE2017 and2023 PASS. Ubuntu22job103200770181 stilllive in UVMstep,soU13 remainsopen. Logs l29/ubuntu2404.plain.log."
