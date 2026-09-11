@@ -6,7 +6,9 @@ module main;
   import "DPI-C" context function int ivl_uvm_record_end(input int owner,h,input longint unsigned end_time);
   import "DPI-C" context function int ivl_uvm_record_free(input int owner,h);
   import "DPI-C" context function int ivl_uvm_record_kind(input int owner,h,input string kind);
-  int a,b;
+  import "DPI-C" context function int ivl_uvm_record_open_text(input int owner,input string filename);
+  import "DPI-C" context function int ivl_uvm_record_check_text(input int owner,fd);
+  int a,b,c,text_fd;
   initial begin
     a=ivl_uvm_record_open("a.jsonl");
     if ($test$plusargs("io_failure")) begin
@@ -31,6 +33,13 @@ module main;
     if(ivl_uvm_record_link(b,4,3,"freed") || ivl_uvm_record_free(a,3)) $fatal(1,"freed accepted");
     if(!ivl_uvm_record_free(b,4) || !ivl_uvm_record_free(a,1) || !ivl_uvm_record_free(b,2)) $fatal(1,"remaining free");
     if(ivl_uvm_record_open("a.jsonl") || ivl_uvm_record_open("missing/path.jsonl")) $fatal(1,"file failure accepted");
+    c=ivl_uvm_record_open("c.jsonl");
+    if(c<=0) $fatal(1,"text owner");
+    if(ivl_uvm_record_open_text(c,"a.jsonl")) $fatal(1,"existing text destination accepted");
+    text_fd=ivl_uvm_record_open_text(c,"c.log");
+    if(!text_fd) $fatal(1,"text descriptor");
+    $fdisplay(text_fd,"retained text");
+    if(!ivl_uvm_record_check_text(c,text_fd)) $fatal(1,"text flush");
     $display("PASSED");
   end
 endmodule

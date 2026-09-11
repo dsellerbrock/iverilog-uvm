@@ -20,7 +20,7 @@ for edition in ("2017", "2023"):
         output = result.stdout + result.stderr
         assert result.returncode == 0 and "PASSED\n" in output, output
         assert "DPI error:" not in output, output
-        assert output.count("IVL_UVM_RECORD_ERROR:") == 8, output
+        assert output.count("IVL_UVM_RECORD_ERROR:") == 9, output
         a, b = ([json.loads(line) for line in (cwd / filename).read_text().splitlines()]
                 for filename in ("a.jsonl", "b.jsonl"))
         assert [row["event"] for row in a] == ["open", "stream", "begin", "end", "free", "free", "close"], a
@@ -36,7 +36,11 @@ for edition in ("2017", "2023"):
         assert b[3]["relation"] == "child"
         assert (b[4]["left"], b[4]["right"], b[4]["left_owner"], b[4]["right_owner"]) == (4, 3, 2, 1)
         assert all(row["tick"] == "0" for row in a + b)
-        print("PASS: native recording lifecycle IEEE " + edition)
+        c = [json.loads(line) for line in (cwd / "c.jsonl").read_text().splitlines()]
+        assert [row["event"] for row in c] == ["open", "legacy_file", "close"], c
+        assert all(row["owner"] == 3 for row in c) and c[1]["path"] == "c.log"
+        assert (cwd / "c.log").read_text() == "retained text\n"
+        print("PASS: native recording lifecycle and exclusive text descriptor IEEE " + edition)
 
 # Exercise a real write/flush failure. Windows lacks POSIX per-process file
 # limits; its ordinary lifecycle checks above still run.
