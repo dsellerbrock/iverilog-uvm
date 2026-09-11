@@ -1,7 +1,7 @@
 id: "U10"
 title: "OpenTitan UVM1.2 selection and truthful replay provenance"
-status: "in_progress"
-phase: "spec_grounded"
+status: "closed"
+phase: "done"
 base_revision: "578ca58e9"
 last_validated_revision: "19e7f5592"
 selection_reason: "User requests OpenTitan pinned to1.2; pinned VCS/Questa/Riviera/Xcelium configs explicitly choose1.2. U09 all required gates passed."
@@ -12,6 +12,6 @@ root_cause: "Harness does not forward the existing compiler source selector and 
 allowed_scope: ["scripts/opentitan_matrix.py argument validation, UVM-only compiler selection, source fingerprint and permanent self-test; directly affected README/evidence/blocker records."]
 non_goals: ["No compiler/library/application source changes or warning/traffic/checker threshold relaxation. Application FAIL remains FAIL and may select a later blocker. No full UVM/IEEE/formal completion claim."]
 required_gates: ["Permanent self-test for selected source fingerprints and UVM-only command routing; invalid path rejection; actual pinned OpenTitan1.2 replay with commands, source hashes, traffic/checker/normal completion evidence. Compiler remains validated19e7f5592.", "Independent scope review and diff/YAML checks."]
-next_action: "Add scoped selection test, establish red, implement existing driver --uvm-home forwarding and accurate fingerprinting."
-next_command: "python3 scripts/opentitan_matrix.py --self-test"
+next_action: "Select DD031 legacy nested macro expansion after publication checkpoint."
+next_command: "graphify query \"macro argument expansion\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 stop_after_completion: false

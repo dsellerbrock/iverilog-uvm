@@ -803,6 +803,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U10 — OpenTitan UVM1.2 selection and provenance
 
-- **State:** SELECTED after validated U09.
+- **State:** CLOSED at aaf8df44c for source selection/provenance; application qualification remains open.
 - **Gap:** Replay harness selects and fingerprints bundled UVM despite pinned OpenTitan commercial configurations selecting1.2.
 - **Scope:** Forward an explicit acquired source root, record its actual fingerprint and replay the pinned debug crossbar with original1.2. Keep all application checking and failure criteria.
+
+- **U10 validation:** aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier.

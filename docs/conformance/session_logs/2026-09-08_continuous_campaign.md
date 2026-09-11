@@ -1972,3 +1972,9 @@ Initial smoke replay results-lmal0dvl passes both original1.1d/1.2. Full15releas
 19e7f5592; focused10/10,legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Full15release sweep11SMOKE_PASS4COMPILE_FAIL, all source hashes unchanged.
 
 Original sources include the legacy DPI; the installed backend supplies its three cached-regex exports without a separate download/build. No full UVM or OpenTitan pass is claimed. Next selection: original1.2 OpenTitan runtime configuration/provenance and replay.
+
+### U10 closure
+
+aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier.
+
+Evidence u10/{red.log,self-test.log,invalid-path.json,path-normalization.json,replay.sh,result.json}; original1.2 source untouched. No broad compiler gates repeated for this harness-only change; validated frozen tools checked unchanged.

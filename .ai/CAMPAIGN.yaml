@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U10"
-phase: "spec_grounded"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "19e7f5592"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "U10 self-test, invalid path, original1.2 OpenTitan replay and independent review."
+pending_gates: "None for U10 bounded harness closure. OpenTitan application remains FAIL. Next publication requires fresh remoteCI."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Add scoped selection test, establish red, implement existing driver --uvm-home forwarding and accurate fingerprinting."
-next_command: "python3 scripts/opentitan_matrix.py --self-test"
+next_action: "Update existing PR275 with three validated increments; then select DD031."
+next_command: "gh pr view 275 --json state,headRefOid"
 next_command_cwd: repository root
-candidate_state: "U09 validated and closed; two unpublished increments U08/U09."
+candidate_state: "U08/U09/U10 fully validated unpublished batch."
 installed_tools: "Frozen evidence/u09/sha256.txt at19e7f5592; do not build/install while gates run."
-validation_state: "19e7f5592; focused10/10,legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Full15release sweep11SMOKE_PASS4COMPILE_FAIL, all source hashes unchanged."
-next_validation: "Next selected blocker contract."
+validation_state: "aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier."
+next_validation: "Fresh remoteCI after publishing; DD031 reducer and LRM validation before implementation."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -413,3 +413,5 @@ u09_integrated_terminal: "66564 exit0;legacy4911total4906pass0fail2NI3EF,VPI105/
 u09_json_terminal: "2557 exit0;1803tests0failures. RealDPIUVM97178 running, isolatedfrontend unstarted. Source/install frozen at19e7f5592; complete15release sweep11smokePASS4compileFAIL."
 
 u09_closure: "19e7f5592; focused10/10,legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review,frontendS1-S10; root restored and frozen hashes unchanged. Full15release sweep11SMOKE_PASS4COMPILE_FAIL, all source hashes unchanged."
+
+u10_closure: "aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier."
