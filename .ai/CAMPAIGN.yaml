@@ -1,18 +1,18 @@
 status: active
-branch: "agent/campaign-legacy-uvm-main-20260910"
+branch: "agent/campaign-recording-after275-20260911"
 current_blocker: "U14"
-phase: "implementing"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "0a4e7d639"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "U14 nativefocused3checks pass; reallegacyadapter/integration,neighbors/makecheck andallrequiredfullgates pending. No tests running."
+pending_gates: "U14 final build/install85793 running. All integrated/JSON/UVM/NFA/release/frontend gates pending. Installed candidate unvalidated; last validated semantic revision remains0a4e7d639."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "AfterL31validation/closure select DD038 native handle-ownership/lifecycle prerequisite; preserve original typed-attribute objective and1.1b/c reducers. Independent review rejects text adapter; no empty macro or vendor impersonation."
-next_action: "Integrate explicit original1.1d recorder with native registry; actual child/component tests,allocation rollback/output collision handling; then fullvalidation."
-next_command: "sed -n '245,365p' third_party/uvm-releases/sources/1.1d/uvm-1.1d/src/base/uvm_recorder.svh"
+next_selection: "After U14 validated closure, continue DD038 typed capture/bootstrap prerequisites; full1.1b/c contract retained."
+next_action: "Finish install and focused verification, checkpoint/freeze candidate, run required full gates; frontend last and alone."
+next_command: "tail -30 ../evidence/campaign-20260908/u14/final-install.log"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
@@ -752,3 +752,9 @@ u14_selection: "DD038 native recording ownership/lifecycle prerequisite activate
 u14_api_review: "Completed independent concrete lifecycle review; findings recorded under DD038. Resolve globalTransactionvsownerFiber queries,childlinkorientation,journalfailurepoisoning,allocationrollback and exclusive native/superclass output before implementation. No source edits yet; parent fulltypedcontract unchanged."
 
 u14_native_slice: "Nativeowner/lifecycle implementation with permanent directAPI JSONchecks both editions andPOSIXIOfailure injection allPASS; two independent code review passes clear. Frontend S11 integrates checks; not yet runfullfrontend. Explicit legacyrecorders/componentcallbacks stillpending. Nativebuildlogs/native-green.json/native-check.log in u14; installed5hashes matchL31baseline."
+
+u14_adapter_checkpoint: "Native plus explicit original1.1d lifecycle integration implemented and reviewed; both editions focus pass including real callbacks,wrongowner,exclusive files,retained descriptor,stream/transaction allocation rollback and recorder switch. POSIX injected journal failure catches prior rollback bug. All full gates pending. No attribute macro/default installation or15release pass claim."
+
+publication_after275: "Fetched origin/main469002b7b; PR275 externally merged2026-09-11T14:00:25Z with published6506fc7a2. Main tree exactly equals6506fc7a2. New branch agent/campaign-recording-after275-20260911 preserves all unpublished work in same active tree; no new worktree. Canonical main fast-forwarded and graph update64326 running. L31 one validated increment since publishedbatch; no new PR yet."
+
+u14_installed_focus: "Final build/install85793 exit0; installed native3checks and original1.1d adapter both editions pass. Candidate installed hashes frozen in u14/installed-frozen-sha256.json (compiler,runtime,ivl,vvp target,DPI,header). Independent code reviews clear. Canonical graph64326 exit0 updated49627nodes; HTML visualization retained stale due node limit. Required full gates unstarted; no closure."

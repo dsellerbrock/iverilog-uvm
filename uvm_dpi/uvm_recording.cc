@@ -12,6 +12,8 @@ namespace {
 struct recording_owner {
       FILE* file;
       bool poisoned;
+      int text_fd;
+      FILE* text_file;
 };
 struct recording_handle {
       int owner;
@@ -81,6 +83,19 @@ static bool recording_write(int owner, const char*event,
 static PLI_INT32 recording_cleanup(p_cb_data)
 {
       for (auto&entry : recording_owners) {
+            if (entry.second.text_fd) {
+                  FILE*text = vpi_get_file(entry.second.text_fd);
+                  if (text != entry.second.text_file || ferror(text)
+                      || fflush(text) != 0) {
+                        recording_error("legacy text output failed at cleanup");
+                        entry.second.poisoned = true;
+                  }
+                  if (text == entry.second.text_file
+                      && vpi_mcd_close(entry.second.text_fd) != 0) {
+                        recording_error("legacy text close failed");
+                        entry.second.poisoned = true;
+                  }
+            }
             if (entry.second.poisoned || !recording_write(entry.first, "close"))
                   vpip_set_return_value(1);
             if (fclose(entry.second.file) != 0) {
@@ -142,9 +157,38 @@ extern "C" int ivl_uvm_record_open(const char*filename)
             return recording_error("cannot open journal stream");
       }
       int owner = recording_next_owner++;
-      recording_owners.emplace(owner, recording_owner{file, false});
+      recording_owners.emplace(owner, recording_owner{file, false, 0, nullptr});
       if (!recording_write(owner, "open")) return 0;
       return owner;
+}
+
+extern "C" int ivl_uvm_record_open_text(int owner, const char*filename)
+{
+      recording_owner*dest = recording_get_owner(owner);
+      if (!dest) return 0;
+      if (!filename || !*filename || dest->text_fd)
+            return recording_error("invalid or already open legacy text log");
+      // Keep the exclusively created file open in the simulator's FD table.
+      // The superclass writes this descriptor; it never reopens the pathname.
+      int fd = vpi_fopen(filename, "wx");
+      if (!fd) return recording_error("cannot exclusively create legacy text log");
+      dest->text_fd = fd;
+      dest->text_file = vpi_get_file(fd);
+      if (!recording_write(owner, "legacy_file", ",\"path\":" + recording_quote(filename)))
+            return 0;
+      return fd;
+}
+
+extern "C" int ivl_uvm_record_check_text(int owner, int fd)
+{
+      recording_owner*dest = recording_get_owner(owner);
+      if (!dest) return 0;
+      if (!fd || fd != dest->text_fd || vpi_get_file(fd) != dest->text_file
+          || ferror(dest->text_file) || fflush(dest->text_file) != 0) {
+            dest->poisoned = true;
+            return recording_error("legacy text descriptor or output failed");
+      }
+      return 1;
 }
 
 extern "C" int ivl_uvm_record_stream(int owner, int handle, const char*name,

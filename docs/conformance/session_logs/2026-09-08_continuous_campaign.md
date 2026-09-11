@@ -2320,3 +2320,27 @@ extension/store; real paths and unsigned selections remain unchanged. Interrupte
 initial integrated/UVM runs were not counted; recovered gates passed, including
 both DPI tests that failed in the interrupted run. No source change was made
 to bypass those failures. Return to reviewed DD038 recording prerequisites.
+
+
+### U14 explicit legacy adapter checkpoint
+
+Original1.1d remains untouched. The explicit recorder now uses the native owner
+and lifecycle registry through actual transaction, child and component callbacks.
+A retained simulator text descriptor replaces reservation followed by reopening.
+The VPI `wx` path uses `O_EXCL`, since MSVCRT does not support libc's `x` mode
+([GNU Gnulib portability reference](https://www.gnu.org/software/gnulib/manual/html_node/fopen.html)).
+No attribute macro or automatic default recorder is supplied.
+
+Independent review found poisoned journal I/O prevented superclass rollback.
+The preserved old-header run fails with `ROLLBACK_FAILED`; direct superclass
+membership removal fixes both allocation branches. Permanent tests cover stream
+and transaction collisions, actual POSIX journal write failure, retained pathname
+replacement, wrong owners and component recorder changes between transactions.
+Both IEEE modes pass (`u14/adapter-final-check.log`); native tests3pass and matrix
+unit tests8pass. Final portable VPI build/install and all required integrated gates
+remain pending. Installed files are an unvalidated U14 candidate; the last
+validated semantic baseline is still0a4e7d639.
+
+PR275 was externally merged; origin/main469002b7b has exactly the published
+6506fc7a2 tree. Unpublished work continues on a fresh branch in the same active
+worktree. No new PR, merge performed by this agent, or additional worktree.
