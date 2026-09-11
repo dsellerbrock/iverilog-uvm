@@ -867,3 +867,7 @@ L20 closure: paired constant/runtime widths, signedness/context, self-determined
 shift counts, property parts and array/queue cases pass with all required
 local gates. Associative front-end expansion remains residual DD036 debt; no
 complete associative or parent compound qualification. L17 can now resume.
+
+L17 resumes after validated L18/L19/L20 onfe12166bd. Original red/partial patch
+are preserved; adapt append-only manifests and reuse the validated width helper.
+All L17 gates/application replay remain required before exact-scope closure.

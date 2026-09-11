@@ -1,21 +1,17 @@
-id: "L20"
-title: "Preserve integral compound operation widths"
-status: "closed"
-phase: "done"
-base_revision: "6604c0668"
+id: "L17"
+title: "Integral compound updates of dynamic-array class properties"
+status: "in_progress"
+phase: "root_caused"
+base_revision: "c7c2c3d23"
 last_validated_revision: "fe12166bd"
-reproducer: "evidence/campaign-20260908/l20/red.sv: logic[7:0]128 /=32'd256 producesX instead0 in both editions; L17 focus also proves wide shift count truncation."
-expected_behavior: "Arithmetic/bitwise compound operations use max operand width before result truncation; shift counts are self-determined. Preserve RHS context widening, combined signedness, four-state propagation and single index/receiver evaluation."
-standards: ["IEEE1800-2017/2023 11.4.1,11.6 expression widths,11.8.1/11.8.2 context/sign propagation;11.4.10 shift counts;verify both editions."]
-root_cause: "Compressed RHS elaboration uses destination width, so cast/eval truncates constants. Target compound call sites independently resize RHS to destination width before operation."
-allowed_scope: ["elaborate.cc compressed integral operand width selection and tgt-vvp/stmt_assign.c shared compound vector evaluation helper/current opcode callers; permanent paired tests and required gates; direct docs."]
-non_goals: ["No L17 target restore yet; no general real/string compound redesign or fixes to unrelated receiver/assoc/index semantics; no original application changes."]
-required_gates: ["Both-edition red/focus,wide constant/runtime operands,signedness/context/self-determined shifts,property/part/container neighbors and independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restoration/fingerprints."]
-suspended_parent: "L17 full partial.patch/reducers preserved in evidence/campaign-20260908/l17; restore only after width prerequisite fullyvalidated."
-next_action: "Preserve natural RHS width through existing elaboration; centralize vector operand sizing before existing opcode and truncate afterward."
-next_command: "sed -n '7500,7545p' elaborate.cc"
+reproducer: "Original red.sv and failed pre-prerequisite focus preserved in evidence/campaign-20260908/l17; DD035 five original1.2 array compound updates took whole-object null fallback."
+expected_behavior: "Update selected integral whole element with correct width/signedness/four-state behavior, one index evaluation, captured receiver identity and invalid-index no-write semantics; never replace array with null."
+standards: ["IEEE1800-2017/2023 11.4.1,11.6,11.8;invalid array indices2017 7.4.6 and2023 7.4.5."]
+root_cause: "show_stmt_assign_sig_prop_darray_index returns-1 for compound opcode; caller treats it as whole-array assignment. Retain array/index, read typed element, use validated shared vector RHS helper, skip invalid store."
+allowed_scope: ["tgt-vvp/stmt_assign.c direct integral whole-element dynamic-array property lowering; preserved permanent paired tests and required gates; direct docs."]
+non_goals: ["No full container/compound qualification, real/string compound feature, original UVM/OpenTitan changes, new runtime instructions or unrelated associative/index/receiver fixes."]
+validated_prerequisites: ["L18 signedness9791e6411", "L19 four-state operands72a97c038", "L20 operation widthsfe12166bd"]
+required_gates: ["Originalred/both-edition focus/width/state/receiver/index/bounds and neighbors;independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restore/hashes;original1.2 OpenTitan replay after full local validation."]
+next_action: "Restore preserved L17 source/tests with manifest adaptation; replace duplicated arithmetic sizing with validated L20 helper; run focus."
+next_command: "git apply --exclude=.ai/ACTIVE_WORK.yaml --exclude=ivtest/regress-sv.list --exclude=ivtest/regress-vvp.list ../evidence/campaign-20260908/l17/partial.patch"
 stop_after_completion: false
-
-qualification_limit: "Associative front-end expansion can still construct a destination-width binary expression before these target paths; no complete associative compound width claim. Direct dynamic-array property L17 remains suspended."
-
-closure: "fe12166bd;focuslegacy2/0,JSON2/0,neighborlegacy35/0,JSON40/0,makecheck,independent review,legacy4927total4922pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1819/0,realDPIUVM355/0/0,NFA58/58,frontend93046exit0 all;root restored and frozen hashes match. Complete15release results-l9qgrxtz11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
