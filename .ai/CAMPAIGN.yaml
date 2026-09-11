@@ -7,15 +7,15 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "795d9f360"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "U11 all required gates unstarted;PR275 fresh CI pending,no merge authorization."
+pending_gates: "U11 integrated57437/UVM82773/NFA71466/releases83776 live;JSON after integrated terminal;frontend last alone. PR275 fresh CI separate."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated L24, assess DD042 pre-1.1d DPI command-line/regex entry points using pinned original source and existing backend helpers."
-next_action: "Establish original older DPI ABI red,implement minimal adapters under U11 contract."
-next_command: "cat ../evidence/campaign-20260908/l24/older-dpi-source-notes.md"
+next_action: "Complete U11 frozen full gates;do not build dependent fixes until validated."
+next_command: "tail -12 ../evidence/campaign-20260908/u11/integrated.log"
 next_command_cwd: repository root
-candidate_state: "U11 selected after validated L24;L22/L23/L24 published to PR275 d39880176."
-installed_tools: "795d9f360 validated with test reconciliation8afc61443;frozen l24/sha256.txt."
+candidate_state: "U11 semantic e18128369 awaiting full validation;last validated795d9f360."
+installed_tools: "e18128369 frozen evidence/campaign-20260908/u11/sha256.txt."
 validation_state: "795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics."
 next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -594,3 +594,5 @@ l24_closure: "795d9f360 with test reconciliation8afc61443;originalred both editi
 legacy_uvm_pr_fourth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "d39880176", state: "open", scope: "L22/L23/L24 validated", remaining: "Fresh CI;no merge authorization"}
 
 u11_focused: "Both editions old-ABI red failed unresolved dpi_get_next_arg_c;native adapters now pass oldABI+three existing regexfixtures8/0 total,actualargv/restart/metadata/crossAPIhandles/strictinvalidregex;makecheck and independent review clear. Full gates pending. MacOS bash3.2 empty-array trap avoided in frontend runner. "
+
+u11_live_gates: {integrated: 57437, uvm: 82773, nfa: 71466, releases: 83776}
