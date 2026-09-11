@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "729edce3c"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L32 installed focusedVPI2/2,neighbors6/6,makecheck pass; independent review clear. Fullintegrated/JSON/UVM/NFA/releases/frontend required and unstarted. U15 remains suspended."
+pending_gates: "L32 semanticab54351c3: integrated36861,UVM45709,NFA1979,releases6583 running. JSON/frontend unstarted. Last fullyvalidated semantic729edce3c; U15 suspended at u15/ACTIVE_WORK.suspended.yaml. Six installed hashes frozen."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "Resume preserved U15 after fullyvalidated L32; fullDD038 schema/object/bootstrap remains required."
-next_action: "Freeze literal-vector candidate and run integrated/UVM/NFA/releases; start JSON only after integrated terminal. Frontend last and alone; preserve six installed hashes. Resume U15 only after L32 closure."
-next_command: "PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner bash .github/ivtest_gate.sh"
+next_action: "Collect integrated36861,UVM45709,NFA1979,releases6583 terminal results. Run full JSON only after integrated terminal; frontend last and alone after all other gates. Verify sixhash freeze/restoration; no source/build/install changes during validation. Then close L32 and resume preserved U15."
+next_command: "tail -20 ../evidence/campaign-20260908/l32/integrated-full.log"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
@@ -774,3 +774,5 @@ u15_selection: "After U14closure2f128bb7d,select lossless native primitive value
 l32_selection: "Deliberate prerequisite boundary: U15 preserved in u15/ACTIVE_WORK.suspended.yaml. Actual VPI literal vector conversion reversesbytes both editions; independent review confirms unsigned-shift and finalword overrun in same loop. Small shared conversion fix selected,not bespoke recorder workaround. Installed U14validated729edce3c unchanged."
 
 l32_focused: "Both permanent editions fail beforepatch andpass after; raw literal lengths0,1,3,4,5,8,9,highbytes andembeddedzeros compare everyaval/bvalword. Emptyliteral lowers8bit0,existingmetadata preserved. Six VPIneighbors andmakecheck pass; independentcode/wordboundaryreviewclear. Nativeinstall40901 exit0. Six installed hashes frozen; fullgatespending. No U15 implementation."
+
+l32_full_gate_start: "Semanticab54351c3,focused2/2,VPIneighbors6/6,makecheck andindependentreviewclear. Integrated36861,UVM45709,NFA1979,releases6583 running;JSON/frontend unstarted. Source/installfreeze active,hashes l32/installed-frozen-sha256.json. Lastfullyvalidated729edce3c. Aftervalidation closure L32 is third validated increment afterPR275,so assess coherent newPR publication milestone before resumingU15; no merging authorization."

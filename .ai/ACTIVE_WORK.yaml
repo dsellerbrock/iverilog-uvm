@@ -15,8 +15,10 @@ validation_contract: "Prepatchred and permanent VPI golden cases for lengths0,1,
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
 evidence: "../evidence/campaign-20260908/l32/"
 preserved_parent: "../evidence/campaign-20260908/u15/ACTIVE_WORK.suspended.yaml plusvalues.sv/red.json andliteral-vector-red.json"
-next_action: "Freeze literal-vector candidate and run integrated/UVM/NFA/releases; start JSON only after integrated terminal. Frontend last and alone; preserve six installed hashes. Resume U15 only after L32 closure."
-next_command: "PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner bash .github/ivtest_gate.sh"
+next_action: "Collect integrated36861,UVM45709,NFA1979,releases6583 terminal results. Run full JSON only after integrated terminal; frontend last and alone after all other gates. Verify sixhash freeze/restoration; no source/build/install changes during validation. Then close L32 and resume preserved U15."
+next_command: "tail -20 ../evidence/campaign-20260908/l32/integrated-full.log"
 stop_after_completion: false
 
 l32_focused: "Both permanent editions fail beforepatch andpass after; raw literal lengths0,1,3,4,5,8,9,highbytes andembeddedzeros compare everyaval/bvalword. Emptyliteral lowers8bit0,existingmetadata preserved. Six VPIneighbors andmakecheck pass; independentcode/wordboundaryreviewclear. Nativeinstall40901 exit0. Six installed hashes frozen; fullgatespending. No U15 implementation."
+
+l32_full_gate_start: "Semanticab54351c3,focused2/2,VPIneighbors6/6,makecheck andindependentreviewclear. Integrated36861,UVM45709,NFA1979,releases6583 running;JSON/frontend unstarted. Source/installfreeze active,hashes l32/installed-frozen-sha256.json. Lastfullyvalidated729edce3c. Aftervalidation closure L32 is third validated increment afterPR275,so assess coherent newPR publication milestone before resumingU15; no merging authorization."
