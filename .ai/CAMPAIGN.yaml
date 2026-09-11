@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "34787868e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L31 integrated/UVM interrupted: prior process handles unavailable and no matching jobs live. No terminal pass evidence; UVM log contains DPI basic1/6 and real0/4 failures requiring diagnosis. NFA58/58 and release13/2 recorded; JSON/frontend unstarted."
+pending_gates: "L31 recovery integrated92982 and UVM32316 live in integrated-recovery.log/uvm-recovery.log. Prior sessions unavailable. Direct freshly built DPI companions pass basic6/6 and real4/4; old harness failures not yet causally explained. NFA58/58 and release13/2 retained; JSON/frontend unstarted."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Diagnose DPI basic/real failures with frozen candidate; recover integrated/UVM validation in fresh logs, then fullJSON and frontend lastalone. No dependent implementation until validated."
-next_command: "rg -n 'dpi_basic|dpi_real|DPI_LIB|dpi_c|TESTS|run_test' .github/uvm_test.sh"
+next_action: "Poll recovery integrated92982/UVM32316; inspect exact DPI results and gate totals. FullJSON only after integrated; frontend lastalone;verify restored hashes. No dependent implementation until validated."
+next_command: "tail -n 15 ../evidence/campaign-20260908/l31/uvm-recovery.log"
 next_command_cwd: repository root
 candidate_state: "L31candidate0a4e7d639 frozen/awaitingrequiredgates;lastfullyvalidated34787868e."
 installed_tools: "0a4e7d639 candidate;l31/sha256.txt frozen;notyetfullyvalidated."
@@ -738,3 +738,5 @@ l31_live_gates: {integrated: 37776, uvm: 45596, nfa: 57410, releases: 51674}
 l31_release_terminal: "51674exit1;results-322hzu4s complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsL30. NFA57410exit0,58/58. Integrated37776/UVM45596 remainlive;JSON/frontend unstarted. PR2756506fc7a2 allsixfreshchecksIN_PROGRESS,snapshot l31/published-ci.json."
 
 fallback_sweep: "User-authorized dedicated record-only sweep at3d60cb54a:608 tracked implementation/harness source files,12849 lexical candidate lines;494 fallback,609 stub,2245 degradation,9652 constant-return tag occurrences (overlap,NOT defect counts). External fallback-tracked-candidates.tsv/json retain exact paths/lines and scope. DD046 records source-confirmed categories and required semantic triage. No exhaustive defect-discovery claim; unmarked paths require flow/reducer review. L31 remains sole active implementation."
+
+l31_recovery: "Fresh direct C companions with frozen candidate pass DPI BASIC6/6 and DPI REAL4/4; old interrupted harness failures require recovered fullgate evidence,not classified as compiler regression or waived. Recovery integrated92982/UVM32316 running; allfiveinstalledhashes verified. No source changes."

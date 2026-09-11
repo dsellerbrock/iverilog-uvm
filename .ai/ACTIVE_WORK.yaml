@@ -15,8 +15,8 @@ dependencies: ["Fully validated34787868e;published PR2756506fc7a2 freshCI pendin
 required_gates: ["Both-edition red/green and independent design/code review; signed division/remainder/arithmeticshift,mixedunsigned,wide operands,fourstate and local/property controls; focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend lastalone andrestorefrozenhashes."]
 evidence: "../evidence/campaign-20260908/l31/"
 discovery_policy: "Unrelated discoveries record-only; regressions remain in scope."
-next_action: "Recover interrupted integrated/UVM gates; diagnose observed DPI basic1/6 and real0/4 failures first. Prior session handles unavailable,no matching live jobs. NFA/release terminal evidence retained. JSON/frontend unstarted; frozen tool hashes verified."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l31/integrated.log"
+next_action: "Poll integrated92982/UVM32316 recovery gates. Fresh direct DPI companion tests pass6/6 and4/4; inspect recovered harness results. JSON afterintegrated;frontend lastalone;NFA/releases retained. Candidate remains frozen/unvalidated."
+next_command: "tail -n 15 ../evidence/campaign-20260908/l31/uvm-recovery.log"
 stop_after_completion: false
 
 focused_validation: "Original/expanded reds nowPASS both editions/no diagnostics;permanentfocus2legacy/2JSON;neighbors125legacy/92JSON;makecheck and independent design/code/ownership reviews clear. Nativebuild24224exit0. Integral typingguard preservesreal path;unsigned selections/concats unchanged. Fullgates pending."

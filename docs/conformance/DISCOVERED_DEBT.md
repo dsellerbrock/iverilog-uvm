@@ -669,3 +669,12 @@ loss still require reducers; comments and diagnostic wording are not an oracle):
   an unsupported error, or a smoke pass alone cannot close that obligation.
   Keyword coverage is not semantic exhaustiveness; review default branches,
   early returns, ignored statuses and synthesized values by requirement cluster.
+
+
+DD046 first reachability check: a fixed-size real array `find with (item > 1.5)`
+is rejected with compile exit1 in both2017/2023 before code generation:
+"find() on fixed-size arrays of non-integral elements is not yet implemented."
+The fallback in eval_object.c is therefore not reached by this reducer. Record
+this case as an explicit unsupported legal feature, not observed fabricated
+runtime results. Evidence: `evidence/campaign-20260908/fallback-reducers/`
+`fixed-real-find.sv` and `fixed-real-find.json`. Other routes remain unqualified.
