@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9229c24e7"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L30 integrated26735,UVM62168,NFA58271,releases20924 live;JSON/frontend unstarted."
+pending_gates: "L30 fullJSON22478 and UVM62168 running;frontend unstarted. Integrated/NFA passed;release sweep unchanged13pass2compilegaps."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
 next_action: "Wait running L30 gates;fullJSON afterintegrated,frontend lastalone;preservefrozen candidate."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l30/integrated.log"
+next_command: "tail -n 12 ../evidence/campaign-20260908/l30/json.log"
 next_command_cwd: repository root
 candidate_state: "L30 candidate34787868e frozen/requiredgatesrunning;lastfullyvalidated9229c24e7. L29/U13closed."
 installed_tools: "34787868e candidate;l30/sha256.txt frozen;notyetfullyvalidated."
@@ -715,3 +715,5 @@ l30_live_gates: {integrated: 26735, uvm: 62168, nfa: 58271, releases: 20924}
 l30_release_terminal: "20924exit1;results-jz6zk_cb complete/baseline_valid,13SMOKE_PASS2COMPILE_FAIL. All15statuses/archive/sourcehashes unchanged vsL29;1.1b/c normalcompile32/notimeout. NFA58271exit0,58/58. Integrated26735/UVM62168 stilllive;JSON/frontend unstarted."
 
 legacy_uvm_published_ci_green: "PR275 remainsOPEN at9006baa152b1da5c684f86af59f9d2128500bc1f;all6platformchecks SUCCESS (macOS,Ubuntu22/24,MINGW64,UCRT64,CLANG64),snapshot l30/published-ci.json. No mergeperformed. L28/L29/L30 local batch waits L30 requiredvalidation beforepublication."
+
+l30_integrated_terminal: "26735exit0;legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON22478 launched after terminal;UVM62168 stilllive;frontend unstarted. Candidate34787868e remainsfrozen."

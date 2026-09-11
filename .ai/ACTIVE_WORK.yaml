@@ -14,8 +14,8 @@ dependencies: ["Fully validated9229c24e7; L29 and U13 closed."]
 required_gates: ["Both-edition reducer and permanent runtime type/value/shape/enum controls; negative visibility/missing type/incompleteprefix controls; independent design/code review; Bison conflict comparison; native build/focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone and frozenhashrestore."]
 evidence: "../evidence/campaign-20260908/l30/"
 discovery_policy: "Unrelated discoveries record-only; regressions from this patch remain in scope."
-next_action: "Wait live integrated/UVM/NFA/releases;fullJSON afterintegrated;frontend lastalone andrestorehashes."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l30/integrated.log"
+next_action: "Wait fullJSON22478/UVM62168;frontend lastalone afterward andrestorehashes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l30/json.log"
 stop_after_completion: false
 
 focused_validation: "Original red nowcompile0/nodiagnostics both editions; permanentfocus12legacy/12JSON;neighbors43legacy/32JSON;nativebuild44815exit0/makecheck;independentdesign/code/ownershipreviewclear. Error-path ranges/attributes fully released,nofallbacktype. Bison563SR1122RR unchanged. Fullgates pending."
