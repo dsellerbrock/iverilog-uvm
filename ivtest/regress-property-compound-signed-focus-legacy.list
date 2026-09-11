@@ -1,0 +1,2 @@
+sv_property_compound_signed normal,-g2017,-s,sv_property_compound_signed ivltests gold=sv_property_compound_signed.gold
+sv_property_compound_signed_2023 normal,-g2023,-s,sv_property_compound_signed ivltests gold=sv_property_compound_signed.gold

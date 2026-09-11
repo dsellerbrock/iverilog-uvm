@@ -480,3 +480,7 @@ elab_and_eval destination casting loses width/state before target lowering.
 Four-state RHS into two-state compound target must retain X until the final
 result conversion. Preserve l17/focus.vvp,focus.log,partial.patch. Separate
 prerequisite selection required after L18; not repaired by target width logic.
+
+L18 review note: associative compound expansion in elaborate.cc independently
+reads the old get_signed flag. Existing source-inspection limitation, no
+new reducer or qualification claim; outside scalar-property L18 scope.

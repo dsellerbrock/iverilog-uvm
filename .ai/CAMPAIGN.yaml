@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L18"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "5ba60567f"
@@ -450,3 +450,5 @@ l16_closure: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,i
 
 l17_suspension: "Partial target fix/permanent tests preserved in evidence/campaign-20260908/l17/partial.patch and removed from working tree with git apply --reverse --index. Red and focus failure retained. Prerequisites: resolved property signedness L18; wide operand/four-state preservation DD036. Do not resume L17 before validated prerequisites."
 l18_selection: "Standalone signed scalar property division reproduces wrong2147483616 versus-32. Current installed target temporarily contains removed L17 partial patch; rebuild/install clean source before recording L18 red provenance. Last fully validated semantic5ba60567f."
+
+l18_focused: "Both-edition red compile0/runtime1 on restored L16 target. Patched focusedlegacy2/0,JSON2/0; neighborslegacy9/0,JSON15/0;makecheck;independent review clear. Signedness only. Associative expansion still uses legacy signed flag, no assoc qualification. All required integrated gates pending."

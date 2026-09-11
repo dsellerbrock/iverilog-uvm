@@ -1,7 +1,7 @@
 id: "L18"
 title: "Resolved integral property signedness in compound assignment"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "33ce0abbf"
 last_validated_revision: "5ba60567f"
 reproducer: "evidence/campaign-20260908/l18/red.sv: signed int class property -64 /= 2 produces2147483616 instead of-32."

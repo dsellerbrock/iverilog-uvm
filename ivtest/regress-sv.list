@@ -2921,3 +2921,6 @@ sv_const_handle_property_fail CE,-g2017,-s,sv_const_handle_property_fail ivltest
 sv_const_handle_property_fail_2023 CE,-g2023,-s,sv_const_handle_property_fail ivltests gold=sv_const_handle_property_fail.gold
 sv_const_value_member_fail CE,-g2017,-s,sv_const_value_member_fail ivltests gold=sv_const_value_member_fail.gold
 sv_const_value_member_fail_2023 CE,-g2023,-s,sv_const_value_member_fail ivltests gold=sv_const_value_member_fail.gold
+
+sv_property_compound_signed normal,-g2017,-s,sv_property_compound_signed ivltests gold=sv_property_compound_signed.gold
+sv_property_compound_signed_2023 normal,-g2023,-s,sv_property_compound_signed ivltests gold=sv_property_compound_signed.gold

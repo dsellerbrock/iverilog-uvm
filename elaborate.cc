@@ -7503,6 +7503,11 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	// equivalent uncompressed assignments. This means we need
 	// to take the type of the LHS into account when determining
 	// the type of the RHS expression.
+      bool lval_signed = lv->get_signed();
+        // Property lvalues need not carry the root signal's signed flag.
+        // The resolved selected type also accounts for unsigned part selects.
+      if (lv->net_type() && type_is_vectorable(lv->expr_type()))
+            lval_signed = lv->net_type()->get_signed();
       bool force_unsigned;
       switch (op_) {
 	  case 'l':
@@ -7513,7 +7518,7 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	    force_unsigned = false;
 	    break;
 	  default:
-	    force_unsigned = !lv->get_signed();
+	    force_unsigned = !lval_signed;
 	    break;
       }
       NetExpr*rv = elaborate_rval_(des, scope, 0, lv->expr_type(),
@@ -7524,7 +7529,7 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	// of a lval, so convert arithmetic shifts into logical
 	// shifts now if the lval is unsigned.
       char op = op_;
-      if ((op == 'R') && !lv->get_signed())
+      if ((op == 'R') && !lval_signed)
 	    op = 'r';
 
 	// Associative-array element compound assignment (a[k]++, a[k]+=x).
