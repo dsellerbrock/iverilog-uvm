@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_compound_four_state_operand.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_compound_four_state_operand"
+    ],
+    "gold": "sv_compound_four_state_operand"
+}

@@ -7523,7 +7523,12 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	    force_unsigned = !lval_signed;
 	    break;
       }
-      NetExpr*rv = elaborate_rval_(des, scope, 0, lv->expr_type(),
+        // A compound operand is not yet the assignment result. Preserve
+        // X/Z through the operator; the final store converts a bit target.
+      ivl_variable_type_t operand_type = lv->expr_type();
+      if (operand_type == IVL_VT_BOOL)
+            operand_type = IVL_VT_LOGIC;
+      NetExpr*rv = elaborate_rval_(des, scope, 0, operand_type,
 				   count_lval_width(lv), force_unsigned);
       if (rv == 0) return 0;
 

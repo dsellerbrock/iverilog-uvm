@@ -5073,12 +5073,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
 		  draw_eval_vec4(rval);
 		  resize_property_vec4_wid(rval, lwid);
-		  if (ivl_type_base(value_type) == IVL_VT_BOOL &&
-		      ivl_expr_value(rval) != IVL_VT_BOOL)
-			fprintf(vvp_out, "    %%cast2;\n");
 
 		  draw_stmt_assign_vector_opcode(ivl_stmt_opcode(net),
 					         ivl_expr_signed(rval));
+
+		  if (ivl_type_base(value_type) == IVL_VT_BOOL &&
+		      ivl_expr_value(rval) != IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
 
 		  if (prop_word_idx)
 			fprintf(vvp_out, "    %%store/prop/v/i %d, %d, %u; Store in logic property %s\n",

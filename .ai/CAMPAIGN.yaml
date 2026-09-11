@@ -477,3 +477,5 @@ l18_closure: "9791e6411; focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,make
 
 legacy_uvm_pr_second_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "1d83b9dd3", state: "open", scope: "Added L15,L16,L18", remaining: "Fresh remoteCI; no merge authorization"}
 l19_selection: "DD036 split at coordination boundary: first preserve four-state operands, then repair width. Standalone both-edition reducer fails on validated9791e6411; no parent target patch applied."
+
+l19_focused: "Two premature casts fixed: elaboration destinationBOOL and target whole-property cast2. Initial property failure retained. Final focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent final review clear. Width remains DD036. All required broad gates pending."

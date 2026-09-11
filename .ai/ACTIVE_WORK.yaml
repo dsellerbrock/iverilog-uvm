@@ -1,14 +1,14 @@
 id: "L19"
 title: "Preserve four-state compound operands until result assignment"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "1d83b9dd3"
 last_validated_revision: "9791e6411"
 reproducer: "evidence/campaign-20260908/l19/red.sv: bit[7:0] value=1; value += logic X yields1 instead of0 in both2017/2023."
 expected_behavior: "Integral compound arithmetic consumes original four-state RHS values; only final assignment to two-state destination converts X/Z to zero. Preserve known-bit behavior and ordinary assignment conversions."
 standards: ["IEEE1800-2017/2023 11.4.1 compound equivalence;11.4.3 arithmetic X propagation;6.11.2 two-state assignment conversion;verify both editions."]
-root_cause: "PAssign::elaborate_compressed_ passes destination BOOL type into elaborate_rval_; elab_and_eval casts RHS to int2 before the binary operator."
-allowed_scope: ["elaborate.cc compressed integral RHS state conversion; focused paired-edition arithmetic/bitwise/shift and destination controls; required regression gates and directly affected docs."]
+root_cause: "PAssign::elaborate_compressed_ passes destination BOOL type into elaborate_rval_; elab_and_eval casts RHS to int2 before the binary operator. The direct-property target independently emits cast2 before the operator; both early conversions must move to result assignment."
+allowed_scope: ["elaborate.cc compressed integral RHS state conversion and tgt-vvp/stmt_assign.c direct-property cast ordering; focused paired-edition arithmetic/bitwise/shift and destination controls; required regression gates and directly affected docs."]
 non_goals: ["No width-preservation fix yet (DD036); no L17 target restore; no general real/string compound overhaul or application-source changes."]
 required_gates: ["Both-edition red/focus/neighbors and independent review; native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;isolatedfrontend last/restoration/frozen hashes."]
 suspended_parent: "L17 full partial.patch and reducers preserved in evidence/campaign-20260908/l17. Width prerequisite still follows L19 before parent restoration."
