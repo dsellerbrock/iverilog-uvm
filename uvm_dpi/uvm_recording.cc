@@ -266,3 +266,52 @@ extern "C" int ivl_uvm_record_free(int owner, int handle)
       recording_handles.erase(handle);
       return 1;
 }
+
+// U15 registration smoke test (design-facts-20260911.md, ACTIVE_WORK U15).
+// This calltf does not yet encode or journal a value; it only proves the
+// systf resolves under the real -uvm loading path and reads back the
+// argument kind vpi_get_value(vpiObjTypeVal) would dispatch on. The lossless
+// packed/real/string encoder is a separate, not-yet-implemented step.
+namespace {
+PLI_INT32 record_attribute_smoke_calltf(PLI_BYTE8*)
+{
+      vpiHandle call = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle args = vpi_iterate(vpiArgument, call);
+      vpiHandle harg = vpi_scan(args);
+      vpiHandle narg = vpi_scan(args);
+      vpiHandle varg = vpi_scan(args);
+      if (!harg || !narg || !varg) {
+            recording_error("$ivl_uvm_record_attribute requires (handle, name, value)");
+            if (args) vpi_free_object(args);
+            return 0;
+      }
+      s_vpi_value hv; hv.format = vpiIntVal;
+      vpi_get_value(harg, &hv);
+      s_vpi_value nv; nv.format = vpiStringVal;
+      vpi_get_value(narg, &nv);
+      // 38.15: vpi_get_value's string buffer "is overwritten with each
+      // call... If the value is needed, it should be saved by the
+      // application." Confirmed empirically here: Icarus's vpiVectorVal and
+      // vpiStringVal formats share the same need_result_buf(RBUF_VAL) pool
+      // (vvp/vpi_const.cc), so ANY next vpi_get_value call -- not only a
+      // second string read -- can invalidate this pointer. Copy immediately.
+      std::string name = nv.value.str ? nv.value.str : "";
+      s_vpi_value vv; vv.format = vpiObjTypeVal;
+      vpi_get_value(varg, &vv);
+      auto found = recording_handles.find((int)hv.value.integer);
+      int known_owner = found == recording_handles.end() ? 0 : found->second.owner;
+      vpi_printf("IVL_UVM_RECORD_ATTRIBUTE_SMOKE: handle=%d owner=%d name=%s objfmt=%d\n",
+                 (int)hv.value.integer, known_owner, name.c_str(), (int)vv.format);
+      vpi_free_object(args);
+      return 0;
+}
+}
+
+extern "C" void ivl_uvm_record_register_systf(void)
+{
+      s_vpi_systf_data data = {};
+      data.type = vpiSysTask;
+      data.tfname = "$ivl_uvm_record_attribute";
+      data.calltf = record_attribute_smoke_calltf;
+      vpi_register_systf(&data);
+}
