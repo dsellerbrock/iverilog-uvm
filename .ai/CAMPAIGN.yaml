@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "U14"
-phase: "coordinator_selection"
+current_blocker: "U15"
+phase: "reproducing"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "729edce3c"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "No U14 local gates pending. Future batched publication retains required remote CI and merge permissions; Windows execution not claimed."
+pending_gates: "U15 unimplemented; establish red and review API first. U14 local gates complete; remote CI remains future publication gate."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After U14 validated closure, continue DD038 typed capture/bootstrap prerequisites; full1.1b/c contract retained."
-next_action: "Select DD038 lossless native primitive capture prerequisite; inspect actual VPI argument/type routes before implementation."
-next_command: "graphify query \"VPI typed value recording arguments\" --graph ../graphify-out/graph.json --budget 350"
+next_action: "Run preimplementation reducer on validated installed U14 in both editions, inspect actual VPI argument value/type paths, reconcile independent API review. Finalize exact value/schema contract before editing implementation."
+next_command: "local-install/bin/iverilog -g2017 -m \"$PWD/local-install/lib/ivl/uvm_dpi.vpi\" -s main -o ../evidence/campaign-20260908/u15/red2017.vvp ../evidence/campaign-20260908/u15/values.sv"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
@@ -768,3 +768,5 @@ u14_integrated_terminal: "Integrated20014 exit0:legacy4981total4976pass0fail2NI3
 u14_uvm_json_terminal: "JSON82380 exit0:1873/0. UVM57598 exit0:355pass0fail0skip,REAL DPIumbrella. All nonfrontend full gates terminal. Reviewed test-only79885f484 adds direct exclusive-text API coverage and existing Windows hard CI hook; local native3checks pass,workflowYAML parses. Compiler/runtime/DPI/header frozen729edce3c unchanged. Frontend97996 launched last/alone; pending. Remote Windows execution remains batch CI evidence,not locally claimed."
 
 u14_closure: "U14 semantic729edce3c; test/Windows-CI coverage79885f484. Installed native lifecycle/exclusive-text checks both editions and POSIXIOfailure pass; original1.1d realchild/component,wrongowner,stream/transaction rollback,recorder switch,exclusive/replacedfiles and journal-failure tests pass. makecheck and independent design/code/failure-path reviews clear. Integrated20014 exit0:4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 exit0:1873/0. UVM57598 exit0:REAL DPI355/0/0. NFA45081 exit0:58/58. Releases32494 results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15status/source/archivehashes unchanged vsL31; separate1.1d lifecycle gate passes2017/2023. Frontend97996 exit0 allS1-S11;installation restored/six frozen hashes match. Bounded ARM64 local lifecycle validation only; typed capture/default installation/1.1b/c and fullUVM qualification remain open. Windows CI wired,execution not claimed."
+
+u15_selection: "After U14closure2f128bb7d,select lossless native primitive value capture prerequisite forDD038. Installedvalidated729edce3c remains intact. Independent API review requested; no implementation edits. Full aggregate/object/schema/bootstrap obligations retained."
