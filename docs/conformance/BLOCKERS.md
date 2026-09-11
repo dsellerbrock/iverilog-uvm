@@ -927,3 +927,10 @@ L24 final validation: 795d9f360 with test reconciliation8afc61443;originalred bo
   no original-source edits or unrelated legacy runtime/recording fixes.
 
 U11 final validation: e18128369;both-edition red failed missing old DPI entrypoint;focused8/0,makecheck,independent code/evidence review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend41504exit0 all scenarios including oldABI both editions;install restored and five frozen hashes match. Release results-zyhh1jv9 complete/baseline_valid,all15source/archive hashes unchanged. Reviewed12clean smoke passes,1disqualified1.0p1 runtime,2compilefails;raw1.0p1SMOKE_PASS rejected due existing3placeholder and2cast diagnostics. 1.1a clean new smoke pass through time1.
+
+### U12 — Simulator diagnostics cannot be clean release smoke passes
+
+- **State:** SELECTED after validated U11.
+- **Evidence:** DD043 original1.0p1 false-positive runtime row.
+- **Scope:** Existing shared classifier/offline tests and fresh release evidence;
+  no compiler changes or repair of underlying runtime diagnostics.

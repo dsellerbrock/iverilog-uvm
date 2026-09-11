@@ -1,20 +1,20 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "U11"
-phase: "selection"
+current_blocker: "U12"
+phase: "reproducing"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "e18128369"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None locally for U11;PR275 CI separate. DD043 false-positive row explicitly disqualified."
+pending_gates: "U12 offline classifier tests,rawlog checks,fresh15release replay,independent review;compiler/DPI baselinee18128369 unchanged."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated L24, assess DD042 pre-1.1d DPI command-line/regex entry points using pinned original source and existing backend helpers."
-next_action: "Select bounded DD043 harness repair;retain1.0p1 runtime defects separately."
-next_command: "sed -n '117,137p' scripts/uvm_release_matrix.py"
+next_action: "Correct DD043 false-positive classifier in its own bounded increment."
+next_command: "python3 tests/uvm_releases/test_matrix.py"
 next_command_cwd: repository root
-candidate_state: "U11 fullyvalidated unpublished after PR275d39880176;one increment toward next batch."
+candidate_state: "U12 selected;U11 one validated unpublished increment."
 installed_tools: "e18128369 validated;u11/sha256.txt unchanged after restored frontend."
 validation_state: "e18128369;both-edition red failed missing old DPI entrypoint;focused8/0,makecheck,independent code/evidence review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend41504exit0 all scenarios including oldABI both editions;install restored and five frozen hashes match. Release results-zyhh1jv9 complete/baseline_valid,all15source/archive hashes unchanged. Reviewed12clean smoke passes,1disqualified1.0p1 runtime,2compilefails;raw1.0p1SMOKE_PASS rejected due existing3placeholder and2cast diagnostics. 1.1a clean new smoke pass through time1."
 next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
