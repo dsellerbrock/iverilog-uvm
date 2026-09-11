@@ -9,10 +9,14 @@ arithmetic below, not a value merely echoed back), an exact IEEE 754 real
 (cross-checked against Python's own struct.pack, not a pinned magic string),
 a string variable, a raw string literal with an embedded zero byte (which a
 string variable cannot legally hold per 6.16, so only the literal path
-proves losslessness -- this is U15's actual dependency on L32), and that an
-unknown, wrong-kind (stream, not transaction), already-ended and
-already-freed transaction handle are all rejected with no attribute row
-written and a nonzero simulation exit status.
+proves losslessness -- this is U15's actual dependency on L32), three
+non-literal string expressions (an enum .name(), a function-call result, and
+a runtime concatenation -- these route through __vpiVThrStrStack, which
+rejects vpiVectorVal outright and reports vpiSize in characters rather than
+bits like a literal's __vpiStringConst does; DD048), and that an unknown,
+wrong-kind (stream, not transaction), already-ended and already-freed
+transaction handle are all rejected with no attribute row written and a
+nonzero simulation exit status.
 """
 import json
 import struct
@@ -51,9 +55,17 @@ for edition in ("2017", "2023"):
         output = result.stdout + result.stderr
         assert result.returncode == 0 and "HAPPY_TEST_COMPLETED\n" in output, output
         assert "IVL_UVM_RECORD_ERROR:" not in output, output
+        # The non-literal string cases must never hit __vpiVThrStrStack's
+        # rejected-format diagnostic (vvp/vpi_vthr_vector.cc); if this
+        # reappears, the length-mismatch heuristic in uvm_recording.cc is
+        # speculatively attempting vpiVectorVal on an ordinary string again.
+        assert "vvp error: get" not in output, output
         rows = [json.loads(line) for line in (cwd / "happy.jsonl").read_text().splitlines()]
         attrs = {row["name"]: row for row in rows if row["event"] == "attribute"}
-        assert set(attrs) == {"packed", "real", "string_var", "string_literal"}, attrs
+        assert set(attrs) == {
+            "packed", "real", "string_var", "string_literal",
+            "string_enum_name", "string_func_result", "string_concat",
+        }, attrs
 
         p = attrs["packed"]
         assert p["kind"] == "packed" and p["size"] == 65 and p["signed"] is True, p
@@ -79,6 +91,13 @@ for edition in ("2017", "2023"):
 
         sv = attrs["string_var"]
         assert sv["kind"] == "string" and sv["value"] == "line\nquote\"\\tail", sv
+
+        en = attrs["string_enum_name"]
+        assert en["kind"] == "string" and en["value"] == "GREEN", en
+        fr = attrs["string_func_result"]
+        assert fr["kind"] == "string" and fr["value"] == "hello", fr
+        cc = attrs["string_concat"]
+        assert cc["kind"] == "string" and cc["value"] == "ab", cc
 
         sl = attrs["string_literal"]
         assert sl["kind"] == "string_literal" and sl["size"] == 40, sl

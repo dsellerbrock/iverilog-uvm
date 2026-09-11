@@ -279,14 +279,24 @@ extern "C" int ivl_uvm_record_free(int owner, int handle)
 // need_result_buf(RBUF_VAL) is reused across formats and calls, so a pointer
 // held across a second vpi_get_value call is unsafe; 38.15 warns the same
 // for the string buffer specifically) before any further VPI call. A string
-// argument is re-read with vpiVectorVal only when it is a vpiStringConst
-// (raw literal/expression): IEEE1800 38.15 explicitly licenses that read for
-// vpiStringConst, and only that path can carry an embedded zero byte, which
-// a plain vpiStringVal C-string read would silently truncate. A string
-// VARIABLE cannot contain an embedded NUL (6.16: writes of NUL are ignored),
-// confirmed empirically (design-facts-20260911.md), so vpiStringVal is
-// lossless and sufficient there, and vpiVectorVal is refused on that handle
-// kind (format comes back vpiSuppressVal) so it cannot be used as a
+// argument's vpiType/vpiConstType cannot distinguish a bare literal from a
+// `string` variable, a method-call result (`.name()`), a function-call
+// result or a runtime concatenation -- all report vpiConstant/vpiStringConst
+// identically as a systf argument (probed: se2.sv/se2.c), yet only a bare
+// literal (a direct __vpiStringConst handle) accepts a second read with
+// vpiVectorVal; every other case routes through __vpiVThrStrStack, which
+// rejects it and prints an unconditional diagnostic to stderr on every
+// attempt (vvp/vpi_vthr_vector.cc). So vpiVectorVal is attempted only when
+// the initial vpiStringVal read's length does not match the declared byte
+// size -- a mismatch __vpiStringConst's own vpiStringVal branch produces for
+// an embedded NUL (it drops a leading one, replaces an interior one with a
+// space) and that is otherwise unreachable, so the common path never pays
+// the noisy/rejected read. IEEE1800 38.15 licenses vpiVectorVal explicitly
+// for vpiStringConst; a `string` variable cannot contain an embedded NUL
+// anyway (6.16: writes of NUL are ignored), so vpiStringVal is lossless and
+// sufficient for every case where its length already matches. A length
+// mismatch on a non-literal argument (DD048: __vpiVThrStrStack has no
+// vpiVectorVal path at all) is reported as a loud failure, never as the
 // fallback. Aggregate, object/class-handle and enum-schema arguments are
 // explicit non-goals (ACTIVE_WORK) and are rejected loudly, not dropped.
 namespace {
@@ -360,9 +370,6 @@ PLI_INT32 record_attribute_calltf(PLI_BYTE8*)
       }
       int owner = found->second.owner;
 
-      bool is_string_const = vpi_get(vpiType, varg) == vpiConstant
-                            && vpi_get(vpiConstType, varg) == vpiStringConst;
-
       s_vpi_value vv; vv.format = vpiObjTypeVal;
       vpi_get_value(varg, &vv);
 
@@ -391,26 +398,56 @@ PLI_INT32 record_attribute_calltf(PLI_BYTE8*)
                 break;
           }
           case vpiStringVal: {
-                if (is_string_const) {
-                      // Re-read as vpiVectorVal per 38.15's explicit license
-                      // for vpiStringConst, to preserve a possible embedded
-                      // zero byte that vpiStringVal's C string would drop.
+                // vpiType/vpiConstType cannot distinguish a bare literal
+                // (compiled as a direct __vpiStringConst handle) from a
+                // `string` variable, a method-call result (`.name()`), a
+                // function-call result, or a runtime concatenation -- all of
+                // those route through __vpiVThrStrStack as a systf argument
+                // and report vpiType==vpiConstant/vpiConstType==vpiStringConst
+                // identically (probed: se2.sv/se2.c). That class rejects
+                // vpiVectorVal outright, printing an unconditional
+                // "vvp error: get 9 not supported..." to stderr on every
+                // attempt (vvp/vpi_vthr_vector.cc) -- so this must not be
+                // tried speculatively on every string argument, only the
+                // (rare) one that actually needs it.
+                //
+                // __vpiStringConst's own vpiStringVal branch (vvp/vpi_const.cc)
+                // does not simply truncate at an embedded NUL: it drops a
+                // leading NUL and replaces an interior one with a space, so
+                // its *length* changes. That is a safe, always-available
+                // signal: compare the read string's length against the
+                // declared byte size. Equal means vpiStringVal is faithful
+                // (true for every non-literal case, and for a literal with no
+                // embedded zero byte -- the overwhelming majority, so the
+                // noisy path is never touched there). A mismatch is reachable
+                // only via a literal/parameter argument whose value contains
+                // an embedded NUL (L32); only then is the vpiVectorVal
+                // recovery attempted, licensed for vpiStringConst by 38.15.
+                std::string text = vv.value.str ? vv.value.str : "";
+                unsigned size = (unsigned)vpi_get(vpiSize, varg);
+                // vpiSize's UNIT itself differs by class: __vpiStringConst
+                // (a literal) reports bits (value_len_*8); __vpiVThrStrStack
+                // (a variable, method/function-call result, or runtime
+                // concatenation) reports characters (val.size()) -- probed
+                // directly (se2.sv/se2.c: a 5-character enum .name() reports
+                // vpiSize==5, not 40). Accept either convention as a faithful
+                // read; only a mismatch under BOTH means vpiStringVal altered
+                // the value.
+                if (text.size() * 8 == size || text.size() == size) {
+                      fields += "\"string\",\"value\":" + recording_quote(text.c_str());
+                } else {
                       s_vpi_value sv2; sv2.format = vpiVectorVal;
                       vpi_get_value(varg, &sv2);
                       if (sv2.format != vpiVectorVal) {
-                            recording_error("string-literal attribute rejected vpiVectorVal");
+                            recording_error("string attribute value altered a byte "
+                                             "(likely embedded NUL) and this argument "
+                                             "kind has no exact-recovery path (DD048)");
                             ok = false;
                             break;
                       }
-                      unsigned size = (unsigned)vpi_get(vpiSize, varg);
                       unsigned nwords = (size + 31) / 32;
                       fields += "\"string_literal\",\"size\":" + std::to_string(size);
                       fields = hex_vector(sv2.value.vector, nwords, "string", fields);
-                } else {
-                      // A `string` variable cannot contain embedded NUL
-                      // (6.16), so the C-string read is lossless here.
-                      fields += "\"string\",\"value\":"
-                              + recording_quote(vv.value.str ? vv.value.str : "");
                 }
                 break;
           }

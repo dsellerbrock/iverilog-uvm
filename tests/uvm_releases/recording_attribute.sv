@@ -16,6 +16,16 @@ module main;
   logic signed [64:0] packed_value = 65'h1_80000000_x000000z;
   real real_value = 1.2345678901234567;
   string string_value = "line\nquote\"\\tail";
+  // Non-literal string arguments: these route through __vpiVThrStrStack as
+  // a systf argument, identical vpiType/vpiConstType to a literal, but with
+  // NO vpiVectorVal support at all (unlike a literal's __vpiStringConst) --
+  // and vpiSize reports CHARACTER count here, not bits like a literal's does
+  // (DD048). Each must land on the "string" kind via plain vpiStringVal,
+  // never attempt the rejected vpiVectorVal read, and produce no
+  // IVL_UVM_RECORD_ERROR output.
+  typedef enum {RED,GREEN,BLUE} color_t;
+  color_t color_value = GREEN;
+  function automatic string greeting(); return "hello"; endfunction
 
   initial begin
     a = ivl_uvm_record_open($test$plusargs("reject_test") ? "reject.jsonl" : "happy.jsonl");
@@ -42,6 +52,11 @@ module main;
       // Raw literal with an embedded zero byte: a string VARIABLE cannot
       // legally hold one (6.16), so only the literal path proves losslessness.
       $ivl_uvm_record_attribute(2,"string_literal","\000AB\000C");
+      // Non-literal string expressions: must resolve via plain vpiStringVal,
+      // never the rejected vpiVectorVal re-read (DD048).
+      $ivl_uvm_record_attribute(2,"string_enum_name",color_value.name());
+      $ivl_uvm_record_attribute(2,"string_func_result",greeting());
+      $ivl_uvm_record_attribute(2,"string_concat",{"a","b"});
       $display("HAPPY_TEST_COMPLETED");
     end
   end

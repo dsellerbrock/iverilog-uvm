@@ -778,3 +778,46 @@ original1.1b/c still fail the missing macro. No parent completion claim.
 L32 note: upstream master `vvp/vpi_const.cc` still has the pre-L32 literal
 `vpiVectorVal` loop. Upstream `ivtest/ivltests/swrite.v` still has the endian
 probe that depended on it. An upstream report is a separate, unfiled action.
+
+
+### DD048 — __vpiVThrStrStack has no vpiVectorVal path; vpiSize unit differs from __vpiStringConst
+
+- **Active blocker:** U15; record-only (worked around, not fixed).
+- **Observation:** A systf string argument that is not a bare literal --
+  a `string` variable, an enum `.name()` result, a function-call result, or a
+  runtime concatenation -- is represented by `__vpiVThrStrStack`
+  (vvp/vpi_vthr_vector.cc), which rejects `vpiVectorVal`
+  (`vvp error: get 9 not supported by vpiConstant (String)`, unconditional
+  stderr, format returns `vpiSuppressVal`) even though `vpiType`/`vpiConstType`
+  report `vpiConstant`/`vpiStringConst` identically to a real literal (a
+  `__vpiStringConst`, vvp/vpi_const.cc, L32-fixed). The two classes also
+  report `vpiSize` in different units for the same property code:
+  `__vpiStringConst` returns bits (`value_len_*8`); `__vpiVThrStrStack`
+  returns characters (`val.size()`). A 5-character enum `.name()` reports
+  `vpiSize==5`, not 40.
+- **File/function:** `vvp/vpi_vthr_vector.cc` `__vpiVThrStrStack::vpi_get_value`
+  (no `vpiVectorVal` case) and `__vpiVThrStrStack::vpi_get` (`vpiSize`).
+- **Consequence for U15:** `$ivl_uvm_record_attribute`'s string encoder
+  (uvm_dpi/uvm_recording.cc) cannot use `vpiType`/`vpiConstType` to select a
+  byte-exact read path, since both classes present identically at that level.
+  It instead reads `vpiStringVal` first and compares the result's length
+  against `vpiSize` under both possible unit conventions (`*8` and as-is);
+  only a mismatch (reachable in practice only via a true literal whose value
+  contains an embedded NUL, which `__vpiStringConst`'s own `vpiStringVal`
+  branch alters rather than truncates) triggers a `vpiVectorVal` retry. This
+  keeps the common non-literal path silent and correct and confines the
+  byte-exact/embedded-NUL path to where it is actually reachable, but it does
+  not give `__vpiVThrStrStack` a lossless path: a genuinely NUL-containing
+  runtime string expression (e.g. a literal fragment concatenated into a
+  variable at runtime) cannot be captured exactly and is reported as a loud
+  failure rather than silently truncated.
+- **Evidence:** `evidence/campaign-20260908/u15/se2.sv`/`se2.c` (direct
+  probe), `expression-string-args-20260911.log` (pre-fix failure),
+  `expression-string-args-fixed-20260911.log` (post-fix). Permanent
+  regression: `tests/uvm_releases/recording_attribute.sv` `string_enum_name`/
+  `string_func_result`/`string_concat` cases plus the harness's
+  `"vvp error: get" not in output` assertion.
+- **Triage:** OPEN; reproduced; candidate for a future selection. Giving
+  `__vpiVThrStrStack` a `vpiVectorVal` path (and reconciling the `vpiSize`
+  unit inconsistency generally, not only for this one caller) is a separate,
+  non-trivial VPI runtime change, out of U15's scope.
