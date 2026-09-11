@@ -432,3 +432,21 @@ evidence/campaign-20260908/l15/opentitan/result.json and matrix-compile.log;
 source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0.
 No simulation ran. Record-only during L15 closure; verify both editions and
 reduce before selecting a const-handle elaboration fix.
+
+### DD033 — Explicit package-qualified member compound assignment parser gap
+
+L16 development positive fixture used const_handle_pkg::shared.value += 2 and
+both editions rejected its statement syntax before elaboration. Imported
+shared.value += 2 works and is the selected const-handle test. Preserved
+evidence/l16/development.json; explicit qualified compound assignment is
+record-only and not part of L16's bounded direct handle const check.
+
+### DD034 — Existing class-member lookup/const-chain limitations
+
+L16 independent source review confirmed the existing class-member walker can
+warn and discard an unknown property write, and rejects traversal through an
+intermediate const class-handle property even when the leaf is mutable.
+L16 enables only direct scalar const-handle variables with existing writable
+members; it does not qualify unknown-member diagnostics or const property
+chains. These source-inspection findings need dedicated reducers before
+implementation; no correctness claim for those paths.

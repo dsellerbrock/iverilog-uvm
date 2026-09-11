@@ -1,0 +1,2 @@
+./ivltests/sv_const_handle_rebind_fail.v:6: error: Assignment to const signal `handle` is not allowed.
+Elaboration failed

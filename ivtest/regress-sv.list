@@ -2913,3 +2913,11 @@ sv_inherited_method_static_fail CE,-g2017,-s,sv_inherited_method_static_fail ivl
 sv_inherited_method_static_fail_2023 CE,-g2023,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
 sv_macro_pasted_function_name normal,-g2017,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
 sv_macro_pasted_function_name_2023 normal,-g2023,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
+sv_const_handle_member normal,-g2017,-s,sv_const_handle_member ivltests gold=sv_const_handle_member.gold
+sv_const_handle_member_2023 normal,-g2023,-s,sv_const_handle_member ivltests gold=sv_const_handle_member.gold
+sv_const_handle_rebind_fail CE,-g2017,-s,sv_const_handle_rebind_fail ivltests gold=sv_const_handle_rebind_fail.gold
+sv_const_handle_rebind_fail_2023 CE,-g2023,-s,sv_const_handle_rebind_fail ivltests gold=sv_const_handle_rebind_fail.gold
+sv_const_handle_property_fail CE,-g2017,-s,sv_const_handle_property_fail ivltests gold=sv_const_handle_property_fail.gold
+sv_const_handle_property_fail_2023 CE,-g2023,-s,sv_const_handle_property_fail ivltests gold=sv_const_handle_property_fail.gold
+sv_const_value_member_fail CE,-g2017,-s,sv_const_value_member_fail ivltests gold=sv_const_value_member_fail.gold
+sv_const_value_member_fail_2023 CE,-g2023,-s,sv_const_value_member_fail ivltests gold=sv_const_value_member_fail.gold

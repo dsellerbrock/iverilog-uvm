@@ -1,7 +1,7 @@
 id: "L16"
 title: "Mutable member assignment through a const class-handle variable"
 status: "in_progress"
-phase: "spec_grounded"
+phase: "focused_tested"
 base_revision: "7ae2dd01e"
 last_validated_revision: "aa356ab4d"
 reproducer: "Original1.2 OpenTitan dv_base_test.sv92 assigns uvm_top.enable_print_topology but is rejected as assignment to const uvm_top; three class specializations report the same error."
@@ -11,6 +11,6 @@ root_cause: "PEIdent::elaborate_lval rejects reg->get_const before distinguishin
 allowed_scope: ["Bounded direct class-handle variable l-value guard and permanent both-edition positive/negative regression. Required gates and original1.2 OpenTitan replay after validation; directly affected docs."]
 non_goals: ["No general const/property/constructor redesign, source modifications to UVM/OpenTitan, or full6.20.6/8.18 qualification claim. No const aggregate or handle rebinding exemption."]
 required_gates: ["Red reducer; permanent mutable-property writes and alias/readback, handle rebinding/const-property/value-aggregate negatives; focused neighbors; independent review.", "Native build, integrated/JSON/UVM/NFA/makecheck/15release sweep; isolatedfrontend last, hashes restored; then original1.2 OpenTitan replay."]
-next_action: "Establish direct const-handle reducer and trace member l-value dispatch; then narrow guard to actual object-member writes."
-next_command: "sed -n '910,965p' elab_lval.cc"
+next_action: "Final independent review then required integrated validation on frozen candidate."
+next_command: "bash .github/ivtest_gate.sh"
 stop_after_completion: false

@@ -1,0 +1,2 @@
+ivltests/sv_const_handle_property_fail.v:6: error: Property marker is constant in this method. (scope=sv_const_handle_property_fail)
+1 error(s) during elaboration.

@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "sv_const_value_member_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_const_value_member_fail"
+    ],
+    "gold": "sv_const_value_member_fail"
+}
