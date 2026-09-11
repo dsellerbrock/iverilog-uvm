@@ -1,7 +1,7 @@
 id: "L31"
 title: "Associative compound assignment expression signedness and sizing"
 status: "active"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "39475cf98"
 last_validated_revision: "34787868e"
 reproducer: "../evidence/campaign-20260908/l31/assoc-compound.sv and red.json; signed byte associative element -64/=2 produces96 in both editions,compile0/runtime1."
@@ -15,8 +15,8 @@ dependencies: ["Fully validated34787868e;published PR2756506fc7a2 freshCI pendin
 required_gates: ["Both-edition red/green and independent design/code review; signed division/remainder/arithmeticshift,mixedunsigned,wide operands,fourstate and local/property controls; focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend lastalone andrestorefrozenhashes."]
 evidence: "../evidence/campaign-20260908/l31/"
 discovery_policy: "Unrelated discoveries record-only; regressions remain in scope."
-next_action: "Expand discriminating mixed-sign/wide/fourstate controls;review smallest shared expression-typing correction before source edits."
-next_command: "sed -n '7498,7588p' elaborate.cc"
+next_action: "Wait integrated/UVM/NFA/releases;fullJSON afterintegrated;frontend lastalone andverifyrestoredhashes."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l31/integrated.log"
 stop_after_completion: false
 
 focused_validation: "Original/expanded reds nowPASS both editions/no diagnostics;permanentfocus2legacy/2JSON;neighbors125legacy/92JSON;makecheck and independent design/code/ownership reviews clear. Nativebuild24224exit0. Integral typingguard preservesreal path;unsigned selections/concats unchanged. Fullgates pending."

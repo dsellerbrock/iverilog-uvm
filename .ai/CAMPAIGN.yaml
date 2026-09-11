@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L31"
-phase: "root_caused"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "34787868e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L30 requiredlocalgates complete. FreshCI required after publishing L28/L29/L30 batch;no mergeauthorization."
+pending_gates: "L31integrated37776,UVM45596,NFA57410,releases51674 live;JSON/frontend unstarted."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Trace DD036 signed associative compound reducer: -64/=2 produces96 instead of-32;activate exact contract before source edits."
-next_command: "rg -n 'get_signed|assoc.*compound' elaborate.cc"
+next_action: "WaitL31gates;fullJSONafterintegrated;frontendlastalone;preservefrozencandidate."
+next_command: "tail -n 12 ../evidence/campaign-20260908/l31/integrated.log"
 next_command_cwd: repository root
-candidate_state: "L30 closed34787868e;13/15 boundedrelease smoke passes. Publish coherentL28/L29/L30 batch,then select nextblocker."
-installed_tools: "34787868e validated;l30/sha256.txt restored/unchanged."
+candidate_state: "L31candidate0a4e7d639 frozen/awaitingrequiredgates;lastfullyvalidated34787868e."
+installed_tools: "0a4e7d639 candidate;l31/sha256.txt frozen;notyetfullyvalidated."
 validation_state: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
-next_validation: "Fresh publishedCI;next selectedblocker red/spec/root evidence."
+next_validation: "FullJSONafterintegratedterminal;frontendafterallotherlocalgates terminal;restorehashes."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -731,3 +731,6 @@ l31_contract: "Activated DD036 associative expression typing scope;root signedfl
 
 post_uvm_smoke_priority: "User explicitly requests fixing ALL remaining compile-progress stubs that emit wrong behavior after the UVM smoke campaign. Pursue successive standards-grounded implementation/qualification increments,one activeblocker;do not replace implementation with warning suppression,unsupported diagnostics or smoke-only passes. Include silent/degraded paths,not just warnings. Seed from observed ignoredpick_sequence constraint and classcast bitsreinterpretation;inventory iteratively by requirement cluster,not as another bootstrap/repository-wide audit. Preserve IEEEeditions,UVM,applicationDV,formal status separately."
 post_uvm_smoke_evidence: "results-jz6zk_cb/1.0p1/compile.log confirms uvm_sequence_base.svh949 pick_sequence constraint ignored and uvm_phases.svh1951 classcast compile-progress bits reinterpreted. Constant-for-condition warning is separate and not by itself evidence of wrong behavior. These observed examples are nonexhaustive. L31 remains soleactiveimplementation."
+
+l31_focused: "0a4e7d639;original/expandedredsPASSboth editions/no diagnostics;focus2legacy/2JSON,neighbors125legacy/92JSON,makecheck,independentdesign/code/ownershipreviewclear;realneighborandunsignedselectionspreserved. Fullgates pending."
+l31_live_gates: {integrated: 37776, uvm: 45596, nfa: 57410, releases: 51674}
