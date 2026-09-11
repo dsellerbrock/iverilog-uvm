@@ -1254,3 +1254,115 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   `evidence/campaign-20260908/l33/` for durable exit files.
 - **Evidence:** `evidence/campaign-20260908/l33/`,
   `evidence/campaign-20260908/dd046/triage-20260911.md`.
+- **Addendum (found during L34):** `collect_property_chain_()` (shared by
+  this entry's string path and L34's integral path) had a latent gap this
+  entry's own gates never exercised: a property access whose base is a
+  WORD-INDEXED array of class handles (`arr[1].s`, not merely a chain of
+  named properties) carries its index via `ivl_expr_oper1()` on the
+  `IVL_EX_SIGNAL`/`IVL_EX_ARRAY` base node, which the helper ignored,
+  emitting a label for the wrong (nonexistent) functor. No ivtest test
+  exercised "array-of-objects then `.string_property`" at L33's close, so
+  this passed unnoticed at the time; L34's gate sweep caught the identical
+  gap via an integer-property test and the fix (reject an array-indexed
+  base, same as an array-indexed property hop) is in the shared helper, so
+  it closes this gap for the string path too. Reverified:
+  `evidence/campaign-20260908/dd046/c13_arr_of_obj_str.sv`.
+
+### L34 — Nested class-property VPI lvalue silently drops writes (integral sibling of L33)
+
+- **Status:** CLOSED 2026-09-11. The integral (vec4/CPV) counterpart of
+  L33, explicitly named as an un-fixed follow-on in that entry rather than
+  left ambiguous. All required gates pass, durable exit files in
+  `evidence/campaign-20260908/l34/`: integrated exit0 4981/4976/0/2NI/3EF,
+  VPI107, negative149, runtime15/15; JSON exit0 1873/0; UVM exit0 357/0/0
+  (356 baseline +1, all four plusargs class-property tests -- direct and
+  nested, string and integral -- PASS); NFA 58/58; releases unchanged
+  15/15 SMOKE_PASS; frontend exit0 all S1-S12. Install restored:
+  `iverilog`/`ivl`/`uvm_dpi.vpi`/`uvm_legacy_recorder.svh` hashes unchanged
+  from the L33 baseline; `vvp`/`vvp.tgt` changed, matching the four files
+  this fix touched (same four files as L33) --
+  `evidence/campaign-20260908/l34/installed-frozen-sha256.json`. A real
+  regression (not a race-condition false positive) was found and fixed by
+  the ivtest gate mid-pass -- see the dedicated bullet below.
+- **Symptom:** Identical to L33 but for `int`/`bit`/`logic`-typed class
+  properties: `$value$plusargs("N=%d", obj.inner.n)` silently dropped the
+  write when `n` is reached through another class-typed property
+  (`obj.inner.n`). The direct case (`obj.n`) already worked via
+  `&CPV<vSIG,pidx,width,signed>` (M14/prior session); a nested chain fell
+  back to a discarded vec4 stack temporary, same failure shape as L33
+  before its fix.
+- **Root cause:** Identical mechanism to L33 -- `get_vpi_taskfunc_signal_arg`'s
+  old direct-only CPV check required `ivl_expr_signal(expr)` non-null on the
+  property node itself, which is null for any nested property chain (see
+  L33's root-cause writeup); any chain longer than one hop fell through to
+  the rvalue-only path with no error.
+- **Fix:** Reused L33's `collect_property_chain_()` unchanged (it is
+  already type-agnostic about the leaf property's value type) from a new
+  integral-specific call site placed at the same point in
+  `get_vpi_taskfunc_signal_arg` as L33's string call site -- before the
+  `expr_signal_base_()`-based `if (!sig) return 0` bailout that ate the
+  chain for the same reason L33 hit it. The old direct-only CPV block
+  became fully dead code once the chain-based check subsumed it (the
+  chain collector's base case handles the direct/non-nested case
+  identically to the old check) and was deleted rather than left stale.
+  `vvp/parse.y`'s `K_CPV` production now takes `numbers` for the chain, but
+  -- unlike `K_CPS` -- the chain had to move to the END of the production
+  (`&CPV<vSIG_0,width,signed,idx0,idx1,...>`, was
+  `&CPV<vSIG_0,pidx,width,signed>`) because CPV has two trailing fixed
+  fields (width, signedness) after the property index; putting `numbers`
+  before them would be genuinely LALR(1) ambiguous (the parser cannot
+  decide, on the next `T_NUMBER`, whether it continues the chain or starts
+  the fixed fields). `numbers` followed only by `'>'` is unambiguous, same
+  as `K_CPS`. Verified zero new grammar conflicts the same way as L33:
+  bison's full verbose table diffed against the (already-verified-clean)
+  L33 baseline shows only the `K_CPV` production's own states differing.
+  `vvp/vpi_cobject.cc`'s `__vpiClassPropertyVecVar` now holds a
+  property-index path exactly like `__vpiClassPropertyStringVar`; a null
+  intermediate handle on a write reports loudly via the same
+  `report_null_property_container_write_()` L33 added, not a new message.
+- **Scope (same boundary as L33):** Integral (`bit`/`logic`/`int`, i.e.
+  `IVL_VT_LOGIC`/`IVL_VT_BOOL`) class properties only. `real`-typed nested
+  properties, array-indexed hops in a chain, and virtual/polymorphic
+  dispatch remain out of scope and fall back to the pre-existing
+  rvalue-only path (unchanged, not a regression). Verified: 1-level
+  (`obj.inner.n`), 3-level/3-hop (`obj.mid.leaf.n`), and the
+  null-intermediate-handle write all behave as designed; array-indexed hop
+  falls back without crashing.
+- **A second, genuine regression was found and fixed by the ivtest gate
+  before this closed** (not the L33 race-condition false positive): the
+  first committed L34 change made `collect_property_chain_()`'s
+  `IVL_EX_SIGNAL`/`IVL_EX_ARRAY` base-case branch accept the base
+  unconditionally, but a word-indexed array-of-class-handles base (e.g.
+  `arr[1].id`, `fixed[0].id` -- an array element, not a chain of named
+  properties) carries its index via `ivl_expr_oper1()` on that base node.
+  Ignoring it and hardcoding the emitted label's word suffix to the
+  scalar case produced a label matching no real functor: vvp printed
+  "unresolved functor stub" and the read came back `X` instead of the real
+  value. Caught by two vendored ivtest tests
+  (`sv_array_port_object_event`, `sv_cast_container_task_failure`),
+  reduced to `evidence/campaign-20260908/dd046/c12_arr_of_obj.sv`, and
+  fixed by rejecting an array-indexed base the same way an array-indexed
+  *property* hop was already rejected -- fall back to the safe rvalue-only
+  path, which resolves the word correctly. This bug lived in the shared
+  helper, so it equally affected L33's string path (never caught there,
+  since no ivtest test combines an object array with a string property);
+  see the addendum on L33 above. Both ivtest regressions reverified
+  passing against gold after the fix.
+- **Reducers:** `evidence/campaign-20260908/dd046/c7_int_nested.sv` (direct
+  bug reproduction), `c8_direct.sv` (direct case, must keep working),
+  `c9_deep_int.sv` (3-level nesting), `c10_null_int.sv` (null-intermediate
+  write), `c11_arrhop_int.sv` (array-indexed property hop, out of scope),
+  `c12_arr_of_obj.sv` (array-indexed SIGNAL base, the second regression
+  above), `c13_arr_of_obj_str.sv` (string analog of c12, confirming the
+  shared-helper fix also closes L33's latent gap).
+- **Permanent regression:** `tests/plusargs_class_integral_nested_test.sv`
+  (new), registered in `.github/uvm_test.sh`'s `plusargs_for()`. Sibling of
+  the existing `tests/plusargs_class_integral_test.sv` (direct case), which
+  must keep passing unchanged. The array-of-objects regression itself is
+  already covered by two existing vendored ivtest tests
+  (`sv_array_port_object_event`, `sv_cast_container_task_failure`); no new
+  permanent test needed beyond keeping them in the required ivtest gate.
+- **Validation:** full required sequence passed (integrated/JSON/UVM/NFA/
+  releases/frontend-last); see the Status line above for exact counts and
+  `evidence/campaign-20260908/l34/` for durable exit files.
+- **Evidence:** `evidence/campaign-20260908/l34/`.

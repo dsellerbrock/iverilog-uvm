@@ -1133,10 +1133,16 @@ extern value_callback*vpip_array_change_target(p_cb_data data,
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
                                                        unsigned prop_cnt,
                                                        long*prop_idx);
+/* L34: prop_idx is now a path of prop_cnt indices, same as the string
+ * variant above (and for the same reason -- a nested integral class
+ * property chain, e.g. obj.inner.n, needs the identical property-aware
+ * write-back). prop_cnt is always >= 1; a single-entry path is the
+ * original direct-property case. */
 extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
-                                                    size_t prop_idx,
                                                     unsigned width,
-                                                    bool signed_flag);
+                                                    bool signed_flag,
+                                                    unsigned prop_cnt,
+                                                    long*prop_idx);
 
 /*
  * When a loaded VPI module announces a system task/function, one

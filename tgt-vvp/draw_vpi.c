@@ -237,6 +237,26 @@ static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
             switch (ivl_expr_type(base)) {
                 case IVL_EX_SIGNAL:
                 case IVL_EX_ARRAY:
+                      /* A word-indexed array-of-objects base (e.g.
+                         fixed[0].id, arr[1].tag) carries its index via
+                         ivl_expr_oper1(base) -- per ivl_target.h's
+                         IVL_EX_SIGNAL docs, "[the array] is addressed by
+                         the expression returned by the ivl_expr_oper1
+                         function". Silently ignoring that index and
+                         treating the whole array as if it were the
+                         scalar word this chain hardcodes ("_0" in the
+                         emitted &CPS/&CPV label) resolved to an
+                         unrelated/nonexistent functor at runtime
+                         (observed: vvp's "unresolved functor stub"
+                         diagnostic and the read coming back X instead of
+                         the real value -- ivtest sv_array_port_object_event
+                         and sv_cast_container_task_failure both caught
+                         this). Out of scope, same as an array-indexed
+                         property hop above: reject and let the caller
+                         fall back to the rvalue-only path, which resolves
+                         the word correctly via the generic machinery. */
+                      if (ivl_expr_oper1(base))
+                            return 0;
                       *sig = ivl_expr_signal(base);
                       if (!*sig)
                             return 0;
@@ -301,6 +321,40 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 			  return 1;
 		    }
 	      }
+	      /* L34: integral class properties need the same property-aware
+	         VPI lvalue treatment as strings (L33), for the same reason --
+	         $value$plusargs("N=%d", obj.inner.n) must update obj.inner.n
+	         rather than a discarded vec4 stack temporary, and a nested
+	         chain hits the identical expr_signal_base_()==null bailout a
+	         few lines down before ever reaching the old direct-only CPV
+	         check below. Tried first, same as the string case above; a
+	         chain collect_property_chain_() can't take (array-indexed hop,
+	         non-signal/non-property base) falls through to the old
+	         direct-only check below, which itself falls through further to
+	         the M14 rvalue-only fallback for anything neither handles. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && (ivl_expr_value(expr) == IVL_VT_LOGIC
+		      || ivl_expr_value(expr) == IVL_VT_BOOL)) {
+		    ivl_signal_t root_sig = 0;
+		    long chain[16];
+		    unsigned chain_len = 0;
+		    if (collect_property_chain_(expr, &root_sig, chain,
+		                                &chain_len,
+		                                sizeof chain/sizeof chain[0])) {
+			  unsigned idx2;
+			  int n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
+			                   (void*)root_sig, ivl_expr_width(expr),
+			                   ivl_expr_signed(expr) ? 1 : 0);
+			  for (idx2 = 0
+			       ; idx2 < chain_len && n > 0 && (size_t)n < sizeof buffer
+			       ; idx2 += 1)
+				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
+				             chain[idx2]);
+			  snprintf(buffer+n, sizeof buffer-n, ">");
+			  result->text = strdup(buffer);
+			  return 1;
+		    }
+	      }
 	      sig = expr_signal_base_(expr);
 	      if (!sig)
 		    return 0;
@@ -311,29 +365,13 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         runtime and pushed onto the obj_stack. */
 	      if (class_like && ivl_expr_type(expr) == IVL_EX_PROPERTY)
 		    return 0;
-	      /* Integral class properties need the same property-aware VPI
-	         lvalue treatment as strings. In particular,
-	         $value$plusargs("N=%d", obj.n) must update obj.n rather than
-	         a discarded vec4 stack temporary. Encode the property index,
-	         width, and signedness for the runtime handle. */
-	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
-		  && (ivl_expr_value(expr) == IVL_VT_LOGIC
-		      || ivl_expr_value(expr) == IVL_VT_BOOL)
-		  && ivl_expr_signal(expr)
-		  && !ivl_expr_oper1(expr)) {
-		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
-		    snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u, %u>",
-			     (void*)ivl_expr_signal(expr), pidx,
-			     ivl_expr_width(expr), ivl_expr_signed(expr) ? 1 : 0);
-		    result->text = strdup(buffer);
-		    return 1;
-	      }
-	      /* String property chain collect_property_chain_() couldn't take
-	         (an array-indexed hop somewhere in it, L33): fall back so the
-	         caller dispatches to draw_eval_string (rvalue-only). */
-	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
-		  && ivl_expr_value(expr) == IVL_VT_STRING)
-		    return 0;
+	      /* Integral (L34) and string (L33) class-property chains are both
+	         tried above, before this point, so reaching here with either
+	         value type means collect_property_chain_() rejected the chain
+	         (an array-indexed hop somewhere in it, or a base that's
+	         neither a plain signal nor another property) -- fall through
+	         to the M14 rvalue-only path below (draw_eval_string /
+	         draw_eval_vec4) for both. */
 	      /* M14: A class data property has no standalone VPI signal
 	         handle — its value lives inside the containing object, and
 	         `sig` here is that object. The signal-handle fast path

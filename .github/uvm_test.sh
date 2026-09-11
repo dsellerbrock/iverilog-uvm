@@ -195,6 +195,7 @@ KNOWN_FAIL=""
 plusargs_for() {
     case "$1" in
         plusargs_class_integral_test) echo "+ENABLED=1 +OFFSET=-7 +COUNT=deadbeef +TIMEOUT_NS=1000000" ;;
+        plusargs_class_integral_nested_test) echo "+OFFSET=-7 +COUNT=deadbeef" ;;
         plusargs_class_string_test) echo "+MY_TESTNAME=hello +MY_SEED=42" ;;
         plusargs_class_string_nested_test) echo "+MY_SEED=42" ;;
         *) echo "" ;;
