@@ -196,3 +196,8 @@ report records12SMOKE_PASS,1RUNTIME_FAIL,2COMPILE_FAIL automatically.
 
 L25 removes the three missing return-storage placeholder diagnostics from1.0p1;
 its callback casts still fail. All15 originalsource/status fingerprints stay unchanged.
+
+L26 replay at e3666fd07 (`results-8054igtp`) preserves all15 release statuses
+and original source/archive hashes:12 smoke passes,1 runtime failure,2 compile
+failures. Original1.0p1 retains both callback cast errors; the bounded class-default
+identity fix is not an additional release pass. All required local gates passed.

@@ -1174,3 +1174,14 @@ recursive automatic frames, static persistence, explicit return overrides,
 four-state partial writes and detached-reference lifetime. All required gates pass.
 No full subroutine/ref or nonintegral-return qualification; ordinary function
 disable is prohibited by9.6.2 and remains outside this scoped correction.
+
+### L26 — Independent nominal class defaults (8.25)
+
+Validated e3666fd07 qualifies matching effective class-type parameters with
+bare nominal class defaults across tested omitted/explicit/named/positional
+and alias forms in both2017/2023. Tests verify object identity and shared static
+state, with distinct actual/declaration owners and concrete forwarding controls.
+Nested dependent defaults and arrays remain outside the new cache eligibility;
+regression controls retain their existing elaboration behavior. All required
+local gates pass. Explicit empty parameter slots, broader dependency graphs,
+generic-seed initialization and full parameterization qualification remain open.

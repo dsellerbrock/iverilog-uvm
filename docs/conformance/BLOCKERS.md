@@ -950,12 +950,14 @@ L25 final validation: c58035f49;originalred/interactions both editions PASSED,no
 
 ### L26 — Matching class parameters with independent defaults
 
-- **State:** ACTIVE; both-edition 15-line reducer reproduced on c58035f49.
+- **State:** CLOSED at e3666fd07 after required validation.
 - **Semantics:** Both IEEE editions 8.25 require matching effective class-type
   parameters of the same generic declaration to select one type.
 - **Cause:** Existing canonical key path requires a dependent default, so
   independent omitted/explicit defaults incorrectly retain source identity.
-- **Scope:** Concrete multi-class-type parameters only; preserve unresolved
+- **Scope:** Concrete multi-class-type parameters with bare nominal class defaults; preserve unresolved
   forwarding and owner identity. Generic-template initialization remains separate.
 - **Evidence:** `evidence/campaign-20260908/l26/default-pair.sv` and `.json`;
   larger original-callback reducer and passing controls retained.
+
+L26 final validation: e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts.

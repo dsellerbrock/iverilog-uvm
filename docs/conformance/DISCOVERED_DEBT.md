@@ -577,3 +577,17 @@ separate from fixing the false-positive classifier.
 DD043 resolved by U12 at1654dc4c9: fresh results-fm8uvyiv classifies1.0p1
 RUNTIME_FAIL;quoted UVM_INFO remains informational. Underlying1.0p1 runtime
 errors remain open. No original source or compiler changes.
+
+### DD044 — Generic-seed callback initialization remains after L26 reducer fix
+
+The larger `l26/forward-registry.sv` reducer has two failed casts before L26
+and one after the concrete default-identity fix. The remaining failing method
+belongs to a specialization keyed with unresolved forwarding from a generic
+master, yet a static initialization thread calls it. Original UVM1.0p1 still
+has two callback cast diagnostics in results-8054igtp and remains RUNTIME_FAIL.
+This is evidence for the next bounded investigation, not yet a complete causal
+explanation of both original errors. Keep unresolved generic type identities
+distinct; do not equate runtime class names or suppress the cast diagnostics.
+The standards say a generic class is not itself a type (both editions8.25).
+Record-only during L26; preserve the original trace and failing/passing controls
+before deciding the next implementation contract.

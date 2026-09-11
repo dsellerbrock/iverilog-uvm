@@ -2236,3 +2236,5 @@ each, parameter neighbors23/16, identity/dependent/seed neighbors6/0each,
 makecheck and independent review pass. Required full gates are running; L26
 is not closed. The larger callback reducer still exposes generic-seed static
 initialization and is not a clean pass or a full UVM qualification claim.
+
+L26 final validation and closure: e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts.
