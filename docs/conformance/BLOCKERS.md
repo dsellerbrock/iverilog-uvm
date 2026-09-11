@@ -961,3 +961,15 @@ L25 final validation: c58035f49;originalred/interactions both editions PASSED,no
   larger original-callback reducer and passing controls retained.
 
 L26 final validation: e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts.
+
+### L27 — Generic master static initialization
+
+- **State:** ACTIVE; both-edition reducer fails on e3666fd07.
+- **Semantics:** Both8.25 assign static storage to concrete specializations;
+  the generic class itself is not a type.
+- **Cause:** `netclass_t::elaborate` emits a static initializer process even
+  for the unspecialized generic master. One requested specialization causes
+  two registration side effects.
+- **Scope:** Generic masters only; preserve actual concrete/default and ordinary
+  class initialization. Seed-derived forwarding lifecycle remains DD044.
+- **Evidence:** `evidence/campaign-20260908/l27/seed-init.sv` and `.json`.

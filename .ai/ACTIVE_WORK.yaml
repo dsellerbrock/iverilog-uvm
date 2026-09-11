@@ -1,18 +1,16 @@
-id: "L26"
-title: "Matching multi-class-parameter specializations with independent defaults"
-status: "closed"
-phase: "completed"
-base_revision: "2785d1d5d"
+id: "L27"
+title: "Generic class masters must not execute static initialization"
+status: "active"
+phase: "root_caused"
+base_revision: "8d0bdb90b"
 last_validated_revision: "e3666fd07"
-reproducer: "../evidence/campaign-20260908/l26/default-pair.sv and .json: Pair#(A) versus Pair#(A,B), B the declared default; both editions compile0 then cast fails runtime1. Larger forward-registry reducer and passing controls preserved."
-expected_behavior: "The same generic declaration with matching effective class-type parameters denotes the same type, regardless of omitted/explicit or positional/named spelling. Different parameter types and declaration owners remain distinct."
-standards: ["IEEE1800-2017 8.25 and IEEE1800-2023 8.25 matching specializations;6.24.2 class dynamic cast."]
-root_cause: "canonical_specialization_parm_key_ unnecessarily requires a bare dependent default before normalizing multiple class-type parameters. Independent defaults fall back to source spelling; omitted and explicit requests allocate distinct concrete netclass_t objects."
-allowed_scope: ["Existing specialization key normalization for concrete multi-class-type parameters with bare nominal class defaults; permanent positive, negative and forwarding controls; directly related evidence."]
-non_goals: ["No runtime class-name equivalence, unresolved generic key merging, value-parameter expansion, generic-template initializer repair, full callback/UVM or parameterization qualification."]
-required_gates: ["Both-edition red/green reducer; distinct types/declaration owners and unresolved forwarding controls; focused legacy/JSON and neighbors; independent review; nativebuild/makecheck/integrated/JSON/realDPIUVM/NFA/releases; isolatedfrontend last alone with restore and frozen hashes."]
-next_action: "Return to selection; investigate DD044 generic-seed initialization with preserved reducer."
-next_command: 'sed -n "3770,3850p" elab_scope.cc'
+reproducer: "../evidence/campaign-20260908/l27/seed-init.sv and .json: one concrete Generic#(bit) declaration, static registration counter observes two calls; both editions compile0/runtime1."
+expected_behavior: "Only the concrete specialization owns and initializes its static storage; the unspecialized generic master is not a type and contributes no extra runtime initialization. Preserve nonparameterized class initialization, bare default concrete uses and separate real specializations."
+standards: ["IEEE1800-2017 8.25 and IEEE1800-2023 8.25: per-specialization static state;generic class itself is not a type."]
+root_cause: "netclass_t::elaborate unconditionally emits initialize_static threads for generic masters as well as concrete class scopes."
+allowed_scope: ["Suppress static initializer process emission for unspecialized parameterized class masters using existing class metadata; preserve concrete and ordinary classes and add permanent controls."]
+non_goals: ["No broad seed-derived cache lifecycle redesign; unresolved forwarded pseudo-specializations remain separately tracked DD044;no cast suppression or generic/concrete identity merging;no fullcallback/UVM closure."]
+required_gates: ["Both-edition pre-fix reducer and concrete/nonparameterized/default/static-only controls;independent review;native build/makecheck/focus/neighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/frozenhashes."]
+next_action: "Review narrow generic-master initializer guard and preserve real-specialization behavior."
+next_command: 'sed -n "30120,30168p" elaborate.cc'
 stop_after_completion: false
-
-validation_result: "e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts."
