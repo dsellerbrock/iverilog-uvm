@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L25"
-phase: "selection"
+current_blocker: "L26"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c58035f49"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None locally forL25;PR275 remoteCI separate,no mergeauthorization."
+pending_gates: "All L26 implementation gates unstarted. Original specializationtrace83667 terminal0. PR275 freshremoteCI pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "Original1.0p1 callbackcast/typeidentity diagnostics remain;select exactreducer afterpublication."
-next_action: "Publish U11/U12/L25 as coherentbatch toexistingPR275;then isolate1.0p1callbackcast cause."
-next_command: "gh pr view 275 --json state,headRefOid,statusCheckRollup"
+next_selection: "L26 concrete matching independent-default class specializations; generic seed initializer failure remains separate."
+next_action: "Implement bounded canonical-key eligibility fix and run both-edition reducer and identity controls."
+next_command: "sed -n '3460,3580p' elab_scope.cc"
 next_command_cwd: repository root
-candidate_state: "U11/U12/L25 threefullyvalidated unpublishedincrements afterPR275d39880176."
+candidate_state: "L26 15-line reducer fails both editions; source-key fallback causal. No implementation edit yet."
 installed_tools: "c58035f49 validated;l25/sha256.txt restored/unchanged."
 validation_state: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."
-next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
+next_validation: "L26 focused red/green and independent review, then required integrated gates."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -626,3 +626,5 @@ l25_json_terminal: "67320exit0;1839tests0failures. UVM26951 live;isolatedfronten
 l25_uvm_terminal: "26951exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allothergates terminal;restore/frozen hashes required afterward. "
 
 l25_closure: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."
+
+legacy_uvm_pr_fifth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "2785d1d5d6053a1d0c779f62b403176153f66111", state: "open", scope: "ValidatedU11/U12/L25", remaining: "FreshCI;no mergeauthorization"}

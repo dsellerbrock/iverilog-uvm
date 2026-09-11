@@ -1,16 +1,16 @@
-id: "L25"
-title: "Integral function return variable used as a ref actual"
-status: "closed"
-phase: "completed"
-base_revision: "e6ea5810f"
+id: "L26"
+title: "Matching multi-class-parameter specializations with independent defaults"
+status: "active"
+phase: "root_caused"
+base_revision: "2785d1d5d"
 last_validated_revision: "c58035f49"
-reproducer: "evidence/campaign-20260908/l25/red.sv/red.json: result=7;bump(result) by ref must return12;both2017/2023 compile0 then fail with unresolvedfunctor placeholder and wrongreturn. Original1.0p1 build_coverage three sites match."
-expected_behavior: "The function-name variable declared by13.4.1 is real variable storage;an equivalent-type ref aliases it under13.5.2,including observation during a call. Preserve return-expression override,recursive/automatic context ownership and existing ordinary-return semantics."
-standards: ["IEEE1800-2017/2023 13.4.1 implicit function-name variable and return override;13.5.2 true reference,equivalenttypes;6.21 lifetime where applicable."]
-root_cause: "tgt-vvp/vvp_scope.c omits integral return signal in favor of stackret;draw_ufunc.c ref_actual_is_nameable_ and task $ivl_ref_bind emission reference absent vSIGNAL_0. Runtime final-resolution placeholder is downstream symptom. Existing internal attribute marks address-taken scalar integral returns before target emission;normal signal/context storage handles references,fallthrough/internalreturn publish to stack. No new runtime instructions."
-allowed_scope: ["Whole scalar integral function-name ref actual storage/binding using existing return/context architecture;shared function/task call paths and regression tests. Broader changes require causal justification at deliberate boundary."]
-non_goals: ["No placeholder suppression,fabricated return,copy-in/out pretending to be ref,unrelated1.0p1 callback cast/typeidentity fixes,string/real/nonintegral return qualification,fullsubroutine/UVM closure."]
-required_gates: ["Both-edition failing reducer;truealias/read-during-call/recursive return/lifetime and return-override controls;independent design/code review;nativebuild/makecheck/focusedneighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes. Focused and neighbor gates pass;full gates pending."]
-next_action: "Publish validated U11/U12/L25 batch,then isolate original1.0p1 callback cast cause."
-next_command: "gh pr view 275 --json state,headRefOid,statusCheckRollup"
+reproducer: "../evidence/campaign-20260908/l26/default-pair.sv and .json: Pair#(A) versus Pair#(A,B), B the declared default; both editions compile0 then cast fails runtime1. Larger forward-registry reducer and passing controls preserved."
+expected_behavior: "The same generic declaration with matching effective class-type parameters denotes the same type, regardless of omitted/explicit or positional/named spelling. Different parameter types and declaration owners remain distinct."
+standards: ["IEEE1800-2017 8.25 and IEEE1800-2023 8.25 matching specializations;6.24.2 class dynamic cast."]
+root_cause: "canonical_specialization_parm_key_ unnecessarily requires a bare dependent default before normalizing multiple class-type parameters. Independent defaults fall back to source spelling; omitted and explicit requests allocate distinct concrete netclass_t objects."
+allowed_scope: ["Existing specialization key normalization for concrete multi-class-type parameters; permanent positive, negative and forwarding controls; directly related evidence."]
+non_goals: ["No runtime class-name equivalence, unresolved generic key merging, value-parameter expansion, generic-template initializer repair, full callback/UVM or parameterization qualification."]
+required_gates: ["Both-edition red/green reducer; distinct types/declaration owners and unresolved forwarding controls; focused legacy/JSON and neighbors; independent review; nativebuild/makecheck/integrated/JSON/realDPIUVM/NFA/releases; isolatedfrontend last alone with restore and frozen hashes."]
+next_action: "Remove only the dependent-default eligibility restriction; retain concrete type and unresolved-key guards; verify reducer and controls."
+next_command: "sed -n '3460,3580p' elab_scope.cc"
 stop_after_completion: false

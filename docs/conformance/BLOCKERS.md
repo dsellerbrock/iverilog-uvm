@@ -947,3 +947,15 @@ U12 final validation: 1654dc4c9;newdiagnosticnegative failed8subcases beforefix,
   Callback cast/typeidentity diagnostics remain separate.
 
 L25 final validation: c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain.
+
+### L26 — Matching class parameters with independent defaults
+
+- **State:** ACTIVE; both-edition 15-line reducer reproduced on c58035f49.
+- **Semantics:** Both IEEE editions 8.25 require matching effective class-type
+  parameters of the same generic declaration to select one type.
+- **Cause:** Existing canonical key path requires a dependent default, so
+  independent omitted/explicit defaults incorrectly retain source identity.
+- **Scope:** Concrete multi-class-type parameters only; preserve unresolved
+  forwarding and owner identity. Generic-template initialization remains separate.
+- **Evidence:** `evidence/campaign-20260908/l26/default-pair.sv` and `.json`;
+  larger original-callback reducer and passing controls retained.
