@@ -975,3 +975,13 @@ L26 final validation: e3666fd07; both-edition15line reducer PASSED; focuslegacy2
 - **Evidence:** `evidence/campaign-20260908/l27/seed-init.sv` and `.json`.
 
 L27 final validation: 8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts.
+
+### U13 — Literal legacy DPI arguments versus GNU runtime options
+
+- **State:** ACTIVE; published2785 Linux CI fails the old-DPI fixture in both
+  editions with `vvp: invalid option -- f` before simulation.
+- **Cause:** The fixture invocation lacks `--` before the program/argv.
+  `vvp/main.cc` deliberately allows GNU getopt permutation.
+- **Scope:** Invocation separator only; retain literal `-f` iteration assertions,
+  metadata/regex behavior, and all diagnostics. Local frontend and fresh Linux
+  CI are required; no compiler/DPI semantic change.
