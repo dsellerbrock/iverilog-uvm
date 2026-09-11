@@ -550,3 +550,13 @@ Permitted-statement reading is an inference needing a scoped ticket/reducer;
 no relaxation or implementation during L23. Preserve calls/arguments/restrictions,
 never fabricate a value or generalize to task/arbitrary-expression casts.
 Evidence results-2hbuhcyt1.0p1/1.1a compile logs and original source.
+
+### DD042 — Pre-1.1d command-line and regex DPI entry points
+
+L24 makes original1.0p1/1.1a compile and start. Both then fail unresolved
+DPI symbols dpi_get_next_arg_c/dpi_regcomp, producing four UVM command-line
+regex errors (1.1a terminates BUILDERR at time0). 1.0p1 reaches smoke banner but
+has errors and unresolved-functor/$cast diagnostics, so remains RUNTIME_FAIL.
+Old native ABI must be inspected before reusing newer U09 cached-regex helpers;
+no fabricated empty argv/regex match or DPI-disabled bypass. Record-only under
+L24. Evidence results-6_pvcxya/{1.0p1,1.1a}/runtime.log.

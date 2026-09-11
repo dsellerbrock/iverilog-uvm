@@ -910,3 +910,9 @@ L23 validation: 58edf8034;originalred both editions PASSED/no diagnostics,focusl
 - **State:** SELECTED/REPRODUCED after validated L23.
 - **Evidence:** DD041, both-edition calls with argument/output effects rejected; original1.0p1/1.1a each fail three such calls.
 - **Scope:** Dedicated13.5/A.6.9 function-call statement grammar, preserving actual effects and task/void-expression/deferred-action restrictions. The grammar/prose reading is explicitly recorded as inference; no compatibility bypass or upstream source edits.
+
+L24 validation reconciliation: the initial integrated run found the legacy-only
+`sv_void_cast_fail1` expected the dedicated statement to be rejected. That obsolete
+expectation is replaced by direct void-function expression rejection; the new
+paired tests own legal-statement coverage. Independent review agrees. This does
+not qualify historical2005 acceptance. Required rerun remains pending.
