@@ -1185,3 +1185,12 @@ Nested dependent defaults and arrays remain outside the new cache eligibility;
 regression controls retain their existing elaboration behavior. All required
 local gates pass. Explicit empty parameter slots, broader dependency graphs,
 generic-seed initialization and full parameterization qualification remain open.
+
+### L27 — Generic-master static initialization (8.25)
+
+Validated8f2252dd3 prevents runtime static initialization of an unspecialized
+generic master while retaining initializer analysis and const checks. Both
+editions qualify unused generic/no side effect and exactly-once initialization
+for tested concrete/default/static-only uses, ordinary classes and inherited
+parameterized bases. All required local gates pass. Symbolically forwarded
+seed-derived specializations remain unqualified; no fullclass/UVM claim.

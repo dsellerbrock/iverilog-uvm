@@ -1,9 +1,9 @@
 id: "L27"
 title: "Generic class masters must not execute static initialization"
-status: "active"
-phase: "awaiting_validation"
+status: "closed"
+phase: "completed"
 base_revision: "8d0bdb90b"
-last_validated_revision: "e3666fd07"
+last_validated_revision: "8f2252dd3"
 reproducer: "../evidence/campaign-20260908/l27/seed-init.sv and .json: one concrete Generic#(bit) declaration, static registration counter observes two calls; both editions compile0/runtime1."
 expected_behavior: "Only the concrete specialization owns and initializes its static storage; the unspecialized generic master is not a type and contributes no extra runtime initialization. Preserve nonparameterized class initialization, bare default concrete uses and separate real specializations."
 standards: ["IEEE1800-2017 8.25 and IEEE1800-2023 8.25: per-specialization static state;generic class itself is not a type."]
@@ -11,6 +11,8 @@ root_cause: "netclass_t::elaborate unconditionally emits initialize_static threa
 allowed_scope: ["Suppress static initializer process emission for unspecialized parameterized class masters using existing class metadata; preserve concrete and ordinary classes and add permanent controls."]
 non_goals: ["No broad seed-derived cache lifecycle redesign; unresolved forwarded pseudo-specializations remain separately tracked DD044;no cast suppression or generic/concrete identity merging;no fullcallback/UVM closure."]
 required_gates: ["Both-edition pre-fix reducer and concrete/nonparameterized/default/static-only controls;independent review;native build/makecheck/focus/neighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/frozenhashes."]
-next_action: "Run required full gates;keep candidate frozen;JSON after integrated and frontend last alone."
-next_command: 'tail -20 ../evidence/campaign-20260908/l27/integrated.log'
+next_action: "Return to selection;isolate unresolved forwarded specialization initialization under DD044."
+next_command: 'sed -n "1705,1775p" elab_scope.cc'
 stop_after_completion: false
+
+validation_result: "8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts."

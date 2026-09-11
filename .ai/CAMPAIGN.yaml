@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L27"
-phase: "awaiting_validation"
+current_blocker: "selection"
+phase: "isolating_next_reducer"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "e3666fd07"
+last_integrated_good_revision: "8f2252dd3"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L27 integrated85909/UVM92736/NFA39349/releases74656 live;JSON after integrated terminal;frontend last alone/restore/hashes. PR275 publishedhead2785 CI pending."
+pending_gates: "No required local gates pending for L27. PR275 publishedhead2785 CI torefresh;L26/L27 local batch2increments."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD044 generic-seed static initializer execution;preserve callback reducer and trace."
-next_action: "Collect frozen8f2252dd3 gates;JSON after integrated terminal,frontend last alone."
-next_command: 'tail -20 ../evidence/campaign-20260908/l27/integrated.log'
+next_selection: "DD044 unresolved forwarded specialization static initialization;genericmaster emission now fixed."
+next_action: "Reduce forwarded pseudo-specialization initialization separately from concrete cache reuse;then activate exact next contract."
+next_command: 'sed -n "1705,1775p" elab_scope.cc'
 next_command_cwd: repository root
-candidate_state: "8f2252dd3 focused/review pass;fullgates live. Last validated e3666fd07."
-installed_tools: "8f2252dd3 frozen candidate;l27/sha256.txt. Last validated e3666fd07."
-validation_state: "e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts."
-next_validation: "Collect integrated/UVM/NFA/releases;JSON after integrated;frontend last alone."
+candidate_state: "L27 closed after all required gates;no implementation active;next blocker selection."
+installed_tools: "8f2252dd3 validated;l27/sha256.txt restored/unchanged."
+validation_state: "8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts."
+next_validation: "Next justified blocker reducer/specification after selection."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -654,3 +654,13 @@ l27_focused_reconciliation: "Initial initializer-analysis guard passed red/focus
 l27_focused: "Both-edition red nowPASSED;focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and final independent review clear. Preserve const initializer analysis,delete only unscheduled generic-master process. All required fullgates pending."
 
 l27_live_gates: {integrated: 85909, uvm: 92736, nfa: 39349, releases: 74656}
+
+l27_release_terminal: "74656exit1;results-ni3wgjii complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26. Original1.0p1 stilltwo callbackcasts,no newreleasepass. NFA39349exit0,58/58. Integrated85909/UVM92736 live;JSON/frontend unstarted."
+
+l27_integrated_terminal: "85909exit0;legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM92736 live;frontend unstarted."
+
+l27_json_terminal: "6070exit0;1843tests0failures. UVM92736 live;frontend unstarted. Candidate8f2252dd3 frozen."
+
+l27_uvm_terminal: "92736exit0;355passed0failed0skipped realDPI. Isolatedfrontend launched last alone after allothergates terminal;installrestore/frozenhashes required afterward."
+
+l27_closure: "8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts."

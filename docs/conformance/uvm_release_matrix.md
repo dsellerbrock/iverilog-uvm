@@ -201,3 +201,8 @@ L26 replay at e3666fd07 (`results-8054igtp`) preserves all15 release statuses
 and original source/archive hashes:12 smoke passes,1 runtime failure,2 compile
 failures. Original1.0p1 retains both callback cast errors; the bounded class-default
 identity fix is not an additional release pass. All required local gates passed.
+
+L27 replay at8f2252dd3 (`results-ni3wgjii`) again preserves all15 statuses and
+original source/archive hashes:12 smoke passes,1 runtime failure,2 compile
+failures. Generic-master initializer removal does not resolve original1.0p1's
+two callback cast errors. All required local gates passed.
