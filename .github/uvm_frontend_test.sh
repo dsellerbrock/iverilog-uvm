@@ -260,6 +260,14 @@ else
 fi
 
 # --------------------------------------------------------------------------
+say "S12: native recording lossless attribute capture (U15)"
+if python3 "$SRCROOT/tests/uvm_releases/test_recording_attribute.py" "$IVERILOG" "$VVP" "$DPIVPI"; then
+    pass "native recording attribute capture"
+else
+    fail "native recording attribute capture"
+fi
+
+# --------------------------------------------------------------------------
 echo ""
 if [ $FAIL -eq 0 ]; then
     echo "UVM front-end regression: ALL SCENARIOS PASSED"

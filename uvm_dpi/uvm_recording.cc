@@ -2,7 +2,10 @@
 // Attribute capture is separate: these entry points never fabricate attributes.
 #include <map>
 #include <string>
+#include <vector>
 #include <cstdio>
+#include <cstdint>
+#include <cstring>
 #include <climits>
 #include <fcntl.h>
 #include <unistd.h>
@@ -267,42 +270,161 @@ extern "C" int ivl_uvm_record_free(int owner, int handle)
       return 1;
 }
 
-// U15 registration smoke test (design-facts-20260911.md, ACTIVE_WORK U15).
-// This calltf does not yet encode or journal a value; it only proves the
-// systf resolves under the real -uvm loading path and reads back the
-// argument kind vpi_get_value(vpiObjTypeVal) would dispatch on. The lossless
-// packed/real/string encoder is a separate, not-yet-implemented step.
+// U15 lossless native attribute capture (design-facts-20260911.md,
+// ACTIVE_WORK U15). Dispatches on vpi_get_value(vpiObjTypeVal), which -- per
+// probes recorded in design-facts-20260911.md -- resolves every plain
+// integral variable/constant to vpiVectorVal, real to vpiRealVal and string
+// to vpiStringVal in this implementation. Packed and real values are copied
+// out of the shared vpi_get_value result buffer (vvp/vpi_const.cc
+// need_result_buf(RBUF_VAL) is reused across formats and calls, so a pointer
+// held across a second vpi_get_value call is unsafe; 38.15 warns the same
+// for the string buffer specifically) before any further VPI call. A string
+// argument is re-read with vpiVectorVal only when it is a vpiStringConst
+// (raw literal/expression): IEEE1800 38.15 explicitly licenses that read for
+// vpiStringConst, and only that path can carry an embedded zero byte, which
+// a plain vpiStringVal C-string read would silently truncate. A string
+// VARIABLE cannot contain an embedded NUL (6.16: writes of NUL are ignored),
+// confirmed empirically (design-facts-20260911.md), so vpiStringVal is
+// lossless and sufficient there, and vpiVectorVal is refused on that handle
+// kind (format comes back vpiSuppressVal) so it cannot be used as a
+// fallback. Aggregate, object/class-handle and enum-schema arguments are
+// explicit non-goals (ACTIVE_WORK) and are rejected loudly, not dropped.
 namespace {
-PLI_INT32 record_attribute_smoke_calltf(PLI_BYTE8*)
+std::string hex_bytes(const unsigned char*bytes, size_t count)
+{
+      static const char hexd[] = "0123456789abcdef";
+      std::string out;
+      out.reserve(count * 2);
+      for (size_t i = 0; i < count; ++i) {
+            out += hexd[bytes[i] >> 4];
+            out += hexd[bytes[i] & 0xf];
+      }
+      return out;
+}
+
+std::string hex_vector(const s_vpi_vecval*words, unsigned nwords, const char*field, const std::string&fields)
+{
+      // Word0 holds the least-significant bits (38.15 word ordering; the
+      // same convention L32 established for a literal's vpiVectorVal).
+      std::string out = fields + ",\"" + field + "_words\":" + std::to_string(nwords);
+      out += ",\"" + std::string(field) + "_aval\":\"";
+      for (unsigned i = 0; i < nwords; ++i) {
+            unsigned char b[4] = {
+                  (unsigned char)(words[i].aval), (unsigned char)(words[i].aval >> 8),
+                  (unsigned char)(words[i].aval >> 16), (unsigned char)(words[i].aval >> 24) };
+            out += hex_bytes(b, 4);
+      }
+      out += "\",\"" + std::string(field) + "_bval\":\"";
+      for (unsigned i = 0; i < nwords; ++i) {
+            unsigned char b[4] = {
+                  (unsigned char)(words[i].bval), (unsigned char)(words[i].bval >> 8),
+                  (unsigned char)(words[i].bval >> 16), (unsigned char)(words[i].bval >> 24) };
+            out += hex_bytes(b, 4);
+      }
+      out += "\"";
+      return out;
+}
+
+PLI_INT32 record_attribute_calltf(PLI_BYTE8*)
 {
       vpiHandle call = vpi_handle(vpiSysTfCall, 0);
       vpiHandle args = vpi_iterate(vpiArgument, call);
-      vpiHandle harg = vpi_scan(args);
-      vpiHandle narg = vpi_scan(args);
-      vpiHandle varg = vpi_scan(args);
+      vpiHandle harg = args ? vpi_scan(args) : nullptr;
+      vpiHandle narg = harg ? vpi_scan(args) : nullptr;
+      vpiHandle varg = narg ? vpi_scan(args) : nullptr;
       if (!harg || !narg || !varg) {
             recording_error("$ivl_uvm_record_attribute requires (handle, name, value)");
             if (args) vpi_free_object(args);
+            vpip_set_return_value(1);
             return 0;
       }
+
       s_vpi_value hv; hv.format = vpiIntVal;
       vpi_get_value(harg, &hv);
+      int handle = (int)hv.value.integer;
+
       s_vpi_value nv; nv.format = vpiStringVal;
       vpi_get_value(narg, &nv);
-      // 38.15: vpi_get_value's string buffer "is overwritten with each
-      // call... If the value is needed, it should be saved by the
-      // application." Confirmed empirically here: Icarus's vpiVectorVal and
-      // vpiStringVal formats share the same need_result_buf(RBUF_VAL) pool
-      // (vvp/vpi_const.cc), so ANY next vpi_get_value call -- not only a
-      // second string read -- can invalidate this pointer. Copy immediately.
+      // Copy before any further vpi_get_value call; see the shared-buffer
+      // note above.
       std::string name = nv.value.str ? nv.value.str : "";
+
+      auto found = recording_handles.find(handle);
+      if (found == recording_handles.end() || found->second.stream
+          || found->second.ended) {
+            vpi_free_object(args);
+            recording_error("$ivl_uvm_record_attribute requires an active "
+                             "registered transaction handle");
+            vpip_set_return_value(1);
+            return 0;
+      }
+      int owner = found->second.owner;
+
+      bool is_string_const = vpi_get(vpiType, varg) == vpiConstant
+                            && vpi_get(vpiConstType, varg) == vpiStringConst;
+
       s_vpi_value vv; vv.format = vpiObjTypeVal;
       vpi_get_value(varg, &vv);
-      auto found = recording_handles.find((int)hv.value.integer);
-      int known_owner = found == recording_handles.end() ? 0 : found->second.owner;
-      vpi_printf("IVL_UVM_RECORD_ATTRIBUTE_SMOKE: handle=%d owner=%d name=%s objfmt=%d\n",
-                 (int)hv.value.integer, known_owner, name.c_str(), (int)vv.format);
+
+      std::string fields = ",\"name\":" + recording_quote(name.c_str())
+            + ",\"kind\":";
+      bool ok = true;
+      switch (vv.format) {
+          case vpiVectorVal: {
+                unsigned size = (unsigned)vpi_get(vpiSize, varg);
+                unsigned nwords = (size + 31) / 32;
+                fields += "\"packed\",\"size\":" + std::to_string(size)
+                        + ",\"signed\":" + (vpi_get(vpiSigned, varg) ? "true" : "false");
+                fields = hex_vector(vv.value.vector, nwords, "packed", fields);
+                break;
+          }
+          case vpiRealVal: {
+                double r = vv.value.real;
+                uint64_t bits;
+                std::memcpy(&bits, &r, sizeof bits);
+                unsigned char b[8];
+                for (int i = 0; i < 8; ++i) b[i] = (unsigned char)(bits >> (8 * i));
+                char decimal[64];
+                std::snprintf(decimal, sizeof decimal, "%.17g", r);
+                fields += "\"real\",\"real_decimal\":\"" + std::string(decimal)
+                        + "\",\"real_bits\":\"" + hex_bytes(b, 8) + "\"";
+                break;
+          }
+          case vpiStringVal: {
+                if (is_string_const) {
+                      // Re-read as vpiVectorVal per 38.15's explicit license
+                      // for vpiStringConst, to preserve a possible embedded
+                      // zero byte that vpiStringVal's C string would drop.
+                      s_vpi_value sv2; sv2.format = vpiVectorVal;
+                      vpi_get_value(varg, &sv2);
+                      if (sv2.format != vpiVectorVal) {
+                            recording_error("string-literal attribute rejected vpiVectorVal");
+                            ok = false;
+                            break;
+                      }
+                      unsigned size = (unsigned)vpi_get(vpiSize, varg);
+                      unsigned nwords = (size + 31) / 32;
+                      fields += "\"string_literal\",\"size\":" + std::to_string(size);
+                      fields = hex_vector(sv2.value.vector, nwords, "string", fields);
+                } else {
+                      // A `string` variable cannot contain embedded NUL
+                      // (6.16), so the C-string read is lossless here.
+                      fields += "\"string\",\"value\":"
+                              + recording_quote(vv.value.str ? vv.value.str : "");
+                }
+                break;
+          }
+          default:
+                recording_error("$ivl_uvm_record_attribute: unsupported "
+                                 "argument kind (aggregate/object/enum "
+                                 "schema capture is not implemented)");
+                ok = false;
+                break;
+      }
       vpi_free_object(args);
+      if (!ok || !recording_write(owner, "attribute", ",\"handle\":" + std::to_string(handle) + fields)) {
+            vpip_set_return_value(1);
+      }
       return 0;
 }
 }
@@ -312,6 +434,6 @@ extern "C" void ivl_uvm_record_register_systf(void)
       s_vpi_systf_data data = {};
       data.type = vpiSysTask;
       data.tfname = "$ivl_uvm_record_attribute";
-      data.calltf = record_attribute_smoke_calltf;
+      data.calltf = record_attribute_calltf;
       vpi_register_systf(&data);
 }
