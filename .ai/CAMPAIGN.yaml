@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-recording-after275-20260911"
 current_blocker: "DD046-TRIAGE-1"
-phase: "selection"
+phase: "candidate_investigation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "90e95c339"
+last_integrated_good_revision: "431b756e6"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
 pending_gates: "None. U15 and U16 both closed with all six required gates exit0 (l32 evidence dir carries the shared pre-U15 baseline; u15 evidence dir carries the U15/U16 sweep). uvm_dpi.vpi is the only frozen hash that changed; re-baselined in u15/installed-frozen-sha256.json."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "DD046 fallback-inventory triage (user-directed: smokes -> compile fallbacks -> implementations). Select ONE bounded candidate per the targeted-fix protocol; do not batch."
-next_action: "Triage evidence/campaign-20260908/fallback-tracked-candidates.tsv for one reachable, standards-relevant candidate; write a reducer before any implementation."
-next_command: "wc -l ../evidence/campaign-20260908/fallback-tracked-candidates.tsv; head -40 ../evidence/campaign-20260908/fallback-tracked-candidates.tsv"
+next_action: "DD046 candidate 2 (class-string VPI-lvalue silent drop): locate the handle-construction site in tgt-vvp/draw_vpi.c / elab_expr.cc, then write a reducer. DD049 (vpiLineNo, architecture-wide) recorded separately, not selected this pass."
+next_command: "grep -n \"class|vpiClassVar|member|property\" tgt-vvp/draw_vpi.c | head -60"
 next_command_cwd: repository root
 candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
 installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."

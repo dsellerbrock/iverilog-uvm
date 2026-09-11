@@ -688,8 +688,15 @@ all parser recovery qualified.
 
 ### DD046 — User-requested sweep of all fallback and compile-progress paths
 
-- **Active blocker:** L31; this inventory is record-only. Fixes follow the UVM
-  smoke campaign, one implementation contract at a time.
+- **Active blocker:** DD046-TRIAGE-1 (see `.ai/ACTIVE_WORK.yaml`) as of
+  2026-09-11, after the UVM smoke campaign closed (U15/U16, 15/15
+  SMOKE_PASS). First triage pass:
+  `evidence/campaign-20260908/dd046/triage-20260911.md`. Two candidates
+  examined in `vvp/vpi_cobject.cc`; neither implemented yet. One
+  (`vpiLineNo`) proved architecture-wide and was split out as DD049, not
+  forced into a bounded fix. The other (a class string property's VPI write
+  silently dropping) is plausibly bounded but its construction site was not
+  yet located; next step recorded in ACTIVE_WORK.
 - **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
   Include parser/name/type resolution, elaboration, code generation, simulator,
   DPI/VPI, other compiler targets and qualification harnesses. Include silent
@@ -821,3 +828,33 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   `__vpiVThrStrStack` a `vpiVectorVal` path (and reconciling the `vpiSize`
   unit inconsistency generally, not only for this one caller) is a separate,
   non-trivial VPI runtime change, out of U15's scope.
+
+
+### DD049 — vpiLineNo/vpiFile never captured for signals, part-selects or class variables
+
+- **Active blocker:** DD046 triage; record-only.
+- **Observation:** `vpi_get(vpiLineNo, handle)` returns a hardcoded `0` for
+  every ordinary signal/net/reg (`__vpiSignal`, `vvp/vpi_signal.cc:552`),
+  every part/bit select (`__vpiPV`, `vvp/vpi_signal.cc:1415`), and every
+  class variable (`__vpiCobjectVar`, `vvp/vpi_cobject.cc:201`) -- all three
+  sites carry the identical `// Not implemented for now!` comment. `struct
+  __vpiSignal` (vvp/vpi_priv.h) has no file/line storage field at all: the
+  value was never captured, not merely left unwired to an existing field.
+- **Possible clause:** IEEE1800-2017 37.3.3: "Most objects have... vpiLineNo
+  [and] vpiFile... applicable to every object that corresponds to some
+  object within the source code," with an explicit exception list that does
+  not include signals, part-selects, or class variables -- so this is
+  normatively required for these kinds, not optional.
+- **Reachability:** trivial; any `vpi_get(vpiLineNo, ...)` on an affected
+  handle observes it.
+- **Scope:** architecture-wide, not a bounded single-function fix. A correct
+  fix needs new file/line plumbing from elaboration through netlist
+  compilation into vvp bytecode/VPI object creation, for every affected
+  object kind (not fully enumerated -- these three classes were the ones
+  examined; other classes were not checked for the same pattern).
+- **Evidence:** `evidence/campaign-20260908/dd046/triage-20260911.md`
+  (Candidate 1).
+- **Triage:** OPEN; reproduced; too large for one bounded DD046 increment.
+  A future selection should scope it explicitly as its own multi-part
+  feature (which object kinds, what elaboration-to-vvp plumbing) rather than
+  a single reducer-sized fix.
