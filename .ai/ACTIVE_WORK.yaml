@@ -12,6 +12,6 @@ root_cause: "PCallTask::elaborate_build_call_ resolves a genuine void function a
 allowed_scope: ["Resolved user void-function statement legality in PCallTask shared call builder;paired effects/dispatch/output/ref and rejection controls,required gates."]
 non_goals: ["No arbitrary void expressions/task casts,deferred assertion action relaxation,new runtime ops,library-specific behavior or UVM source edits;no full call/UVM qualification."]
 required_gates: ["Both-edition reducer/call effects/empty/virtual/output/ref and direct-call parity;task-cast/void-expression/deferred-action negatives;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Run required full gates on frozen candidate;JSON after integrated terminal;frontend last alone/restore/hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated.log"
+next_action: "Monitor reconciled integrated14015/UVM50856;JSON after integrated terminal;frontend last alone/restore/hashes. Native candidate unchanged795d9f360;test reconciliation8afc61443."
+next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated-reconciled.log"
 stop_after_completion: false

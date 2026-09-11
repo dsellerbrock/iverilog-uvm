@@ -7,18 +7,18 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "58edf8034"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L24 integrated94711,UVM7768,NFA51508,releases35204 live;JSON after integrated terminal;frontend last alone/restore/hashes. PR275 remote CI separate;no merge authorization."
+pending_gates: "L24 reconciled integrated14015/UVM50856 live;JSON after integrated terminal;frontend last alone/restore/hashes. NFA58/58/releases complete on unchanged binaries. PR275 CI separate;no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Complete frozen L24 full gates;JSON after integrated terminal;frontend last alone/restore/hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated.log"
+next_selection: "After validated L24, assess DD042 pre-1.1d DPI command-line/regex entry points using pinned original source and existing backend helpers."
+next_action: "Complete L24 reconciled gates;JSON after integrated terminal;frontend last alone/restore/hashes."
+next_command: "tail -12 ../evidence/campaign-20260908/l24/integrated-reconciled.log"
 next_command_cwd: repository root
 candidate_state: "L22/L23 two validated unpublished increments after PR275 f543fede0;L24 selected."
 installed_tools: "795d9f360 candidate;frozen evidence/campaign-20260908/l24/sha256.txt;last fullyvalidated58edf8034."
-validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
-next_validation: "Next concrete reducer and standards check."
-completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
+validation_state: "Last fullyvalidated58edf8034 L23;closure details below. L24 candidate795d9f360 has passing focus,makecheck,NFA and completed release census;initial integrated failure reconciled by test-only8afc61443,required reruns pending."
+next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
+completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
@@ -580,3 +580,5 @@ l24_live_gates: {integrated: 94711, uvm: 7768, nfa: 51508, releases: 35204}
 l24_release_terminal: "35204 exit1;results-6_pvcxya complete/baseline_valid,11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL. All15 original source/archive hashes match L23. 1.0p1/1.1a now compile and start,fail missing dpi_get_next_arg_c/dpi_regcomp;1.0p1 also unresolved functor/$cast diagnostics. No new smoke pass;other13 statuses unchanged. NFA51508 exit0,58/58. Integrated94711,UVM7768 live;JSON/frontend unstarted."
 
 l24_gate_reconciliation: "Integrated94711 exit1: sole legacy failure sv_void_cast_fail1 expected the newly permitted dedicated statement to fail. VPI105/0,negative149/0,runtime15/15 passed before gate exit. UVM7768 stopped143 and reaped before test edit;not a completed pass. Replaced obsolete negative with direct void-function expression rejection,verified exact diagnostic;retained task/arbitrary-call negatives. Focus7/0. Independent review agrees;paired2017/2023 positives establish current scope,2005 acceptance remains unqualified. No compiler/install changes;five frozen hashes must match. Required integrated/UVM rerun,JSON/frontend pending. Old logs preserved. "
+
+l24_reconciled_live_gates: {integrated: 14015, uvm: 50856, semantic_candidate: "795d9f360", test_reconciliation: "8afc61443", remaining: "JSON after integrated terminal;frontend last alone;NFA/release results retained on identical five-hash binaries"}
