@@ -1,19 +1,22 @@
-id: "L28"
-title: "Unresolved forwarded type specializations must not execute static initialization"
-status: "closed"
-phase: "completed"
-base_revision: "24562d1b1"
+id: "L29"
+title: "Release abandoned procedural block scopes during parser recovery"
+status: "active"
+phase: "root_caused"
+base_revision: "3527d3107"
 last_validated_revision: "77cce610b"
-reproducer: "../evidence/campaign-20260908/l28/forward-seed-init.sv and .json: unused Forward#T declares Generic#T;one real Generic#bit causes two registrations,both editions compile0/runtime1. DD044 larger callback reducer preserved."
-expected_behavior: "A specialization request whose bare type actual still refers through direct/multilevel formal lineage to an unspecialized generic formal remains symbolic and contributes no runtime static initialization. Real concrete specializations initialize exactly once,including concrete keys first encountered from template bodies."
-standards: ["Both IEEE1800-2017/2023 8.25: generic class is not a type;static storage belongs to concrete specializations."]
-root_cause: "Forwarded symbolic requests have specialized_instance metadata but existing class_type_parameter_is_deferred retains their generic source lineage. Static initializer process emission currently ignores that distinction."
-allowed_scope: ["Use existing deferred-type-parameter predicate at static initializer process registration;retain initializer analysis,const checks,concrete identity/ordering;permanent symbolic/concrete reuse and callback controls."]
-non_goals: ["No blanket seed_derived suppression,identity merging,value-parameter or nested-type-expression generalization or parser redesign;no automaticfullUVM/callback claim."]
-required_gates: ["Both-edition red/green and realconcrete cache-reuse/forwarding/default/const controls;independent review;nativebuild/makecheck/focus/neighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/frozenhashes."]
-independent_pending_work: "U13 remains open awaiting freshLinuxCI on9006baa15;contract preserved in l28/U13-awaiting-ci.yaml. It changes only fixture invocation;L28 depends on fully validated semantic8f2252dd3,not pendingU13. Do not close U13 or change publishedCIcandidate while gates run."
-next_action: "Return to selection;inspect remaining1.1b/c recording macro gap while tracking independentU13CI."
-next_command: 'rg -n uvm_record_attribute third_party/uvm-releases/sources/1.1b'
+classification: "parser robustness; not legal-feature or UVM qualification"
+reproducer: "../evidence/campaign-20260908/l29/one-loop.sv; reduction.json and parser-trace.log"
+current_behavior: "Both editions abort134 after malformed tuple statement inside nested begin/if in a declaring for loop. Legal replacement compiles0."
+expected_behavior: "Reject malformed source with syntax diagnostics and ordinary nonzero termination; discard abandoned lexical scopes consistently; preserve valid block/loop behavior."
+standards: ["IEEE1800-2017 and 2023 procedural sequential-block and for-loop syntax/scope,9.3.1/12.7.1; error recovery itself is an implementation robustness obligation,not a standards-feature gain."]
+root_cause: "Bison trace shows discarded untyped begin-scope midrule without cleanup; error-semicolon recovery yields PNoop and normal enclosing loop reduction asserts on orphan lexical scope."
+suspected_symbols: ["parse.y procedural begin/fork scope carriers", "current_block_stack", "pform_finish_for_variable_declarations", "pform_finish_for_nondeclaration"]
+allowed_scope: ["Owned procedural-block parser scope cleanup at shared recovery boundary; focused malformed/nested/named/loop controls and permanent regressions; required validation and scoped documentation."]
+non_goals: ["No recording macro adapter, vendor impersonation, UVM source edits, parser redesign, disabled assertions or accepted malformed input."]
+dependencies: ["Fully validated compiler77cce610b; U13 harness-only Linux CI independently pending and not a semantic dependency."]
+required_gates: ["Both-edition pre-fix/green negative and positive controls; independent design/code review; native serial build and Bison conflict signature; focus and neighboring legacy/JSON; makecheck/integrated/JSON/UVM/NFA/releases; isolated frontend last and restored frozen hashes."]
+evidence: "../evidence/campaign-20260908/l29/"
+discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
+next_action: "Review shared block carrier ownership and implement smallest destructor-based recovery."
+next_command: "sed -n '17370,17470p' parse.y"
 stop_after_completion: false
-
-validation_result: "77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification."

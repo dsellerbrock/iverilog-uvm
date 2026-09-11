@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "selection"
-phase: "isolating_next_reducer"
+current_blocker: "L29"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "77cce610b"
@@ -11,8 +11,8 @@ pending_gates: "L28 localgates complete. U13 independentLinuxCI9006baa15 remains
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "DD038 original1.1b/c recording macro gap;not empty macro bypass or vendor impersonation."
-next_action: "Assess remaining1.1b/c undefinedrecordingmacro causally;preserve originalsources;track independentU13CI."
-next_command: 'rg -n uvm_record_attribute third_party/uvm-releases/sources/1.1b'
+next_action: "Repair L29 abandoned procedural block scope ownership after independent design review."
+next_command: "sed -n '17370,17470p' parse.y"
 next_command_cwd: repository root
 candidate_state: "L28 closed77cce610b;13/15 boundedruntime smoke passes;nextimplementation selection. U13openawaitingCI."
 installed_tools: "77cce610b validated;l28/sha256.txt restored/unchanged."
@@ -688,3 +688,5 @@ l28_json_terminal: "71959exit0;1847tests0failures. UVM47643 live;frontend unstar
 l28_uvm_terminal: "47643exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allotherlocalgates terminal;restore/frozenhashes required afterward. U13 independent remoteCI retained."
 
 l28_closure: "77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification."
+
+l29_selection: "Both-edition malformed nested procedural-block reducer abort134; existing parser trace proves discarded untyped begin carrier leaves lexical scope above for loop. Activate robustness-only scope cleanup; original1.1b/c recording adapter remains independent design boundary. No compiler edits yet. Last validated77cce610b; U13 Linux job103200770181 remains live in UVM step."

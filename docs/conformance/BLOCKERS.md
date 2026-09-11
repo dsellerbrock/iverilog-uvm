@@ -997,3 +997,15 @@ L27 final validation: 8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0
   changes a fixture command. L28 has no dependency on that pending harness gate.
 
 L28 final validation: 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.
+
+### L29 — Abandoned procedural block scope during parser recovery
+
+- **Status:** ACTIVE, root-caused; robustness only.
+- **Evidence:** `evidence/campaign-20260908/l29/one-loop.sv`, both editions
+  abort134 on validated77cce610b; legal replacement compiles0. Existing parser
+  trace shows a discarded begin midrule leaves lexical scope active, then
+  normal enclosing for reduction reaches a scope assertion.
+- **Scope:** Release discarded procedural block scopes at their ownership
+  boundary; retain syntax rejection and valid nested/named/loop behavior.
+- **Not claimed:** Recording support or another UVM release pass. U13 Linux CI
+  remains independently awaiting validation; no dependency on pending semantics.
