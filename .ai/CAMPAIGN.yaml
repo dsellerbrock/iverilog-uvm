@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L17"
-phase: "publication_boundary"
+current_blocker: "L22"
+phase: "selected"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "d8e974913"
@@ -11,8 +11,8 @@ pending_gates: "L17 local/application gates complete;final evidence review and f
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Publish validated L19/L20/L21/L17 batch to existing PR275,then assess next legacy release or correctness blocker."
-next_command: "git status --short"
+next_action: "Reproduce L22 process::state failure in both editions and trace nominal enum integration before implementation."
+next_command: "local-install/bin/iverilog -g2017 -sprocess_state_return -o ../evidence/campaign-20260908/l22/red.vvp ../evidence/campaign-20260908/l22/red.sv"
 next_command_cwd: repository root
 candidate_state: "L19/L20/L21 three validated unpublished increments;prefer publish with resumed L17 coherent scope if it validates."
 installed_tools: "d8e974913 candidate;frozen evidence/campaign-20260908/l17/sha256-final.txt;last fullyvalidated1146d2187."
@@ -542,3 +542,5 @@ l17_closure: "d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,orig
 l17_application_replay: "Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value."
 
 l17_final_evidence_review: "Independent read-only review clear: actual transaction comparisons and queue checks enabled,all seven recorded component hashes match,source clean,embedded DPI loaded,no extra fallback/waiver. Application scope -g2012/defaultseed/singlecore only."
+
+legacy_uvm_pr_third_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "f543fede06debe8ee7190d8577286a1dab69a3e2", state: "open", scope: "Added L19,L20,L21,L17 and original1.2 debug-crossbar smoke PASS", remaining: "Fresh remote CI;no merge authorization"}

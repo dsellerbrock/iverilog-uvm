@@ -886,3 +886,9 @@ unchanged. L17 can resume on the validated runtime.
 L17 closure after validated L18/L19/L20/L21 prerequisites: d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,original red passes both editions,makecheck,independent source review;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1823/0,realDPIUVM355/0/0,NFA58/58,frontend97109exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-3d_bbaiu11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L21.
 
 Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value.
+
+### L22 — Built-in process::state nominal enum type
+
+- **State:** SELECTED after validated L17 and four-increment publication.
+- **Evidence:** Original UVM1.0p1 uvm_phases.svh2824 function return type fails visible-class lookup on d8e974913.
+- **Scope:** 2017/2023 9.7 declared state enum and typed status/constants, preserving 6.19 nominal enum semantics. No scheduling redesign or full UVM1.0p1 qualification.

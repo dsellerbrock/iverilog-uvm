@@ -1,17 +1,16 @@
-id: "L17"
-title: "Integral compound updates of dynamic-array class properties"
-status: "closed"
-phase: "done"
-base_revision: "a29e62dd6"
+id: "L22"
+title: "Built-in process::state enum type and status return identity"
+status: "in_progress"
+phase: "selected"
+base_revision: "f543fede0"
 last_validated_revision: "d8e974913"
-reproducer: "Original red.sv and failed pre-prerequisite focus preserved in evidence/campaign-20260908/l17; DD035 five original1.2 array compound updates took whole-object null fallback."
-expected_behavior: "Update selected integral whole element with correct width/signedness/four-state behavior, one index evaluation, captured receiver identity and invalid-index no-write semantics; never replace array with null."
-standards: ["IEEE1800-2017/2023 11.4.1,11.6,11.8;invalid array indices2017 7.4.6 and2023 7.4.5."]
-root_cause: "show_stmt_assign_sig_prop_darray_index returns-1 for compound opcode; caller treats it as whole-array assignment. Retain array/index, read typed element, use validated shared vector RHS helper, skip invalid store."
-allowed_scope: ["tgt-vvp/stmt_assign.c direct integral whole-element dynamic-array property lowering; preserved permanent paired tests and required gates; direct docs."]
-non_goals: ["No full container/compound qualification, real/string compound feature, original UVM/OpenTitan changes, new runtime instructions or unrelated associative/index/receiver fixes."]
-validated_prerequisites: ["L18 signedness9791e6411", "L19 four-state operands72a97c038", "L20 operation widthsfe12166bd", "L21 captured root1146d2187"]
-required_gates: ["Originalred/both-edition focus/width/state/receiver/index/bounds and neighbors;independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restore/hashes;original1.2 OpenTitan replay after full local validation."]
-next_action: "Publish coherent L19/L20/L21/L17 batch to existing PR275,then select next evidence-backed blocker."
-next_command: "git status --short"
+reproducer: "evidence/campaign-20260908/l22/red.sv; original UVM1.0p1 uvm_phases.svh2824 returns process::state and fails visible-class lookup."
+expected_behavior: "The built-in process class exposes nominal enum state with FINISHED,RUNNING,WAITING,SUSPENDED,KILLED; status() returns that enum, permitting typed variables/returns and enum methods without weakening enum assignment rules."
+standards: ["IEEE1800-2017/2023 9.7 built-in process prototype;6.19 enum identity/assignment rules"]
+root_cause: "Parser class-scoped typedef lookup requires a PClass, while process exists only as a special typedef/built-in netclass. Existing status expressions/constants use raw integers; causal investigation underway."
+allowed_scope: ["Built-in process state type lookup, shared enum representation and typed state constants/status expressions; paired positive/negative regressions and required gates."]
+non_goals: ["No process scheduling redesign, generic class-lookup rewrite, user-library edits, integer alias substituted for enum, full process/legacy UVM qualification."]
+required_gates: ["Both-edition reducer and enum identity/width/sign/name/assignment controls;process status/control neighbors;independent review;native serial build/makecheck/full integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
+next_action: "Reproduce both editions,trace enum registration and parser builtin type path,review smallest nominal-enum design before implementation."
+next_command: "local-install/bin/iverilog -g2017 -sprocess_state_return -o ../evidence/campaign-20260908/l22/red.vvp ../evidence/campaign-20260908/l22/red.sv"
 stop_after_completion: false
