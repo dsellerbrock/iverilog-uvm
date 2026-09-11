@@ -614,3 +614,58 @@ after L29, but discarding the foreach carrier itself is a separate unqualified
 robustness case. No independent failing reducer yet; record-only during L29.
 Source: parse.y foreach productions; standards scope context12.7.3; do not claim
 all parser recovery qualified.
+
+
+### DD046 — User-requested sweep of all fallback and compile-progress paths
+
+- **Active blocker:** L31; this inventory is record-only. Fixes follow the UVM
+  smoke campaign, one implementation contract at a time.
+- **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
+  Include parser/name/type resolution, elaboration, code generation, simulator,
+  DPI/VPI, other compiler targets and qualification harnesses. Include silent
+  constant/no-op substitutions, even without a fallback warning.
+- **Evidence revision:** 3d60cb54a (compiler candidate0a4e7d639).
+- **Inventory:** `evidence/campaign-20260908/fallback-tracked-candidates.tsv`
+  and `.json` outside the checkout retain the file/line candidates and scanned
+  file manifest. 608 tracked C/C++/header/grammar/Python/shell files scanned;
+  12849 matching lines, with overlapping tags: fallback494, stub609,
+  degradation2245, constant-return9652. These are search hits, NOT defect counts.
+  Tests, third_party/vendor, skills, graph artifacts and untracked generated
+  sources are excluded from this implementation inventory. Pinned UVM diagnostics
+  remain independent application evidence.
+- **Search vocabulary:** fallback/fall-back; stub/placeholder/compile-progress;
+  ignored/silently/approximation/unsupported/not-enforced/noop/dummy/fabricated/
+  dropped/forced-to/substitute; and literal zero/one/true/false/null/empty returns.
+  Repeat against the selected revision and trace unnamed equivalent paths.
+
+Source-confirmed candidates (reachability by legal source and exact semantic
+loss still require reducers; comments and diagnostic wording are not an oracle):
+
+| Area | Source anchors at evidence revision | Observed implementation | Qualification needed |
+| --- | --- | --- | --- |
+| Lost expression typing | netmisc.cc:1899,1906,1925,2310,2341 | Replaces expressions with empty string, real/integer zero or null | Preserve actual type/value and side effects; distinguish illegal assignments from legal unresolved specialization |
+| Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | Typed expression stubs and ignored calls | Real dispatch, returns, arguments, side effects and callbacks |
+| Casts | elab_expr.cc:18184 | Emits bits-reinterpreted compile-progress warning | Edition-specific cast legality, value and type identity |
+| Constraints | parse.y:18467; original1.0p1 pick_sequence compile diagnostic | Parses/drops some with-clauses; observed ignored constraint | Legal clause routing, solver participation and distribution semantics |
+| Events and waits | elaborate.cc:19847,20322,20458,20629,20775 | Skips event controls or wait behavior | Correct blocking, wakeup dependencies and scheduling |
+| Iteration | elaborate.cc:22119 | Drops a nested associative foreach body on unsupported descent | Legal element shapes, iteration order and actual body execution |
+| Membership | tgt-vvp/eval_vec4.c:1937 | Emits constant no-match for unsupported container shape | Exact membership and propagation of compile failure where applicable |
+| Increment/decrement | tgt-vvp/eval_vec4.c:2354 | Reads expression without update in fallback | Legal lvalue mutation, result and single evaluation |
+| Array locators | tgt-vvp/eval_object.c:2584,2622 | Empty results for selected element types | Correct selected values/indices and predicate evaluation |
+| String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | Empty-string/null substitutions | Actual selection/coercion semantics; reject illegal source correctly |
+| Missing executable targets | tgt-vvp/vvp_process.c:808 | Creates unresolved TD label with only end instruction | Real executable body and correct return/completion behavior |
+| Simulator/VPI | vvp/compile.cc:1148; vvp/vpi_callback.cc:217 | Placeholder-net path; constant-true callback-readiness helper | Trace callers and prove whether upstream filtering supplies required semantics |
+| Qualification fallback | .github/uvm_test.sh:139 | Switches to UVM_NO_DPI if real DPI build fails | Keep real-DPI and no-DPI evidence separate; never count substitution as real-DPI qualification |
+
+- **Triage:** OPEN, semantic classification pending. Ordinary allocation
+  fallbacks, generated DPI bridge stubs, valid empty-container results and
+  error-recovery paths are not automatically defects. Inspect the surrounding
+  control flow and terminal diagnostic status. Source-confirmed substitution
+  does not yet prove a legal reproducer reaches it.
+- **Completion rule:** Every candidate must be classified as valid behavior,
+  unreachable/superseded with evidence, explicit unsupported/qualification gap,
+  or a reproduced semantic defect. All legal behavior-changing fallbacks need
+  standards-grounded implementation and permanent regressions; warning removal,
+  an unsupported error, or a smoke pass alone cannot close that obligation.
+  Keyword coverage is not semantic exhaustiveness; review default branches,
+  early returns, ignored statuses and synthesized values by requirement cluster.

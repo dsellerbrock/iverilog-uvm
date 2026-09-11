@@ -1056,3 +1056,10 @@ uvm_sequence_base.svh949, and class-cast bits reinterpretation at
 uvm_phases.svh1951. Reproduce exact semantic effects before selecting each
 implementation contract. A constant-loop warning alone is not a stub.
 L31 remains active; this priority does not authorize unrelated edits in its patch.
+
+
+User follow-up explicitly authorizes a sweep of **all fallbacks**, including
+silent paths and qualification-harness substitutions. DD046 records the first
+tracked-source inventory, source-confirmed categories, false-positive rules,
+and remaining semantic triage. This is discovery work, not another governance
+bootstrap. Fix behavior-changing cases after UVM smoke, with one active blocker.
