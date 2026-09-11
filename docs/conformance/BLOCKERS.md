@@ -800,3 +800,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 
 - **U09 validation:** Focused10/10 under2017/2023; legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,independent review and frontendS1–S10. Installed root restored and frozen hashes unchanged. Original15release sweep results-n2m35ki0:11SMOKE_PASS4COMPILE_FAIL; all source hashes unchanged. Exact cached-regex gap closed, full release/application qualification remains open.
+
+### U10 — OpenTitan UVM1.2 selection and provenance
+
+- **State:** SELECTED after validated U09.
+- **Gap:** Replay harness selects and fingerprints bundled UVM despite pinned OpenTitan commercial configurations selecting1.2.
+- **Scope:** Forward an explicit acquired source root, record its actual fingerprint and replay the pinned debug crossbar with original1.2. Keep all application checking and failure criteria.

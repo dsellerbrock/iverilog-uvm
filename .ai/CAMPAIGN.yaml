@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "U09"
-phase: "selection"
+current_blocker: "U10"
+phase: "spec_grounded"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "19e7f5592"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None for U09 local closure; publication and remoteCI remain separate."
+pending_gates: "U10 self-test, invalid path, original1.2 OpenTitan replay and independent review."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Select OpenTitan original1.2 runtime configuration/provenance and replay."
-next_command: "sed -n '873,930p' scripts/opentitan_matrix.py"
+next_action: "Add scoped selection test, establish red, implement existing driver --uvm-home forwarding and accurate fingerprinting."
+next_command: "python3 scripts/opentitan_matrix.py --self-test"
 next_command_cwd: repository root
 candidate_state: "U09 validated and closed; two unpublished increments U08/U09."
 installed_tools: "Frozen evidence/u09/sha256.txt at19e7f5592; do not build/install while gates run."

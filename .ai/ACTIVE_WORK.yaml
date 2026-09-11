@@ -1,24 +1,17 @@
-id: "U09"
-title: "Legacy UVM cached-regex DPI entry points"
-status: "closed"
-phase: "done"
-base_revision: "c9626a449"
+id: "U10"
+title: "OpenTitan UVM1.2 selection and truthful replay provenance"
+status: "in_progress"
+phase: "spec_grounded"
+base_revision: "578ca58e9"
 last_validated_revision: "19e7f5592"
-selection_reason: "User requested legacy DPI; DD030/DD027 identify missing C exports in original1.2/1.1d. Pinned source already acquired; U08 fully validated before selection."
-reproducer: "results-eb3ghca7 original1.2/1.1d runtime logs: missing uvm_dpi_regcomp, command-line regex errors and BUILDERR fatal. nm confirms regcomp/regexec/regfree exports absent."
-expected_behavior: "Expose uvm_dpi_regcomp/regexec/regfree with the UVM1.2 cached POSIX ERE contract: compile REG_NOSUB|REG_EXTENDED without glob retry, reusable opaque handles, match/nonmatch polarity, null handling, release allocated regex, report invalid compilation and return null."
-standards: ["Pinned Accellera UVM1.2 src/dpi/uvm_svcmd_dpi.c and .svh are legacy API authority.", "IEEE1800-2017/2023 clause35 DPI-C return/argument type mapping; chandle corresponds to an opaque C pointer. This is not full IEEE1800.2 qualification."]
-root_cause: "Fork umbrella includes modern uvm_svcmd_dpi.c, whose regex adapters moved to SV; old libraries still import their C symbols. Existing uvm_re_match/glob exports do not satisfy the cached-regex ABI."
-allowed_scope: ["Add the three missing C entry points to fork-owned uvm_dpi/uvm_dpi_iverilog.cc, reusing native POSIX regex and existing reporting helper.", "Permanent legacy cached-regex fixture, frontend registration, focused original-library ABI and smoke replay, directly affected documentation."]
-non_goals: ["No changes to pinned library source, compiler semantics, modern regex/glob behavior or general visibility debt.", "No UVM1.2 application pass claim from smoke alone.", "UVM1.1d valid-pattern compatibility is tested; its historical print-only invalid-pattern diagnostics are not claimed identical to UVM1.2 error reporting."]
-required_gates: ["Pre-fix missing-export reducer; both-edition standalone fixture positive/negative/handle-lifetime/error-count checks; independent review.", "Native build/export check; full integrated legacy/VPI/negative/runtime,JSON,real-DPIUVM,NFA,makecheck,full15release sweep; isolatedfrontend last and restored hashes."]
-discovery_policy: "Unrelated discoveries record-only. Regression caused by this patch remains in scope."
-next_action: "Select OpenTitan original1.2 runtime configuration/provenance and replay."
-next_command: "sed -n '873,930p' scripts/opentitan_matrix.py"
+selection_reason: "User requests OpenTitan pinned to1.2; pinned VCS/Questa/Riviera/Xcelium configs explicitly choose1.2. U09 all required gates passed."
+reproducer: "Current matrix compile_command unconditionally injects bundled -uvm and compiler_fingerprint hashes installed bundled sources. No argument selects original1.2."
+expected_behavior: "Explicit --uvm-home selects an acquired original library only for jobs that require UVM; source fingerprints describe that selected source tree. Existing default behavior and no-UVM lanes remain unchanged. Replay pinned OpenTitan debug crossbar using checksum-pinned original1.2 and authoritative traffic/checker classification."
+standards: ["Pinned OpenTitan7a3ad34 hw/dv/tools/dvsim/{vcs,questa,riviera,xcelium}.hjson select1.2; harness/provenance change, not IEEE semantic gain."]
+root_cause: "Harness does not forward the existing compiler source selector and assumes bundled sources for provenance."
+allowed_scope: ["scripts/opentitan_matrix.py argument validation, UVM-only compiler selection, source fingerprint and permanent self-test; directly affected README/evidence/blocker records."]
+non_goals: ["No compiler/library/application source changes or warning/traffic/checker threshold relaxation. Application FAIL remains FAIL and may select a later blocker. No full UVM/IEEE/formal completion claim."]
+required_gates: ["Permanent self-test for selected source fingerprints and UVM-only command routing; invalid path rejection; actual pinned OpenTitan1.2 replay with commands, source hashes, traffic/checker/normal completion evidence. Compiler remains validated19e7f5592.", "Independent scope review and diff/YAML checks."]
+next_action: "Add scoped selection test, establish red, implement existing driver --uvm-home forwarding and accurate fingerprinting."
+next_command: "python3 scripts/opentitan_matrix.py --self-test"
 stop_after_completion: false
-
-red_evidence: "evidence/u09/red.json: both2017/2023 compile0 then run1; missing uvm_dpi_regcomp and fatal legacy regex compilation. PrimaryDPI mapping is AnnexH scalar mapping (chandle void*) plus35.5.5/35.5.6 return/formal types, checked against both local editions."
-
-reporting_refinement: "Original1.1d lacks m__uvm_report_dpi entirely. Both original1.2 ABI modes pass;1.1d invalid-pattern probe reaches missing-export internal error despite valid smoke passing. Extend existing legacy error helper to use the UVM callback when present and a visible native diagnostic when absent; no runtime architecture change. Preserve a permanent no-callback fixture and original1.1d error-path evidence."
-
-focused_validation: "corrected-focused.json10/10: modern cached/uncached, no-callback, original1.1d/1.2 each2017/2023. Dotted callback lookup failed six cases and was corrected to VPI package syntax ::. Final original ABI checks include one native diagnostic for1.1d and real UVM error counts for1.2. Initial smoke replay both1.1d/1.2 passes; final full sweep required."
