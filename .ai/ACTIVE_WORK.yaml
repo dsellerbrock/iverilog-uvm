@@ -11,8 +11,8 @@ root_cause: "vvp/main.cc intentionally permits GNU getopt argument permutation. 
 allowed_scope: ["Insert end-of-options separator in the legacy_10_dpi fixture invocation only;retain all literal argv assertions and required diagnostics;local frontend restore/hash validation and fresh published Linux CI."]
 non_goals: ["No runtime option-parser change,POSIXLY_CORRECT workaround,removed -f assertion,DPI behavior changes or forwarded-template implementation. L28 reducer preserved for later selection."]
 required_gates: ["Existing Linux failure log;unchanged exact-argv fixture passes both editions locally;isolatedfrontend last alone with installationrestore/frozenhashes;fresh Linux CI confirms correction before final closure."]
-next_action: "Publish L26/L27/U13 to existing PR275;await fresh Linux checks before U13 closure."
-next_command: 'sed -n "225,244p" .github/uvm_frontend_test.sh'
+next_action: "Await fresh Linux CI on published9006baa15;close U13 only after evidence,then select preservedL28."
+next_command: 'gh pr view 275 --json state,headRefOid,statusCheckRollup'
 stop_after_completion: false
 
 local_validation: "Frontend35171exit0 allscenarios,including exact oldDPI argv both editions;installation restored/five8f2252dd3hashesmatch;independent review clear. Both Linux failurelogs confirm same getopt-f cause. Fresh Linux CI required."

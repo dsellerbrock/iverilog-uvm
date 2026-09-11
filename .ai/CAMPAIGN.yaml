@@ -1,20 +1,20 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U13"
-phase: "root_caused"
+phase: "awaiting_linux_ci"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "8f2252dd3"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "U13 frontend/freshLinuxCI required;published2785 Linux22/24 failed oldDPI harness getopt-f;macOS/Windows inprogress."
+pending_gates: "U13 freshLinuxCI required on published9006baa15;localfrontend/review/restorehashes pass. No live local gates. Other PR required checks also pending;no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After U13 validation,DD044 forwarded-seed initializer reducer l28/forward-seed-init.sv."
-next_action: "Fix legacy fixture option separator;frontend validate then publish L26/L27/U13 batch toPR275;no merge."
-next_command: 'sed -n "225,244p" .github/uvm_frontend_test.sh'
+next_action: "Inspect PR275 freshhead CI;download completed Linux job logs. Keep U13 awaiting validation until fresh Linux passes;then close exactharnessscope and select preservedL28 reducer."
+next_command: 'gh pr view 275 --json state,headRefOid,statusCheckRollup'
 next_command_cwd: repository root
-candidate_state: "U13 selected CI regression;L28 both-edition forwarded-seed reducer retained;no semantic implementation active."
+candidate_state: "Published9006baa15 batches validatedL26/L27 and locally validatedU13;U13awaitingLinuxCI."
 installed_tools: "8f2252dd3 validated;l27/sha256.txt restored/unchanged."
 validation_state: "8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and independent design/code review; legacy4951total4946pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1843/0,realDPIUVM355/0/0,NFA58/58,frontend78203exit0 allscenarios; installation restored and five frozen hashes match. Complete15release results-ni3wgjii12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes matchL26;original1.0p1 stilltwo callbackcasts."
 next_validation: "U13 isolated frontend and fresh Linux CI on corrected published head."
@@ -668,3 +668,5 @@ l27_closure: "8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0,static/
 l28_selection_evidence: "forward-seed-init.sv has unused Forward#T with Generic#T member and one real Generic#bit;expectedone registration got2 in both editions on8f2252dd3. Preserved l28/sv/json;not active while U13 CIregression corrected."
 
 u13_local_validation: "One invocation separator;all existing exactargv/regex checks unchanged. Frontend35171exit0 allscenarios;restore/fivefrozen8f2252dd3hashesmatch;independentreviewclear. Linux22/24 oldlogs confirm same pre-runtime invalidoption-f. U13 remains awaiting freshLinuxCI;publish coherentL26/L27/U13 batch."
+
+legacy_uvm_pr_sixth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "9006baa152b1da5c684f86af59f9d2128500bc1f", state: "open", scope: "ValidatedL26/L27 plus localvalidatedU13", remaining: "FreshLinuxCI requiredforU13;allrequiredPRchecks/no mergeauthorization"}
