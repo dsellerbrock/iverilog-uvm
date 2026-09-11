@@ -811,6 +811,8 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L15 — Pasted function-like macro names with numeric suffix
 
-- **State:** SELECTED after U10 closure.
+- **State:** CLOSED at aa356ab4d after required local validation and original1.2 replay.
 - **Evidence:** DD031 original1.2 OpenTitan field macro pastes uvm_print_aa_string_int3 but reports a missing argument list for its shorter prefix.
 - **Scope:** Prove text-substitution semantics, correct the causal preprocessor boundary and preserve permanent paired-edition regression. No upstream source modifications.
+
+- **L15 validation:** aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged. OpenTitan macro errors/cascades removed; next failure is three const-handle member assignment diagnostics, DD032. No application pass.

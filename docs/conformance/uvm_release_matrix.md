@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `19e7f5592` (U09 legacy cached-regex DPI).
-The release sweep and all required U09 local validation gates are complete.
+2026-09-10, native ARM64, validated source `aa356ab4d` (L15 pasted function-like macro names).
+The release sweep and all required L15 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-n2m35ki0/results.json`, with per-release
+`third_party/uvm-releases/results-n1_l078l/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -118,7 +118,7 @@ compiler, DPI and runtime compatibility changes. U01 teardown evidence remains p
 
 - `ivl` SHA-256: `aa57713aeb8493c09fa1da2015a17d46a7df2d37f57b51875336dfc986a37faf`
 
-- `ivlpp` SHA-256: `8e378933711e11da81e2df44c4210e01bf8e1795acc634d3f0cdb1a1feb1c7f9`
+- `ivlpp` SHA-256: `04cde56ac3679d5421237d3eeda62b66209d30f001b2d886a691006dbed2e196`
 
 - `vvp` SHA-256: `448929b960a25ee12740f331e68f4206e9e8f79719286e7ba75b550124d814e0`
 
@@ -159,3 +159,5 @@ original1.1d/1.2, each under2017/2023. The full release sweep remains in
 -g2012. All required integrated and relocated frontend gates passed on
 19e7f5592. These results supersede the earlier L12/L14/U08 runtime frontiers,
 without claiming full release or OpenTitan qualification.
+
+L15 repairs pasted function-like macro names. All15 source hashes and statuses match U09. Original1.2 OpenTitan now passes its former macro-expansion frontier but fails on assignment to a mutable member through const uvm_top; no application run/pass.

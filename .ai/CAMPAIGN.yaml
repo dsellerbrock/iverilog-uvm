@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L15"
-phase: "selected"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "19e7f5592"
+last_integrated_good_revision: "aa356ab4d"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L15 reducer/LRM/rootcause/fix and required gates; PR275 fresh remoteCI."
+pending_gates: "None for L15 local closure. PR275 updated-head macOS/Windows CI pending; two Ubuntu successes."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Create reducer and inspect paste substitution flow before editing."
-next_command: "sed -n '125,190p' ivlpp/lexor.lex"
+next_action: "Select DD032 const-handle mutable member assignment; preserve original1.2 replay and source fingerprints."
+next_command: "graphify query \"const class handle property assignment\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: "U08/U09/U10 fully validated unpublished batch."
+candidate_state: "L15 validated aa356ab4d, one unpublished increment since PR275 update."
 installed_tools: "Frozen evidence/u09/sha256.txt at19e7f5592; do not build/install while gates run."
-validation_state: "aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier."
-next_validation: "Fresh remoteCI after publishing; DD031 reducer and LRM validation before implementation."
+validation_state: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+next_validation: "Next selected blocker red reducer and both-edition semantics."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -417,3 +417,18 @@ u09_closure: "19e7f5592; focused10/10,legacy4911total4906pass0fail2NI3EF,VPI105/
 u10_closure: "aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier."
 
 legacy_uvm_pr_updated: {"url": "https://github.com/dsellerbrock/iverilog-uvm/pull/275", "head": "f148d7462", "scope": "U07,L13,L12,L14,U08,U09,U10", "state": "open", "remaining": "Fresh remoteCI; no merge authorization"}
+
+l15_candidate: "aa356ab4d; legacy macrofocus24/0,JSON6/0,makecheck,independent design/final review clear. Undefined completed-name diagnostic both modes passes; initial2023 include fixture path error fixed. Frozen evidence/l15/sha256.txt includes ivlpp. No source/build/install changes during required gates."
+l15_live_gates: {frontend: 31822}
+
+l15_release_terminal: "17034 exit1 due four known compile gaps; results-n1_l078l complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL; all15 statuses and source hashes match U09. NFA69455 exit0,58/58. Integrated10932/UVM37943 still live; JSON/frontend unstarted."
+
+l15_integrated_terminal: "10932 exit0;legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON77434 started only after integrated terminal. UVM37943 still live; isolatedfrontend unstarted."
+
+l15_json_terminal: "77434 exit0;1805tests0failures. UVM37943 live; isolatedfrontend unstarted. Installed sources/tools frozen ataa356ab4d."
+
+l15_uvm_terminal: "37943 exit0;355passed0failed0skipped,realDPI. Frontend31822 started last alone after every other local gate terminated; restoration/hash checks required afterward."
+
+l15_local_validation: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent reviews,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL, all statuses/source hashes unchanged."
+
+l15_closure: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."

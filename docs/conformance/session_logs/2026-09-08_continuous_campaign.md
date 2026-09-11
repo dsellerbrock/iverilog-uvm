@@ -1978,3 +1978,34 @@ Original sources include the legacy DPI; the installed backend supplies its thre
 aaf8df44c harness only, compiler19e7f5592 unchanged. Permanent self-test PASS, invalid path exit2, explicit root/src/environment/override normalization4/4, independent review clear, diff/YAML checks pass. Pinned OpenTitan7a3ad34 original1.2 replay records correct source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 and fails compile74 at legacy macro expansion; zero application traffic, no pass claim. DD031 preserves next frontier.
 
 Evidence u10/{red.log,self-test.log,invalid-path.json,path-normalization.json,replay.sh,result.json}; original1.2 source untouched. No broad compiler gates repeated for this harness-only change; validated frozen tools checked unchanged.
+
+### L15 candidate — awaiting validation
+
+aa356ab4d repairs function-like macro-name paste scanning. The original1.2
+field macro constructs uvm_print_aa_string_int3 through several double-backtick
+delimiters; YY_INPUT committed to its already-defined shorter function-like
+prefix and then rejected the suffix as a missing argument list. A standalone
+pick/pick3 reducer reproduces the failure under both editions.
+
+Both IEEE1800-2017 and2023 clause22.5.1 require literal formal substitution
+followed by nested macro expansion, require argument parentheses for a
+function-like invocation, and allow identifier construction through the
+double-backtick delimiter. The scanner now preserves the boundary for defined
+object-like macros while permitting function-like names to finish before
+lookup, using one side-effect-free lookup. Existing object-macro expansion
+precedence remains covered by sv_macro3a/b and a permanent control.
+
+The permanent paired-edition regression covers numeric/text suffixes, nested
+expansion, multiple defined intermediate prefixes, delimiters immediately and
+with whitespace before parentheses, direct calls and object precedence.
+Legacy macro focus24/0 and JSON6/0 pass; undefined final-name diagnostics
+were separately checked in both modes. The initial2023 include wrapper used
+the wrong relative path; corrected fixture rerun passes. makecheck and
+independent design/final reviews pass. Full required gates remain pending;
+no OpenTitan rerun is claimed on this unvalidated candidate.
+
+### L15 closure
+
+aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged.
+
+Fresh original1.2 OpenTitan replay75753 exits1 with compiler3: all macro/paste cascades removed; three identical const uvm_top member assignment diagnostics remain. Original library fingerprint unchanged. DD032 records next candidate; no simulation/traffic/application pass.

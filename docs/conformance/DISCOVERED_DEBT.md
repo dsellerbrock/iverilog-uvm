@@ -416,3 +416,19 @@ followed by parser cascades. No simulation or traffic ran.
 Evidence evidence/campaign-20260908/u10/result.json and matrix-compile.log.
 Record-only during U10 harness qualification; macro source/expansion and both
 LRM editions require investigation before selecting any compiler change.
+
+DD031 resolution (L15,aa356ab4d): complete pasted function-like names now expand
+correctly under both editions and all required local gates pass. Fresh original1.2
+OpenTitan replay removes the macro errors and cascades with unchanged UVM source
+hash; compilation now exits3 at the distinct const-handle assignment frontier.
+
+### DD032 — Mutable member assignment through a const class handle rejected
+
+After validated L15, original1.2 OpenTitan debug crossbar compile fails three
+times at dv_base_test.sv92: uvm_top.enable_print_topology = print_topology.
+The diagnostic says assignment to const signal uvm_top is not allowed, although
+the target is a mutable member of its referenced object. Evidence
+evidence/campaign-20260908/l15/opentitan/result.json and matrix-compile.log;
+source hash885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0.
+No simulation ran. Record-only during L15 closure; verify both editions and
+reduce before selecting a const-handle elaboration fix.

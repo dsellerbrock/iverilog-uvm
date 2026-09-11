@@ -239,8 +239,9 @@ The OpenTitan matrix accepts the same source selection. For the pinned
 OpenTitan corpus, select its declared UVM 1.2 library by adding
 `--uvm-home="$PWD/third_party/uvm-releases/sources/1.2/uvm-1.2"` to
 `scripts/opentitan_matrix.py`. The report fingerprints that selected source
-tree. The first original1.2 debug-crossbar replay currently fails compilation
-at `uvm_print_aa_string_int`; it is not an application pass.
+tree. The original1.2 debug-crossbar replay currently fails compilation
+on a mutable member assignment through the const `uvm_top` handle; it is not
+an application pass.
 
 Advanced overrides (a different UVM library, disabling DPI, raw module
 loading) are all still available — see **[docs/uvm_frontend.md](docs/uvm_frontend.md)**
