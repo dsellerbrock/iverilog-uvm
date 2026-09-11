@@ -509,3 +509,5 @@ l20_closure: "fe12166bd;focuslegacy2/0,JSON2/0,neighborlegacy35/0,JSON40/0,makec
 l17_resumption: "After validatedL18/L19/L20,restore preserved source/tests. Whole patch check failed only appended manifests;adapt those explicitly. Original partial/reducers remain unchanged outside tree. Use L20 shared sizing helper;all L17 gates rerun."
 
 l17_second_suspension: "Resumed focus passes arithmetic/width/sign/index/bounds, fails receiver capture: original14 correct,h restoredold14 insteadreplacement100. Standalone scalar property reproduces same runtime bug. Preserved full resumed source/tests patch partial-after-l20.patch and reversed it before L21 selection. No L17 closure."
+
+l21_focused: "Standalone red both editions on restored validatedL20. Patched focuslegacy2/0,JSON2/0;property-event13/0 and mailbox8/0 in both harnesses;makecheck and independent final review clear. Captured nonstruct class root identity only;no valueaggregate/VIF notification redesign."

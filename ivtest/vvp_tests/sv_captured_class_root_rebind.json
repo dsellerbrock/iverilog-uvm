@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_captured_class_root_rebind.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_captured_class_root_rebind"
+    ],
+    "gold": "sv_captured_class_root_rebind"
+}

@@ -2930,3 +2930,6 @@ sv_compound_four_state_operand_2023 normal,-g2023,-s,sv_compound_four_state_oper
 
 sv_compound_operation_width normal,-g2017,-s,sv_compound_operation_width ivltests gold=sv_compound_operation_width.gold
 sv_compound_operation_width_2023 normal,-g2023,-s,sv_compound_operation_width ivltests gold=sv_compound_operation_width.gold
+
+sv_captured_class_root_rebind normal,-g2017,-s,sv_captured_class_root_rebind ivltests gold=sv_captured_class_root_rebind.gold
+sv_captured_class_root_rebind_2023 normal,-g2023,-s,sv_captured_class_root_rebind ivltests gold=sv_captured_class_root_rebind.gold

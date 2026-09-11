@@ -1,7 +1,7 @@
 id: "L21"
 title: "Preserve rebound class handles during captured-object mutation notification"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "e7d5b40fb"
 last_validated_revision: "fe12166bd"
 reproducer: "evidence/campaign-20260908/l21/red.sv: scalar h.value+=rebind() updates captured original correctly but notification restores old h, undoing RHS reassignment."
@@ -15,3 +15,5 @@ suspended_parent: "L17 originalpartial.patch plus resumed partial-after-l20.patc
 next_action: "Verify live class-root identity/context and alias notification semantics; implement smallest guard preserving rebound variable, then validate."
 next_command: "sed -n '19414,19482p' vvp/vthread.cc"
 stop_after_completion: false
+
+qualification_limit: "Guard only non-struct class roots; value-aggregate/VIF delivery unchanged. Existing mailbox guard retained. Check live identity after alias callbacks immediately before delivery."
