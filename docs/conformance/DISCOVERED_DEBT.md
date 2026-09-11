@@ -697,11 +697,29 @@ all parser recovery qualified.
   fix. The other (a class string property's VPI write silently dropping
   when reached through a NESTED class-typed property, e.g. `obj.inner.s`)
   was root-caused, reduced (`evidence/campaign-20260908/dd046/c3.sv`), and
-  resolved as **L33** (see `docs/conformance/BLOCKERS.md`) -- scoped to
-  string properties only; the identical gap for integral (vec4/CPV) nested
-  properties is named there as an explicit, un-fixed follow-on, not
-  silently folded in. `.ai/ACTIVE_WORK.yaml` now tracks L33's gate sweep,
-  not this DD046-TRIAGE-1 placeholder.
+  resolved as **L33** (see `docs/conformance/BLOCKERS.md`). Its named
+  integral follow-on was resolved as **L34** in the same pass, which also
+  found and fixed a second, independent real regression (an array-indexed
+  signal base silently mis-resolving) in the shared helper both L33 and
+  L34 depend on -- see BLOCKERS.md L33's addendum and L34's own entry.
+- **2026-09-11 re-triage of the curated table below:** three more rows
+  (Membership, Increment/decrement, Array locators) were checked against
+  current source with concrete reducers and found already resolved --
+  either already loud-diagnosed (not DD046's silent-path concern) or
+  already correctly implemented for the legal constructs tried; the table
+  cells below record what was actually tried. A fourth
+  (String/object lowering) is partially resolved the same way, with one
+  narrow branch (`eval_string.c:249`) still silent but no legal reproducer
+  found despite five attempts. Incidentally found along the way: `find()`
+  on a plain (non-class-property) fixed-size array of non-integral
+  elements is loudly rejected at elaboration
+  (`elab_expr.cc:16554-16562`, "sorry: ... not yet implemented") -- a real,
+  known feature gap, but loud, not silent, so not itself a DD046 target;
+  recorded here for completeness rather than opened as its own blocker.
+  Remaining unexamined rows (Lost expression typing, Unresolved
+  methods/functions, Casts, Constraints, Events and waits, Iteration,
+  Missing executable targets, Simulator/VPI, Qualification fallback):
+  `.ai/ACTIVE_WORK.yaml` carries the next selection.
 - **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
   Include parser/name/type resolution, elaboration, code generation, simulator,
   DPI/VPI, other compiler targets and qualification harnesses. Include silent
@@ -727,14 +745,14 @@ loss still require reducers; comments and diagnostic wording are not an oracle):
 | --- | --- | --- | --- |
 | Lost expression typing | netmisc.cc:1899,1906,1925,2310,2341 | Replaces expressions with empty string, real/integer zero or null | Preserve actual type/value and side effects; distinguish illegal assignments from legal unresolved specialization |
 | Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | Typed expression stubs and ignored calls | Real dispatch, returns, arguments, side effects and callbacks |
-| Casts | elab_expr.cc:18184 | Emits bits-reinterpreted compile-progress warning | Edition-specific cast legality, value and type identity |
+| Casts | elab_expr.cc:18184 | **Re-triaged (2026-09-11).** Already loud (`cerr << ... "warning: Cast to ... not fully supported"`) before either the packed-reinterpret or non-packed unchanged-passthrough fallback. Associative-array, compatible-queue, compatible-darray, and enum casts are all handled correctly by dedicated paths well before this fallback (enum cast verified with a reducer -- `evidence/campaign-20260908/dd046/c18_cast.sv`). No reproducer attempted yet for a target type that reaches the final unchanged-passthrough branch specifically (as opposed to the packed-reinterpret branch, which is a defensible real behavior, or a path handled earlier). | Loud already; re-open only if a specific unhandled-cast-target reproducer is found that reaches the passthrough branch and produces a wrong (not just imprecise) result. |
 | Constraints | parse.y:18467; original1.0p1 pick_sequence compile diagnostic | Parses/drops some with-clauses; observed ignored constraint | Legal clause routing, solver participation and distribution semantics |
 | Events and waits | elaborate.cc:19847,20322,20458,20629,20775 | Skips event controls or wait behavior | Correct blocking, wakeup dependencies and scheduling |
 | Iteration | elaborate.cc:22119 | Drops a nested associative foreach body on unsupported descent | Legal element shapes, iteration order and actual body execution |
-| Membership | tgt-vvp/eval_vec4.c:1937 | Emits constant no-match for unsupported container shape | Exact membership and propagation of compile failure where applicable |
-| Increment/decrement | tgt-vvp/eval_vec4.c:2354 | Reads expression without update in fallback | Legal lvalue mutation, result and single evaluation |
-| Array locators | tgt-vvp/eval_object.c:2584,2622 | Empty results for selected element types | Correct selected values/indices and predicate evaluation |
-| String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | Empty-string/null substitutions | Actual selection/coercion semantics; reject illegal source correctly |
+| Membership | tgt-vvp/eval_vec4.c:1937 | **RESOLVED (2026-09-11 re-triage).** Current source already emits a loud `vvp.tgt error:` before the `%pushi/vec4 0` fallback, and the queue/darray/fixed-array cases immediately above it are real implementations (`%inside/arr`, `%inside/arr/o`), not stubs. Not silent; stale table entry from an earlier revision. | None -- already loud, not DD046's silent-path concern |
+| Increment/decrement | tgt-vvp/eval_vec4.c:2354 (now ~2351) | **RESOLVED (2026-09-11 re-triage).** `draw_unary_inc_dec`'s switch handles `IVL_EX_SIGNAL`/`IVL_EX_SELECT`/`IVL_EX_PROPERTY` with real codegen; only a genuinely unhandled expr type reaches the `default:` fallback, which itself prints a loud `sorry:` before the read-only fallback. Reducers for the two legal lvalue shapes a table reader would suspect (queue element `q[0]++`, associative-array element `assoc["k"]++`) both compute correctly (`evidence/campaign-20260908/dd046/c14_incdec.sv`) -- neither reaches `draw_unary_inc_dec` at all, so this candidate is not reachable by the constructs it looked like it should cover. | None -- already loud where reachable, and the obvious legal reproducers don't reach it |
+| Array locators | tgt-vvp/eval_object.c:2584,2622 | **RESOLVED (2026-09-11 re-triage).** Both plausible reproducers -- `find()` on a fixed-size array of non-integral elements as a plain module-level signal, and as a class property -- were tested. The plain-signal case is rejected at elaboration with a loud `sorry:` (elab_expr.cc:16554-16562) before ever reaching this codegen; the class-property case (`evidence/campaign-20260908/dd046/c16_locator_prop.sv`) elaborates via the dedicated property-materializer path the code comment describes and returns the correct result. The `%null`-emitting branch here may be reachable only through a narrower combination not yet found, or may be dead code superseded by the materializer path; neither reproducer this pass tried reaches it. | Re-open only if a specific reproducer is found; not selected as DD046's next increment |
+| String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | **Partially re-triaged (2026-09-11).** `eval_object.c`'s two select/null fallbacks (1197, ~1280) are already loud (`fprintf(stderr, "Warning: ...")` before the `%null`), not silent. `eval_string.c:249`'s "select on an unsupported base type -> empty string" fallback IS silent (no diagnostic) and remains genuinely open, but five attempted legal reproducers (ternary-selected string, string-concat select, bare function-call-result select, string-method-result select, queue-of-strings element select) each either hit an earlier parser/elaboration rejection (indexing a call/ternary result directly is not parseable in this grammar today) or resolved correctly through a different, already-working path (queue element char-select). No legal construct reaching this specific silent branch was found this pass; likely unreachable given current grammar restrictions on what may be select-indexed, but not proven so. | Re-open only if a specific reproducer is found for the `eval_string.c:249` branch. |
 | Missing executable targets | tgt-vvp/vvp_process.c:808 | Creates unresolved TD label with only end instruction | Real executable body and correct return/completion behavior |
 | Simulator/VPI | vvp/compile.cc:1148; vvp/vpi_callback.cc:217 | Placeholder-net path; constant-true callback-readiness helper | Trace callers and prove whether upstream filtering supplies required semantics |
 | Qualification fallback | .github/uvm_test.sh:139 | Switches to UVM_NO_DPI if real DPI build fails | Keep real-DPI and no-DPI evidence separate; never count substitution as real-DPI qualification |
