@@ -1,0 +1,4 @@
+sv_function_background_join normal,-g2017 ivltests
+sv_function_background_join_2023 normal,-g2023 ivltests
+sv_function_background_join_fail CE,-g2017 ivltests gold=sv_function_background_join_fail.gold
+sv_function_background_join_fail_2023 CE,-g2023 ivltests gold=sv_function_background_join_fail.gold

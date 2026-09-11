@@ -1,7 +1,7 @@
 id: "L23"
 title: "Blocking joins inside function-spawned background processes"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "b22bf23e1"
 last_validated_revision: "4a102ee47"
 reproducer: "evidence/campaign-20260908/l23/red.sv, both editions reject nested join_any; UVM1.0p1/1.1a m_forked_drop outer join_none background process."
@@ -11,6 +11,6 @@ root_cause: "PBlock::elaborate checks lexical function ancestry without distingu
 allowed_scope: ["PBlock blocking-fork legality check using existing isolated elaboration context;paired runtime/negative tests and required gates."]
 non_goals: ["No scheduler,frame lifetime or generic routine redesign; no UVM source edits/void-cast relaxation;no full background-process qualification."]
 required_gates: ["Both-edition reducer/nestedjoin/join_any timing,completion,cancellation and direct-function negative controls;process/fork/routine context neighbors;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Verify existing fork-depth isolation and guard reuse;implement minimal context correction,then focused runtime and negative controls."
-next_command: "sed -n '530,580p' elaborate.cc"
+next_action: "Run required full gates on frozen candidate;JSON after integrated terminal;frontend last alone/restore/hashes."
+next_command: "tail -12 ../evidence/campaign-20260908/l23/integrated.log"
 stop_after_completion: false

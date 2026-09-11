@@ -10253,9 +10253,11 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	   zero-time. Check the lexical routine scope rather than just the
 	   immediate scope: named begin/fork blocks introduce intervening
 	   BEGIN_END/FORK_JOIN scopes, and a lazily elaborated task must not
-	   inherit a function caller's restriction. */
+	   inherit a function caller's restriction. Within a join_none child,
+	   13.4.4 permits all task-legal statements, including blocking joins.
+	   Fork depth is isolated when entering a separate subroutine body. */
       if ((bl_type_ == PBlock::BL_PAR || bl_type_ == PBlock::BL_JOIN_ANY)
-	  && scope_is_within_function_(scope)) {
+	  && scope_is_within_function_(scope) && !des->is_in_fork()) {
 	    cerr << get_fileline() << ": error: A fork..."
 		 << (bl_type_ == PBlock::BL_PAR ? "join" : "join_any")
 		 << " statement is not permitted in a function; only "

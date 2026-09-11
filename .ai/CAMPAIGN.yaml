@@ -558,3 +558,5 @@ l22_json_terminal: "65369 exit0;1829tests0failures. UVM53847 live;isolatedfronte
 l22_uvm_terminal: "53847 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other gate sessions terminal;root restoration/frozen hashes required afterward."
 
 l22_closure: "4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed."
+
+l23_focused: "Original red compiles/runs0,PASSED/no diagnostics both editions;focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review clear. One existing fork-depth legality guard;no runtime/scheduling changes. All required full gates pending."

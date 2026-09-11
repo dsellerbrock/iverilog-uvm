@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_function_background_join.v",
+    "iverilog-args": [
+        "-g2017",
+        "-ssv_function_background_join"
+    ],
+    "gold": "sv_function_background_join"
+}

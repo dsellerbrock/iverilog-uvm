@@ -2943,3 +2943,7 @@ sv_process_state_type_fail CE,-g2017 ivltests gold=sv_process_state_type_fail.go
 sv_process_state_type_fail_2023 CE,-g2023 ivltests gold=sv_process_state_type_fail.gold
 sv_process_state_missing_root CE,-g2017,-sno_such_process_state_top ivltests gold=sv_process_state_missing_root.gold
 sv_process_state_missing_root_2023 CE,-g2023,-sno_such_process_state_top ivltests gold=sv_process_state_missing_root.gold
+sv_function_background_join normal,-g2017 ivltests
+sv_function_background_join_2023 normal,-g2023 ivltests
+sv_function_background_join_fail CE,-g2017 ivltests gold=sv_function_background_join_fail.gold
+sv_function_background_join_fail_2023 CE,-g2023 ivltests gold=sv_function_background_join_fail.gold
