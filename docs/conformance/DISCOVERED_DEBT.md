@@ -533,3 +533,20 @@ IEEE1800-2023 13.4.4 allows task-legal statements inside function fork/join_none
 2017 wording and actual elaboration context need reducer/trace before selection.
 UVM1.1a reports the same frontier. Record-only under L22; no dependent patch
 on the unvalidated baseline. Evidence results-p7axbpcu/1.0p1/compile.log.
+
+DD040 resolution: L23 58edf8034 permits blocking joins inside function-spawned
+background children, retains direct-function rejection, and passes all required
+gates. Original1.0p1/1.1a nested-fork errors removed; no full release pass.
+
+### DD041 — Void function call in dedicated void-cast statement form
+
+L23 original1.0p1/1.1a replay reaches three void'(void_function()) errors
+(find_all/get_args). Independent standards review: both editions13.5 Syntax13-3
+and AnnexA.6.9 allow void'(function_subroutine_call); A.8.2 does not restrict
+return type. 13.4.1 forbids void functions as expressions but does not explicitly
+forbid this dedicated statement form; ordinary6.24.1 cast grammar excludes void.
+Candidate overly restrictive diagnostic, not established upstream-invalid source.
+Permitted-statement reading is an inference needing a scoped ticket/reducer;
+no relaxation or implementation during L23. Preserve calls/arguments/restrictions,
+never fabricate a value or generalize to task/arbitrary-expression casts.
+Evidence results-2hbuhcyt1.0p1/1.1a compile logs and original source.

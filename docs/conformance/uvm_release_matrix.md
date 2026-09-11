@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-11, native ARM64, validated source `4a102ee47` (L22 built-in process state enum).
-The release sweep and all required L22 local validation gates are complete.
+2026-09-11, native ARM64, validated source `58edf8034` (L23 nested background joins).
+The release sweep and all required L23 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -80,8 +80,8 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 
 | Release | Result | First compile failure / smoke scope |
 | --- | --- | --- |
-| 1.0p1 | COMPILE_FAIL | Nested fork/join_any in a function-spawned background process; void casts of void functions. The former `process::state` type failure is resolved by L22 |
-| 1.1a | COMPILE_FAIL | Fork/join_any in function and void casts of void functions; standards legality remains to be assessed |
+| 1.0p1 | COMPILE_FAIL | Three void-cast statements calling void functions; DD041 standards interpretation pending. Process state and nested background joins now pass |
+| 1.1a | COMPILE_FAIL | Three void-cast statements calling void functions; DD041 standards interpretation pending. Nested background joins now pass |
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1d | SMOKE_PASS | All smoke checks passed through time1 after U09; zero UVM warnings/errors/fatals. Compile-time constraint/codegen warnings remain visible |
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-p7axbpcu/results.json`, with per-release
+`third_party/uvm-releases/results-2hbuhcyt/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -178,3 +178,8 @@ L22 retains11/15 bounded smoke passes with identical original source fingerprint
 Original1.0p1 now recognizes process::state and proceeds to later errors; this
 is compile progress, not a new release pass. The application smoke above remains
 revision-scoped to L17, not a fresh L22 OpenTitan replay.
+
+L23 removes the nested-background fork errors from original1.0p1/1.1a. Each
+now stops at three dedicated void-cast-statement calls of void functions; no
+new smoke pass or upstream-invalid classification is asserted. All15 source
+and archive fingerprints and result statuses remain unchanged.

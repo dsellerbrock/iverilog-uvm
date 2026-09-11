@@ -1,9 +1,9 @@
 id: "L23"
 title: "Blocking joins inside function-spawned background processes"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "done"
 base_revision: "b22bf23e1"
-last_validated_revision: "4a102ee47"
+last_validated_revision: "58edf8034"
 reproducer: "evidence/campaign-20260908/l23/red.sv, both editions reject nested join_any; UVM1.0p1/1.1a m_forked_drop outer join_none background process."
 expected_behavior: "A function returns immediately after spawning join_none children; those children may execute blocking join/join_any and task-legal statements. Direct blocking forks in the executing function remain errors."
 standards: ["IEEE1800-2017/2023 13.4.4;9.3.2 nested joins and process lifetime"]
@@ -11,6 +11,6 @@ root_cause: "PBlock::elaborate checks lexical function ancestry without distingu
 allowed_scope: ["PBlock blocking-fork legality check using existing isolated elaboration context;paired runtime/negative tests and required gates."]
 non_goals: ["No scheduler,frame lifetime or generic routine redesign; no UVM source edits/void-cast relaxation;no full background-process qualification."]
 required_gates: ["Both-edition reducer/nestedjoin/join_any timing,completion,cancellation and direct-function negative controls;process/fork/routine context neighbors;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Run required full gates on frozen candidate;JSON after integrated terminal;frontend last alone/restore/hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l23/integrated.log"
+next_action: "Select DD041 void function call in dedicated void-cast statement form;reduce and verify exact grammar/prose interpretation."
+next_command: "sed -n '16905,16975p' elaborate.cc"
 stop_after_completion: false

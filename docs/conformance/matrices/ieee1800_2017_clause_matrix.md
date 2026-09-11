@@ -1146,3 +1146,13 @@ casts; integer/unrelated-enum assignment rejection remains. Missing-root and
 escaped-user-identifier regression controls pass. No runtime changes; all
 required gates complete. Bare class-scoped module declaration grammar DD039
 remains unqualified, as do full process control and legacy UVM applications.
+
+### L23 — Blocking joins in function background children (13.4.4)
+
+Validated58edf8034 uses existing isolated fork-depth context to permit join and
+join_any within a function's join_none children. Both editions explicitly allow
+task-legal statements there. Runtime tests verify immediate function return,
+all-child and first-child completion, remaining-child cancellation and unrelated
+sibling survival. Separate invalid functions called from a background child
+still fail; all required gates pass. No scheduling/lifetime changes or full
+background-process/UVM qualification claim.

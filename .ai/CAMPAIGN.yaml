@@ -1,13 +1,13 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L23"
-phase: "awaiting_validation"
+phase: "selection_boundary"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "4a102ee47"
+last_integrated_good_revision: "58edf8034"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L23 integrated6738,UVM84430,NFA70552,releases7010 live;JSON after integrated terminal;frontend last alone/restore/hashes. PR275 remote CI separate;no merge authorization."
+pending_gates: "L23 all required gates complete;PR275 remote CI separate,no merge authorization. Two validated unpublished increments L22/L23 after f543fede0."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
@@ -562,3 +562,13 @@ l22_closure: "4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,make
 l23_focused: "Original red compiles/runs0,PASSED/no diagnostics both editions;focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review clear. One existing fork-depth legality guard;no runtime/scheduling changes. All required full gates pending."
 
 l23_live_gates: {integrated: 6738, uvm: 84430, nfa: 70552, releases: 7010}
+
+l23_release_terminal: "7010 exit1;results-2hbuhcyt complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;both retain three void-cast-of-void errors. NFA70552 exit0,58/58. Integrated6738,UVM84430 pending;JSON/frontend unstarted."
+
+l23_integrated_terminal: "6738 exit0;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM84430 pending;frontend unstarted."
+
+l23_json_terminal: "44219 exit0;1833tests0failures. UVM84430 live;isolatedfrontend unstarted. Source/install58edf8034 frozen."
+
+l23_uvm_terminal: "84430 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other gate sessions terminal;root restoration/frozen hashes required afterward."
+
+l23_closure: "58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors."

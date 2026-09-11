@@ -2148,3 +2148,14 @@ full gates. General bare class-scoped module syntax remains DD039; new legacy
 nested-background fork frontier recorded DD040, no opportunistic patch.
 
 Final validation: 4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed.
+
+### L23 — Function-spawned background joins
+
+Both-edition reducer and original1.0p1/1.1a m_forked_drop contain join_any
+inside outer function join_none. The lexical ancestry check rejected task-legal
+background statements despite13.4.4. One guard now honors existing fork depth,
+which separate routine-body elaboration resets. No runtime change. Paired tests
+prove immediate return, nested join/all and join_any/first timing, cancellation,
+sibling survival and separate invalid-function rejection. Final review clear.
+
+Final validation: 58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors.

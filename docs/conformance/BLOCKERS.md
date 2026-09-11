@@ -899,6 +899,8 @@ Bare class-scoped module declarations remain DD039; no full process or UVM1.0p1 
 
 ### L23 — Nested joins in function-spawned background processes
 
-- **State:** SELECTED/REPRODUCED after validated L22.
+- **State:** CLOSED at58edf8034 after required validation.
 - **Evidence:** DD040 and both-edition reducer reject join_any within outer function fork/join_none.
 - **Scope:** 13.4.4 task-legal background children using existing isolated elaboration context; retain direct function blocking-join errors. No scheduling/lifetime redesign or full UVM qualification.
+
+L23 validation: 58edf8034;originalred both editions PASSED/no diagnostics,focuslegacy4/0,JSON4/0,existingfunctionfork2/0 both,neighborslegacy43/0,JSON33/0,makecheck and final independent review;legacy4941total4936pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1833/0,realDPIUVM355/0/0,NFA58/58,frontend38601exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-2hbuhcyt11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L22. Nested-fork diagnostic removed from1.0p1/1.1a;each retains three void-cast-of-void errors.
