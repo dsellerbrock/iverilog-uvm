@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "selection"
-phase: "publishing_validated_batch"
+phase: "reproduced_assoc_signedness"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "34787868e"
@@ -11,8 +11,8 @@ pending_gates: "L30 requiredlocalgates complete. FreshCI required after publishi
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Update existingPR275 with validatedL28/L29/L30 batch,then return to evidence-driven selection."
-next_command: "gh pr view 275 --json state,headRefOid"
+next_action: "Trace DD036 signed associative compound reducer: -64/=2 produces96 instead of-32;activate exact contract before source edits."
+next_command: "rg -n 'get_signed|assoc.*compound' elaborate.cc"
 next_command_cwd: repository root
 candidate_state: "L30 closed34787868e;13/15 boundedrelease smoke passes. Publish coherentL28/L29/L30 batch,then select nextblocker."
 installed_tools: "34787868e validated;l30/sha256.txt restored/unchanged."
@@ -723,3 +723,6 @@ l30_json_terminal: "22478exit0;1871tests0failures. UVM62168 remainslive/progress
 l30_uvm_terminal: "62168exit0;355passed0failed0skipped,realDPI. Isolatedfrontend21313 launched lastalone after allotherlocalgates terminal. Restoreinstallation/fivefrozenhashes required afterward."
 
 l30_closure: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
+
+legacy_uvm_pr_seventh_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "6506fc7a2657e26aa9e9e318cfca05e71ceee41f", state: "open", scope: "ValidatedL28/L29/L30", remaining: "FreshCI onnewhead;no mergeauthorization"}
+l31_selection_evidence: "l31/assoc-compound.sv onvalidated34787868e compiles0 both editions;runtime1 because signed byte associative element -64/=2 yields96 not-32. Same reducer shift256/divisor256/unknown-add controls pass;notbroaderwidthqualification. No source edits or activeL31contract yet;trace signedness next."
