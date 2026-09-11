@@ -1,0 +1,2 @@
+./ivltests/sv_module_class_type_enum_mismatch_fail.v:2: error: Enumeration type mismatch in assignment.
+1 error(s) during elaboration.

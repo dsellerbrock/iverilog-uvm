@@ -1,0 +1,1 @@
+ivltests/sv_module_class_type_incomplete_fail.v:2: error: holder doesn't name a visible class.

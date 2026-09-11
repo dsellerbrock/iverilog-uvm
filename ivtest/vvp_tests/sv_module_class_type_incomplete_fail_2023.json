@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_module_class_type_incomplete_fail_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-I./ivltests",
+        "-stest"
+    ],
+    "gold": "sv_module_class_type_incomplete_fail_2023"
+}

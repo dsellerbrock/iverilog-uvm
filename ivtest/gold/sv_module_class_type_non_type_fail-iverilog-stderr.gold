@@ -1,0 +1,1 @@
+ivltests/sv_module_class_type_non_type_fail.v:2: error: member doesn't name a type.

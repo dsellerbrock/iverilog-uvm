@@ -14757,6 +14757,40 @@ module_item
 	delete[]$2.text;
       }
 
+  /* IEEE1800-2017/2023 8.23: a complete class may qualify a member
+     type in a module variable declaration. Keep this on the declaration
+     frontier, alongside package-qualified types and module instantiations. */
+  | attribute_list_opt class_scoped_type_identifier dimensions_opt
+    list_of_variable_decl_assignments ';'
+      { data_type_t*type = $2;
+        if (type) {
+              if ($3) {
+                    type = new parray_type_t(type, $3);
+                    FILE_NAME(type, @2);
+              }
+              attributes_in_context = $1;
+              pform_make_var(@2, $4, type, attributes_in_context, 0);
+        } else {
+              // The class/member resolver has already diagnosed the error.
+              auto discard_ranges = [](const std::list<pform_range_t>&ranges) {
+                    for (const auto&range : ranges) {
+                          delete range.first;
+                          if (range.second != range.first) delete range.second;
+                    }
+              };
+              for (auto*decl : *$4) {
+                    discard_ranges(decl->index);
+                    delete decl;
+              }
+              delete $4;
+              if ($3) discard_ranges(*$3);
+              delete $3;
+              pform_discard_call_attributes($1);
+        }
+        var_lifetime = LexicalScope::INHERITED;
+        pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
+
   /* Package-qualified variable: "pkg::type_t arr;" or "pkg::type_t [N:0] arr;" in module scope.
      Uses package_scope to call lex_in_package_scope so the type name is looked up correctly. */
   | attribute_list_opt

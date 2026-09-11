@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_module_class_type_enum_mismatch_fail.v",
+    "iverilog-args": [
+        "-g2017",
+        "-I./ivltests",
+        "-stest"
+    ],
+    "gold": "sv_module_class_type_enum_mismatch_fail"
+}

@@ -1,7 +1,7 @@
 id: "L30"
 title: "Direct complete-class scoped type declarations at module scope"
 status: "active"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "cfb4c4e68"
 last_validated_revision: "9229c24e7"
 reproducer: "../evidence/campaign-20260908/l30/module-scoped-type.sv and red.json; direct class holder defines typedef int state,module declares holder::state s;both editions compile2 invalid module instantiation."
@@ -17,3 +17,5 @@ discovery_policy: "Unrelated discoveries record-only; regressions from this patc
 next_action: "Confirm frontier trace and helper prefix restrictions,then implement minimal direct class-type declaration route."
 next_command: "sed -n '14710,14795p' parse.y"
 stop_after_completion: false
+
+focused_validation: "Original red nowcompile0/nodiagnostics both editions; permanentfocus12legacy/12JSON;neighbors43legacy/32JSON;nativebuild44815exit0/makecheck;independentdesign/code/ownershipreviewclear. Error-path ranges/attributes fully released,nofallbacktype. Bison563SR1122RR unchanged. Fullgates pending."
