@@ -11,11 +11,11 @@ pending_gates: "L22 integrated/UVM/NFA/releases;JSON after integrated terminal;f
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Reproduce L22 process::state failure in both editions and trace nominal enum integration before implementation."
-next_command: "local-install/bin/iverilog -g2017 -sprocess_state_return -o ../evidence/campaign-20260908/l22/red.vvp ../evidence/campaign-20260908/l22/red.sv"
+next_action: "Complete frozen L22 required gates;JSON after integrated terminal;frontend last alone with restored hashes."
+next_command: "tail -12 ../evidence/campaign-20260908/l22/integrated.log"
 next_command_cwd: repository root
-candidate_state: "L19/L20/L21 three validated unpublished increments;prefer publish with resumed L17 coherent scope if it validates."
-installed_tools: "d8e974913 candidate;frozen evidence/campaign-20260908/l17/sha256-final.txt;last fullyvalidated1146d2187."
+candidate_state: "L22 first unpublished semantic increment after PR275 batch f543fede0;awaiting required validation."
+installed_tools: "4a102ee47 candidate;frozen evidence/campaign-20260908/l22/sha256.txt;last fullyvalidated d8e974913."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -546,3 +546,5 @@ l17_final_evidence_review: "Independent read-only review clear: actual transacti
 legacy_uvm_pr_third_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "f543fede06debe8ee7190d8577286a1dab69a3e2", state: "open", scope: "Added L19,L20,L21,L17 and original1.2 debug-crossbar smoke PASS", remaining: "Fresh remote CI;no merge authorization"}
 
 l22_focused: "Both-edition original red now passes;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review clear. Shared nominal enum metadata/constants/status and narrow builtin type lookup;no runtime changes. Review corrected empty-root registration and escaped-name collision;permanent controls pass. Bison563SR1122RR,parse.output byteidentical. DD039 bare class-scoped module declaration grammar remains separate."
+
+l22_live_gates: {integrated: 96875, uvm: 53847, nfa: 20962, releases: 5490}
