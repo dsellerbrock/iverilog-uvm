@@ -1,7 +1,7 @@
 id: "L32"
 title: "Correct VPI string literal vector byte order and word boundaries"
 status: "active"
-phase: "implementing"
+phase: "awaiting_validation"
 base_revision: "f2fa3045f"
 last_validated_revision: "729edce3c"
 parent: "U15 suspended native recording value capture; DD038 fulltyped recording remains open"
@@ -15,6 +15,8 @@ validation_contract: "Prepatchred and permanent VPI golden cases for lengths0,1,
 discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
 evidence: "../evidence/campaign-20260908/l32/"
 preserved_parent: "../evidence/campaign-20260908/u15/ACTIVE_WORK.suspended.yaml plusvalues.sv/red.json andliteral-vector-red.json"
-next_action: "Add permanent literal-vector reducer,prove red,repair only shared packing loop; rebuild/focusedvalidate before fullgates."
-next_command: "sed -n '210,238p' vvp/vpi_const.cc"
+next_action: "Freeze literal-vector candidate and run integrated/UVM/NFA/releases; start JSON only after integrated terminal. Frontend last and alone; preserve six installed hashes. Resume U15 only after L32 closure."
+next_command: "PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner bash .github/ivtest_gate.sh"
 stop_after_completion: false
+
+l32_focused: "Both permanent editions fail beforepatch andpass after; raw literal lengths0,1,3,4,5,8,9,highbytes andembeddedzeros compare everyaval/bvalword. Emptyliteral lowers8bit0,existingmetadata preserved. Six VPIneighbors andmakecheck pass; independentcode/wordboundaryreviewclear. Nativeinstall40901 exit0. Six installed hashes frozen; fullgatespending. No U15 implementation."

@@ -2354,3 +2354,24 @@ Next selection is the DD038 typed-value capture prerequisite. The user-requested
 all-fallback inventory DD046 remains scheduled after the UVM smoke campaign.
 No new PR at this checkpoint; L31 and U14 are two validated increments since
 merged PR275, below the usual3–5 increment publication milestone.
+
+
+### L32 proven recording prerequisite, focused checkpoint
+
+U15's native value capture remains suspended before implementation. Its direct
+VPI reducer proved string literal vector bytes were reversed in both editions.
+The shared `__vpiStringConst` vector loop also sign-extended high bytes and
+initialized an extra word at aligned boundaries. IEEE5.9 and38.15 require the
+literal's packed value and least-significant-word-first VPI representation.
+
+The bounded repair initializes only required words and places unsigned bytes
+from the right end of the literal. Permanent VPI regressions fail beforepatch
+and pass after in2017/2023; high/zero bytes and partial/aligned words are covered.
+Empty literal lowering remains8bitzero. Six nearby VPItests andmakecheck pass;
+independentreviewclear. All fullgates still required. Parentcontract/reducers:
+`evidence/campaign-20260908/u15/ACTIVE_WORK.suspended.yaml`.
+
+Review's proposed NUL-string prerequisite was rejected against both LRMs6.16:
+string variables cannot containNUL; raw literals can, and L32tests retain those
+bits. Separate VPI temporary-string metadata and complete typed schemas remain
+unqualified; no recorder-formatting workaround was added.

@@ -1,0 +1,12 @@
+Compiling vpi/string_literal_vector.c...
+Making string_literal_vector.vpi from  string_literal_vector.o...
+case0 width=8 word0=00000000/00000000
+case1 width=8 word0=00000041/00000000
+case2 width=24 word0=00414243/00000000
+case3 width=32 word0=41424344/00000000
+case4 width=40 word0=42434445/00000000 word1=00000041/00000000
+case5 width=64 word0=45464748/00000000 word1=41424344/00000000
+case6 width=72 word0=46474849/00000000 word1=42434445/00000000 word2=00000041/00000000
+case7 width=40 word0=8001fefd/00000000 word1=000000ff/00000000
+case8 width=40 word0=41420043/00000000 word1=00000000/00000000
+LITERAL_VECTOR_PASSED

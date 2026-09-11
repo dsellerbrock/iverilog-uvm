@@ -180,3 +180,7 @@ force_cb		normal			force_cb.c		force_cb.log
 m12br_assert_cb2 normal,-g2012   m12br_assert_cb2.c m12br_assert_cb2.log
 m12_vacuous_action_cb normal,-g2017 m12_endpoint_fanout_cb.c m12_vacuous_action_cb.log
 m12_symbolic_parent_cb normal,-g2017 m12_endpoint_fanout_cb.c m12_symbolic_parent_cb.log
+
+# L32: raw string literal packed vector conversion in both IEEE editions.
+string_literal_vector normal,-g2017 string_literal_vector.c string_literal_vector.log
+string_literal_vector_2023 normal,-g2023 string_literal_vector.c string_literal_vector_2023.log
