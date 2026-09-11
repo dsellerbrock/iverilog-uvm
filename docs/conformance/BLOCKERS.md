@@ -1366,3 +1366,104 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   releases/frontend-last); see the Status line above for exact counts and
   `evidence/campaign-20260908/l34/` for durable exit files.
 - **Evidence:** `evidence/campaign-20260908/l34/`.
+
+### L35 — Assigning a string value to a real target silently substituted 0.0
+
+- **Status:** CLOSED 2026-09-11. Found via DD046's curated-table re-triage
+  (the "Lost expression typing" row), which had been closed the same day
+  as "empirically unreached across ~5300 tests" -- but per an advisor
+  review, a probe that never fires and a probe that's never reached look
+  identical, so a hand-written sanity reducer was built to confirm the
+  instrumentation actually could fire before trusting that negative
+  result. It fired immediately on the most ordinary possible construct
+  (`real r; string s; ...; r = s;`), which is what DD046's table entry
+  had missed: this branch is reachable by completely mainstream code, not
+  only by exotic unresolved-parameterized-method paths. All six required
+  gates pass at the exact pre-existing baseline plus the one new
+  permanent test: integrated exit0 4982/4977/0/2NI/3EF (4981/4976 baseline
+  +1 new CE test), JSON exit0 1873/0 (unaffected -- new test lives only in
+  the legacy ivtest list), UVM exit0 357/0/0, NFA 58/58, releases 15/15
+  SMOKE_PASS, frontend exit0 all S1-S12. Install restored: only
+  `local-install/lib/ivl/ivl` (the frontend binary) changed vs the L34
+  baseline -- `iverilog`/`vvp`/`vvp.tgt`/`uvm_dpi.vpi`/
+  `uvm_legacy_recorder.svh` hashes unchanged, exactly as expected for a
+  pure elaboration-time fix touching no codegen/runtime path --
+  `evidence/campaign-20260908/l35/installed-frozen-sha256.json`.
+- **Symptom:** `real r; string s; s = "3.5"; r = s;` compiled clean with
+  no diagnostic and always read `r == 0.0` at runtime, silently
+  discarding the string value (and any side effects already evaluated
+  computing it).
+- **Root cause:** `netmisc.cc`'s `elab_and_eval` (both overloads -- the
+  `PExpr*`/`ivl_variable_type_t cast_type` form and the `ivl_type_t
+  lv_net_type` form) has a compile-progress fallback, added to handle
+  genuinely unresolved/generic parameterized-method-argument typing,
+  that stubs ANY expression whose elaborated type doesn't match a
+  STRING or REAL `cast_type` to an empty string / `0.0` / `null` rather
+  than erroring. The sibling BOOL/LOGIC/vectorable branch right next to
+  it already excludes a well-typed STRING source (`&&
+  tmp->expr_type() != IVL_VT_STRING`) specifically because R30 found
+  this exact defect shape for vector targets (`reg [127:0] b; b = str;`
+  silently storing zero) and fixed it by letting a well-typed string
+  fall through to the real cast machinery instead of being stubbed. The
+  REAL-target branch a few lines above never got the same exclusion --
+  a well-typed `IVL_VT_STRING` source unconditionally became `0.0`,
+  reproducing R30's exact defect class one branch over, missed because
+  R30's fix and the comment explaining it are physically adjacent to
+  but not covering this branch.
+- **Why a stub AND a fallthrough are both wrong here, so this is a hard
+  error and not a repeat of R30's fix:** unlike the vector-target case
+  (where falling through to `cast_to_int4`/`cast_to_int2` correctly
+  packs the string per IEEE 1800-2017/2023 6.16's defined
+  string-to-integral conversion), there is no defined string-to-real
+  conversion in the LRM at all -- 6.16 enumerates only string<->integral
+  and string<->string implicit conversions. Tracing what falling through
+  to the existing `cast_to_real()`/`NetECast('r',...)` path would
+  actually do confirmed it is not a safe alternative either:
+  `tgt-vvp/eval_real.c`'s `draw_unary_real()` handles opcode `'r'` by
+  evaluating the sub-expression as a vec4 bit pattern
+  (`draw_eval_vec4`) and converting that pattern to a real via
+  `%cvt/rv` -- correct for an integral source, but for a string source
+  it would reinterpret the string's packed ASCII bytes as a (typically
+  huge) unsigned integer and convert that number to a real, which is
+  not a sensible "value of the string" under any defined semantics
+  either. Neither existing behavior (silent 0.0) nor the naive
+  alternative (silent garbage bit-pattern reinterpretation) is
+  spec-correct, so per the precedent already set for a class handle
+  into a non-class target (R32 finding A, 8.4) and a well-typed
+  aggregate into a scalar (R32 finding B, 7.2.2/7.10), this is a hard
+  compile error, not a stub of any kind.
+- **Fix:** In both `elab_and_eval` overloads, the `cast_type ==
+  IVL_VT_REAL` branch now checks `tmp->expr_type() == IVL_VT_STRING`
+  first and, if true, reports `error: A string value has no implicit
+  conversion to real (IEEE 1800-2017/2023 6.16); an explicit conversion
+  such as string::atoreal() is required.` and fails elaboration instead
+  of stubbing. A genuinely unresolved/generic (non-STRING) `tmp` type
+  still gets the pre-existing `0.0` compile-progress placeholder --
+  this fix narrows the branch to stop swallowing a WELL-TYPED string,
+  it does not touch the still-open generic/parameterized-method case
+  the branch was originally written for.
+- **Scope:** Implicit real-target assignment (`real r; r = <string
+  expr>;`, and equivalently through a task/function real-typed formal or
+  a class real-typed property target reached via the `ivl_type_t`
+  overload) only. `string::atoreal()` (explicit method call), integral-
+  to-real, and real-to-real all continue to work exactly as before --
+  verified with dedicated reducers. Not investigated: the second
+  overload's sibling BOOL/LOGIC/vectorable branch
+  (`netmisc.cc:2352-2358`) has no `tmp->expr_type() != IVL_VT_STRING`
+  exclusion either (unlike the first overload's equivalent branch,
+  which does) -- this may be the same R30-class gap recurring a third
+  time in a different context, but was not reproduced or fixed this
+  pass; flagged for a future increment rather than fixed speculatively.
+- **Reducers:** `evidence/campaign-20260908/dd046/c22_real_string.sv`
+  (the defect, confirms the hard error), `c22b_atoreal_ok.sv`
+  (`string::atoreal()` still works), `c22c_int_to_real_ok.sv`
+  (int-to-real still works), `c22d_real_to_real_ok.sv` (real-to-real
+  still works).
+- **Permanent regression:** `ivtest/ivltests/sv_real_string_assign_fail.v`
+  (new, `CE` type), registered in `ivtest/regress-sv.list` alongside the
+  existing `sv_class_new_fail1` (the same "illegal implicit conversion
+  now hard-errors" pattern, for class handles rather than strings).
+- **Validation:** full required sequence passed (integrated/JSON/UVM/NFA/
+  releases/frontend-last); see the Status line above for exact counts and
+  `evidence/campaign-20260908/l35/` for durable exit files.
+- **Evidence:** `evidence/campaign-20260908/l35/`.
