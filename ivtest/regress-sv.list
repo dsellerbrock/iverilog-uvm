@@ -2911,3 +2911,5 @@ sv_inherited_method_visibility normal,-g2017,-s,sv_inherited_method_visibility i
 sv_inherited_method_visibility_2023 normal,-g2023,-s,sv_inherited_method_visibility ivltests gold=sv_inherited_method_visibility.gold
 sv_inherited_method_static_fail CE,-g2017,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
 sv_inherited_method_static_fail_2023 CE,-g2023,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
+sv_macro_pasted_function_name normal,-g2017,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
+sv_macro_pasted_function_name_2023 normal,-g2023,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold

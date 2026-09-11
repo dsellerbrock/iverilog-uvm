@@ -1,16 +1,16 @@
 id: "L15"
 title: "Pasted function-like macro names ending in a digit"
 status: "in_progress"
-phase: "selected"
+phase: "root_caused"
 base_revision: "f148d7462"
 last_validated_revision: "19e7f5592"
 reproducer: "DD031 original1.2 OpenTitan compile fails at pasted uvm_print_aa_string_int3, diagnosing shorter uvm_print_aa_string_int missing argument list."
 expected_behavior: "Resolve the complete identifier after macro formal substitution and double-backtick concatenation before looking up and expanding the function-like macro."
-standards: ["Verify IEEE1800-2017/2023 clause22.5 text macro substitution and double-backtick delimiter; original1.2 macro source is application evidence."]
-root_cause: "Suspect ivlpp scanner chooses a defined shorter prefix before removing a paste delimiter preceding numeric suffix; exact reducer and trace required."
+standards: ["IEEE1800-2017 and2023 22.5.1: literal argument substitution; nested macro usages substituted after outer macro; double-backtick delimits tokens without whitespace and allows identifier construction. Checked local primary texts at2017 lines44645/44727 and2023 lines46786/46908."]
+root_cause: "YY_INPUT preserves paste delimiter whenever a scanned prefix is any defined macro. It prematurely commits function-like pick before suffix3; object-like delimiter preservation must remain for existing macro3a/b behavior."
 allowed_scope: ["ivlpp macro expansion/paste handling only as proven by reducer; permanent preprocessor/runtime both-edition regression; required gates and directly affected records."]
 non_goals: ["No original UVM/OpenTitan source patches, unrelated syntax recovery redesign or broader macro completion claim."]
 required_gates: ["Red reducer, both-edition LRM check, focused macro neighbors and permanent test, independent review, native build, integrated/JSON/UVM/NFA/makecheck/15release and isolatedfrontend last; original1.2 application replay after validated baseline."]
-next_action: "Create reducer and inspect paste substitution flow before editing."
+next_action: "Preserve defined object-like macro expansion boundaries while allowing function-like names to finish paste before lookup; verify focused positives and neighbors."
 next_command: "sed -n '125,190p' ivlpp/lexor.lex"
 stop_after_completion: false
