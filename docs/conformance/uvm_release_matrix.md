@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `9791e6411` (L16 const-handle member writes).
-The release sweep and all required L16 local validation gates are complete.
+2026-09-10, native ARM64, validated source `9791e6411` (L18 direct-property compound signedness).
+The release sweep and all required L18 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
