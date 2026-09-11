@@ -711,7 +711,17 @@ all parser recovery qualified.
   silent-path concern), already correctly implemented for every legal
   construct tried, or (for `test_value_callback_ready`) a legitimate
   virtual-method default properly overridden wherever real filtering is
-  needed. The table cells below record exactly what was tried for each.
+  needed. **Caveat, learned the hard way in this same session (L34's
+  regression was silent at its actual source and loud only three layers
+  downstream, in a generic safety net):** a nearby `cerr`/`fprintf(stderr`
+  does not by itself prove a fallback is harmless, and "N reducers all
+  came back correct" is *absence of a found defect*, not *proof of
+  absence* -- three of the eleven rows (string/object lowering, casts,
+  iteration) rest on a handful of reducers each, not exhaustive coverage,
+  and are recorded here as such rather than as closed proofs. The table
+  cells below record exactly what was tried for each; treat the "RESOLVED"
+  label as "no defect found under this session's search," not "cannot
+  contain one."
   Only **Lost expression typing** (`netmisc.cc`'s `elab_and_eval`, the
   silent empty-string/0.0-real substitution for "unresolved parameterized
   helper/container method paths that lose argument typing") remains
