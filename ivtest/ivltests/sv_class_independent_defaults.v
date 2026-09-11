@@ -9,6 +9,19 @@ package default_identity;
     static int count;
     int value;
   endclass
+  typedef B B_array[2];
+  class ArrayDefault#(type T=A, type U=B_array);
+    U items;
+  endclass
+  class Box#(type T=A);
+    T item;
+  endclass
+  // A nested dependent default must not be evaluated in the package scope
+  // merely to probe the specialization cache.
+  class Nested#(type T=A, type U=Box#(T));
+    U box;
+    function new(); box=new; box.item=new; endfunction
+  endclass
   class Forward#(type T=A);
     typedef Pair#(T) pair_type;
     static function pair_type make();
@@ -36,6 +49,14 @@ module sv_class_independent_defaults;
     Pair#(A,other_identity::B) other_argument;
     other_identity::Pair#(A,B) other_owner;
     Base base;
+    Nested#(C) nested;
+    ArrayDefault#(C) array_default;
+    array_default=new;
+    array_default.items[1]=new;
+    if(array_default.items[1]==null) $fatal(1,"array default elaboration");
+    nested=new;
+    if(nested.box==null || nested.box.item==null)
+      $fatal(1,"nested dependent default elaboration");
     omitted=new;
     omitted.value=37;
     base=omitted;

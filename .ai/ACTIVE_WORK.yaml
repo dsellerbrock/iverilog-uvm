@@ -8,9 +8,9 @@ reproducer: "../evidence/campaign-20260908/l26/default-pair.sv and .json: Pair#(
 expected_behavior: "The same generic declaration with matching effective class-type parameters denotes the same type, regardless of omitted/explicit or positional/named spelling. Different parameter types and declaration owners remain distinct."
 standards: ["IEEE1800-2017 8.25 and IEEE1800-2023 8.25 matching specializations;6.24.2 class dynamic cast."]
 root_cause: "canonical_specialization_parm_key_ unnecessarily requires a bare dependent default before normalizing multiple class-type parameters. Independent defaults fall back to source spelling; omitted and explicit requests allocate distinct concrete netclass_t objects."
-allowed_scope: ["Existing specialization key normalization for concrete multi-class-type parameters; permanent positive, negative and forwarding controls; directly related evidence."]
+allowed_scope: ["Existing specialization key normalization for concrete multi-class-type parameters with bare nominal class defaults; permanent positive, negative and forwarding controls; directly related evidence."]
 non_goals: ["No runtime class-name equivalence, unresolved generic key merging, value-parameter expansion, generic-template initializer repair, full callback/UVM or parameterization qualification."]
 required_gates: ["Both-edition red/green reducer; distinct types/declaration owners and unresolved forwarding controls; focused legacy/JSON and neighbors; independent review; nativebuild/makecheck/integrated/JSON/realDPIUVM/NFA/releases; isolatedfrontend last alone with restore and frozen hashes."]
-next_action: "Run required full gates on frozen candidate; JSON after integrated, frontend last alone."
-next_command: "PATH='$PWD/local-install/bin:$PATH' bash .github/ivtest_gate.sh"
+next_action: "Restart all required full gates on narrowed candidate; JSON after integrated, frontend last alone."
+next_command: 'tail -20 ../evidence/campaign-20260908/l26/integrated.log'
 stop_after_completion: false

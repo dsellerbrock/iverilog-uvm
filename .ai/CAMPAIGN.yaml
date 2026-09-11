@@ -1,23 +1,23 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L26"
-phase: "focused_tested"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c58035f49"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "All L26 implementation gates unstarted. Original specializationtrace83667 terminal0. PR275 freshremoteCI pending."
+pending_gates: "L26 integrated44052/UVM5253/NFA16068/releases27838 live; fullJSON after integrated terminal; isolatedfrontend last alone. PR275 freshremoteCI pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "L26 concrete matching independent-default class specializations; generic seed initializer failure remains separate."
-next_action: "Implement bounded canonical-key eligibility fix and run both-edition reducer and identity controls."
-next_command: "sed -n '3460,3580p' elab_scope.cc"
+next_action: "Collect frozen034b10837 gates; launch JSON after integrated terminal, frontend only after all other gates terminal."
+next_command: 'tail -20 ../evidence/campaign-20260908/l26/integrated.log'
 next_command_cwd: repository root
-candidate_state: "L26 15-line reducer fails both editions; source-key fallback causal. No implementation edit yet."
-installed_tools: "c58035f49 validated;l25/sha256.txt restored/unchanged."
+candidate_state: "034b10837 focused/review pass; required fullgates live. Genericseed failure remains separate."
+installed_tools: "034b10837 candidate frozen;l26/sha256.txt. Last validated c58035f49."
 validation_state: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."
-next_validation: "L26 focused red/green and independent review, then required integrated gates."
+next_validation: "Collect integrated/UVM/NFA/releases;JSON next;frontend last alone/restore/hashes."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -630,3 +630,9 @@ l25_closure: "c58035f49;originalred/interactions both editions PASSED,no diagnos
 legacy_uvm_pr_fifth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "2785d1d5d6053a1d0c779f62b403176153f66111", state: "open", scope: "ValidatedU11/U12/L25", remaining: "FreshCI;no mergeauthorization"}
 
 l26_focused: "Both-edition15line red nowPASSED;focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent-default/seedneighbors6/0each,makecheck and independent design/code review clear. Larger forward-registry stillfails one generic-seedcast;not a pass and separate. All required integrated gates pending."
+
+l26_live_gates: {integrated: 44052, uvm: 5253, nfa: 16068, releases: 27838}
+
+l26_gate_reconciliation: "034b10837 broad eligibility exposed eager nested-default probe in definition scope: originaluvm_traversal Visitor#(STRUCTURE) error. Integrated44052/UVM5253 stopped143 and reaped before edits;NFA16068exit0,58/58;releases27838exit1 results-8ja11q2o regression,notvalidbaseline. Candidate narrowing retains old dependent-default eligibility and adds diagnostic-free all-bare-class-default eligibility. Nesteddefault control added. Required gates restart after focused/review/build;oldlogs preserved."
+
+l26_reconciled_focused: "Narrowed eligibility preserves original dependent-default branch and admits only bare nominal class defaults,excluding array wrappers through aliases. Both focus harnesses2/0 with nested/array controls,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and final independent review clear. All fullgates must restart;034b10837 is not validated."
