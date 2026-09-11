@@ -702,24 +702,30 @@ all parser recovery qualified.
   found and fixed a second, independent real regression (an array-indexed
   signal base silently mis-resolving) in the shared helper both L33 and
   L34 depend on -- see BLOCKERS.md L33's addendum and L34's own entry.
-- **2026-09-11 re-triage of the curated table below:** three more rows
-  (Membership, Increment/decrement, Array locators) were checked against
-  current source with concrete reducers and found already resolved --
-  either already loud-diagnosed (not DD046's silent-path concern) or
-  already correctly implemented for the legal constructs tried; the table
-  cells below record what was actually tried. A fourth
-  (String/object lowering) is partially resolved the same way, with one
-  narrow branch (`eval_string.c:249`) still silent but no legal reproducer
-  found despite five attempts. Incidentally found along the way: `find()`
-  on a plain (non-class-property) fixed-size array of non-integral
-  elements is loudly rejected at elaboration
-  (`elab_expr.cc:16554-16562`, "sorry: ... not yet implemented") -- a real,
-  known feature gap, but loud, not silent, so not itself a DD046 target;
-  recorded here for completeness rather than opened as its own blocker.
-  Remaining unexamined rows (Lost expression typing, Unresolved
-  methods/functions, Casts, Constraints, Events and waits, Iteration,
-  Missing executable targets, Simulator/VPI, Qualification fallback):
-  `.ai/ACTIVE_WORK.yaml` carries the next selection.
+- **2026-09-11 comprehensive re-triage of the curated table below:** all
+  twelve rows were checked against current source (nine with a concrete
+  reducer, three by tracing callers/overrides where that settled the
+  question without one). Eleven are now dispositioned RESOLVED or
+  ALREADY-LOUD -- either fixed by earlier sessions since the table was
+  written, already print a diagnostic before falling back (not DD046's
+  silent-path concern), already correctly implemented for every legal
+  construct tried, or (for `test_value_callback_ready`) a legitimate
+  virtual-method default properly overridden wherever real filtering is
+  needed. The table cells below record exactly what was tried for each.
+  Only **Lost expression typing** (`netmisc.cc`'s `elab_and_eval`, the
+  silent empty-string/0.0-real substitution for "unresolved parameterized
+  helper/container method paths that lose argument typing") remains
+  genuinely open -- deep in generic/parameterized-class argument-typing
+  elaboration; no reducer attempted yet, and per advisor-equivalent sizing
+  discipline this needs a proper investigation pass (tracing which caller
+  of `elab_and_eval` can reach it with an unresolved generic type) before
+  it can be scoped as a bounded fix, not a guess-and-check reducer like
+  the others in this pass. Incidentally found along the way: `find()` on a
+  plain (non-class-property) fixed-size array of non-integral elements is
+  loudly rejected at elaboration (`elab_expr.cc:16554-16562`, "sorry: ...
+  not yet implemented") -- a real, known feature gap, but loud, not
+  silent, so not itself a DD046 target; recorded here for completeness.
+  `.ai/ACTIVE_WORK.yaml` carries the next-selection detail.
 - **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
   Include parser/name/type resolution, elaboration, code generation, simulator,
   DPI/VPI, other compiler targets and qualification harnesses. Include silent
@@ -746,16 +752,17 @@ loss still require reducers; comments and diagnostic wording are not an oracle):
 | Lost expression typing | netmisc.cc:1899,1906,1925,2310,2341 | Replaces expressions with empty string, real/integer zero or null | Preserve actual type/value and side effects; distinguish illegal assignments from legal unresolved specialization |
 | Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | Typed expression stubs and ignored calls | Real dispatch, returns, arguments, side effects and callbacks |
 | Casts | elab_expr.cc:18184 | **Re-triaged (2026-09-11).** Already loud (`cerr << ... "warning: Cast to ... not fully supported"`) before either the packed-reinterpret or non-packed unchanged-passthrough fallback. Associative-array, compatible-queue, compatible-darray, and enum casts are all handled correctly by dedicated paths well before this fallback (enum cast verified with a reducer -- `evidence/campaign-20260908/dd046/c18_cast.sv`). No reproducer attempted yet for a target type that reaches the final unchanged-passthrough branch specifically (as opposed to the packed-reinterpret branch, which is a defensible real behavior, or a path handled earlier). | Loud already; re-open only if a specific unhandled-cast-target reproducer is found that reaches the passthrough branch and produces a wrong (not just imprecise) result. |
-| Constraints | parse.y:18467; original1.0p1 pick_sequence compile diagnostic | Parses/drops some with-clauses; observed ignored constraint | Legal clause routing, solver participation and distribution semantics |
-| Events and waits | elaborate.cc:19847,20322,20458,20629,20775 | Skips event controls or wait behavior | Correct blocking, wakeup dependencies and scheduling |
-| Iteration | elaborate.cc:22119 | Drops a nested associative foreach body on unsupported descent | Legal element shapes, iteration order and actual body execution |
+| Constraints | parse.y:18467; original1.0p1 pick_sequence compile diagnostic | **Re-triaged (2026-09-11).** Already loud (a suppressed-after-first `cerr` warning: "pkg::func(...) with-clause is parsed but not enforced ... constraints are silently dropped"). Scoped deliberately: the grammar comment states other package-function with-clauses "retain their compile-progress diagnostic" -- only `std::randomize(...) with {...}` gets real enforcement via `set_with_constraints`. No legal SystemVerilog construct calls an arbitrary `pkg::func(...)` with a `with` clause outside the randomize family (18.7), so this branch may not be reachable by standard code at all; not attempted with a reducer this pass. | Loud already; only worth a reproducer if a real randomize-family variant (not std::randomize itself) is found routing through this branch. |
+| Events and waits | elaborate.cc:19847,20322,20458,20629,20775 | **Re-triaged (2026-09-11).** All five sites already print a `cerr` warning before skipping/no-opping (unresolvable event expr, scope-as-event, class-property event expr, empty event set, unelaborable wait condition, no event sources) -- none is silent. Not attempted with a reducer; the loud diagnostics already satisfy DD046's "not silent" bar for every cited line. | Loud already at every cited site. |
+| Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | **Re-triaged (2026-09-11).** `elaborate.cc:14061`'s `silent_noop` cases (`rand_mode`, `copy`/`do_copy`/`print`/`record`, `initialize`/`m_initialize`) are deliberate, individually justified by in-code Phase63b/B3-B4 comments citing specific known-safe UVM dead-spec patterns (a verified-safe deferred-init race, not an oversight) -- re-litigating these without new contrary evidence isn't productive. `elaborate.cc:14072`'s general unknown-task case is loud. `elab_expr.cc:8297`'s constant-stub expression method (`elaborate_compile_progress_expr_method_stub_`) was not traced to its call site(s) this pass to confirm whether callers already warn; unexamined. | The `elab_expr.cc:8297` stub's callers are the one open thread here; everything else is either deliberate-and-justified or already loud. |
+| Iteration | elaborate.cc:22119 | **Re-triaged (2026-09-11).** Already loud (`cerr << ... "warning: ... can only descend into array-like element types (compile-progress: loop body dropped)"`) before dropping the body -- a real severity concern if reachable (dropped body, not just wrong value), so worth more effort than most rows here, but three attempted legal nested-foreach shapes (assoc-of-assoc 2D, assoc-of-queue, assoc-of-assoc-of-assoc 3D) all iterate and sum correctly with no warning. No reproducer found reaching this branch. | Re-open if a specific nested-container shape is found that reaches the drop; likely needs an inner element type this pass didn't try (e.g. an unpacked struct or class-typed leaf being foreach'd one level too deep). |
 | Membership | tgt-vvp/eval_vec4.c:1937 | **RESOLVED (2026-09-11 re-triage).** Current source already emits a loud `vvp.tgt error:` before the `%pushi/vec4 0` fallback, and the queue/darray/fixed-array cases immediately above it are real implementations (`%inside/arr`, `%inside/arr/o`), not stubs. Not silent; stale table entry from an earlier revision. | None -- already loud, not DD046's silent-path concern |
 | Increment/decrement | tgt-vvp/eval_vec4.c:2354 (now ~2351) | **RESOLVED (2026-09-11 re-triage).** `draw_unary_inc_dec`'s switch handles `IVL_EX_SIGNAL`/`IVL_EX_SELECT`/`IVL_EX_PROPERTY` with real codegen; only a genuinely unhandled expr type reaches the `default:` fallback, which itself prints a loud `sorry:` before the read-only fallback. Reducers for the two legal lvalue shapes a table reader would suspect (queue element `q[0]++`, associative-array element `assoc["k"]++`) both compute correctly (`evidence/campaign-20260908/dd046/c14_incdec.sv`) -- neither reaches `draw_unary_inc_dec` at all, so this candidate is not reachable by the constructs it looked like it should cover. | None -- already loud where reachable, and the obvious legal reproducers don't reach it |
 | Array locators | tgt-vvp/eval_object.c:2584,2622 | **RESOLVED (2026-09-11 re-triage).** Both plausible reproducers -- `find()` on a fixed-size array of non-integral elements as a plain module-level signal, and as a class property -- were tested. The plain-signal case is rejected at elaboration with a loud `sorry:` (elab_expr.cc:16554-16562) before ever reaching this codegen; the class-property case (`evidence/campaign-20260908/dd046/c16_locator_prop.sv`) elaborates via the dedicated property-materializer path the code comment describes and returns the correct result. The `%null`-emitting branch here may be reachable only through a narrower combination not yet found, or may be dead code superseded by the materializer path; neither reproducer this pass tried reaches it. | Re-open only if a specific reproducer is found; not selected as DD046's next increment |
 | String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | **Partially re-triaged (2026-09-11).** `eval_object.c`'s two select/null fallbacks (1197, ~1280) are already loud (`fprintf(stderr, "Warning: ...")` before the `%null`), not silent. `eval_string.c:249`'s "select on an unsupported base type -> empty string" fallback IS silent (no diagnostic) and remains genuinely open, but five attempted legal reproducers (ternary-selected string, string-concat select, bare function-call-result select, string-method-result select, queue-of-strings element select) each either hit an earlier parser/elaboration rejection (indexing a call/ternary result directly is not parseable in this grammar today) or resolved correctly through a different, already-working path (queue element char-select). No legal construct reaching this specific silent branch was found this pass; likely unreachable given current grammar restrictions on what may be select-indexed, but not proven so. | Re-open only if a specific reproducer is found for the `eval_string.c:249` branch. |
-| Missing executable targets | tgt-vvp/vvp_process.c:808 | Creates unresolved TD label with only end instruction | Real executable body and correct return/completion behavior |
-| Simulator/VPI | vvp/compile.cc:1148; vvp/vpi_callback.cc:217 | Placeholder-net path; constant-true callback-readiness helper | Trace callers and prove whether upstream filtering supplies required semantics |
-| Qualification fallback | .github/uvm_test.sh:139 | Switches to UVM_NO_DPI if real DPI build fails | Keep real-DPI and no-DPI evidence separate; never count substitution as real-DPI qualification |
+| Missing executable targets | tgt-vvp/vvp_process.c:808 | **Re-triaged (2026-09-11).** `emit_td_stub_definitions()` is a defensive bookkeeping safety net (emit an empty label for any thread-destination referenced but never defined, so a stray forward reference can't produce a dangling jump) rather than a feature-implementation fallback; not traced further this pass to find a legal construct that leaves a genuine reference unresolved. | Unclear this represents user-visible incorrect behavior; would need a concrete case where a legally-reachable TD reference has no definition. |
+| Simulator/VPI | vvp/compile.cc:1148; vvp/vpi_callback.cc:217 | **Re-triaged (2026-09-11), both resolved.** `compile.cc:1148`'s placeholder-net path is already loud (`unresolved_warn_once`) and is the generic safety net that ANY malformed functor reference trips -- it is literally the mechanism whose output ("unresolved functor stub"/"created placeholder net") was the observed symptom of the real L34 regression this session found and fixed; it did its job correctly. `vpi_callback.cc:217`'s `test_value_callback_ready()` "stub" is a legitimate virtual-method default (always-ready is correct for a plain full-value-change callback) properly overridden by `value_part_callback`/`array_word_part_callback`/`runtime_array_word_value_callback` wherever real bit/word-range filtering is actually needed -- traced all overrides and call sites; this is correct OOP design, not a defect. | None -- both already resolved (one already loud+working-as-intended, one already correctly designed). |
+| Qualification fallback | .github/uvm_test.sh:139 | Already understood at DD046's original writing: this row's own "Qualification needed" column already states the correct handling (keep real-DPI/no-DPI evidence separate). Not re-examined this pass; harness-flavored, not a compiler-semantics candidate. | Low priority; the existing disposition already looks correct. |
 
 - **Triage:** OPEN, semantic classification pending. Ordinary allocation
   fallbacks, generated DPI bridge stubs, valid empty-container results and
