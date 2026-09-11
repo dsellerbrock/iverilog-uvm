@@ -1019,3 +1019,13 @@ L28 final validation: 77cce610b; counter and callback reds both editions PASSED/
   recovery. Foreach carrier recovery remains DD045. U13 Linux CI has passed.
 
 L29 final validation: 9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes.
+
+### L30 — Direct class-scoped type declarations at module scope
+
+- **Status:** ACTIVE, DD039 reproduced on fully validated9229c24e7.
+- **Reducer:** Complete class holder with typedef int state; module declares
+  holder::state s. Both editions reject as invalid module instantiation.
+- **Scope:** Reuse class type resolution at the module declaration frontier;
+  preserve type identity, variable shapes and illegal-prefix/access rejection.
+- **Authority:** Both editions6.18/8.23; unresolved prefix restrictions remain.
+- **Evidence:** `evidence/campaign-20260908/l30/`; no fullclass/UVM claim.

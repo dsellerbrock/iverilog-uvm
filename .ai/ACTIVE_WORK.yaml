@@ -1,26 +1,19 @@
-id: "L29"
-title: "Release abandoned procedural block scopes during parser recovery"
-status: "closed"
-phase: "completed"
-base_revision: "3527d3107"
+id: "L30"
+title: "Direct complete-class scoped type declarations at module scope"
+status: "active"
+phase: "root_caused"
+base_revision: "cfb4c4e68"
 last_validated_revision: "9229c24e7"
-classification: "parser robustness; not legal-feature or UVM qualification"
-reproducer: "../evidence/campaign-20260908/l29/one-loop.sv; reduction.json and parser-trace.log"
-current_behavior: "Both editions abort134 after malformed tuple statement inside nested begin/if in a declaring for loop. Legal replacement compiles0."
-expected_behavior: "Reject malformed source with syntax diagnostics and ordinary nonzero termination; discard abandoned lexical scopes consistently; preserve valid block/loop behavior."
-standards: ["IEEE1800-2017 and 2023 procedural sequential-block and for-loop syntax/scope,9.3.1/12.7.1; error recovery itself is an implementation robustness obligation,not a standards-feature gain."]
-root_cause: "Bison trace shows discarded untyped begin-scope midrule without cleanup; error-semicolon recovery yields PNoop and normal enclosing loop reduction asserts on orphan lexical scope."
-suspected_symbols: ["parse.y procedural begin/fork scope carriers", "current_block_stack", "pform_finish_for_variable_declarations", "pform_finish_for_nondeclaration"]
-allowed_scope: ["Owned procedural-block parser scope cleanup at shared recovery boundary; focused malformed/nested/named/loop controls and permanent regressions; required validation and scoped documentation."]
-non_goals: ["No recording macro adapter, vendor impersonation, UVM source edits, parser redesign, disabled assertions or accepted malformed input."]
-dependencies: ["Fully validated compiler77cce610b; U13 harness-only Linux CI now passed on both Ubuntu22/24; exact harness scope closed."]
-required_gates: ["Both-edition pre-fix/green negative and positive controls; independent design/code review; native serial build and Bison conflict signature; focus and neighboring legacy/JSON; makecheck/integrated/JSON/UVM/NFA/releases; isolated frontend last and restored frozen hashes."]
-evidence: "../evidence/campaign-20260908/l29/"
-discovery_policy: "Unrelated discoveries record-only; patch-caused regressions remain in scope."
-next_action: "Return to selection; assess DD038 recording adapter design without bypassing recording behavior."
-next_command: "sed -n '508,530p' docs/conformance/DISCOVERED_DEBT.md"
+reproducer: "../evidence/campaign-20260908/l30/module-scoped-type.sv and red.json; direct class holder defines typedef int state,module declares holder::state s;both editions compile2 invalid module instantiation."
+expected_behavior: "A direct declaration using a public nested type of an already complete class must retain that type and permit normal variable initialization/access at module scope. Illegal non-type/private/incomplete/typeparameter prefixes must remain rejected."
+standards: ["IEEE1800-2017 6.18/8.23 and2023 6.18/8.23; direct complete-class member type reference allowed. Restricted unresolved-prefix contexts differ between editions,but neither permits the direct incomplete-prefix data declaration targeted by negative controls."]
+root_cause: "module_item has explicit TYPE_IDENTIFIER instantiation/declaration routes; direct class scope resolution cannot reach generic data_type route and falls into invalid module instantiation. Existing class_scoped_type_identifier/make_class_scoped_typeref provides reusable type resolution."
+allowed_scope: ["Existing module declaration frontier and class-scoped type helper as causally needed; direct complete-class nested type,packed/unpacked variable shape and initialization controls; exact negative restrictions and neighbors; scoped evidence/docs."]
+non_goals: ["No general parser redesign, unresolved prefix relaxation, arbitrary nested/parameterized class grammar expansion, UVM recording adapter, source modifications to upstream libraries, or fullclass completion claim."]
+dependencies: ["Fully validated9229c24e7; L29 and U13 closed."]
+required_gates: ["Both-edition reducer and permanent runtime type/value/shape/enum controls; negative visibility/missing type/incompleteprefix controls; independent design/code review; Bison conflict comparison; native build/focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone and frozenhashrestore."]
+evidence: "../evidence/campaign-20260908/l30/"
+discovery_policy: "Unrelated discoveries record-only; regressions from this patch remain in scope."
+next_action: "Confirm frontier trace and helper prefix restrictions,then implement minimal direct class-type declaration route."
+next_command: "sed -n '14710,14795p' parse.y"
 stop_after_completion: false
-
-focused_validation: "Native build/install53597exit0; focus12/12 legacy and12/0 JSON; neighbors68legacy/57JSON; makecheck; independent code review clear. Original and additional named nondecl/foreach reducers reject normally,both editions. Bison baseline/candidate563SR1122RR and same three useless-rule productions. Required full gates pending."
-
-validation_result: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."

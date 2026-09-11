@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "selection"
-phase: "assessing_recording_adapter"
+current_blocker: "L30"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9229c24e7"
@@ -11,8 +11,8 @@ pending_gates: "L29 localgates complete;U13closed. PR275 otherplatformchecks on9
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Assess DD038 real recording adapter design and its qualification contract;no no-op or vendor impersonation."
-next_command: "sed -n '508,530p' docs/conformance/DISCOVERED_DEBT.md"
+next_action: "Repair L30 complete-class scoped module declarations after checking existing helper restrictions and parser trace."
+next_command: "sed -n '14710,14795p' parse.y"
 next_command_cwd: repository root
 candidate_state: "L29 closed9229c24e7;13/15 boundedruntime smoke passes. U13closed. Return to selection."
 installed_tools: "9229c24e7 validated;l29/sha256.txt restored/unchanged."
@@ -706,3 +706,5 @@ u13_closure: "9006baa15 exact invocationseparator only;localfrontend35171exit0 w
 l29_uvm_terminal: "11005exit0;355passed0failed0skipped,realDPI. Isolatedfrontend74117 started last alone after allotherlocalgates terminal. Required restore/fivefrozenhashes check afterward."
 
 l29_closure: "9229c24e7; original malformed reducer and all five procedural block forms reject normally in both editions; paired runtime lifetime/label/foreach/fork controls PASS. Focus12legacy/12JSON,neighbors68legacy/57JSON,makecheck and independent design/code/test reviews clear. Bison563SR1122RR unchanged. Legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1859/0,realDPIUVM355/0/0,NFA58/58,frontend74117exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all status/source/archivehashes unchanged vsL28. 1.1b/c now normalcompile32 without assertion,not new UVM passes."
+
+l30_selection: "DD039 directcompleteclass nested typedef variable atmodulescope failsboth editions compile2 onvalidated9229c24e7. Trace confirms moduleinstantiationfrontier;reusable classscopedtypehelper exists. L30 soleactiveimplementation. DD038 remains realrecordingbackend design boundary;no emptymacro/vendorimpersonation."
