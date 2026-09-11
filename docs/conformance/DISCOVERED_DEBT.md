@@ -560,6 +560,30 @@ uvm_object.svh1294-1313 in original1.1b. Read-only review; no implementation
 selected or changed while L31 is awaiting validation. Cross-model review skipped
 in this automated continuation.
 
+U14 concrete API review: use native lifecycle operations through the existing
+context-DPI umbrella. Preserve explicit begin/end time as unsigned64, separate
+from event occurrence time. Transaction-kind queries must see globally registered
+transactions (including ended/unfreed) because component2649 uses that query
+before linking its handle to the transaction's separately owned handle. Fiber
+queries must require owner identity to invalidate stale component stream caches.
+Mutation ownership stays separate. Child links are parent-to-child; caller may
+own the right endpoint (transaction743/component2645), so a source-owner-only
+link rule is incorrect. Preserve direction and both owners plus issuing recorder.
+
+Native state/journal is authoritative; do not claim atomic commits across native
+and superclass text logs. Validate before existing-handle mutations, reject
+re-registration of retained ended handles, retain ended handles for links, and
+specify live-transaction free behavior (upstream allows it). Journal write/flush
+failure poisons the owner; later operations cannot report successful continuation.
+If superclass allocation precedes failed native registration, explicitly undo
+its membership when possible and fail the operation. New journal creation must
+be exclusive, not exists-then-open, and must not collide with superclass text
+output before its first open. Per-simulation cleanup must clear registry/callback
+state as well as close native-owned streams. Full test must exercise actual
+cross-owner begin_child_tr and component/transaction dual recording; manual links
+alone would miss both API traps. These findings refine U14 before implementation;
+no native source has been changed yet.
+
 ### DD039 — Bare class-scoped module variable declarations
 
 During L22 negative-test construction, bare process::state s at module scope

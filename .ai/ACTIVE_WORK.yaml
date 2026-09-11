@@ -19,3 +19,5 @@ evidence: "../evidence/campaign-20260908/u14/"
 next_action: "Finalize native DPI lifecycle signatures and explicit legacy adapter ownership/error behavior with focused contract review; establish full lifecycle failing test before implementing registry."
 next_command: "sed -n '245,365p' third_party/uvm-releases/sources/1.1d/uvm-1.1d/src/base/uvm_recorder.svh"
 stop_after_completion: false
+
+api_review: "Concrete review found source-owned link and owner-scoped Transaction query incompatible with actual child/component callers. Fiber queries owner-aware,Transaction queries global; mutation ownership separate. Nativejournal authoritative,poison onIOfailure,allocation rollback,no atomic dualjournalclaim;exclusiveoutput/noaliascollision and per-simulation cleanup required. Actualcrossownerchild/componenttests mandatory. No implementation edits yet."
