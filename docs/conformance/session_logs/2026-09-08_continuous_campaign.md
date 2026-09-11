@@ -2035,3 +2035,45 @@ Full required gates and post-validation original1.2 replay are pending.
 Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits.
 
 The first commentary misread DEBT as stopping before simulation; inspection of runtime_command/runtime_returncode and the actual log corrected that immediately. The harness ran the workload and retained DEBT due compiler warnings; no gate was altered. Exact original1.2 src hash remains885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0. DD035 selects the next reducer candidate.
+
+### L17 suspension and L18 signed-property prerequisite
+
+L17's original selected dynamic-array compound reducer compiles without a
+warning but destroys the array value. The partial target correction captures
+the selected container/index and uses typed read/operator/store instructions.
+Permanent boundary tests then exposed earlier operand truncation and stale
+property signedness. The complete partial patch and tests were preserved at
+`evidence/campaign-20260908/l17/partial.patch` and reversed from the worktree
+before selecting L18. L17 remains suspended, not closed. DD036 separately
+records premature compound RHS width/state conversion.
+
+L18 standalone reducer `int` class property `-64 /= 2` returns2147483616
+instead of-32 in both2017/2023 on the restored L16 baseline. Compressed
+assignment elaboration read a default-false signed flag instead of the resolved
+property type. IEEE1800-2017/2023 11.4.1,11.8.1 and11.4.10 require signed
+operation and arithmetic-shift behavior for this selected signed operand.
+
+Initial L18 candidate f9b0021d0 made singleton concatenations signed; the
+integrated `assign_op_type` test caught this (one legacy failure). Integrated
+and UVM processes were terminated before changes. A follow-up review caught
+the same issue for singleton property concatenations. Final semantic candidate
+9791e6411 overrides signedness only for actual integral property selections
+and excludes source concatenations. Both scalar/property concatenations and
+full-width part selects retain unsigned behavior.
+
+Final focused legacy3/0,JSON2/0,neighbor legacy9/0,JSON15/0,makecheck and
+independent review pass. Final NFA58/58 and complete15release sweep
+results-p70mxdbu retain11SMOKE_PASS/4COMPILE_FAIL with all source/archive hashes
+unchanged. Full integrated/JSON/real-DPIUVM/isolated frontend validation remains
+pending at this checkpoint. Frozen final tools are recorded in
+`evidence/campaign-20260908/l18/sha256-final.txt`. No application or container
+compound qualification is implied; L17 cannot resume until prerequisites pass.
+
+L18 final closure at9791e6411: legacy4923total4918pass0fail2NI3EF,VPI105/0,
+negative149/0,runtime15/15,copyout6/6,exports66,JSON1815/0,real-DPIUVM355/0/0,
+NFA58/58,makecheck,independent final review and isolatedfrontend all scenarios
+pass. Frontend39433 exit0; install root restored and sha256-final matches.
+Complete15release results-p70mxdbu retains11smokePASS/4compileFAIL and every
+source/archive hash. L18 closes only direct-property signedness; L17 remains
+suspended for DD036. Next publish the three validated L15/L16/L18 increments
+as an update to PR275, then continue prerequisite selection.

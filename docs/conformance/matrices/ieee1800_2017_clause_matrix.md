@@ -1083,3 +1083,13 @@ checks include aliases, identity, selected/compound/increment writes and
 output/inout copy-out. Required local gates pass. Intermediate const
 class-property traversal, const containers and general const qualification
 remain separate; no full6.20.6 claim.
+
+### L18 — Direct integral property compound signedness (11.4.1/11.8.1)
+
+Validated9791e6411 preserves declared property signedness for division,
+remainder and arithmetic right shifts in both2017/2023. Unsigned operands,
+part selects and singleton scalar/property concatenations retain unsigned
+semantics. Focused/neighbor tests, independent review and all required local
+gates pass. This is bounded direct-property support; compound operand
+width/state conversion (DD036), associative lowering and dynamic-array
+property operations (L17) remain separately unqualified.

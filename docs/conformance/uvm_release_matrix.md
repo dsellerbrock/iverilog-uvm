@@ -69,7 +69,7 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `5ba60567f` (L16 const-handle member writes).
+2026-09-10, native ARM64, validated source `9791e6411` (L16 const-handle member writes).
 The release sweep and all required L16 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-syc0rzby/results.json`, with per-release
+`third_party/uvm-releases/results-p70mxdbu/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes

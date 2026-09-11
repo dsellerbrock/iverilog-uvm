@@ -1,20 +1,20 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L18"
-phase: "awaiting_validation"
+current_blocker: null
+phase: "selecting"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "5ba60567f"
+last_integrated_good_revision: "9791e6411"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L18 final integrated50506,UVM62965,NFA7325,15release59045 live;JSON after integrated terminal;frontend last alone then restore/hash check."
+pending_gates: "L18 local gates complete; next PR275 publication requires fresh remoteCI; no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Finish L18 required validation; full JSON after integrated gate terminal, isolated frontend last alone. Then close exact signedness scope and select DD036 before restoring L17."
-next_command: "tail -8 ../evidence/campaign-20260908/l18/{integrated,uvm,nfa,releases}-final.log"
+next_action: "Publish L15/L16/L18 validated batch to existing PR275, then select DD036 operand width/state prerequisite; preserve suspended L17."
+next_command: "gh pr view 275 --json state,headRefOid,statusCheckRollup"
 next_command_cwd: repository root
-candidate_state: "L15/L16 two validated unpublished increments since PR275 update."
+candidate_state: "L15/L16/L18 three fullyvalidated increments ready for batched PR275 update."
 installed_tools: "9791e6411 final candidate; frozen evidence/campaign-20260908/l18/sha256-final.txt; last fully validated5ba60567f."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
@@ -464,3 +464,13 @@ l18_corrected_focused: "Correction retains original lvalue signed flag except ac
 l18_final_focus: "Read-only review found singleton property concat also reuses property lvalue; explicit PEConcat exclusion added before restarting broad gates. Permanent paired {h.value} case added. Final focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck pass. Final independent review clear. No semantic gates from earlier candidates count for final revision."
 
 l18_final_live_gates: {integrated: 50506, uvm: 62965, nfa: 7325, releases: 59045}
+
+l18_final_release_terminal: "59045 exit1 due four known compile gaps; results-p70mxdbu complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL; all15 statuses/source/archive hashes match L16. Final NFA7325 exit0,58/58. Integrated50506,UVM62965 pending;JSON/frontend unstarted."
+
+l18_final_integrated_terminal: "50506 exit0;legacy4923total4918pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM62965 pending;frontend unstarted."
+
+l18_final_json_terminal: "6499 exit0;1815tests0failures. UVM62965 still live;isolatedfrontend unstarted. Final source/install9791e6411 unchanged."
+
+l18_final_uvm_terminal: "62965 exit0;355passed0failed0skipped,realDPI. Isolated frontend launched last alone after all other gate sessions terminated;root restoration/final frozen hashes required afterward."
+
+l18_closure: "9791e6411; focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent final review,legacy4923total4918pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1815/0,realDPIUVM355/0/0,NFA58/58,frontend39433exit0 all scenarios;root restored and sha256-final fingerprints match. Complete15release results-p70mxdbu11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."

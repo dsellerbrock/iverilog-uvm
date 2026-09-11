@@ -1,9 +1,9 @@
 id: "L18"
 title: "Resolved integral property signedness in compound assignment"
-status: "in_progress"
-phase: "focused_tested"
+status: "closed"
+phase: "done"
 base_revision: "33ce0abbf"
-last_validated_revision: "5ba60567f"
+last_validated_revision: "9791e6411"
 reproducer: "evidence/campaign-20260908/l18/red.sv: signed int class property -64 /= 2 produces2147483616 instead of-32."
 expected_behavior: "Compound division/modulo and arithmetic right shift use the resolved selected integral type signedness. Unsigned and packed-select operations remain unsigned."
 standards: ["IEEE1800-2017 and2023 11.4.1 compound assignment;11.8.1 operand signedness;11.4.10 shift semantics."]
@@ -15,3 +15,5 @@ suspended_parent: "L17 original reducer/failing focus/VVP and complete partial.p
 next_action: "Derive compressed integral LHS signedness from resolved type; preserve other paths; run paired focused tests."
 next_command: "sed -n '7499,7533p' elaborate.cc"
 stop_after_completion: false
+
+closure: "9791e6411; final focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4923total4918pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1815/0,realDPIUVM355/0/0,NFA58/58,frontend all;root restored and final frozen hashes unchanged. Complete15release11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."

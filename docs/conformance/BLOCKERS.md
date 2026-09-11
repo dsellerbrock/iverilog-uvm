@@ -833,7 +833,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L18 — Resolved property signedness in compound assignment
 
-- **Status:** ACTIVE, prerequisite for suspended L17.
+- **Status:** CLOSED at9791e6411; signedness prerequisite for suspended L17.
 - **Evidence:** Signed scalar class property -64 /= 2 produces2147483616, expected-32. NetAssign_ signed_ is default-false for property shapes.
 - **Scope:** Use resolved integral selected type in compressed-assignment elaboration. Paired signed/unsigned/part-select regressions and all required gates. No dynamic-array compound qualification before L17 resumes.
 
@@ -841,3 +841,8 @@ L17 coordination boundary: suspended with full partial patch/tests at
 `evidence/campaign-20260908/l17/partial.patch`. Focus exposed prerequisite
 operand width/state loss and signedness loss before target lowering. L18
 handles signedness; DD036 preserves width/state debt. No L17 closure.
+
+L18 closure: focused paired-edition/neighbor tests, independent review and all
+required local gates pass; original15release statuses unchanged. Only direct
+integral property signedness is resolved. DD036 width/state preservation and
+L17 dynamic-array lowering remain open.
