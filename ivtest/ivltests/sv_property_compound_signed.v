@@ -8,6 +8,7 @@ endclass
 module sv_property_compound_signed;
   signed_property_item h;
   int scalar;
+  logic signed [3:0] small_signed;
   initial begin
     h = new;
     h.value = -64;
@@ -39,6 +40,10 @@ module sv_property_compound_signed;
     scalar /= 2;
     scalar >>>= 2;
     if (scalar !== -8) $fatal(1, "ordinary signed variable");
+    small_signed = -1;
+    scalar = 4;
+    {scalar} += small_signed;
+    if (scalar !== 19) $fatal(1, "unsigned singleton concatenation");
     $display("PASSED");
   end
 endmodule

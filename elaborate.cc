@@ -7505,8 +7505,9 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	// the type of the RHS expression.
       bool lval_signed = lv->get_signed();
         // Property lvalues need not carry the root signal's signed flag.
-        // The resolved selected type also accounts for unsigned part selects.
-      if (lv->net_type() && type_is_vectorable(lv->expr_type()))
+        // Keep the unsigned flag of concatenations and part-select wrappers.
+      if (lv->get_property_idx() >= 0 && lv->net_type()
+          && type_is_vectorable(lv->expr_type()))
             lval_signed = lv->net_type()->get_signed();
       bool force_unsigned;
       switch (op_) {
