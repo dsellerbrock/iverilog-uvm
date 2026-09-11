@@ -734,3 +734,5 @@ post_uvm_smoke_evidence: "results-jz6zk_cb/1.0p1/compile.log confirms uvm_sequen
 
 l31_focused: "0a4e7d639;original/expandedredsPASSboth editions/no diagnostics;focus2legacy/2JSON,neighbors125legacy/92JSON,makecheck,independentdesign/code/ownershipreviewclear;realneighborandunsignedselectionspreserved. Fullgates pending."
 l31_live_gates: {integrated: 37776, uvm: 45596, nfa: 57410, releases: 51674}
+
+l31_release_terminal: "51674exit1;results-322hzu4s complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsL30. NFA57410exit0,58/58. Integrated37776/UVM45596 remainlive;JSON/frontend unstarted. PR2756506fc7a2 allsixfreshchecksIN_PROGRESS,snapshot l31/published-ci.json."
