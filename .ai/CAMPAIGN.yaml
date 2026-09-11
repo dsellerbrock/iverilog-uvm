@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "selection"
-phase: "reproduced_assoc_signedness"
+current_blocker: "L31"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "34787868e"
@@ -726,3 +726,5 @@ l30_closure: "34787868e; originalredcompile0/no diagnostics both editions; perma
 
 legacy_uvm_pr_seventh_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "6506fc7a2657e26aa9e9e318cfca05e71ceee41f", state: "open", scope: "ValidatedL28/L29/L30", remaining: "FreshCI onnewhead;no mergeauthorization"}
 l31_selection_evidence: "l31/assoc-compound.sv onvalidated34787868e compiles0 both editions;runtime1 because signed byte associative element -64/=2 yields96 not-32. Same reducer shift256/divisor256/unknown-add controls pass;notbroaderwidthqualification. No source edits or activeL31contract yet;trace signedness next."
+
+l31_contract: "Activated DD036 associative expression typing scope;root signedflag and destination-width binary construction in elaborate_compressed_. Existing passing2state divide256control may mask X conversion;add discriminating wide/fourstate cases before patch. No source edits yet."

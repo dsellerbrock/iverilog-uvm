@@ -1031,3 +1031,12 @@ L29 final validation: 9229c24e7; original malformed reducer and all five procedu
 - **Evidence:** `evidence/campaign-20260908/l30/`; no fullclass/UVM claim.
 
 L30 final validation: 34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim.
+
+### L31 — Associative compound expression typing
+
+- **Status:** ACTIVE; DD036 reproduced on34787868e.
+- **Reducer:** Signed byte associative element -64/=2 gives96 instead of-32
+  in both editions. Expansion emits unsigned division.
+- **Scope:** Resolved element signedness and binary operand width/state through
+  final store; mixed unsigned and self-determined shift controls required.
+- **Authority:** Both editions11.4.1/11.6/11.8; evidence l31.

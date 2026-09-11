@@ -1,23 +1,20 @@
-id: "L30"
-title: "Direct complete-class scoped type declarations at module scope"
-status: "closed"
-phase: "completed"
-base_revision: "cfb4c4e68"
+id: "L31"
+title: "Associative compound assignment expression signedness and sizing"
+status: "active"
+phase: "root_caused"
+base_revision: "39475cf98"
 last_validated_revision: "34787868e"
-reproducer: "../evidence/campaign-20260908/l30/module-scoped-type.sv and red.json; direct class holder defines typedef int state,module declares holder::state s;both editions compile2 invalid module instantiation."
-expected_behavior: "A direct declaration using a public nested type of an already complete class must retain that type and permit normal variable initialization/access at module scope. Illegal non-type/private/incomplete/typeparameter prefixes must remain rejected."
-standards: ["IEEE1800-2017 6.18/8.23 and2023 6.18/8.23; direct complete-class member type reference allowed. Restricted unresolved-prefix contexts differ between editions,but neither permits the direct incomplete-prefix data declaration targeted by negative controls."]
-root_cause: "module_item has explicit TYPE_IDENTIFIER instantiation/declaration routes; direct class scope resolution cannot reach generic data_type route and falls into invalid module instantiation. Existing class_scoped_type_identifier/make_class_scoped_typeref provides reusable type resolution."
-allowed_scope: ["Existing module declaration frontier and class-scoped type helper as causally needed; direct complete-class nested type,packed/unpacked variable shape and initialization controls; exact negative restrictions and neighbors; scoped evidence/docs."]
-non_goals: ["No general parser redesign, unresolved prefix relaxation, arbitrary nested/parameterized class grammar expansion, UVM recording adapter, source modifications to upstream libraries, or fullclass completion claim."]
-dependencies: ["Fully validated9229c24e7; L29 and U13 closed."]
-required_gates: ["Both-edition reducer and permanent runtime type/value/shape/enum controls; negative visibility/missing type/incompleteprefix controls; independent design/code review; Bison conflict comparison; native build/focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone and frozenhashrestore."]
-evidence: "../evidence/campaign-20260908/l30/"
-discovery_policy: "Unrelated discoveries record-only; regressions from this patch remain in scope."
-next_action: "Publish validated L28/L29/L30 batch to existing PR275,then return to selection."
-next_command: "gh pr view 275 --json state,headRefOid"
+reproducer: "../evidence/campaign-20260908/l31/assoc-compound.sv and red.json; signed byte associative element -64/=2 produces96 in both editions,compile0/runtime1."
+expected_behavior: "Associative element compound arithmetic must evaluate the equivalent binary expression with declared element signedness, mixed-operand signedness, expression width and four-state information preserved until final assignment conversion. Shift counts remain self-determined and unsigned selections remain unsigned."
+standards: ["Both IEEE1800-2017/2023 11.4.1,11.4.3,11.4.10,11.6,11.8.1/11.8.2;6.11.2 final state conversion."]
+root_cause: "PAssign::elaborate_compressed_ uses default lvalue signed flag for plain associative elements; associative read/modify/write expansion rereads it and builds the binary node at destination width. Emitted signed-byte case uses unsigned div. Existing resolved net_type provides element type."
+suspected_symbols: ["PAssign::elaborate_compressed_", "build_compound_binary_", "lv_is_assoc_element_", "NetAssign_::lval_type"]
+allowed_scope: ["Correct existing associative compound expression typing at elaboration; reuse resolved element type and existing expression sizing/padding rules; local/property and signed/unsigned/mixed/shift/state controls; permanent regressions and fullvalidation."]
+non_goals: ["No new runtime instruction or container architecture, no general class completion or blanket signedness on concatenations/part-selects, no UVM recording provider. Unrelated preexisting key/receiver evaluation defects are record-only unless proven prerequisites or patch-caused."]
+dependencies: ["Fully validated34787868e;published PR2756506fc7a2 freshCI pending,not a semantic dependency."]
+required_gates: ["Both-edition red/green and independent design/code review; signed division/remainder/arithmeticshift,mixedunsigned,wide operands,fourstate and local/property controls; focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend lastalone andrestorefrozenhashes."]
+evidence: "../evidence/campaign-20260908/l31/"
+discovery_policy: "Unrelated discoveries record-only; regressions remain in scope."
+next_action: "Expand discriminating mixed-sign/wide/fourstate controls;review smallest shared expression-typing correction before source edits."
+next_command: "sed -n '7498,7588p' elaborate.cc"
 stop_after_completion: false
-
-focused_validation: "Original red nowcompile0/nodiagnostics both editions; permanentfocus12legacy/12JSON;neighbors43legacy/32JSON;nativebuild44815exit0/makecheck;independentdesign/code/ownershipreviewclear. Error-path ranges/attributes fully released,nofallbacktype. Bison563SR1122RR unchanged. Fullgates pending."
-
-validation_result: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
