@@ -1,16 +1,16 @@
-id: "L22"
-title: "Built-in process::state enum type and status return identity"
-status: "closed"
-phase: "done"
-base_revision: "f543fede0"
+id: "L23"
+title: "Blocking joins inside function-spawned background processes"
+status: "in_progress"
+phase: "root_caused"
+base_revision: "b22bf23e1"
 last_validated_revision: "4a102ee47"
-reproducer: "evidence/campaign-20260908/l22/red.sv; original UVM1.0p1 uvm_phases.svh2824 returns process::state and fails visible-class lookup."
-expected_behavior: "The built-in process class exposes nominal enum state with FINISHED,RUNNING,WAITING,SUSPENDED,KILLED; status() returns that enum, permitting typed variables/returns and enum methods without weakening enum assignment rules."
-standards: ["IEEE1800-2017/2023 9.7 built-in process prototype;6.19 enum identity/assignment rules"]
-root_cause: "Parser class-scoped typedef lookup requires a PClass, while process exists only as a special typedef/built-in netclass. Existing status expressions/constants use raw integers; causal investigation underway."
-allowed_scope: ["Built-in process state type lookup, shared enum representation and typed state constants/status expressions; paired positive/negative regressions and required gates."]
-non_goals: ["No bare class-scoped module declaration grammar repair (DD039), process scheduling redesign, generic class-lookup rewrite, user-library edits, integer alias substituted for enum, full process/legacy UVM qualification."]
-required_gates: ["Both-edition reducer and enum identity/width/sign/name/assignment controls;process status/control neighbors;independent review;native serial build/makecheck/full integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Select DD040 nested fork/join_any inside function-spawned background process;reduce and verify both editions."
-next_command: "sed -n '22392,22420p' ../evidence/campaign-20260908-lrm2023.txt"
+reproducer: "evidence/campaign-20260908/l23/red.sv, both editions reject nested join_any; UVM1.0p1/1.1a m_forked_drop outer join_none background process."
+expected_behavior: "A function returns immediately after spawning join_none children; those children may execute blocking join/join_any and task-legal statements. Direct blocking forks in the executing function remain errors."
+standards: ["IEEE1800-2017/2023 13.4.4;9.3.2 nested joins and process lifetime"]
+root_cause: "PBlock::elaborate checks lexical function ancestry without distinguishing the current background child. Existing Design fork depth tracks actual child elaboration and is reset across lazily elaborated routines; verify all callers before reuse."
+allowed_scope: ["PBlock blocking-fork legality check using existing isolated elaboration context;paired runtime/negative tests and required gates."]
+non_goals: ["No scheduler,frame lifetime or generic routine redesign; no UVM source edits/void-cast relaxation;no full background-process qualification."]
+required_gates: ["Both-edition reducer/nestedjoin/join_any timing,completion,cancellation and direct-function negative controls;process/fork/routine context neighbors;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
+next_action: "Verify existing fork-depth isolation and guard reuse;implement minimal context correction,then focused runtime and negative controls."
+next_command: "sed -n '530,580p' elaborate.cc"
 stop_after_completion: false

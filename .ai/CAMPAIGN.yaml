@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L22"
-phase: "selection_boundary"
+current_blocker: "L23"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "4a102ee47"
@@ -11,11 +11,11 @@ pending_gates: "L22 all required gates complete. PR275 remote CI separate;one va
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Complete frozen L22 required gates;JSON after integrated terminal;frontend last alone with restored hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l22/integrated.log"
+next_action: "Verify L23 existing fork-depth isolation;minimal legality guard correction and focused runtime/negative checks."
+next_command: "sed -n '530,580p' elaborate.cc"
 next_command_cwd: repository root
-candidate_state: "L22 first unpublished semantic increment after PR275 batch f543fede0;awaiting required validation."
-installed_tools: "4a102ee47 candidate;frozen evidence/campaign-20260908/l22/sha256.txt;last fullyvalidated d8e974913."
+candidate_state: "L22 one validated unpublished increment after PR275 f543fede0;L23 selected."
+installed_tools: "4a102ee47 fullyvalidated;L23 source not yet modified."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
