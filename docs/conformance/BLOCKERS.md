@@ -816,3 +816,9 @@ qualification remain open. Evidence: campaign-20260908/s03.
 - **Scope:** Prove text-substitution semantics, correct the causal preprocessor boundary and preserve permanent paired-edition regression. No upstream source modifications.
 
 - **L15 validation:** aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged. OpenTitan macro errors/cascades removed; next failure is three const-handle member assignment diagnostics, DD032. No application pass.
+
+### L16 — Mutable property through a const class-handle variable
+
+- **State:** SELECTED after validated L15.
+- **Evidence:** DD032, original1.2 OpenTitan rejects uvm_top.enable_print_topology assignment.
+- **Scope:** Both-edition6.20.6 direct const-handle variable member writes, retaining handle/const-property/value-aggregate protection. No complete const qualification claim.

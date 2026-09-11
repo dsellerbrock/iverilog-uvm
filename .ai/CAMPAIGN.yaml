@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L15"
-phase: "selection"
+current_blocker: "L16"
+phase: "spec_grounded"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "aa356ab4d"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None for L15 local closure. PR275 updated-head macOS/Windows CI pending; two Ubuntu successes."
+pending_gates: "L16 reducer/focus/review/full validation not run; PR275 platformCI pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Select DD032 const-handle mutable member assignment; preserve original1.2 replay and source fingerprints."
-next_command: "graphify query \"const class handle property assignment\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+next_action: "Establish direct const-handle reducer and trace member l-value dispatch; then narrow guard to actual object-member writes."
+next_command: "sed -n '910,965p' elab_lval.cc"
 next_command_cwd: repository root
 candidate_state: "L15 validated aa356ab4d, one unpublished increment since PR275 update."
 installed_tools: "Frozen evidence/u09/sha256.txt at19e7f5592; do not build/install while gates run."

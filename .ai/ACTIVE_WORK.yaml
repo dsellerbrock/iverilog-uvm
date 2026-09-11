@@ -1,16 +1,16 @@
-id: "L15"
-title: "Pasted function-like macro names ending in a digit"
-status: "closed"
-phase: "done"
-base_revision: "f148d7462"
+id: "L16"
+title: "Mutable member assignment through a const class-handle variable"
+status: "in_progress"
+phase: "spec_grounded"
+base_revision: "7ae2dd01e"
 last_validated_revision: "aa356ab4d"
-reproducer: "DD031 original1.2 OpenTitan compile fails at pasted uvm_print_aa_string_int3, diagnosing shorter uvm_print_aa_string_int missing argument list."
-expected_behavior: "Resolve the complete identifier after macro formal substitution and double-backtick concatenation before looking up and expanding the function-like macro."
-standards: ["IEEE1800-2017 and2023 22.5.1: literal argument substitution; nested macro usages substituted after outer macro; double-backtick delimits tokens without whitespace and allows identifier construction. Checked local primary texts at2017 lines44645/44727 and2023 lines46786/46908."]
-root_cause: "YY_INPUT preserves paste delimiter whenever a scanned prefix is any defined macro. It prematurely commits function-like pick before suffix3; object-like delimiter preservation must remain for existing macro3a/b behavior."
-allowed_scope: ["ivlpp macro expansion/paste handling only as proven by reducer; permanent preprocessor/runtime both-edition regression; required gates and directly affected records."]
-non_goals: ["No original UVM/OpenTitan source patches, unrelated syntax recovery redesign or broader macro completion claim."]
-required_gates: ["Red reducer, both-edition LRM check, focused macro neighbors and permanent test, independent review, native build, integrated/JSON/UVM/NFA/makecheck/15release and isolatedfrontend last; original1.2 application replay after validated baseline."]
-next_action: "Select DD032 const-handle member assignment after L15 closure."
-next_command: "graphify query \"const class handle property assignment\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
+reproducer: "Original1.2 OpenTitan dv_base_test.sv92 assigns uvm_top.enable_print_topology but is rejected as assignment to const uvm_top; three class specializations report the same error."
+expected_behavior: "A const class-handle variable cannot be rebound, but ordinary writable properties of its object can be assigned. Preserve rejection of const properties, const value aggregates, and rebinding the handle."
+standards: ["IEEE1800-2017 and2023 6.20.6 explicitly permit writing members of an object referenced by a const handle, except members themselves declared const. Primary local texts checked at2017 lines7594 and2023 lines7942."]
+root_cause: "PEIdent::elaborate_lval rejects reg->get_const before distinguishing assignment to the handle from assignment to its member_path. Existing downstream class-property checks must remain authoritative for actual const members."
+allowed_scope: ["Bounded direct class-handle variable l-value guard and permanent both-edition positive/negative regression. Required gates and original1.2 OpenTitan replay after validation; directly affected docs."]
+non_goals: ["No general const/property/constructor redesign, source modifications to UVM/OpenTitan, or full6.20.6/8.18 qualification claim. No const aggregate or handle rebinding exemption."]
+required_gates: ["Red reducer; permanent mutable-property writes and alias/readback, handle rebinding/const-property/value-aggregate negatives; focused neighbors; independent review.", "Native build, integrated/JSON/UVM/NFA/makecheck/15release sweep; isolatedfrontend last, hashes restored; then original1.2 OpenTitan replay."]
+next_action: "Establish direct const-handle reducer and trace member l-value dispatch; then narrow guard to actual object-member writes."
+next_command: "sed -n '910,965p' elab_lval.cc"
 stop_after_completion: false
