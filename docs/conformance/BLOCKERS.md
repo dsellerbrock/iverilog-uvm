@@ -1069,10 +1069,12 @@ L31 final validation: 0a4e7d639; both-edition signed/mixed/shift/wide/four-state
 
 ### U14 — Native legacy recording ownership and lifecycle
 
-- **Status:** ACTIVE; first reviewed native backend prerequisite for DD038.
-- **Gap:** Native owner/lifecycle API absent; both-edition DPI owner reducer
-  compiles but fails at runtime. Original1.1b/c recording macro gaps preserved.
+- **Status:** CLOSED for bounded lifecycle scope on native ARM64; semantic `729edce3c`, test/CI coverage `79885f484`. DD038 remains OPEN.
+- **Original gap:** Native owner/lifecycle API absent; both-edition DPI owner reducer
+  compiled but failed at runtime. Original1.1b/c recording macro gaps preserved.
 - **Scope:** Explicit legacy recorder, real lifecycle journal, owner/kind/state
   validation and cross-owner links using original1.1d API. No automatic install
   or fake attribute macro. Full typed capture/bootstrap remain required.
 - **Evidence:** `evidence/campaign-20260908/u14/`; ACTIVE_WORK owns exact contract.
+
+U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. Installed native lifecycle/exclusive-text checks both editions and POSIXIOfailure pass; original1.1d realchild/component,wrongowner,stream/transaction rollback,recorder switch,exclusive/replacedfiles and journal-failure tests pass. makecheck and independent design/code/failure-path reviews clear. Integrated20014 exit0:4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 exit0:1873/0. UVM57598 exit0:REAL DPI355/0/0. NFA45081 exit0:58/58. Releases32494 results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15status/source/archivehashes unchanged vsL31; separate1.1d lifecycle gate passes2017/2023. Frontend97996 exit0 allS1-S11;installation restored/six frozen hashes match. Bounded ARM64 local lifecycle validation only; typed capture/default installation/1.1b/c and fullUVM qualification remain open. Windows CI wired,execution not claimed.

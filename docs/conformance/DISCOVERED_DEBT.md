@@ -748,3 +748,11 @@ The fallback in eval_object.c is therefore not reached by this reducer. Record
 this case as an explicit unsupported legal feature, not observed fabricated
 runtime results. Evidence: `evidence/campaign-20260908/fallback-reducers/`
 `fixed-real-find.sv` and `fixed-real-find.json`. Other routes remain unqualified.
+
+
+DD038 prerequisite U14 locally validated at729edce3c with test/CI79885f484:
+explicit original1.1d lifecycle recorder, native owner/handle registry, retained
+exclusive file descriptors, cross-owner links and allocation rollback are real
+and regression-tested. Full local gates pass (BLOCKERS U14). Typed attribute
+capture and deterministic default installation remain mandatory and OPEN;
+original1.1b/c still fail the missing macro. No parent completion claim.

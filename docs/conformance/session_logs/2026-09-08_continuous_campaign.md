@@ -2344,3 +2344,13 @@ validated semantic baseline is still0a4e7d639.
 PR275 was externally merged; origin/main469002b7b has exactly the published
 6506fc7a2 tree. Unpublished work continues on a fresh branch in the same active
 worktree. No new PR, merge performed by this agent, or additional worktree.
+
+
+### U14 bounded lifecycle closure
+
+U14 semantic729edce3c; test/Windows-CI coverage79885f484. Installed native lifecycle/exclusive-text checks both editions and POSIXIOfailure pass; original1.1d realchild/component,wrongowner,stream/transaction rollback,recorder switch,exclusive/replacedfiles and journal-failure tests pass. makecheck and independent design/code/failure-path reviews clear. Integrated20014 exit0:4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 exit0:1873/0. UVM57598 exit0:REAL DPI355/0/0. NFA45081 exit0:58/58. Releases32494 results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15status/source/archivehashes unchanged vsL31; separate1.1d lifecycle gate passes2017/2023. Frontend97996 exit0 allS1-S11;installation restored/six frozen hashes match. Bounded ARM64 local lifecycle validation only; typed capture/default installation/1.1b/c and fullUVM qualification remain open. Windows CI wired,execution not claimed.
+
+Next selection is the DD038 typed-value capture prerequisite. The user-requested
+all-fallback inventory DD046 remains scheduled after the UVM smoke campaign.
+No new PR at this checkpoint; L31 and U14 are two validated increments since
+merged PR275, below the usual3–5 increment publication milestone.
