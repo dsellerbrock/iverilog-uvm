@@ -1,19 +1,17 @@
-id: "L18"
-title: "Resolved integral property signedness in compound assignment"
-status: "closed"
-phase: "done"
-base_revision: "33ce0abbf"
+id: "L19"
+title: "Preserve four-state compound operands until result assignment"
+status: "in_progress"
+phase: "root_caused"
+base_revision: "1d83b9dd3"
 last_validated_revision: "9791e6411"
-reproducer: "evidence/campaign-20260908/l18/red.sv: signed int class property -64 /= 2 produces2147483616 instead of-32."
-expected_behavior: "Compound division/modulo and arithmetic right shift use the resolved selected integral type signedness. Unsigned and packed-select operations remain unsigned."
-standards: ["IEEE1800-2017 and2023 11.4.1 compound assignment;11.8.1 operand signedness;11.4.10 shift semantics."]
-root_cause: "PAssign::elaborate_compressed_ uses NetAssign_::signed_ initialized false for property lvalues, although net_type() resolves the declared signed element/property type. It forces unsigned RHS and rewrites arithmetic shift before target lowering."
-allowed_scope: ["elaborate.cc compressed assignment selected integral signedness; permanent paired-edition signed/unsigned/part-select tests; required gates and direct docs."]
-non_goals: ["Do not apply suspended L17 target patch or claim dynamic-array compound support; wide operand and premature two-state conversion prerequisites remain separately recorded."]
-required_gates: ["Both-edition red/focus/neighbor tests and independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;isolatedfrontend last/restoration/fingerprints."]
-suspended_parent: "L17 original reducer/failing focus/VVP and complete partial.patch in evidence/campaign-20260908/l17; restore only after all prerequisites validated."
-next_action: "Derive compressed integral LHS signedness from resolved type; preserve other paths; run paired focused tests."
-next_command: "sed -n '7499,7533p' elaborate.cc"
+reproducer: "evidence/campaign-20260908/l19/red.sv: bit[7:0] value=1; value += logic X yields1 instead of0 in both2017/2023."
+expected_behavior: "Integral compound arithmetic consumes original four-state RHS values; only final assignment to two-state destination converts X/Z to zero. Preserve known-bit behavior and ordinary assignment conversions."
+standards: ["IEEE1800-2017/2023 11.4.1 compound equivalence;11.4.3 arithmetic X propagation;6.11.2 two-state assignment conversion;verify both editions."]
+root_cause: "PAssign::elaborate_compressed_ passes destination BOOL type into elaborate_rval_; elab_and_eval casts RHS to int2 before the binary operator."
+allowed_scope: ["elaborate.cc compressed integral RHS state conversion; focused paired-edition arithmetic/bitwise/shift and destination controls; required regression gates and directly affected docs."]
+non_goals: ["No width-preservation fix yet (DD036); no L17 target restore; no general real/string compound overhaul or application-source changes."]
+required_gates: ["Both-edition red/focus/neighbors and independent review; native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;isolatedfrontend last/restoration/frozen hashes."]
+suspended_parent: "L17 full partial.patch and reducers preserved in evidence/campaign-20260908/l17. Width prerequisite still follows L19 before parent restoration."
+next_action: "Verify both editions and preserve integral four-state RHS through compressed elaboration, then run focused tests."
+next_command: "sed -n '7500,7534p' elaborate.cc"
 stop_after_completion: false
-
-closure: "9791e6411; final focuslegacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4923total4918pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1815/0,realDPIUVM355/0/0,NFA58/58,frontend all;root restored and final frozen hashes unchanged. Complete15release11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
