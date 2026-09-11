@@ -1072,3 +1072,14 @@ still determine their expression conversions. Paired focused cases, neighbor tes
 The exact L13 blocker is closed; full string/edition qualification is not claimed. Class string-property index dispatch (DD025), constant-function
 string evaluation (DD026) and the suspended struct-member blockerL12 remain
 separate open scopes. No parent string/UVM/IEEE completion is inferred.
+
+
+### L16 — Const class-handle member assignment (6.20.6)
+
+Validated5ba60567f permits writes to existing mutable members through unindexed
+scalar const class-handle variables, while retaining handle rebinding,
+const-property and const value-aggregate diagnostics. Both-edition runtime
+checks include aliases, identity, selected/compound/increment writes and
+output/inout copy-out. Required local gates pass. Intermediate const
+class-property traversal, const containers and general const qualification
+remain separate; no full6.20.6 claim.

@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `aa356ab4d` (L15 pasted function-like macro names).
-The release sweep and all required L15 local validation gates are complete.
+2026-09-10, native ARM64, validated source `5ba60567f` (L16 const-handle member writes).
+The release sweep and all required L16 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-n1_l078l/results.json`, with per-release
+`third_party/uvm-releases/results-syc0rzby/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -116,7 +116,7 @@ continues through later releases after an earlier failure.
 All release sources remain unmodified. L08, U05, U04 and U06 record the scoped
 compiler, DPI and runtime compatibility changes. U01 teardown evidence remains preserved.
 
-- `ivl` SHA-256: `aa57713aeb8493c09fa1da2015a17d46a7df2d37f57b51875336dfc986a37faf`
+- `ivl` SHA-256: `f17dc867ccd3992b52cf50d4dfa2d5f88f228f825973b5c5d439ff909c821419`
 
 - `ivlpp` SHA-256: `04cde56ac3679d5421237d3eeda62b66209d30f001b2d886a691006dbed2e196`
 
@@ -161,3 +161,5 @@ original1.1d/1.2, each under2017/2023. The full release sweep remains in
 without claiming full release or OpenTitan qualification.
 
 L15 repairs pasted function-like macro names. All15 source hashes and statuses match U09. Original1.2 OpenTitan now passes its former macro-expansion frontier but fails on assignment to a mutable member through const uvm_top; no application run/pass.
+
+L16 removes the direct const-handle member assignment rejection. Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits.

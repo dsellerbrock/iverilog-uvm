@@ -450,3 +450,23 @@ L16 enables only direct scalar const-handle variables with existing writable
 members; it does not qualify unknown-member diagnostics or const property
 chains. These source-inspection findings need dedicated reducers before
 implementation; no correctness claim for those paths.
+
+DD032 resolution (L16,5ba60567f): mutable member writes through scalar const
+class-handle variables pass both editions and full required gates. Original1.2
+OpenTitan const-handle errors are removed. Replay runs normally with
+152requests/288scoreboard items and zero UVM warnings/errors/fatals, but overall
+DEBT remains because five compile-time null-substitution diagnostics persist.
+
+### DD035 — Integral compound updates of UVM register item array members emit null
+
+Validated L16 original1.2 OpenTitan replay reports five draw_eval_object
+null-fallback warnings: uvm_reg.svh2501 (rw.value[0] &= ~wo_mask),2173
+(rw.value[0] &= ((1 << m_n_bits)-1)), uvm_reg_field.svh1483,
+uvm_reg_map.svh2109 (rw.value[val_idx] |= shifted data), and
+uvm_reg_predictor.svh192 (reg_item.value[0] |= shifted data).
+These integral selected-element operations should not take object-RHS
+evaluation. Evidence evidence/campaign-20260908/l16/opentitan/{result.json,
+matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-compile.log}.
+Runtime0/pass banner/zero UVM severities does not waive compile-time semantic
+debt. Reduce and trace a concrete selected-element compound assignment before
+selecting an implementation change; full UVM/application qualification open.

@@ -1,24 +1,24 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L16"
-phase: "spec_grounded"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "aa356ab4d"
+last_integrated_good_revision: "5ba60567f"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L16 reducer/focus/review/full validation not run; PR275 platformCI pending."
+pending_gates: "None for L16 local closure. PR275 macOS/Windows checks pending; both Ubuntu jobs pass."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Establish direct const-handle reducer and trace member l-value dispatch; then narrow guard to actual object-member writes."
-next_command: "sed -n '910,965p' elab_lval.cc"
+next_action: "Select DD035 compound class array-member updates; retain OpenTitan DEBT and original sources."
+next_command: "graphify query \"compound assignment class array member\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 next_command_cwd: repository root
-candidate_state: "L15 validated aa356ab4d, one unpublished increment since PR275 update."
+candidate_state: "L15/L16 two validated unpublished increments since PR275 update."
 installed_tools: "Frozen evidence/u09/sha256.txt at19e7f5592; do not build/install while gates run."
-validation_state: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
-next_validation: "Next selected blocker red reducer and both-edition semantics."
-completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
+validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+next_validation: "Next concrete reducer and standards check."
+completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
 
 publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
@@ -432,3 +432,18 @@ l15_uvm_terminal: "37943 exit0;355passed0failed0skipped,realDPI. Frontend31822 s
 l15_local_validation: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent reviews,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL, all statuses/source hashes unchanged."
 
 l15_closure: "aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+
+l16_candidate: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,makecheck and independent design/final reviews clear. No source/install changes while required gates run. Frozen evidence/l16/sha256.txt; last fully validated semantic aa356ab4d. DD033/DD034 limitations remain separate."
+l16_live_gates: {frontend: 11034}
+
+l16_release_terminal: "93399 exit1 due four known compile gaps; results-syc0rzby complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL, all15 statuses/source hashes unchanged. NFA53870 exit0,58/58. Integrated37220/UVM94168 running; JSON/frontend unstarted."
+
+l16_integrated_terminal: "37220 exit0;legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON started after terminal; UVM94168 still live; isolatedfrontend unstarted."
+
+l16_json_terminal: "31680 exit0;1813tests0failures. UVM94168 live; frontend unstarted. Frozen5ba60567f source/install unchanged."
+
+l16_uvm_terminal: "94168 exit0;355passed0failed0skipped,realDPI. Frontend11034 started last alone; restoration/hash checks required afterward."
+
+l16_local_validation: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
+
+l16_closure: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."

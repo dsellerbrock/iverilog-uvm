@@ -2009,3 +2009,29 @@ no OpenTitan rerun is claimed on this unvalidated candidate.
 aa356ab4d; macrofocuslegacy24/0,JSON6/0,independent review,makecheck,legacy4913total4908pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1805/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; installed root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged.
 
 Fresh original1.2 OpenTitan replay75753 exits1 with compiler3: all macro/paste cascades removed; three identical const uvm_top member assignment diagnostics remain. Original library fingerprint unchanged. DD032 records next candidate; no simulation/traffic/application pass.
+
+### L16 candidate — awaiting validation
+
+5ba60567f exempts mutable member writes through an unindexed scalar const
+class-handle variable from the root signal's rebinding prohibition. The shared
+class-member walker still enforces the actual property's const qualifier.
+Both editions6.20.6 explicitly permit this; constructor arguments are absent
+in the reducer to avoid the separate2017/2023 wording difference.
+
+Both-edition red handle.value assignment failed before the patch. Permanent
+tests cover package-imported/local/automatic handles, alias readback, identity,
+part/compound/increment writes and output/inout copy-out. Negatives retain
+handle rebinding, const property and packed-value protection. Focusedlegacy8/0,
+JSON8/0,neighborslegacy18/0,JSON32/0,makecheck and independent review pass.
+Initial explicit package-qualified += fixture exposed a separate parser gap
+(DD033); imported access matches the application. Existing unknown-member
+fallback and intermediate const-property traversal limitations are DD034.
+Full required gates and post-validation original1.2 replay are pending.
+
+### L16 closure
+
+5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged.
+
+Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits.
+
+The first commentary misread DEBT as stopping before simulation; inspection of runtime_command/runtime_returncode and the actual log corrected that immediately. The harness ran the workload and retained DEBT due compiler warnings; no gate was altered. Exact original1.2 src hash remains885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0. DD035 selects the next reducer candidate.

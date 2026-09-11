@@ -1,9 +1,9 @@
 id: "L16"
 title: "Mutable member assignment through a const class-handle variable"
-status: "in_progress"
-phase: "focused_tested"
+status: "closed"
+phase: "done"
 base_revision: "7ae2dd01e"
-last_validated_revision: "aa356ab4d"
+last_validated_revision: "5ba60567f"
 reproducer: "Original1.2 OpenTitan dv_base_test.sv92 assigns uvm_top.enable_print_topology but is rejected as assignment to const uvm_top; three class specializations report the same error."
 expected_behavior: "A const class-handle variable cannot be rebound, but ordinary writable properties of its object can be assigned. Preserve rejection of const properties, const value aggregates, and rebinding the handle."
 standards: ["IEEE1800-2017 and2023 6.20.6 explicitly permit writing members of an object referenced by a const handle, except members themselves declared const. Primary local texts checked at2017 lines7594 and2023 lines7942."]
@@ -11,6 +11,6 @@ root_cause: "PEIdent::elaborate_lval rejects reg->get_const before distinguishin
 allowed_scope: ["Bounded direct class-handle variable l-value guard and permanent both-edition positive/negative regression. Required gates and original1.2 OpenTitan replay after validation; directly affected docs."]
 non_goals: ["No general const/property/constructor redesign, source modifications to UVM/OpenTitan, or full6.20.6/8.18 qualification claim. No const aggregate or handle rebinding exemption."]
 required_gates: ["Red reducer; permanent mutable-property writes and alias/readback, handle rebinding/const-property/value-aggregate negatives; focused neighbors; independent review.", "Native build, integrated/JSON/UVM/NFA/makecheck/15release sweep; isolatedfrontend last, hashes restored; then original1.2 OpenTitan replay."]
-next_action: "Final independent review then required integrated validation on frozen candidate."
-next_command: "bash .github/ivtest_gate.sh"
+next_action: "Select DD035 integral compound assignment to class array members."
+next_command: "graphify query \"compound assignment class array member\" --graph /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json"
 stop_after_completion: false
