@@ -22,14 +22,16 @@
       "url": "https://www.accellera.org/images/downloads/standards/uvm/uvm-1.1b.tar.gz",
       "sha256": "fc4076a9b504aa7838e14b8356d49442b59cc3b0e9edd9fd05d3ddffe0c0b61c",
       "bytes": 2775160,
-      "prerelease": false
+      "prerelease": false,
+      "record_attribute_compat": "scripts/uvm-release-compat/legacy_record_attribute.svh"
     },
     {
       "id": "1.1c",
       "url": "https://www.accellera.org/images/downloads/standards/uvm/uvm-1.1c.tar.gz",
       "sha256": "86ca2bed7b079f6110b08e41f918a4bb7cc66004726a3a6197cf40633d535bdc",
       "bytes": 2777758,
-      "prerelease": false
+      "prerelease": false,
+      "record_attribute_compat": "scripts/uvm-release-compat/legacy_record_attribute.svh"
     },
     {
       "id": "1.1d",
