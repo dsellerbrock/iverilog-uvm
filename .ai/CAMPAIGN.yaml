@@ -23,6 +23,14 @@ completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/open
 publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
 published_batches:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/276
+    scope: L31/U14/L32/U15/U16/L33 associative compound typing, native legacy recording lifecycle, VPI string-literal byte order, lossless native do_record attribute capture, 1.1b/1.1c release-smoke compat shim, nested class-property VPI-lvalue write fix.
+    branch: agent/campaign-recording-after275-20260911
+    semantic_revision: 716917e4b
+    publication_revision: fe582252e
+    base: main
+    state: open
+    outstanding: Awaiting review/CI; not yet merged.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
     scope: P03/P01/P02 fork process identity and scheduling; continuous campaign and publication policies.
     branch: agent/campaign-fork-processes-20260910
