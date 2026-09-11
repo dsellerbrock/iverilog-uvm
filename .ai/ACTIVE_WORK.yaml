@@ -1,7 +1,7 @@
 id: "U13"
 title: "Protect literal legacy DPI argv from runtime option parsing"
 status: "active"
-phase: "root_caused"
+phase: "awaiting_linux_ci"
 base_revision: "8e30e020c"
 last_validated_revision: "8f2252dd3"
 reproducer: "Published2785d1d5d GitHub run34575850689 Ubuntu22.04 job103188016019: legacy_10_dpi fails both editions before simulation with vvp invalid option -- f. Log archived under l27/ubuntu2204.plain.log. Ubuntu24.04 also failed; inspect matching log."
@@ -11,6 +11,8 @@ root_cause: "vvp/main.cc intentionally permits GNU getopt argument permutation. 
 allowed_scope: ["Insert end-of-options separator in the legacy_10_dpi fixture invocation only;retain all literal argv assertions and required diagnostics;local frontend restore/hash validation and fresh published Linux CI."]
 non_goals: ["No runtime option-parser change,POSIXLY_CORRECT workaround,removed -f assertion,DPI behavior changes or forwarded-template implementation. L28 reducer preserved for later selection."]
 required_gates: ["Existing Linux failure log;unchanged exact-argv fixture passes both editions locally;isolatedfrontend last alone with installationrestore/frozenhashes;fresh Linux CI confirms correction before final closure."]
-next_action: "Add -- before report.vvp in legacy fixture invocation,run full isolated frontend then publish coherent L26/L27/U13 batch to existing PR275."
+next_action: "Publish L26/L27/U13 to existing PR275;await fresh Linux checks before U13 closure."
 next_command: 'sed -n "225,244p" .github/uvm_frontend_test.sh'
 stop_after_completion: false
+
+local_validation: "Frontend35171exit0 allscenarios,including exact oldDPI argv both editions;installation restored/five8f2252dd3hashesmatch;independent review clear. Both Linux failurelogs confirm same getopt-f cause. Fresh Linux CI required."

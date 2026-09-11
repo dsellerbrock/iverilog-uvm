@@ -230,7 +230,7 @@ for edition in 2017 2023; do
         if "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
             "$SRCROOT/tests/uvm_releases/$fixture.sv" >report.log 2>&1; then
             if [ "$fixture" = legacy_10_dpi ]; then
-                out="$($TO "$VVP" report.vvp +legacy_dpi=alpha -f literal.txt +legacy_dpi=beta 2>&1)"
+                out="$($TO "$VVP" -- report.vvp +legacy_dpi=alpha -f literal.txt +legacy_dpi=beta 2>&1)"
             else
                 out="$($TO "$VVP" report.vvp 2>&1)"
             fi
