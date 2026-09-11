@@ -236,9 +236,10 @@ separate legacy DPI download or build step for this usage. UVM 1.1d and 1.2
 pass the recorded smoke checks; full application qualification remains open.
 
 UVM 1.0p1 and 1.1a also ship their original DPI in `src/dpi`; the installed
-backend supplies their older command-line and regex APIs. UVM 1.1a now passes
-the recorded smoke check. UVM 1.0p1 still has runtime errors despite its smoke
-marker, so it is not counted as a clean pass. To acquire just one older release,
+backend supplies their older command-line and regex APIs. Both now pass the
+recorded runtime smoke checks, bringing the total to 13 of 15 releases. Existing
+compile-time constraint/cast limitations and full UVM qualification remain open.
+To acquire just one older release,
 use the following command, then select it with `--uvm=1.1a`:
 
 ```bash

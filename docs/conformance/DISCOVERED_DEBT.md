@@ -591,3 +591,10 @@ distinct; do not equate runtime class names or suppress the cast diagnostics.
 The standards say a generic class is not itself a type (both editions8.25).
 Record-only during L26; preserve the original trace and failing/passing controls
 before deciding the next implementation contract.
+
+DD044 bounded direct/multilevel type-formal forwarding scope resolved by L28
+at77cce610b after all required local gates. Both-edition counter/callback
+reducers pass; original1.0p1 callback diagnostics are gone and its runtime
+smoke passes. No runtime type-name equivalence or error suppression. Nested
+type-expression/value-parameter lineage and complete class/UVM qualification
+remain open; existing compile constraint/cast limitations are not resolved.

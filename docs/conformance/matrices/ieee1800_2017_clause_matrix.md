@@ -1194,3 +1194,13 @@ editions qualify unused generic/no side effect and exactly-once initialization
 for tested concrete/default/static-only uses, ordinary classes and inherited
 parameterized bases. All required local gates pass. Symbolically forwarded
 seed-derived specializations remain unqualified; no fullclass/UVM claim.
+
+### L28 — Direct forwarded type specialization initialization (8.25)
+
+Validated77cce610b extends the static-initialization distinction to type actuals
+whose bare formal lineage remains symbolic. Both editions test direct/multilevel
+forwarding, bare dependent defaults, shadowed concrete typedefs, real cache reuse
+and callback registration. All required local gates pass. Original1.0p1 runtime
+smoke now passes; compile constraint/cast limitations remain. Nested type
+expressions, forwarded value parameters and full class/UVM qualification remain
+open; concrete identities and initializer analysis are preserved.

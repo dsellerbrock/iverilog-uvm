@@ -2265,3 +2265,16 @@ Independent review and full isolatedfrontend35171 pass; installation restored
 and all five frozen8f2252dd3 hashes match. U13 remains active awaiting fresh
 Linux CI on the published correction. L28 forwarded-seed reducer is preserved
 for subsequent selection; no implementation started while this gate is pending.
+
+## L28 — Direct forwarded-type static initialization
+
+The existing type-formal lineage predicate distinguishes symbolic requests
+from real concrete specialization keys. The process-registration guard uses
+that predicate without changing initializer analysis, const checks, type
+identity or concrete scheduling. Permanent controls include multilevel
+forwarding, dependent bare defaults, shadowed typedefs, concrete keys created
+inside templates and later reused, and original callback registration.
+U13 remains open awaiting independent Linux CI on9006baa15; its fixture-only
+change is not a semantic dependency. L28 started on fully validated8f2252dd3.
+
+77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.

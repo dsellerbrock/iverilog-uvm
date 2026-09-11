@@ -69,9 +69,10 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-11, native ARM64, validated source `c58035f49` (L25 return-variable reference storage).
-The release sweep uses classifier `1654dc4c9` (U12); all required L25 compiler
-and U12 harness validation gates are complete.
+2026-09-11, native ARM64, validated source `77cce610b` (L28 forwarded-type initialization).
+The release sweep uses classifier `1654dc4c9` (U12); all required L28 local
+compiler and release validation gates are complete. Independent U13 Linux
+fixture-invocation CI remains pending on the earlier published head.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -81,7 +82,7 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 
 | Release | Result | First compile failure / smoke scope |
 | --- | --- | --- |
-| 1.0p1 | RUNTIME_FAIL | Two callback cast errors remain. Older DPI resolves and L25 removes three placeholder-net diagnostics; U12 correctly rejects the runtime |
+| 1.0p1 | SMOKE_PASS | All smoke checks passed through time1 after L28; zero UVM warnings/errors/fatals. Existing ignored-constraint and unsupported-cast compile warnings remain |
 | 1.1a | SMOKE_PASS | All smoke checks passed through time1 after U11; zero UVM warnings/errors/fatals |
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
@@ -97,14 +98,15 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 | 2020.3.1 | SMOKE_PASS | All smoke checks passed; zero UVM warnings/errors/fatals |
 | 2020.3.2 | SMOKE_PASS | All smoke checks passed after L06/L07; zero UVM warnings/errors/fatals |
 
-All 15 sources were acquired; 12 passed clean compile/runtime smoke, 2 failed
-compilation and 1 has disqualifying runtime diagnostics. These are observed compatibility gaps, not waived
+All 15 sources were acquired; 13 compiled and passed the bounded runtime smoke,
+and 2 failed compilation. Compile-time limitations remain visible; these are
+not warning-free compilation or full feature-qualification claims. These are observed compatibility gaps, not waived
 requirements or standards-conformance verdicts. U07 classifies unparenthesized member delays as compatibility syntax under
 `-gicarus-misc`; strict IEEE mode still requires parentheses. Full UVM regressions,
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-3v03d7qs/results.json`, with per-release
+`third_party/uvm-releases/results-edrgslxb/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -206,3 +208,5 @@ L27 replay at8f2252dd3 (`results-ni3wgjii`) again preserves all15 statuses and
 original source/archive hashes:12 smoke passes,1 runtime failure,2 compile
 failures. Generic-master initializer removal does not resolve original1.0p1's
 two callback cast errors. All required local gates passed.
+
+L28 final validation: 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.

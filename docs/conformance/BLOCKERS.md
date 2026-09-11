@@ -988,10 +988,12 @@ L27 final validation: 8f2252dd3; both-edition red PASSED; focuslegacy2/0,JSON2/0
 
 ### L28 — Unresolved forwarded type initializer side effects
 
-- **State:** ACTIVE; both-edition counter reducer fails on validated8f2252dd3.
+- **State:** CLOSED at77cce610b after required local validation.
 - **Cause:** Symbolic forwarding requests have specialized-instance metadata
   while their actual retains generic source lineage; static init ignores this.
 - **Scope:** Existing deferred-type predicate at process registration; preserve
   concrete cache reuse, initialization analysis and ordering. DD044 evidence.
 - **Coordination:** U13 remains awaiting fresh Linux CI on9006baa15; it only
   changes a fixture command. L28 has no dependency on that pending harness gate.
+
+L28 final validation: 77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification.
