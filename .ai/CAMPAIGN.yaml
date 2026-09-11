@@ -7,7 +7,7 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "9229c24e7"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L30 UVM62168 running;frontend unstarted. FullJSON22478exit0/1871tests0fail;integrated/NFA passed;release sweep unchanged13pass2compilegaps."
+pending_gates: "L30 isolatedfrontend21313 running;restorefivehashes afterward. Otherrequiredlocalgates terminalpass except unchanged knownreleasecompilegaps."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
@@ -719,3 +719,5 @@ legacy_uvm_published_ci_green: "PR275 remainsOPEN at9006baa152b1da5c684f86af59f9
 l30_integrated_terminal: "26735exit0;legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON22478 launched after terminal;UVM62168 stilllive;frontend unstarted. Candidate34787868e remainsfrozen."
 
 l30_json_terminal: "22478exit0;1871tests0failures. UVM62168 remainslive/progressing;frontend unstarted. Candidate34787868e frozen. Prepared unpublished batch notes l30/publication-additions.md;do not publish until requiredgates complete."
+
+l30_uvm_terminal: "62168exit0;355passed0failed0skipped,realDPI. Isolatedfrontend21313 launched lastalone after allotherlocalgates terminal. Restoreinstallation/fivefrozenhashes required afterward."
