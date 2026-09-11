@@ -1124,3 +1124,14 @@ editions cover replacement/null, retained alias events, unrelated-property
 filtering, unchanged root, plain container member and automatic-context cases.
 Required local gates pass. Value aggregates/VIF roots are outside this bounded
 change; no full alias/event or container qualification claim.
+
+### L17 — Integral dynamic-array property compounds (11.4.1/11.6/11.8)
+
+Validated d8e974913 captures array and index once, loads the integral element,
+uses the validated shared compound-operation helper, and writes only a valid
+index. Both editions cover arithmetic/bitwise/shifts, operand width/state/sign,
+index side effects, negative/out-of-bounds/X/Z indices, neighbor preservation
+and RHS handle rebinding. Array bounds references: 2017 7.4.6; 2023 7.4.5.
+All required local gates and original UVM1.2 debug-crossbar smoke pass. This
+qualifies the bounded tested whole-element cases, not full containers, real/
+string compounds, IEEE1800.2 or the entire application suite.

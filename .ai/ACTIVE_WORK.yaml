@@ -1,9 +1,9 @@
 id: "L17"
 title: "Integral compound updates of dynamic-array class properties"
-status: "in_progress"
-phase: "focused_tested"
+status: "closed"
+phase: "done"
 base_revision: "a29e62dd6"
-last_validated_revision: "1146d2187"
+last_validated_revision: "d8e974913"
 reproducer: "Original red.sv and failed pre-prerequisite focus preserved in evidence/campaign-20260908/l17; DD035 five original1.2 array compound updates took whole-object null fallback."
 expected_behavior: "Update selected integral whole element with correct width/signedness/four-state behavior, one index evaluation, captured receiver identity and invalid-index no-write semantics; never replace array with null."
 standards: ["IEEE1800-2017/2023 11.4.1,11.6,11.8;invalid array indices2017 7.4.6 and2023 7.4.5."]
@@ -12,6 +12,6 @@ allowed_scope: ["tgt-vvp/stmt_assign.c direct integral whole-element dynamic-arr
 non_goals: ["No full container/compound qualification, real/string compound feature, original UVM/OpenTitan changes, new runtime instructions or unrelated associative/index/receiver fixes."]
 validated_prerequisites: ["L18 signedness9791e6411", "L19 four-state operands72a97c038", "L20 operation widthsfe12166bd", "L21 captured root1146d2187"]
 required_gates: ["Originalred/both-edition focus/width/state/receiver/index/bounds and neighbors;independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restore/hashes;original1.2 OpenTitan replay after full local validation."]
-next_action: "Restore preserved partial-after-l20.patch with manifest adaptation on validated L21;run focus."
-next_command: "git apply --exclude=ivtest/regress-sv.list --exclude=ivtest/regress-vvp.list ../evidence/campaign-20260908/l17/partial-after-l20.patch"
+next_action: "Publish coherent L19/L20/L21/L17 batch to existing PR275,then select next evidence-backed blocker."
+next_command: "git status --short"
 stop_after_completion: false

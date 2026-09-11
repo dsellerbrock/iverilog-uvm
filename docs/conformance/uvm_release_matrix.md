@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `1146d2187` (L21 captured class-root notification).
-The release sweep and all required L21 local validation gates are complete.
+2026-09-10, native ARM64, validated source `d8e974913` (L17 integral dynamic-array property compounds).
+The release sweep and all required L17 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-0pqsi0dl/results.json`, with per-release
+`third_party/uvm-releases/results-3d_bbaiu/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -163,3 +163,13 @@ without claiming full release or OpenTitan qualification.
 L15 repairs pasted function-like macro names. All15 source hashes and statuses match U09. Original1.2 OpenTitan now passes its former macro-expansion frontier but fails on assignment to a mutable member through const uvm_top; no application run/pass.
 
 L16 removes the direct const-handle member assignment rejection. Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits.
+
+L17 supersedes the L16 application frontier: Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value.
+
+The host sequence joins request and response loops before logging completion.
+The scoreboard check phase checks expected/actual counts, then verifies all
+item/timestamp queues and input FIFOs are empty. The replay reaches that phase
+with zero errors and no caught/demoted reports. Counts are not assumed to map
+one-to-one: mapped and unmapped transactions follow different paths. Evidence:
+`evidence/campaign-20260908/l17/opentitan/result.json` and adjacent raw logs/
+`checking-source-notes.md`. No upstream application/library edits or check waivers.

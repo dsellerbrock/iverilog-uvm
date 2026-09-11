@@ -471,6 +471,11 @@ Runtime0/pass banner/zero UVM severities does not waive compile-time semantic
 debt. Reduce and trace a concrete selected-element compound assignment before
 selecting an implementation change; full UVM/application qualification open.
 
+DD035 resolution: L17 d8e974913 implements integral whole-element dynamic-array
+property compound updates after validated operand/receiver prerequisites. All
+required gates pass; fresh original1.2 debug-crossbar smoke reports PASS with
+all five substitution warnings absent. Full container/UVM qualification remains open.
+
 ### DD036 — Compound operands prematurely converted to destination width/state
 
 During L17 focused review, byte property >>=32'd256 reaches VVP as an8bit

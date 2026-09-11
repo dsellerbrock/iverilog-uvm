@@ -2115,3 +2115,22 @@ each send, preserving precise alias/property notifications. Values/VIF roots
 retain existing behavior. Independent review and context/event tests pass.
 
 Final validation: 1146d2187;focuslegacy2/0,JSON2/0,property-event13/0 andmailbox8/0 inbothharnesses,makecheck,independent review,legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1821/0,realDPIUVM355/0/0,NFA58/58,frontend22482exit0 all;root restored/frozen hashes match. Complete15release results-0pqsi0dl11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged.
+
+### L17 — Integral dynamic-array property compound update
+
+Resumed only after validated L18/L19/L20/L21. The target rejected every compound
+opcode and the caller fell through to whole-object RHS evaluation, replacing
+the array with null. The integral path now captures array/index/invalid flag,
+loads the selected element, uses the existing shared vector operation helper,
+and suppresses invalid writes while retaining RHS side effects. Permanent
+paired tests cover operator, state/width/sign, bounds and receiver cases.
+The original red now passes without diagnostics. Nonintegral compounds remain
+outside scope; no new runtime instructions or application edits.
+
+Final validation: d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,original red passes both editions,makecheck,independent source review;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1823/0,realDPIUVM355/0/0,NFA58/58,frontend97109exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-3d_bbaiu11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L21.
+
+Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value.
+
+Source inspection connects the host-completion log to joined request/response
+loops and the scoreboard completion log to count/queue/FIFO checks. Original
+compile log is clean; only the two existing benign runtime $system lines remain.

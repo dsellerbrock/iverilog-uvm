@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L17"
-phase: "awaiting_validation"
+phase: "publication_boundary"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "1146d2187"
+last_integrated_good_revision: "d8e974913"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L17 integrated7231,UVM13529,NFA58609,15release93954 live;JSON after integrated terminal;frontend last alone/restore/hashes;original1.2 OpenTitan replay after all local gates."
+pending_gates: "L17 local/application gates complete;final evidence review and four-increment PR publication pending;fresh remote CI required, no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Complete L17 full local validation,then original1.2 OpenTitan replay with exact traffic/checking/drain evidence;no source/install edits during gates."
-next_command: "tail -8 ../evidence/campaign-20260908/l17/{integrated,uvm,nfa,releases}-final.log"
+next_action: "Publish validated L19/L20/L21/L17 batch to existing PR275,then assess next legacy release or correctness blocker."
+next_command: "git status --short"
 next_command_cwd: repository root
 candidate_state: "L19/L20/L21 three validated unpublished increments;prefer publish with resumed L17 coherent scope if it validates."
 installed_tools: "d8e974913 candidate;frozen evidence/campaign-20260908/l17/sha256-final.txt;last fullyvalidated1146d2187."
@@ -527,3 +527,18 @@ l17_third_activation: "L18,L19,L20,L21 fullyvalidated;resuming exact preserved p
 l17_final_focused: "Original red now compiles/runs0,PASSED/no diagnostics both editions;permanentfocuslegacy2/0,JSON2/0;neighborslegacy24/0,JSON23/0,makecheck and independent final review clear. Capturedarray/index/invalidflag plus validated shared operator helper;wholeelement integral scope only. All full gates/application replay pending."
 
 l17_final_live_gates: {integrated: 7231, uvm: 13529, nfa: 58609, releases: 93954}
+
+l17_final_release_terminal: "93954 exit1 due four known compile gaps;results-3d_bbaiu complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match validatedL21. NFA58609 exit0,58/58. Integrated7231,UVM13529 pending;JSON/frontend/application replay unstarted."
+
+l17_final_integrated_terminal: "7231 exit0;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM13529 pending;frontend/application replay unstarted."
+
+l17_final_json_terminal: "28517 exit0;1823tests0failures. UVM13529 live;frontend/application replay unstarted. Source/install d8e974913 frozen."
+
+l17_final_uvm_terminal: "13529 exit0;355passed0failed0skipped,realDPI. Isolated frontend launched last alone after all other local gates terminal;restoration/frozen hashes required before application replay."
+
+l17_final_frontend_terminal: "97109 exit0 all scenarios;install restored and five frozen binary hashes match d8e974913. All required local gates terminal. Fresh original1.2 OpenTitan replay launched;L17 remains awaiting application validation."
+
+l17_closure: "d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,original red passes both editions,makecheck,independent source review;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1823/0,realDPIUVM355/0/0,NFA58/58,frontend97109exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-3d_bbaiu11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L21."
+l17_application_replay: "Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value."
+
+l17_final_evidence_review: "Independent read-only review clear: actual transaction comparisons and queue checks enabled,all seven recorded component hashes match,source clean,embedded DPI loaded,no extra fallback/waiver. Application scope -g2012/defaultseed/singlecore only."

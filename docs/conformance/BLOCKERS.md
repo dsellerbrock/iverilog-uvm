@@ -827,7 +827,7 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### L17 — Integral compound updates of dynamic-array properties
 
-- **State:** SELECTED after validated L16.
+- **State:** CLOSED at d8e974913 after all required local gates and original1.2 application replay.
 - **Evidence:** DD035, five original1.2 register-item array updates emit null fallbacks.
 - **Scope:** Typed integral element compound updates with single index evaluation, receiver/width preservation and invalid-index no-write behavior. No full compound/container qualification claim.
 
@@ -882,3 +882,7 @@ L21 closure: replacement/null rebind, retained-alias/property events, unchanged
 root and automatic-context controls pass with all required local gates. Guard
 is limited to captured non-struct class roots; value aggregates/VIF remain
 unchanged. L17 can resume on the validated runtime.
+
+L17 closure after validated L18/L19/L20/L21 prerequisites: d8e974913;focuslegacy2/0,JSON2/0,neighborslegacy24/0,JSON23/0,original red passes both editions,makecheck,independent source review;legacy4931total4926pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1823/0,realDPIUVM355/0/0,NFA58/58,frontend97109exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-3d_bbaiu11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match L21.
+
+Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s,152hostrequests/288scoreboarditems,0UVMwarnings/errors/fatals,compile semantic debt0/runtime debt0,TEST PASSED CHECKS and normal finish17625626ps. Original corpus7a3ad34 clean;UVMsrcSHA885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0 unchanged. Actual -g2012,one default-seed smoke invocation;no paired-edition/multi-seed/full OpenTitan qualification. Two existing benign runtime lines report discarded $system return value.
