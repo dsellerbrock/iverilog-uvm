@@ -2198,3 +2198,20 @@ quoting diagnostics remain allowed after independent review caught that edge.
 This is evidence-integrity work, not a compiler fix or qualification increase.
 
 Final validation: 1654dc4c9;newdiagnosticnegative failed8subcases beforefix,all8offline matrix tests pass;all13historical runtime logs correct12accept/1reject;independent review caught/fixed quoted-UVM_INFO falsepositive with permanent control. Fresh15release results-fm8uvyiv complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15source/archive and alltoolhashes unchanged vsU11. Only1.0p1 rawstatus corrected;no compiler/DPI or IEEE semantic gain. Frozen U11 fivehashes match.
+
+### L25 — Addressable integral function-name return variables
+
+Both-edition7-to12 ref-update reducer failed with an unresolved placeholder net.
+Target scope emission omitted the return signal in favor of stack-return storage,
+while ref binding emitted its nonexistent signal label. An internal attribute now
+marks whole scalar integral return variables passed as ref actuals before target
+emission. Existing signal/context storage serves every read/write/reference;
+fallthrough and internal return flow publish the value to the usual return stack.
+Both9.6.2 prohibit ordinary function-disable statements; that path is untouched.
+No runtime instructions, original library changes or copy-in/out fake references.
+Tests cover alias observation, recursion, static persistence, return overrides,
+class method calls, four-state partial writes and detached-reference lifetimes.
+Initial prototype void-return nullguard was corrected; permanentcontrols pass.
+Scope excludes part-selected refactual and nonintegralreturn qualification.
+
+Final validation: c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain.

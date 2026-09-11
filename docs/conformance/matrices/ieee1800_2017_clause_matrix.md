@@ -1165,3 +1165,12 @@ reviewed; it is an inference, not an affirmative prose quote. Actual arguments,
 output/ref copyback, empty-body argument effects and virtual dispatch are tested.
 Task casts and void-function expressions remain illegal; all required gates pass.
 Historical2005 acceptance and full subroutine/UVM qualification remain open.
+
+### L25 — Function-name variable passed by reference (13.4.1/13.5.2)
+
+Validatedc58035f49 materializes address-taken whole scalar integral return
+variables in existing signal/context storage. Both2017/2023 tests verify aliases,
+recursive automatic frames, static persistence, explicit return overrides,
+four-state partial writes and detached-reference lifetime. All required gates pass.
+No full subroutine/ref or nonintegral-return qualification; ordinary function
+disable is prohibited by9.6.2 and remains outside this scoped correction.

@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-11, native ARM64, validated source `e18128369` (U11 original legacy DPI adapters).
-The release sweep uses classifier `1654dc4c9` (U12); all required U11 compiler
+2026-09-11, native ARM64, validated source `c58035f49` (L25 return-variable reference storage).
+The release sweep uses classifier `1654dc4c9` (U12); all required L25 compiler
 and U12 harness validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
@@ -81,7 +81,7 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 
 | Release | Result | First compile failure / smoke scope |
 | --- | --- | --- |
-| 1.0p1 | RUNTIME_FAIL | Three placeholder-net diagnostics and two cast errors remain. Older DPI now resolves; U12 correctly rejects the runtime |
+| 1.0p1 | RUNTIME_FAIL | Two callback cast errors remain. Older DPI resolves and L25 removes three placeholder-net diagnostics; U12 correctly rejects the runtime |
 | 1.1a | SMOKE_PASS | All smoke checks passed through time1 after U11; zero UVM warnings/errors/fatals |
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
@@ -104,7 +104,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-fm8uvyiv/results.json`, with per-release
+`third_party/uvm-releases/results-3v03d7qs/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -193,3 +193,6 @@ U11 supplies the old1.0p1/1.1a command-line/regex ABI and clears missing-DPI err
 The historical U11 raw report said13SMOKE_PASS; its1.0p1 row was explicitly
 disqualified by review. U12 fixes that classifier defect. The current fresh
 report records12SMOKE_PASS,1RUNTIME_FAIL,2COMPILE_FAIL automatically.
+
+L25 removes the three missing return-storage placeholder diagnostics from1.0p1;
+its callback casts still fail. All15 originalsource/status fingerprints stay unchanged.

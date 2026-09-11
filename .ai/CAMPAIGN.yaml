@@ -1,22 +1,22 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L25"
-phase: "awaiting_validation"
+phase: "selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "e18128369"
+last_integrated_good_revision: "c58035f49"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L25 integrated23895/UVM26951/NFA77311/releases67704 live;JSON after integrated terminal;frontend last alone/restore/hashes. No source/install edits while gates live."
+pending_gates: "None locally forL25;PR275 remoteCI separate,no mergeauthorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "L25 active;original1.0p1 callbackcast/typeidentity symptoms separate."
-next_action: "Poll exact L25 gate handles;JSON after integrated terminal;frontend last alone. Preserve old1.0p1callbackcast issue separately."
-next_command: "tail -12 ../evidence/campaign-20260908/l25/integrated.log"
+next_selection: "Original1.0p1 callbackcast/typeidentity diagnostics remain;select exactreducer afterpublication."
+next_action: "Publish U11/U12/L25 as coherentbatch toexistingPR275;then isolate1.0p1callbackcast cause."
+next_command: "gh pr view 275 --json state,headRefOid,statusCheckRollup"
 next_command_cwd: repository root
-candidate_state: "L25c58035f49 committed/frozen awaitingfullvalidation;U11/U12 two validated unpublished increments."
-installed_tools: "L25c58035f49 frozen evidence/campaign-20260908/l25/sha256.txt;last fullyvalidated compilere18128369/harness1654dc4c9."
-validation_state: "Compiler/DPIe18128369 fullyvalidated;harness1654dc4c9 allrequiredtests/replaypassed,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL."
+candidate_state: "U11/U12/L25 threefullyvalidated unpublishedincrements afterPR275d39880176."
+installed_tools: "c58035f49 validated;l25/sha256.txt restored/unchanged."
+validation_state: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."
 next_validation: "L24 reconciled integrated/UVM,then JSON and isolated frontend."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
@@ -618,3 +618,11 @@ l25_focused: "Both-edition red and interactions nowPASSED,no diagnostics;permane
 l25_live_gates: {integrated: 23895, uvm: 26951, nfa: 77311, releases: 67704}
 
 l25_release_terminal: "67704exit1;results-3v03d7qs complete/baseline_valid,12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. NFA77311exit0,58/58. Integrated23895/UVM26951 live;JSON/frontend unstarted. "
+
+l25_integrated_terminal: "23895exit0;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON67320 launched after terminal;UVM26951 live;frontend unstarted. Candidatec58035f49 unchanged. "
+
+l25_json_terminal: "67320exit0;1839tests0failures. UVM26951 live;isolatedfrontend unstarted. Candidatec58035f49 remains frozen. "
+
+l25_uvm_terminal: "26951exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allothergates terminal;restore/frozen hashes required afterward. "
+
+l25_closure: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."

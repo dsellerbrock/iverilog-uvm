@@ -1,9 +1,9 @@
 id: "L25"
 title: "Integral function return variable used as a ref actual"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "completed"
 base_revision: "e6ea5810f"
-last_validated_revision: "e18128369"
+last_validated_revision: "c58035f49"
 reproducer: "evidence/campaign-20260908/l25/red.sv/red.json: result=7;bump(result) by ref must return12;both2017/2023 compile0 then fail with unresolvedfunctor placeholder and wrongreturn. Original1.0p1 build_coverage three sites match."
 expected_behavior: "The function-name variable declared by13.4.1 is real variable storage;an equivalent-type ref aliases it under13.5.2,including observation during a call. Preserve return-expression override,recursive/automatic context ownership and existing ordinary-return semantics."
 standards: ["IEEE1800-2017/2023 13.4.1 implicit function-name variable and return override;13.5.2 true reference,equivalenttypes;6.21 lifetime where applicable."]
@@ -11,6 +11,6 @@ root_cause: "tgt-vvp/vvp_scope.c omits integral return signal in favor of stackr
 allowed_scope: ["Whole scalar integral function-name ref actual storage/binding using existing return/context architecture;shared function/task call paths and regression tests. Broader changes require causal justification at deliberate boundary."]
 non_goals: ["No placeholder suppression,fabricated return,copy-in/out pretending to be ref,unrelated1.0p1 callback cast/typeidentity fixes,string/real/nonintegral return qualification,fullsubroutine/UVM closure."]
 required_gates: ["Both-edition failing reducer;truealias/read-during-call/recursive return/lifetime and return-override controls;independent design/code review;nativebuild/makecheck/focusedneighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes. Focused and neighbor gates pass;full gates pending."]
-next_action: "Run full gates on frozen candidate;JSON after integrated terminal;frontend last alone/restore/hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l25/integrated.log"
+next_action: "Publish validated U11/U12/L25 batch,then isolate original1.0p1 callback cast cause."
+next_command: "gh pr view 275 --json state,headRefOid,statusCheckRollup"
 stop_after_completion: false
