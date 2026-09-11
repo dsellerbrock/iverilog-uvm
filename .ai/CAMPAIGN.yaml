@@ -7,11 +7,11 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "34787868e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L31 integrated92982exit0 complete; JSON7147 and UVM32316 live. Frontend unstarted,lastalone. NFA58/58 and release13/2 retained. Fresh UVM harness now passes both previously failing DPI cases; no gate waiver."
+pending_gates: "L31 integrated92982exit0 and JSON7147exit0 (1873/0) complete. UVM32316 live; frontend unstarted,lastalone. NFA58/58 and release13/2 retained. Both previously failing DPI cases PASS in recovered UVM harness."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Poll JSON7147/UVM32316; inspect terminal totals. Run frontend lastalone,then verify installation restored and allfivefrozenhashes. No dependent implementation until validated."
+next_selection: "AfterL31validation/closure select DD038 native handle-ownership/lifecycle prerequisite; preserve original typed-attribute objective and1.1b/c reducers. Independent review rejects text adapter; no empty macro or vendor impersonation."
+next_action: "Poll UVM32316 and inspect terminal total. Run frontend lastalone,then verify installation restored and allfivefrozenhashes. No dependent implementation until validated."
 next_command: "tail -n 15 ../evidence/campaign-20260908/l31/uvm-recovery.log"
 next_command_cwd: repository root
 candidate_state: "L31candidate0a4e7d639 frozen/awaitingrequiredgates;lastfullyvalidated34787868e."

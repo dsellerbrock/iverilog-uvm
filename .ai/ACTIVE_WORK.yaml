@@ -15,7 +15,7 @@ dependencies: ["Fully validated34787868e;published PR2756506fc7a2 freshCI pendin
 required_gates: ["Both-edition red/green and independent design/code review; signed division/remainder/arithmeticshift,mixedunsigned,wide operands,fourstate and local/property controls; focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend lastalone andrestorefrozenhashes."]
 evidence: "../evidence/campaign-20260908/l31/"
 discovery_policy: "Unrelated discoveries record-only; regressions remain in scope."
-next_action: "Integrated92982exit0 complete; poll JSON7147/UVM32316. Both prior DPI cases nowPASS in recovered fullharness. Frontend lastalone after both terminal,thenrestorehashes. NFA/releases retained; candidate notyetfullyvalidated."
+next_action: "Integrated92982exit0 and JSON7147exit0(1873/0) complete; poll UVM32316. Both prior DPI cases nowPASS in recovered fullharness. Frontend lastalone after both terminal,thenrestorehashes. NFA/releases retained; candidate notyetfullyvalidated."
 next_command: "tail -n 15 ../evidence/campaign-20260908/l31/uvm-recovery.log"
 stop_after_completion: false
 

@@ -514,6 +514,45 @@ asserts. Do not define a commercial-vendor macro or empty recording operation
 to claim support. Recording compatibility and parser robustness require separate
 assessment; original sources unchanged. Evidence results-3d_bbaiu compile logs.
 
+DD038 design review at30b803071: parser recovery is now normal rejection
+(L29), while the missing recording API remains. Independent source review rejects
+an adapter that concatenates $typename with %p and calls m_set_attribute:
+%p uses decimal/%g/string formatting rather than a lossless typed encoding;
+the direct attribute macro has no lexical recorder argument; base uvm_recorder
+bypasses the attribute macro and may record literal description text. These are
+reasons not to use formatting as typed serialization, not a claim that every
+%p formatting choice violates its own IEEE contract.
+
+The original typed-value/no-artificial-width-limit recording objective remains
+mandatory. Proposed native backend decomposition, to select only after L31
+validation: (1) real handle ownership/lifecycle and inspectable stream/begin/
+link/end/free events; (2) typed value capture preserving schema, widths, four-state
+bits, real precision, strings and object identity/cycles; (3) deterministic
+legacy-recorder installation and original1.1b/c integration. No macro no-op or
+text-only substitute. Parent recording support stays incomplete until its full
+contract is implemented and qualified.
+
+First prerequisite should use an explicitly instantiated native-compatible
+recorder before any global installation. Preserve upstream sources and actual
+handle allocation. Upstream handles/m_handles are static, but file descriptors
+and filenames are per recorder; native ownership must add owner/kind/lifecycle,
+not reuse check_handle_kind as an ownership oracle. Avoid shared-default-filename
+collisions. Failed superclass allocations return0 or-1 and must not register.
+Ended-but-unfreed handles stay linkable; cross-owner links are legal. Component
+begin/end can select different current recorders, unlike transaction.m_recorder;
+route by original ownership. Arbitrary custom recorder integer namespaces can
+collide, so native compatibility needs an explicit registration contract, never
+silent adoption. A later initial block is not a deterministic default installer;
+user static initializers and explicit custom recorder selection must be preserved.
+Use an already-compilable original legacy release for initial lifecycle coverage;
+keep1.1b/c compile reducers intact until the actual attribute API is available.
+Evidence: independent recording_design_review, source anchors
+uvm_recorder.svh40-41/247-365,uvm_object_globals.svh666,
+uvm_component.svh2597-2760,uvm_transaction.svh667-671/776-784,
+uvm_object.svh1294-1313 in original1.1b. Read-only review; no implementation
+selected or changed while L31 is awaiting validation. Cross-model review skipped
+in this automated continuation.
+
 ### DD039 — Bare class-scoped module variable declarations
 
 During L22 negative-test construction, bare process::state s at module scope
