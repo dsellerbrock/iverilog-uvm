@@ -7,17 +7,17 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "77cce610b"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L28 localgates complete. U13 independentLinuxCI9006baa15 remains required/open;lastconfirmedUbuntu22 UVMstep inprogress."
+pending_gates: "L29 fullJSON14368 and UVM11005 running;isolatedfrontend unstarted. U13 Ubuntu22CI103200770181 required/open;Ubuntu24 passed."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD038 original1.1b/c recording macro gap;not empty macro bypass or vendor impersonation."
+next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
 next_action: "Wait running L29 gates; full JSON after integrated; frontend last alone; U13 independent Linux CI remains pending."
 next_command: "tail -n 12 ../evidence/campaign-20260908/l29/integrated.log"
 next_command_cwd: repository root
-candidate_state: "L28 closed77cce610b;13/15 boundedruntime smoke passes;nextimplementation selection. U13openawaitingCI."
-installed_tools: "77cce610b validated;l28/sha256.txt restored/unchanged."
+candidate_state: "L29 compiler9229c24e7 frozen/awaitingrequiredvalidation;last fully validated77cce610b. L28closed. U13Ubuntu22CIopen."
+installed_tools: "L29 candidate9229c24e7;l29/sha256.txt frozen;not yet fullyvalidated."
 validation_state: "77cce610b; counter and callback reds both editions PASSED/no diagnostics; focuslegacy4/0,JSON4/0,static/identityneighbors37legacy/25JSON,L27neighbors2/0each,makecheck and independent design/code/evidence review; legacy4955total4950pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1847/0,realDPIUVM355/0/0,NFA58/58,frontend91254exit0 allscenarios;installation restored/five frozen hashes match. Complete15release results-edrgslxb13SMOKE_PASS2COMPILE_FAIL;only1.0p1 statusimproves,all15source/archivehashes unchanged. Original1.0p1 cleanruntime/time1 with zeroUVMwarnings/errors/fatals;existingcompileconstraint/castlimitations remain,notfullUVMqualification."
-next_validation: "Next blocker red/spec/root evidence;U13 independentfreshLinuxCI."
+next_validation: "Wait JSON14368/UVM11005;frontend last alone,restorefivehashes;U13Ubuntu22CI."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -696,3 +696,5 @@ l29_live_gates: {integrated: 79700, uvm: 11005, nfa: 99686, releases: 11691}
 
 l29_release_terminal: "11691exit1;complete/baseline_valid results-bwek89ja13SMOKE_PASS2COMPILE_FAIL;all15status/archive/sourcehashes unchanged vsL28. 1.1b/c now normalcompile32/noassert,not applicationpasses. NFA99686exit0,58/58. Integrated79700/UVM11005 stilllive;JSON/frontend unstarted."
 u13_ubuntu24_terminal: "Fresh job103200770250 success on published9006baa15;downloaded log confirms legacy_10_dpi IEEE2017 and2023 PASS. Ubuntu22job103200770181 stilllive in UVMstep,soU13 remainsopen. Logs l29/ubuntu2404.plain.log."
+
+l29_integrated_terminal: "79700exit0;legacy4967total4962pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON14368 launched after integratedterminal;UVM11005 remainslive. Frontend unstarted."
