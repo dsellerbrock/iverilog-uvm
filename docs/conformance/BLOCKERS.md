@@ -918,3 +918,10 @@ paired tests own legal-statement coverage. Independent review agrees. This does
 not qualify historical2005 acceptance. Required rerun remains pending.
 
 L24 final validation: 795d9f360 with test reconciliation8afc61443;originalred both editions PASSED,no diagnostics;focuslegacy7/0,JSON4/0,neighbors23/0 both,makecheck,independent review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend93910exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-6_pvcxya11SMOKE_PASS2COMPILE_FAIL2RUNTIME_FAIL;all15 source/archive hashes match L23. 1.0p1/1.1a now compile/start but missing older DPI prevents pass;1.0p1 also unresolved-functor/cast diagnostics.
+
+### U11 — Original UVM1.0p1/1.1a DPI entry points
+
+- **State:** SELECTED after validated L24.
+- **Evidence:** DD042 missing old command-line/regex symbols in unmodified sources.
+- **Scope:** Real argv iteration/restart and metadata, strict cached regex adapters;
+  no original-source edits or unrelated legacy runtime/recording fixes.

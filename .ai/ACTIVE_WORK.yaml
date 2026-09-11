@@ -1,17 +1,16 @@
-id: "L24"
-title: "Void function calls in dedicated void-cast statement form"
-status: "closed"
-phase: "completed"
-base_revision: "0a691c8e2"
+id: "U11"
+title: "Original UVM1.0p1/1.1a command-line and regex DPI ABI"
+status: "in_progress"
+phase: "reproducing"
+base_revision: "d39880176"
 last_validated_revision: "795d9f360"
-reproducer: "evidence/campaign-20260908/l24/red.sv;original1.0p1/1.1a find_all/get_args calls each yield three void-cast-of-void errors."
-expected_behavior: "The dedicated void'(function_subroutine_call); statement executes the resolved void function exactly once with ordinary receiver, argument, output/ref and dispatch semantics. It does not turn void calls into expressions or permit task casts."
-standards: ["IEEE1800-2017/2023 13.5 Syntax13-3;AnnexA.6.9/A.8.2;13.4.1 contrasts expression use;6.24.1 ordinary expression casts exclude void"]
-semantic_interpretation: "Both editions grammar admits function_subroutine_call without a nonvoid restriction;prose explains nonvoid discards but contains no prohibition for the dedicated statement. Permitted reading is an explicit grammar/prose inference independently reviewed,not a quoted affirmative sentence or vendor bypass."
-root_cause: "PCallTask::elaborate_build_call_ resolves a genuine void function and retains normal call lowering,then unconditionally adds an error solely because void_cast_ is set. Remove only that overrestriction."
-allowed_scope: ["Resolved user void-function statement legality in PCallTask shared call builder;paired effects/dispatch/output/ref and rejection controls,required gates."]
-non_goals: ["No arbitrary void expressions/task casts,deferred assertion action relaxation,new runtime ops,library-specific behavior or UVM source edits;no full call/UVM qualification."]
-required_gates: ["Both-edition reducer/call effects/empty/virtual/output/ref and direct-call parity;task-cast/void-expression/deferred-action negatives;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Select DD042 older DPI ABI after this validated prerequisite."
+reproducer: "Original release results-6_pvcxya: missing dpi_get_next_arg_c/dpi_regcomp;standalone old-ABI fixture to pin iteration and regex semantics."
+expected_behavior: "Old zero-argument iterator returns actual VPI argv in order,ends with null and restarts next call;tool metadata is actual VPI data. Old cached-regex API uses strict POSIX ERE with real handles,match/nonmatch and cleanup."
+standards: ["IEEE1800-2017/2023 35.5.5/35.5.6,AnnexH DPI C-compatible string/chandle ABI;original pinned Accellera1.0p1/1.1a src/dpi/uvm_svcmd_dpi.c/.svh define release-specific API"]
+root_cause: "Installed backend exports modern initialized iterator and prefixed cached-regex API only. Old no-init iterator is not ABI-compatible with a plain alias. Icarus provides argc-bounded flat VPI argv;old vendor pointer-stack convention cannot be copied."
+allowed_scope: ["Fork-owned DPI umbrella old entrypoints;reuse existing regex/tool metadata helpers;standalone paired-edition regression and frontend registration;original source release replay and directly affected documentation."]
+non_goals: ["No original UVM edits,DPI disabling,empty argv/match stubs,full native release backend qualification;no unrelated1.0p1 unresolved-functor/cast or1.1b/c recording/parser fixes."]
+required_gates: ["Pre-fix missing-entrypoint proof;both editions actual argv/restart/metadata/regex/lifetime controls;independent review;native build/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/fivehashes."]
+next_action: "Establish old API failing standalone test,then add minimal adapters."
 next_command: "cat ../evidence/campaign-20260908/l24/older-dpi-source-notes.md"
 stop_after_completion: false
