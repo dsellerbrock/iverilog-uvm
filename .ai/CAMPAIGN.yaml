@@ -711,3 +711,5 @@ l30_selection: "DD039 directcompleteclass nested typedef variable atmodulescope 
 
 l30_focused: "34787868e;originalredcompile0/no diagnostics both editions;focus12legacy/12JSON,neighbors43legacy/32JSON,makecheck,independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Frozenfivehashes l30/sha256.txt. Requiredfullgatespending."
 l30_live_gates: {integrated: 26735, uvm: 62168, nfa: 58271, releases: 20924}
+
+l30_release_terminal: "20924exit1;results-jz6zk_cb complete/baseline_valid,13SMOKE_PASS2COMPILE_FAIL. All15statuses/archive/sourcehashes unchanged vsL29;1.1b/c normalcompile32/notimeout. NFA58271exit0,58/58. Integrated26735/UVM62168 stilllive;JSON/frontend unstarted."
