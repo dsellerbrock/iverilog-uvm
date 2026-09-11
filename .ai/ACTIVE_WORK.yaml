@@ -1,9 +1,9 @@
 id: "L21"
 title: "Preserve rebound class handles during captured-object mutation notification"
-status: "in_progress"
-phase: "focused_tested"
+status: "closed"
+phase: "done"
 base_revision: "e7d5b40fb"
-last_validated_revision: "fe12166bd"
+last_validated_revision: "1146d2187"
 reproducer: "evidence/campaign-20260908/l21/red.sv: scalar h.value+=rebind() updates captured original correctly but notification restores old h, undoing RHS reassignment."
 expected_behavior: "Mutate the captured class object and notify its actual aliases; do not assign its old handle back into a variable rebound during RHS evaluation. Preserve existing property-change filtering and context/alias delivery."
 standards: ["IEEE1800-2017/2023 8.4 object handles;11.4.1 compound update;9.4.2 event sensitivity where applicable;verify exact relevant semantics in both editions."]
@@ -17,3 +17,5 @@ next_command: "sed -n '19414,19482p' vvp/vthread.cc"
 stop_after_completion: false
 
 qualification_limit: "Guard only non-struct class roots; value-aggregate/VIF delivery unchanged. Existing mailbox guard retained. Check live identity after alias callbacks immediately before delivery."
+
+closure: "1146d2187;focuslegacy2/0,JSON2/0,property-event13/0 andmailbox8/0 inbothharnesses,makecheck,independent review,legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1821/0,realDPIUVM355/0/0,NFA58/58,frontend22482exit0 all;root restored/frozen hashes match. Complete15release results-0pqsi0dl11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."

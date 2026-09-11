@@ -1,21 +1,21 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "L21"
-phase: "awaiting_validation"
+current_blocker: null
+phase: "selecting"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "fe12166bd"
+last_integrated_good_revision: "1146d2187"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L21 integrated18865,UVM96943,NFA74419,15release64863 live;JSON after integrated terminal;frontend last alone,restore/frozen hashes afterward."
+pending_gates: "L21 local gates complete;PR275 remoteCI independent."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Finish L21 required gates;then restore L17 partial-after-l20.patch on validated runtime baseline."
-next_command: "tail -8 ../evidence/campaign-20260908/l21/{integrated,uvm,nfa,releases}.log"
+next_action: "Restore L17 partial-after-l20.patch on validated L21 runtime;adapt appended manifests;run focus/fullgates then original1.2 OpenTitan replay."
+next_command: "git apply --check --exclude=ivtest/regress-sv.list --exclude=ivtest/regress-vvp.list ../evidence/campaign-20260908/l17/partial-after-l20.patch"
 next_command_cwd: repository root
-candidate_state: "L19/L20 two validated unpublished increments since PR275 update."
-installed_tools: "1146d2187 candidate;frozen evidence/campaign-20260908/l21/sha256.txt;last fullyvalidatedfe12166bd."
+candidate_state: "L19/L20/L21 three validated unpublished increments;prefer publish with resumed L17 coherent scope if it validates."
+installed_tools: "1146d2187 fullyvalidated;frozen evidence/campaign-20260908/l21/sha256.txt."
 validation_state: "5ba60567f; focusedlegacy8/0,JSON8/0,neighborslegacy18/0,JSON32/0,independent reviews,makecheck,legacy4921total4916pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1813/0,real-DPIUVM355/0/0,NFA58/58,frontendS1-S10; root restored and frozen hashes unchanged. Full15release11SMOKE_PASS4COMPILE_FAIL; all statuses/source hashes unchanged."
 next_validation: "Next concrete reducer and standards check."
 completed_replay: "evidence/campaign-20260908/l16/opentitan/result.json: Original1.2 OpenTitan replay42522: compiler0/runtime0,9.964s,152requests/288scoreboard items,0UVMwarnings/errors/fatals,TEST PASSED CHECKS and normal finish17625626ps. OverallDEBT from five compile-time null-fallback diagnostics on compound array-member operations; no application qualification. No waived checks/source edits."
@@ -513,3 +513,11 @@ l17_second_suspension: "Resumed focus passes arithmetic/width/sign/index/bounds,
 l21_focused: "Standalone red both editions on restored validatedL20. Patched focuslegacy2/0,JSON2/0;property-event13/0 and mailbox8/0 in both harnesses;makecheck and independent final review clear. Captured nonstruct class root identity only;no valueaggregate/VIF notification redesign."
 
 l21_live_gates: {integrated: 18865, uvm: 96943, nfa: 74419, releases: 64863}
+
+l21_release_terminal: "64863 exit1 due four known compile gaps;results-0pqsi0dl complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 statuses/source/archive hashes match validatedL20. NFA74419 exit0,58/58. Integrated18865,UVM96943 pending;JSON/frontend unstarted."
+
+l21_integrated_terminal: "18865 exit0;legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM96943 pending;frontend unstarted."
+
+l21_json_terminal: "3607 exit0;1821tests0failures. UVM96943 live;isolatedfrontend unstarted. Source/install1146d2187 frozen."
+
+l21_closure: "1146d2187;focuslegacy2/0,JSON2/0,property-event13/0 andmailbox8/0 inbothharnesses,makecheck,independent review,legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1821/0,realDPIUVM355/0/0,NFA58/58,frontend22482exit0 all;root restored/frozen hashes match. Complete15release results-0pqsi0dl11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."

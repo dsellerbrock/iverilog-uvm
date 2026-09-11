@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `fe12166bd` (L20 compressed vector operation widths).
-The release sweep and all required L20 local validation gates are complete.
+2026-09-10, native ARM64, validated source `1146d2187` (L21 captured class-root notification).
+The release sweep and all required L21 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-l9qgrxtz/results.json`, with per-release
+`third_party/uvm-releases/results-0pqsi0dl/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes

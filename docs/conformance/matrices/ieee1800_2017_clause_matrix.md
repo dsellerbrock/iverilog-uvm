@@ -1114,3 +1114,13 @@ extension, context widening, unbased shift count, concatenations, direct
 properties/parts, array index once and queue shifts. Required local gates pass.
 Associative front-end expansion remains residual debt and L17 dynamic-array
 property lowering remains separate; no blanket11.4.1 qualification.
+
+### L21 — Captured class-root mutation preserves handle reassignment (8.4/11.4.1)
+
+Validated1146d2187 checks current class-root identity immediately before
+mutation notification delivery, after alias callbacks. A captured object's
+mutation no longer writes its old handle back over RHS reassignment. Both
+editions cover replacement/null, retained alias events, unrelated-property
+filtering, unchanged root, plain container member and automatic-context cases.
+Required local gates pass. Value aggregates/VIF roots are outside this bounded
+change; no full alias/event or container qualification claim.

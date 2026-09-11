@@ -2102,3 +2102,16 @@ stack/partial-store handling and retained associative front-end expansion as
 separate debt. Original L17 partial patch remains preserved for restoration.
 
 Final validation: fe12166bd;focuslegacy2/0,JSON2/0,neighborlegacy35/0,JSON40/0,makecheck,independent review,legacy4927total4922pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1819/0,realDPIUVM355/0/0,NFA58/58,frontend93046exit0 all;root restored and frozen hashes match. Complete15release results-l9qgrxtz11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged.
+
+### L21 — Captured class-root notification
+
+Resumed L17 tests passed operand/index boundaries but receiver rebinding was
+undone. Standalone scalar-property h.value+=rebind() reproduced this on
+restored validatedL20: original updates correctly, while h reverts to old.
+Preserved/reversed L17 partial-after-l20.patch and selected runtime prerequisite.
+Existing mailbox identity guard provided the invariant. The shared mutation
+helper now checks a non-struct class root's live binding immediately before
+each send, preserving precise alias/property notifications. Values/VIF roots
+retain existing behavior. Independent review and context/event tests pass.
+
+Final validation: 1146d2187;focuslegacy2/0,JSON2/0,property-event13/0 andmailbox8/0 inbothharnesses,makecheck,independent review,legacy4929total4924pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1821/0,realDPIUVM355/0/0,NFA58/58,frontend22482exit0 all;root restored/frozen hashes match. Complete15release results-0pqsi0dl11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged.
