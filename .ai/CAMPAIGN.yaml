@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L26"
-phase: "root_caused"
+phase: "focused_tested"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c58035f49"
@@ -628,3 +628,5 @@ l25_uvm_terminal: "26951exit0;355passed0failed0skipped,realDPI. Isolatedfrontend
 l25_closure: "c58035f49;originalred/interactions both editions PASSED,no diagnostics;focuslegacy2/0,JSON2/0,neighborslegacy58/0,JSON46/0,makecheck and independent design/code review;legacy4947total4942pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1839/0,realDPIUVM355/0/0,NFA58/58,frontend88452exit0 allscenarios;installrestored and fivefrozenhashesmatch. Complete15release results-3v03d7qs12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsU12. Original1.0p1 threeplaceholder diagnostics gone;two callbackcast errors remain."
 
 legacy_uvm_pr_fifth_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "2785d1d5d6053a1d0c779f62b403176153f66111", state: "open", scope: "ValidatedU11/U12/L25", remaining: "FreshCI;no mergeauthorization"}
+
+l26_focused: "Both-edition15line red nowPASSED;focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent-default/seedneighbors6/0each,makecheck and independent design/code review clear. Larger forward-registry stillfails one generic-seedcast;not a pass and separate. All required integrated gates pending."

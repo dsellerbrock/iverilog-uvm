@@ -1,7 +1,7 @@
 id: "L26"
 title: "Matching multi-class-parameter specializations with independent defaults"
 status: "active"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "2785d1d5d"
 last_validated_revision: "c58035f49"
 reproducer: "../evidence/campaign-20260908/l26/default-pair.sv and .json: Pair#(A) versus Pair#(A,B), B the declared default; both editions compile0 then cast fails runtime1. Larger forward-registry reducer and passing controls preserved."
@@ -11,6 +11,6 @@ root_cause: "canonical_specialization_parm_key_ unnecessarily requires a bare de
 allowed_scope: ["Existing specialization key normalization for concrete multi-class-type parameters; permanent positive, negative and forwarding controls; directly related evidence."]
 non_goals: ["No runtime class-name equivalence, unresolved generic key merging, value-parameter expansion, generic-template initializer repair, full callback/UVM or parameterization qualification."]
 required_gates: ["Both-edition red/green reducer; distinct types/declaration owners and unresolved forwarding controls; focused legacy/JSON and neighbors; independent review; nativebuild/makecheck/integrated/JSON/realDPIUVM/NFA/releases; isolatedfrontend last alone with restore and frozen hashes."]
-next_action: "Remove only the dependent-default eligibility restriction; retain concrete type and unresolved-key guards; verify reducer and controls."
-next_command: "sed -n '3460,3580p' elab_scope.cc"
+next_action: "Run required full gates on frozen candidate; JSON after integrated, frontend last alone."
+next_command: "PATH='$PWD/local-install/bin:$PATH' bash .github/ivtest_gate.sh"
 stop_after_completion: false

@@ -3460,32 +3460,10 @@ static std::string canonical_specialization_parm_key_(
 	    return out.str();
       }
 
-	/* Keep the broad semantic cache limited to the multi-parameter class
-	 * pattern it was introduced for. The single-parameter path above rejects
-	 * unresolved forwarded/scope-sensitive keys, and bare generic-master uses
-	 * are deferred before reaching this helper. */
+	/* Normalize concrete class-type actuals across omitted, named and
+	 * positional forms, including independent defaults. Unresolved forwarding
+	 * and non-class types still retain their source-sensitive keys below. */
       if (pclass->parameter_order.size() < 2)
-	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
-
-      bool has_bare_dependent_default = false;
-      std::set<perm_string> prior_formals;
-      for (std::list<perm_string>::const_iterator name_it =
-		   pclass->parameter_order.begin()
-	   ; name_it != pclass->parameter_order.end(); ++name_it) {
-	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator formal =
-		  pclass->parameters.find(*name_it);
-	    if (formal != pclass->parameters.end() && formal->second) {
-		  for (std::set<perm_string>::const_iterator prior =
-		       prior_formals.begin(); prior != prior_formals.end(); ++prior) {
-			if (pexpr_matches_parameter_name_(formal->second->expr, *prior)) {
-			      has_bare_dependent_default = true;
-			      break;
-			}
-		  }
-	    }
-	    prior_formals.insert(*name_it);
-      }
-      if (!has_bare_dependent_default)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       std::map<perm_string,const PExpr*> supplied;
