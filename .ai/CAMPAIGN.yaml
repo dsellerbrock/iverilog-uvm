@@ -7,12 +7,12 @@ source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "34787868e"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L31 integrated92982exit0 and JSON7147exit0 (1873/0) complete. UVM32316 live; frontend unstarted,lastalone. NFA58/58 and release13/2 retained. Both previously failing DPI cases PASS in recovered UVM harness."
+pending_gates: "L31 UVM32316exit0 REAL DPI355pass0fail0skip; integrated/JSON/NFA/releases terminal evidence retained. Frontend49875 running lastalone; installation restoration/fivefrozenhashes pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "AfterL31validation/closure select DD038 native handle-ownership/lifecycle prerequisite; preserve original typed-attribute objective and1.1b/c reducers. Independent review rejects text adapter; no empty macro or vendor impersonation."
-next_action: "Poll UVM32316 and inspect terminal total. Run frontend lastalone,then verify installation restored and allfivefrozenhashes. No dependent implementation until validated."
-next_command: "tail -n 15 ../evidence/campaign-20260908/l31/uvm-recovery.log"
+next_action: "Poll frontend49875; verify full terminal PASS,local-install restored,no reloc-hidden directory,and allfivefrozenhashes. Then close exactL31scope and select reviewed DD038 prerequisite."
+next_command: "tail -n 15 ../evidence/campaign-20260908/l31/frontend.log"
 next_command_cwd: repository root
 candidate_state: "L31candidate0a4e7d639 frozen/awaitingrequiredgates;lastfullyvalidated34787868e."
 installed_tools: "0a4e7d639 candidate;l31/sha256.txt frozen;notyetfullyvalidated."
@@ -742,3 +742,5 @@ fallback_sweep: "User-authorized dedicated record-only sweep at3d60cb54a:608 tra
 l31_recovery: "Fresh direct C companions with frozen candidate pass DPI BASIC6/6 and DPI REAL4/4; old interrupted harness failures require recovered fullgate evidence,not classified as compiler regression or waived. Recovery integrated92982/UVM32316 running; allfiveinstalledhashes verified. No source changes."
 
 l31_integrated_terminal: "Recovery92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,exports66,copyout6/6. FullJSON7147started after integrated terminal. UVM32316 stilllive; DPI basic/real PASS in recovered fullharness. Frontend unstarted. Published6506fc7a2 PR275 remainsOPEN;bothUbuntu checksSUCCESS,macOS/MINGW64/UCRT64/CLANG64 stillIN_PROGRESS at current read."
+
+l31_uvm_terminal: "32316exit0;355passed0failed0skipped,REAL DPIumbrella; prior basic/real failures do not reproduce in recovered harness. Frontend49875 started only after all other gates terminal;freeze remains in force."
