@@ -856,3 +856,9 @@ L17 dynamic-array lowering remain open.
 L19 closure: paired four-state operand and two-state result checks, signedness/
 concatenation neighbors, independent review and all required local gates pass.
 DD036 operand width and L17 target lowering remain open.
+
+### L20 — Integral compound operation widths
+
+- **Status:** ACTIVE; remaining DD036 prerequisite for suspended L17.
+- **Evidence:** On validated72a97c038, logic8bit128 /=32'd256 producesX instead0 in both editions. L17 also demonstrates wide shift count truncation.
+- **Scope:** Natural/context RHS width through compressed elaboration and shared vector operation sizing before final result truncation. Preserve existing receiver/index lowering; no new runtime instructions. All required gates apply.

@@ -1,18 +1,18 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: null
-phase: "selecting"
+current_blocker: "L20"
+phase: "root_caused"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "72a97c038"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L19 local gates complete;PR275 remoteCI independent."
+pending_gates: "L20 focus/all required gates unstarted;PR275 remoteCI independent."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
-next_action: "Select remaining DD036 compound operand width prerequisite before restoring L17. L19 is one unpublished validated increment;retain batched cadence."
-next_command: "sed -n '1756,1810p' netmisc.cc"
+next_action: "Implement DD036 width preservation L20; validate fully,then restore L17 partial target patch using shared operation-width helper."
+next_command: "sed -n '7500,7545p' elaborate.cc"
 next_command_cwd: repository root
 candidate_state: "L19 one validated unpublished increment since PR275 update."
 installed_tools: "72a97c038 fullyvalidated;frozen evidence/campaign-20260908/l19/sha256.txt."
@@ -491,3 +491,5 @@ l19_json_terminal: "85309 exit0;1817tests0failures. UVM85031 live;isolatedfronte
 l19_uvm_terminal: "85031 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend started last alone after all other gate sessions terminated;root restoration/frozen hashes required afterward."
 
 l19_closure: "72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
+
+l20_selection: "Standalone logic8bit /=32bit256 reducer fails both editions on validated72a97c038. Design review supports natural RHS width plus existing-operator helper; migrate existing vector compound callers to avoid divergent sizing. No new runtime instructions."

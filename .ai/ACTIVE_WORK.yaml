@@ -1,19 +1,17 @@
-id: "L19"
-title: "Preserve four-state compound operands until result assignment"
-status: "closed"
-phase: "done"
-base_revision: "1d83b9dd3"
+id: "L20"
+title: "Preserve integral compound operation widths"
+status: "in_progress"
+phase: "root_caused"
+base_revision: "6604c0668"
 last_validated_revision: "72a97c038"
-reproducer: "evidence/campaign-20260908/l19/red.sv: bit[7:0] value=1; value += logic X yields1 instead of0 in both2017/2023."
-expected_behavior: "Integral compound arithmetic consumes original four-state RHS values; only final assignment to two-state destination converts X/Z to zero. Preserve known-bit behavior and ordinary assignment conversions."
-standards: ["IEEE1800-2017/2023 11.4.1 compound equivalence;11.4.3 arithmetic X propagation;6.11.2 two-state assignment conversion;verify both editions."]
-root_cause: "PAssign::elaborate_compressed_ passes destination BOOL type into elaborate_rval_; elab_and_eval casts RHS to int2 before the binary operator. The direct-property target independently emits cast2 before the operator; both early conversions must move to result assignment."
-allowed_scope: ["elaborate.cc compressed integral RHS state conversion and tgt-vvp/stmt_assign.c direct-property cast ordering; focused paired-edition arithmetic/bitwise/shift and destination controls; required regression gates and directly affected docs."]
-non_goals: ["No width-preservation fix yet (DD036); no L17 target restore; no general real/string compound overhaul or application-source changes."]
-required_gates: ["Both-edition red/focus/neighbors and independent review; native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;isolatedfrontend last/restoration/frozen hashes."]
-suspended_parent: "L17 full partial.patch and reducers preserved in evidence/campaign-20260908/l17. Width prerequisite still follows L19 before parent restoration."
-next_action: "Verify both editions and preserve integral four-state RHS through compressed elaboration, then run focused tests."
-next_command: "sed -n '7500,7534p' elaborate.cc"
+reproducer: "evidence/campaign-20260908/l20/red.sv: logic[7:0]128 /=32'd256 producesX instead0 in both editions; L17 focus also proves wide shift count truncation."
+expected_behavior: "Arithmetic/bitwise compound operations use max operand width before result truncation; shift counts are self-determined. Preserve RHS context widening, combined signedness, four-state propagation and single index/receiver evaluation."
+standards: ["IEEE1800-2017/2023 11.4.1,11.6 expression widths,11.8.1/11.8.2 context/sign propagation;11.4.10 shift counts;verify both editions."]
+root_cause: "Compressed RHS elaboration uses destination width, so cast/eval truncates constants. Target compound call sites independently resize RHS to destination width before operation."
+allowed_scope: ["elaborate.cc compressed integral operand width selection and tgt-vvp/stmt_assign.c shared compound vector evaluation helper/current opcode callers; permanent paired tests and required gates; direct docs."]
+non_goals: ["No L17 target restore yet; no general real/string compound redesign or fixes to unrelated receiver/assoc/index semantics; no original application changes."]
+required_gates: ["Both-edition red/focus,wide constant/runtime operands,signedness/context/self-determined shifts,property/part/container neighbors and independent review;native build,makecheck,integrated/JSON/UVM/NFA/15release sweep;frontend last/restoration/fingerprints."]
+suspended_parent: "L17 full partial.patch/reducers preserved in evidence/campaign-20260908/l17; restore only after width prerequisite fullyvalidated."
+next_action: "Preserve natural RHS width through existing elaboration; centralize vector operand sizing before existing opcode and truncate afterward."
+next_command: "sed -n '7500,7545p' elaborate.cc"
 stop_after_completion: false
-
-closure: "72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
