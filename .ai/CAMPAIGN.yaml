@@ -648,3 +648,7 @@ l26_final_json_terminal: "5072exit0;1841tests0failures. UVM44461 live;frontend u
 l26_final_uvm_terminal: "44461exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after allothergates terminal;installrestore/frozenfinalhashes required afterward."
 
 l26_closure: "e3666fd07; both-edition15line reducer PASSED; focuslegacy2/0,JSON2/0,paramneighbors23legacy/16JSON,identity/dependent/seedneighbors6/0each,makecheck and independent design/code review; legacy4949total4944pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1841/0,realDPIUVM355/0/0,NFA58/58,frontend29502exit0 allscenarios; installation restored and five sha256-final hashes match. Complete15release results-8054igtp12SMOKE_PASS1RUNTIME_FAIL2COMPILE_FAIL; all15statuses/source/archivehashes matchL25, original1.0p1 stilltwo callbackcasts."
+
+l27_focused_reconciliation: "Initial initializer-analysis guard passed red/focus2each but neighbor sv_class_static_const_init failed missing-initialization diagnostic;legacy36pass1fail,JSONunstarted. Corrected guard retains analysis for const bookkeeping and deletes only unregistered generic-master NetProcTop;destructor owns statements. Added const control;no fullgates started."
+
+l27_focused: "Both-edition red nowPASSED;focuslegacy2/0,JSON2/0,static/identityneighbors37legacy/25JSON,makecheck and final independent review clear. Preserve const initializer analysis,delete only unscheduled generic-master process. All required fullgates pending."

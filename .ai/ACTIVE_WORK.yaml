@@ -1,7 +1,7 @@
 id: "L27"
 title: "Generic class masters must not execute static initialization"
 status: "active"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "8d0bdb90b"
 last_validated_revision: "e3666fd07"
 reproducer: "../evidence/campaign-20260908/l27/seed-init.sv and .json: one concrete Generic#(bit) declaration, static registration counter observes two calls; both editions compile0/runtime1."
@@ -11,6 +11,6 @@ root_cause: "netclass_t::elaborate unconditionally emits initialize_static threa
 allowed_scope: ["Suppress static initializer process emission for unspecialized parameterized class masters using existing class metadata; preserve concrete and ordinary classes and add permanent controls."]
 non_goals: ["No broad seed-derived cache lifecycle redesign; unresolved forwarded pseudo-specializations remain separately tracked DD044;no cast suppression or generic/concrete identity merging;no fullcallback/UVM closure."]
 required_gates: ["Both-edition pre-fix reducer and concrete/nonparameterized/default/static-only controls;independent review;native build/makecheck/focus/neighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/frozenhashes."]
-next_action: "Review narrow generic-master initializer guard and preserve real-specialization behavior."
+next_action: "Run required full gates;keep candidate frozen;JSON after integrated and frontend last alone."
 next_command: 'sed -n "30120,30168p" elaborate.cc'
 stop_after_completion: false

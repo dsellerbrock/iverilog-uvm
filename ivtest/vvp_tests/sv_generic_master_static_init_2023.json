@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_generic_master_static_init.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_generic_master_static_init"
+    ],
+    "gold": "sv_generic_master_static_init"
+}

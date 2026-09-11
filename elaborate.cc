@@ -30148,7 +30148,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		    // Without this, code patterns like UVM `uvm_register_cb`
 		    // see the spec's `static = 0` reset wipe state set by a
 		    // user-class static initializer that called into the spec.
-		    if (this->specialized_instance())
+		    // Analyze generic initializers for const-initialization checks,
+		    // but a generic master is not a runtime type (IEEE 1800 8.25).
+		    if (pclass->has_parameter_port_list && !specialized_instance())
+			  delete top;
+		    else if (this->specialized_instance())
 			  des->add_process_at_tail(top);
 		    else
 			  des->add_process(top);
