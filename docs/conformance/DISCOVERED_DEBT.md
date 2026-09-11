@@ -484,3 +484,9 @@ prerequisite selection required after L18; not repaired by target width logic.
 L18 review note: associative compound expansion in elaborate.cc independently
 reads the old get_signed flag. Existing source-inspection limitation, no
 new reducer or qualification claim; outside scalar-property L18 scope.
+
+DD036 L20 review boundary: existing associative front-end expansion builds
+its binary expression at destination width before the compressed target
+helper. Migrating the target's associative callers does not qualify that
+separate expansion; preserve as residual width debt requiring its own reducer.
+L20 claims the ordinary compressed vector paths and permanent tested shapes.

@@ -493,3 +493,5 @@ l19_uvm_terminal: "85031 exit0;355passed0failed0skipped,realDPI. Isolatedfronten
 l19_closure: "72a97c038;focuslegacy2/0,JSON2/0,L18legacy3/0,JSON2/0,neighborslegacy9/0,JSON15/0,makecheck,independent review,legacy4925total4920pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1817/0,realDPIUVM355/0/0,NFA58/58,frontend99180exit0 all scenarios;root restored and frozen hashes match. Complete15release results-rqvzvoej11SMOKE_PASS4COMPILE_FAIL,all source/status hashes unchanged."
 
 l20_selection: "Standalone logic8bit /=32bit256 reducer fails both editions on validated72a97c038. Design review supports natural RHS width plus existing-operator helper; migrate existing vector compound callers to avoid divergent sizing. No new runtime instructions."
+
+l20_focused: "Paired widthfocuslegacy2/0,JSON2/0;neighborlegacy35/0,JSON40/0 including state/signedness/propertyoffset/event/carrier checks;makecheck and independent final review clear. Both-edition Table11-21 verified arithmetic max width and selfdetermined shiftcounts. Associative frontend expansion remains separate debt; no blanket compound qualification."

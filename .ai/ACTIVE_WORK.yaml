@@ -1,7 +1,7 @@
 id: "L20"
 title: "Preserve integral compound operation widths"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "6604c0668"
 last_validated_revision: "72a97c038"
 reproducer: "evidence/campaign-20260908/l20/red.sv: logic[7:0]128 /=32'd256 producesX instead0 in both editions; L17 focus also proves wide shift count truncation."
@@ -15,3 +15,5 @@ suspended_parent: "L17 full partial.patch/reducers preserved in evidence/campaig
 next_action: "Preserve natural RHS width through existing elaboration; centralize vector operand sizing before existing opcode and truncate afterward."
 next_command: "sed -n '7500,7545p' elaborate.cc"
 stop_after_completion: false
+
+qualification_limit: "Associative front-end expansion can still construct a destination-width binary expression before these target paths; no complete associative compound width claim. Direct dynamic-array property L17 remains suspended."

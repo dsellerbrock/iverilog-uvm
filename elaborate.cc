@@ -7528,8 +7528,22 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       ivl_variable_type_t operand_type = lv->expr_type();
       if (operand_type == IVL_VT_BOOL)
             operand_type = IVL_VT_LOGIC;
+      unsigned operand_width = count_lval_width(lv);
+      if (operand_type == IVL_VT_LOGIC) {
+            NetScope*operand_scope = elaborate_rval_scope_(des, scope);
+            if (!operand_scope) return 0;
+            PExpr::width_mode_t mode = PExpr::SIZED;
+            rval()->test_width(des, operand_scope, mode);
+            if (type_is_vectorable(rval()->expr_type())) {
+                  unsigned natural_width = rval()->expr_width();
+                  if (op_ == 'l' || op_ == 'r' || op_ == 'R')
+                        operand_width = natural_width;
+                  else
+                        operand_width = max(operand_width, natural_width);
+            }
+      }
       NetExpr*rv = elaborate_rval_(des, scope, 0, operand_type,
-				   count_lval_width(lv), force_unsigned);
+				   operand_width, force_unsigned);
       if (rv == 0) return 0;
 
 	// The ivl_target API doesn't support signalling the type
