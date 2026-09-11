@@ -1,13 +1,13 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "L22"
-phase: "awaiting_validation"
+phase: "selection_boundary"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "d8e974913"
+last_integrated_good_revision: "4a102ee47"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L22 integrated/UVM/NFA/releases;JSON after integrated terminal;frontend last alone/restore/frozen hashes. Fresh PR275 remote CI remains separate;no merge authorization."
+pending_gates: "L22 all required gates complete. PR275 remote CI separate;one validated unpublished increment after f543fede0,no merge authorization."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After validated U09, select OpenTitan original1.2 runtime qualification and accurate library provenance; preserve independent standards/UVM/application/formal statuses."
@@ -548,3 +548,13 @@ legacy_uvm_pr_third_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/p
 l22_focused: "Both-edition original red now passes;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review clear. Shared nominal enum metadata/constants/status and narrow builtin type lookup;no runtime changes. Review corrected empty-root registration and escaped-name collision;permanent controls pass. Bison563SR1122RR,parse.output byteidentical. DD039 bare class-scoped module declaration grammar remains separate."
 
 l22_live_gates: {integrated: 96875, uvm: 53847, nfa: 20962, releases: 5490}
+
+l22_release_terminal: "5490 exit1;results-p7axbpcu complete/baseline_valid,11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17. UVM1.0p1 process::state error removed;next errors fork/join_any in function and void casts of void functions,plus visible unsupported cast/constraint diagnostics. NFA20962 exit0,58/58. Integrated96875,UVM53847 live;JSON/frontend unstarted."
+
+l22_integrated_terminal: "96875 exit0;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. FullJSON launched after terminal;UVM53847 pending;frontend unstarted."
+
+l22_json_terminal: "65369 exit0;1829tests0failures. UVM53847 live;isolatedfrontend unstarted. Source/install4a102ee47 frozen."
+
+l22_uvm_terminal: "53847 exit0;355passed0failed0skipped,realDPI. Isolatedfrontend launched last alone after all other gate sessions terminal;root restoration/frozen hashes required afterward."
+
+l22_closure: "4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed."

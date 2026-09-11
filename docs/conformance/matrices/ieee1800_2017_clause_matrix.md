@@ -1135,3 +1135,14 @@ and RHS handle rebinding. Array bounds references: 2017 7.4.6; 2023 7.4.5.
 All required local gates and original UVM1.2 debug-crossbar smoke pass. This
 qualifies the bounded tested whole-element cases, not full containers, real/
 string compounds, IEEE1800.2 or the entire application suite.
+
+### L22 — Built-in process state enum (9.7/6.19)
+
+Validated4a102ee47 provides shared nominal process::state enum identity,
+ordered FINISHED/RUNNING/WAITING/SUSPENDED/KILLED values, typed status()
+and parenless status results. Both editions cover local/type-alias/function/
+package/child-module use, enum name/iteration/count, signed width and explicit
+casts; integer/unrelated-enum assignment rejection remains. Missing-root and
+escaped-user-identifier regression controls pass. No runtime changes; all
+required gates complete. Bare class-scoped module declaration grammar DD039
+remains unqualified, as do full process control and legacy UVM applications.

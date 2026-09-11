@@ -1,9 +1,9 @@
 id: "L22"
 title: "Built-in process::state enum type and status return identity"
-status: "in_progress"
-phase: "awaiting_validation"
+status: "closed"
+phase: "done"
 base_revision: "f543fede0"
-last_validated_revision: "d8e974913"
+last_validated_revision: "4a102ee47"
 reproducer: "evidence/campaign-20260908/l22/red.sv; original UVM1.0p1 uvm_phases.svh2824 returns process::state and fails visible-class lookup."
 expected_behavior: "The built-in process class exposes nominal enum state with FINISHED,RUNNING,WAITING,SUSPENDED,KILLED; status() returns that enum, permitting typed variables/returns and enum methods without weakening enum assignment rules."
 standards: ["IEEE1800-2017/2023 9.7 built-in process prototype;6.19 enum identity/assignment rules"]
@@ -11,6 +11,6 @@ root_cause: "Parser class-scoped typedef lookup requires a PClass, while process
 allowed_scope: ["Built-in process state type lookup, shared enum representation and typed state constants/status expressions; paired positive/negative regressions and required gates."]
 non_goals: ["No bare class-scoped module declaration grammar repair (DD039), process scheduling redesign, generic class-lookup rewrite, user-library edits, integer alias substituted for enum, full process/legacy UVM qualification."]
 required_gates: ["Both-edition reducer and enum identity/width/sign/name/assignment controls;process status/control neighbors;independent review;native serial build/makecheck/full integrated/JSON/UVM/NFA/releases;frontend last alone/restore/hashes."]
-next_action: "Run all required gates on frozen candidate;JSON after integrated terminal,frontend last alone and verify restore/hashes."
-next_command: "tail -12 ../evidence/campaign-20260908/l22/integrated.log"
+next_action: "Select DD040 nested fork/join_any inside function-spawned background process;reduce and verify both editions."
+next_command: "sed -n '22392,22420p' ../evidence/campaign-20260908-lrm2023.txt"
 stop_after_completion: false

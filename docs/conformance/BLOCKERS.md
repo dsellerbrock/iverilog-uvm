@@ -889,6 +889,10 @@ Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s
 
 ### L22 — Built-in process::state nominal enum type
 
-- **State:** SELECTED after validated L17 and four-increment publication.
+- **State:** CLOSED at4a102ee47 after all required gates.
 - **Evidence:** Original UVM1.0p1 uvm_phases.svh2824 function return type fails visible-class lookup on d8e974913.
 - **Scope:** 2017/2023 9.7 declared state enum and typed status/constants, preserving 6.19 nominal enum semantics. No scheduling redesign or full UVM1.0p1 qualification.
+
+L22 validation: 4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed.
+
+Bare class-scoped module declarations remain DD039; no full process or UVM1.0p1 qualification. Next exposed nested-background fork error is DD040.

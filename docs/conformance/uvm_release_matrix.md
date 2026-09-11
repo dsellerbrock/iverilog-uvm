@@ -69,8 +69,8 @@ release for another design. The installed compiler/runtime stay unchanged.
 
 ## Recorded local results
 
-2026-09-10, native ARM64, validated source `d8e974913` (L17 integral dynamic-array property compounds).
-The release sweep and all required L17 local validation gates are complete.
+2026-09-11, native ARM64, validated source `4a102ee47` (L22 built-in process state enum).
+The release sweep and all required L22 local validation gates are complete.
 Actual mode: `-g2012`. Each command has a 300-second per-process CPU guard
 and a configurable wall timeout (300 seconds by default), with no RSS cap.
 The smoke checks factory creation, clone/field copy and independence, phase
@@ -80,7 +80,7 @@ release's native DPI backend/ABI. No `UVM_NO_DPI` fallback is requested.
 
 | Release | Result | First compile failure / smoke scope |
 | --- | --- | --- |
-| 1.0p1 | COMPILE_FAIL | `process` class lookup |
+| 1.0p1 | COMPILE_FAIL | Nested fork/join_any in a function-spawned background process; void casts of void functions. The former `process::state` type failure is resolved by L22 |
 | 1.1a | COMPILE_FAIL | Fork/join_any in function and void casts of void functions; standards legality remains to be assessed |
 | 1.1b | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
 | 1.1c | COMPILE_FAIL | Undefined `uvm_record_attribute` macro, syntax errors and parser assertion in `uvm_tlm2_generic_payload.svh` |
@@ -103,7 +103,7 @@ requirements or standards-conformance verdicts. U07 classifies unparenthesized m
 IEEE1800.2 qualification and unmodified application DV remain separate.
 
 Machine-readable output is in
-`third_party/uvm-releases/results-3d_bbaiu/results.json`, with per-release
+`third_party/uvm-releases/results-p7axbpcu/results.json`, with per-release
 commands, logs, source tree hashes, and compiler/target/preprocessor/VPI/DPI
 fingerprints. It records `complete: true` and `baseline_valid: true`.
 The script also fingerprints the manifest, itself and the smoke source; changes
@@ -173,3 +173,8 @@ with zero errors and no caught/demoted reports. Counts are not assumed to map
 one-to-one: mapped and unmapped transactions follow different paths. Evidence:
 `evidence/campaign-20260908/l17/opentitan/result.json` and adjacent raw logs/
 `checking-source-notes.md`. No upstream application/library edits or check waivers.
+
+L22 retains11/15 bounded smoke passes with identical original source fingerprints.
+Original1.0p1 now recognizes process::state and proceeds to later errors; this
+is compile progress, not a new release pass. The application smoke above remains
+revision-scoped to L17, not a fresh L22 OpenTitan replay.

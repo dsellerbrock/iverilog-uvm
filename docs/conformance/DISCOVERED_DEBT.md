@@ -523,3 +523,13 @@ fails the same way, outside the new builtin-specific lookup branch. Local
 procedural declarations and typedef aliases work. Record-only general parser
 gap; no grammar expansion under L22. Evidence l22/direct-module-state.sv and
 ordinary-class-scoped-module.{sv,json}; bare module scope remains unqualified.
+
+### DD040 — Nested fork in a function-spawned background process
+
+L22 release sweep now reaches UVM1.0p1 uvm_objection.svh m_forked_drop:
+a function contains outer fork/join_none with nested fork/join_any in its
+child begin/end. Existing diagnostic rejects inner join_any as function code.
+IEEE1800-2023 13.4.4 allows task-legal statements inside function fork/join_none;
+2017 wording and actual elaboration context need reducer/trace before selection.
+UVM1.1a reports the same frontier. Record-only under L22; no dependent patch
+on the unvalidated baseline. Evidence results-p7axbpcu/1.0p1/compile.log.

@@ -2134,3 +2134,17 @@ Original1.2 OpenTitan debug-crossbar replay6645: PASS,compiler0/runtime0,10.177s
 Source inspection connects the host-completion log to joined request/response
 loops and the scoreboard completion log to count/queue/FIFO checks. Original
 compile log is clean; only the two existing benign runtime $system lines remain.
+
+### L22 — Built-in process state enum
+
+Both-edition reducer failed visible-class lookup at process::state. The builtin
+process had a netclass but no parsed class typedef; status and constants were
+plain integers. A shared populated nominal enum now backs the narrow parsed
+type, status expressions and constants using existing enum target/runtime paths.
+Metadata registers once in the first root. Independent review caught and fixed
+empty-root registration and escaped-name marker collision, with permanent tests.
+Initial C++ integration and test-manifest setup failures were corrected before
+full gates. General bare class-scoped module syntax remains DD039; new legacy
+nested-background fork frontier recorded DD040, no opportunistic patch.
+
+Final validation: 4a102ee47;focuslegacy6/0,JSON6/0,neighborslegacy16/0,JSON10/0,makecheck and final independent review;Bison563SR1122RR,parse.output identical;legacy4937total4932pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1829/0,realDPIUVM355/0/0,NFA58/58,frontend18561exit0 all scenarios;install restored and five frozen hashes match. Complete15release results-p7axbpcu11SMOKE_PASS4COMPILE_FAIL;all15 source/archive hashes and statuses match L17,1.0p1 process::state error removed.
