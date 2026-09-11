@@ -1,0 +1,2 @@
+sv_darray_property_compound normal,-g2017,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold
+sv_darray_property_compound_2023 normal,-g2023,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold

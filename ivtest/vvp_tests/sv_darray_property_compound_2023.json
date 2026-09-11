@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_darray_property_compound.v",
+    "iverilog-args": [
+        "-g2023",
+        "-ssv_darray_property_compound"
+    ],
+    "gold": "sv_darray_property_compound"
+}

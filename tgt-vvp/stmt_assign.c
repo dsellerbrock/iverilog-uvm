@@ -3880,11 +3880,13 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
       if (!idx_expr || !prop_type || ivl_type_base(prop_type) != IVL_VT_DARRAY)
             return -1;
 
-      if (ivl_stmt_opcode(net) != 0)
-            return -1;
-
       element_type = ivl_type_element(prop_type);
       if (!element_type)
+            return -1;
+
+      if (ivl_stmt_opcode(net) != 0
+          && ivl_type_base(element_type) != IVL_VT_BOOL
+          && ivl_type_base(element_type) != IVL_VT_LOGIC)
             return -1;
 
       switch (ivl_type_base(element_type)) {
@@ -3920,6 +3922,32 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
             int idx_word = allocate_word();
             if (wid == 0)
                   wid = ivl_stmt_lwidth(net);
+
+            if (ivl_stmt_opcode(net) != 0) {
+                  int idx_flag = allocate_flag();
+                  unsigned skip = local_count++;
+
+                    /* Retain the selected array, not a receiver reloaded
+                       after RHS side effects. Evaluate its index once. */
+                  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+                  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+                  draw_eval_expr_into_integer(idx_expr, 3);
+                  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", idx_word);
+                  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", idx_flag);
+                  fprintf(vvp_out, "    %%dup/obj/ref;\n");
+                  fprintf(vvp_out, "    %%load/qo/v %u;\n", wid);
+                  draw_stmt_assign_vector_rhs(net, wid);
+                  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
+                  fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n",
+                          thread_count, skip);
+                  fprintf(vvp_out, "    %%set/dar/obj/vec4 %d;\n", idx_word);
+                  fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
+                  fprintf(vvp_out, "    %%pop/vec4 1;\n");
+                  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+                  clr_flag(idx_flag);
+                  clr_word(idx_word);
+                  return errors;
+            }
 
             draw_eval_vec4(rval);
             resize_vec4_wid(rval, ivl_stmt_lwidth(net));

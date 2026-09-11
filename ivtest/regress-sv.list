@@ -2933,3 +2933,6 @@ sv_compound_operation_width_2023 normal,-g2023,-s,sv_compound_operation_width iv
 
 sv_captured_class_root_rebind normal,-g2017,-s,sv_captured_class_root_rebind ivltests gold=sv_captured_class_root_rebind.gold
 sv_captured_class_root_rebind_2023 normal,-g2023,-s,sv_captured_class_root_rebind ivltests gold=sv_captured_class_root_rebind.gold
+
+sv_darray_property_compound normal,-g2017,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold
+sv_darray_property_compound_2023 normal,-g2023,-s,sv_darray_property_compound ivltests gold=sv_darray_property_compound.gold

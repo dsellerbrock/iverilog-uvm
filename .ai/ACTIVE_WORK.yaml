@@ -1,7 +1,7 @@
 id: "L17"
 title: "Integral compound updates of dynamic-array class properties"
 status: "in_progress"
-phase: "root_caused"
+phase: "focused_tested"
 base_revision: "a29e62dd6"
 last_validated_revision: "1146d2187"
 reproducer: "Original red.sv and failed pre-prerequisite focus preserved in evidence/campaign-20260908/l17; DD035 five original1.2 array compound updates took whole-object null fallback."
