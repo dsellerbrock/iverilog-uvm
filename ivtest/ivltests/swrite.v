@@ -39,9 +39,9 @@ module top;
     $timeformat(-12, 4, " ps", 20);
     fmt = "%s";
     failed = 0;
-    // Determine the endian order.
+    // Determine the endian order: "Help" is 32'h48656c70 and %u writes it in native byte order (IEEE 1800 5.9, 21.2.1).
     $swrite(result, "%u", "Help");
-    if (result != "\000Help") begin
+    if (result != "pleH") begin
       // Big endian so reverse the bytes.
       eval = 32'h22000000;
       hval = 64'h206d652148656c70;

@@ -194,6 +194,68 @@ static int is_fixed_memory_word(ivl_expr_t net)
       return 0;
 }
 
+/* L33: walk a class-property chain like foo.bar.baz down to its root
+ * signal, collecting each hop's property index in root-to-leaf order
+ * (so for foo.bar.baz: [bar's idx, baz's idx]).
+ *
+ * ivl_expr_signal() on a PROPERTY node is a shortcut elaboration only
+ * takes for a single, non-chained property access: it is set when this
+ * property's base is directly the root signal AND nothing further
+ * chains off of the parent expression. Once a property access is used
+ * as the BASE of another property access (foo.bar.baz), elaboration
+ * builds the intermediate node ("foo.bar") through the generic
+ * base-expression path instead, even though foo really is a plain
+ * signal -- ivl_expr_signal() on THAT node is null and ivl_expr_oper2()
+ * gives a genuine IVL_EX_SIGNAL/IVL_EX_ARRAY expression rather than
+ * another IVL_EX_PROPERTY. So the chain can terminate two ways: the
+ * shortcut (checked first), or a plain-signal base (checked second,
+ * below). Established empirically against a 2-level (obj.inner.s)
+ * reducer; see evidence/campaign-20260908/dd046/c3.sv.
+ *
+ * Returns 0 (chain not usable, caller should fall back to the rvalue-only
+ * path) if any hop -- leaf or intermediate -- is itself array-indexed
+ * (ivl_expr_oper1() set, e.g. obj.arr[i].s or obj.arr[i].inner.s), or if
+ * a hop's base is anything other than a plain signal or another
+ * property (a method-call result, say): the runtime handle this feeds
+ * only understands a straight-line chain of scalar object/string
+ * properties. That scoping choice is deliberate; those are separate,
+ * untested code paths left for a future pass. */
+static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
+                                    long*idx, unsigned*count, unsigned max)
+{
+      if (ivl_expr_type(expr) != IVL_EX_PROPERTY)
+            return 0;
+      if (ivl_expr_oper1(expr))
+            return 0;
+
+      if (ivl_expr_signal(expr)) {
+            *sig = ivl_expr_signal(expr);
+      } else {
+            ivl_expr_t base = ivl_expr_oper2(expr);
+            if (!base)
+                  return 0;
+            switch (ivl_expr_type(base)) {
+                case IVL_EX_SIGNAL:
+                case IVL_EX_ARRAY:
+                      *sig = ivl_expr_signal(base);
+                      if (!*sig)
+                            return 0;
+                      break;
+                case IVL_EX_PROPERTY:
+                      if (!collect_property_chain_(base, sig, idx, count, max))
+                            return 0;
+                      break;
+                default:
+                      return 0;
+            }
+      }
+
+      if (*count >= max)
+            return 0;
+      idx[(*count)++] = ivl_expr_property_idx(expr);
+      return 1;
+}
+
 static int get_vpi_taskfunc_signal_arg(struct args_info *result,
                                        ivl_expr_t expr)
 {
@@ -204,6 +266,41 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_SIGNAL:
 	  case IVL_EX_PROPERTY:
+	      /* L33: for a string-typed class property, try the chain-walk
+	         FIRST, before the expr_signal_base_()-based logic below --
+	         that helper returns null for any nested property expression
+	         (see its own IVL_EX_PROPERTY case, and the ivl_target.h docs
+	         for IVL_EX_PROPERTY), which would otherwise bail out of this
+	         whole function via the "if (!sig) return 0" a few lines down
+	         before a nested obj.inner.s ever got a chance to be handled.
+	         Emits &CPS<vSIG_0,pidx...> so the runtime handle supports
+	         both vpi_get_value and vpi_put_value on the specific string
+	         property. A chain with an array-indexed hop anywhere in it
+	         isn't handled here; collect_property_chain_() says so and
+	         this falls through to the ordinary signal-base logic below,
+	         which itself falls through to the rvalue-only fallback for
+	         a nested/array-indexed string property. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && ivl_expr_value(expr) == IVL_VT_STRING) {
+		    ivl_signal_t root_sig = 0;
+		    long chain[16];
+		    unsigned chain_len = 0;
+		    if (collect_property_chain_(expr, &root_sig, chain,
+		                                &chain_len,
+		                                sizeof chain/sizeof chain[0])) {
+			  unsigned idx2;
+			  int n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0",
+			                   (void*)root_sig);
+			  for (idx2 = 0
+			       ; idx2 < chain_len && n > 0 && (size_t)n < sizeof buffer
+			       ; idx2 += 1)
+				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
+				             chain[idx2]);
+			  snprintf(buffer+n, sizeof buffer-n, ">");
+			  result->text = strdup(buffer);
+			  return 1;
+		    }
+	      }
 	      sig = expr_signal_base_(expr);
 	      if (!sig)
 		    return 0;
@@ -214,20 +311,6 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         runtime and pushed onto the obj_stack. */
 	      if (class_like && ivl_expr_type(expr) == IVL_EX_PROPERTY)
 		    return 0;
-	      /* For a string-typed class property (e.g. obj.str_field), emit
-         &CPS<vSIG_0,pidx> so the runtime handle supports both
-         vpi_get_value and vpi_put_value on the specific string property.
-         Only handle the simple case (direct signal base, not nested). */
-	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
-		  && ivl_expr_value(expr) == IVL_VT_STRING
-		  && ivl_expr_signal(expr)
-		  && !ivl_expr_oper1(expr)) {
-		    unsigned pidx = (unsigned)ivl_expr_property_idx(expr);
-		    snprintf(buffer, sizeof buffer, "&CPS<v%p_0, %u>",
-			     (void*)ivl_expr_signal(expr), pidx);
-		    result->text = strdup(buffer);
-		    return 1;
-	      }
 	      /* Integral class properties need the same property-aware VPI
 	         lvalue treatment as strings. In particular,
 	         $value$plusargs("N=%d", obj.n) must update obj.n rather than
@@ -245,7 +328,8 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    result->text = strdup(buffer);
 		    return 1;
 	      }
-	      /* Nested or array-indexed string property: fall back so the
+	      /* String property chain collect_property_chain_() couldn't take
+	         (an array-indexed hop somewhere in it, L33): fall back so the
 	         caller dispatches to draw_eval_string (rvalue-only). */
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && ivl_expr_value(expr) == IVL_VT_STRING)

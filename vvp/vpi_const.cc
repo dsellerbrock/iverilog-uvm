@@ -218,20 +218,16 @@ void __vpiStringConst::vpi_get_value(p_vpi_value vp)
                                  (need_result_buf((size+3)/4*
                                                    sizeof(s_vpi_vecval),
                                                   RBUF_VAL));
-              uint_value = 0;
               vecp = vp->value.vector;
-              vecp->aval = vecp->bval = 0;
-	      for(unsigned i=0; i<size; i += 1){
-		  vecp->aval |= value_[i] << uint_value*8;
-		  uint_value += 1;
-		  if (uint_value > 3) {
-		      uint_value = 0;
-		      vecp += 1;
-		      vecp->aval = vecp->bval = 0;
-		  }
-	      }
-	      break;
-
+              for (unsigned i = 0; i < (size+3)/4; ++i)
+                    vecp[i].aval = vecp[i].bval = 0;
+              for (unsigned i = 0; i < size; ++i) {
+                    // The rightmost character supplies the least significant byte.
+                    unsigned offset = size - i - 1;
+                    PLI_UINT32 byte = static_cast<unsigned char>(value_[i]);
+                    vecp[offset/4].aval |= byte << (8*(offset%4));
+              }
+              break;
 
 	  default:
 	    fprintf(stderr, "ERROR (vpi_const.cc): vp->format: %d\n",

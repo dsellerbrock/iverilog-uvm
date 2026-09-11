@@ -252,6 +252,22 @@ for edition in 2017 2023; do
 done
 
 # --------------------------------------------------------------------------
+say "S11: native recording lifecycle and journal integrity"
+if python3 "$SRCROOT/tests/uvm_releases/test_recording.py" "$IVERILOG" "$VVP" "$DPIVPI"; then
+    pass "native recording lifecycle"
+else
+    fail "native recording lifecycle"
+fi
+
+# --------------------------------------------------------------------------
+say "S12: native recording lossless attribute capture (U15)"
+if python3 "$SRCROOT/tests/uvm_releases/test_recording_attribute.py" "$IVERILOG" "$VVP" "$DPIVPI"; then
+    pass "native recording attribute capture"
+else
+    fail "native recording attribute capture"
+fi
+
+# --------------------------------------------------------------------------
 echo ""
 if [ $FAIL -eq 0 ]; then
     echo "UVM front-end regression: ALL SCENARIOS PASSED"

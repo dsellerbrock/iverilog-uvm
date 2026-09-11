@@ -1,28 +1,36 @@
 status: active
-branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "selection"
-phase: "publishing_validated_batch"
+branch: "agent/campaign-recording-after275-20260911"
+current_blocker: "none (L33 closed; next DD046 candidate not yet selected)"
+phase: "blocker_selection"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "34787868e"
+last_integrated_good_revision: "716917e4b"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L30 requiredlocalgates complete. FreshCI required after publishing L28/L29/L30 batch;no mergeauthorization."
+pending_gates: "None. L33 closed with all six required gates exit0 (evidence/campaign-20260908/l33/). vvp and vvp.tgt are the only frozen hashes that changed vs the U15 baseline; re-baselined in l33/installed-frozen-sha256.json."
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "AfterL29validation/closure return to DD038 recording adapter design;no empty macro bypass or vendor impersonation."
-next_action: "Update existingPR275 with validatedL28/L29/L30 batch,then return to evidence-driven selection."
-next_command: "gh pr view 275 --json state,headRefOid"
+next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33 (class string property VPI-lvalue chain) closed this pass. Remaining candidates in evidence/campaign-20260908/fallback-tracked-candidates.tsv/.json still unexamined; select ONE bounded candidate per the targeted-fix protocol; do not batch. Also open: the integral/vec4 (CPV) sibling of L33's nested-property gap, named as an explicit follow-on in BLOCKERS.md L33, not yet its own blocker ID."
+next_action: "Publication decision pending: this branch is 351 commits ahead of origin/main (everything since PR275); publication_cadence below says batch 3-5 blockers and prefer updating an existing PR, but no PR exists for this branch. Asked the user to choose between a whole-batch PR (large, only the L32/U15/U16/L33 portion can be described first-hand) and a narrower one before publishing. Once resolved, select the next DD046 candidate or begin the user's third phase (broader implementation work) per the explicit priority order already satisfied for phases 1-2 (UVM smokes, compile fallbacks in progress)."
+next_command: "gh pr create ... (after user answers the PR-scope question) OR resume DD046 triage: grep the fallback-tracked-candidates inventory for the next unexamined line."
 next_command_cwd: repository root
-candidate_state: "L30 closed34787868e;13/15 boundedrelease smoke passes. Publish coherentL28/L29/L30 batch,then select nextblocker."
-installed_tools: "34787868e validated;l30/sha256.txt restored/unchanged."
-validation_state: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
-next_validation: "Fresh publishedCI;next selectedblocker red/spec/root evidence."
+candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
+installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
+validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
+next_validation: "Next selected prerequisite requires its own reducer,contract,review and fullgates."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
 publication_cadence: Publish around substantial milestones, normally after roughly 3-5 validated blockers; prefer updating an existing matching PR. No per-blocker PRs or rapid catch-up stacks. No merge authorization or gate waiver.
 published_batches:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/276
+    scope: L31/U14/L32/U15/U16/L33 associative compound typing, native legacy recording lifecycle, VPI string-literal byte order, lossless native do_record attribute capture, 1.1b/1.1c release-smoke compat shim, nested class-property VPI-lvalue write fix.
+    branch: agent/campaign-recording-after275-20260911
+    semantic_revision: 716917e4b
+    publication_revision: fe582252e
+    base: main
+    state: open
+    outstanding: Awaiting review/CI; not yet merged.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/263
     scope: P03/P01/P02 fork process identity and scheduling; continuous campaign and publication policies.
     branch: agent/campaign-fork-processes-20260910
@@ -723,3 +731,58 @@ l30_json_terminal: "22478exit0;1871tests0failures. UVM62168 remainslive/progress
 l30_uvm_terminal: "62168exit0;355passed0failed0skipped,realDPI. Isolatedfrontend21313 launched lastalone after allotherlocalgates terminal. Restoreinstallation/fivefrozenhashes required afterward."
 
 l30_closure: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."
+
+legacy_uvm_pr_seventh_batch: {url: "https://github.com/dsellerbrock/iverilog-uvm/pull/275", head: "6506fc7a2657e26aa9e9e318cfca05e71ceee41f", state: "open", scope: "ValidatedL28/L29/L30", remaining: "FreshCI onnewhead;no mergeauthorization"}
+l31_selection_evidence: "l31/assoc-compound.sv onvalidated34787868e compiles0 both editions;runtime1 because signed byte associative element -64/=2 yields96 not-32. Same reducer shift256/divisor256/unknown-add controls pass;notbroaderwidthqualification. No source edits or activeL31contract yet;trace signedness next."
+
+l31_contract: "Activated DD036 associative expression typing scope;root signedflag and destination-width binary construction in elaborate_compressed_. Existing passing2state divide256control may mask X conversion;add discriminating wide/fourstate cases before patch. No source edits yet."
+
+post_uvm_smoke_priority: "User explicitly requests fixing ALL remaining compile-progress stubs that emit wrong behavior after the UVM smoke campaign. Pursue successive standards-grounded implementation/qualification increments,one activeblocker;do not replace implementation with warning suppression,unsupported diagnostics or smoke-only passes. Include silent/degraded paths,not just warnings. Seed from observed ignoredpick_sequence constraint and classcast bitsreinterpretation;User subsequently authorized a dedicated sweep of ALL fallbacks; inventory the compiler, lowering, runtime, DPI/VPI and qualification harness, including unmarked constant/no-op substitutions. Triage by requirement cluster; do not bootstrap governance or reorganize documentation. Preserve IEEEeditions,UVM,applicationDV,formal status separately."
+post_uvm_smoke_evidence: "results-jz6zk_cb/1.0p1/compile.log confirms uvm_sequence_base.svh949 pick_sequence constraint ignored and uvm_phases.svh1951 classcast compile-progress bits reinterpreted. Constant-for-condition warning is separate and not by itself evidence of wrong behavior. These observed examples are nonexhaustive. L31 remains soleactiveimplementation."
+
+l31_focused: "0a4e7d639;original/expandedredsPASSboth editions/no diagnostics;focus2legacy/2JSON,neighbors125legacy/92JSON,makecheck,independentdesign/code/ownershipreviewclear;realneighborandunsignedselectionspreserved. Fullgates pending."
+l31_live_gates: {integrated: 37776, uvm: 45596, nfa: 57410, releases: 51674}
+
+l31_release_terminal: "51674exit1;results-322hzu4s complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL;all15statuses/source/archivehashes unchanged vsL30. NFA57410exit0,58/58. Integrated37776/UVM45596 remainlive;JSON/frontend unstarted. PR2756506fc7a2 allsixfreshchecksIN_PROGRESS,snapshot l31/published-ci.json."
+
+fallback_sweep: "User-authorized dedicated record-only sweep at3d60cb54a:608 tracked implementation/harness source files,12849 lexical candidate lines;494 fallback,609 stub,2245 degradation,9652 constant-return tag occurrences (overlap,NOT defect counts). External fallback-tracked-candidates.tsv/json retain exact paths/lines and scope. DD046 records source-confirmed categories and required semantic triage. No exhaustive defect-discovery claim; unmarked paths require flow/reducer review. L31 remains sole active implementation."
+
+l31_recovery: "Fresh direct C companions with frozen candidate pass DPI BASIC6/6 and DPI REAL4/4; old interrupted harness failures require recovered fullgate evidence,not classified as compiler regression or waived. Recovery integrated92982/UVM32316 running; allfiveinstalledhashes verified. No source changes."
+
+l31_integrated_terminal: "Recovery92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,exports66,copyout6/6. FullJSON7147started after integrated terminal. UVM32316 stilllive; DPI basic/real PASS in recovered fullharness. Frontend unstarted. Published6506fc7a2 PR275 remainsOPEN;bothUbuntu checksSUCCESS,macOS/MINGW64/UCRT64/CLANG64 stillIN_PROGRESS at current read."
+
+l31_uvm_terminal: "32316exit0;355passed0failed0skipped,REAL DPIumbrella; prior basic/real failures do not reproduce in recovered harness. Frontend49875 started only after all other gates terminal;freeze remains in force."
+
+l31_closure: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
+
+u14_selection: "DD038 native recording ownership/lifecycle prerequisite activated after L31closure907e66850. Both-edition native owner reducer compile0/runtime1 missingDPIAPI. Original1.1d has samelegacyrecorderAPI;1.2 differs. Independent review rejects text-onlymacro substitution and records ownership,linking,customhandle,bootstrap hazards. No native implementation yet."
+
+u14_api_review: "Completed independent concrete lifecycle review; findings recorded under DD038. Resolve globalTransactionvsownerFiber queries,childlinkorientation,journalfailurepoisoning,allocationrollback and exclusive native/superclass output before implementation. No source edits yet; parent fulltypedcontract unchanged."
+
+u14_native_slice: "Nativeowner/lifecycle implementation with permanent directAPI JSONchecks both editions andPOSIXIOfailure injection allPASS; two independent code review passes clear. Frontend S11 integrates checks; not yet runfullfrontend. Explicit legacyrecorders/componentcallbacks stillpending. Nativebuildlogs/native-green.json/native-check.log in u14; installed5hashes matchL31baseline."
+
+u14_adapter_checkpoint: "Native plus explicit original1.1d lifecycle integration implemented and reviewed; both editions focus pass including real callbacks,wrongowner,exclusive files,retained descriptor,stream/transaction allocation rollback and recorder switch. POSIX injected journal failure catches prior rollback bug. All full gates pending. No attribute macro/default installation or15release pass claim."
+
+publication_after275: "Fetched origin/main469002b7b; PR275 externally merged2026-09-11T14:00:25Z with published6506fc7a2. Main tree exactly equals6506fc7a2. New branch agent/campaign-recording-after275-20260911 preserves all unpublished work in same active tree; no new worktree. Canonical main fast-forwarded and graph update64326 running. L31 one validated increment since publishedbatch; no new PR yet."
+
+u14_installed_focus: "Final build/install85793 exit0; installed native3checks and original1.1d adapter both editions pass. Candidate installed hashes frozen in u14/installed-frozen-sha256.json (compiler,runtime,ivl,vvp target,DPI,header). Independent code reviews clear. Canonical graph64326 exit0 updated49627nodes; HTML visualization retained stale due node limit. Required full gates unstarted; no closure."
+
+u14_full_gate_start: "Candidate729edce3c; ancestry merge6c8b71afc records origin/main469002b7b without tree change (main exactly equals published6506fc7a2). Integrated20014,UVM57598,NFA45081,releases32494 running; JSON/frontend pending. makecheck3714 exit0. Six installed hashes frozen. Full legacy adapter and native focused tests pass on installed candidate. No source changes during gates; U14 open."
+
+u14_release_terminal: "NFA45081 exit0:58/58. Releases32494 exit1 for preserved1.1b/c compile gaps; results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL, all15statuses/archive/source hashes identical to L31. New1.1d lifecycle gate return0 both editions. Integrated20014/UVM57598 running; JSON/frontend unstarted. No closure."
+
+u14_integrated_terminal: "Integrated20014 exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 started only after integrated terminal. UVM57598 stilllive; frontend unstarted. Candidate freeze remains active."
+
+u14_uvm_json_terminal: "JSON82380 exit0:1873/0. UVM57598 exit0:355pass0fail0skip,REAL DPIumbrella. All nonfrontend full gates terminal. Reviewed test-only79885f484 adds direct exclusive-text API coverage and existing Windows hard CI hook; local native3checks pass,workflowYAML parses. Compiler/runtime/DPI/header frozen729edce3c unchanged. Frontend97996 launched last/alone; pending. Remote Windows execution remains batch CI evidence,not locally claimed."
+
+u14_closure: "U14 semantic729edce3c; test/Windows-CI coverage79885f484. Installed native lifecycle/exclusive-text checks both editions and POSIXIOfailure pass; original1.1d realchild/component,wrongowner,stream/transaction rollback,recorder switch,exclusive/replacedfiles and journal-failure tests pass. makecheck and independent design/code/failure-path reviews clear. Integrated20014 exit0:4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 exit0:1873/0. UVM57598 exit0:REAL DPI355/0/0. NFA45081 exit0:58/58. Releases32494 results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15status/source/archivehashes unchanged vsL31; separate1.1d lifecycle gate passes2017/2023. Frontend97996 exit0 allS1-S11;installation restored/six frozen hashes match. Bounded ARM64 local lifecycle validation only; typed capture/default installation/1.1b/c and fullUVM qualification remain open. Windows CI wired,execution not claimed."
+
+u15_selection: "After U14closure2f128bb7d,select lossless native primitive value capture prerequisite forDD038. Installedvalidated729edce3c remains intact. Independent API review requested; no implementation edits. Full aggregate/object/schema/bootstrap obligations retained."
+
+l32_selection: "Deliberate prerequisite boundary: U15 preserved in u15/ACTIVE_WORK.suspended.yaml. Actual VPI literal vector conversion reversesbytes both editions; independent review confirms unsigned-shift and finalword overrun in same loop. Small shared conversion fix selected,not bespoke recorder workaround. Installed U14validated729edce3c unchanged."
+
+l32_focused: "Both permanent editions fail beforepatch andpass after; raw literal lengths0,1,3,4,5,8,9,highbytes andembeddedzeros compare everyaval/bvalword. Emptyliteral lowers8bit0,existingmetadata preserved. Six VPIneighbors andmakecheck pass; independentcode/wordboundaryreviewclear. Nativeinstall40901 exit0. Six installed hashes frozen; fullgatespending. No U15 implementation."
+
+l32_full_gate_start: "Semanticab54351c3,focused2/2,VPIneighbors6/6,makecheck andindependentreviewclear. Integrated36861,UVM45709,NFA1979,releases6583 running;JSON/frontend unstarted. Source/installfreeze active,hashes l32/installed-frozen-sha256.json. Lastfullyvalidated729edce3c. Aftervalidation closure L32 is third validated increment afterPR275,so assess coherent newPR publication milestone before resumingU15; no merging authorization."
+
+handoff_checkpoint: "User requests handoff to another model due usage boundary. L32ab54351c3 awaitingvalidation; no further implementation by outgoing agent. NFA1979exit0:58/58. Releases6583exit1 forpreserved1.1b/c compilegaps;results-j96p2nep complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15statuses/source/archivehashes identical toU14; separate1.1d lifecyclePASS. Integrated36861/UVM45709 were stillrunning at handoff; JSON/frontend unstarted. Six frozen hashes match. Do not startanotherimplementationwriter or duplicategates. Resume exactcheckpoint; U15remains suspended."

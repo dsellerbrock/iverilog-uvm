@@ -27,6 +27,8 @@
 # include  <cstdio>
 # include  <cstdlib>
 # include  <cstring>
+# include  <fcntl.h>
+# include  <unistd.h>
 # include  "ivl_alloc.h"
 
 extern FILE* vpi_trace;
@@ -321,6 +323,14 @@ extern "C" PLI_INT32 vpi_fopen(const char*name, const char*mode)
       }
 
 got_entry:
+      // Legacy recording retains this descriptor after exclusive creation.
+      // MSVCRT does not implement fopen's C11 'x' mode, so use O_EXCL.
+      if (strcmp(mode, "wx") == 0) {
+            int fd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0666);
+            if (fd < 0) return 0;
+            fd_table[i].fp = fdopen(fd, "w");
+            if (!fd_table[i].fp) close(fd);
+      } else {
 #ifndef _MSC_VER
 	  fd_table[i].fp = fopen(name, mode);
 #else // Changed for MSVC++ so vpi/pr723.v will pass.
@@ -329,6 +339,7 @@ got_entry:
 	  else
 		fd_table[i].fp = fopen("nul", mode);
 #endif
+      }
       if (fd_table[i].fp == NULL) return 0;
       fd_table[i].filename = strdup(name);
       return ((1U<<31)|i);

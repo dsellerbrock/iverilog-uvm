@@ -2309,3 +2309,134 @@ instead of data-type resolution. A dedicated module-item route reuses the class
 member-type resolver and ordinary variable declaration builder. No fallback type;
 error paths release pending range/attribute/initializer expressions. Return to
 selection after publishing the coherent L28/L29/L30 batch.
+
+### L31 — Associative compound expression typing validated
+
+0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim.
+
+The expansion used default lvalue signedness and destination-width arithmetic.
+It now uses the resolved element type and shared binary context rules before
+extension/store; real paths and unsigned selections remain unchanged. Interrupted
+initial integrated/UVM runs were not counted; recovered gates passed, including
+both DPI tests that failed in the interrupted run. No source change was made
+to bypass those failures. Return to reviewed DD038 recording prerequisites.
+
+
+### U14 explicit legacy adapter checkpoint
+
+Original1.1d remains untouched. The explicit recorder now uses the native owner
+and lifecycle registry through actual transaction, child and component callbacks.
+A retained simulator text descriptor replaces reservation followed by reopening.
+The VPI `wx` path uses `O_EXCL`, since MSVCRT does not support libc's `x` mode
+([GNU Gnulib portability reference](https://www.gnu.org/software/gnulib/manual/html_node/fopen.html)).
+No attribute macro or automatic default recorder is supplied.
+
+Independent review found poisoned journal I/O prevented superclass rollback.
+The preserved old-header run fails with `ROLLBACK_FAILED`; direct superclass
+membership removal fixes both allocation branches. Permanent tests cover stream
+and transaction collisions, actual POSIX journal write failure, retained pathname
+replacement, wrong owners and component recorder changes between transactions.
+Both IEEE modes pass (`u14/adapter-final-check.log`); native tests3pass and matrix
+unit tests8pass. Final portable VPI build/install and all required integrated gates
+remain pending. Installed files are an unvalidated U14 candidate; the last
+validated semantic baseline is still0a4e7d639.
+
+PR275 was externally merged; origin/main469002b7b has exactly the published
+6506fc7a2 tree. Unpublished work continues on a fresh branch in the same active
+worktree. No new PR, merge performed by this agent, or additional worktree.
+
+
+### U14 bounded lifecycle closure
+
+U14 semantic729edce3c; test/Windows-CI coverage79885f484. Installed native lifecycle/exclusive-text checks both editions and POSIXIOfailure pass; original1.1d realchild/component,wrongowner,stream/transaction rollback,recorder switch,exclusive/replacedfiles and journal-failure tests pass. makecheck and independent design/code/failure-path reviews clear. Integrated20014 exit0:4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 exit0:1873/0. UVM57598 exit0:REAL DPI355/0/0. NFA45081 exit0:58/58. Releases32494 results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15status/source/archivehashes unchanged vsL31; separate1.1d lifecycle gate passes2017/2023. Frontend97996 exit0 allS1-S11;installation restored/six frozen hashes match. Bounded ARM64 local lifecycle validation only; typed capture/default installation/1.1b/c and fullUVM qualification remain open. Windows CI wired,execution not claimed.
+
+Next selection is the DD038 typed-value capture prerequisite. The user-requested
+all-fallback inventory DD046 remains scheduled after the UVM smoke campaign.
+No new PR at this checkpoint; L31 and U14 are two validated increments since
+merged PR275, below the usual3–5 increment publication milestone.
+
+
+### L32 proven recording prerequisite, focused checkpoint
+
+U15's native value capture remains suspended before implementation. Its direct
+VPI reducer proved string literal vector bytes were reversed in both editions.
+The shared `__vpiStringConst` vector loop also sign-extended high bytes and
+initialized an extra word at aligned boundaries. IEEE5.9 and38.15 require the
+literal's packed value and least-significant-word-first VPI representation.
+
+The bounded repair initializes only required words and places unsigned bytes
+from the right end of the literal. Permanent VPI regressions fail beforepatch
+and pass after in2017/2023; high/zero bytes and partial/aligned words are covered.
+Empty literal lowering remains8bitzero. Six nearby VPItests andmakecheck pass;
+independentreviewclear. All fullgates still required. Parentcontract/reducers:
+`evidence/campaign-20260908/u15/ACTIVE_WORK.suspended.yaml`.
+
+Review's proposed NUL-string prerequisite was rejected against both LRMs6.16:
+string variables cannot containNUL; raw literals can, and L32tests retain those
+bits. Separate VPI temporary-string metadata and complete typed schemas remain
+unqualified; no recorder-formatting workaround was added.
+
+
+### L32 closure
+
+The first integrated run on `ab54351c3` failed only `swrite`. Its host-endian
+probe `$swrite(result,"%u","Help")` expected the pre-L32 reversed literal bytes.
+A scratch reducer showed `%u` of the literal and of an equal-valued `reg` are now
+identical, as 5.9 and the format specifications clause (2017 21.2.1.2 / 2023
+21.2.1.1) require for packed data. `fc90f1fa2` corrects only the probe
+expectation. The 13 value oracles and the gold file are unchanged, and the
+edited test matches gold byte-for-byte. Upstream master still has both the old
+loop and the old probe.
+
+Re-runs with durable exit files: integrated exit0 4981/4976/0/2NI/3EF, VPI107,
+negative149, runtime15, copy-out6, exports66. JSON exit0 1873/0, UVM exit0
+REAL DPI 355/0/0, and frontend exit0 on all scenarios; each has rows identical
+to U14, with frontend temp directory names masked. The install was restored and
+the six frozen hashes match. The first integrated and UVM runs had no recorded
+exit status, so they are not counted. String parameters inherit the fixed getter
+and were verified in both editions. DD047 (tgt-vvp high-bit literal
+sign-extension) was recorded, not fixed. Resume U15 from the restored contract.
+Publication is deferred until U15 so the recording batch is coherent: L31, U14
+and L32 are validated, and no PR is open.
+
+
+### U15 closed; U16 (all 15 UVM smokes) closed
+
+U15's native `$ivl_uvm_record_attribute` systf now captures packed, real and
+string transaction attributes losslessly, dispatching on
+`vpi_get_value(vpiObjTypeVal)`. A real bug was found and fixed before any
+gate validated it: the first version used `vpiType`/`vpiConstType` to decide
+when to retry a string argument with `vpiVectorVal`, which cannot distinguish
+a bare literal from an enum `.name()`, function-call or concatenation result
+-- all report the identical signature, yet only a literal's `__vpiStringConst`
+supports `vpiVectorVal`; a runtime `__vpiVThrStrStack` temporary (DD048)
+rejects it with an unconditional stderr diagnostic. Since `.name()` is the
+most common string field in real UVM `do_record` bodies, this was the primary
+path, not an edge case. Fixed by reading `vpiStringVal` first and retrying
+only on a length mismatch against `vpiSize` under either unit convention the
+two backing classes use (also discovered here) -- reachable in practice only
+for a literal with an embedded NUL, which is exactly L32's scope. All six
+required gates pass with durable exit files: integrated 4981/4976/0/2NI/3EF,
+JSON 1873/0 (both reused unaffected from the corrected commit), UVM 355/0/0
+REAL DPI, NFA 58/58, releases 15/15 SMOKE_PASS, frontend all scenarios
+including new S12. Five of six frozen hashes unchanged; `uvm_dpi.vpi` changed
+as expected and is U15's new baseline.
+
+U16 closed the user-requested "all 15 UVM smokes" goal: uvm-1.1b/1.1c leave
+`uvm_record_attribute` undefined on any non-QUESTA/VCS/INCA simulator (no
+fallback branch at all, unlike 1.1d). Per `docs/uvm_frontend.md`'s "no
+compatibility macros on the normal path" invariant and the prohibition on
+vendor impersonation, the fix is a harness-only compat file that
+`scripts/uvm_release_matrix.py` compiles ahead of a release's own
+`uvm_pkg.sv`, gated by a per-release manifest field, routing to U15's real
+systf rather than a no-op. `uvm_release_matrix.py` now reaches 15/15
+SMOKE_PASS, complete/baseline_valid true, 1.1d's lifecycle qualification
+included; the 13 previously-passing releases are unaffected.
+
+DD047 (high-bit literal sign-extension in tgt-vvp) and DD048
+(`__vpiVThrStrStack` has no `vpiVectorVal` path) remain OPEN, record-only.
+
+Per explicit user instruction, next selection is DD046 (the authorized sweep
+of fallback and compile-progress paths), followed by broader implementation
+work. L31/U14/L32/U15/U16 are five validated increments since merged PR275;
+assess a coherent PR milestone before or alongside starting DD046.

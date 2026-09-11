@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_assoc_compound_typing_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-I./ivltests",
+        "-stest"
+    ],
+    "gold": "sv_assoc_compound_typing_2023"
+}

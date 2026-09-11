@@ -355,14 +355,19 @@ void m__uvm_report_dpi(int severity, const char* id, const char* message,
 //
 // vvp loads a module named by a `:vpi_module "uvm_dpi";' directive (which
 // `iverilog -uvm' bakes into the compiled program) through the same path as
-// a `-m' module, and that path requires a `vlog_startup_routines' table. The
-// umbrella registers no system tasks/functions of its own — it exists to
-// export the uvm_re_*/uvm_hdl_*/uvm_dpi_* C functions that the design
-// imports through DPI (vvp makes a loaded module's symbols available to DPI
-// import resolution). So the table is empty: its presence alone lets the
-// module load, and simply being loaded is what publishes the DPI symbols.
-void (*vlog_startup_routines[])(void) = { 0 };
+// a `-m' module, and that path requires a `vlog_startup_routines' table.
+// Most of the umbrella registers no system tasks/functions of its own — it
+// exists to export the uvm_re_*/uvm_hdl_*/uvm_dpi_* C functions that the
+// design imports through DPI (vvp makes a loaded module's symbols available
+// to DPI import resolution). U15 adds one systf, registered below: unlike
+// the lifecycle entry points (ivl_uvm_record_open/stream/begin/...), which
+// are plain DPI imports, $ivl_uvm_record_attribute is called directly as a
+// system task, so it needs vpi_register_systf like any other systf.
+void ivl_uvm_record_register_systf(void);
+void (*vlog_startup_routines[])(void) = { ivl_uvm_record_register_systf, 0 };
 
 #ifdef __cplusplus
 }
 #endif
+
+#include "uvm_recording.cc"

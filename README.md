@@ -229,6 +229,16 @@ checks and limitations. For an existing external source tree, use
 `iverilog -g2017 --uvm-home=/path/to/uvm -o sim.vvp my_testbench.sv`;
 `--uvm-home` and `--uvm=<release>` are mutually exclusive.
 
+Original UVM 1.1d also has an explicit recording **lifecycle** adapter. Include
+`uvm_legacy_recorder.svh`, import `ivl_uvm_legacy_recording::*`, and construct
+`ivl_uvm_legacy_recorder` with a recorder name and a new journal filename.
+Pass that recorder to the legacy transaction/component recording API. Its native
+JSON-lines journal tracks handles and lifecycle events; the original text log
+uses `<journal>.uvm.log`. Both paths must be new. It does not replace the default
+recorder. Typed attribute capture and automatic recording setup remain incomplete;
+this is not a workaround for the UVM 1.1b/c recording macro gaps. The release
+runner reports 1.1d lifecycle qualification separately from its smoke result.
+
 For legacy UVM 1.2, use `--uvm=1.2` after registration. Its original
 DPI sources arrive with the pinned archive; the installed Icarus DPI backend
 now supplies the legacy cached-regex functions automatically. There is no

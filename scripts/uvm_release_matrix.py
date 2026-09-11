@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -174,12 +175,16 @@ def main():
     tools = [compiler, runtime, prefix / "lib/ivl/ivl", prefix / "lib/ivl/vvp.tgt",
              prefix / "lib/ivl/ivlpp", prefix / "lib/ivl/system.vpi",
              prefix / "lib/ivl/vvp.conf", prefix / "lib/ivl/uvm_dpi.vpi"]
+    if any(r["id"] == "1.1d" for r in releases):
+        tools.append(prefix / "lib/ivl/include/uvm_legacy_recorder.svh")
     if not args.fetch_only and any(not p.is_file() for p in tools):
         parser.error("prefix must contain the compiler, runtime, target and real UVM DPI backend")
     cache.mkdir(parents=True, exist_ok=True)
     output = Path(tempfile.mkdtemp(prefix="results-", dir=cache))
     inputs = [REPO / "scripts/uvm-releases.json", Path(__file__).resolve(),
-              REPO / "tests/uvm_releases/smoke.sv"]
+              REPO / "tests/uvm_releases/smoke.sv",
+              REPO / "tests/uvm_releases/test_legacy_recording.py",
+              REPO / "tests/uvm_releases/recording_legacy.sv"]
     fingerprints = {p: digest(p) for p in inputs + ([] if args.fetch_only else tools)}
     results = {"generation": "2012", "source_manifest": str(REPO / "scripts/uvm-releases.json"),
                "complete": False, "baseline_valid": None,
@@ -201,9 +206,28 @@ def main():
                        acquisition=release.get("git", {"url": release["url"]}))
             if not args.fetch_only:
                 program = work / "smoke.vvp"
+                sources = [str(REPO / "tests/uvm_releases/smoke.sv")]
+                compat = release.get("record_attribute_compat")
+                if compat:
+                    # This release leaves `uvm_record_attribute` undefined on
+                    # any simulator that is not QUESTA/VCS/INCA (a real
+                    # omission in the archive itself; see the compat file's
+                    # own comment). --uvm-home's automatic uvm_pkg.sv
+                    # injection would run too late for a `-D` predefine (the
+                    # CLI form cannot express a function-like macro at all;
+                    # see docs/uvm_frontend.md's "no compatibility macros"
+                    # invariant for the normal path, which this harness-only
+                    # override does not touch), so list the compat file and
+                    # this release's own uvm_pkg.sv explicitly, in order --
+                    # driver/main.c skips its own injection once the user has
+                    # listed a file named uvm_pkg.sv.
+                    uvm_pkg = home / "uvm_pkg.sv"
+                    if not uvm_pkg.exists():
+                        uvm_pkg = home / "src" / "uvm_pkg.sv"
+                    sources = [str(REPO / compat), str(uvm_pkg)] + sources
                 row["compile"] = execute([str(compiler), "-g2012", "--uvm-home=" + str(home),
                     "-suvm_release_smoke", "-o", str(program),
-                    str(REPO / "tests/uvm_releases/smoke.sv")], work, work / "compile.log", args.timeout)
+                    *sources], work, work / "compile.log", args.timeout)
                 compiled = row["compile"]
                 if compiled["returncode"] != 0 or compiled["timed_out"]:
                     row["status"] = "COMPILE_TIMEOUT" if compiled["timed_out"] else "COMPILE_FAIL"
@@ -213,6 +237,15 @@ def main():
                     row["status"] = "SMOKE_PASS" if smoke_passed(ran, (work / "runtime.log").read_text(errors="replace")) else "RUNTIME_FAIL"
                     if ran["timed_out"]:
                         row["status"] = "RUNTIME_TIMEOUT"
+                if release["id"] == "1.1d" and row["status"] == "SMOKE_PASS":
+                    # Keep this extra qualification result separate from smoke.
+                    lifecycle = execute([sys.executable,
+                        str(REPO / "tests/uvm_releases/test_legacy_recording.py"),
+                        str(compiler), str(runtime), str(prefix / "lib/ivl/uvm_dpi.vpi"),
+                        str(home), str(prefix / "lib/ivl/include")],
+                        work, work / "recording-lifecycle.log", args.timeout)
+                    row["recording_lifecycle"] = lifecycle
+                    failed |= lifecycle["returncode"] != 0 or lifecycle["timed_out"]
                 if tree_digest(source_root) != source_hash:
                     raise ValueError("source changed during probe")
         except (OSError, ValueError, tarfile.TarError, subprocess.SubprocessError) as error:

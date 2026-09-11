@@ -195,6 +195,12 @@ jobs:
     - name: Install binary
       run: pacman -U --noconfirm msys2/*.zst
 
+    - name: Native recording lifecycle and exclusive files (hard)
+      run: |
+        base="$(dirname "$(dirname "$(command -v iverilog)")")/lib/ivl"
+        python3 tests/uvm_releases/test_recording.py \
+          "$(command -v iverilog)" "$(command -v vvp)" "$base/uvm_dpi.vpi"
+
     - name: DPI/regex diagnostic probe
       continue-on-error: true
       run: bash .github/win_dpi_probe.sh 2>&1 | tee "win_probe_${{ matrix.msystem }}.txt"

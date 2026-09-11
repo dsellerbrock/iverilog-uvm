@@ -1031,3 +1031,226 @@ L29 final validation: 9229c24e7; original malformed reducer and all five procedu
 - **Evidence:** `evidence/campaign-20260908/l30/`; no fullclass/UVM claim.
 
 L30 final validation: 34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim.
+
+### L31 — Associative compound expression typing
+
+- **Status:** CLOSED at0a4e7d639; bounded DD036 associative expression typing.
+- **Reducer:** Signed byte associative element -64/=2 gives96 instead of-32
+  in both editions. Expansion emits unsigned division.
+- **Scope:** Resolved element signedness and binary operand width/state through
+  final store; mixed unsigned and self-determined shift controls required.
+- **Authority:** Both editions11.4.1/11.6/11.8; evidence l31.
+
+### Campaign priority — Eliminate remaining behavior-changing compile-progress paths
+
+User-directed follow-on after the UVM smoke campaign: implement and qualify
+correct semantics for every remaining compile-progress stub or fallback that
+emits incorrect behavior. This includes silent degradation, not only diagnostics.
+An unsupported error, removed warning, or smoke pass does not close a legal
+feature. Select one concrete blocker at a time using reducers and applicable
+IEEE semantics; existing registries are not an exhaustive inventory.
+
+Confirmed initial evidence is original1.0p1 `results-jz6zk_cb/compile.log`
+(per-release `1.0p1/compile.log`): ignored `pick_sequence` constraint at
+uvm_sequence_base.svh949, and class-cast bits reinterpretation at
+uvm_phases.svh1951. Reproduce exact semantic effects before selecting each
+implementation contract. A constant-loop warning alone is not a stub.
+L31 remains active; this priority does not authorize unrelated edits in its patch.
+
+
+User follow-up explicitly authorizes a sweep of **all fallbacks**, including
+silent paths and qualification-harness substitutions. DD046 records the first
+tracked-source inventory, source-confirmed categories, false-positive rules,
+and remaining semantic triage. This is discovery work, not another governance
+bootstrap. Fix behavior-changing cases after UVM smoke, with one active blocker.
+
+L31 final validation: 0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim.
+
+
+### U14 — Native legacy recording ownership and lifecycle
+
+- **Status:** CLOSED for bounded lifecycle scope on native ARM64; semantic `729edce3c`, test/CI coverage `79885f484`. DD038 remains OPEN.
+- **Original gap:** Native owner/lifecycle API absent; both-edition DPI owner reducer
+  compiled but failed at runtime. Original1.1b/c recording macro gaps preserved.
+- **Scope:** Explicit legacy recorder, real lifecycle journal, owner/kind/state
+  validation and cross-owner links using original1.1d API. No automatic install
+  or fake attribute macro. Full typed capture/bootstrap remain required.
+- **Evidence:** `evidence/campaign-20260908/u14/`; ACTIVE_WORK owns exact contract.
+
+U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. Installed native lifecycle/exclusive-text checks both editions and POSIXIOfailure pass; original1.1d realchild/component,wrongowner,stream/transaction rollback,recorder switch,exclusive/replacedfiles and journal-failure tests pass. makecheck and independent design/code/failure-path reviews clear. Integrated20014 exit0:4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON82380 exit0:1873/0. UVM57598 exit0:REAL DPI355/0/0. NFA45081 exit0:58/58. Releases32494 results-y5czc48y complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15status/source/archivehashes unchanged vsL31; separate1.1d lifecycle gate passes2017/2023. Frontend97996 exit0 allS1-S11;installation restored/six frozen hashes match. Bounded ARM64 local lifecycle validation only; typed capture/default installation/1.1b/c and fullUVM qualification remain open. Windows CI wired,execution not claimed.
+
+
+### U15 — Lossless native recording value capture
+
+- **Status:** CLOSED 2026-09-11 for the packed/real/string attribute-capture
+  scope. Semantic `7db0431ff` (registration) + `da8d8c58c` (encoder) +
+  `c0a8592eb` (string-dispatch fix). A new systf, `$ivl_uvm_record_attribute`
+  (uvm_dpi/uvm_recording.cc), dispatches on `vpi_get_value(vpiObjTypeVal)`:
+  packed captures every aval/bval word with declared size/sign; real captures
+  exact IEEE754 bits (not decimal text); string reads `vpiStringVal` first
+  and retries with `vpiVectorVal` only on a length mismatch against `vpiSize`
+  under either unit convention the two backing VPI classes use, which is
+  reachable in practice only for a literal whose value contains an embedded
+  NUL (38.15 licenses that retry for `vpiStringConst`; L32 is the prerequisite
+  that makes it correct). Unknown, wrong-kind, already-ended and
+  already-freed transaction handles are all rejected before any journal
+  write, with a nonzero simulation exit status since the task has no other
+  return channel. All six required gates pass with durable exit files:
+  integrated exit0 (unaffected by this change, reused from `c0a8592eb`'s run:
+  4981/4976/0/2NI/3EF, VPI107, negative149, runtime15), JSON exit0 (unaffected,
+  reused: 1873/0), UVM exit0 355/0/0 REAL DPI, NFA exit0 58/58, releases
+  exit0 15/15 SMOKE_PASS (see U16), frontend exit0 all scenarios including
+  new S12. Install restored; five of six frozen hashes unchanged, the sixth
+  (`uvm_dpi.vpi`) changed as expected and is reframed as U15's new baseline
+  (`evidence/campaign-20260908/u15/installed-frozen-sha256.json`).
+- **Scope actually closed:** Native packed width/sign/four-state bits, exact
+  real values, `string`-variable and string-literal values (including an
+  embedded zero byte), valid transaction routing, and single evaluation of
+  the value argument (verified: `single-eval-20260911.log`).
+- **Bug found and fixed before closure:** the first committed encoder used
+  `vpiType`/`vpiConstType` to decide when to retry with `vpiVectorVal`, which
+  cannot distinguish a literal from a `.name()`/function-call/concatenation
+  result -- all report the identical signature as a systf argument, yet only
+  a literal supports `vpiVectorVal` (DD048). `.name()` is the single most
+  common string field in real UVM `do_record` bodies, so the bug was on the
+  primary path, not an edge case; corrected before any gate ran on it.
+- **Remaining parent scope (DD038, still OPEN):** Complete declared schema,
+  aggregates, object identity/cycles and deterministic default installation.
+  No default-recorder installation in this increment; see U16 for the
+  narrower, harness-scoped 1.1b/1.1c macro fix, which is deliberately kept
+  separate from this native-capture scope.
+- **Discovered, record-only:** DD048 (`__vpiVThrStrStack` has no
+  `vpiVectorVal` path and reports `vpiSize` in a different unit than
+  `__vpiStringConst`).
+- **Evidence:** `evidence/campaign-20260908/u15/`.
+
+
+### U16 — Legacy UVM release smoke compatibility (1.1b/1.1c)
+
+- **Status:** CLOSED 2026-09-11. Semantic `90e95c339`.
+- **Scope:** uvm-1.1b and uvm-1.1c guard `uvm_record_attribute` with
+  `ifdef QUESTA/VCS/INCA` and no unguarded fallback branch (1.1d added one;
+  these two omit it), so the macro is undefined on any simulator that is none
+  of those three and `uvm_tlm2_generic_payload.svh` fails to parse -- a real
+  omission in the archives, not a disagreement with them. `docs/uvm_frontend.md`
+  states the normal `-uvm`/`--uvm-home` path defines no compatibility macros,
+  and `-D` cannot express a function-like macro from the CLI at all, so the
+  fix is a harness-only compat file
+  (`scripts/uvm-release-compat/legacy_record_attribute.svh`) that
+  `scripts/uvm_release_matrix.py` compiles ahead of a release's own
+  `uvm_pkg.sv`, only for the two release ids a new `record_attribute_compat`
+  manifest field names. It routes to U15's real, tested
+  `$ivl_uvm_record_attribute`, not a no-op stub. No pinned archive edited, no
+  vendor impersonated, no change to the normal path.
+- **Result:** `scripts/uvm_release_matrix.py` reaches 15/15 SMOKE_PASS,
+  `complete=true`/`baseline_valid=true`, including 1.1d's separate
+  recording-lifecycle qualification
+  (`evidence/campaign-20260908/u15/releases-full.log`, exit0). All 13
+  previously passing releases are unaffected (gated on the manifest field).
+- **Evidence:** `evidence/campaign-20260908/u15/releases-full.log`;
+  `third_party/uvm-releases/results-xz9vnb6n/results.json`.
+
+
+### L32 — VPI string literal vector extraction
+
+- **Status:** CLOSED 2026-09-11 for the literal/parameter vpiVectorVal scope.
+  Semantic `ab54351c3`; test oracle correction `fc90f1fa2`. The `swrite` endian
+  probe relied on the old reversed literal order. `%u` of a literal now equals
+  `%u` of the equivalent vector, as 5.9 and the format specifications clause
+  (2017 21.2.1.2, 2023 21.2.1.1) require, so only the probe expectation changed.
+  Gates, all with durable exit files: integrated exit0 4981/4976/0/2NI/3EF,
+  VPI107, negative149, runtime15; JSON exit0 1873/0 with rows identical to U14;
+  UVM exit0 REAL DPI 355/0/0 with rows identical; frontend exit0 all scenarios,
+  install restored and six hashes match; NFA 58/58; releases unchanged 13
+  SMOKE_PASS/2 COMPILE_FAIL. The string-parameter sibling path is verified in both
+  editions. The TEMP subclass is reachable only from interactive `$stop`
+  commands and is untested; the vlog95 swrite variant is not run. DD047 found.
+- **Reducer:** Both editions return `"ABCD"` as0x44434241 instead of0x41424344;
+  `"ABCDE"` also has reversed word placement. Shared loop additionally shifts
+  signed bytes and initializes a word beyond the required allocation.
+- **Scope:** Repair shared literal vector packing; preserve metadata and other
+  conversions. IEEE5.9 and38.15; full typed recording remains open.
+- **Evidence:** `evidence/campaign-20260908/u15/literal-vector-red.json` and
+  `evidence/campaign-20260908/l32/`. Resume U15 after fullvalidation.
+
+### L33 — Nested class-property VPI lvalue silently drops writes
+
+- **Status:** CLOSED 2026-09-11. Selected from the DD046 fallback-inventory
+  triage (`evidence/campaign-20260908/dd046/triage-20260911.md`, "Candidate 2,
+  revised"). All required gates pass, durable exit files in
+  `evidence/campaign-20260908/l33/`: integrated (legacy ivtest) exit0
+  4981/4976/0/2NI/3EF, VPI107, negative149, runtime15/15 (a first run showed
+  822 false failures from a stray orphaned `vvp_reg.pl` process racing the
+  tracked run on the shared `ivtest/vsim` output file, confirmed by process
+  inspection and a clean rerun -- not a real regression); JSON exit0 1873/0;
+  UVM exit0 356/0/0 (baseline355 +1, the new permanent regression, both
+  `plusargs_class_string_nested_test` and the existing direct-case
+  `plusargs_class_string_test` PASS); NFA 58/58; releases unchanged 15/15
+  SMOKE_PASS; frontend exit0 all S1-S12 scenarios including the new
+  attribute-capture and recording scenarios from U15/U16. Install restored:
+  `iverilog`/`ivl`/`uvm_dpi.vpi`/`uvm_legacy_recorder.svh` hashes unchanged
+  from the U15 baseline; `vvp`/`vvp.tgt` changed, matching the four files this
+  fix actually touched (`evidence/campaign-20260908/l33/installed-frozen-sha256.json`).
+- **Symptom:** A `$value$plusargs`/similar VPI-lvalue write to a class string
+  property reachable only through another class-typed property (e.g.
+  `obj.inner.s`, IEEE1800 clause38.15 vpiStringVal/vpiVectorVal write path)
+  silently discarded the value. `tgt-vvp/draw_vpi.c`'s `get_vpi_taskfunc_signal_arg`
+  already emitted a working `&CPS<vSIG,pidx>` property-aware VPI handle for a
+  DIRECT class-string-property base (`obj.s`, Phase51/U15), but its own comment
+  said "Only handle the simple case (direct signal base, not nested)" -- a
+  nested chain fell back to `draw_eval_string`, an rvalue-only stack temporary
+  whose `vpi_put_value` result is discarded once the systf call returns. No
+  error was printed; the plusarg's own matched/not-matched status was
+  unaffected, so this was a genuinely silent data-loss path.
+- **Root cause:** `ivl_expr_signal()` on an `IVL_EX_PROPERTY` node is a
+  shortcut elaboration takes only for a single, non-chained property access.
+  Once a property access is itself used as the BASE of a further property
+  access, elaboration builds the intermediate node through the generic
+  base-expression path (`ivl_expr_oper2()`) instead, even when that base is
+  in fact a plain signal -- so `expr_signal_base_()`, and the old fast-path's
+  `!ivl_expr_signal(expr)` guard, saw a null signal and bailed to the
+  rvalue-only fallback for any chain longer than one hop.
+- **Fix:** `tgt-vvp/draw_vpi.c` gained `collect_property_chain_()`, which walks
+  an arbitrary-depth string-property chain down to its root signal (stopping
+  at either the direct-signal shortcut or a plain-signal base), rejecting any
+  hop that is array-indexed (`ivl_expr_oper1()` set) as out of scope. The
+  matched chain now emits a variable-arity `&CPS<vSIG_0,idx0,idx1,...>` (was
+  fixed two-field). `vvp/parse.y`'s `K_CPS` production now takes the existing
+  `numbers` list nonterminal instead of one `T_NUMBER` (zero new grammar
+  conflicts -- bison table diffed against the unmodified baseline, only the
+  touched production and its own states differ). `vvp/vpi_cobject.cc`'s
+  `__vpiClassPropertyStringVar` now holds a property-index PATH rather than a
+  single index: every hop but the last is walked via `vvp_cobject::get_object()`
+  at each access (the intermediate class handle can change at runtime), and a
+  null handle mid-chain on a WRITE reports loudly (`vvp error: class property
+  write through a null intermediate class handle...`, matching the existing
+  virtual-interface-write-rejection convention) rather than dropping silently
+  -- the exact failure mode this blocker exists to remove, not reintroduced
+  one level up. Reads through a null intermediate stay silently empty,
+  matching this class's pre-existing convention for "no object at all".
+- **Scope (deliberately bounded, per AGENTS.md "do not claim a parent feature
+  complete after fixing one subcase"):** STRING class properties only.
+  Integral (vec4/`CPV`) nested class properties have the identical gap
+  (`get_vpi_taskfunc_signal_arg`'s CPV branch still requires a direct signal
+  base) and are explicitly NOT fixed here -- recorded as follow-on work, not
+  silently left ambiguous. Array-indexed hops anywhere in a chain (`arr[i].s`,
+  `obj.arr[i].s`) and virtual/polymorphic dispatch are out of scope and still
+  fall back to the rvalue-only path (unchanged pre-existing behavior, not a
+  regression). Verified: 1-level (`obj.inner.s`), 2-level/3-hop
+  (`obj.mid.leaf.s`), and the null-intermediate-handle write all behave as
+  designed; array-indexed hop falls back without crashing.
+- **Reducers:** `evidence/campaign-20260908/dd046/c2.sv` (direct case, must
+  keep working), `c3.sv` (the original 1-level nested repro), `c4_deep.sv`
+  (3-level nesting, confirms the recursion generalizes beyond 1 hop),
+  `c5_null.sv` (write through a null intermediate handle -- must error
+  loudly, not drop silently), `c6_arrhop.sv` (array-indexed hop -- must fall
+  back to the rvalue-only path without crashing, confirmed out of scope).
+- **Permanent regression:** `tests/plusargs_class_string_nested_test.sv`
+  (new), registered in `.github/uvm_test.sh`'s `plusargs_for()`. Sibling of
+  the existing Phase51 `tests/plusargs_class_string_test.sv`, which covers the
+  direct (non-nested) case and must keep passing unchanged.
+- **Validation:** full required sequence passed (integrated/JSON/UVM/NFA/
+  releases/frontend-last); see the Status line above for exact counts and
+  `evidence/campaign-20260908/l33/` for durable exit files.
+- **Evidence:** `evidence/campaign-20260908/l33/`,
+  `evidence/campaign-20260908/dd046/triage-20260911.md`.

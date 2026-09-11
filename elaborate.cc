@@ -7504,9 +7504,11 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	// to take the type of the LHS into account when determining
 	// the type of the RHS expression.
       bool lval_signed = lv->get_signed();
-        // Property lvalues need not carry the root signal's signed flag.
+        // Property and associative-element lvalues need not carry their
+        // resolved element type's signed flag.
         // Keep the unsigned flag of concatenations and part-select wrappers.
-      if (lv->get_property_idx() >= 0 && lv->net_type()
+      if ((lv->get_property_idx() >= 0 || lv_is_assoc_element_(lv))
+          && lv->net_type()
           && !dynamic_cast<const PEConcat*>(lval())
           && type_is_vectorable(lv->expr_type()))
             lval_signed = lv->net_type()->get_signed();
@@ -7567,11 +7569,23 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
       if (lv->word() && lv_is_assoc_element_(lv)) {
 	    {
 		  unsigned wid = count_lval_width(lv);
-		  bool sign = lv->get_signed();
+                  bool shift = op == 'l' || op == 'r' || op == 'R';
+                  bool integral = type_is_vectorable(lv->expr_type())
+                        && type_is_vectorable(rv->expr_type());
+                  bool sign = integral ? lval_signed && (shift || rv->has_sign())
+                                       : lv->get_signed();
+                  unsigned op_width = integral && !shift
+                        ? max(wid, rv->expr_width()) : wid;
 		  NetExpr*rd = lval()->elaborate_expr(des, scope, wid,
 						      PExpr::NO_FLAGS);
+                  if (rd && integral) {
+                        // Apply binary expression context before extension;
+                        // assignment narrowing/state conversion belongs to the store.
+                        rd->cast_signed(sign);
+                        rd = pad_to_width(rd, op_width, sign, *this);
+                  }
 		  NetExpr*comb = rd ? build_compound_binary_(op, rd, rv,
-							     wid, sign) : 0;
+							     op_width, sign) : 0;
 		  if (comb) {
 			NetAssign*asn = new NetAssign(lv, comb);
 			asn->set_line(*this);

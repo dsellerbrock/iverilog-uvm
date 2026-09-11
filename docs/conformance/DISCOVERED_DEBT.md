@@ -496,6 +496,13 @@ helper. Migrating the target's associative callers does not qualify that
 separate expansion; preserve as residual width debt requiring its own reducer.
 L20 claims the ordinary compressed vector paths and permanent tested shapes.
 
+DD036 associative expression width/sign/state scope resolved by L31 at0a4e7d639
+after allrequiredlocalgates. Declared element signedness and binary context now
+precede extension, with final assignment conversion at store. Mixed unsigned,
+wide arithmetic, self-determined shifts, state and local/property controls pass.
+This does not qualify all associative compound semantics: preexisting key/receiver
+reevaluation in the expansion remains a separate unqualified scope.
+
 ### DD037 — Captured class mutation notification undoes handle rebinding
 
 L17 resumed receiver test and standalone scalar-property reducer show
@@ -513,6 +520,69 @@ unconditionally. Current compiler warns undefined macro then parser recovery
 asserts. Do not define a commercial-vendor macro or empty recording operation
 to claim support. Recording compatibility and parser robustness require separate
 assessment; original sources unchanged. Evidence results-3d_bbaiu compile logs.
+
+DD038 design review at30b803071: parser recovery is now normal rejection
+(L29), while the missing recording API remains. Independent source review rejects
+an adapter that concatenates $typename with %p and calls m_set_attribute:
+%p uses decimal/%g/string formatting rather than a lossless typed encoding;
+the direct attribute macro has no lexical recorder argument; base uvm_recorder
+bypasses the attribute macro and may record literal description text. These are
+reasons not to use formatting as typed serialization, not a claim that every
+%p formatting choice violates its own IEEE contract.
+
+The original typed-value/no-artificial-width-limit recording objective remains
+mandatory. Proposed native backend decomposition, to select only after L31
+validation: (1) real handle ownership/lifecycle and inspectable stream/begin/
+link/end/free events; (2) typed value capture preserving schema, widths, four-state
+bits, real precision, strings and object identity/cycles; (3) deterministic
+legacy-recorder installation and original1.1b/c integration. No macro no-op or
+text-only substitute. Parent recording support stays incomplete until its full
+contract is implemented and qualified.
+
+First prerequisite should use an explicitly instantiated native-compatible
+recorder before any global installation. Preserve upstream sources and actual
+handle allocation. Upstream handles/m_handles are static, but file descriptors
+and filenames are per recorder; native ownership must add owner/kind/lifecycle,
+not reuse check_handle_kind as an ownership oracle. Avoid shared-default-filename
+collisions. Failed superclass allocations return0 or-1 and must not register.
+Ended-but-unfreed handles stay linkable; cross-owner links are legal. Component
+begin/end can select different current recorders, unlike transaction.m_recorder;
+route by original ownership. Arbitrary custom recorder integer namespaces can
+collide, so native compatibility needs an explicit registration contract, never
+silent adoption. A later initial block is not a deterministic default installer;
+user static initializers and explicit custom recorder selection must be preserved.
+Use an already-compilable original legacy release for initial lifecycle coverage;
+keep1.1b/c compile reducers intact until the actual attribute API is available.
+Evidence: independent recording_design_review, source anchors
+uvm_recorder.svh40-41/247-365,uvm_object_globals.svh666,
+uvm_component.svh2597-2760,uvm_transaction.svh667-671/776-784,
+uvm_object.svh1294-1313 in original1.1b. Read-only review; no implementation
+selected or changed while L31 is awaiting validation. Cross-model review skipped
+in this automated continuation.
+
+U14 concrete API review: use native lifecycle operations through the existing
+context-DPI umbrella. Preserve explicit begin/end time as unsigned64, separate
+from event occurrence time. Transaction-kind queries must see globally registered
+transactions (including ended/unfreed) because component2649 uses that query
+before linking its handle to the transaction's separately owned handle. Fiber
+queries must require owner identity to invalidate stale component stream caches.
+Mutation ownership stays separate. Child links are parent-to-child; caller may
+own the right endpoint (transaction743/component2645), so a source-owner-only
+link rule is incorrect. Preserve direction and both owners plus issuing recorder.
+
+Native state/journal is authoritative; do not claim atomic commits across native
+and superclass text logs. Validate before existing-handle mutations, reject
+re-registration of retained ended handles, retain ended handles for links, and
+specify live-transaction free behavior (upstream allows it). Journal write/flush
+failure poisons the owner; later operations cannot report successful continuation.
+If superclass allocation precedes failed native registration, explicitly undo
+its membership when possible and fail the operation. New journal creation must
+be exclusive, not exists-then-open, and must not collide with superclass text
+output before its first open. Per-simulation cleanup must clear registry/callback
+state as well as close native-owned streams. Full test must exercise actual
+cross-owner begin_child_tr and component/transaction dual recording; manual links
+alone would miss both API traps. These findings refine U14 before implementation;
+no native source has been changed yet.
 
 ### DD039 — Bare class-scoped module variable declarations
 
@@ -614,3 +684,182 @@ after L29, but discarding the foreach carrier itself is a separate unqualified
 robustness case. No independent failing reducer yet; record-only during L29.
 Source: parse.y foreach productions; standards scope context12.7.3; do not claim
 all parser recovery qualified.
+
+
+### DD046 — User-requested sweep of all fallback and compile-progress paths
+
+- **Active blocker:** DD046-TRIAGE-1 (see `.ai/ACTIVE_WORK.yaml`) as of
+  2026-09-11, after the UVM smoke campaign closed (U15/U16, 15/15
+  SMOKE_PASS). First triage pass:
+  `evidence/campaign-20260908/dd046/triage-20260911.md`. Two candidates
+  examined in `vvp/vpi_cobject.cc`. One (`vpiLineNo`) proved
+  architecture-wide and was split out as DD049, not forced into a bounded
+  fix. The other (a class string property's VPI write silently dropping
+  when reached through a NESTED class-typed property, e.g. `obj.inner.s`)
+  was root-caused, reduced (`evidence/campaign-20260908/dd046/c3.sv`), and
+  resolved as **L33** (see `docs/conformance/BLOCKERS.md`) -- scoped to
+  string properties only; the identical gap for integral (vec4/CPV) nested
+  properties is named there as an explicit, un-fixed follow-on, not
+  silently folded in. `.ai/ACTIVE_WORK.yaml` now tracks L33's gate sweep,
+  not this DD046-TRIAGE-1 placeholder.
+- **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
+  Include parser/name/type resolution, elaboration, code generation, simulator,
+  DPI/VPI, other compiler targets and qualification harnesses. Include silent
+  constant/no-op substitutions, even without a fallback warning.
+- **Evidence revision:** 3d60cb54a (compiler candidate0a4e7d639).
+- **Inventory:** `evidence/campaign-20260908/fallback-tracked-candidates.tsv`
+  and `.json` outside the checkout retain the file/line candidates and scanned
+  file manifest. 608 tracked C/C++/header/grammar/Python/shell files scanned;
+  12849 matching lines, with overlapping tags: fallback494, stub609,
+  degradation2245, constant-return9652. These are search hits, NOT defect counts.
+  Tests, third_party/vendor, skills, graph artifacts and untracked generated
+  sources are excluded from this implementation inventory. Pinned UVM diagnostics
+  remain independent application evidence.
+- **Search vocabulary:** fallback/fall-back; stub/placeholder/compile-progress;
+  ignored/silently/approximation/unsupported/not-enforced/noop/dummy/fabricated/
+  dropped/forced-to/substitute; and literal zero/one/true/false/null/empty returns.
+  Repeat against the selected revision and trace unnamed equivalent paths.
+
+Source-confirmed candidates (reachability by legal source and exact semantic
+loss still require reducers; comments and diagnostic wording are not an oracle):
+
+| Area | Source anchors at evidence revision | Observed implementation | Qualification needed |
+| --- | --- | --- | --- |
+| Lost expression typing | netmisc.cc:1899,1906,1925,2310,2341 | Replaces expressions with empty string, real/integer zero or null | Preserve actual type/value and side effects; distinguish illegal assignments from legal unresolved specialization |
+| Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | Typed expression stubs and ignored calls | Real dispatch, returns, arguments, side effects and callbacks |
+| Casts | elab_expr.cc:18184 | Emits bits-reinterpreted compile-progress warning | Edition-specific cast legality, value and type identity |
+| Constraints | parse.y:18467; original1.0p1 pick_sequence compile diagnostic | Parses/drops some with-clauses; observed ignored constraint | Legal clause routing, solver participation and distribution semantics |
+| Events and waits | elaborate.cc:19847,20322,20458,20629,20775 | Skips event controls or wait behavior | Correct blocking, wakeup dependencies and scheduling |
+| Iteration | elaborate.cc:22119 | Drops a nested associative foreach body on unsupported descent | Legal element shapes, iteration order and actual body execution |
+| Membership | tgt-vvp/eval_vec4.c:1937 | Emits constant no-match for unsupported container shape | Exact membership and propagation of compile failure where applicable |
+| Increment/decrement | tgt-vvp/eval_vec4.c:2354 | Reads expression without update in fallback | Legal lvalue mutation, result and single evaluation |
+| Array locators | tgt-vvp/eval_object.c:2584,2622 | Empty results for selected element types | Correct selected values/indices and predicate evaluation |
+| String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | Empty-string/null substitutions | Actual selection/coercion semantics; reject illegal source correctly |
+| Missing executable targets | tgt-vvp/vvp_process.c:808 | Creates unresolved TD label with only end instruction | Real executable body and correct return/completion behavior |
+| Simulator/VPI | vvp/compile.cc:1148; vvp/vpi_callback.cc:217 | Placeholder-net path; constant-true callback-readiness helper | Trace callers and prove whether upstream filtering supplies required semantics |
+| Qualification fallback | .github/uvm_test.sh:139 | Switches to UVM_NO_DPI if real DPI build fails | Keep real-DPI and no-DPI evidence separate; never count substitution as real-DPI qualification |
+
+- **Triage:** OPEN, semantic classification pending. Ordinary allocation
+  fallbacks, generated DPI bridge stubs, valid empty-container results and
+  error-recovery paths are not automatically defects. Inspect the surrounding
+  control flow and terminal diagnostic status. Source-confirmed substitution
+  does not yet prove a legal reproducer reaches it.
+- **Completion rule:** Every candidate must be classified as valid behavior,
+  unreachable/superseded with evidence, explicit unsupported/qualification gap,
+  or a reproduced semantic defect. All legal behavior-changing fallbacks need
+  standards-grounded implementation and permanent regressions; warning removal,
+  an unsupported error, or a smoke pass alone cannot close that obligation.
+  Keyword coverage is not semantic exhaustiveness; review default branches,
+  early returns, ignored statuses and synthesized values by requirement cluster.
+
+
+DD046 first reachability check: a fixed-size real array `find with (item > 1.5)`
+is rejected with compile exit1 in both2017/2023 before code generation:
+"find() on fixed-size arrays of non-integral elements is not yet implemented."
+The fallback in eval_object.c is therefore not reached by this reducer. Record
+this case as an explicit unsupported legal feature, not observed fabricated
+runtime results. Evidence: `evidence/campaign-20260908/fallback-reducers/`
+`fixed-real-find.sv` and `fixed-real-find.json`. Other routes remain unqualified.
+
+
+DD038 prerequisite U14 locally validated at729edce3c with test/CI79885f484:
+explicit original1.1d lifecycle recorder, native owner/handle registry, retained
+exclusive file descriptors, cross-owner links and allocation rollback are real
+and regression-tested. Full local gates pass (BLOCKERS U14). Typed attribute
+capture and deterministic default installation remain mandatory and OPEN;
+original1.1b/c still fail the missing macro. No parent completion claim.
+
+
+### DD047 — String literal with a high-bit byte fails to load as a vector operand
+
+- **Active blocker:** L32; record-only.
+- **Observation:** `x = "\301B";` into `reg [15:0]` and `y = "\377";` into
+  `reg [7:0]` compile with exit 0 in both 2017 and 2023, but vvp refuses to load:
+  `numeric operand out of range` (`%pushi/vec4 18446744073709535554, 0, 16`).
+  Expected: x=c142, y=ff.
+- **File/function:** `tgt-vvp/eval_vec4.c` `draw_string_vec4`:
+  `tmp |= (unsigned long)*p` on a plain `char`, which is signed on this ARM64 host,
+  so bytes of 0x80 and above sign-extend.
+- **Possible clause:** IEEE 1800-2017/2023 5.9 (literal operands are unsigned
+  integer constants of 8-bit values).
+- **Evidence:** `evidence/campaign-20260908/l32/dd-hibit-assign.v` and `.log`.
+  Not introduced by L32 (`ab54351c3` touches only `vvp/vpi_const.cc` among
+  implementation files). Upstream master still has the same loop.
+- **Triage:** OPEN; reproduced; candidate for the next selection.
+
+L32 note: upstream master `vvp/vpi_const.cc` still has the pre-L32 literal
+`vpiVectorVal` loop. Upstream `ivtest/ivltests/swrite.v` still has the endian
+probe that depended on it. An upstream report is a separate, unfiled action.
+
+
+### DD048 — __vpiVThrStrStack has no vpiVectorVal path; vpiSize unit differs from __vpiStringConst
+
+- **Active blocker:** U15; record-only (worked around, not fixed).
+- **Observation:** A systf string argument that is not a bare literal --
+  a `string` variable, an enum `.name()` result, a function-call result, or a
+  runtime concatenation -- is represented by `__vpiVThrStrStack`
+  (vvp/vpi_vthr_vector.cc), which rejects `vpiVectorVal`
+  (`vvp error: get 9 not supported by vpiConstant (String)`, unconditional
+  stderr, format returns `vpiSuppressVal`) even though `vpiType`/`vpiConstType`
+  report `vpiConstant`/`vpiStringConst` identically to a real literal (a
+  `__vpiStringConst`, vvp/vpi_const.cc, L32-fixed). The two classes also
+  report `vpiSize` in different units for the same property code:
+  `__vpiStringConst` returns bits (`value_len_*8`); `__vpiVThrStrStack`
+  returns characters (`val.size()`). A 5-character enum `.name()` reports
+  `vpiSize==5`, not 40.
+- **File/function:** `vvp/vpi_vthr_vector.cc` `__vpiVThrStrStack::vpi_get_value`
+  (no `vpiVectorVal` case) and `__vpiVThrStrStack::vpi_get` (`vpiSize`).
+- **Consequence for U15:** `$ivl_uvm_record_attribute`'s string encoder
+  (uvm_dpi/uvm_recording.cc) cannot use `vpiType`/`vpiConstType` to select a
+  byte-exact read path, since both classes present identically at that level.
+  It instead reads `vpiStringVal` first and compares the result's length
+  against `vpiSize` under both possible unit conventions (`*8` and as-is);
+  only a mismatch (reachable in practice only via a true literal whose value
+  contains an embedded NUL, which `__vpiStringConst`'s own `vpiStringVal`
+  branch alters rather than truncates) triggers a `vpiVectorVal` retry. This
+  keeps the common non-literal path silent and correct and confines the
+  byte-exact/embedded-NUL path to where it is actually reachable, but it does
+  not give `__vpiVThrStrStack` a lossless path: a genuinely NUL-containing
+  runtime string expression (e.g. a literal fragment concatenated into a
+  variable at runtime) cannot be captured exactly and is reported as a loud
+  failure rather than silently truncated.
+- **Evidence:** `evidence/campaign-20260908/u15/se2.sv`/`se2.c` (direct
+  probe), `expression-string-args-20260911.log` (pre-fix failure),
+  `expression-string-args-fixed-20260911.log` (post-fix). Permanent
+  regression: `tests/uvm_releases/recording_attribute.sv` `string_enum_name`/
+  `string_func_result`/`string_concat` cases plus the harness's
+  `"vvp error: get" not in output` assertion.
+- **Triage:** OPEN; reproduced; candidate for a future selection. Giving
+  `__vpiVThrStrStack` a `vpiVectorVal` path (and reconciling the `vpiSize`
+  unit inconsistency generally, not only for this one caller) is a separate,
+  non-trivial VPI runtime change, out of U15's scope.
+
+
+### DD049 — vpiLineNo/vpiFile never captured for signals, part-selects or class variables
+
+- **Active blocker:** DD046 triage; record-only.
+- **Observation:** `vpi_get(vpiLineNo, handle)` returns a hardcoded `0` for
+  every ordinary signal/net/reg (`__vpiSignal`, `vvp/vpi_signal.cc:552`),
+  every part/bit select (`__vpiPV`, `vvp/vpi_signal.cc:1415`), and every
+  class variable (`__vpiCobjectVar`, `vvp/vpi_cobject.cc:201`) -- all three
+  sites carry the identical `// Not implemented for now!` comment. `struct
+  __vpiSignal` (vvp/vpi_priv.h) has no file/line storage field at all: the
+  value was never captured, not merely left unwired to an existing field.
+- **Possible clause:** IEEE1800-2017 37.3.3: "Most objects have... vpiLineNo
+  [and] vpiFile... applicable to every object that corresponds to some
+  object within the source code," with an explicit exception list that does
+  not include signals, part-selects, or class variables -- so this is
+  normatively required for these kinds, not optional.
+- **Reachability:** trivial; any `vpi_get(vpiLineNo, ...)` on an affected
+  handle observes it.
+- **Scope:** architecture-wide, not a bounded single-function fix. A correct
+  fix needs new file/line plumbing from elaboration through netlist
+  compilation into vvp bytecode/VPI object creation, for every affected
+  object kind (not fully enumerated -- these three classes were the ones
+  examined; other classes were not checked for the same pattern).
+- **Evidence:** `evidence/campaign-20260908/dd046/triage-20260911.md`
+  (Candidate 1).
+- **Triage:** OPEN; reproduced; too large for one bounded DD046 increment.
+  A future selection should scope it explicitly as its own multi-part
+  feature (which object kinds, what elaboration-to-vvp plumbing) rather than
+  a single reducer-sized fix.

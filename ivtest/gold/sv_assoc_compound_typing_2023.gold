@@ -1,0 +1,10 @@
+signed_div=-32
+signed_mod=-1
+ashift=-16
+mixed=96
+wide_signed=0
+wide_unsigned=0
+wide_shift=0
+bit_x=0
+logic_x=xx
+PASSED
