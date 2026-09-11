@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
-current_blocker: "U08"
-phase: "selection"
+current_blocker: "U09"
+phase: "reproduced"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c9626a449"
@@ -397,3 +397,5 @@ u08_uvm_terminal: "96030 exit0;355passed0failed0skipped, real DPI. Frozen finger
 
 u08_closure: "c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged."
 next_coordinator_action: "Select DD030 legacy regex DPI entry points; user requested investigation and source/export mismatch is proven. U08 is one unpublished validated increment; retain batched PR cadence. PR275 remains OPEN, six CI passes, no merge."
+
+u09_selection: "Selected after validated U08/closure3c61cc09d. Missing legacy cached-regex exports proven. User requests legacy DPI. Preserve original sources and native modern backend; bounded UVM1.2 API semantics, not full1.1d invalid-error identity or application qualification."

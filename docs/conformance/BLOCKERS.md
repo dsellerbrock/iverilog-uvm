@@ -794,6 +794,6 @@ qualification remain open. Evidence: campaign-20260908/s03.
 
 ### U09 — Legacy UVM regex DPI entry points
 
-- **State:** READY after validated U08.
+- **State:** OPEN, selected after validated U08.
 - **Evidence:** DD030/DD027, original1.2 and1.1d import uvm_dpi_regcomp/regexec/regfree; installed modern umbrella exports none of those names. Pinned legacy sources already contain the implementation.
 - **Scope:** Provide the legacy C ABI on the Icarus backend with strict regex semantics, error reporting and handle lifetime; permanent coverage and original-release replay. No library-source edits or full application claim.

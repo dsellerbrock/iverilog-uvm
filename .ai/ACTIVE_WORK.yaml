@@ -1,32 +1,18 @@
-id: "U08"
-title: "Original UVM1.2 smoke runtime timeout"
-status: "closed"
-phase: "done"
-base_revision: "69ff60cc6"
+id: "U09"
+title: "Legacy UVM cached-regex DPI entry points"
+status: "in_progress"
+phase: "reproduced"
+base_revision: "c9626a449"
 last_validated_revision: "c9626a449"
-selection_reason: "DD028: user prioritizes original1.2 for OpenTitan; original sources now compile but smoke times out300s without runtime output."
-reproducer: "third_party/uvm-releases/results-f9qr050b/1.2/smoke.vvp on validated active vvp; compiler0, runtime timeout300.061s, empty log."
-expected_behavior: "Original pinned1.2 must execute intended factory/copy/phase/regex/HDL-read smoke checking. Determine the exact runtime mechanism and applicable language/DPI/phase semantics before implementation."
-allowed_scope: ["Reduce the verified runtime timeout, trace actual implementation and identify the causal language/runtime or DPI mechanism.", "Smallest semantically correct causal fix with permanent regression and all required integrated gates.", "Replay unmodified pinned UVM1.2; preserve original reducer and independent failure warnings."]
-non_goals: ["No library source modifications, warning suppression, timeout inflation, or application pass claim.", "Do not assume2017.0.9 timeout is the same bug without evidence.", "DPI1.1d symbol and ignored constraint warnings remain record-only unless proven prerequisites."]
-required_gates: ["Standards-grounded red reducer and meaningful checking;focusedlegacy/JSON/independent review.", "Integratedlegacy/VPI/negative/runtime,fullJSON,real-DPIUVM,NFA,makecheck,release replay,isolatedfrontend and restored hashes."]
-next_action: "User resumed. Retain method qualifiers and preserve local visibility during inherited lookup; prove receiver and static-context behavior before required gates."
-next_command: "git diff --check"
+selection_reason: "User requested legacy DPI; DD030/DD027 identify missing C exports in original1.2/1.1d. Pinned source already acquired; U08 fully validated before selection."
+reproducer: "results-eb3ghca7 original1.2/1.1d runtime logs: missing uvm_dpi_regcomp, command-line regex errors and BUILDERR fatal. nm confirms regcomp/regexec/regfree exports absent."
+expected_behavior: "Expose uvm_dpi_regcomp/regexec/regfree with the UVM1.2 cached POSIX ERE contract: compile REG_NOSUB|REG_EXTENDED without glob retry, reusable opaque handles, match/nonmatch polarity, null handling, release allocated regex, report invalid compilation and return null."
+standards: ["Pinned Accellera UVM1.2 src/dpi/uvm_svcmd_dpi.c and .svh are legacy API authority.", "IEEE1800-2017/2023 clause35 DPI-C return/argument type mapping; chandle corresponds to an opaque C pointer. This is not full IEEE1800.2 qualification."]
+root_cause: "Fork umbrella includes modern uvm_svcmd_dpi.c, whose regex adapters moved to SV; old libraries still import their C symbols. Existing uvm_re_match/glob exports do not satisfy the cached-regex ABI."
+allowed_scope: ["Add the three missing C entry points to fork-owned uvm_dpi/uvm_dpi_iverilog.cc, reusing native POSIX regex and existing reporting helper.", "Permanent legacy cached-regex fixture, frontend registration, focused original-library ABI and smoke replay, directly affected documentation."]
+non_goals: ["No changes to pinned library source, compiler semantics, modern regex/glob behavior or general visibility debt.", "No UVM1.2 application pass claim from smoke alone.", "UVM1.1d valid-pattern compatibility is tested; its historical print-only invalid-pattern diagnostics are not claimed identical to UVM1.2 error reporting."]
+required_gates: ["Pre-fix missing-export reducer; both-edition standalone fixture positive/negative/handle-lifetime/error-count checks; independent review.", "Native build/export check; full integrated legacy/VPI/negative/runtime,JSON,real-DPIUVM,NFA,makecheck,full15release sweep; isolatedfrontend last and restored hashes."]
+discovery_policy: "Unrelated discoveries record-only. Regression caused by this patch remains in scope."
+next_action: "Write and run cached-regex red fixture before adding exports."
+next_command: "nm -gU local-install/lib/ivl/uvm_dpi.vpi"
 stop_after_completion: false
-
-root_cause: "Call trace repeats root.report_header -> package uvm_report_enabled -> coreservice.get_root -> root construction. Reduced inherited method versus package function returns package7 instead of inherited42 in both editions. symbol_search finds only directly declared child scopes before walking out to package, unlike netclass_t::method_from_name inherited lookup. Both editions8.13 makes inherited methods members of subclass;23.8.1 scope precedence applies."
-implementation_scope: "Repair inherited method lookup precedence at class-scope boundary using existing method_from_name helper; preserve explicit package qualification, local override precedence, receiver binding, virtual/task paths. No singleton or scheduler workaround."
-next_reducer: "evidence/u08/inherited_method.sv and reducer-results.json; before2017/2023 runtime1 with actual7. Trace/sample show simulation executes, excluding loader stall."
-
-user_pause_checkpoint: "User requested pause. Last fully validated semantic revision69ff60cc6; PR275 published652c1a1c2. U08 uncommitted symbol_search candidate and contract preserved in worktree and evidence/u08/paused-working.patch. Candidate build65221 completed; small inherited-method reducer passes2017/2023. Access probe wrongly accepts private base method; static-context probe has a syntax error and is inconclusive. No U08 permanent regressions or integrated gates run. Diagnostic processes73232/97808 terminated and reaped; no active local gate handles. Do not resume until user explicitly requests it."
-
-resume_scope: "Inline method qualifier metadata in PTask.h/parse.y/pform_pclass.cc/pform.h is required because the U08 candidate otherwise exposes local base methods. Preserve qualifier information using existing parser method hook; no general access-control or static-method redesign. Both editions8.18 local methods are invisible to subclasses."
-
-interaction_scope: "Receiver probe proves task statement lookup bypasses symbol_search; elaborate.cc must route unqualified class calls through the same lookup. Static-caller probe confirms8.10 diagnostic required for newly selected inherited instance methods. Preserve qualifiers on inline and extern methods with existing prototype binding; no unrelated call-path redesign."
-
-focused_validation: "Permanent JSON6/0 and legacy6/0; neighborJSON32/0; makecheckpass. Review statement-call finding corrected and covered. External Claude review requested by user and running. Required integrated gates not yet started."
-
-validation_candidate: "U08 inherited homonym precedence, permanent tests6/0 in both harnesses, neighbors32/0, makecheckpass; Bison563SR1122RR and209 exact state signatures unchanged. External review and required integrated gates pending. Scope excludes DD029 general access-control gaps; DD030 legacy DPI queued after validation."
-
-resolved_scope: "Inherited unqualified method precedence over enclosing homonyms; UVM root recursion removed. Full general method access control and original1.2 smoke/application qualification remain open (DD029/DD030)."
-closure: "c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,JSON1803/0,real-DPIUVM355/0/0,NFA58/58,makecheck,focusedJSON6/0,legacy6/0,neighbors32/0,independent review and external-review reconciliation,frontendS1-S10; root restored and frozen hashes unchanged."
