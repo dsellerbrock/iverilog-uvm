@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U09"
-phase: "reproduced"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c9626a449"
@@ -11,13 +11,13 @@ pending_gates: "U08 diagnosis,reducer,implementation and required validation; PR
 merge_requirements: Required remote CI and existing merge permissions remain in force.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "After all L13 required gates pass, resume preserved L12 struct string indexing with signed byte type; then select remaining UVM1.2 blockers. Keep OpenTitan application qualification separate."
-next_action: "Await U08 integrated and real-DPI UVM gates and external review. After integrated terminal, run full JSON; frontend last alone. Then close only validated inherited homonym scope and select DD030 legacy DPI."
-next_command: "PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner sh -c 'cd ivtest && python3 vvp_reg.py'"
+next_action: "Complete U09 required full gates; fullJSON after integrated terminal, isolatedfrontend last. Keep one implementation blocker active."
+next_command: "PATH=\"$PWD/local-install/bin:$PATH\" ../evidence/arm64-tooling/resource-runner bash .github/ivtest_gate.sh"
 next_command_cwd: repository root
-candidate_state: "U08 semantic candidate c9626a449 built and frozen; focused JSON6/0,legacy6/0,neighbors32/0,makecheck and NFA58/58 passed."
+candidate_state: "U09 three cached-regex exports plus optional legacy native-error path; final focused10/10, review pending final scope-name correction."
 installed_tools: "Frozen evidence/u08/sha256.txt at c9626a449. Do not rebuild or install while gates run."
-validation_state: "U08 integrated75031 and real-DPIUVM96030 pending; fullJSON/frontend unstarted. ExternalClaude77171 pending. NFA7867 terminal0,58/58. Release92634 terminal1 due known gaps:9SMOKE_PASS4COMPILE_FAIL2RUNTIME_FAIL; sources unchanged."
-next_validation: "After integrated75031 terminal, fullJSON; isolated frontend after all local gates terminal."
+validation_state: "U09 final focused10/10; full gates pending. Last fully validated semantic c9626a449."
+next_validation: "U09 integrated,JSON,realDPIUVM,NFA,makecheck,15release sweep and isolatedfrontend."
 completed_replay: ../evidence/campaign-20260908/u01-after-v07/result.json (RUNTIME_FAIL, four sequence-parent warnings,115requests/230items,0errors/0fatals)
 
 publication_policy_checkpoint: bfb4f1802
@@ -399,3 +399,5 @@ u08_closure: "c9626a449;legacy4911total4906pass0fail2NI3EF,VPI105/0,negative149/
 next_coordinator_action: "Select DD030 legacy regex DPI entry points; user requested investigation and source/export mismatch is proven. U08 is one unpublished validated increment; retain batched PR cadence. PR275 remains OPEN, six CI passes, no merge."
 
 u09_selection: "Selected after validated U08/closure3c61cc09d. Missing legacy cached-regex exports proven. User requests legacy DPI. Preserve original sources and native modern backend; bounded UVM1.2 API semantics, not full1.1d invalid-error identity or application qualification."
+
+u09_focused: "10/10 final ABI checks; original1.2 and1.1d smoke pass in development replay results-lmal0dvl. Missing callback on1.1d required native diagnostic; dot lookup regression reproduced and corrected to uvmpkg:: syntax. Initial failed focused records retained. No original-source edits."

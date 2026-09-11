@@ -224,13 +224,17 @@ fi
 # --------------------------------------------------------------------------
 say "S10: standalone DPI reports and legacy regex ABI"
 for edition in 2017 2023; do
-    for fixture in report_bridge report_server legacy_regex; do
+    for fixture in report_bridge report_server legacy_regex legacy_cached_regex legacy_cached_regex_no_report; do
         options=(-m "$DPIVPI")
-        [ "$fixture" != report_bridge ] && options=(-uvm)
+        [[ "$fixture" != report_bridge && "$fixture" != legacy_cached_regex_no_report ]] && options=(-uvm)
         if "$IVERILOG" "-g$edition" "${options[@]}" -s main -o report.vvp \
             "$SRCROOT/tests/uvm_releases/$fixture.sv" >report.log 2>&1; then
             out="$($TO "$VVP" report.vvp 2>&1)"
             rc=$?
+            if [ "$fixture" = legacy_cached_regex_no_report ] &&
+                [ "$(echo "$out" | grep -c '^UVM/DPI/REGCOMP:')" -ne 1 ]; then
+                fail "$fixture IEEE $edition diagnostic"; echo "$out"; continue
+            fi
             if [ "$rc" -eq 0 ] && echo "$out" | grep -qx PASSED && \
                 ! echo "$out" | grep -q 'DPI error:'; then
                 pass "$fixture IEEE $edition"

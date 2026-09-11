@@ -1,7 +1,7 @@
 id: "U09"
 title: "Legacy UVM cached-regex DPI entry points"
 status: "in_progress"
-phase: "reproduced"
+phase: "awaiting_validation"
 base_revision: "c9626a449"
 last_validated_revision: "c9626a449"
 selection_reason: "User requested legacy DPI; DD030/DD027 identify missing C exports in original1.2/1.1d. Pinned source already acquired; U08 fully validated before selection."
@@ -16,3 +16,9 @@ discovery_policy: "Unrelated discoveries record-only. Regression caused by this 
 next_action: "Write and run cached-regex red fixture before adding exports."
 next_command: "nm -gU local-install/lib/ivl/uvm_dpi.vpi"
 stop_after_completion: false
+
+red_evidence: "evidence/u09/red.json: both2017/2023 compile0 then run1; missing uvm_dpi_regcomp and fatal legacy regex compilation. PrimaryDPI mapping is AnnexH scalar mapping (chandle void*) plus35.5.5/35.5.6 return/formal types, checked against both local editions."
+
+reporting_refinement: "Original1.1d lacks m__uvm_report_dpi entirely. Both original1.2 ABI modes pass;1.1d invalid-pattern probe reaches missing-export internal error despite valid smoke passing. Extend existing legacy error helper to use the UVM callback when present and a visible native diagnostic when absent; no runtime architecture change. Preserve a permanent no-callback fixture and original1.1d error-path evidence."
+
+focused_validation: "corrected-focused.json10/10: modern cached/uncached, no-callback, original1.1d/1.2 each2017/2023. Dotted callback lookup failed six cases and was corrected to VPI package syntax ::. Final original ABI checks include one native diagnostic for1.1d and real UVM error counts for1.2. Initial smoke replay both1.1d/1.2 passes; final full sweep required."
