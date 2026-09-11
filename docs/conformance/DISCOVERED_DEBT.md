@@ -722,20 +722,38 @@ all parser recovery qualified.
   cells below record exactly what was tried for each; treat the "RESOLVED"
   label as "no defect found under this session's search," not "cannot
   contain one."
-  Only **Lost expression typing** (`netmisc.cc`'s `elab_and_eval`, the
-  silent empty-string/0.0-real substitution for "unresolved parameterized
-  helper/container method paths that lose argument typing") remains
-  genuinely open -- deep in generic/parameterized-class argument-typing
-  elaboration; no reducer attempted yet, and per advisor-equivalent sizing
-  discipline this needs a proper investigation pass (tracing which caller
-  of `elab_and_eval` can reach it with an unresolved generic type) before
-  it can be scoped as a bounded fix, not a guess-and-check reducer like
-  the others in this pass. Incidentally found along the way: `find()` on a
-  plain (non-class-property) fixed-size array of non-integral elements is
-  loudly rejected at elaboration (`elab_expr.cc:16554-16562`, "sorry: ...
-  not yet implemented") -- a real, known feature gap, but loud, not
-  silent, so not itself a DD046 target; recorded here for completeness.
-  `.ai/ACTIVE_WORK.yaml` carries the next-selection detail.
+  **Lost expression typing** (`netmisc.cc`'s `elab_and_eval`, the silent
+  empty-string/0.0-real/null substitution for "unresolved parameterized
+  helper/container method paths that lose argument typing") was the
+  twelfth row and the only one with zero loud diagnostics anywhere on its
+  path. It was NOT closed by tracing a caller or a hand-written reducer --
+  instead, temporary `getenv`-gated probes were added at all 7 silent
+  stub sites (both `elab_and_eval` overloads), the compiler rebuilt, and
+  the probe armed across two full corpora: the 357-test UVM smoke/
+  regression suite (357/357 passed, 0 probe hits) and the complete
+  ~5000-test legacy ivtest suite (4981/4976/0F/2NI/3EF -- the exact clean
+  baseline, confirming the instrumented build introduced zero
+  regressions; 0 probe hits). The instrumentation was then fully reverted
+  (`git diff` on `netmisc.cc` shows no residual change) and the clean
+  binary rebuilt/reinstalled. Per this pass's own calibration: an empirical
+  sweep of ~5300 tests finding zero hits is stronger evidence than any
+  other row's hand-picked reducers, but is still not proof the branch is
+  unreachable by SOME construct neither corpus exercises -- recorded as
+  such, not as a closed proof. The `elab_expr.cc:8297` stub-callers thread
+  (left open in the prior pass) was also traced to completion: 6 of 7
+  callers already warn; the 7th is a deliberate silent placeholder for
+  dead generic-template-body elaboration, tagged and consumed downstream
+  exactly like the `in_unspecialized_param_class` case above -- correctly
+  designed, not a defect. All twelve curated-table rows are now fully
+  dispositioned; DD046-TRIAGE-2 is closed. Incidentally found along the
+  way (both passes): `find()` on a plain (non-class-property) fixed-size
+  array of non-integral elements is loudly rejected at elaboration
+  (`elab_expr.cc:16554-16562`, "sorry: ... not yet implemented") -- a
+  real, known feature gap, but loud, not silent, so not itself a DD046
+  target; recorded here for completeness. `.ai/ACTIVE_WORK.yaml` carries
+  the next-selection detail for DD046 beyond the curated table (mining
+  the raw ~12,850-line fallback inventory, or shifting to the user's
+  third priority phase).
 - **Scope:** User explicitly expanded the request to sweep ALL fallbacks.
   Include parser/name/type resolution, elaboration, code generation, simulator,
   DPI/VPI, other compiler targets and qualification harnesses. Include silent
@@ -759,8 +777,8 @@ loss still require reducers; comments and diagnostic wording are not an oracle):
 
 | Area | Source anchors at evidence revision | Observed implementation | Qualification needed |
 | --- | --- | --- | --- |
-| Lost expression typing | netmisc.cc:1899,1906,1925,2310,2341 | Replaces expressions with empty string, real/integer zero or null | Preserve actual type/value and side effects; distinguish illegal assignments from legal unresolved specialization |
-| Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | Typed expression stubs and ignored calls | Real dispatch, returns, arguments, side effects and callbacks |
+| Lost expression typing | netmisc.cc:1899,1906,1925,2310,2341 | **Re-triaged (2026-09-11), instrumented, not fixed.** These five sites are the ONLY genuinely silent branches found in this whole DD046 sweep (no `cerr` anywhere on the path, unlike every sibling row). Traced both `elab_and_eval` overloads: the branch fires only when `pe`'s pform-level type isn't `IVL_VT_CLASS` (the R32(A) class-handle guard already hard-errors that case) yet the ELABORATED `tmp`'s type still mismatches `cast_type` and isn't BOOL/LOGIC/REAL/well-typed-aggregate -- i.e. some caller passes an unresolved/generic type through to a STRING or REAL target. Rather than guess a reducer, added temporary `getenv`-gated probes at all 7 stub sites (both `elab_and_eval` overloads), rebuilt, and ran it against BOTH corpora with the probe armed: the 357-test UVM smoke/regression suite (357/357 passed) and the full ~5000-test legacy ivtest suite (4981/4976/0F/2NI/3EF, exact clean baseline, zero regressions from the instrumented build). **Zero probe hits in either corpus.** Instrumentation fully reverted (verified via `git diff` showing no residual change) and the clean binary rebuilt/reinstalled before this line was written. Per this session's own advisor-flagged caveat above: this is real, broader evidence than any other row's (an empirical sweep of ~5300 tests, not a handful of hand-written reducers) but still not a proof of absence -- some parameterized/generic construct neither corpus happens to exercise could still reach it. | Preserve actual type/value and side effects; distinguish illegal assignments from legal unresolved specialization. Re-open only with a specific reproducer, or by extending the probe to a corpus this pass didn't cover (e.g. OpenTitan/Caliptra real-project census runs, which stress deeper parameterized-container nesting than either ivtest or the UVM smoke suite). |
+| Unresolved methods/functions | elab_expr.cc:8297; elaborate.cc:14061,14072 | **Re-triaged (2026-09-11), resolved.** Traced all 7 call sites of `elaborate_compile_progress_expr_method_stub_`. 6 of 7 already call `warn_compile_progress_stub_fired_` before returning the stub. The 7th (`elab_expr.cc:16388`, reached only via `should_defer_type_parameter_expr_call_`) is silent by design: it fires exclusively while elaborating a generic/unspecialized parameterized-class method body before real specialization (guarded by `is_deferred_type_parameter_expr_receiver_`, which explicitly excludes real built-ins like `randomize`/mailbox/semaphore/covergroup methods and any class with a resolvable method scope), and the resulting stub is tagged via `mark_deferred_type_parameter_stub()` so downstream consumers (e.g. the enum-assignment path at `elab_expr.cc:3334`, and `inherit_deferred_type_parameter_stub` propagation in `dup_expr.cc`/`pad_to_width.cc`/`netmisc.cc`) can recognize it as a placeholder from dead template-body elaboration that never actually executes -- the same deliberate "shape-check only" pattern already established for the `in_unspecialized_param_class` case in the Lost-expression-typing row above and the `initialize`/`m_initialize` cases in `elaborate.cc:14061`. Correctly designed, not a defect. | None -- deliberate and consistent with the codebase's established generic-body-elaboration pattern. |
 | Casts | elab_expr.cc:18184 | **Re-triaged (2026-09-11).** Already loud (`cerr << ... "warning: Cast to ... not fully supported"`) before either the packed-reinterpret or non-packed unchanged-passthrough fallback. Associative-array, compatible-queue, compatible-darray, and enum casts are all handled correctly by dedicated paths well before this fallback (enum cast verified with a reducer -- `evidence/campaign-20260908/dd046/c18_cast.sv`). No reproducer attempted yet for a target type that reaches the final unchanged-passthrough branch specifically (as opposed to the packed-reinterpret branch, which is a defensible real behavior, or a path handled earlier). | Loud already; re-open only if a specific unhandled-cast-target reproducer is found that reaches the passthrough branch and produces a wrong (not just imprecise) result. |
 | Constraints | parse.y:18467; original1.0p1 pick_sequence compile diagnostic | **Re-triaged (2026-09-11).** Already loud (a suppressed-after-first `cerr` warning: "pkg::func(...) with-clause is parsed but not enforced ... constraints are silently dropped"). Scoped deliberately: the grammar comment states other package-function with-clauses "retain their compile-progress diagnostic" -- only `std::randomize(...) with {...}` gets real enforcement via `set_with_constraints`. No legal SystemVerilog construct calls an arbitrary `pkg::func(...)` with a `with` clause outside the randomize family (18.7), so this branch may not be reachable by standard code at all; not attempted with a reducer this pass. | Loud already; only worth a reproducer if a real randomize-family variant (not std::randomize itself) is found routing through this branch. |
 | Events and waits | elaborate.cc:19847,20322,20458,20629,20775 | **Re-triaged (2026-09-11).** All five sites already print a `cerr` warning before skipping/no-opping (unresolvable event expr, scope-as-event, class-property event expr, empty event set, unelaborable wait condition, no event sources) -- none is silent. Not attempted with a reducer; the loud diagnostics already satisfy DD046's "not silent" bar for every cited line. | Loud already at every cited site. |
