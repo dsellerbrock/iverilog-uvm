@@ -1,7 +1,7 @@
 id: "L28"
 title: "Unresolved forwarded type specializations must not execute static initialization"
 status: "active"
-phase: "focused_tested"
+phase: "awaiting_validation"
 base_revision: "24562d1b1"
 last_validated_revision: "8f2252dd3"
 reproducer: "../evidence/campaign-20260908/l28/forward-seed-init.sv and .json: unused Forward#T declares Generic#T;one real Generic#bit causes two registrations,both editions compile0/runtime1. DD044 larger callback reducer preserved."
@@ -13,5 +13,5 @@ non_goals: ["No blanket seed_derived suppression,identity merging,value-paramete
 required_gates: ["Both-edition red/green and realconcrete cache-reuse/forwarding/default/const controls;independent review;nativebuild/makecheck/focus/neighbors/integrated/JSON/UVM/NFA/releases;frontend last alone/restore/frozenhashes."]
 independent_pending_work: "U13 remains open awaiting freshLinuxCI on9006baa15;contract preserved in l28/U13-awaiting-ci.yaml. It changes only fixture invocation;L28 depends on fully validated semantic8f2252dd3,not pendingU13. Do not close U13 or change publishedCIcandidate while gates run."
 next_action: "Run required full gates on frozen candidate;JSON after integrated,frontend last alone."
-next_command: 'sed -n "30120,30168p" elaborate.cc'
+next_command: 'tail -20 ../evidence/campaign-20260908/l28/integrated.log'
 stop_after_completion: false
