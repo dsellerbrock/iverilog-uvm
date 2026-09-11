@@ -524,6 +524,12 @@ procedural declarations and typedef aliases work. Record-only general parser
 gap; no grammar expansion under L22. Evidence l22/direct-module-state.sv and
 ordinary-class-scoped-module.{sv,json}; bare module scope remains unqualified.
 
+DD039 direct complete-class module declaration scope resolved by L30 at34787868e
+after all required local gates. Enum identity, packed/unpacked shapes, initializers,
+inherited typedefs, concrete aliases and process::state controls pass both editions.
+Missing/non-type/incomplete/typeparameter prefixes remain rejected. Arbitrary
+nested or parameterized class grammar and complete class qualification remain open.
+
 ### DD040 — Nested fork in a function-spawned background process
 
 L22 release sweep now reaches UVM1.0p1 uvm_objection.svh m_forked_drop:

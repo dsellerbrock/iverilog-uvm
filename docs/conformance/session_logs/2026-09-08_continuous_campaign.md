@@ -2299,3 +2299,13 @@ ordinary/named/labeled/compatibility begin and fork scopes until reduction;
 normal reduction detaches ownership, discard unwinds and deletes only its
 owned block. Existing for assertions and valid empty-scope/join rules remain.
 DD045 records separate foreach-carrier qualification. Return to selection.
+
+### L30 — Class-qualified module declaration route validated
+
+34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim.
+
+The parser trace showed the complete-class name entering module instantiation
+instead of data-type resolution. A dedicated module-item route reuses the class
+member-type resolver and ordinary variable declaration builder. No fallback type;
+error paths release pending range/attribute/initializer expressions. Return to
+selection after publishing the coherent L28/L29/L30 batch.

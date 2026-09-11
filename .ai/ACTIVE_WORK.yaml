@@ -1,9 +1,9 @@
 id: "L30"
 title: "Direct complete-class scoped type declarations at module scope"
-status: "active"
-phase: "awaiting_validation"
+status: "closed"
+phase: "completed"
 base_revision: "cfb4c4e68"
-last_validated_revision: "9229c24e7"
+last_validated_revision: "34787868e"
 reproducer: "../evidence/campaign-20260908/l30/module-scoped-type.sv and red.json; direct class holder defines typedef int state,module declares holder::state s;both editions compile2 invalid module instantiation."
 expected_behavior: "A direct declaration using a public nested type of an already complete class must retain that type and permit normal variable initialization/access at module scope. Illegal non-type/private/incomplete/typeparameter prefixes must remain rejected."
 standards: ["IEEE1800-2017 6.18/8.23 and2023 6.18/8.23; direct complete-class member type reference allowed. Restricted unresolved-prefix contexts differ between editions,but neither permits the direct incomplete-prefix data declaration targeted by negative controls."]
@@ -14,8 +14,10 @@ dependencies: ["Fully validated9229c24e7; L29 and U13 closed."]
 required_gates: ["Both-edition reducer and permanent runtime type/value/shape/enum controls; negative visibility/missing type/incompleteprefix controls; independent design/code review; Bison conflict comparison; native build/focus/neighbors/makecheck/integrated/JSON/UVM/NFA/releases;frontend last alone and frozenhashrestore."]
 evidence: "../evidence/campaign-20260908/l30/"
 discovery_policy: "Unrelated discoveries record-only; regressions from this patch remain in scope."
-next_action: "Wait UVM62168;frontend lastalone afterward andrestorehashes."
-next_command: "tail -n 12 ../evidence/campaign-20260908/l30/uvm.log"
+next_action: "Publish validated L28/L29/L30 batch to existing PR275,then return to selection."
+next_command: "gh pr view 275 --json state,headRefOid"
 stop_after_completion: false
 
 focused_validation: "Original red nowcompile0/nodiagnostics both editions; permanentfocus12legacy/12JSON;neighbors43legacy/32JSON;nativebuild44815exit0/makecheck;independentdesign/code/ownershipreviewclear. Error-path ranges/attributes fully released,nofallbacktype. Bison563SR1122RR unchanged. Fullgates pending."
+
+validation_result: "34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim."

@@ -1022,10 +1022,12 @@ L29 final validation: 9229c24e7; original malformed reducer and all five procedu
 
 ### L30 — Direct class-scoped type declarations at module scope
 
-- **Status:** ACTIVE, DD039 reproduced on fully validated9229c24e7.
+- **Status:** CLOSED at34787868e; bounded DD039 direct complete-class type route.
 - **Reducer:** Complete class holder with typedef int state; module declares
   holder::state s. Both editions reject as invalid module instantiation.
 - **Scope:** Reuse class type resolution at the module declaration frontier;
   preserve type identity, variable shapes and illegal-prefix/access rejection.
 - **Authority:** Both editions6.18/8.23; unresolved prefix restrictions remain.
 - **Evidence:** `evidence/campaign-20260908/l30/`; no fullclass/UVM claim.
+
+L30 final validation: 34787868e; originalredcompile0/no diagnostics both editions; permanentfocus12legacy/12JSON,neighbors43legacy/32JSON,makecheck and independentdesign/code/ownershipreviewclear. Bison563SR1122RRunchanged. Legacy4979total4974pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1871/0,realDPIUVM355/0/0,NFA58/58,frontend21313exit0 allscenarios;installation restored/fivefrozenhashes match. Complete15release results-jz6zk_cb13SMOKE_PASS2COMPILE_FAIL;allstatuses/source/archivehashes unchanged vsL29. No fullclass/UVM qualification claim.

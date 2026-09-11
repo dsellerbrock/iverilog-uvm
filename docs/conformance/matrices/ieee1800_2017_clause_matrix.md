@@ -1213,3 +1213,14 @@ with exact negative diagnostics and positive loop-local lifetime/label/foreach/
 fork checks. All required local gates pass. This is bounded parser robustness,
 not implementation of the malformed recording macro or a standards feature.
 Foreach's own carrier recovery and complete parser recovery remain unqualified.
+
+### L30 — Complete-class qualified module variables (6.18/8.23)
+
+Validated34787868e permits direct member-type variable declarations at module
+scope using existing class resolution. Both editions test nominal enum identity,
+packed/unpacked shapes, comma initializers, inherited typedefs, concrete class
+aliases and process::state beside module instantiation syntax. Invalid members
+and incomplete/typeparameter prefixes remain rejected without a fallback type.
+All required local gates pass; arbitrary nested/parameterized class syntax and
+full class qualification remain open. Existing edition-specific restricted-prefix
+contexts are not broadened by this increment.
