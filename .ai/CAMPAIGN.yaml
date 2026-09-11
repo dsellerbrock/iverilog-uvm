@@ -1,7 +1,7 @@
 status: active
 branch: "agent/campaign-legacy-uvm-main-20260910"
 current_blocker: "U12"
-phase: "reproducing"
+phase: "awaiting_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "e18128369"
@@ -606,3 +606,5 @@ u11_json_terminal: "2027exit0;1837tests0failures. UVM82773 live;frontend unstart
 u11_uvm_terminal: "82773exit0;355passed0failed0skipped realDPI. Frontend41504 launched last alone;restore/frozen hashes required afterward. "
 
 u11_closure: "e18128369;both-edition red failed missing old DPI entrypoint;focused8/0,makecheck,independent code/evidence review;legacy4945total4940pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66,fullJSON1837/0,realDPIUVM355/0/0,NFA58/58,frontend41504exit0 all scenarios including oldABI both editions;install restored and five frozen hashes match. Release results-zyhh1jv9 complete/baseline_valid,all15source/archive hashes unchanged. Reviewed12clean smoke passes,1disqualified1.0p1 runtime,2compilefails;raw1.0p1SMOKE_PASS rejected due existing3placeholder and2cast diagnostics. 1.1a clean new smoke pass through time1."
+
+u12_focused: "New negative test failed8subcases before classifier fix;all8offline matrix tests now pass. All13historical runtime logs have correct polarity12accept/1.0p1reject. No compiler/DPI changes. Fresh15release sweep and independent review pending. "
