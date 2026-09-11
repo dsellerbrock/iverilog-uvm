@@ -756,3 +756,25 @@ exclusive file descriptors, cross-owner links and allocation rollback are real
 and regression-tested. Full local gates pass (BLOCKERS U14). Typed attribute
 capture and deterministic default installation remain mandatory and OPEN;
 original1.1b/c still fail the missing macro. No parent completion claim.
+
+
+### DD047 — String literal with a high-bit byte fails to load as a vector operand
+
+- **Active blocker:** L32; record-only.
+- **Observation:** `x = "\301B";` into `reg [15:0]` and `y = "\377";` into
+  `reg [7:0]` compile with exit 0 in both 2017 and 2023, but vvp refuses to load:
+  `numeric operand out of range` (`%pushi/vec4 18446744073709535554, 0, 16`).
+  Expected: x=c142, y=ff.
+- **File/function:** `tgt-vvp/eval_vec4.c` `draw_string_vec4`:
+  `tmp |= (unsigned long)*p` on a plain `char`, which is signed on this ARM64 host,
+  so bytes of 0x80 and above sign-extend.
+- **Possible clause:** IEEE 1800-2017/2023 5.9 (literal operands are unsigned
+  integer constants of 8-bit values).
+- **Evidence:** `evidence/campaign-20260908/l32/dd-hibit-assign.v` and `.log`.
+  Not introduced by L32 (`ab54351c3` touches only `vvp/vpi_const.cc` among
+  implementation files). Upstream master still has the same loop.
+- **Triage:** OPEN; reproduced; candidate for the next selection.
+
+L32 note: upstream master `vvp/vpi_const.cc` still has the pre-L32 literal
+`vpiVectorVal` loop. Upstream `ivtest/ivltests/swrite.v` still has the endian
+probe that depended on it. An upstream report is a separate, unfiled action.
