@@ -1244,13 +1244,23 @@ static NetExpr* make_queue_locator_with_expr_(
 
       const netuarray_t*fixed_type =
 	    dynamic_cast<const netuarray_t*>(container_type);
-      const bool fixed_property = fixed_type
-	    && !dynamic_cast<NetESignal*>(queue_expr);
+	/* L36: a fixed unpacked array has no object handle that the common
+	 * find()/find_index()/etc. loop can retain, whether it arrived as a
+	 * direct signal or a class property -- materialize it once into a
+	 * hidden dynamic array either way, mirroring make_array_unique_expr_'s
+	 * unconditional `if (fixed_type)` treatment (which already supports
+	 * every element category, direct or property, for unique()). Element
+	 * type is not restricted here: the property path below already
+	 * preserved integral, real, string and class elements; a direct fixed
+	 * signal gets the identical materialization and so gets the identical
+	 * element-type support, closing the artificial gap where
+	 * `arr.find(x) with (...)' on a plain `string arr[4]' was rejected
+	 * while the same call on a class property `obj.arr' already worked. */
+      const bool fixed_property = fixed_type;
       NetNet*recv_net = 0;
       if (fixed_property) {
-	      /* NetEProperty cannot be indexed directly by the target's array
-	       * loop. Materialize the complete property value exactly once. The
-	       * property evaluator preserves integral, real, string and class
+	      /* Materialize the complete fixed-array value exactly once. The
+	       * array evaluator preserves integral, real, string and class
 	       * element representations in the temporary dynamic array. */
 	    ivl_type_t recv_type = new netdarray_t(element_type);
 	    recv_net = new NetNet(scope, scope->local_symbol(),
@@ -2520,6 +2530,41 @@ static NetExpr* apply_trailing_container_indices_(
 		  }
 		  out_type = selected_type;
 		  return selected;
+	    }
+
+	      /* L39: once a container element is a plain STRING (e.g. the
+	       * element of a class-property queue/darray of strings), a
+	       * remaining trailing index is a character/byte select on that
+	       * string value (IEEE 1800-2017/2023 6.16), not another
+	       * container word -- `obj.q[0][1]' (obj.q is `string q[$]')
+	       * used to fall straight into the "does not select a queue or
+	       * associative-array class-property value" sorry below, even
+	       * though a bare `string_var[1]' (no class-property queue
+	       * involved) already worked via the exact same NetESelect
+	       * shape used here. Mirror that plain-string path. */
+	    if (dynamic_cast<const netstring_t*>(cur_type)) {
+		  list<index_component_t>::const_iterator next = idx_it;
+		  ++next;
+		  bool plain_bit_select = idx_comp.sel == index_component_t::SEL_BIT
+			&& idx_comp.msb && !idx_comp.lsb;
+		  if (!plain_bit_select || next != indices.end()) {
+			cerr << loc.get_fileline() << ": sorry: this select form "
+			     << "after a queue or associative-array string "
+				"element is not yet supported." << endl;
+			des->errors += 1;
+			delete cur_expr;
+			return nullptr;
+		  }
+		  NetExpr*index_expr = elab_assoc_index(des, scope, idx_comp.msb,
+							cur_type, false);
+		  if (!index_expr) {
+			delete cur_expr;
+			return nullptr;
+		  }
+		  NetESelect*sel = new NetESelect(cur_expr, index_expr, 8);
+		  sel->set_line(loc);
+		  out_type = nullptr;
+		  return sel;
 	    }
 
 	    const netqueue_t*queue_type =
@@ -16537,43 +16582,28 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 
-	      /* Direct fixed signals retain the historical vector-only and
-	       * zero-base boundary. A whole fixed-array class property is instead
-	       * materialized into a typed dynamic-array temporary by the locator
-	       * helper below, with explicit declared-index and direction payloads.
-	       * That path supports the scalar/object element categories faithfully
-	       * represented by the property materializer. */
+	      /* L36: a whole fixed-array (direct signal OR class property) is
+	       * materialized into a typed dynamic-array temporary by the
+	       * locator helper below (make_queue_locator_with_expr_), with
+	       * explicit declared-index and direction payloads computed
+	       * generically from the array's netrange_t. That materializer
+	       * makes no distinction between a direct signal and a property
+	       * source, so neither does this gate anymore: IEEE 1800-2017/
+	       * 2023 7.12.1 says array locator methods "operate on any
+	       * unpacked array" with no restriction to integral elements or
+	       * a zero-based declared index, and a direct fixed array of
+	       * (say) `string' elements has exactly the same shape as the
+	       * class-property case this already supported. */
 	    if (is_array_locator_name_(method_name)) {
 		  ivl_variable_type_t base_type = element_type->base_type();
-		  bool direct_fixed =
-			dynamic_cast<NetESignal*>(sub_expr) != nullptr;
-		  bool property_element_supported =
+		  bool element_supported =
 			base_type == IVL_VT_BOOL || base_type == IVL_VT_LOGIC
 			|| base_type == IVL_VT_REAL || base_type == IVL_VT_STRING
 			|| base_type == IVL_VT_CLASS;
-		  if (direct_fixed
-		      && base_type != IVL_VT_BOOL && base_type != IVL_VT_LOGIC) {
+		  if (!element_supported) {
 			cerr << get_fileline() << ": sorry: " << method_name
-			     << "() on fixed-size arrays of non-integral "
-				"elements is not yet implemented." << endl;
-			des->errors += 1;
-			delete sub_expr;
-			return 0;
-		  }
-		  if (!direct_fixed && !property_element_supported) {
-			cerr << get_fileline() << ": sorry: " << method_name
-			     << "() on a fixed-size array class property of this "
-				"element type is not yet implemented." << endl;
-			des->errors += 1;
-			delete sub_expr;
-			return 0;
-		  }
-		  const netrange_t&dim = uarray->static_dimensions().front();
-		  if (direct_fixed
-		      && std::min(dim.get_msb(), dim.get_lsb()) != 0) {
-			cerr << get_fileline() << ": sorry: " << method_name
-			     << "() on fixed-size arrays with a nonzero "
-				"declared index base is not yet implemented." << endl;
+			     << "() on a fixed-size array of this element type "
+				"is not yet implemented." << endl;
 			des->errors += 1;
 			delete sub_expr;
 			return 0;
@@ -18163,6 +18193,26 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 			return sub;
 		  }
 	    }
+      } else if (dynamic_cast<const netclass_t*>(target_type_)) {
+	    // L37 follow-up: a class-typed cast target (`SomeClass'(expr)`)
+	    // was never given its own branch here, so it fell all the way
+	    // through to the final fallback below -- harmless before L37,
+	    // since that fallback used to be an unconditional `return sub;`,
+	    // but L37 turned that into a hard "not yet implemented" sorry.
+	    // That broke a real, common, and entirely legal UVM idiom:
+	    // `p = uvm_phase'(pred);` where `pred` is already `uvm_phase`-
+	    // typed (the key of a `bit m_predecessors[uvm_phase]`
+	    // associative array) -- an identity/same-type class cast, not a
+	    // bit-stream reinterpretation at all (IEEE 1800-2017/2023 6.24.3
+	    // doesn't even list classes as bit-stream types; a class-typed
+	    // cast target is a handle-compatibility check, matching every
+	    // other "no conversion" branch in this function). Mirror the
+	    // netstring_t/netreal_t branches above: a class-typed source
+	    // passes through unchanged. A non-class source reaching a class
+	    // target is a different, still-unimplemented case and correctly
+	    // continues to the sorry below.
+	    if (sub->expr_type() == IVL_VT_CLASS)
+		  return sub;
       }
       if (tmp) {
 	    if (tmp == sub) {
@@ -18176,16 +18226,35 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       }
 
       // compile-progress: packed struct and other unhandled cast targets.
-      // For packed types, reinterpret the bits directly (no-op at VVP level).
-      // For other types, return sub unchanged as a best-effort fallback.
-      cerr << get_fileline() << ": warning: Cast to `";
-      if (target_type_) target_type_->debug_dump(cerr);
-      else cerr << "<unknown>";
-      cerr << "' not fully supported (compile-progress: bits reinterpreted)." << endl;
-      if (target_type_ && target_type_->packed() && expr_width_ > 0)
+      // For packed types, reinterpret the bits directly (no-op at VVP level) --
+      // correct, since a packed struct IS a vector at the VVP level.
+      if (target_type_ && target_type_->packed() && expr_width_ > 0) {
+	    cerr << get_fileline() << ": warning: Cast to `";
+	    target_type_->debug_dump(cerr);
+	    cerr << "' not fully supported (compile-progress: bits reinterpreted)."
+		 << endl;
 	    return pad_to_width(cast_to_int4(sub, expr_width_), expr_wid,
 				signed_flag_, *this, target_type_);
-      return sub;
+      }
+
+      // L37: a non-packed target (unpacked struct/array/queue/etc.) is a
+      // legal IEEE 1800-2017/2023 6.24.3 bit-stream cast target -- but
+      // `return sub unchanged' hands codegen a vector-shaped NetExpr where
+      // a struct/array-shaped one is required, which does not merely
+      // produce an imprecise result: it crashes (ivl_expr_value asserts
+      // on a null child expression downstream, confirmed with
+      // `s_t'(v)' for an unpacked s_t). Implementing member-wise
+      // bit-stream decomposition (queues, dynamic arrays, strings and
+      // nested aggregates on either side, per 6.24.3's full generality)
+      // is a real feature, not a fallback fix -- reject cleanly instead
+      // of silently mis-shaping the tree and crashing later.
+      cerr << get_fileline() << ": sorry: bit-stream cast to `";
+      if (target_type_) target_type_->debug_dump(cerr);
+      else cerr << "<unknown>";
+      cerr << "' is not yet implemented (IEEE 1800-2017/2023 6.24.3)." << endl;
+      des->errors += 1;
+      delete sub;
+      return 0;
 }
 
 unsigned PECastSign::test_width(Design *des, NetScope *scope, width_mode_t &mode)

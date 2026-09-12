@@ -1514,8 +1514,14 @@ symbol_access
          for a nested chain (obj.inner.s -> [inner_idx, s_idx]); see the
          vpip_make_cobject_property_string_var doc comment. */
       { $$ = vpip_make_cobject_property_string_var($3, $5.cnt, $5.nvec); }
-  | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
-      { $$ = vpip_make_cobject_property_vec_var($3, $5, $7, $9); }
+  | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' numbers '>'
+      /* L34: chain (numbers) moved to the END, after width/signed --
+         unlike K_CPS above, K_CPV has two trailing fixed fields, and a
+         number-list positioned before them would be genuinely LALR(1)
+         ambiguous (the parser can't decide whether the next T_NUMBER
+         continues the chain or starts the fixed fields). numbers
+         followed only by '>' is unambiguous, same as K_CPS. */
+      { $$ = vpip_make_cobject_property_vec_var($3, $5, $7, $9.cnt, $9.nvec); }
   ;
 
   /* functor operands can only be a list of symbols. */

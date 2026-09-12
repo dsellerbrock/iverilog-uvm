@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_array_find_last_fixed_base.v",
+    "iverilog-args" : [ "-g2012" ]
+}

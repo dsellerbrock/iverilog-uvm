@@ -1254,3 +1254,445 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   `evidence/campaign-20260908/l33/` for durable exit files.
 - **Evidence:** `evidence/campaign-20260908/l33/`,
   `evidence/campaign-20260908/dd046/triage-20260911.md`.
+- **Addendum (found during L34):** `collect_property_chain_()` (shared by
+  this entry's string path and L34's integral path) had a latent gap this
+  entry's own gates never exercised: a property access whose base is a
+  WORD-INDEXED array of class handles (`arr[1].s`, not merely a chain of
+  named properties) carries its index via `ivl_expr_oper1()` on the
+  `IVL_EX_SIGNAL`/`IVL_EX_ARRAY` base node, which the helper ignored,
+  emitting a label for the wrong (nonexistent) functor. No ivtest test
+  exercised "array-of-objects then `.string_property`" at L33's close, so
+  this passed unnoticed at the time; L34's gate sweep caught the identical
+  gap via an integer-property test and the fix (reject an array-indexed
+  base, same as an array-indexed property hop) is in the shared helper, so
+  it closes this gap for the string path too. Reverified:
+  `evidence/campaign-20260908/dd046/c13_arr_of_obj_str.sv`.
+
+### L34 — Nested class-property VPI lvalue silently drops writes (integral sibling of L33)
+
+- **Status:** CLOSED 2026-09-11. The integral (vec4/CPV) counterpart of
+  L33, explicitly named as an un-fixed follow-on in that entry rather than
+  left ambiguous. All required gates pass, durable exit files in
+  `evidence/campaign-20260908/l34/`: integrated exit0 4981/4976/0/2NI/3EF,
+  VPI107, negative149, runtime15/15; JSON exit0 1873/0; UVM exit0 357/0/0
+  (356 baseline +1, all four plusargs class-property tests -- direct and
+  nested, string and integral -- PASS); NFA 58/58; releases unchanged
+  15/15 SMOKE_PASS; frontend exit0 all S1-S12. Install restored:
+  `iverilog`/`ivl`/`uvm_dpi.vpi`/`uvm_legacy_recorder.svh` hashes unchanged
+  from the L33 baseline; `vvp`/`vvp.tgt` changed, matching the four files
+  this fix touched (same four files as L33) --
+  `evidence/campaign-20260908/l34/installed-frozen-sha256.json`. A real
+  regression (not a race-condition false positive) was found and fixed by
+  the ivtest gate mid-pass -- see the dedicated bullet below.
+- **Symptom:** Identical to L33 but for `int`/`bit`/`logic`-typed class
+  properties: `$value$plusargs("N=%d", obj.inner.n)` silently dropped the
+  write when `n` is reached through another class-typed property
+  (`obj.inner.n`). The direct case (`obj.n`) already worked via
+  `&CPV<vSIG,pidx,width,signed>` (M14/prior session); a nested chain fell
+  back to a discarded vec4 stack temporary, same failure shape as L33
+  before its fix.
+- **Root cause:** Identical mechanism to L33 -- `get_vpi_taskfunc_signal_arg`'s
+  old direct-only CPV check required `ivl_expr_signal(expr)` non-null on the
+  property node itself, which is null for any nested property chain (see
+  L33's root-cause writeup); any chain longer than one hop fell through to
+  the rvalue-only path with no error.
+- **Fix:** Reused L33's `collect_property_chain_()` unchanged (it is
+  already type-agnostic about the leaf property's value type) from a new
+  integral-specific call site placed at the same point in
+  `get_vpi_taskfunc_signal_arg` as L33's string call site -- before the
+  `expr_signal_base_()`-based `if (!sig) return 0` bailout that ate the
+  chain for the same reason L33 hit it. The old direct-only CPV block
+  became fully dead code once the chain-based check subsumed it (the
+  chain collector's base case handles the direct/non-nested case
+  identically to the old check) and was deleted rather than left stale.
+  `vvp/parse.y`'s `K_CPV` production now takes `numbers` for the chain, but
+  -- unlike `K_CPS` -- the chain had to move to the END of the production
+  (`&CPV<vSIG_0,width,signed,idx0,idx1,...>`, was
+  `&CPV<vSIG_0,pidx,width,signed>`) because CPV has two trailing fixed
+  fields (width, signedness) after the property index; putting `numbers`
+  before them would be genuinely LALR(1) ambiguous (the parser cannot
+  decide, on the next `T_NUMBER`, whether it continues the chain or starts
+  the fixed fields). `numbers` followed only by `'>'` is unambiguous, same
+  as `K_CPS`. Verified zero new grammar conflicts the same way as L33:
+  bison's full verbose table diffed against the (already-verified-clean)
+  L33 baseline shows only the `K_CPV` production's own states differing.
+  `vvp/vpi_cobject.cc`'s `__vpiClassPropertyVecVar` now holds a
+  property-index path exactly like `__vpiClassPropertyStringVar`; a null
+  intermediate handle on a write reports loudly via the same
+  `report_null_property_container_write_()` L33 added, not a new message.
+- **Scope (same boundary as L33):** Integral (`bit`/`logic`/`int`, i.e.
+  `IVL_VT_LOGIC`/`IVL_VT_BOOL`) class properties only. `real`-typed nested
+  properties, array-indexed hops in a chain, and virtual/polymorphic
+  dispatch remain out of scope and fall back to the pre-existing
+  rvalue-only path (unchanged, not a regression). Verified: 1-level
+  (`obj.inner.n`), 3-level/3-hop (`obj.mid.leaf.n`), and the
+  null-intermediate-handle write all behave as designed; array-indexed hop
+  falls back without crashing.
+- **A second, genuine regression was found and fixed by the ivtest gate
+  before this closed** (not the L33 race-condition false positive): the
+  first committed L34 change made `collect_property_chain_()`'s
+  `IVL_EX_SIGNAL`/`IVL_EX_ARRAY` base-case branch accept the base
+  unconditionally, but a word-indexed array-of-class-handles base (e.g.
+  `arr[1].id`, `fixed[0].id` -- an array element, not a chain of named
+  properties) carries its index via `ivl_expr_oper1()` on that base node.
+  Ignoring it and hardcoding the emitted label's word suffix to the
+  scalar case produced a label matching no real functor: vvp printed
+  "unresolved functor stub" and the read came back `X` instead of the real
+  value. Caught by two vendored ivtest tests
+  (`sv_array_port_object_event`, `sv_cast_container_task_failure`),
+  reduced to `evidence/campaign-20260908/dd046/c12_arr_of_obj.sv`, and
+  fixed by rejecting an array-indexed base the same way an array-indexed
+  *property* hop was already rejected -- fall back to the safe rvalue-only
+  path, which resolves the word correctly. This bug lived in the shared
+  helper, so it equally affected L33's string path (never caught there,
+  since no ivtest test combines an object array with a string property);
+  see the addendum on L33 above. Both ivtest regressions reverified
+  passing against gold after the fix.
+- **Reducers:** `evidence/campaign-20260908/dd046/c7_int_nested.sv` (direct
+  bug reproduction), `c8_direct.sv` (direct case, must keep working),
+  `c9_deep_int.sv` (3-level nesting), `c10_null_int.sv` (null-intermediate
+  write), `c11_arrhop_int.sv` (array-indexed property hop, out of scope),
+  `c12_arr_of_obj.sv` (array-indexed SIGNAL base, the second regression
+  above), `c13_arr_of_obj_str.sv` (string analog of c12, confirming the
+  shared-helper fix also closes L33's latent gap).
+- **Permanent regression:** `tests/plusargs_class_integral_nested_test.sv`
+  (new), registered in `.github/uvm_test.sh`'s `plusargs_for()`. Sibling of
+  the existing `tests/plusargs_class_integral_test.sv` (direct case), which
+  must keep passing unchanged. The array-of-objects regression itself is
+  already covered by two existing vendored ivtest tests
+  (`sv_array_port_object_event`, `sv_cast_container_task_failure`); no new
+  permanent test needed beyond keeping them in the required ivtest gate.
+- **Validation:** full required sequence passed (integrated/JSON/UVM/NFA/
+  releases/frontend-last); see the Status line above for exact counts and
+  `evidence/campaign-20260908/l34/` for durable exit files.
+- **Evidence:** `evidence/campaign-20260908/l34/`.
+
+### L35 — Assigning a string value to a real target silently substituted 0.0
+
+- **Status:** CLOSED 2026-09-11. Found via DD046's curated-table re-triage
+  (the "Lost expression typing" row), which had been closed the same day
+  as "empirically unreached across ~5300 tests" -- but per an advisor
+  review, a probe that never fires and a probe that's never reached look
+  identical, so a hand-written sanity reducer was built to confirm the
+  instrumentation actually could fire before trusting that negative
+  result. It fired immediately on the most ordinary possible construct
+  (`real r; string s; ...; r = s;`), which is what DD046's table entry
+  had missed: this branch is reachable by completely mainstream code, not
+  only by exotic unresolved-parameterized-method paths. All six required
+  gates pass at the exact pre-existing baseline plus the one new
+  permanent test: integrated exit0 4982/4977/0/2NI/3EF (4981/4976 baseline
+  +1 new CE test), JSON exit0 1873/0 (unaffected -- new test lives only in
+  the legacy ivtest list), UVM exit0 357/0/0, NFA 58/58, releases 15/15
+  SMOKE_PASS, frontend exit0 all S1-S12. Install restored: only
+  `local-install/lib/ivl/ivl` (the frontend binary) changed vs the L34
+  baseline -- `iverilog`/`vvp`/`vvp.tgt`/`uvm_dpi.vpi`/
+  `uvm_legacy_recorder.svh` hashes unchanged, exactly as expected for a
+  pure elaboration-time fix touching no codegen/runtime path --
+  `evidence/campaign-20260908/l35/installed-frozen-sha256.json`.
+- **Symptom:** `real r; string s; s = "3.5"; r = s;` compiled clean with
+  no diagnostic and always read `r == 0.0` at runtime, silently
+  discarding the string value (and any side effects already evaluated
+  computing it).
+- **Root cause:** `netmisc.cc`'s `elab_and_eval` (both overloads -- the
+  `PExpr*`/`ivl_variable_type_t cast_type` form and the `ivl_type_t
+  lv_net_type` form) has a compile-progress fallback, added to handle
+  genuinely unresolved/generic parameterized-method-argument typing,
+  that stubs ANY expression whose elaborated type doesn't match a
+  STRING or REAL `cast_type` to an empty string / `0.0` / `null` rather
+  than erroring. The sibling BOOL/LOGIC/vectorable branch right next to
+  it already excludes a well-typed STRING source (`&&
+  tmp->expr_type() != IVL_VT_STRING`) specifically because R30 found
+  this exact defect shape for vector targets (`reg [127:0] b; b = str;`
+  silently storing zero) and fixed it by letting a well-typed string
+  fall through to the real cast machinery instead of being stubbed. The
+  REAL-target branch a few lines above never got the same exclusion --
+  a well-typed `IVL_VT_STRING` source unconditionally became `0.0`,
+  reproducing R30's exact defect class one branch over, missed because
+  R30's fix and the comment explaining it are physically adjacent to
+  but not covering this branch.
+- **Why a stub AND a fallthrough are both wrong here, so this is a hard
+  error and not a repeat of R30's fix:** unlike the vector-target case
+  (where falling through to `cast_to_int4`/`cast_to_int2` correctly
+  packs the string per IEEE 1800-2017/2023 6.16's defined
+  string-to-integral conversion), there is no defined string-to-real
+  conversion in the LRM at all -- 6.16 enumerates only string<->integral
+  and string<->string implicit conversions. Tracing what falling through
+  to the existing `cast_to_real()`/`NetECast('r',...)` path would
+  actually do confirmed it is not a safe alternative either:
+  `tgt-vvp/eval_real.c`'s `draw_unary_real()` handles opcode `'r'` by
+  evaluating the sub-expression as a vec4 bit pattern
+  (`draw_eval_vec4`) and converting that pattern to a real via
+  `%cvt/rv` -- correct for an integral source, but for a string source
+  it would reinterpret the string's packed ASCII bytes as a (typically
+  huge) unsigned integer and convert that number to a real, which is
+  not a sensible "value of the string" under any defined semantics
+  either. Neither existing behavior (silent 0.0) nor the naive
+  alternative (silent garbage bit-pattern reinterpretation) is
+  spec-correct, so per the precedent already set for a class handle
+  into a non-class target (R32 finding A, 8.4) and a well-typed
+  aggregate into a scalar (R32 finding B, 7.2.2/7.10), this is a hard
+  compile error, not a stub of any kind.
+- **Fix:** In both `elab_and_eval` overloads, the `cast_type ==
+  IVL_VT_REAL` branch now checks `tmp->expr_type() == IVL_VT_STRING`
+  first and, if true, reports `error: A string value has no implicit
+  conversion to real (IEEE 1800-2017/2023 6.16); an explicit conversion
+  such as string::atoreal() is required.` and fails elaboration instead
+  of stubbing. A genuinely unresolved/generic (non-STRING) `tmp` type
+  still gets the pre-existing `0.0` compile-progress placeholder --
+  this fix narrows the branch to stop swallowing a WELL-TYPED string,
+  it does not touch the still-open generic/parameterized-method case
+  the branch was originally written for.
+- **Scope:** Implicit real-target assignment (`real r; r = <string
+  expr>;`, and equivalently through a task/function real-typed formal or
+  a class real-typed property target reached via the `ivl_type_t`
+  overload) only. `string::atoreal()` (explicit method call), integral-
+  to-real, and real-to-real all continue to work exactly as before --
+  verified with dedicated reducers. Not investigated: the second
+  overload's sibling BOOL/LOGIC/vectorable branch
+  (`netmisc.cc:2352-2358`) has no `tmp->expr_type() != IVL_VT_STRING`
+  exclusion either (unlike the first overload's equivalent branch,
+  which does) -- this may be the same R30-class gap recurring a third
+  time in a different context, but was not reproduced or fixed this
+  pass; flagged for a future increment rather than fixed speculatively.
+- **Reducers:** `evidence/campaign-20260908/dd046/c22_real_string.sv`
+  (the defect, confirms the hard error), `c22b_atoreal_ok.sv`
+  (`string::atoreal()` still works), `c22c_int_to_real_ok.sv`
+  (int-to-real still works), `c22d_real_to_real_ok.sv` (real-to-real
+  still works).
+- **Permanent regression:** `ivtest/ivltests/sv_real_string_assign_fail.v`
+  (new, `CE` type), registered in `ivtest/regress-sv.list` alongside the
+  existing `sv_class_new_fail1` (the same "illegal implicit conversion
+  now hard-errors" pattern, for class handles rather than strings).
+- **Validation:** full required sequence passed (integrated/JSON/UVM/NFA/
+  releases/frontend-last); see the Status line above for exact counts and
+  `evidence/campaign-20260908/l35/` for durable exit files.
+- **Evidence:** `evidence/campaign-20260908/l35/`.
+
+### L36 — Fixed-array locator methods rejected legal non-integral/non-zero-base arrays
+
+- **Status:** CLOSED 2026-09-11. Found by directly re-auditing every DD046
+  "loud diagnostic" disposition against a stricter bar per user challenge:
+  does the diagnostic fire ONLY on illegal SystemVerilog? The Array-locator
+  row's rejection did not -- it fired on legal code.
+- **Symptom:** `find`/`find_index`/`find_first`/etc. on a fixed-size
+  (non-dynamic, non-queue) unpacked array rejected with `sorry: ... on a
+  fixed-size array of this element type is not yet implemented` whenever
+  the element type was not BOOL/LOGIC, or whenever the array's declared
+  range was not zero-based/ascending -- e.g. `string values[1:0];
+  values.find_last with (...)` or `int values[5:3]; ...find_last_index...`.
+  IEEE 1800-2017/2023 7.12.1: "Array locator methods operate on any
+  unpacked array" -- no restriction to integral elements or declared base.
+- **Root cause:** `elab_expr.cc`'s array-locator dispatch had two
+  independent, artificially narrow gates that `make_array_unique_expr_`
+  (the sibling helper used elsewhere for the same materialize-into-a-
+  `netdarray_t`-temp pattern) does not have: (1) `make_queue_locator_with_expr_`'s
+  `fixed_property` computation excluded any *direct signal* source
+  (`!dynamic_cast<NetESignal*>(queue_expr)`), and (2) a separate check
+  rejected any element type other than BOOL/LOGIC and any non-zero-based
+  declared dimension outright.
+- **Fix:** Removed the `NetESignal` carve-out so `fixed_property` is simply
+  `fixed_type` (matching `make_array_unique_expr_`'s unconditional
+  materialization), and replaced the element-type/base-range gate with a
+  single check on `base_type()` allowing BOOL, LOGIC, REAL, STRING, and
+  CLASS (the materialize-to-`netdarray_t` path already supports every one
+  of these; only genuinely unsupported element categories still `sorry`).
+  The declared-base restriction is gone entirely -- the loop already
+  carries a separate declared index for `item.index`/`*_index` results,
+  computed generically for any base, so nothing else needed to change.
+- **Scope:** Fixed-array (direct-signal and class-property) locator
+  methods only. Multidimensional fixed arrays remain a genuine, still-loud
+  `sorry` (iterating subarrays is unimplemented) -- confirmed still correct
+  and unaffected. Also repaired two stale ivtest negative tests whose own
+  comments already admitted the rejected forms were legal SV.
+- **Reducers:** `evidence/campaign-20260908/l36/` (nonzero/descending base,
+  string/real elements, paren-less syntax, multidim-still-rejected).
+- **Permanent regression:** `ivtest/ivltests/sv_locator_fixed_nonintegral.v`
+  (new, positive), `sv_array_find_last_fixed_base.v` (renamed/rewritten
+  from the former `..._fail.v` negative test, now a positive test),
+  `sv_array_find_last_fixed_shape_fail.v` (rewritten to drop the now-fixed
+  case, keeping only the still-correct multidim rejection).
+- **Validation:** see the combined L36-L40 validation note at the end of
+  this run of entries.
+- **Evidence:** `evidence/campaign-20260908/l36/`.
+
+### L37 — Bit-stream cast to an unpacked struct crashed the compiler
+
+- **Status:** CLOSED 2026-09-11. Found while auditing the "Casts" DD046
+  row for the same "loud diagnostic on legal input" question that
+  produced L36 -- this one turned out worse: not a wrong rejection, an
+  outright crash.
+- **Symptom:** `s_t'(v)` (an explicit bit-stream cast of a packed vector to
+  an unpacked-struct type, legal per IEEE 1800-2017/2023 6.24.3) printed a
+  warning and then crashed: `Assertion failed: (net), function
+  ivl_expr_value, file t-dll-api.cc, line 1059`.
+- **Root cause:** `PECastType::elaborate_expr`'s final fallback for a
+  non-packed cast target unconditionally did `return sub;`, handing back a
+  vector-shaped expression where downstream codegen (`t-dll-api.cc`'s
+  `ivl_expr_value`) expects a struct-shaped one; the mismatch produced a
+  null child expression that the codegen's `assert(net)` caught as a
+  crash rather than a clean diagnostic.
+- **Fix:** Per advisor review, full bit-stream-casting support (general
+  packed<->unpacked/struct/class conversion per 6.24.3) is a feature, not
+  a fallback fix, and was explicitly scoped out. Instead, the crash-prone
+  `return sub;` for a non-packed target now reports `sorry: bit-stream
+  cast to '<type>' is not yet implemented (IEEE 1800-2017/2023 6.24.3)`
+  and fails elaboration cleanly -- converting an unbounded crash into a
+  bounded, honest "not yet implemented" the same way every other
+  feature-sized gap in this codebase is represented.
+- **Scope:** Non-packed-target bit-stream casts only. Packed-target casts
+  (the already-correct, already-common case -- e.g. casting a struct or
+  array to a packed vector) are untouched and verified unaffected.
+- **Permanent regression:** `ivtest/ivltests/sv_bitstream_cast_unpacked_struct_fail.v`
+  (new, `CE`, the crash -> clean-sorry conversion) and
+  `sv_bitstream_cast_packed_struct.v` (new, positive, confirms the
+  packed-target path is unaffected).
+- **Evidence:** `evidence/campaign-20260908/l37/`.
+
+### L38 — `inside {}` silently forced membership to 0 for a queue-valued (non-property, non-plain-signal) expression
+
+- **Status:** CLOSED 2026-09-11.
+- **Symptom:** `x inside {f()}` where `f()` returns a QUEUE (not a plain
+  signal or class property) silently evaluated to `0` regardless of the
+  actual contents, with no diagnostic at all.
+- **Root cause:** `tgt-vvp/eval_vec4.c`'s inside-operator object-stack
+  dispatch arm named both "Queue/darray" in its own comment but its `if`
+  condition only tested `ivl_expr_value(arr_arg) == IVL_VT_DARRAY`, never
+  `IVL_VT_QUEUE` -- a straightforward missing-enum-value oversight, not a
+  design gap (the plain-signal and class-property paths, and the DARRAY
+  case of this exact arm, already worked correctly).
+- **Fix:** Added the missing `|| ivl_expr_value(arr_arg) == IVL_VT_QUEUE`
+  to the existing condition.
+- **Permanent regression:** `ivtest/ivltests/sv_inside_queue_expr.v` (new,
+  positive: function-returning-queue and function-returning-darray in
+  `inside{}`).
+- **Evidence:** `evidence/campaign-20260908/l38/`.
+
+### L39 — Chained container-index then string byte-select on a class property rejected as unsupported
+
+- **Status:** CLOSED 2026-09-11.
+- **Symptom:** `obj.q[0][1]` where `obj.q` is a class-property `string
+  q[$]` (a queue-element select followed by a byte/char select) hit
+  `sorry: this index does not select a queue or associative-array
+  class-property value`, even though both a bare `string_var[1]` and a
+  class-property queue-of-queues `obj.q[0][0]` already worked
+  independently via the identical `NetESelect` shape.
+- **Root cause:** `apply_trailing_container_indices_` (the shared loop
+  walking chained bracket-indices on a class-property container
+  expression) dispatched only on `netvector_t` (packed select) and
+  `netarray_t` (container element select) for `cur_type`; a `netstring_t`
+  intermediate type (the queue's element, after the first index) fell
+  through to the generic "sorry" reject with no string-select branch.
+- **Fix:** Added a `netstring_t` branch performing a plain string
+  byte-select via `NetESelect(cur_expr, index_expr, 8)`, reusing the
+  existing `elab_assoc_index` helper for index elaboration -- mirroring
+  the plain-string-select code path already used elsewhere.
+- **Permanent regression:** `ivtest/ivltests/sv_property_queue_string_charsel.v`
+  (new, positive).
+- **Evidence:** `evidence/campaign-20260908/l39/`.
+
+### L40 — A class-handle value read through a specialized parameterized class's own type parameter silently degraded to an empty string with zero diagnostic
+
+- **Status:** CLOSED 2026-09-11. First attempt REVERTED the same session
+  when the UVM gate caught a real regression; root-caused and re-fixed,
+  correctly this time, per explicit user direction to fix it completely
+  rather than leave it open. Found while auditing the STRING/CLASS
+  `netmisc.cc` stub candidates (part of the user-directed "fix the other
+  8" sweep) for a genuine unresolved-generic reproducer.
+- **Symptom:** `container #(type T=int)` specialized as `container#(obj_c)`
+  (a real class type), whose own method does `T val; string s; s = val;`,
+  silently produces `s == ""` at runtime with **no diagnostic whatsoever**
+  -- worse than the plain module-scope case (already a hard error per an
+  earlier fix in this same function), since ordinary UVM/OOP code lives
+  almost entirely inside class methods.
+- **Root cause (confirmed):** `netmisc.cc`'s class-handle-rvalue guard
+  computes `class_rval_degrade_ok = in_class_scope || cast_type==IVL_VT_LOGIC
+  || <PENull>`, where `in_class_scope` is a COARSE check -- true for any
+  code textually inside ANY class body. The guard's own comment documents
+  exactly two intended exemptions: (a) a genuinely dead
+  generic-template-seed elaboration pass (IEEE 1800-2017/2023 8.25: "a
+  generic class is not a type"), for which the sibling `is_class_new`
+  exemption already uses the PRECISE `in_unspecialized_param_class` check;
+  and (b) a forward-referenced class name that collapses to implicit
+  4-state LOGIC (`cast_type==IVL_VT_LOGIC`, the "UVM printer globals"
+  case). `class_rval_degrade_ok` uses the coarse `in_class_scope` where it
+  could use the precise (a) check, so a real specialization's
+  class-handle-to-string assignment silently degrades instead of
+  hard-erroring.
+- **First attempt, REVERTED:** narrowed `class_rval_degrade_ok` (and the
+  paired warning-suppression condition) to use `in_unspecialized_param_class`
+  instead of `in_class_scope` wholesale, mirroring `is_class_new`. This
+  correctly hard-errored the real-specialization reducer AND correctly
+  stayed silent for a class whose own declared default type parameter is
+  itself a class (`container #(type T = base_c)`, specialized everywhere
+  in the design only with `int`) -- both directions of the predicate this
+  fix targets were verified. **But the six-gate sweep's UVM/ivtest run
+  caught a THIRD, undocumented scenario the coarse `in_class_scope` was
+  also covering**: `uvm_vreg::allocate()`'s `this.mem = mam.get_memory();`
+  -- an ordinary, ZERO-generics, class-to-class (`uvm_mem`-to-`uvm_mem`)
+  property assignment inside a plain (non-parameterized) class method --
+  newly hard-errored with "class handle cannot be assigned to a non-class
+  target" after the wholesale narrowing.
+- **Tracing the third scenario:** temporary `IVL_L40_DEBUG`-gated
+  instrumentation at the guard printed `cast_type` and the enclosing scope
+  for every entry; against `sv_package_lazy_subroutine_scope.v -uvm` (an
+  existing permanent ivtest case that happens to compile enough of the UVM
+  register model to reach `uvm_vreg.svh:736`), it showed `cast_type=3`
+  (`IVL_VT_BOOL`) for that exact assignment -- NOT `IVL_VT_LOGIC`. Reading
+  `uvm_vreg.svh`/`uvm_mem_mam.svh` confirmed why: they forward-declare each
+  other (`typedef class uvm_mem_mam;` / `typedef class uvm_mem;`), and that
+  circular forward reference collapses `this.mem`'s target to a 2-state
+  placeholder -- the SAME "forward-referenced class collapses to an
+  implicit type" mechanism case (b) already documents for LOGIC, just
+  landing on the 2-state atom instead of the 4-state one this time.
+  `cast_type == IVL_VT_LOGIC` doesn't match `IVL_VT_BOOL`, so only the
+  broad `in_class_scope` was covering this variant.
+- **Fix (correct, landed):** rather than widen the `cast_type` checks
+  (which would touch every class-scope degrade, not just the one L40
+  targets) or reintroduce the wholesale `in_unspecialized_param_class`
+  swap, added a narrow, additional carve-out: `in_real_specialized_param_class`
+  (true exactly when the enclosing scope is a parameterized class AND a
+  REAL, non-seed-derived specialization -- the logical complement of the
+  existing `in_unspecialized_param_class` within a parameterized class's
+  body). `class_rval_degrade_ok` becomes `(in_class_scope &&
+  !in_real_specialized_param_class) || cast_type==IVL_VT_LOGIC ||
+  <PENull>` -- `in_class_scope`'s broad permissiveness is otherwise
+  completely untouched (including the BOOL forward-ref collapse case),
+  and only the one case L40 targets (a real specialization) is carved out
+  to hard-error. Verified all three: the real-specialization reducer now
+  hard-errors, the dead-template-seed reducer still compiles silently, and
+  `uvm_vreg.svh:736` (via `sv_package_lazy_subroutine_scope.v -uvm`)
+  compiles clean again.
+- **A separate, pre-existing, unrelated defect surfaced while building the
+  "must stay silent" reducer, not part of this fix:** reading an ordinary
+  INTEGRAL class property (no generics involved at all) back as a string
+  from inside its own class method -- `class c; int val; function string
+  f(); string s; s = val; return s; endfunction endclass` -- warns
+  `class_property_t::get_string on unsupported property type ...
+  returning empty string` and produces `""`, on a plain non-parameterized
+  class with no relation to L40's guard (confirmed: this path is
+  `IVL_VT_LOGIC`, never enters the `IVL_VT_CLASS` guard at all). Recorded
+  in `DISCOVERED_DEBT.md` as a fresh, unfixed, out-of-scope finding
+  (anchor `vvp/class_type.cc:536`).
+- **Permanent regression:** `ivtest/ivltests/sv_class_handle_string_specialized_fail.v`
+  (new, `CE`, the real-specialization hard error) and
+  `sv_class_handle_string_seed_ok.v` (new, positive, the dead-seed
+  exemption). The forward-ref-collapse (BOOL) case is guarded by the
+  pre-existing `sv_package_lazy_subroutine_scope.v -uvm` (already in
+  `regress-sv.list`) rather than a new dedicated reducer -- two attempts
+  at a minimal, non-UVM standalone reproduction of the circular
+  forward-declaration collapse did not reproduce it (kept as negative
+  evidence in `evidence/campaign-20260908/l40/l40_uvmvreg_min.sv` and
+  `l40_forward_ref_min.sv`); the real UVM register-model source is the
+  only confirmed trigger found.
+- **Evidence:** `evidence/campaign-20260908/l40/`.
+
+### L36-L40 combined validation
+
+- **Validation:** all six required gates run together over the combined
+  L36+L37+L38+L39+L40 changeset (elab_expr.cc, tgt-vvp/eval_vec4.c,
+  netmisc.cc, plus 9 new permanent ivtest cases): integrated ivtest,
+  JSON/VVP, UVM, NFA dual-run, UVM release matrix, frontend (alone/last).
+  See `evidence/campaign-20260908/l36/`...`l40/` for exact counts and
+  `installed-frozen-sha256.json` for the post-install binary hash diff.
+  (Filled in after the gate run this pass; see session status report for
+  the live numbers if this note is read before the commit lands.)

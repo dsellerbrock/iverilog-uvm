@@ -1709,7 +1709,43 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		  // shape (uvm_svcmd_dpi.svh regcomp). The only illegal
 		  // null form, null-into-LOGIC, is already intercepted
 		  // above by null_to_logic (br_gh440).
-		  bool class_rval_degrade_ok = in_class_scope
+		  // L40: `in_class_scope' is deliberately broad (see the two
+		  // documented exemptions above), and a first attempt at
+		  // narrowing it wholesale to `in_unspecialized_param_class'
+		  // was REVERTED after the UVM gate caught a real regression --
+		  // `uvm_vreg::allocate()`'s `this.mem = mam.get_memory();' (an
+		  // ordinary, zero-generics uvm_mem-to-uvm_mem property
+		  // assignment) started hard-erroring. Instrumenting the guard
+		  // showed why: `uvm_vreg.svh`/`uvm_mem_mam.svh` forward-declare
+		  // each other (`typedef class uvm_mem_mam;` / `typedef class
+		  // uvm_mem;`), and that circular forward-reference collapses
+		  // `this.mem`'s target to a 2-state placeholder (cast_type ==
+		  // IVL_VT_BOOL) -- the exact same "forward-referenced class
+		  // collapses to an implicit type" mechanism case (b) above
+		  // already names for LOGIC, just landing on the 2-state atom
+		  // instead of the 4-state one this time. `in_class_scope`'s
+		  // broad permissiveness was the only thing covering that BOOL
+		  // variant, since `cast_type == IVL_VT_LOGIC` doesn't match it.
+		  //
+		  // Rather than widen the cast_type checks (which would touch
+		  // every class-scope degrade, not just the one L40 targets),
+		  // carve out only the exact case L40 needs to hard-error: a
+		  // REAL, executing specialization of a parameterized class
+		  // (as opposed to the never-executed template-seed pass case
+		  // (a) already exempts). `in_class_scope` keeps covering
+		  // everything else -- including this BOOL forward-ref
+		  // collapse -- completely unchanged.
+		  bool in_real_specialized_param_class = false;
+		  if (const NetScope*cscope2 =
+			    scope ? scope->get_class_scope() : 0) {
+			const netclass_t*cd2 = cscope2->class_def();
+			const PClass*pclass2 = cscope2->class_pform();
+			in_real_specialized_param_class =
+			      cd2 && pclass2 && pclass2->has_parameter_port_list
+			   && cd2->specialized_instance() && !cd2->seed_derived();
+		  }
+		  bool class_rval_degrade_ok =
+			(in_class_scope && !in_real_specialized_param_class)
 			|| cast_type == IVL_VT_LOGIC
 			|| dynamic_cast<const PENull*>(pe);
 		  if (!need_const && !null_to_logic && !class_new_hard_error
@@ -1903,6 +1939,30 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			goto cast_done;
 		  }
 		  if (cast_type == IVL_VT_REAL) {
+			// A well-typed STRING source has no implicit conversion
+			// to real: IEEE 1800-2017/2023 6.16 defines only
+			// string<->integral (explicit right-justified pack/
+			// truncate) and string<->string implicit conversions,
+			// nothing to/from real. This is R30's exact hole
+			// (silently substituting a default instead of hard-
+			// erroring an ill-typed assignment) recurring for a
+			// real target instead of a vector one: `real r; r =
+			// some_string;' compiled clean and always read 0.0,
+			// discarding the string value with no diagnostic
+			// (confirmed via evidence/campaign-20260908/dd046/
+			// c22_real_string.sv). Hard error, never a stub, for
+			// a well-typed string; a genuinely unresolved/generic
+			// tmp type still gets the compile-progress placeholder.
+			if (tmp->expr_type() == IVL_VT_STRING) {
+			      cerr << pe->get_fileline() << ": error: "
+				   << "A string value has no implicit "
+				   << "conversion to real (IEEE 1800-2017/2023 "
+				   << "6.16); an explicit conversion such as "
+				   << "string::atoreal() is required." << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      return 0;
+			}
 			NetECReal*stub = new NetECReal(verireal(0.0));
 			stub->set_line(*tmp);
 			delete tmp;
@@ -2344,6 +2404,22 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			return stub;
 		  }
 		  if (cast_type == IVL_VT_REAL) {
+			// See the sibling elab_and_eval(cast_type) overload
+			// above for the rationale: IEEE 1800-2017/2023 6.16
+			// defines no implicit string-to-real conversion, so a
+			// well-typed STRING source is a hard error here too,
+			// not a silent 0.0 (evidence/campaign-20260908/dd046/
+			// c22_real_string.sv).
+			if (tmp->expr_type() == IVL_VT_STRING) {
+			      cerr << pe->get_fileline() << ": error: "
+				   << "A string value has no implicit "
+				   << "conversion to real (IEEE 1800-2017/2023 "
+				   << "6.16); an explicit conversion such as "
+				   << "string::atoreal() is required." << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      return 0;
+			}
 			NetECReal*stub = new NetECReal(verireal(0.0));
 			stub->set_line(*tmp);
 			delete tmp;

@@ -1536,13 +1536,20 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, unsigned prop_cnt,
    discarded after the system function returns. Retaining the property index
    gives ordinary class properties a real writable destination and lets
    virtual-interface properties be read. Virtual-interface writes are a loud
-   unsupported boundary because they would evade modport and clocking rules. */
+   unsupported boundary because they would evade modport and clocking rules.
+
+   L34: prop_path_ may hold more than one index for a nested class-property
+   chain (e.g. obj.inner.n), the same generalization L33 gave the string
+   sibling above -- every entry but the last is an intermediate object-typed
+   property hop, walked at each access since the class handle stored there
+   can change at runtime; the last entry is the leaf integral property on
+   whatever object that walk lands on. */
 class __vpiClassPropertyVecVar : public __vpiHandle {
     public:
-      __vpiClassPropertyVecVar(size_t prop_idx, unsigned width,
-                               bool signed_flag)
-            : cobj_net_(nullptr), prop_idx_(prop_idx), width_(width),
-              signed_flag_(signed_flag) {}
+      __vpiClassPropertyVecVar(unsigned width, bool signed_flag,
+                               const std::vector<size_t>&prop_path)
+            : cobj_net_(nullptr), width_(width), signed_flag_(signed_flag),
+              prop_path_(prop_path) {}
 
       vvp_net_t*cobj_net_;
 
@@ -1564,46 +1571,64 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
       void vpi_get_value(p_vpi_value val) override
       {
             vvp_vector4_t current(width_, BIT4_X);
-            vvp_object_t obj = current_object_();
+            vvp_object_t obj = resolve_container_();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-                  cobj->get_vec4(prop_idx_, current);
+                  cobj->get_vec4(prop_path_.back(), current);
             else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
-                  vif->get_vec4(prop_idx_, current);
+                  vif->get_vec4(prop_path_.back(), current);
             vpip_vec4_get_value(current, width_, signed_flag_, val);
       }
 
       vpiHandle vpi_put_value(p_vpi_value val, int) override
       {
-            vvp_object_t obj = current_object_();
+            vvp_object_t obj = resolve_container_();
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-                  cobj->set_vec4(prop_idx_, vec4_from_vpi_value(val, width_));
+                  cobj->set_vec4(prop_path_.back(), vec4_from_vpi_value(val, width_));
             else if (obj.peek<vvp_vinterface>())
                   report_vinterface_property_write_();
+            else
+                  report_null_property_container_write_();
             return 0;
       }
 
       vpiHandle vpi_handle(int) override { return nullptr; }
 
     private:
-      size_t prop_idx_;
       unsigned width_;
       bool signed_flag_;
+      std::vector<size_t> prop_path_;
 
-      vvp_object_t current_object_() const
+      /* Same walk as __vpiClassPropertyStringVar::resolve_container_():
+         every hop but the last is an intermediate object-typed property,
+         landing on whatever object owns the leaf integral property
+         (prop_path_.back()). An empty result means either the root signal
+         has no object yet or a hop mid-chain is null. */
+      vvp_object_t resolve_container_()
       {
+            vvp_object_t obj;
             vvp_fun_signal_object*fun =
                   cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fun) : nullptr;
             if (!fun)
                   fun = cobj_net_ ? dynamic_cast<vvp_fun_signal_object*>(cobj_net_->fil) : nullptr;
-            return fun ? fun->peek_object() : vvp_object_t();
+            if (fun) obj = fun->peek_object();
+            for (size_t i = 0 ; i + 1 < prop_path_.size() ; i += 1) {
+                  vvp_cobject*cobj = obj.peek<vvp_cobject>();
+                  if (!cobj) return vvp_object_t();
+                  vvp_object_t next;
+                  cobj->get_object(prop_path_[i], next, 0);
+                  obj = next;
+            }
+            return obj;
       }
 };
 
-vpiHandle vpip_make_cobject_property_vec_var(char*label, size_t prop_idx,
-                                             unsigned width, bool signed_flag)
+vpiHandle vpip_make_cobject_property_vec_var(char*label, unsigned width,
+                                             bool signed_flag,
+                                             unsigned prop_cnt, long*prop_idx)
 {
+      std::vector<size_t> path(prop_idx, prop_idx + prop_cnt);
       __vpiClassPropertyVecVar*obj =
-            new __vpiClassPropertyVecVar(prop_idx, width, signed_flag);
+            new __vpiClassPropertyVecVar(width, signed_flag, path);
       functor_ref_lookup(&obj->cobj_net_, label);
       return obj;
 }
