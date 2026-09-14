@@ -1,36 +1,38 @@
-id: L46
-title: Fixed-prefix packed indexed subpart reads retain element bounds
+id: L47
+title: One-dimensional wide constant indexed-select reads preserve their base
 status: IMPLEMENTED_FOCUSED_PASS
-base_revision: 67b6750af
-origin: DD-022
+base_revision: bcda22349
+origin: DD-023
 standards:
-  - IEEE 1800-2017 11.5.1
-  - IEEE 1800-2023 11.5.1
-reproducer: evidence/dynamic-mixed-driver-assessment/subpart_read_bounds.sv
-current_behavior: A final indexed part select after valid fixed packed-prefix indices is flattened onto the complete signal, so reads can leak into a sibling packed element. VVP also truncates arbitrary-width packed-select bases to 32 bits.
-expected_behavior: The selected packed element bounds the read. Out-of-range result bits are X, valid overlapping bits retain their result positions, and the index is evaluated once.
-root_cause: normalize_variable_part_base adds the fixed element's canonical offset before NetESelect loses the element boundary; VVP %part and %parti narrow select bases through signed int32 arithmetic.
+  - IEEE 1800-2017 11.5.1 and VPI chapters 36-37
+  - IEEE 1800-2023 11.5.1 and VPI chapters 36-37
+reproducer: evidence/dynamic-mixed-driver-assessment/one-dimensional-wide.sv
+current_behavior: A one-dimensional constant indexed-select base of 2^32 is narrowed to zero in the constant elaboration and VPI part-select-handle paths, so formatting reads 0101 rather than xxxx while the equivalent dynamic read is X.
+expected_behavior: Defined constant and dynamic indexed-select bases retain their mathematical value. Wholly out-of-range reads return X in direct expressions and system-task/function VPI arguments, and VPI handle operations do not alias another part of the signal.
+root_cause: The final-dimension constant expression path converts through host long instead of normalize_variable_part_base, and __vpiPV stores a constant part-select base in int even though the descriptor accepts a wider value.
 allowed_scope:
-  - elab_expr.cc final indexed +:/-: reads after valid fixed packed-prefix indices
-  - vvp/vthread.cc shared exact or saturating packed and queue slice base conversion and overflow-safe read clipping
-  - Focused read-boundary regressions, manifests, gold, evidence, and ACTIVE_WORK
+  - elab_expr.cc final-dimension defined constant indexed +:/-: read normalization
+  - VVP constant and dynamic __vpiPV base storage, out-of-range get/put behavior, callbacks and int-limited range queries
+  - Shared arbitrary-width vec4-to-int64 conversion used by packed selects, queue slices and VPI handles
+  - Focused positive/negative read regressions, manifests, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - Blocking, compound, or nonblocking l-value boundary semantics
-  - Dynamic mixed-driver enablement
-  - Invalid fixed-prefix index validation
-  - Broad packed-select or l-value IR redesign
+  - L-value indexed-select normalization or writes
+  - Invalid fixed-prefix validation or dynamic mixed-driver enablement
+  - General VPI API widening
+  - Broad packed-select redesign
 completion_requirements:
-  - Wholly out-of-range and partial-overlap reads for +: and -: preserve element boundaries
-  - Descending, ascending, nonzero and multiple valid fixed-prefix dimensions pass
-  - Dynamic index evaluation occurs once; X/Z, signed negative, unsigned 32-bit, 64-bit and 128-bit bases are handled without integer overflow
-  - Existing multidimensional subarray +: selection remains green
-  - Focused legacy and JSON regressions plus null-target and synthesis smoke pass in 2017 and 2023
-  - Durable logs with exit status; broad suites deferred to the campaign batch boundary
+  - Constant 2^32 and maximum unsigned +:/-: reads return X in assignment, sformatf and display contexts in 2017 and 2023
+  - Dynamic wide behavior remains X; signed negative partial overlap, ordinary constant, X/Z and 32/64/128-bit cases pass
+  - Constant and dynamic VPI part-select handles retain wide bases, produce X when wholly out of range, perform no out-of-range writes and report bounded internal int range properties
+  - Normal and partial part-select callbacks fire only when their selected value changes; wholly out-of-range callbacks remain quiet
+  - Multidimensional subarray indexed selection stays green
+  - Existing illegal variable part-select bound remains rejected in both editions
+  - Focused legacy, JSON and direct VPI regressions plus null-target and synthesis smoke pass; broad suites deferred to the campaign batch boundary
 validation_batch: 20260914
-focused_features_before_this: 3
-last_validated_revision: Working tree after incremental rebuild/install. Original read reproducer passes in 2017 and 2023. Focused legacy 1/1 and JSON 2/2 pass. Null-target and synthesis smoke pass in both editions; the existing invalid variable-bound source is rejected in both. Nonconstant carriers avoid a needless host-width conversion during constant folding. The installed runtime uses exact/saturating int64 conversion for arbitrary-width dynamic bases and overflow-safe clipping.
-pending_gates: Campaign batch gates; broad suites deferred until batch boundary.
-next_action: Root completed negative checks both editions, L44 neighbors4/4 and review; checkpoint L46. DD-022 l-value writes and DD-021 dynamic mixed-driver support remain open.
-evidence: evidence/dynamic-mixed-driver-assessment/final-l46-focus-{legacy,json}.log, final-l46-null-synth.log and final-l46-negative.log
-discovery_policy: Invalid preceding packed-prefix indices and the preexisting one-dimensional constant 2^32 elaboration alias remain separately tracked; neither is claimed fixed here.
+focused_features_before_this: 4
+last_validated_revision: Working tree after incremental compiler, tgt-vvp and VVP rebuild/install. Reproducer passes in 2017 and 2023. Focused legacy 3/3, JSON 6/6 and direct VPI 1/1 pass. Null-target and synthesis smoke pass in both editions. Wide and partially overlapping monitor callbacks are bounded and stable.
+pending_gates: Root review/checkpoint and campaign batch gates; broad suites deferred until batch boundary.
+next_action: Root reviews and checkpoints L47; DD-022 writes, DD-021 dynamic mixed-driver support and invalid fixed-prefix bounds remain open.
+evidence: evidence/dynamic-mixed-driver-assessment/final-l47-focus-{legacy,json,vpi}.log and final-l47-repro-null-synth.log
+discovery_policy: Adjacent l-value and invalid-prefix gaps remain separately tracked and out of scope.
 stop_after_completion: false

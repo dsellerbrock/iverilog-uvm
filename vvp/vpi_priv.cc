@@ -37,6 +37,64 @@
 # include  <iostream>
 
 using namespace std;
+
+/* Packed and queue slice bounds can be arbitrary-width signed or unsigned
+ * integral expressions. Convert exactly when the value fits in int64_t and
+ * saturate only values outside that range. Exact negative values matter for
+ * indexed slices: q[-100 +: 102] and q[-1 +: 102] have different upper
+ * bounds before 7.10.1 clamping. */
+bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&vec, bool is_signed,
+                                    int64_t&value)
+{
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+            vvp_bit4_t bit = vec.value(idx);
+            if (bit != BIT4_0 && bit != BIT4_1)
+                  return false;
+      }
+
+      bool negative = is_signed && vec.size()
+	    && vec.value(vec.size()-1) == BIT4_1;
+      uint64_t magnitude = 0;
+
+      if (!negative) {
+	    for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+		  if (vec.value(idx) != BIT4_1)
+			continue;
+		  if (idx >= 63) {
+			value = LLONG_MAX;
+			return true;
+		  }
+		  magnitude |= uint64_t(1) << idx;
+	    }
+	    value = static_cast<int64_t>(magnitude);
+	    return true;
+      }
+
+      /* Form the unsigned magnitude of a negative two's-complement value
+	 * without first narrowing it. This also recognizes sign extension, so
+	 * a 128-bit -5 remains exactly -5 while a value below INT64_MIN
+	 * saturates. */
+      bool carry = true;
+      for (unsigned idx = 0; idx < vec.size(); idx += 1) {
+	    bool inverted = vec.value(idx) == BIT4_0;
+	    bool magnitude_bit = inverted != carry;
+	    carry = inverted && carry;
+	    if (!magnitude_bit)
+		  continue;
+	    if (idx > 63) {
+		  value = LLONG_MIN;
+		  return true;
+	    }
+	    magnitude |= uint64_t(1) << idx;
+      }
+
+      if (magnitude >= (uint64_t(1) << 63))
+	    value = LLONG_MIN;
+      else
+	    value = -static_cast<int64_t>(magnitude);
+      return true;
+}
+
 vpi_mode_t vpi_mode_flag = VPI_MODE_NONE;
 FILE*vpi_trace = 0;
 

@@ -21,6 +21,7 @@
 # include  <string.h>
 # include  <stdlib.h>
 # include  <assert.h>
+# include  <inttypes.h>
 # include  "ivl_alloc.h"
 
 struct args_info {
@@ -530,9 +531,9 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      /* This is a constant bit/part select. */
 	    } else if (number_is_immediate(bexpr, 64, 1)) {
 		  assert(! number_is_unknown(bexpr));
-		  snprintf(buffer, sizeof buffer, "&PV<v%p_0, %ld, %u>",
+		  snprintf(buffer, sizeof buffer, "&PV<v%p_0, %" PRId64 ", %u>",
 		           ivl_expr_signal(vexpr),
-		           get_number_immediate(bexpr),
+		           (int64_t)get_number_immediate64(bexpr),
 		           ivl_expr_width(expr));
 
 	      /* This is an indexed bit/part select. */

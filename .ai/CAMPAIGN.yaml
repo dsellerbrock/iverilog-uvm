@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44, L45, L46]
-  in_progress: L47
+  focused_validated_features: [L43, L44, L45, L46, L47]
+  in_progress: L48
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -814,3 +814,5 @@ l46_selection: "DD022 first bounded read increment uses nested NetESelect to ret
 l46_runtime_prerequisite: "Boundarytests exposed PART int32 indextruncation and PARTI unsigned-to-signed narrowing. Read increment includes reuse ofexisting exact/saturatingwide indexconversion and shared overflow-safe X-padding clip. Do not dropwide tests or substituteconstantguards; no runtimeassertions weakened."
 
 l46_checkpoint: "Focusedlegacy1/1 JSON2/2; null/synthesis bothmodes; negativebothmodes; L44neighbor4/4; nestedwideformatbothmodes pass. Rootreviewclear. Fourthfocusedfeature; fullsuitesdeferred. DD023 one-dimensionalwideconstantformat next; writebounds/DD021remainopen."
+
+l47_checkpoint: "Legacy3/3 JSON6/6 directVPIbothmodes null/synthesisbothmodes; L46neighbor2/2 pass. CompilerVPIvalue/callbackreviewclear. Fifthfocusedfeature; broadgatesdeferred. NextDD022invalidpackedprefixreads, withwriteboundsretainedopen."

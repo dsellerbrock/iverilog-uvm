@@ -1268,3 +1268,11 @@ valid fixed packed prefixes.
 The selected element must remain the carrier for X padding at either boundary.
 Legacy 1/1, JSON 2/2 and null/synthesis checks pass both editions. Write clipping,
 invalid earlier prefixes, DD-023 and batch regression remain open.
+
+### L47 — Wide indexed reads through system-task/function arguments (11.5.1)
+
+IMPLEMENTED with focused validation in both editions: constant and dynamic wide
+bases no longer alias low bits through VPI handles; partial reads retain X
+padding, partial VPI writes preserve other bits, and monitor/callback behavior
+on parent-value changes is checked. Legacy 3/3, JSON 6/6 and direct VPI tests
+pass. Full VPI metadata and broad batch regression remain pending.

@@ -1066,5 +1066,13 @@ probe that depended on it. An upstream report is a separate, unfiled action.
 - **Authority:** IEEE 1800-2017/2023 11.5.1.
 - **Evidence:** `one-dimensional-wide-results.json`. The analogous nested packed
   read passes both modes (`nested-wide-format-results.json`).
-- **Status:** OPEN. Assess the one-dimensional constant elaboration path and
-  context-dependent normalization; do not weaken L46's wide-index regression.
+- **Status:** L47 focused value/callback correction implemented. Constant
+  normalization and VPI base transport both required correction; direct VPI
+  read/write and parent-value callback checks pass both editions. Full metadata
+  and index-only callback triggers remain unqualified.
+
+
+DD-022 follow-up evidence: `prefix-boundary-results.json` shows both editions
+reading neighboring bits for an out-of-range or X middle prefix, while evaluating
+the final index function once. `prefix-outside.sv` and `prefix-unknown.sv` are the
+next read-side reproducers; neither is qualified by L46/L47.

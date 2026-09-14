@@ -25090,6 +25090,16 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    return ss;
       }
 
+      if (slice_base_constant
+	  && slice_base_constant->value().is_defined()
+	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
+	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
+						  wid, true);
+	    NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_UP);
+	    ss->set_line(*this);
+	    return ss;
+      }
+
 	// Handle the special case that the base is constant as
 	// well. In this case it can be converted to a conventional
 	// part select.
@@ -25264,6 +25274,16 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, false, 0);
 	    NetESelect*ss = new NetESelect(slice, base, wid, IVL_SEL_IDX_DOWN);
+	    ss->set_line(*this);
+	    return ss;
+      }
+
+      if (slice_base_constant
+	  && slice_base_constant->value().is_defined()
+	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()) {
+	    base = normalize_variable_part_base(prefix_indices, base, net->sig(),
+						  wid, false);
+	    NetESelect*ss = new NetESelect(net, base, wid, IVL_SEL_IDX_DOWN);
 	    ss->set_line(*this);
 	    return ss;
       }

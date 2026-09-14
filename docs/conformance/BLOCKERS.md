@@ -1877,3 +1877,18 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   clipping must avoid overflow and retain in-range bits with X padding.
 - **Limits:** writes, invalid earlier prefixes and dynamic-prefix elaboration
   remain open. DD-021 mixed-driver restrictions are unchanged.
+
+### L47 — Wide part-select values through VPI arguments
+
+- **State:** IMPLEMENTED; focused legacy 3/3, JSON 6/6, direct VPI checks
+  in both editions, and null/synthesis checks pass.
+- **Origin:** DD-023: formatting a wide out-of-range select returned aliased
+  bits. The corresponding monitor case also crashed.
+- **Fix:** preserve constant normalization and descriptor width; use the shared
+  wide-index conversion for dynamic VPI bases. Out-of-range reads return X and
+  writes have no effect; callbacks compare the actual selected value.
+- **Scope:** value semantics and callbacks triggered by parent value changes.
+  Full VPI metadata and index-only callback triggers are not qualified here.
+- **Authority:** IEEE 1800-2017/2023 11.5.1 and VPI value/callback semantics.
+  Range tags are handle relations; the existing integer range-query extension
+  is not claimed as implementation of those standard relations.

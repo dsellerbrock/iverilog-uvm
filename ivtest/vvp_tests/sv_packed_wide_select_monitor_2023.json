@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_packed_wide_select_monitor.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_packed_wide_select_monitor"
+}

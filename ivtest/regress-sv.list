@@ -3002,6 +3002,8 @@ sv_procedural_package_import_late_fail CE,-g2017	ivltests
 sv_procedural_package_import_substatement_fail CE,-g2017	ivltests
 sv_packed_mixed_driver_compound normal,-g2017	ivltests gold=sv_packed_mixed_driver_compound.gold
 sv_packed_indexed_subpart_read_bounds normal,-g2017 ivltests gold=sv_packed_indexed_subpart_read_bounds.gold
+sv_packed_wide_constant_select_read normal,-g2017 ivltests gold=sv_packed_wide_constant_select_read.gold
+sv_packed_wide_select_monitor normal,-g2017 ivltests gold=sv_packed_wide_select_monitor.gold
 sv_wire_procedural_compound_fail CE,-g2017	ivltests gold=sv_wire_procedural_compound_fail.gold
 sv_task_lookup_resolution normal,-g2017	ivltests gold=sv_task_lookup_resolution.gold
 sv_missing_bare_task_fail CE,-g2017	ivltests gold=sv_missing_bare_task_fail.gold

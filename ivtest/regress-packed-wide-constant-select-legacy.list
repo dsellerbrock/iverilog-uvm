@@ -1,0 +1,3 @@
+sv_packed_wide_constant_select_read normal,-g2017 ivltests gold=sv_packed_wide_constant_select_read.gold
+sv_packed_wide_select_monitor normal,-g2017 ivltests gold=sv_packed_wide_select_monitor.gold
+sv_packed_part_select_variable_bound_fail CE,-g2017 ivltests gold=sv_packed_part_select_variable_bound_fail.gold

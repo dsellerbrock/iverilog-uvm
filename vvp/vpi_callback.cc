@@ -246,7 +246,6 @@ class value_part_callback : public value_callback {
 
     private:
       char*value_bits_;
-      size_t value_off_;
 };
 
 inline value_part_callback::value_part_callback(p_cb_data data)
@@ -267,12 +266,10 @@ inline value_part_callback::value_part_callback(p_cb_data data)
 	// is lsb first.
       s_vpi_value tmp_value;
       tmp_value.format = vpiBinStrVal;
-      sig_fil->get_value(&tmp_value);
+      pobj->vpi_get_value(&tmp_value);
 
       value_bits_ = new char[pobj->width+1];
-      value_off_ = pobj->parent->vpi_get(vpiSize) - pobj->width - pobj->tbase;
-
-      memcpy(value_bits_, tmp_value.value.str + value_off_, pobj->width);
+      memcpy(value_bits_, tmp_value.value.str, pobj->width);
       value_bits_[pobj->width] = 0;
 }
 
@@ -294,12 +291,12 @@ bool value_part_callback::test_value_callback_ready(void)
 	// updated value.
       s_vpi_value tmp_value;
       tmp_value.format = vpiBinStrVal;
-      sig_fil->get_value(&tmp_value);
+      pobj->vpi_get_value(&tmp_value);
 
-      if (memcmp(value_bits_, tmp_value.value.str + value_off_, pobj->width) == 0)
+      if (memcmp(value_bits_, tmp_value.value.str, pobj->width) == 0)
 	    return false;
 
-      memcpy(value_bits_, tmp_value.value.str + value_off_, pobj->width);
+      memcpy(value_bits_, tmp_value.value.str, pobj->width);
       return true;
 }
 

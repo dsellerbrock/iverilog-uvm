@@ -1382,7 +1382,7 @@ vpiHandle vpip_make_net4(__vpiScope*scope,
       return fill_in_net4(obj, scope, name, msb, lsb, signed_flag, node);
 }
 
-static int PV_get_base(struct __vpiPV*rfp)
+static int64_t PV_get_base(struct __vpiPV*rfp)
 {
 	/* We return from the symbol base if it is defined. */
       if (rfp->sbase != 0) {
@@ -1395,10 +1395,14 @@ static int PV_get_base(struct __vpiPV*rfp)
 		    /* Return INT_MIN to indicate an X base. */
 		  if (val.value.vector[idx].bval != 0) return INT_MIN;
 	    }
-	      /* The value is defined so get and return it. */
-	    val.format = vpiIntVal;
-	    vpi_get_value(rfp->sbase, &val);
-	    return val.value.integer;
+	      /* Preserve the complete signed or unsigned index width. */
+	    vvp_vector4_t vec = vec4_from_vpi_value(
+		  &val, vpi_get(vpiSize, rfp->sbase));
+	    int64_t base = 0;
+	    if (!vpip_vec4_to_int64_saturated(
+		  vec, vpi_get(vpiSigned, rfp->sbase), base))
+		  return LLONG_MIN;
+	    return base;
       }
 
 	/* If the width is zero then tbase is the constant. */
@@ -1410,7 +1414,6 @@ static int PV_get(int code, vpiHandle ref)
       struct __vpiPV*rfp = dynamic_cast<__vpiPV*>(ref);
       assert(rfp);
 
-      int rval = 0;
       switch (code) {
 	case vpiLineNo:
 	    return 0;  // Not implemented for now!
@@ -1426,11 +1429,14 @@ static int PV_get(int code, vpiHandle ref)
 	    return rfp->sbase == 0;
 
 	case vpiLeftRange:
-            rval += rfp->width - 1;
-	    // fallthrough
-	case vpiRightRange:
-	    rval += vpi_get(vpiRightRange, rfp->parent) + PV_get_base(rfp);
-	    return rval;
+	case vpiRightRange: {
+	    int64_t delta = vpi_get(vpiRightRange, rfp->parent);
+	    if (code == vpiLeftRange) delta += int64_t(rfp->width) - 1;
+	    int64_t base = PV_get_base(rfp);
+	    if (base > int64_t(INT_MAX) - delta) return INT_MAX;
+	    if (base < int64_t(INT_MIN) - delta) return INT_MIN;
+	    return static_cast<int>(base + delta);
+	}
 
         case vpiAutomatic:
             return vpi_get(vpiAutomatic, rfp->parent);
@@ -1485,55 +1491,64 @@ static void PV_get_value(vpiHandle ref, p_vpi_value vp)
       vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(rfp->net->fil);
       assert(sig);
 
+      int64_t wide_base = PV_get_base(rfp);
+      if (wide_base >= static_cast<int64_t>(sig->value_size())
+	  || wide_base <= -static_cast<int64_t>(rfp->width)) {
+	    vpip_vec4_get_value(vvp_vector4_t(rfp->width, BIT4_X),
+				rfp->width, false, vp);
+	    return;
+      }
+      int base = static_cast<int>(wide_base);
+
       switch (vp->format) {
 
 	  case vpiIntVal:
-	    format_vpiIntVal(sig, PV_get_base(rfp), rfp->width, 0, vp);
+	    format_vpiIntVal(sig, base, rfp->width, 0, vp);
 	    break;
 
 	  case vpiBinStrVal:
-	    format_vpiBinStrVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    format_vpiBinStrVal(sig, base, rfp->width, vp);
 	    break;
 
 	  case vpiOctStrVal:
-	    format_vpiOctStrVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    format_vpiOctStrVal(sig, base, rfp->width, vp);
 	    break;
 
 	  case vpiHexStrVal:
-	    format_vpiHexStrVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    format_vpiHexStrVal(sig, base, rfp->width, vp);
 	    break;
 
 	  case vpiDecStrVal:
-	    format_vpiDecStrVal(sig, PV_get_base(rfp), rfp->width, 0, vp);
+	    format_vpiDecStrVal(sig, base, rfp->width, 0, vp);
 	    break;
 
 	  case vpiStringVal:
-	    format_vpiStringVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    format_vpiStringVal(sig, base, rfp->width, vp);
 	    break;
 
 	  case vpiScalarVal:
-	    format_vpiScalarVal(sig, PV_get_base(rfp), vp);
+	    format_vpiScalarVal(sig, base, vp);
 	    break;
 
 	  case vpiStrengthVal:
-	    format_vpiStrengthVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    format_vpiStrengthVal(sig, base, rfp->width, vp);
 	    break;
 
 	  case vpiVectorVal:
-	    format_vpiVectorVal(sig, PV_get_base(rfp), rfp->width, vp);
+	    format_vpiVectorVal(sig, base, rfp->width, vp);
 	    break;
 
 	  case vpiRealVal:
-	    format_vpiRealVal(sig, PV_get_base(rfp), rfp->width, 0, vp);
+	    format_vpiRealVal(sig, base, rfp->width, 0, vp);
 	    break;
 
 	  case vpiObjTypeVal:
 	    if (rfp->width == 1) {
 		  vp->format = vpiScalarVal;
-		  format_vpiScalarVal(sig, PV_get_base(rfp), vp);
+		  format_vpiScalarVal(sig, base, vp);
 	    } else {
 		  vp->format = vpiVectorVal;
-		  format_vpiVectorVal(sig, PV_get_base(rfp), rfp->width, vp);
+		  format_vpiVectorVal(sig, base, rfp->width, vp);
 	    }
 	    break;
 
@@ -1554,7 +1569,10 @@ static vpiHandle PV_put_value(vpiHandle ref, p_vpi_value vp, int flags)
 
       unsigned sig_size = sig->value_size();
       unsigned width = rfp->width;
-      int base = PV_get_base(rfp);
+      int64_t wide_base = PV_get_base(rfp);
+      if (wide_base >= static_cast<int64_t>(sig_size)
+	  || wide_base <= -static_cast<int64_t>(width)) return 0;
+      int base = static_cast<int>(wide_base);
       if (base >= (signed) sig_size) return 0;
       if (base + (signed) width < 0) return 0;
 
@@ -1690,7 +1708,7 @@ vpiHandle __vpiPV::vpi_put_value(p_vpi_value val, int flags)
 vpiHandle __vpiPV::vpi_handle(int code)
 { return PV_get_handle(code, this); }
 
-vpiHandle vpip_make_PV(char*var, int base, int width)
+vpiHandle vpip_make_PV(char*var, int64_t base, int width)
 {
       struct __vpiPV*obj = new __vpiPV;
       compile_vpi_lookup(&obj->parent, strdup(var));
