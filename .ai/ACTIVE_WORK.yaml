@@ -1,22 +1,22 @@
-id: L60
-title: Evaluate fixed-array element increment and decrement at runtime
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: 0c85d32a8
-origin: DD-027
+id: L61
+title: Apply class-property increment and decrement effects at runtime
+status: FOCUSED_VALIDATED_FREEZE
+base_revision: 490f7c51c
+origin: DD-028
 standards:
-  - IEEE 1800-2017/2023 6.11.2, 7.4.6, and 11.4.2
+  - IEEE 1800-2017/2023 6.11.2, 7.4.6, 8.4, and 11.4.2
 allowed_scope:
-  - Fixed unpacked-array whole-element pre/post increment and decrement
-  - Integral two-state/four-state and real elements with one captured normalized index
-  - Typed invalid-index reads, suppressed invalid stores, and preserved neighboring elements
+  - Scalar and fixed-array class-property whole-value pre/post increment and decrement
+  - Captured receiver and normalized fixed-array index with integral and real property storage
+  - Typed invalid-index reads, suppressed invalid stores, and preserved neighboring properties
 forbidden_scope:
-  - Packed subselect and class-property increment expansion
+  - Packed property subselect increment, string-array reads, and non-property container expansion
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 7
-last_validated_revision: Final compiler/target/runtime passes focused legacy 4/4 and JSON 8/8, the original 32 cases, boundary 24 cases, static-invalid 6 cases, recursive/multidimensional controls, and root final 94/94 review outcomes. Const arrays reject normally; packed subselect increments remain DD-030.
-pending_gates: Root review and feature-batch broad qualification.
-next_action: Root reviews the frozen L60 implementation and focused evidence.
+focused_features_before_this: 8
+last_validated_revision: Target 41b624bc72b60858fba2ba1fa8c217f0b1c295336e7073f2d82b950044ef2d0 passes the 48-case scalar/fixed-array matrix, 48 boundary runs, 8 capture/const-handle controls, focused legacy 2/2, and JSON 4/4 across IEEE 2017/2023.
+pending_gates: Root source/test review and feature-batch integration; broad gates remain deferred.
+next_action: Keep source and tests frozen for root review.
 stop_after_completion: false
 
 l60_root_final: "Root94/94 +6/6literalXchecks and10/10neighbors pass. Corrected consumers with originalindexconverter; no preponedchange. Ready for localintegration; broadgatespending."

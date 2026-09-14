@@ -1,7 +1,7 @@
 status: active
-branch: "main"
-current_blocker: "DD-027 runtime fixed-array increment/decrement uses incorrect scalar storage"
-phase: "focused_batch_continuation"
+branch: "agent/l61-property-increment-effects-20260914"
+current_blocker: "DD-028 property increment/decrement omits writes or uses scalar storage"
+phase: "focused_validated_pending_local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
@@ -11,8 +11,8 @@ pending_gates: "Eight focused features integrated locally; next approximately-te
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "L61 DD-028 class-property increment/decrement"
-next_action: "Refresh shared graph, then reuse worker to implement property increment/decrement effects."
-next_command: "Update shared graph from local main."
+next_action: "Reuse worker to implement property effects; root independently checks receiver and index evaluation."
+next_command: "Focused L61 implementation and paired receiver/property probes."
 next_command_cwd: repository root
 candidate_state: "L60 focused validation passed; previous broad qualification remains c686a4781."
 installed_tools: "L60 focused build: ivl0f6667ad, target78e456f9, runtimea6788f42. Full suite qualification remains atc686a4781."
@@ -846,7 +846,7 @@ validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
   focused_validated_features: [L53, L54, L55, L56, L57, L58, L59, L60]
-  in_progress: none
+  in_progress: L61_property_increment_effects
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -945,3 +945,7 @@ l60_final_root_review: "Stable0f6667adcompiler/78e456f9target/179d69ffruntime pa
 l60_frozen_final: "Root94/94 atstable0f6667ad/78e456f9/a6788f42, plus6/6 literalX constant/runtime checks;10/10existingneighbors. Permanentlegacy4/4 JSON8/8 final-5. Originalindexconverterrestored, isolatedboundary24/24passwithfixedconsumers; no genericconverterrewrite or preponedpathchange. ConstCE/staticinvalidcoveragepermanent. Readyforlocalintegration, broadgatespending."
 
 l60_local_integration: "bceb03f89 fast-forwarded into local main. Eighth focused feature; full gates deferred to approximately-ten-feature batch. No remote action/newtree. DD028property incrementsnext, thenDD029stringreads; DD030packedselecttrackedafterthose."
+
+l61_start: "Same retained checkout branchedfrom490f7c51c afterL60 integration andgraphterminal0(51234nodes95061edges7325communities). Reusedgpt-5.6-sol workerassignedDD028; eightfeaturesbeforethis. Rootcapture-indexed6paired baseline: scalarint2pass,arrayint2wrongresult,real2compilerabort. Directsignal vs expressionreceiverdistinctionmatters. Functionreturn-member syntaxisunverified andexcludedfromclaim. No newtree/remotes/broadgates."
+
+l61_root_frozen: "114/114 independent paired outcomes pass with stable ivl0f6667ad, target41b624bc, runtimea6788f42. Baseline48, boundaries48, capture6, notifications6, restrictions6. Worker neighbors21/21; permanentlegacy2/2 JSON4/4. Source reviewed; local integration next, broad gates pending."

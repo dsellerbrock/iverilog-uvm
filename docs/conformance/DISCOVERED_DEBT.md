@@ -1620,3 +1620,32 @@ neighbors and permanent legacy 4/4, JSON 8/8 pass. The original index converter
 is retained: the defect was in its consumers' treatment of overflow flags.
 See `session_logs/2026-09-14_l60_runtime_array_increment.md` for exact scope,
 known compile warnings, and hashes. DD-028/029/030 remain separate and open.
+
+
+DD-028 L61 receiver-form assessment: `handles[select_receiver()].property`
+with once-only receiver selection already works for scalar int properties
+(two paired passes), while indexed property elements omit updates (two
+failures) and real expression receivers abort during compilation (two
+failures). Evidence: `evidence/runtime-property-increment-assessment/capture-indexed/baseline-results.json`.
+Direct signal receivers and expression receivers must both be covered;
+passing one does not qualify the other. Separate function-return/member
+syntax probes stopped at parsing and have no established grammar disposition;
+they are not counted as proven runtime defects or L61 requirements.
+
+### DD-028 L61 frozen review — 2026-09-14
+
+Scalar and fixed-array whole-property pre/post increment/decrement now use
+property storage for integral and real operands. Receiver capture precedes
+index evaluation; invalid slots yield typed defaults and suppress only the
+store. Unsupported property destination shapes produce a target error.
+Root frozen replay passes 114/114 paired outcomes, including the 48 original
+failures, 48 boundary runs, six receiver controls, six alias-notification runs,
+and six const restrictions/const-handle controls. Evidence:
+`evidence/runtime-property-increment-assessment/root-frozen/results.json`.
+Permanent legacy 2/2, JSON 4/4, and 21 neighboring checks pass. This is focused
+validation pending batch qualification, not closure of packed-select DD-030.
+
+DD-029 next: the expanded signed/unsigned 128-bit string-array read matrix
+has eight failing paired runs (40 semantic cases per edition), including
+nonzero/negative declared ranges and indices above 32, 63, and 100 bits.
+Evidence: `evidence/runtime-string-array-index-assessment/matrix/baseline-results.json`.

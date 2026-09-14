@@ -2332,14 +2332,23 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       ivl_signal_t sig = 0;
       unsigned wid = 0;
       unsigned pidx = 0;
+      ivl_signal_t prop_sig = 0;
       ivl_expr_t prop_base = 0;
       ivl_expr_t prop_word = 0;
+      ivl_type_t prop_type = 0;
       bool is_property = false;
       bool is_array_word = false;
       int array_index = -1;
       int array_flag = -1;
+      int prop_index = 0;
+      int prop_x_flag = -1;
+      int prop_range_flag = -1;
       unsigned lab_null = 0;
       unsigned lab_out = 0;
+      unsigned lab_invalid = 0;
+      unsigned lab_value = 0;
+      unsigned lab_skip_store = 0;
+      unsigned lab_after_store = 0;
 
 	      switch (ivl_expr_type(sub)) {
 	  case IVL_EX_SELECT: {
@@ -2357,16 +2366,29 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 
 	  case IVL_EX_PROPERTY:
 	    pidx = ivl_expr_property_idx(sub);
+	    prop_sig = ivl_expr_signal(sub);
 	    prop_base = ivl_expr_oper2(sub);
 	    prop_word = ivl_expr_oper1(sub);
+	    prop_type = property_expr_type_(sub);
 	    wid = ivl_expr_width(sub);
-	    if ((pidx == (unsigned)-1) || !prop_base || prop_word) {
+	    if ((pidx == (unsigned)-1) || (!prop_sig && !prop_base)
+		|| (prop_word && !property_selects_fixed_uarray_slot_(sub))) {
+		  fprintf(stderr, "%s:%u: vvp.tgt error: unsupported integral "
+		          "property ++/-- destination.\n",
+		          ivl_expr_file(sub), ivl_expr_lineno(sub));
+		  vvp_errors += 1;
 		  draw_eval_vec4(sub);
 		  return;
 	    }
 	    is_property = true;
 	    lab_null = local_count++;
 	    lab_out = local_count++;
+	    if (prop_word) {
+		  lab_invalid = local_count++;
+		  lab_value = local_count++;
+		  lab_skip_store = local_count++;
+		  lab_after_store = local_count++;
+	    }
 	    break;
 
 		  default:
@@ -2378,10 +2400,34 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	      }
 
       if (is_property) {
-	    draw_eval_object(prop_base);
+	    /* Capture the receiver before evaluating an array index: the index
+	       expression may itself rebind the variable that supplied it. */
+	    if (prop_sig)
+		  fprintf(vvp_out, "    %%load/obj v%p_0; property increment receiver\n",
+		          prop_sig);
+	    else
+		  draw_eval_object(prop_base);
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
-	    fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
+	    if (prop_word) {
+		  prop_index = allocate_word();
+		  draw_fixed_uarray_slot_index_(prop_word, prop_type, prop_index,
+					       &prop_x_flag, &prop_range_flag);
+		  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; invalid property slot\n",
+		          thread_count, lab_invalid, prop_x_flag);
+		  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; property slot out of range\n",
+		          thread_count, lab_invalid, prop_range_flag);
+		  fprintf(vvp_out, "    %%prop/v/i %u, %d;\n", pidx, prop_index);
+		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_value);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_invalid);
+		  if (ivl_expr_value(sub) == IVL_VT_LOGIC)
+			draw_pushi_all_x(wid);
+		  else
+			fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_value);
+	    } else {
+		  fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
+	    }
 	  } else if (is_array_word) {
 	    array_index = allocate_word();
 	    array_flag = allocate_flag();
@@ -2407,7 +2453,23 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  fprintf(vvp_out, "    %%cast2; increment result\n");
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    if (is_property) {
-		  fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+		  if (prop_word) {
+			fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; suppress invalid property store\n",
+			        thread_count, lab_skip_store, prop_x_flag);
+			fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range property store\n",
+			        thread_count, lab_skip_store, prop_range_flag);
+		  }
+		  if (prop_word)
+			fprintf(vvp_out, "    %%store/prop/v/i %u, %d, %u;\n",
+			        pidx, prop_index, wid);
+		  else
+			fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+		  if (prop_word) {
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_after_store);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_skip_store);
+			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
+		  }
 	    } else if (is_array_word) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
 		          array_flag);
@@ -2424,7 +2486,23 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    if (ivl_expr_value(sub) == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2; increment result\n");
 	    if (is_property) {
-		  fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+		  if (prop_word) {
+			fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; suppress invalid property store\n",
+			        thread_count, lab_skip_store, prop_x_flag);
+			fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range property store\n",
+			        thread_count, lab_skip_store, prop_range_flag);
+		  }
+		  if (prop_word)
+			fprintf(vvp_out, "    %%store/prop/v/i %u, %d, %u;\n",
+			        pidx, prop_index, wid);
+		  else
+			fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+		  if (prop_word) {
+			fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_after_store);
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_skip_store);
+			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
+			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
+		  }
 	    } else if (is_array_word) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
 		          array_flag);
@@ -2441,6 +2519,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+	    if (prop_index) clr_word(prop_index);
+	    if (prop_x_flag >= 0) clr_flag(prop_x_flag);
+	    if (prop_range_flag >= 0) clr_flag(prop_range_flag);
       } else if (is_array_word) {
 	    clr_word(array_index);
 	    clr_flag(array_flag);
