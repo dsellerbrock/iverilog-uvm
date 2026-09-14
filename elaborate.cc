@@ -14065,7 +14065,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  return noop;
 	    }
 
-	    if (gn_system_verilog()) {
+	    if (gn_system_verilog() && (package_ || path_.size() != 1)) {
 		  // Compile-progress: covergroup sample(), interface methods, and
 		  // other SV constructs may not resolve as tasks. Drop silently.
 		  cerr << get_fileline() << ": warning: Enable of unknown task "

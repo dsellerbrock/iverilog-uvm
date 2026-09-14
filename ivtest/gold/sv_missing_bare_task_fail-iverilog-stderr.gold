@@ -1,0 +1,2 @@
+ivltests/sv_missing_bare_task_fail.v:3: error: Enable of unknown task ``missing_task''.
+1 error(s) during elaboration.

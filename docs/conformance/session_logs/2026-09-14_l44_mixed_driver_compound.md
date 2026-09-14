@@ -25,10 +25,18 @@ Root reviewed the target routes, cached offset/X flag preservation and tests;
 `git diff --check` passes. Broad suites are pending at the batch boundary.
 
 The original PRINCE replay compiles and runs past the former immediate assertion;
-its bounded runtime is pending at this checkpoint. No application pass is claimed.
+its runtime reached the 300-second CPU guard (exit -24) without completion.
+`prince-after-repro.json` records the exact commands and installed fingerprints.
+No application pass is claimed; the remaining nontermination needs separate triage.
 Dynamic subparts of fixed mixed-driver elements still fail elaboration (DD-021),
 and are not registered as expected language errors. DD-020 separately records
 unresolved calls being ignored; it is the next bounded diagnostic correction.
 
 No worktree or clone was created. Both pre-existing worktrees are retained;
 local branch commits are ready for the next local integration checkpoint.
+
+A separate three-second verbose replay was interrupted deliberately with SIGINT
+(`prince-after-scheduler.log`). It reported five simulation time steps and 25,537
+thread scheduling events. Its exit 0 reflects interruption under `-n`, not test
+success. Do not repeat long PRINCE runs until a focused nontermination reducer
+explains the remaining scheduler/application behavior.

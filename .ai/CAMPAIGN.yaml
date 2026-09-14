@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44]
-  in_progress: L44
+  focused_validated_features: [L43, L44, L45]
+  in_progress: L46
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -803,4 +803,6 @@ l43_local_integration: "d4f344ec7 fast-forwarded into local main; not pushed. Sh
 
 l44_parallel_assessment: "DD-020 reproduces bare missing-task calls compiling and executing the following marker in2017/2023; OpenTitan synchronizer calls absent setters. Queued afterL44, no unrelated implementation. Reset-time scoreboard mismatch not attributed to compiler."
 
-l44_checkpoint: "Focused legacy2/2 and JSON4/4; original eight reduced cases pass both editions. Root target/test review clear. PRINCE bounded replay pending; full suites deferred. DD021 dynamic mixed-driver elaboration remains open."
+l44_checkpoint: "Focused legacy2/2 and JSON4/4; original eight reduced cases pass both editions. Root target/test review clear. PRINCE compiles0, runtime reaches CPU300 guard(-24); no application pass. Full suites deferred. DD021 dynamic mixed-driver elaboration remains open."
+
+l45_checkpoint: "One-line unresolved bare-task fallback guard reviewed; forward/upward/unit/implicit-class calls pass both editions. Legacy2/2, JSON4/4, real UVM cfgdb smoke pass. Third focused feature; broad suites deferred. Next DD022 element-bound correctness before DD021."

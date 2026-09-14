@@ -1253,3 +1253,10 @@ continuous drivers. Compound stores preserve other driven elements and subsequen
 input changes in both 2017 and 2023 modes. Ordinary dynamic index and X-index
 behavior remain covered. The legal mixed-driver dynamic-subpart elaboration gap
 is OPEN as DD-021. Focused legacy 2/2 and JSON 4/4 pass; broad suites pending.
+
+### L45 — Bare task name resolution failures (13.3, 23.8.1)
+
+IMPLEMENTED diagnostic for a bare task call that remains unresolved after normal
+lookup. Valid forward, upward, compilation-unit and implicit class calls are
+covered separately in both editions. Qualified/class fallback paths remain OPEN;
+this is not full subroutine or UVM qualification. Batch regression is pending.

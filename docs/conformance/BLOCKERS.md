@@ -1854,3 +1854,13 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   Explicit wire procedural assignment remains rejected. Legacy 2/2, JSON 4/4.
 - **Limit:** dynamic subparts of mixed-driver elements remain DD-021; full
   application qualification and batch-wide regression are not claimed.
+
+### L45 — Reject unresolved bare task enables
+
+- **State:** IMPLEMENTED; focused legacy 2/2, JSON 4/4 and real UVM smoke pass.
+- **Origin:** DD-020: `missing_task()` compiled and execution continued after
+  a warning. It now reaches the existing unknown-task elaboration error.
+- **Authority:** IEEE 1800-2017/2023 13.3 and 23.8.1.
+- **Scope:** bare unresolved calls after normal lookup. Qualified/class fallback
+  gaps remain open. Forward, upward, compilation-unit and implicit class task
+  calls must continue to work. Broad regression follows the batch cadence.

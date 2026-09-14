@@ -1,36 +1,34 @@
-id: L44
-title: Compound assignment to a procedurally driven packed element uses the wrong net-store operation
+id: L45
+title: Bare unresolved SystemVerilog task calls compile as warning-only no-ops
 status: IMPLEMENTED_FOCUSED_PASS
-base_revision: d4f344ec73b9862666032c568e93adcdf7684755
-origin: DD-019, fresh unmodified OpenTitan prim_prince_sim runtime abort
+base_revision: ad33d31e2
+origin: DD-020
 standards:
-  - IEEE 1800-2017 6.5 and 11.4.1
-  - IEEE 1800-2023 6.5 and 11.4.1
-reproducer: evidence/opentitan-runtime-assessment/packed_compound_min.sv
-current_behavior: Compile succeeds; runtime aborts in part/concat width invariants for 2/4/5/6-word packed arrays, both editions.
-expected_behavior: Disjoint procedural and continuous drivers coexist; compound assignment updates only the selected element with the same result as blocking assignment and evaluates each index once.
-root_cause_hypothesis: Confirmed. store_vec4_to_one_lval routed a lowered UWIRE through force/vec4/off, while put_vec_to_lval_slice emitted store/vec4 for the same compound lvalue, feeding the full packed value into a narrower driver-network leaf.
+  - IEEE 1800-2017 13.3 and 23.8.1
+  - IEEE 1800-2023 13.3 and 23.8.1
+reproducer: evidence/unresolved-task-assessment/missing_task.sv
+current_behavior: A bare missing_task() call warns, compiles successfully, and execution continues after silently dropping the call.
+expected_behavior: After task, function, upward, compilation-unit, and implicit-class lookup fail, an unresolved bare task enable is an elaboration error.
+root_cause: PCallTask::elaborate_usr converts the final unresolved SystemVerilog task path to an empty NetBlock under a broad compile-progress fallback.
 allowed_scope:
-  - tgt-vvp/stmt_assign.c shared compound vector lvalue write routing and directly necessary helper reuse
-  - Permanent positive/negative regression sources, focused lists and legacy/JSON manifests/gold
-  - Directly related conformance and campaign records
+  - elaborate.cc final bare unresolved SystemVerilog task diagnostic
+  - Focused missing-task and legal lookup regressions, manifests, gold and evidence
+  - ACTIVE_WORK and directly related campaign records
 forbidden_scope:
-  - Width-clamping or disabling runtime assertions
-  - Modifying OpenTitan/Caliptra sources
-  - Unrelated scheduler, net resolution or compound-expression arithmetic changes
-  - Broad architecture changes without an explicit recorded invariant and updated contract
+  - Qualified or indexed unknown-task compile-progress fallbacks
+  - Class/interface method resolution changes
+  - UVM stub-candidate policy changes
+  - Broad lookup refactoring
 completion_requirements:
-  - Pre-fix red and post-fix observable value checks in 2017/2023
-  - Positive, negative and boundary tests for affected lvalue routes
-  - Preserve nonselected continuously driven elements, update behavior, width/state, and single index evaluation where legal
-  - Focused legacy and JSON regressions
-  - Replay original PRINCE only when the reduced semantic checks pass; record remaining independent failures honestly
-  - Local checkpoint after review; broad suites at approximately ten-feature batch boundary
+  - Missing bare task is red before and a compile error after in 2017 and 2023
+  - Forward same-scope, complete compilation-unit, upward enclosing-scope, and implicit class task lookup stay green
+  - Focused legacy and JSON regressions plus one cheap applicable UVM smoke
+  - Durable logs with exit status; broad suites deferred to the campaign batch boundary
 validation_batch: 20260914
-focused_features_before_this: 1
-last_validated_revision: Working tree after tgt-vvp rebuild/install. Original reduced reproducer passes for N=2/4/5/6 in 2017 and 2023; permanent positive covers actual mixed-driver updates at two input values, nonselected continuous elements, widths N=2/N=6, ordinary dynamic single index evaluation, and X-offset no-write. Focused legacy 2/2 and JSON 4/4 pass.
-pending_gates: Original PRINCE replay by root and campaign batch gates; broad suites deferred until batch boundary.
-next_action: Root reviews and checkpoints L44. Track dynamically selected subparts of a mixed-driver packed signal separately: elaboration currently rejects the legal fixed-element/dynamic-subpart shape before target emission.
-evidence: evidence/opentitan-runtime-assessment/
-discovery_policy: Unrelated discoveries remain record-only.
+focused_features_before_this: 2
+last_validated_revision: Working tree after rebuild/install. Missing bare task is a compile error in 2017 and 2023; forward same-scope, complete compilation-unit, upward enclosing-scope and implicit class task lookup pass in both. Focused legacy 2/2 and JSON 4/4 pass. Real UVM config-db smoke compiles and runs PASS. Durable logs are evidence/unresolved-task-assessment/final-focus-{legacy,json}.log and final-uvm-smoke.log, all with zero status.
+pending_gates: Root review/checkpoint and campaign batch gates; broad suites deferred until batch boundary.
+next_action: Root reviews and checkpoints L45; qualified/indexed/class compile-progress fallbacks remain out of scope.
+evidence: evidence/unresolved-task-assessment/
+discovery_policy: Qualified and class fallback gaps remain separately tracked and out of scope.
 stop_after_completion: false

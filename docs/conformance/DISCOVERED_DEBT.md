@@ -1001,8 +1001,9 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   SystemVerilog-only bare unknown-task warning/no-op branch near line 14069;
   qualified/class paths contain related fallbacks requiring separate assessment.
 - **Expected:** an unresolved enable cannot be treated as a successful call.
-  Identify the exact subroutine/name-resolution clauses at activation.
-- **Status:** ready for bounded assessment after L44; no implementation here.
+  IEEE 1800-2017/2023 13.3 and 23.8.1 govern task calls and lookup.
+- **Status:** L45 implements the bare unqualified-call diagnostic. Qualified
+  and class fallback paths remain OPEN and must not be mistaken for semantics.
   The synchronizer's reset-time queue mismatch itself remains untriaged; the
   missing setters are not claimed to be its root cause.
 
@@ -1017,3 +1018,25 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   make the entire containing array the longest static prefix.
 - **Status:** OPEN. L44 covers the accepted static mixed-driver route only.
   Do not register this legal source as an expected language-error regression.
+
+### DD-022 — Packed subpart writes escape the selected element
+
+- **Discovered during:** DD-021 prerequisite assessment alongside L45.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/subpart_bounds.sv`;
+  `logic [1:0][7:0] words = 16'ha520` followed by a procedural
+  `words[0][pos +: 4] = 4'hf`, with `pos=8`, changes the upper element:
+  observed `16'haf20`, expected unchanged `16'ha520`. Both editions fail
+  the runtime assertion; `bounds-results.json` records the results.
+- **Authority:** IEEE 1800-2017/2023 11.5.1: wholly out-of-range part-select
+  writes have no effect; partially out-of-range writes affect in-range bits only.
+- **Root-cause evidence:** `normalize_variable_part_base` flattens a subpart
+  offset into the full packed signal. `NetAssign_::set_part` retains the flat
+  base and width, without the selected element's bounds. The runtime therefore
+  treats the adjacent element as in range.
+- **Read counterpart:** `subpart_read_bounds.sv` reads `5` from the neighboring
+  element instead of `x` in both editions (`read-bounds-results.json`).
+- **Status:** OPEN prerequisite to DD-021. Do not merely relax mixed-driver
+  rejection while writes can escape the static prefix into continuous drivers.
+  Assess ordinary, compound and nonblocking write paths plus read semantics,
+  partial overlaps, index single evaluation, ascending/descending declarations
+  and unknown indexes before choosing the shared correction.
