@@ -1,18 +1,18 @@
 status: active
-branch: "agent/l59-runtime-assignment-conversion-20260914"
+branch: "main"
 current_blocker: "DD-026 runtime assignment expressions omit destination two-state conversion"
-phase: "focused_validated_pending_local_integration"
+phase: "focused_batch_continuation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Six focused features integrated locally; next approximately-ten-feature batch broad qualification pending."
+pending_gates: "Seven focused features integrated locally; next approximately-ten-feature batch broad qualification pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "L59 DD-026 runtime assignment-expression two-state conversion"
-next_action: "Reuse worker to correct runtime destination conversion; root independently checks operator and width matrix."
-next_command: "Focused L59 implementation and paired reproducer checks."
+next_selection: "L60 DD-027 runtime fixed-array increment/decrement"
+next_action: "Refresh shared graph, then reuse worker to correct fixed-array increment/decrement addressing and effects."
+next_command: "Update shared graph from local main."
 next_command_cwd: repository root
 candidate_state: "L59 focused validation passed; previous broad qualification remains c686a4781."
 installed_tools: "L58 focused build; ivl d745779660da40278f77fa5e5418faca6755c03bebe1d80e7b3cd841b9d21386. Previous full qualification c686a4781 does not qualify this build."
@@ -845,8 +845,8 @@ batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full fron
 validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
-  focused_validated_features: [L53, L54, L55, L56, L57, L58]
-  in_progress: L59_runtime_assignment_conversion
+  focused_validated_features: [L53, L54, L55, L56, L57, L58, L59]
+  in_progress: none
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -921,3 +921,5 @@ l58_local_integration: "53624bc87 fast-forwarded into local main. Sixth focused 
 l59_start: "Same retained checkout branched from76c50bac8 after L58 integration and shared graph terminal0 (51210nodes95029edges7318communities). Reused gpt-5.6-sol worker implements DD026; six focused features beforethis. Root96case paired operator/width baseline passes8, fails88, stable3hashes; evidence runtime-assignment-conversion-assessment/operator-matrix/baseline-results.json. No newtree/remotes/broadgates."
 
 l59_final_review: "Two-line common destination cast before duplication/storage. Final root96/96 operator/width cases with exact clean output and stable3hashes; existing expression/negative/constant neighbors8/8 paired; permanentlegacy2/2 JSON4/4; target build/install0/0. Source/testreview clear, frozen. Ready for local integration; M4C22 remains PARTIAL pending broad batch qualification."
+
+l59_local_integration: "177e7e448 fast-forwarded into local main. Seventh focused feature; full gates deferred to approximately-ten-feature batch. Same worker and retained checkout, no remote changes. DD027 runtime fixed-array increment/decrement selected next."

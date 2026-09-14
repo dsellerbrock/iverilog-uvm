@@ -1,6 +1,6 @@
 id: L59
 title: Convert runtime assignment-expression results to destination type
-status: FROZEN_FOR_REVIEW
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: 76c50bac8
 origin: DD-026
 standards:
@@ -18,3 +18,5 @@ last_validated_revision: Final target passes the permanent conversion test in bo
 pending_gates: Root review and feature-batch broad qualification.
 next_action: Root reviews the frozen L59 target change and focused evidence.
 stop_after_completion: false
+
+l59_local_integration: "177e7e448 on local main; seventh focused feature. Root96/96 plus8/8 neighbors and permanent2legacy4JSON pass. Broad gates pending. DD027 next."

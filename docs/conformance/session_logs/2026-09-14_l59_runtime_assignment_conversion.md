@@ -34,8 +34,8 @@ Runtime: `cee0a60c11c7d401646159701e2d341932a6812a4e5199fed18f6cda516d9e2f`.
 
 ## Integration and remaining scope
 
-Local integration is pending. Six focused features precede L59 in the current
-batch. Broad qualification remains deferred until approximately ten features;
+L59 was fast-forwarded into local main as `177e7e448`, bringing the current
+batch to seven focused features. Broad qualification remains deferred until approximately ten features;
 `c686a4781` remains the last broadly qualified semantic revision.
 M4C-22 is reopened to PARTIAL pending batch qualification: its earlier
 conversion claim missed these X/Z cases. Existing lvalue restrictions remain
