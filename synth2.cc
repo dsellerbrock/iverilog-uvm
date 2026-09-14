@@ -1258,7 +1258,11 @@ static NetExpr*synthesis_lval_prior_read_(const LineInfo&loc,
 	    return value;
 
       NetExpr*select_base = base->dup_expr();
-      if (lval->has_part_carrier()) {
+      if (const NetExpr*dynamic_carrier = lval->dynamic_part_carrier()) {
+	    value = new NetESelect(value, dynamic_carrier->dup_expr(),
+				 lval->part_carrier_width());
+	    value->set_line(loc);
+      } else if (lval->has_part_carrier()) {
 	    unsigned base_width = base->expr_width();
 	    NetEConst*carrier_base = new NetEConst(
 		  verinum(lval->part_carrier_off(), base_width));
@@ -1347,6 +1351,8 @@ static NetExpr*synthesis_concat_compound_leaf_(
 
 	    const NetEConst*base_constant =
 		  dynamic_cast<const NetEConst*>(base_value);
+	    if (lval->has_dynamic_part_carrier())
+		  base_constant = 0;
 	    if (base_constant && !base_constant->value().is_defined()) {
 		    // A statically X/Z select reads no available destination bits.
 	    } else if (base_constant) {
@@ -1603,6 +1609,8 @@ bool NetAssign::synth_async(Design*des, NetScope*scope,
 
 	    const NetEConst*base_constant =
 		  dynamic_cast<const NetEConst*>(base_value);
+	    if (lval->has_dynamic_part_carrier())
+		  base_constant = 0;
 	    if (base_constant && !base_constant->value().is_defined()) {
 		    // A statically X/Z select writes no bits.
 	    } else if (base_constant) {
@@ -2148,6 +2156,8 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 
 	    const NetEConst*base_constant =
 		  dynamic_cast<const NetEConst*>(base_value);
+	    if (lval_->has_dynamic_part_carrier())
+		  base_constant = 0;
 	    bool undefined_constant_base = base_constant
 		  && !base_constant->value().is_defined();
 	    verinum_part_select_t overlap;
@@ -2245,7 +2255,29 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			isig->set_line(*this);
 			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
-		  if (lval_->has_part_carrier()) {
+		  if (const NetExpr*dynamic_carrier =
+			lval_->dynamic_part_carrier()) {
+			NetExpr*carrier_read = new NetESelect(
+			      new NetESignal(isig), dynamic_carrier->dup_expr(),
+			      lval_->part_carrier_width());
+			carrier_read->set_line(*this);
+			NetNet*carrier_prior = carrier_read->synthesize(
+			      des, scope, carrier_read);
+			delete carrier_read;
+			NetNet*carrier_result = carrier_prior
+			      ? synth_variable_part_update(
+				    des, scope, *this, base_expr_raw,
+				    carrier_prior, rsig,
+				    lval_->part_carrier_width(), lval_width)
+			      : 0;
+			if (carrier_result)
+			      rsig = synth_variable_part_update(
+				    des, scope, *this, dynamic_carrier,
+				    isig, carrier_result, lsig_width,
+				    lval_->part_carrier_width());
+			else
+			      rsig = 0;
+		  } else if (lval_->has_part_carrier()) {
 			unsigned carrier_width = lval_->part_carrier_width();
 			uint64_t carrier_off = lval_->part_carrier_off();
 			ivl_assert(*this, carrier_width <= lsig_width);

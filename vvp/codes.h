@@ -619,6 +619,7 @@ extern bool of_STORE_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_VEC4_VALUE(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_VEC4A(vthread_t thr, vvp_code_t code);
 extern bool of_CLIP_VEC4_BOUND(vthread_t thr, vvp_code_t code);
+extern bool of_CLIP_VEC4_DYNAMIC(vthread_t thr, vvp_code_t code);
 extern bool of_STATIC_CALL_ARG(vthread_t thr, vvp_code_t code);
 extern bool of_STATIC_CALL_ENTER(vthread_t thr, vvp_code_t code);
 extern bool of_STATIC_CALL_EXEC(vthread_t thr, vvp_code_t code);

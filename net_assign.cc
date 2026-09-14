@@ -79,6 +79,7 @@ NetAssign_::~NetAssign_()
       delete nest_;
       delete word_;
       delete base_;
+      delete dynamic_part_carrier_;
       delete stream_range_first_;
       delete stream_range_second_;
 }
@@ -106,6 +107,9 @@ NetAssign_* NetAssign_::dup_lval() const
       }
       if (part_carrier_wid_)
 	    copy->set_part_carrier(part_carrier_off_, part_carrier_wid_);
+      if (dynamic_part_carrier_)
+            copy->set_dynamic_part_carrier(
+                  dynamic_part_carrier_->dup_expr(), part_carrier_wid_);
 
       if (stream_range_ != IVL_STREAM_RANGE_NONE)
 	    copy->set_stream_range(stream_range_,
@@ -117,6 +121,15 @@ NetAssign_* NetAssign_::dup_lval() const
       if (more)
 	    copy->more = more->dup_lval();
       return copy;
+}
+
+void NetAssign_::set_dynamic_part_carrier(NetExpr*base, unsigned wid)
+{
+      ivl_assert(*this, dynamic_part_carrier_ == nullptr);
+      ivl_assert(*this, base);
+      dynamic_part_carrier_ = base;
+      part_carrier_off_ = 0;
+      part_carrier_wid_ = wid;
 }
 
 void NetAssign_::set_stream_range(ivl_stream_range_t kind, NetExpr*first,

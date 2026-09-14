@@ -29880,6 +29880,33 @@ bool of_CLIP_VEC4_BOUND(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %clip/vec4/d <relative-offset-word>, <carrier-offset-word>
+ * Stack on entry: RHS, carrier width. Clip within the selected carrier and
+ * translate the surviving
+ * relative destination to the signal's canonical offset. */
+bool of_CLIP_VEC4_DYNAMIC(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t carrier_width4 = thr->pop_vec4();
+      int64_t relative = thr->words[cp->bit_idx[0]].w_int;
+      int64_t carrier_off = thr->words[cp->bit_idx[1]].w_int;
+      int64_t carrier_width = 0;
+      bool valid = thr->flags[4] == BIT4_0
+	  && carrier_off >= 0
+	  && vpip_vec4_to_int64_saturated(carrier_width4, false, carrier_width)
+	  && carrier_width > 0
+	  && static_cast<uint64_t>(carrier_width) <= UINT32_MAX;
+      vvp_vector4_t&val = thr->peek_vec4();
+      if (valid)
+	    valid = resize_rval_vec(val, relative,
+				    static_cast<unsigned>(carrier_width));
+      if (valid && relative <= INT64_MAX-carrier_off)
+	    thr->words[cp->bit_idx[0]].w_int = carrier_off + relative;
+      else
+	    valid = false;
+      thr->flags[4] = valid ? BIT4_0 : BIT4_1;
+      return true;
+}
+
 /*
  * %store/vec4a <var-label>, <addr>, <offset>
  */

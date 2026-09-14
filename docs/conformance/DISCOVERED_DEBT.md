@@ -1208,3 +1208,165 @@ index aliases an adjacent element; a valid dynamic prefix with a partial final
 select spills into adjacent bits. Blocking, compound and NBA all fail, while
 each prefix, final-index and RHS function executes once. Runtime per-dimension
 validation and selected-element clipping must preserve those evaluation counts.
+
+L56 baseline expands DD-022 coverage with an independently calculated 378-case
+matrix over signed 128-bit prefix/final indices, including huge values, X/Z,
+ascending and negative ranges, both selection directions and three assignment
+forms. The L55 binary fails 65 checks per edition. A separate clocked NBA DUT
+has 36 cases and fails eight in each ordinary/synthesized run, in both editions.
+`l56/root-red-results.json` and `l56/root-synth-red-results.json` record stable
+compiler hashes before/after. These are failing baseline evidence, not passing
+qualification. Expected bit placement is calculated from each declared range,
+without using the compiler's flattened-index expressions.
+
+DD-020 next unresolved-receiver matrix on the L55 binary:
+`evidence/unresolved-task-assessment/after-l55/results.json` records
+`missing_receiver.run()`, `missing_receiver[0].run()`, `dut.missing.run()` and
+`obj.missing.run()` compiling and completing with ignored-call warnings in
+both editions. `absent[0].clear()` and `absent.copy()` compile and complete
+without a diagnostic. Direct missing methods on resolved scalar/indexed class
+objects already reject; valid object and forward hierarchy calls retain their
+observed counter effects. Binary hashes are stable across this assessment.
+The relevant fallback paths are `PCallTask::elaborate_usr`'s indexed-object
+fallback and its unresolved dotted-call branches. A correction must preserve
+valid deferred type-parameter resolution and built-in methods while preventing
+invalid executable calls from becoming empty blocks. IEEE 1800-2017/2023
+13.3 and 23.8.1 govern task declarations/calls and name resolution.
+
+L56 sibling-route baseline: `l56/root-bit-element-red-results.json` records
+34 failures per edition across 108 dynamic bit/whole-element assignment cases.
+These share the flattened-prefix defect with indexed part-select writes.
+The independent `root_dynamic_sensitivity.sv` control passes ordinary and
+synthesized execution in both editions before L56. Moving prefix expressions
+out of the final base must preserve their contribution to `NetAssign_` input
+sensitivity; changing only the outer or middle index must retrigger `always @*`.
+
+L56 first executable WIP uses the existing checked-property-index runtime
+helper for packed prefixes, with per-dimension orientation and stride. Original
+blocking invalid-prefix/spill reproducers pass, but the independent matrix on
+`ae60f63f...` finds four blocking failures per edition: descending `-:4` with
+base 1 on [7:0], and equivalent negative ranges. Expected partial-low writes
+are suppressed. `collapse_packed_member_indices` constructs its width adjustment
+as an unsigned PENumber, so the negative relative offset is treated as a wide
+unsigned value. Compound and NBA consumers are not yet connected and remain
+red (126 cases each per edition). `l56/root-slice1-results.json` records this
+partial implementation evidence; it is not a qualification checkpoint.
+
+L56 blocking correction now passes all 126 indexed-write blocking cases per
+edition on installed `649fbf7c...` (stable before/after hashes in
+`root-blocking-fixed-results.json`). Compound and NBA remain WIP-red.
+Consumer review found constant-function assignment evaluation ignoring dynamic
+carrier metadata: `root_const_function.sv` gives valid=0xF instead of
+0x0F0000000000, with partial and invalid selections also wrong in both editions.
+`root-const-function-slice1-results.json` records the evidence. Required
+consumers also include precise output/driver analysis: a constant relative
+base must not be interpreted as a constant absolute destination when its
+carrier is dynamic. These are L56 integration obligations, not waived gaps.
+
+L56 compound review corrected a whole-signal old-value read to nested carrier
+and relative selections. `root_compound_old_value.sv` now passes both editions:
+partial high/low and descending selects propagate X through four-state +=,
+while two-state old-value conversion produces the expected numeric result.
+`root-compound-old-value-results.json` records stable compiler/target/runtime
+hashes. This arithmetic probe is necessary because bitwise XOR alone cannot
+expose an out-of-carrier old-value read. `root_nba_capture.sv` is the pending
+independent delay/capture/partial-update oracle; no result is claimed yet.
+
+L56 pure-packed checkpoint: `root-packed-complete-results.json` records all
+378 indexed-write cases passing in each edition, with stable compiler, VVP
+target and runtime hashes. `root-nba-capture-results.json` additionally proves
+captured dynamic indices/RHS values and disjoint delayed partial updates in
+both editions. Whole-feature qualification is still pending.
+
+The separate fixed unpacked-word matrix has 504 cases per edition and remains
+red before its consumers are connected (`root-array-before-consumer-results.json`,
+installed ivl 3f7515fe...). Packed-prefix function counts are zero in those
+paths, although the word, final-index and RHS functions execute. The matrix
+checks valid, OOB, X and 128-bit overflow word indices, every packed dimension,
+and all three assignment forms against independently calculated storage.
+The clocking prefix probe still emits its existing focused unsupported
+runtime-clockvar diagnostic; no clocking-support claim is made.
+
+L56 fixed-array consumer checkpoint: `root-array-connected-results.json`
+records all 504 cases passing in each edition with stable compiler/target/runtime
+hashes. Blocking, compound and NBA now consume the checked carrier while
+preserving word validity independently. This supersedes the WIP-red array
+checkpoint above. Constant-function evaluation, synthesis, precise analysis,
+source-target handling and permanent regression packaging remain pending;
+L56 is not yet integrated or fully focused-qualified.
+
+L56 constant evaluator checkpoint: independent dynamic-prefix, static-carrier
+and compound logic/bit fixtures pass both editions (six runs in
+`l56/root-const-review-results.json`, stable compiler hash). Static high/OOB
+writes previously corrupted adjacent bits (`root-const-static-before-results.json`)
+and are now clipped. Invalid carrier suppression occurs after final-index
+evaluation; exact index conversion and partial-offset arithmetic were reviewed.
+The postincrement side-effect fixture cannot yet qualify this behavior because
+of the separate constant-expression evaluation defect below.
+
+### DD-025 — Postincrement expressions fail constant-function evaluation
+
+- **Discovered during:** L56 compile-time index side-effect testing.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/l56/const-postinc_expression.sv`
+  uses only local scalar integers: `i=0; j=i++; return 10*i+j;` in a constant
+  function. Both editions reject its localparam invocation with an inability
+  to evaluate the parameter. The corresponding statement `i++; return i;`
+  compiles and produces the expected result in both editions.
+- **Evidence:** `l56/const-postinc-isolation-results.json`. No packed arrays or
+  dynamic carrier metadata are involved in these isolated reducers.
+- **Expected:** expression postincrement returns the old value and increments
+  the local variable once during constant-function evaluation. Track IEEE
+  1800-2017 and 2023 compatibility separately.
+- **Status:** OPEN. `NetEAssignExpr` lacks a dedicated constant-function
+  evaluator; implementation and prefix/compound expression siblings require
+  assessment. Do not count `root_const_index_effects.sv` as a passing L56
+  side-effect check while this prerequisite remains unsupported.
+
+### L56 pre-integration review checkpoint — 2026-09-14
+
+L56 remains unintegrated. Fourteen fresh ordinary/synthesized sensitivity,
+clocked-write, and constant-function controls pass with stable installed hashes
+(`l56/root-freeze-consumer-results.json`). Two expanded checks require correction:
+
+- The checked-index synthesis lowering asserts on 128-bit signed and unsigned
+  inputs (`expr_synth.cc:164`). Ten synthesized runs fail across descending,
+  ascending, and negative packed ranges; all ten ordinary controls pass.
+  See `l56/root-wide-synthesis-results.json` and `root_wide_synth_shape*.sv`.
+- Fixed unpacked-array word elaboration treats a constant `[7:4]` tail as one
+  bit: `words[1][0][7:4]=4'hf` stores `16'h0080` instead of `16'h00f0` in
+  both editions. See `l56/root-array-constant-part-results.json` and
+  `root_array_constant_part.sv`.
+
+Both are active L56 review findings, assigned to the existing implementation
+agent; neither is deferred as accepted behavior. Broad qualification remains
+at the previous batch baseline.
+
+A third L56 review control covers a statically invalid unpacked word rather
+than the runtime word expressions in the 504-case matrix. Blocking and NBA
+preserve both selector calls and the RHS call, while compound assignment
+skips both selector calls (`0/0/1` rather than `1/1/1`) in both editions.
+`l56/root-invalid-constant-word-results.json` records all six runs. The
+static-word compound read path requires the same one-time selector evaluation
+as the other L56 routes; correction is assigned to the same worker.
+
+The final part-select can also select packed elements larger than one bit.
+`words[oi][mi+:2]` on `[1:0][2:0][7:0]` passes the valid `mi=0` control but
+spills into the adjacent outer element at `oi=0, mi=2`: actual
+`000012340000`, expected `000000340000`, in both editions. Evidence:
+`l56/root-nonleaf-indexed-part-results.json`. This remains an L56 bounds
+review finding; the checked carrier must cover the selected packed dimension,
+with offsets and widths scaled by its remaining element width.
+
+### L56 corrected review — 2026-09-14
+
+All four pre-integration findings above are corrected in the installed
+candidate. `l56/root-corrected-review-results.json` passes 32/32 paired
+ordinary/synthesized runs, including the 108-case nonleaf matrix.
+`l56/root-corrected-regression-results.json` passes 18/18 runs, including
+the original 378 packed, 108 bit/whole-element, and 504 array-word cases
+per edition. Installed compiler/target/runtime hashes remain stable.
+Neighbor checks pass 11/11 legacy and 19/19 JSON, including negative
+mixed-driver tests and checked-property-index controls. These results
+supersede the review failures above for this candidate; the historical
+failure logs are retained. DD-025 remains separate and open. Full-suite
+qualification still belongs to the previous batch until the next broad gate.

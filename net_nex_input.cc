@@ -550,6 +550,12 @@ NexusSet* NetAssign_::nex_input(bool rem_out, bool always_sens, bool nested_func
 	    result->add(*tmp);
 	    delete tmp;
       }
+      if (dynamic_part_carrier_) {
+	    NexusSet*tmp = dynamic_part_carrier_->nex_input(
+		  rem_out, always_sens, nested_func);
+	    result->add(*tmp);
+	    delete tmp;
+      }
       if (stream_range_first_) {
 	    NexusSet*tmp = stream_range_first_->nex_input(rem_out, always_sens,
 	                                                   nested_func);

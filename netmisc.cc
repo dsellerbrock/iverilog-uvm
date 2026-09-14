@@ -1364,12 +1364,11 @@ static NetEConst* make_i64_index_constant_(int64_t value,
       return result;
 }
 
-NetExpr* make_checked_canonical_property_index(
+static NetExpr* make_checked_canonical_index_(
       Design*des, NetScope*scope, const LineInfo*loc,
-      const list<index_component_t>&src, const netsarray_t*stype,
+      const list<index_component_t>&src, const netranges_t&dims,
       bool need_const)
 {
-      const netranges_t&dims = stype->static_dimensions();
       ivl_assert(*loc, !dims.empty());
       ivl_assert(*loc, src.size() == dims.size());
 
@@ -1496,6 +1495,44 @@ NetExpr* make_checked_canonical_property_index(
       }
       indices_expr.clear();
       return checked;
+}
+
+NetExpr* make_checked_canonical_property_index(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const list<index_component_t>&src, const netsarray_t*stype,
+      bool need_const)
+{
+      return make_checked_canonical_index_(des, scope, loc, src,
+                                           stype->static_dimensions(),
+                                           need_const);
+}
+
+NetExpr* make_checked_canonical_packed_prefix(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const list<index_component_t>&src, const netranges_t&dims,
+      unsigned long carrier_width)
+{
+      ivl_assert(*loc, src.size() == dims.size());
+      NetExpr*base = 0;
+      vector<uint64_t> strides(dims.size(), carrier_width);
+      for (size_t idx = dims.size(); idx > 1; --idx)
+            strides[idx-2] = strides[idx-1] * dims[idx-1].width();
+      list<index_component_t>::const_iterator raw = src.begin();
+      for (size_t idx = 0; idx < dims.size(); ++idx, ++raw) {
+            list<index_component_t> one_index(1, *raw);
+            netranges_t one_dim(1, dims[idx]);
+            NetExpr*term = make_checked_canonical_index_(
+                  des, scope, loc, one_index, one_dim, false);
+            if (!term) {
+                  delete base;
+                  return 0;
+            }
+            if (dims[idx].get_msb() < dims[idx].get_lsb())
+                  term = make_sub_expr((long)dims[idx].width()-1, term);
+            term = scale_index_to_bits(term, strides[idx], *loc);
+            base = base ? make_add_expr(loc, base, term) : term;
+      }
+      return base;
 }
 
 NetEConst* make_const_x(unsigned long wid)

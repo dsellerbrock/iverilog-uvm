@@ -198,12 +198,13 @@ void NetAssign_::nex_output(NexusSet&out)
 	      // contributes no output bits.
 	    bool narrow = false;
 	    if (nex_output_precise_partsel) {
-		  if (has_part_carrier()) {
+		  if (has_part_carrier() && !has_dynamic_part_carrier()) {
 			use_base = static_cast<unsigned>(part_carrier_off());
 			use_wid = part_carrier_width();
 			narrow = true;
 		  }
-		  const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
+		  const NetEConst*base_c = has_dynamic_part_carrier() ? nullptr
+			: dynamic_cast<const NetEConst*>(base_);
 		  if (base_c && base_c->value().is_defined()) {
 			bool negative = false;
 			uint64_t magnitude = verinum_signed_magnitude(

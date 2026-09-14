@@ -1259,8 +1259,66 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	  && packed_base_needs_expr_(des, scope, reg,
 				     path_.back().index)) {
 	    unsigned long sel_wid = 0;
-	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
-						 path_.back().index, sel_wid);
+	    unsigned long carrier_wid = 0;
+	    NetExpr*pbase = 0;
+	    NetExpr*dynamic_carrier = 0;
+	    const list<index_component_t>&all_indices = path_.back().index;
+	    if (!all_indices.empty()
+		&& all_indices.size() <= reg->packed_dimensions()
+		&& (all_indices.back().sel == index_component_t::SEL_IDX_UP
+		    || all_indices.back().sel == index_component_t::SEL_IDX_DO
+		    || all_indices.back().sel == index_component_t::SEL_PART)) {
+		  list<index_component_t> prefix = all_indices;
+		  index_component_t tail = prefix.back();
+		  prefix.pop_back();
+		  netranges_t prefix_dims;
+		  size_t tail_dim = all_indices.size()-1;
+		  unsigned long suffix_wid = 1;
+		  for (size_t idx = 0; idx < reg->packed_dims().size(); ++idx) {
+			if (idx < tail_dim)
+			      prefix_dims.push_back(reg->packed_dims()[idx]);
+			else if (idx > tail_dim)
+			      suffix_wid *= reg->packed_dims()[idx].width();
+		  }
+		  carrier_wid = reg->packed_dims()[tail_dim].width() * suffix_wid;
+		  dynamic_carrier = make_checked_canonical_packed_prefix(
+			des, scope, this, prefix, prefix_dims, carrier_wid);
+		  bool final_ok = false;
+		  if (dynamic_carrier && tail.sel == index_component_t::SEL_PART) {
+			netranges_t final_dims;
+			final_dims.insert(final_dims.end(),
+				  reg->packed_dims().begin()+tail_dim,
+				  reg->packed_dims().end());
+			list<index_component_t> final_index(1, tail);
+			final_ok = collapse_packed_member_indices(
+			      des, scope, this, final_dims, final_index,
+			      pbase, sel_wid, /*quiet=*/true);
+		  } else if (dynamic_carrier) {
+			calculate_up_do_width_(des, scope, sel_wid);
+			NetExpr*raw_base = elab_and_eval(des, scope, tail.msb, -1);
+			if (raw_base) {
+			      const netrange_t&leaf = reg->packed_dims()[tail_dim];
+			      pbase = normalize_variable_base(
+				    raw_base, leaf.get_msb(), leaf.get_lsb(),
+				    sel_wid,
+				    tail.sel == index_component_t::SEL_IDX_UP);
+			      pbase = scale_index_to_bits(pbase, suffix_wid, *this);
+			      sel_wid *= suffix_wid;
+			      final_ok = true;
+			}
+		  }
+		  if (dynamic_carrier && final_ok) {
+			// The final select is relative to the checked carrier.
+		  } else {
+			delete dynamic_carrier;
+			dynamic_carrier = 0;
+			delete pbase;
+			pbase = 0;
+		  }
+	    }
+	    if (!pbase)
+		  pbase = collapse_packed_base(des, scope, this, reg,
+					       all_indices, sel_wid);
 	    if (pbase && sel_wid > 0) {
 		  pbase->set_line(*this);
 		  if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
@@ -1268,13 +1326,18 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 			report_mixed_assignment_conflict_("part select");
 			des->errors += 1;
 			delete pbase;
+			delete dynamic_carrier;
 			return 0;
 		  }
 		  NetAssign_*lv = new NetAssign_(reg);
 		  lv->set_part(pbase, sel_wid);
+		  if (dynamic_carrier)
+			lv->set_dynamic_part_carrier(
+			      dynamic_carrier, carrier_wid);
 		  return lv;
 	    }
 	    delete pbase;
+	    delete dynamic_carrier;
       }
 
       if (use_sel == index_component_t::SEL_PART ||
@@ -1723,18 +1786,84 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       list<index_component_t> packed_indices = name_tail.index;
       for (size_t idx = 0 ; idx < reg->unpacked_dimensions() ; idx += 1)
 	    packed_indices.pop_front();
-      if (!need_const_idx
-	  && packed_base_needs_expr_(des, scope, reg, packed_indices)) {
+      if (!need_const_idx && packed_indices.size() >= 2) {
 	    unsigned long sel_wid = 0;
-	    NetExpr*pbase = collapse_packed_base(des, scope, this, reg,
-					  packed_indices, sel_wid);
+	    unsigned long carrier_wid = 0;
+	    NetExpr*pbase = 0;
+	    NetExpr*dynamic_carrier = 0;
+	    const netranges_t&dims = reg->packed_dims();
+	    if (!packed_indices.empty()
+		&& packed_indices.size() <= dims.size()) {
+		  list<index_component_t> prefix = packed_indices;
+		  index_component_t tail = prefix.back();
+		  bool final_select = packed_indices.size() == dims.size();
+		  bool indexed_part = tail.sel == index_component_t::SEL_IDX_UP
+				   || tail.sel == index_component_t::SEL_IDX_DO;
+		  bool tail_operation = final_select || indexed_part
+			|| tail.sel == index_component_t::SEL_PART;
+		  if (tail_operation)
+			prefix.pop_back();
+		  size_t prefix_count = prefix.size();
+		  size_t tail_dim = packed_indices.size()-1;
+		  unsigned long suffix_wid = 1;
+		  netranges_t prefix_dims;
+		  carrier_wid = 1;
+		  for (size_t idx = 0; idx < dims.size(); ++idx) {
+			if (idx < prefix_count)
+			      prefix_dims.push_back(dims[idx]);
+			else if (idx >= tail_dim)
+			      carrier_wid *= dims[idx].width();
+			if (idx > tail_dim)
+			      suffix_wid *= dims[idx].width();
+		  }
+		  dynamic_carrier = make_checked_canonical_packed_prefix(
+			des, scope, this, prefix, prefix_dims, carrier_wid);
+		  if (dynamic_carrier && tail_operation) {
+			if (tail.sel == index_component_t::SEL_PART) {
+			      netranges_t final_dims;
+			      final_dims.insert(final_dims.end(),
+					dims.begin()+tail_dim, dims.end());
+			      list<index_component_t> final_index(1, tail);
+			      collapse_packed_member_indices(
+				des, scope, this, final_dims, final_index,
+				pbase, sel_wid, /*quiet=*/true);
+			} else {
+			      NetExpr*raw = elab_and_eval(des, scope, tail.msb, -1);
+			      if (raw) {
+				    const netrange_t&leaf = dims[tail_dim];
+				    if (indexed_part)
+					  calculate_up_do_width_(des, scope, sel_wid);
+				    else
+					  sel_wid = 1;
+				    pbase = normalize_variable_base(raw,
+					  leaf.get_msb(), leaf.get_lsb(), sel_wid,
+					  !indexed_part
+					  || tail.sel == index_component_t::SEL_IDX_UP);
+				    if (indexed_part) {
+					  pbase = scale_index_to_bits(
+						pbase, suffix_wid, *this);
+					  sel_wid *= suffix_wid;
+				    }
+			      }
+			}
+		  } else if (dynamic_carrier) {
+			pbase = new NetEConst(verinum(0L));
+			sel_wid = carrier_wid;
+		  }
+	    }
+	    if (!pbase)
+		  pbase = collapse_packed_base(des, scope, this, reg,
+					       packed_indices, sel_wid);
 	    if (pbase && sel_wid > 0) {
 		  pbase->set_line(*this);
 		  set_packed_slice_part_(lv, pbase, reg,
 					 packed_indices.size(), sel_wid);
+		  if (dynamic_carrier)
+			lv->set_dynamic_part_carrier(dynamic_carrier, carrier_wid);
 		  return lv;
 	    }
 	    delete pbase;
+	    delete dynamic_carrier;
       }
 
 
@@ -1848,8 +1977,49 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 				     path_.back().index)) {
 	    NetNet*preg = lv->sig();
 	    unsigned long sel_wid = 0;
-	    NetExpr*pbase = collapse_packed_base(des, scope, this, preg,
-						 path_.back().index, sel_wid);
+	    unsigned long carrier_wid = 0;
+	    NetExpr*pbase = 0;
+	    NetExpr*dynamic_carrier = 0;
+	    const list<index_component_t>&all_indices = path_.back().index;
+	    const netranges_t&all_dims = preg->packed_dims();
+	    if (!all_indices.empty() && all_indices.size() <= all_dims.size()) {
+		  list<index_component_t> prefix = all_indices;
+		  netranges_t prefix_dims;
+		  size_t prefix_count = all_indices.size();
+		  bool has_final_bit = prefix_count == all_dims.size();
+		  index_component_t tail;
+		  if (has_final_bit) {
+			tail = prefix.back();
+			prefix.pop_back();
+			prefix_count -= 1;
+		  }
+		  carrier_wid = 1;
+		  for (size_t idx = 0; idx < all_dims.size(); ++idx) {
+			if (idx < prefix_count)
+			      prefix_dims.push_back(all_dims[idx]);
+			else
+			      carrier_wid *= all_dims[idx].width();
+		  }
+		  dynamic_carrier = make_checked_canonical_packed_prefix(
+			des, scope, this, prefix, prefix_dims, carrier_wid);
+		  if (dynamic_carrier) {
+			if (has_final_bit) {
+			      NetExpr*raw = elab_and_eval(des, scope, tail.msb, -1);
+			      if (raw) {
+				    const netrange_t&leaf = all_dims.back();
+				    pbase = normalize_variable_base(raw,
+					  leaf.get_msb(), leaf.get_lsb(), 1, true);
+				    sel_wid = 1;
+			      }
+			} else {
+			      pbase = new NetEConst(verinum(0L));
+			      sel_wid = carrier_wid;
+			}
+		  }
+	    }
+	    if (!pbase)
+		  pbase = collapse_packed_base(des, scope, this, preg,
+					       all_indices, sel_wid);
 	    if (pbase && sel_wid > 0) {
 		  pbase->set_line(*this);
 		  if ((preg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
@@ -1857,13 +2027,18 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 			report_mixed_assignment_conflict_("bit select");
 			des->errors += 1;
 			delete pbase;
+			delete dynamic_carrier;
 			return false;
 		  }
 		  set_packed_slice_part_(lv, pbase, preg,
 					 path_.back().index.size(), sel_wid);
+		  if (dynamic_carrier)
+			lv->set_dynamic_part_carrier(dynamic_carrier,
+						 carrier_wid);
 		  return true;
 	    }
 	    delete pbase;
+	    delete dynamic_carrier;
       }
 
       list<long>prefix_indices;

@@ -1,21 +1,21 @@
 status: active
-branch: "agent/l55-disjoint-dynamic-subpart-20260914"
+branch: "agent/l56-dynamic-packed-write-bounds-20260914"
 current_blocker: "DD-022 dynamic packed prefixes alias invalid elements and spill final selects"
-phase: "focused_implementation"
+phase: "focused_validated_pending_local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None for L43-L52 corrected batch; all local qualification gates passed."
+pending_gates: "Next approximately-ten-feature batch broad qualification; L56 focused checks passed."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "DD-022 dynamic packed write prefixes; six corruption cases per edition reproduced."
-next_action: "Preserve runtime prefix bounds and final packed carrier clipping with each index and RHS evaluated once."
-next_command: "Assess shared packed-index lowering and assignment IR before implementing dynamic carrier support."
+next_action: "Integrate L56 locally, then select the next unresolved receiver task-call defect (DD-020)."
+next_command: "Local commit and fast-forward main; refresh shared graph from main."
 next_command_cwd: repository root
-candidate_state: "L43-L52 plus regression corrections locally qualified at c686a4781."
-installed_tools: "L55 focused build; ivl f0390347ebcebe8fa9b276180b67e6a52bea9d9f0da0ba0fd80d3a4a9a17f5f6. Historical c686a4781 broad qualification does not qualify this build."
+candidate_state: "L56 focused validation passed; previous broad qualification remains c686a4781."
+installed_tools: "L56 focused build; ivl 54e6d71e3cf32e99b9c50b9f62e32601ec345b5bd39c313c55fcdd4b42465875. Not full-suite qualified."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -846,7 +846,7 @@ validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
   focused_validated_features: [L53, L54, L55]
-  in_progress: DD022_dynamic_prefix_design
+  in_progress: L56_dynamic_packed_write_bounds
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -858,3 +858,30 @@ l53_local_integration: "e9d9b5ad7 fast-forwarded into localmain; shared graph up
 l54_checkpoint: "Common indexed-lvalue IR suppresses proven-invalid constant prefix writes while preserving index/RHS evaluation. Legacy4/4 JSON8/8, original6-case matrix both modes, 128-bit prefix probe, and root ordinary/synthesized runtime4/4 pass. Dynamic prefixes and DD021 remain open. Two focused features in currentbatch."
 
 l55_checkpoint: "Proven fixed packed carriers permit disjoint dynamic subpart writes; actual overlap remains a compile error. Legacy7/7, JSON14/14, null both modes pass. Root source/test review clear. Three focused features in current batch; broad suites deferred. Dynamic prefixes and same-word unpacked mixed-driver restrictions remain open."
+
+l55_local_integration: "c39c0b997 fast-forwarded into local main; canonical graph updated51101nodes94837edges. Same retained checkout now L56; no remote changes or new worktrees."
+l56_root_baseline: "Independent378-case signed128 prefix matrix fails65 per edition on frozen f039 binary. Independent36-case clocked NBA DUT fails8 each in ordinary and synthesized execution in both editions. Hashes stable across probes; expected values computed independently from declared dimension coordinates. Evidence in dynamic-mixed-driver-assessment/l56."
+
+l56_review_findings: "Reuse existing checked-property-index runtime helper, reverse numeric-low ordinals for ascending packed dimensions, preserve dynamic-carrier inputs in nex_input. Independent108-case bit/whole-element baseline fails34 per edition; sensitivity-only prefix changes pass ordinary/-S both editions before L56. Implementation remains unqualified WIP."
+
+l56_first_executable_slice: "Installed ae60f63f31f0b3f90c8201d7e8d2c997b5ae38a16ac34a8e52c2cb7db79dc344. Original blocking invalid-prefix/spill checks pass both modes. Independent378-case replay still fails4 blocking,126 compound,126 NBA per edition. Four blocking failures are partial-low descending -: tails; unsigned synthetic width adjustment identified in collapse_packed_member_indices. Not integrated or qualified."
+
+l56_blocking_correction: "Stable649fbf7c1211fd606d030cae9f1e5919c95b7e4409cbc64d07f896df38932f8a passes all126 blocking indexed-write cases per edition. Compound/NBA remain WIP. Root found constant-function carrier omission plus required precise-output/procedural-driver consumers; no integration until corrected."
+
+l56_compound_review: "Nested carrier-relative old-value reads verified by root arithmetic logic/bit probe in both editions, hashes stable. NBA delay/capture oracle prepared; consumer implementation and full focused qualification remain pending."
+
+l56_pure_packed_checkpoint: "Root378 indexed-write cases pass botheditions; delayedNBA temporal oracle passes botheditions, stable3hashes. Agent108 bit/whole-element matrix passesboth. Fixed array-word504cases remain WIP-red with skippedprefixeval; constantfunction/synthesis/precision/sourceguards remain pending. No merge or fullsuite qualification."
+
+l56_array_checkpoint: "Root freshly verified504 fixed-array cases peredition pass with stable3hashes; runtime carrier consumption and word validity preserved. Const-eval/synthesis/analysis/sourceguards/packaging remain pending. L56 is still fourth feature in progress, not added to focused_validated_features."
+
+l56_const_checkpoint: "Root dynamic/static/compound constant-function fixtures passbothmodes (6runs), stablehash. Postincrement-expression side-effect fixture cannot evaluate; scalar-only isolation confirms separate DD-025 while postincrement statement passes. Synthesischecked-index lowering remains in progress."
+
+l56_freeze_review_reopened: "Root fresh14 synthesis/sensitivity/constant runs pass at stable1f73cdce compiler. Expanded128-bit signed/unsigned synthesis across descending/ascending/negative ranges crashes expr_synth.cc:164 in10 runs while10 ordinary controls pass. Separate fixed-array constant part-select regression writes0080 instead of00f0 in both editions. Reused worker repairing both and auditing source targets; no L56 integration or feature credit. Evidence root-freeze-consumer-results.json, root-wide-synthesis-results.json, root-array-constant-part-results.json underl56."
+
+l56_static_word_review: "Root constant OOB word controls preserve selector/RHS calls for blocking and NBA but compound skips both selector calls (0/0/1 rather than1/1/1) in both editions. Existing runtime-word504 matrix did not cover this constant-folded route. Assigned same worker, evidence root-invalid-constant-word-results.json; no integration."
+
+l56_nonleaf_review: "Root nonleaf indexed part-select words[oi][mi+:2] on [1:0][2:0][7:0] passes in-range but spills atmi2:000012340000 instead of000000340000 in both editions. Existing hook handles only leaf tails. Same worker generalizing carrier at selected dimension, evidence root-nonleaf-indexed-part-results.json."
+
+l56_corrected_root_checkpoint: "Stable installed compiler 54e6d71e3cf32e99b9c50b9f62e32601ec345b5bd39c313c55fcdd4b42465875; corrected review32/32 and regression18/18 root runs pass. Includes original990-case matrices and108 nonleaf cases per edition. Neighbor/negative harnesses11legacy19JSON pass. Final permanent test tightening pending, then local integration; no broad qualification inferred."
+
+l56_final_focus: "Final tightened legacy5/5 and JSON10/10, status0; final-tightened-{legacy,json}-3 logs. Root review50/50 runs and neighbor11legacy19JSON pass. Ready for local integration. Session2026-09-14_l56_dynamic_packed_write_bounds.md. No remote changes."

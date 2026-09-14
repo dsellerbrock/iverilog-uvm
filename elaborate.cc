@@ -9562,8 +9562,9 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 					  obuf_id.elaborate_lval(des, scope,
 								 false, false, false));
 				    if (!obuf_lv) return 0;
-				    if (obuf_lv->get_base()
-					&& !dynamic_cast<const NetEConst*>(obuf_lv->get_base())) {
+				    if (obuf_lv->has_dynamic_part_carrier()
+					|| (obuf_lv->get_base()
+					&& !dynamic_cast<const NetEConst*>(obuf_lv->get_base()))) {
 				    cerr << loc.get_fileline() << ": sorry: a run-time "
 					 << "selected clocking-output drive requires one "
 					     << "captured selector and is not yet supported." << endl;
@@ -9752,8 +9753,9 @@ static NetProc* elaborate_clocking_output_drive_(Design*des, NetScope*scope,
 	    delete obuf_lv;
 	    return 0;
       }
-      if (obuf_lv->get_base()
-	  && !dynamic_cast<const NetEConst*>(obuf_lv->get_base())) {
+      if (obuf_lv->has_dynamic_part_carrier()
+	  || (obuf_lv->get_base()
+	      && !dynamic_cast<const NetEConst*>(obuf_lv->get_base()))) {
 	    cerr << loc.get_fileline() << ": sorry: a run-time selected "
 		 << "clocking-output drive requires one captured selector and is "
 		 << "not yet supported." << endl;

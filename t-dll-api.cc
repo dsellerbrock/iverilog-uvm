@@ -2076,6 +2076,12 @@ extern "C" unsigned ivl_lval_part_carrier_width(ivl_lval_t net)
       return net->part_carrier_wid_;
 }
 
+extern "C" ivl_expr_t ivl_lval_dynamic_part_carrier(ivl_lval_t net)
+{
+      assert(net);
+      return net->dynamic_part_carrier_;
+}
+
 extern "C" ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net)
 {
       assert(net);

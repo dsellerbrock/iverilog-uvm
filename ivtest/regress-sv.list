@@ -3029,3 +3029,8 @@ sv_hierarchical_subroutine_lookup normal,-g2017 ivltests gold=sv_hierarchical_su
 sv_hierarchical_missing_task_fail CE,-g2017 ivltests gold=sv_hierarchical_missing_task_fail.gold
 sv_disjoint_dynamic_packed_subpart normal,-g2017 ivltests gold=sv_disjoint_dynamic_packed_subpart.gold
 sv_overlapping_dynamic_packed_subpart_fail CE,-g2017 ivltests gold=sv_overlapping_dynamic_packed_subpart_fail.gold
+sv_dynamic_packed_prefix_writes normal,-g2017 ivltests gold=sv_dynamic_packed_prefix_writes.gold
+sv_dynamic_packed_prefix_shapes normal,-g2017 ivltests gold=sv_dynamic_packed_prefix_shapes.gold
+sv_dynamic_packed_prefix_synth normal,-g2017,-S ivltests
+sv_dynamic_packed_prefix_wide_synth normal,-g2017,-S ivltests
+sv_dynamic_packed_nonleaf_part normal,-g2017 ivltests gold=sv_dynamic_packed_nonleaf_part.gold

@@ -1,19 +1,20 @@
-id: L55
-title: Allow disjoint dynamic subpart writes within a fixed packed element
-status: FOCUSED_VALIDATED
-base_revision: 950aefea2
-origin: DD-021
+id: L56
+title: Preserve bounds for dynamic packed-prefix writes
+status: FROZEN_FOR_REVIEW
+base_revision: c39c0b997
+origin: DD-022
 standards:
-  - IEEE 1800-2017/2023 6.5
+  - IEEE 1800-2017/2023 11.5.1 and 11.5.2
 allowed_scope:
-  - Mixed-driver overlap checking against a proven fixed packed-element carrier
-  - Blocking, compound and nonblocking behavior plus focused regressions
+  - Assignment-owned dynamic carrier base with checked per-dimension normalization
+  - Pure packed and fixed unpacked-word blocking, compound and nonblocking writes
+  - VVP runtime, synthesis and explicit source-target behavior plus focused tests
 forbidden_scope:
-  - Dynamic or unproven packed prefixes
+  - Mixed-driver relaxation for dynamic packed prefixes
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 2
-last_validated_revision: Build/install passed. Disjoint blocking, compound, delayed NBA, high/low/descending/invalid bases, continuous-neighbor updates and single-evaluation controls pass in IEEE 2017/2023; actual overlap remains a compile error. Focused legacy passed 7/7 and JSON passed 14/14 with L44/L49/L54 neighbors and synthesis coverage; null checks pass both editions.
-pending_gates: Root source/test review and feature-batch qualification.
-next_action: Freeze L55 source and tests for root review and integration.
+focused_features_before_this: 3
+last_validated_revision: Dynamic packed-prefix blocking, compound and NBA writes pass the 378-case pure-packed, 108-case bit/whole-element, 504-case fixed-array, and 108-case nonleaf matrices in IEEE 2017/2023. Delayed NBA capture, compound old-value arithmetic, constant-function static/dynamic carrier evaluation, exact wide signed/unsigned synthesis results, functional synthesis, sensitivity, and clocking controls pass. Permanent array tests cover constant range writes and invalid constant-word compound selector evaluation. Source targets either consume the carrier (VVP/stub) or diagnose unsupported bounded writes (vlog95/VHDL). Final focused legacy 5/5 and JSON 10/10 pass; logs are evidence/dynamic-mixed-driver-assessment/l56/final-tightened-legacy-3.log and final-tightened-json-3.log.
+pending_gates: Root source review and the next feature-batch broad qualification.
+next_action: Keep source frozen for root review and integration.
 stop_after_completion: false

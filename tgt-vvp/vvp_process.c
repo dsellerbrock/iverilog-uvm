@@ -913,6 +913,31 @@ static void emit_part_carrier_clip_(ivl_lval_t lval, int offset_index)
       fprintf(vvp_out, "    %%clip/vec4/b %d;\n", offset_index);
 }
 
+/* Evaluate a dynamic packed carrier before its relative final index, retain
+ * both validity results, then clip and translate the pending assignment. */
+static void emit_dynamic_part_carrier_clip_(ivl_lval_t lval,
+					    ivl_expr_t part_off_ex,
+					    int offset_index)
+{
+      ivl_expr_t carrier = ivl_lval_dynamic_part_carrier(lval);
+      int carrier_index = allocate_word();
+      int carrier_flag = allocate_flag();
+
+      assert(carrier);
+      draw_eval_expr_into_integer(carrier, carrier_index);
+      fprintf(vvp_out, "    %%flag_mov %d, 4; carrier validity\n",
+	      carrier_flag);
+      draw_eval_expr_into_integer(part_off_ex, offset_index);
+      fprintf(vvp_out, "    %%flag_or 4, %d; combine carrier validity\n",
+	      carrier_flag);
+      fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+	      ivl_lval_part_carrier_width(lval));
+      fprintf(vvp_out, "    %%clip/vec4/d %d, %d;\n",
+	      offset_index, carrier_index);
+      clr_flag(carrier_flag);
+      clr_word(carrier_index);
+}
+
 static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
 				 ivl_expr_t word_ix,
 				 uint64_t delay, ivl_expr_t dexp,
@@ -923,6 +948,7 @@ static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
       int part_off_reg = 0;
       int delay_index;
       unsigned long part_off = 0;
+      ivl_expr_t dynamic_carrier = ivl_lval_dynamic_part_carrier(lval);
 
       int error_flag = allocate_flag();
 
@@ -932,7 +958,8 @@ static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
 	   part offset is used, otherwise, use part_off. */
       if (part_off_ex == 0) {
 	    part_off = 0;
-      } else if (number_is_immediate(part_off_ex, IMM_WID, 0) &&
+      } else if (!dynamic_carrier
+		 && number_is_immediate(part_off_ex, IMM_WID, 0) &&
 		 !number_is_unknown(part_off_ex)) {
 	    part_off = get_number_immediate(part_off_ex);
 	    part_off_ex = 0;
@@ -949,7 +976,12 @@ static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
       fprintf(vvp_out, "    %%flag_mov %d, 4; array word validity\n",
 	      error_flag);
 
-      if (part_off_ex) {
+      if (part_off_ex && dynamic_carrier) {
+	    part_off_reg = allocate_word();
+	    emit_dynamic_part_carrier_clip_(lval, part_off_ex, part_off_reg);
+	    fprintf(vvp_out, "    %%flag_or %d, 4; packed index validity\n",
+		    error_flag);
+      } else if (part_off_ex) {
 	    part_off_reg = allocate_word();
 	    draw_eval_expr_into_integer(part_off_ex, part_off_reg);
 	      /* Add the error state of the part select to the global. */
@@ -963,7 +995,7 @@ static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
 		             part_off_reg, part_off);
       }
 
-      if (ivl_lval_part_carrier_width(lval)) {
+      if (ivl_lval_part_carrier_width(lval) && !dynamic_carrier) {
 	    if (part_off_reg == 0) {
 		  part_off_reg = allocate_word();
 		  fprintf(vvp_out, "    %%ix/load %d, 0, 0; part off\n",
@@ -1037,6 +1069,7 @@ static void assign_to_lvector(ivl_lval_t lval,
 {
       ivl_signal_t sig = ivl_lval_sig(lval);
       ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
+      ivl_expr_t dynamic_carrier = ivl_lval_dynamic_part_carrier(lval);
       unsigned long part_off = 0;
 
       const unsigned long use_word = 0;
@@ -1058,7 +1091,8 @@ static void assign_to_lvector(ivl_lval_t lval,
 
       if (part_off_ex == 0) {
 	    part_off = 0;
-      } else if (number_is_immediate(part_off_ex, IMM_WID, 0) &&
+      } else if (!dynamic_carrier
+		 && number_is_immediate(part_off_ex, IMM_WID, 0) &&
 		 !number_is_unknown(part_off_ex)) {
 	    part_off = get_number_immediate(part_off_ex);
 	    part_off_ex = 0;
@@ -1067,6 +1101,29 @@ static void assign_to_lvector(ivl_lval_t lval,
       unsigned long low_d = delay % UINT64_C(0x100000000);
       unsigned long hig_d = delay / UINT64_C(0x100000000);
       unsigned carrier_wid = ivl_lval_part_carrier_width(lval);
+
+      if (part_off_ex && dynamic_carrier) {
+	    int offset_index = allocate_word();
+	    int delay_index = allocate_word();
+
+	    if (dexp)
+		  draw_eval_expr_into_integer(dexp, delay_index);
+	    else
+		  fprintf(vvp_out, "    %%ix/load %d, %lu, %lu;\n",
+			  delay_index, low_d, hig_d);
+	    emit_dynamic_part_carrier_clip_(lval, part_off_ex, offset_index);
+	    if (nevents != 0) {
+		  assert(dexp == 0);
+		  fprintf(vvp_out, "    %s/vec4/off/e v%p_%lu, %d;\n",
+			  assign_op, sig, use_word, offset_index);
+	    } else {
+		  fprintf(vvp_out, "    %s/vec4/off/d v%p_%lu, %d, %d;\n",
+			  assign_op, sig, use_word, offset_index, delay_index);
+	    }
+	    clr_word(offset_index);
+	    clr_word(delay_index);
+	    return;
+      }
 
       if (part_off_ex) {
 	      // The part select offset is calculated (not constant)

@@ -1418,6 +1418,9 @@ bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
 	    }
 
 	    const NetExpr*base = lv->get_base();
+	    if (lv->has_dynamic_part_carrier())
+		  // The selected packed carrier can occupy any signal region.
+		  return true;
 	    if (base == 0)
 		    // No part select: the whole signal.
 		  return true;

@@ -1627,6 +1627,60 @@ static NetEvWait* make_func_trigger(Design*des, NetScope*scope, const NetExpr*ro
 NetNet* NetESFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
 
+      if (strcmp(name_, "$ivl_checked_property_index") == 0) {
+	    ivl_assert(*this, parms_.size() % 4 == 0);
+	    NetExpr*valid = 0;
+	    NetExpr*canonical = new NetEConst(verinum(uint64_t(0), 64));
+	    canonical->set_line(*this);
+	    for (size_t idx = 0; idx < parms_.size(); idx += 4) {
+		  NetExpr*raw_copy = parms_[idx]->dup_expr();
+		  NetNet*raw_net = raw_copy->synthesize(des, scope, raw_copy);
+		  delete raw_copy;
+		  if (!raw_net) {
+			delete valid;
+			delete canonical;
+			return 0;
+		  }
+		  auto raw_value = [raw_net, this]() -> NetExpr* {
+			NetExpr*value = new NetESignal(raw_net);
+			if (!raw_net->get_signed())
+			      value = pad_to_width(value,
+					   raw_net->vector_width()+1, *this);
+			value->cast_signed(true);
+			return value;
+		  };
+		  NetExpr*ge = new NetEBComp('G', raw_value(),
+					 parms_[idx+1]->dup_expr());
+		  NetExpr*width_minus_one = new NetEBAdd(
+			'-', parms_[idx+2]->dup_expr(),
+			new NetEConst(verinum(uint64_t(1), 64)), 64, false);
+		  NetExpr*high = new NetEBAdd('+', parms_[idx+1]->dup_expr(),
+					 width_minus_one, 64, true);
+		  NetExpr*le = new NetEBComp('L', raw_value(), high);
+		  NetExpr*dim_valid = new NetEBLogic('a', ge, le);
+		  valid = valid ? static_cast<NetExpr*>(
+			new NetEBLogic('a', valid, dim_valid)) : dim_valid;
+
+		  unsigned arith_width = max<unsigned>(64,
+			raw_net->vector_width() + (raw_net->get_signed() ? 0 : 1));
+		  NetExpr*ordinal = new NetEBAdd('-', raw_value(),
+					      parms_[idx+1]->dup_expr(),
+					      arith_width, raw_net->get_signed());
+		  NetExpr*scaled = new NetEBMult('*', ordinal,
+					    cast_to_width(parms_[idx+3]->dup_expr(),
+						  arith_width, false, *this),
+					    arith_width, false);
+		  scaled = cast_to_width(scaled, 64, false, *this);
+		  canonical = new NetEBAdd('+', canonical, scaled, 64, false);
+	    }
+	    NetExpr*checked = new NetETernary(valid, canonical,
+					make_const_x(64), 64, false);
+	    checked->set_line(*this);
+	    NetNet*result = checked->synthesize(des, scope, checked);
+	    delete checked;
+	    return result;
+      }
+
       const struct sfunc_return_type*def = lookup_sys_func(name_);
 
         /* We cannot use the default value for system functions in a
