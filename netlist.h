@@ -5893,6 +5893,8 @@ class NetEAssignExpr : public NetESFunc {
       NexusSet* nex_input(bool rem_out = true,
                           bool always_sens = false,
                           bool nested_func = false) const override;
+      NetExpr* evaluate_function(const LineInfo&loc,
+                          std::map<perm_string,LocalVar>&ctx) const override;
       NetEAssignExpr* dup_expr() const override;
 
     private:

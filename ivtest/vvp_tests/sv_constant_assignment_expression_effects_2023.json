@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_constant_assignment_expression_effects.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_constant_assignment_expression_effects"
+}

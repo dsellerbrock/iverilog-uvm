@@ -1427,3 +1427,84 @@ Permanent focus passes 9 legacy and 10 JSON tests. All name-only receiver
 stubs identified in L57 are removed; unspecialized type-parameter deferral
 remains separate from concrete call execution. Broad/application qualification
 remains pending at the feature-batch gate.
+
+### DD-026 — Two-state assignment expression retains unknown bits at runtime
+
+- **Discovered while working:** L58 independent destination-conversion controls.
+- **Reducer:** `evidence/constant-assignment-expression-assessment/root-boundaries/bit_assign_x-runtime.sv`.
+  Local `bit[3:0] i,j; j=(i=4'bx101);` should produce `{i,j}=8'h55` after
+  conversion to the destination type, but yields unknown bits in both modes.
+- **Control:** ordinary statements `i=4'bx101; j=i;` pass exact `55` checks
+  at runtime and in constant functions, four paired runs recorded in
+  `bit-statement-control-results.json`.
+- **Evidence:** `root-boundaries/baseline-results.json`, stable compiler hash.
+- **Authority:** IEEE 1800-2017/2023 11.3 assignment-expression destination-type
+  conversion and 6.11 two-state integral types.
+- **Status:** OPEN. This is a runtime expression-conversion defect. L58's
+  constant evaluator must implement the correct two-state semantics, not
+  copy this runtime behavior. No runtime source edit has been made during
+  the independent assessment.
+
+L58 boundary baseline adds 12 forms across runtime/constant evaluation and
+both editions: 22/24 runtime checks pass (the two DD-026 failures above),
+4/24 constant checks pass (short-circuit controls whose mutation operand is
+not evaluated). Narrow wrap, signed arithmetic/shift, 128-bit values,
+four-state increment, real inc/dec, and a chosen ternary branch provide
+independent exact-result tests. Evidence is under
+`evidence/constant-assignment-expression-assessment/root-boundaries/`.
+
+### DD-027 — Runtime increment of a fixed-array element crashes VVP
+
+- **Discovered while working:** L58 indexed-local constant-function controls.
+- **Reducer:** `evidence/constant-assignment-expression-assessment/root-boundaries/array_index_post-runtime.sv`.
+  A function initializes `a[0]=5`, `a[1]=7`, `idx=0`, then evaluates
+  `j=a[idx++]++`. It must leave `idx=1`, `a[0]=6`, `a[1]=7`, and `j=5`.
+- **Evidence:** `array-index-baseline-results.json`: both IEEE modes compile
+  successfully and VVP terminates with signal 11. The paired constant form
+  is an active L58 candidate review case and currently produces an incorrect
+  value; that evaluator failure is not the same runtime crash.
+- **Possible source:** `tgt-vvp/eval_vec4.c:draw_unary_inc_dec` distinguishes
+  signals/selects/properties but requires review of fixed-array word addressing.
+- **Authority:** IEEE 1800-2017/2023 11.4.2 and 7.4.6; the index expression
+  must retain its single evaluation and postfix must return the old element.
+- **Status:** OPEN. Runtime repair is separate from L58 constant evaluation;
+  no runtime change was made during this assessment.
+
+L58 current corrected candidate passes 68/68 independent paired constant
+runs in `evidence/constant-assignment-expression-assessment/root-current-results.json`,
+with stable compiler/target/runtime hashes. This includes typed defaults,
+independent invocations, indexed-local postfix effects, and the previously
+blocked L56 packed-carrier side-effect oracle. The reversed increment
+candidate failure is corrected. Invalid/X/wide array-index no-store behavior
+is still under review, including preservation of evaluator failure instead
+of silently substituting a default. DD-026 and DD-027 runtime defects remain
+separately open; these constant-function passes do not close either.
+
+
+DD-026 runtime-only confirmation: a delayed module-level expression
+`returned=(stored=input_value)` with `bit [3:0] stored` and runtime
+`logic [3:0] input_value=4'bx101` produces stored X / returned 0X in both
+editions, instead of 5 / 05. This excludes constant-function folding as a
+mask. Evidence: `evidence/runtime-assignment-conversion-assessment/baseline-results.json`.
+
+DD-027 expanded runtime baseline: 32 paired runs cover all four pre/post
+increment/decrement forms on int, bit, logic, and real fixed arrays. All 24
+integral runs crash with signal 11; the eight real runs fail exact effects,
+leave the index unchanged, and report an unresolved-functor placeholder.
+The real path directly loads/stores a scalar signal label and omits the
+array index. Evidence: `evidence/runtime-array-increment-assessment/baseline-results.json`;
+all three installed binary hashes remain stable across the baseline.
+
+
+### DD-025 L58 final review — 2026-09-14
+
+**Focused fix validated; broad batch qualification pending.** Local scalar
+assignment expressions and integral/real local increment/decrement now
+preserve mutation and expression results during constant evaluation.
+Invalid indexed increments return typed signed defaults and suppress stores;
+failed index evaluation remains an error. Final independent outcomes are
+80/80, permanent legacy 4/4 and JSON 6/6, existing constant-function neighbors
+18/18. See `session_logs/2026-09-14_l58_constant_expression_effects.md`.
+Eight independent constant-result runtime checks retain DD-027 startup
+warnings from uncalled array-function bodies. No clean runtime claim is
+made for those forms. DD-026 and DD-027 remain open.

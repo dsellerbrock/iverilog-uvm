@@ -1,21 +1,21 @@
 status: active
-branch: "main"
-current_blocker: "DD-020 unresolved receiver task calls can be discarded without execution"
-phase: "focused_batch_continuation"
+branch: "agent/l58-constant-expression-effects-20260914"
+current_blocker: "DD-025 assignment and increment/decrement expression effects fail constant-function evaluation"
+phase: "focused_validated_pending_local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L57 focused validation passed; next approximately-ten-feature batch broad qualification pending."
+pending_gates: "L58 local integration and next approximately-ten-feature batch broad qualification pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "L57 unresolved receiver task-call resolution and diagnostics"
-next_action: "Integrate L57 locally, then implement DD-025 constant-function assignment and increment/decrement effects."
-next_command: "Reused implementation agent assesses PCallTask::elaborate_usr receiver paths."
+next_selection: "L58 constant-function expression effects"
+next_action: "Reuse local assignment evaluation to preserve expression result, storage conversion, and local mutation in constant functions."
+next_command: "Reused implementation agent verifies paired15-form baseline and implements evaluator paths."
 next_command_cwd: repository root
-candidate_state: "L56 focused validation passed; previous broad qualification remains c686a4781."
-installed_tools: "L57 focused build; ivl b646b0f33501c55f2646adaa21bf58ef3234af78cca994245ca28812d3bf2cb5. Previous full qualification c686a4781 does not qualify this build."
+candidate_state: "L58 focused validation passed; previous broad qualification remains c686a4781."
+installed_tools: "L58 focused build; ivl d745779660da40278f77fa5e5418faca6755c03bebe1d80e7b3cd841b9d21386. Previous full qualification c686a4781 does not qualify this build."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -846,7 +846,7 @@ validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
   focused_validated_features: [L53, L54, L55, L56, L57]
-  in_progress: none
+  in_progress: L58_constant_expression_effects
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -899,3 +899,19 @@ l57_collection_review: "Secondcandidate root48/48 receiver controls pass. Additi
 l57_final_review: "Final root40/40 and specialization/hook neighbors12/12 paired outcomes pass; permanentlegacy9/9 JSON10/10; source removes untyped UVM/TLM/collection name stubs and diagnoses unresolved receivers after proper lookup. Source frozen, diffcheckpassed. Ready for local integration; no full-suite claim."
 
 l57_local_integration: "e025a775d fast-forwarded into local main; fifth focused feature in batch. Same worker/worktree, no remote changes; graph refresh follows this checkpoint. DD025 constant function assignment/inc-dec is next."
+
+l58_start: "Same checkout branched fromcbbf3b3b7 after L57 integration and graph terminal0 (51165nodes94946edges7312communities). Same gpt-5.6-sol worker assigned DD025 with root15-form paired baseline and L56blocked side-effect oracle. Fivefocusedfeatures beforethis; no newtree/remotes/broadgates."
+
+l58_boundary_baseline: "Root12forms xruntime/constant x2editions:22/24runtimepass,4/24constantpass(shortcircuit); stablehash. Two runtime failures isolate DD026 bit assignment-expression conversion, ordinary statement control4/4pass. Const evaluator must preserve normative55, not copy runtimeX. Evidence constant-assignment-expression-assessment/root-boundaries."
+
+l58_indexed_review: "Root indexed local a[idx++]++ expects1675; installed candidate constant result-525 bothmodes assigned for correction. Runtime counterpart SIGSEGV recorded separately DD027. Nonlocal increment/assignment and ref-argument negative constant controls reject all6paired cases. Evidence root-boundaries/array-index-baseline-results.json and negative-baseline-results.json."
+
+l58_current_root_checkpoint: "Stable compiler 6a827c5d2bf0f81c3da2b4a25a49f3cb927452094878bb471d2a10c293cddb59 passes68/68 root constant runs across baseline15forms, narrow/wide/signed/real/4state/default/independent invocation/indexedlocal controls and L56 invalid packed-carrier sideeffect oracle. This supersedes firstslice reversed increment results. Invalid/wide array-index semantics and final packaging/review still pending."
+
+l58_final_root_replay: "Final installed10e1f74a compiler passes78/78 paired root checks with stable3hashes, including exact invalid/wide array indices. Existing constant-function neighbors18/18 and L56 packed constant neighbors6/6 pass. Explicit test-counter initialization is clarity only (IEEE6.11.2 int is two-state); typed-default signedness correction is being reproduced by the same worker before integration. No broad suites run."
+
+dd026_dynamic_runtime_baseline: "Fresh module-level delayed assignment from a runtime logic signal into bit scalar storesX and returns0X instead of5 and05 in both editions. Evidence runtime-assignment-conversion-assessment/baseline-results.json. Confirms next defect without constant-fold masking."
+
+dd027_expanded_runtime_baseline: "Stable3hash paired32run matrix: int/bit/logic fixed-array pre/post increment/decrement compile but runtimeSIGSEGV in24runs; real8runs omit index effects, report unresolvedfunctor placeholder, and return wrong values. Evidence runtime-array-increment-assessment/baseline-results.json. Root assessment only, no runtime edits."
+
+l58_reviewed_final: "Corrected signed-default metadata; signed invalid postfix comparison red before and green after in both editions. Final root80/80 exact outcome checks, stable3hashes, existing constant-function neighbors18/18, permanentlegacy4/4 JSON6/6. Eight root runtime invocations emit known DD027 unresolvedfunctor warnings from uncalled array-function bytecode; exact constant results pass but no clean runtime qualification claimed. Permanent indexed-local coverage is compile-only. Ready for local integration; full gates remain pending."

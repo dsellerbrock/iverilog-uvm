@@ -1,20 +1,22 @@
-id: L57
-title: Diagnose unresolved receiver task calls
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: 36e74e8c3
-origin: DD-020
+id: L58
+title: Evaluate assignment-expression effects in constant functions
+status: FROZEN_FOR_REVIEW
+base_revision: cbbf3b3b7
+origin: DD-025
 standards:
-  - IEEE 1800-2017/2023 13.3, 23.6, and 23.8.1
+  - IEEE 1800-2017/2023 11.3, 11.4.1, 11.4.2, and 13.4.3
 allowed_scope:
-  - Resolve valid hierarchical, class/object, package, and built-in receiver calls before diagnosis
-  - Diagnose unresolved, indexed, and invalid intermediate receiver task calls
-  - Focused positive and negative tests in IEEE 2017 and 2023 modes
+  - Local assignment and pre/post increment/decrement expression mutation during constant-function evaluation
+  - Integral, two-state, real, wide, signed, short-circuit, and indexed local behavior
+  - Preserve rejection of nonlocal and reference-argument constant-function effects
 forbidden_scope:
-  - Application or UVM source edits
+  - Runtime indexed increment implementation
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 4
-last_validated_revision: Unresolved, indexed, invalid intermediate, familiar-name, missing-constraint, and scalar-as-collection receiver calls now produce compilation errors after real task, method, function, built-in, constraint, and deferred-type resolution. Exact-effect class, indexed, nested, named-constraint, hierarchy, package, type-parameter, semaphore, and member-queue controls pass. Focused legacy 9/9 and JSON 10/10 pass in IEEE 2017/2023; logs are evidence/unresolved-task-assessment/l57/final-legacy-2.log and final-json-2.log.
-pending_gates: Next approximately-ten-feature batch broad qualification.
-next_action: L57 integrated at e025a775d; continue DD-025 constant-function expression effects.
+focused_features_before_this: 5
+last_validated_revision: Final installed compiler passes the 4/4 legacy and 6/6 JSON focused lists, including signed two-state invalid-index default metadata. Root's prior replay passed 68/68 constant cases; permanent coverage includes assignment and inc-dec forms, typed defaults, independent invocations, exact valid/OOB/X/wide indexed locals, and L56 invalid-carrier side effects. Nonlocal and reference-argument cases remain compile errors.
+pending_gates: Root review and the next feature-batch broad qualification.
+next_action: Root reviews the signed-default correction and frozen L58 evidence.
 stop_after_completion: false
+
+l58_root_review: "Final root80/80 expected outcomes and18/18 existing constant-function neighbors. Eight known DD027 startup warnings explicitly retained; indexed-local permanent gate is compile-only. Ready for local integration, broad gates pending."
