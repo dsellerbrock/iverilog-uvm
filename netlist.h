@@ -3464,6 +3464,11 @@ class NetAssign_ {
 	// The part select has a specific type and the width of the select will
 	// be that of the type.
       void set_part(NetExpr *loff, ivl_type_t data_type);
+      void set_part_carrier(uint64_t off, unsigned wid)
+      { part_carrier_off_ = off; part_carrier_wid_ = wid; }
+      bool has_part_carrier() const { return part_carrier_wid_ != 0; }
+      uint64_t part_carrier_off() const { return part_carrier_off_; }
+      unsigned part_carrier_width() const { return part_carrier_wid_; }
 	// Set the member or property name if the signal type is a
 	// class.
       void set_property(const perm_string&name, unsigned int idx);
@@ -3569,6 +3574,8 @@ class NetAssign_ {
       unsigned lwid_;
       ivl_select_type_t sel_type_;
       ivl_type_t part_data_type_ = nullptr;
+      uint64_t part_carrier_off_ = 0;
+      unsigned part_carrier_wid_ = 0;
 	// Non-null when this l-value is an unpacked-array slice (partial
 	// index). Holds the sub-array type the slice presents; word_ holds
 	// the flat base word index. See set_array_slice().

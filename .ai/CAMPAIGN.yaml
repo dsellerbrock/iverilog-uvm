@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44, L45, L46, L47, L48]
-  in_progress: L49_write_bounds_design
+  focused_validated_features: [L43, L44, L45, L46, L47, L48, L49]
+  in_progress: L50_empty_sensitivity
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -820,3 +820,7 @@ l47_checkpoint: "Legacy3/3 JSON6/6 directVPIbothmodes null/synthesisbothmodes; L
 l47_local_integration: "L46bcda22349 andL47c3fb934fd fast-forwarded into localmain. Sharedgraph updatedfrommain50972nodes94667edges. No remote push/merge ornewclone/worktree. Same retainedcheckout nowagent/l48-packed-prefix-reads-20260914; five focusedfeatures, broadgatespending atapproximatelyten."
 
 l48_checkpoint: "Per-dimension final indexed reads reviewed. Legacy2/2 JSON4/4 L46neighbor2/2 null/synthesisbothmodes pass; variable part-bound negative rejects. Sixth focusedfeature. Accidental partial broad run terminated143 because ./regress ignoresarguments; observed sv_rand_distribution1 mismatch requiresfreshbatchassessment. Use perl vvp_reg.pl positional-list directly. Next DD022writeboundsdesign; fullqualificationpending."
+
+l48_local_integration: "d28149794 fast-forwarded into localmain; canonicalgraph refreshed50983nodes94686edges. Samecheckout nowagent/l49-packed-write-bounds-20260914. ReusedSolworker assesseswriteboundswhile root reproducedpackage/hierarchical unresolvedtaskno-ops inbotheditions. No remote push/merge ornewclone/worktree."
+
+l49_checkpoint: "Fixed-prefix bounded writes reviewed across IR, VVP blocking/compound/NBA, synthesis and source targets. Legacy4/4 JSON8/8, root228-case boundary matrix both editions pass. Review caught and corrected blocking array-stack handling, constant compound routing, and full-width NBA bypass. Seventh focused increment; broad suites pending. Dynamic/invalid prefix writes and DD021 remain open."

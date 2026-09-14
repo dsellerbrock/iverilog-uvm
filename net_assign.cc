@@ -104,6 +104,8 @@ NetAssign_* NetAssign_::dup_lval() const
 	    else
 		  copy->set_part(base_->dup_expr(), lwid_, sel_type_);
       }
+      if (part_carrier_wid_)
+	    copy->set_part_carrier(part_carrier_off_, part_carrier_wid_);
 
       if (stream_range_ != IVL_STREAM_RANGE_NONE)
 	    copy->set_stream_range(stream_range_,

@@ -1165,6 +1165,27 @@ static NetNet*synth_variable_part_update(Design*des, NetScope*scope,
       return result;
 }
 
+static verinum_part_select_t carrier_part_overlap_(const verinum&base,
+						    uint64_t carrier_off,
+						    unsigned carrier_width,
+						    unsigned part_width)
+{
+      verinum_part_select_t result = verinum_part_select_overlap(
+	    base, part_width, carrier_off+carrier_width);
+      if (result.width == 0)
+	    return result;
+      if (result.destination_base < carrier_off) {
+	    uint64_t skipped = carrier_off-result.destination_base;
+	    if (skipped >= result.width)
+		  return verinum_part_select_t();
+	    result.source_base += skipped;
+	    result.width -= skipped;
+	    result.destination_base = carrier_off;
+      }
+      result.destination_base -= carrier_off;
+      return result;
+}
+
 static NetExpr*make_synthesis_compound_expr_(char op, NetExpr*left,
 					      NetExpr*right, unsigned width,
 					      bool signed_flag)
@@ -1224,6 +1245,44 @@ static bool reject_synthesis_object_backed_lval_(Design*des,
 	   << endl;
       des->errors += 1;
       return true;
+}
+
+static NetExpr*synthesis_lval_prior_read_(const LineInfo&loc,
+					  const NetAssign_*lval,
+					  NetNet*prior)
+{
+      NetExpr*value = new NetESignal(prior);
+      value->set_line(loc);
+      const NetExpr*base = lval->get_base();
+      if (!base)
+	    return value;
+
+      NetExpr*select_base = base->dup_expr();
+      if (lval->has_part_carrier()) {
+	    unsigned base_width = base->expr_width();
+	    NetEConst*carrier_base = new NetEConst(
+		  verinum(lval->part_carrier_off(), base_width));
+	    carrier_base->set_line(loc);
+	    select_base = new NetEBAdd('-', select_base, carrier_base,
+				 base_width, base->has_sign());
+	    select_base->set_line(loc);
+
+	    NetEConst*carrier_off = new NetEConst(
+		  verinum(lval->part_carrier_off()));
+	    carrier_off->set_line(loc);
+	    value = new NetESelect(value, carrier_off,
+				   lval->part_carrier_width());
+	    value->set_line(loc);
+      }
+      value = new NetESelect(value, select_base, lval->lwidth());
+      value->set_line(loc);
+      if (lval->sig() && lval->sig()->data_type() == IVL_VT_BOOL) {
+	    NetECast*cast = new NetECast('2', value, lval->lwidth(),
+				   value->has_sign());
+	    cast->set_line(loc);
+	    value = cast;
+      }
+      return value;
 }
 
 /* Build one operand of the prior-value concatenation for a compound
@@ -1291,14 +1350,28 @@ static NetExpr*synthesis_concat_compound_leaf_(
 	    if (base_constant && !base_constant->value().is_defined()) {
 		    // A statically X/Z select reads no available destination bits.
 	    } else if (base_constant) {
-		  verinum_part_select_t overlap =
-			verinum_part_select_overlap(base_constant->value(),
+		  verinum_part_select_t overlap = lval->has_part_carrier()
+			? carrier_part_overlap_(base_constant->value(),
+				lval->part_carrier_off(),
+				lval->part_carrier_width(), lval->lwidth())
+			: verinum_part_select_overlap(base_constant->value(),
 						   lval->lwidth(), full_width);
+		  uint64_t destination_bias = lval->has_part_carrier()
+			? lval->part_carrier_off() : 0;
 		  for (uint64_t offset = 0; offset < overlap.width; offset += 1)
 			required_prior[static_cast<unsigned>(
-			      overlap.destination_base+offset)] = true;
+			      destination_bias+overlap.destination_base+offset)] = true;
 	    } else {
-		  required_prior.assign(full_width, true);
+		  if (lval->has_part_carrier()) {
+			uint64_t first = lval->part_carrier_off();
+			uint64_t count = lval->part_carrier_width();
+			ivl_assert(loc, first <= full_width);
+			ivl_assert(loc, count <= full_width-first);
+			for (uint64_t bit = 0; bit < count; bit += 1)
+			      required_prior[static_cast<unsigned>(first+bit)] = true;
+		  } else {
+			required_prior.assign(full_width, true);
+		  }
 	    }
       }
 
@@ -1312,8 +1385,10 @@ static NetExpr*synthesis_concat_compound_leaf_(
 	    }
       }
 
+      ivl_variable_type_t prior_data_type = lsig->data_type() == IVL_VT_BOOL
+	    ? IVL_VT_LOGIC : lsig->data_type();
       netvector_t*prior_type =
-	    new netvector_t(lsig->data_type(), full_width-1, 0);
+	    new netvector_t(prior_data_type, full_width-1, 0);
       prior_type->set_signed(lsig->get_signed());
       NetNet*prior = new NetNet(scope, scope->local_symbol(),
 				 NetNet::WIRE, prior_type);
@@ -1321,13 +1396,7 @@ static NetExpr*synthesis_concat_compound_leaf_(
       prior->set_line(loc);
       connect(prior->pin(0), nex_out.pin(ptr));
 
-      NetExpr*leaf = new NetESignal(prior);
-      leaf->set_line(loc);
-      if (const NetExpr*base = lval->get_base()) {
-	    leaf = new NetESelect(leaf, base->dup_expr(), lval->lwidth());
-	    leaf->set_line(loc);
-      }
-      return leaf;
+      return synthesis_lval_prior_read_(loc, lval, prior);
 }
 
 /* The compressed-assignment IR stores only the right operand and an opcode.
@@ -1537,14 +1606,28 @@ bool NetAssign::synth_async(Design*des, NetScope*scope,
 	    if (base_constant && !base_constant->value().is_defined()) {
 		    // A statically X/Z select writes no bits.
 	    } else if (base_constant) {
-		  verinum_part_select_t overlap =
-			verinum_part_select_overlap(base_constant->value(),
+		  verinum_part_select_t overlap = lval->has_part_carrier()
+			? carrier_part_overlap_(base_constant->value(),
+				lval->part_carrier_off(),
+				lval->part_carrier_width(), lval->lwidth())
+			: verinum_part_select_overlap(base_constant->value(),
 						   lval->lwidth(), full_width);
+		  uint64_t destination_bias = lval->has_part_carrier()
+			? lval->part_carrier_off() : 0;
 		  for (uint64_t offset = 0; offset < overlap.width; offset += 1)
 			required_prior[static_cast<unsigned>(
-			      overlap.destination_base+offset)] = true;
+			      destination_bias+overlap.destination_base+offset)] = true;
 	    } else {
-		  required_prior.assign(full_width, true);
+		  if (lval->has_part_carrier()) {
+			uint64_t first = lval->part_carrier_off();
+			uint64_t count = lval->part_carrier_width();
+			ivl_assert(*this, first <= full_width);
+			ivl_assert(*this, count <= full_width-first);
+			for (uint64_t bit = 0; bit < count; bit += 1)
+			      required_prior[static_cast<unsigned>(first+bit)] = true;
+		  } else {
+			required_prior.assign(full_width, true);
+		  }
 	    }
       }
 
@@ -1564,8 +1647,10 @@ bool NetAssign::synth_async(Design*des, NetScope*scope,
 	    return false;
       }
 
+      ivl_variable_type_t prior_data_type = lsig->data_type() == IVL_VT_BOOL
+	    ? IVL_VT_LOGIC : lsig->data_type();
       netvector_t*prior_type =
-	    new netvector_t(lsig->data_type(), full_width-1, 0);
+	    new netvector_t(prior_data_type, full_width-1, 0);
       prior_type->set_signed(lsig->get_signed());
       NetNet*prior = new NetNet(scope, scope->local_symbol(),
 				 NetNet::WIRE, prior_type);
@@ -1573,12 +1658,7 @@ bool NetAssign::synth_async(Design*des, NetScope*scope,
       prior->set_line(*this);
       connect(prior->pin(0), nex_out.pin(ptr));
 
-      NetExpr*left = new NetESignal(prior);
-      left->set_line(*this);
-      if (const NetExpr*base = lval->get_base()) {
-	    left = new NetESelect(left, base->dup_expr(), lval->lwidth());
-	    left->set_line(*this);
-      }
+      NetExpr*left = synthesis_lval_prior_read_(*this, lval, prior);
 
       NetExpr*combined = make_synthesis_compound_expr_(
 	    assign_operator(), left, rval()->dup_expr(), lval->lwidth(),
@@ -2071,9 +2151,14 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    bool undefined_constant_base = base_constant
 		  && !base_constant->value().is_defined();
 	    verinum_part_select_t overlap;
-	    if (base_constant && !undefined_constant_base)
-		  overlap = verinum_part_select_overlap(
-			base_constant->value(), lval_width, lsig_width);
+	    if (base_constant && !undefined_constant_base) {
+		  overlap = lval_->has_part_carrier()
+			? carrier_part_overlap_(base_constant->value(),
+				lval_->part_carrier_off(),
+				lval_->part_carrier_width(), lval_width)
+			: verinum_part_select_overlap(
+				base_constant->value(), lval_width, lsig_width);
+	    }
 	    if (undefined_constant_base
 		|| (base_constant && overlap.width == 0)) {
 		    // A compile-time X/Z packed index selects no bit. Preserve the
@@ -2136,17 +2221,18 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			isig->set_line(*this);
 			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
-		  NetSubstitute*ps =
-			new NetSubstitute(isig, replacement, lsig_width,
-					  static_cast<unsigned>(
-						overlap.destination_base));
+		  unsigned destination_base = static_cast<unsigned>(
+			overlap.destination_base
+			+ (lval_->has_part_carrier()
+			   ? lval_->part_carrier_off() : 0));
+		  NetSubstitute*ps = new NetSubstitute(
+			isig, replacement, lsig_width, destination_base);
 		  ps->set_line(*this);
 		  des->add_node(ps);
 		  connect(ps->pin(0), tmp->pin(0));
 		  rsig = tmp;
 		  constant_part_select = true;
-		  constant_part_base = static_cast<unsigned>(
-			overlap.destination_base);
+		  constant_part_base = destination_base;
 		  constant_part_width = static_cast<unsigned>(overlap.width);
 	    } else {
 		  const netvector_t*tmp_type =
@@ -2159,9 +2245,59 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			isig->set_line(*this);
 			connect(isig->pin(0), nex_out.pin(ptr));
 		  }
-		  rsig = synth_variable_part_update(des, scope, *this,
-						    base_expr_raw, isig, rsig,
-						    lsig_width, lval_width);
+		  if (lval_->has_part_carrier()) {
+			unsigned carrier_width = lval_->part_carrier_width();
+			uint64_t carrier_off = lval_->part_carrier_off();
+			ivl_assert(*this, carrier_width <= lsig_width);
+			ivl_assert(*this, carrier_off <= lsig_width-carrier_width);
+
+			NetPartSelect*carrier_select = new NetPartSelect(
+			      isig, static_cast<unsigned>(carrier_off),
+			      carrier_width, NetPartSelect::VP);
+			carrier_select->set_line(*this);
+			des->add_node(carrier_select);
+			const netvector_t*carrier_type = new netvector_t(
+			      lsig->data_type(), carrier_width-1, 0);
+			NetNet*carrier_prior = new NetNet(
+			      scope, scope->local_symbol(), NetNet::WIRE,
+			      carrier_type);
+			carrier_prior->local_flag(true);
+			carrier_prior->set_line(*this);
+			connect(carrier_prior->pin(0), carrier_select->pin(0));
+
+			unsigned base_width = base_expr_raw->expr_width();
+			NetEConst*carrier_base = new NetEConst(
+			      verinum(carrier_off, base_width));
+			carrier_base->set_line(*this);
+			NetExpr*relative_base = new NetEBAdd(
+			      '-', base_expr_raw->dup_expr(), carrier_base,
+			      base_width, base_expr_raw->has_sign());
+			relative_base->set_line(*this);
+			NetNet*carrier_result = synth_variable_part_update(
+			      des, scope, *this, relative_base, carrier_prior,
+			      rsig, carrier_width, lval_width);
+			delete relative_base;
+			if (carrier_result) {
+			      NetSubstitute*outer = new NetSubstitute(
+				    isig, carrier_result, lsig_width,
+				    static_cast<unsigned>(carrier_off));
+			      outer->set_line(*this);
+			      des->add_node(outer);
+			      NetNet*bounded = new NetNet(
+				    scope, scope->local_symbol(), NetNet::WIRE,
+				    tmp_type);
+			      bounded->local_flag(true);
+			      bounded->set_line(*this);
+			      connect(bounded->pin(0), outer->pin(0));
+			      rsig = bounded;
+			} else {
+			      rsig = 0;
+			}
+		  } else {
+			rsig = synth_variable_part_update(des, scope, *this,
+						  base_expr_raw, isig, rsig,
+						  lsig_width, lval_width);
+		  }
 		  if (!rsig) {
 			cerr << get_fileline() << ": error: unable to synthesize "
 				  "variable packed l-value select." << endl;

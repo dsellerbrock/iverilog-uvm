@@ -2064,6 +2064,18 @@ extern "C" ivl_expr_t ivl_lval_part_off(ivl_lval_t net)
       return net->loff;
 }
 
+extern "C" uint64_t ivl_lval_part_carrier_off(ivl_lval_t net)
+{
+      assert(net);
+      return net->part_carrier_off_;
+}
+
+extern "C" unsigned ivl_lval_part_carrier_width(ivl_lval_t net)
+{
+      assert(net);
+      return net->part_carrier_wid_;
+}
+
 extern "C" ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net)
 {
       assert(net);

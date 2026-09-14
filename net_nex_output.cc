@@ -198,6 +198,11 @@ void NetAssign_::nex_output(NexusSet&out)
 	      // contributes no output bits.
 	    bool narrow = false;
 	    if (nex_output_precise_partsel) {
+		  if (has_part_carrier()) {
+			use_base = static_cast<unsigned>(part_carrier_off());
+			use_wid = part_carrier_width();
+			narrow = true;
+		  }
 		  const NetEConst*base_c = dynamic_cast<const NetEConst*>(base_);
 		  if (base_c && base_c->value().is_defined()) {
 			bool negative = false;
@@ -218,6 +223,17 @@ void NetAssign_::nex_output(NexusSet&out)
 			}
 			if (overlap_width == 0)
 			      return;
+			if (has_part_carrier()) {
+			      uint64_t carrier_first = part_carrier_off();
+			      uint64_t carrier_last = carrier_first
+				    + part_carrier_width();
+			      uint64_t overlap_last = overlap_base+overlap_width;
+			      overlap_base = std::max(overlap_base, carrier_first);
+			      overlap_last = std::min(overlap_last, carrier_last);
+			      if (overlap_base >= overlap_last)
+				    return;
+			      overlap_width = overlap_last-overlap_base;
+			}
 			use_base = static_cast<unsigned>(overlap_base);
 			use_wid = static_cast<unsigned>(overlap_width);
 			narrow = true;

@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_packed_element_write_compound.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_packed_element_write_compound"
+}

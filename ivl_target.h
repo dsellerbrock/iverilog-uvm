@@ -1728,6 +1728,11 @@ extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
 extern int         ivl_lval_is_array_slice(ivl_lval_t net);
 extern int         ivl_lval_is_queue_slice(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_part_off(ivl_lval_t net);
+/* A nonzero carrier width bounds an indexed packed part select to one
+ * statically selected packed element. part_off remains an absolute canonical
+ * bit offset in the complete signal; carrier_off is absolute as well. */
+extern uint64_t ivl_lval_part_carrier_off(ivl_lval_t net);
+extern unsigned ivl_lval_part_carrier_width(ivl_lval_t net);
 extern ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net);
 extern ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net);
 extern ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net);

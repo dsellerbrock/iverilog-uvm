@@ -899,7 +899,22 @@ static void assign_to_array_r_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 
 }
 
-static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
+static void emit_part_carrier_clip_(ivl_lval_t lval, int offset_index)
+{
+      unsigned carrier_wid = ivl_lval_part_carrier_width(lval);
+      uint64_t carrier_off = ivl_lval_part_carrier_off(lval);
+
+      if (carrier_wid == 0)
+	    return;
+      fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64
+	      ", 0, 32; carrier offset\n", carrier_off);
+      fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+	      carrier_wid);
+      fprintf(vvp_out, "    %%clip/vec4/b %d;\n", offset_index);
+}
+
+static void assign_to_array_word(ivl_lval_t lval, ivl_signal_t lsig,
+				 ivl_expr_t word_ix,
 				 uint64_t delay, ivl_expr_t dexp,
 				 ivl_expr_t part_off_ex,
 				 unsigned nevents)
@@ -931,11 +946,11 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 
 	/* Calculate array word index into word index register */
       draw_eval_expr_into_integer(word_ix, word_ix_reg);
+      fprintf(vvp_out, "    %%flag_mov %d, 4; array word validity\n",
+	      error_flag);
 
       if (part_off_ex) {
 	    part_off_reg = allocate_word();
-	      /* Save the index calculation error flag to a global. */
-	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", error_flag);
 	    draw_eval_expr_into_integer(part_off_ex, part_off_reg);
 	      /* Add the error state of the part select to the global. */
 	    fprintf(vvp_out, "    %%flag_or %d, 4;\n", error_flag);
@@ -948,13 +963,22 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 		             part_off_reg, part_off);
       }
 
+      if (ivl_lval_part_carrier_width(lval)) {
+	    if (part_off_reg == 0) {
+		  part_off_reg = allocate_word();
+		  fprintf(vvp_out, "    %%ix/load %d, 0, 0; part off\n",
+			  part_off_reg);
+	    }
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; index validity\n",
+		    error_flag);
+	    emit_part_carrier_clip_(lval, part_off_reg);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; bounded part select\n",
+		    error_flag);
+      }
+
 	/* Calculated delay... */
       if (dexp != 0) {
 	    delay_index = allocate_word();
-	      /* If needed save the index calculation error flag. */
-	    if (! part_off_ex) {
-		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", error_flag);
-	    }
 	    draw_eval_expr_into_integer(dexp, delay_index);
 	    if (word_ix_reg != 3) {
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", word_ix_reg);
@@ -970,9 +994,8 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 
 	/* Event control delay... */
       } else if (nevents != 0) {
-	      /* If needed use the global error state. */
-	    if (part_off_ex) {
-		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", error_flag);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", error_flag);
+	    if (word_ix_reg != 3) {
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", word_ix_reg);
 		  clr_word(word_ix_reg);
 	    }
@@ -991,10 +1014,7 @@ static void assign_to_array_word(ivl_signal_t lsig, ivl_expr_t word_ix,
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", word_ix_reg);
 		  clr_word(word_ix_reg);
 	    }
-	      /* If needed use the global error state. */
-	    if (part_off_ex) {
-		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", error_flag);
-	    }
+	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", error_flag);
 	    note_array_signal_use(lsig);
 	    fprintf(vvp_out, "    %%assign/vec4/a/d v%p, %d, %d;\n",
 		    lsig, part_off_reg, delay_index);
@@ -1031,7 +1051,8 @@ static void assign_to_lvector(ivl_lval_t lval,
       if (ivl_signal_dimensions(sig) > 0) {
 	    ivl_expr_t word_ix = ivl_lval_idx(lval);
 	    assert(word_ix);
-	    assign_to_array_word(sig, word_ix, delay, dexp, part_off_ex, nevents);
+	    assign_to_array_word(lval, sig, word_ix, delay, dexp, part_off_ex,
+			 nevents);
 	    return;
       }
 
@@ -1045,6 +1066,7 @@ static void assign_to_lvector(ivl_lval_t lval,
 
       unsigned long low_d = delay % UINT64_C(0x100000000);
       unsigned long hig_d = delay / UINT64_C(0x100000000);
+      unsigned carrier_wid = ivl_lval_part_carrier_width(lval);
 
       if (part_off_ex) {
 	      // The part select offset is calculated (not constant)
@@ -1062,6 +1084,7 @@ static void assign_to_lvector(ivl_lval_t lval,
 		       detected xz values. The %assign will use that
 		       to know to skip the assign. */
 		  draw_eval_expr_into_integer(part_off_ex, offset_index);
+		  emit_part_carrier_clip_(lval, offset_index);
 		    /* If the index expression has XZ bits, skip the assign. */
 		  fprintf(vvp_out, "    %s/vec4/off/d v%p_%lu, %d, %d;\n",
 			  assign_op, sig, use_word, offset_index, delay_index);
@@ -1073,6 +1096,7 @@ static void assign_to_lvector(ivl_lval_t lval,
 		  int offset_index = allocate_word();
 		    /* Event control delay... */
 		  draw_eval_expr_into_integer(part_off_ex, offset_index);
+		  emit_part_carrier_clip_(lval, offset_index);
 		  fprintf(vvp_out, "    %s/vec4/off/e v%p_%lu, %d;\n",
 			  assign_op, sig, use_word, offset_index);
 
@@ -1090,6 +1114,7 @@ static void assign_to_lvector(ivl_lval_t lval,
 		       detected xz values. The %assign will use that
 		       to know to skip the assign. */
 		  draw_eval_expr_into_integer(part_off_ex, offset_index);
+		  emit_part_carrier_clip_(lval, offset_index);
 		    /* If the index expression has XZ bits, skip the assign. */
 		  fprintf(vvp_out, "    %s/vec4/off/d v%p_%lu, %d, %d;\n",
 			  assign_op, sig, use_word, offset_index, delay_index);
@@ -1097,7 +1122,8 @@ static void assign_to_lvector(ivl_lval_t lval,
 		  clr_word(delay_index);
 	    }
 
-      } else if (part_off>0 || ivl_lval_width(lval)!=ivl_signal_width(sig)) {
+      } else if (carrier_wid || part_off>0
+		 || ivl_lval_width(lval)!=ivl_signal_width(sig)) {
 
 	    if (nevents != 0) {
 		  assert(dexp==0);
@@ -1105,6 +1131,8 @@ static void assign_to_lvector(ivl_lval_t lval,
 		  fprintf(vvp_out, "    %%ix/load %d, %lu, 0;\n",
 			  offset_index, part_off);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  if (carrier_wid)
+			emit_part_carrier_clip_(lval, offset_index);
 		  fprintf(vvp_out, "    %s/vec4/off/e v%p_%lu, %d;\n",
 			  assign_op, sig, use_word, offset_index);
 		  clr_word(offset_index);
@@ -1123,6 +1151,8 @@ static void assign_to_lvector(ivl_lval_t lval,
 		  }
 		  fprintf(vvp_out, "    %%ix/load %d, %lu, 0;\n", offset_index, part_off);
 		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+		  if (carrier_wid)
+			emit_part_carrier_clip_(lval, offset_index);
 		  fprintf(vvp_out, "    %s/vec4/off/d v%p_%lu, %d, %d;\n",
 			  assign_op, sig, use_word, offset_index, delay_index);
 		  clr_word(offset_index);

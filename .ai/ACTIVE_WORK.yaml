@@ -1,44 +1,33 @@
-id: L48
-title: Preserve packed-dimension bounds and four-state prefixes in indexed reads
-status: IMPLEMENTED_FOCUSED_PASS
-base_revision: c3fb934fd
+id: L49
+title: Bound packed indexed writes to their fixed-prefix carrier
+status: FOCUSED_VALIDATED
+base_revision: d28149794
 origin: DD-022
 standards:
   - IEEE 1800-2017 11.5.1 and 11.5.2
   - IEEE 1800-2023 11.5.1 and 11.5.2
 reproducer:
-  - evidence/dynamic-mixed-driver-assessment/prefix-outside.sv
-  - evidence/dynamic-mixed-driver-assessment/prefix-unknown.sv
-current_behavior: A multidimensional packed indexed read flattens fixed prefixes through native long values, so an out-of-range or unknown middle prefix can alias a valid sibling element.
-expected_behavior: Each packed dimension validates its own index and retains X/Z. Invalid four-state prefixes yield X, invalid two-state prefixes yield zero, and the final indexed base is evaluated once.
-root_cause: Constant prefixes were converted to list<long> without per-dimension validation, while dynamic prefixes were collapsed into one flat offset. Both representations discarded the dimension boundary needed to prevent sibling aliasing.
+  - evidence/dynamic-mixed-driver-assessment/write-blocking.sv
+  - evidence/dynamic-mixed-driver-assessment/write-compound.sv
+  - evidence/dynamic-mixed-driver-assessment/write-nonblocking.sv
+current_behavior: A final indexed write with a fixed packed prefix uses one flattened signal offset, so partial overlap escapes the selected element and overwrites a sibling.
+expected_behavior: Blocking, compound and nonblocking writes clip only against the fixed-prefix carrier. Partial overlap updates valid carrier bits; wholly out-of-range or X/Z bases do no write; indices evaluate once.
+representation_invariant: NetAssign_ retains the existing absolute canonical part base plus a constant canonical carrier offset and width. Only defined in-range fixed prefixes receive metadata. Targets subtract the carrier offset for clipping, then store the surviving slice at its absolute signal offset.
 allowed_scope:
-  - Read-only packed prefix lowering for final indexed +:/-: selections
-  - Pure packed signals and packed suffixes of fixed unpacked words
-  - VVP evaluation of immediate X/Z select bases and two-state selected values
-  - Focused positive/negative regressions, manifests, gold, evidence and ACTIVE_WORK
+  - NetAssign_ carrier metadata, duplication, target transport and analysis
+  - Fixed valid packed prefixes with final indexed +:/-: writes
+  - Blocking, compound and NBA signal and packed array-word stores
+  - VVP runtime clipping via resize_rval_vec and synthesis bounded lowering
+  - Focused tests, manifests, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - Packed lvalue bounds or writes
-  - Dynamic mixed-driver enablement
-  - Short subarray or general packed-select redesign
-  - Broad regression suites before the campaign batch boundary
-completion_requirements:
-  - Constant and dynamic outer/middle invalid and X/Z prefixes cannot alias siblings in 2017 or 2023
-  - Valid prefixes, ascending/descending nonzero ranges, +:/-:, wide indices and fixed-unpacked-word suffixes pass
-  - Prefix and final index side effects occur once even for an invalid prefix
-  - Invalid two-state prefixes produce zero and four-state prefixes produce X
-  - Real packed prefixes and variable indexed widths remain rejected
-  - Focused legacy, JSON, null-target and synthesis checks pass; L46 neighbor remains green
+  - Dynamic or invalid packed prefixes
+  - DD-021 dynamic mixed-driver relaxation beyond already accepted forms
+  - Broad suites before the campaign batch boundary
+remaining_consumers: []
 validation_batch: 20260914
-focused_features_before_this: 5
-last_validated_revision: Working tree after incremental compiler and tgt-vvp rebuild/install. Focused legacy 2/2, JSON 4/4 and L46 JSON neighbor 2/2 pass. Null-target and synthesis checks pass in both editions; variable-width negative rejects with exit 4.
-pending_gates: Root review/checkpoint and campaign batch gates. An accidental partial broad legacy invocation was terminated with exit 143; root observed sv_rand_distribution1 mismatch, so it qualifies no gate and requires fresh batch assessment.
-next_action: Root reviews and checkpoints L48. DD-022 packed writes and DD-021 dynamic mixed-driver support remain open.
-evidence:
-  - evidence/dynamic-mixed-driver-assessment/final-l48-focus-legacy.log
-  - evidence/dynamic-mixed-driver-assessment/final-l48-focus-json.log
-  - evidence/dynamic-mixed-driver-assessment/final-l48-l46-neighbor.log
-  - evidence/dynamic-mixed-driver-assessment/final-l48-null-synth-negative.log
-  - evidence/dynamic-mixed-driver-assessment/accidental-partial-broad-legacy.note
-discovery_policy: Packed lvalue bounds remain separately tracked and out of scope.
+focused_features_before_this: 6
+last_validated_revision: Uncommitted L49 tree. Focused legacy 4/4 and JSON 8/8 pass; blocking, compound, delayed NBA capture, function return, two-state arithmetic, constant/dynamic synthesis, and sensitivity controls pass in both applicable editions.
+pending_gates: Broad suites remain deferred until the campaign batch boundary.
+next_action: Local integration, then DD024 empty implicit-sensitivity synthesis.
+discovery_policy: Dynamic packed-prefix writes remain separately open.
 stop_after_completion: false

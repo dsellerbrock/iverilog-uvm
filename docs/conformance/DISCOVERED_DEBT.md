@@ -1006,6 +1006,13 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   and class fallback paths remain OPEN and must not be mistaken for semantics.
   The synchronizer's reset-time queue mismatch itself remains untriaged; the
   missing setters are not claimed to be its root cause.
+- **Post-L48 assessment:** `missing_package_task.sv` calls a missing task in an
+  existing package; `missing_hier_task.sv` calls a missing task in an existing
+  module instance. Both compile and execute `CONTINUED` in both editions.
+  `evidence/unresolved-task-assessment/qualified-results.json` records all four
+  runs. Package and hierarchical fallback branches remain distinct next fixes;
+  preserve valid forward declarations and class method dispatch when correcting
+  them. No implementation or qualification is claimed yet.
 
 ### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
 
@@ -1060,6 +1067,11 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   wide indices, single evaluation, and unchanged subarray selection. Legacy 2/2,
   JSON 4/4, L46 neighbor 2/2, and null/synthesis checks pass. Packed writes remain
   OPEN and broad qualification remains pending.
+- **L49 synthesis baseline:** `write-synthesis-runtime.sv` synthesizes the
+  combinational DUT with `-S` and simulates it under a retained testbench.
+  Both editions return `a7e0` instead of `a5e0` for a partial write into the
+  low packed element. `write-synthesis-red-results.json` records the failures.
+  A target compile-only smoke cannot establish correct write semantics.
 
 ### DD-023 — Wide constant one-dimensional select aliases in formatting arguments
 
@@ -1089,3 +1101,30 @@ change `a520` into `a7e0` instead of `a5e0`; compound XOR produces `a6e0`, also
 changing the adjacent element. Sources are `write-blocking.sv`,
 `write-compound.sv` and `write-nonblocking.sv` in the same evidence directory.
 The read fixes do not qualify these assignment paths.
+
+L49 focused write correction preserves carrier bounds for defined, valid fixed
+packed prefixes across blocking, compound, NBA and synthesis. Legacy 4/4,
+JSON 8/8 and a root 228-case boundary matrix per edition pass. Constant compound
+and unpacked-array routes have permanent review regression assertions. Dynamic
+and invalid write prefixes, unsupported source-target translations and broad
+qualification remain OPEN; DD-021 is not relaxed by this increment.
+
+### DD-024 — Empty implicit sensitivity crashes synthesis
+
+- **Discovered during:** L49 constant-write validation. A reducer with no RHS
+  reads did not isolate packed-carrier synthesis.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/synthesis-empty-sensitivity.sv`
+  contains a one-dimensional output assigned a constant in `always @*`.
+  With `-S -tnull`, both editions warn that the block will never trigger, then
+  crash with exit 139. `synthesis-empty-sensitivity-results.json` records this.
+- **Scope:** independent of packed-carrier metadata; this reducer has no packed
+  subpart selection. Whether it predates L49 has not been verified against a
+  prior binary. Do not count the crash as a packed-write qualification failure
+  after replacing that test with a DUT that actually reads an input.
+- **Expected:** preserve the semantics of an event wait with no triggering
+  signals, or report an explicit synthesis limitation. Never infer a constant
+  driver merely because the unreachable assignment contains a constant.
+  IEEE 1800-2017/2023 9.4.2.2 governs implicit event controls; compare the distinct
+  time-zero execution rule for `always_comb` in 9.2.2.2.
+- **Status:** OPEN. Investigate the synthesis event-wait path with separate
+  controls for `always @*` and `always_comb` before choosing a correction.

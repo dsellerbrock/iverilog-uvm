@@ -48,6 +48,8 @@ enum slice_type_e {
 
 struct vec_slice_info {
       enum slice_type_e type;
+      uint64_t carrier_off;
+      unsigned carrier_wid;
 
       union {
 	    struct {
@@ -113,6 +115,8 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
       ivl_signal_t sig = ivl_lval_sig(lval);
       ivl_expr_t part_off_ex = ivl_lval_part_off(lval);
       unsigned long part_off = 0;
+      slice->carrier_off = ivl_lval_part_carrier_off(lval);
+      slice->carrier_wid = ivl_lval_part_carrier_width(lval);
 
 	/* Although Verilog doesn't support it, we'll handle
 	   here the case of an l-value part select of an array
@@ -122,8 +126,9 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 
       if (part_off_ex == 0) {
 	    part_off = 0;
-      } else if (number_is_immediate(part_off_ex, IMM_WID, 0) &&
-                 !number_is_unknown(part_off_ex)) {
+      } else if (slice->carrier_wid == 0
+		 && number_is_immediate(part_off_ex, IMM_WID, 0)
+		 && !number_is_unknown(part_off_ex)) {
 	    long immediate = get_number_immediate(part_off_ex);
 	    if (immediate >= 0) {
 		  part_off = (unsigned long)immediate;
@@ -173,20 +178,28 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 
 	    assert(use_word == 0);
 	    assert(part_off == 0);
-	    assert(!signal_is_return_value(sig)); // NOT IMPLEMENTED
 
 	    slice->type = SLICE_PART_SELECT_DYNAMIC;
 
 	    slice->u_.part_select_dynamic.word_idx_reg = allocate_word();
 	    slice->u_.part_select_dynamic.x_flag = allocate_flag();
 
-	    fprintf(vvp_out, "    %%load/vec4 v%p_%lu;\n", sig, use_word);
+	    if (signal_is_return_value(sig))
+		  fprintf(vvp_out, "    %%retload/vec4 0;\n");
+	    else
+		  fprintf(vvp_out, "    %%load/vec4 v%p_%lu;\n", sig, use_word);
+	    if (slice->carrier_wid)
+		  fprintf(vvp_out, "    %%parti/u %u, %" PRIu64 ", 32; packed carrier\n",
+			  slice->carrier_wid, slice->carrier_off);
 	    draw_eval_vec4(part_off_ex);
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
 		    ivl_expr_signed(part_off_ex) ? "/s" : "",
 		    slice->u_.part_select_dynamic.word_idx_reg);
 	    fprintf(vvp_out, "    %%flag_mov %u, 4;\n", slice->u_.part_select_dynamic.x_flag);
+	    if (slice->carrier_wid)
+		  fprintf(vvp_out, "    %%subi %" PRIu64 ", 0, %u; carrier-relative base\n",
+			  slice->carrier_off, ivl_expr_width(part_off_ex));
 	    fprintf(vvp_out, "    %%part/%c %u;\n",
 		    ivl_expr_signed(part_off_ex) ? 's' : 'u', wid);
 
@@ -216,6 +229,9 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 			slice->u_.memory_word_static.part_off_reg = allocate_word();
 			slice->u_.memory_word_static.part_x_flag = allocate_flag();
 			slice->u_.memory_word_static.part_wid = wid;
+			if (slice->carrier_wid)
+			      fprintf(vvp_out, "    %%parti/u %u, %" PRIu64 ", 32; packed carrier\n",
+				      slice->carrier_wid, slice->carrier_off);
 			draw_eval_vec4(part_off_ex);
 			fprintf(vvp_out, "    %%dup/vec4;\n");
 			fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
@@ -223,6 +239,9 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 				slice->u_.memory_word_static.part_off_reg);
 			fprintf(vvp_out, "    %%flag_mov %u, 4;\n",
 				slice->u_.memory_word_static.part_x_flag);
+			if (slice->carrier_wid)
+			      fprintf(vvp_out, "    %%subi %" PRIu64 ", 0, %u; carrier-relative base\n",
+				      slice->carrier_off, ivl_expr_width(part_off_ex));
 			fprintf(vvp_out, "    %%part/%c %u;\n",
 				ivl_expr_signed(part_off_ex) ? 's' : 'u', wid);
 		  } else if (slice->u_.memory_word_static.part_wid) {
@@ -261,6 +280,9 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 			slice->u_.memory_word_dynamic.part_off_reg = allocate_word();
 			slice->u_.memory_word_dynamic.part_x_flag = allocate_flag();
 			slice->u_.memory_word_dynamic.part_wid = wid;
+			if (slice->carrier_wid)
+			      fprintf(vvp_out, "    %%parti/u %u, %" PRIu64 ", 32; packed carrier\n",
+				      slice->carrier_wid, slice->carrier_off);
 			draw_eval_vec4(part_off_ex);
 			fprintf(vvp_out, "    %%dup/vec4;\n");
 			fprintf(vvp_out, "    %%ix/vec4%s %d;\n",
@@ -268,6 +290,9 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
 				slice->u_.memory_word_dynamic.part_off_reg);
 			fprintf(vvp_out, "    %%flag_mov %u, 4;\n",
 				slice->u_.memory_word_dynamic.part_x_flag);
+			if (slice->carrier_wid)
+			      fprintf(vvp_out, "    %%subi %" PRIu64 ", 0, %u; carrier-relative base\n",
+				      slice->carrier_off, ivl_expr_width(part_off_ex));
 			fprintf(vvp_out, "    %%part/%c %u;\n",
 				ivl_expr_signed(part_off_ex) ? 's' : 'u', wid);
 		  } else if (slice->u_.memory_word_dynamic.part_wid) {
@@ -278,6 +303,12 @@ static void get_vec_from_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice
       } else {
 	    assert(0);
       }
+
+      /* A two-state l-value reads zero for every X/Z bit, including the
+       * padding of an out-of-range part select, before the compound operator
+       * is applied. */
+      if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+	    fprintf(vvp_out, "    %%cast2; compound l-value read\n");
 }
 
 /*
@@ -346,8 +377,19 @@ static void put_vec_to_ret_slice(ivl_signal_t sig, struct vec_slice_info*slice,
 	  case SLICE_PART_SELECT_DYNAMIC:
 	    fprintf(vvp_out, "    %%flag_mov 4, %u;\n",
 		    slice->u_.part_select_dynamic.x_flag);
-	    fprintf(vvp_out, "    %%ret/vec4 0, %d, %u;\n",
-		    slice->u_.part_select_dynamic.word_idx_reg, wid);
+	    if (slice->carrier_wid) {
+		  fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64 ", 0, 32; carrier offset\n",
+			  slice->carrier_off);
+		  fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			  slice->carrier_wid);
+		  fprintf(vvp_out, "    %%clip/vec4/b %d;\n",
+			  slice->u_.part_select_dynamic.word_idx_reg);
+		  fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n",
+			  slice->u_.part_select_dynamic.word_idx_reg);
+	    } else {
+		  fprintf(vvp_out, "    %%ret/vec4 0, %d, %u;\n",
+			  slice->u_.part_select_dynamic.word_idx_reg, wid);
+	    }
 	    clr_word(slice->u_.part_select_dynamic.word_idx_reg);
 	    clr_flag(slice->u_.part_select_dynamic.x_flag);
 	    break;
@@ -411,8 +453,23 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 	  case SLICE_PART_SELECT_DYNAMIC:
 	    fprintf(vvp_out, "    %%flag_mov 4, %u;\n",
 		    slice->u_.part_select_dynamic.x_flag);
-	    put_vec_to_signal_part(sig,
-		    slice->u_.part_select_dynamic.word_idx_reg, wid);
+	    if (slice->carrier_wid) {
+		  fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64 ", 0, 32; carrier offset\n",
+			  slice->carrier_off);
+		  fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			  slice->carrier_wid);
+		  fprintf(vvp_out, "    %%clip/vec4/b %d;\n",
+			  slice->u_.part_select_dynamic.word_idx_reg);
+		  if (ivl_signal_type(sig) == IVL_SIT_UWIRE)
+			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n", sig,
+				slice->u_.part_select_dynamic.word_idx_reg);
+		  else
+			fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig,
+				slice->u_.part_select_dynamic.word_idx_reg);
+	    } else {
+		  put_vec_to_signal_part(sig,
+			slice->u_.part_select_dynamic.word_idx_reg, wid);
+	    }
 	    clr_word(slice->u_.part_select_dynamic.word_idx_reg);
 	    clr_flag(slice->u_.part_select_dynamic.x_flag);
 	    break;
@@ -438,6 +495,13 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 				slice->u_.memory_word_static.part_x_flag);
 		  else
 			fprintf(vvp_out,"    %%flag_set/imm 4, 0;\n");
+		  if (slice->carrier_wid && off_idx) {
+			fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64 ", 0, 32; carrier offset\n",
+				slice->carrier_off);
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+				slice->carrier_wid);
+			fprintf(vvp_out, "    %%clip/vec4/b %d;\n", off_idx);
+		  }
 		  fprintf(vvp_out,"    %%store/vec4a v%p, %d, %d;\n", sig,
 			  word_idx, off_idx);
 		  clr_word(word_idx);
@@ -464,6 +528,13 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 	    if (slice->u_.memory_word_dynamic.part_x_flag)
 		  fprintf(vvp_out, "    %%flag_or 4, %u;\n",
 			  slice->u_.memory_word_dynamic.part_x_flag);
+	    if (slice->carrier_wid && off_idx) {
+		  fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64 ", 0, 32; carrier offset\n",
+			  slice->carrier_off);
+		  fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			  slice->carrier_wid);
+		  fprintf(vvp_out, "    %%clip/vec4/b %d;\n", off_idx);
+	    }
 	    fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n", sig,
 		    slice->u_.memory_word_dynamic.word_idx_reg, off_idx);
 	    clr_word(slice->u_.memory_word_dynamic.word_idx_reg);
@@ -1516,6 +1587,8 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 	      /* This is non-nil if the l-val is the word of a memory,
 		 and nil otherwise. */
 	    ivl_expr_t word_ex = ivl_lval_idx(lval);
+	    unsigned carrier_wid = ivl_lval_part_carrier_width(lval);
+	    uint64_t carrier_off = ivl_lval_part_carrier_off(lval);
 
 	    if (word_ex) {
 		    /* Handle index into an array */
@@ -1524,7 +1597,7 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 		    /* Calculate the word address into word_index */
 		  draw_eval_expr_into_integer(word_ex, word_index);
 		    /* If there is a part_offset, calculate it into part_index. */
-		  if (part_off_ex) {
+		  if (part_off_ex && !carrier_wid) {
 			int flag_index = allocate_flag();
 			part_index = allocate_word();
 			fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag_index);
@@ -1535,12 +1608,49 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 
 		  assert(lsig);
 		  note_array_signal_use(lsig);
-		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
-			  lsig, word_index, part_index);
+		  if (carrier_wid) {
+			int word_flag = allocate_flag();
+			part_index = allocate_word();
+			fprintf(vvp_out, "    %%flag_mov %d, 4; preserve array address\n",
+				word_flag);
+			draw_eval_expr_into_integer(part_off_ex, part_index);
+			fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64 ", 0, 32; carrier offset\n",
+				carrier_off);
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+				carrier_wid);
+			fprintf(vvp_out, "    %%clip/vec4/b %d;\n", part_index);
+			fprintf(vvp_out, "    %%flag_or 4, %d;\n", word_flag);
+			fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
+				lsig, word_index, part_index);
+			clr_flag(word_flag);
+		  } else {
+			fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
+				lsig, word_index, part_index);
+		  }
 
 		  clr_word(word_index);
 		  if (part_index)
 			clr_word(part_index);
+
+	    } else if (part_off_ex && carrier_wid) {
+		  int offset_index = allocate_word();
+		  draw_eval_expr_into_integer(part_off_ex, offset_index);
+		  fprintf(vvp_out, "    %%pushi/vec4 %" PRIu64 ", 0, 32; carrier offset\n",
+			  carrier_off);
+		  fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			  carrier_wid);
+		  fprintf(vvp_out, "    %%clip/vec4/b %d;\n", offset_index);
+		  assert(lsig);
+		  if (signal_is_return_value(lsig))
+			fprintf(vvp_out, "    %%ret/vec4/v 0, %d; Assign to %s\n",
+				offset_index, ivl_signal_basename(lsig));
+		  else if (ivl_signal_type(lsig) == IVL_SIT_UWIRE)
+			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n",
+				lsig, offset_index);
+		  else
+			fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n",
+				lsig, offset_index);
+		  clr_word(offset_index);
 
 	    } else if (part_off_ex) {
 		    /* Dynamically calculated part offset */

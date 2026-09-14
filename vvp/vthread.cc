@@ -27210,6 +27210,13 @@ bool of_RET_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_RET_VEC4_VALUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_code_s sized = *cp;
+      sized.bit_idx[1] = thr->peek_vec4().size();
+      return of_RET_VEC4(thr, &sized);
+}
+
 static void push_from_parent(vthread_t thr, vthread_t fun_thr, unsigned depth, double&)
 {
       thr->push_real(fun_thr->parent->peek_real(depth));
@@ -29831,6 +29838,48 @@ bool of_STORE_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_STORE_VEC4_VALUE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_code_s sized = *cp;
+      sized.bit_idx[1] = thr->peek_vec4().size();
+      return of_STORE_VEC4(thr, &sized);
+}
+
+/* %clip/vec4/b <offset-word>
+ * Stack on entry, bottom to top: RHS, carrier offset, carrier width. The
+ * offset word and flag 4 hold the previously evaluated absolute base.
+ * Leaves the clipped RHS, rewrites the absolute destination offset, and
+ * sets flag 4 when the write has no valid destination. */
+bool of_CLIP_VEC4_BOUND(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t carrier_width4 = thr->pop_vec4();
+      vvp_vector4_t carrier_off4 = thr->pop_vec4();
+      int64_t base = thr->words[cp->bit_idx[0]].w_int;
+      int64_t carrier_off = 0, carrier_width = 0;
+      bool valid = thr->flags[4] == BIT4_0
+	  && vpip_vec4_to_int64_saturated(carrier_off4, false, carrier_off)
+	  && vpip_vec4_to_int64_saturated(carrier_width4, false, carrier_width)
+	  && carrier_off >= 0 && carrier_width > 0
+	  && static_cast<uint64_t>(carrier_width) <= UINT32_MAX;
+
+      int64_t relative = 0;
+      if (valid) {
+	    relative = base;
+	    if (relative < INT64_MIN + carrier_off)
+		  relative = INT64_MIN;
+	    else
+		  relative -= carrier_off;
+      }
+      vvp_vector4_t&val = thr->peek_vec4();
+      if (valid)
+	    valid = resize_rval_vec(val, relative,
+				    static_cast<unsigned>(carrier_width));
+      if (valid)
+	    thr->words[cp->bit_idx[0]].w_int = carrier_off + relative;
+      thr->flags[4] = valid ? BIT4_0 : BIT4_1;
+      return true;
+}
+
 /*
  * %store/vec4a <var-label>, <addr>, <offset>
  */
@@ -29870,6 +29919,7 @@ bool of_STORE_VEC4A(vthread_t thr, vvp_code_t cp)
       thr->pop_vec4(1);
       return true;
 }
+
 
 /*
  * %sub

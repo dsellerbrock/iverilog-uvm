@@ -2673,6 +2673,75 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 
       lv->set_part(base, wid, sel_type);
 
+      if (!prefix_indices.empty()
+	  && prefix_indices.size()+1 == reg->packed_dims().size()) {
+	    list<index_component_t> packed_indices = path_.back().index;
+	    for (size_t idx = 0; idx < reg->unpacked_dimensions(); idx += 1)
+		  packed_indices.pop_front();
+	    switch (reg->data_type()) {
+		case IVL_VT_STRING:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  if (!packed_indices.empty()) packed_indices.pop_front();
+		  break;
+		default:
+		  break;
+	    }
+	    bool prefix_valid = packed_indices.size() == prefix_indices.size()+1;
+	    list<index_component_t>::const_iterator raw = packed_indices.begin();
+	    list<long>::const_iterator folded = prefix_indices.begin();
+	    for (; prefix_valid && folded != prefix_indices.end();
+		 ++raw, ++folded) {
+		  NetExpr*raw_expr = elab_and_eval(des, scope, raw->msb, -1, false);
+		  const NetEConst*raw_constant =
+			dynamic_cast<const NetEConst*>(raw_expr);
+		  bool negative = false;
+		  uint64_t magnitude = raw_constant
+			&& raw_constant->value().is_defined()
+			? verinum_signed_magnitude(raw_constant->value(), negative) : 0;
+		  uint64_t expected = *folded < 0
+			? uint64_t(-(*folded+1))+1 : static_cast<uint64_t>(*folded);
+		  prefix_valid = raw_constant
+			&& raw_constant->value().is_defined()
+			&& negative == (*folded < 0) && magnitude == expected;
+		  delete raw_expr;
+	    }
+	    netranges_t::const_iterator dim = reg->packed_dims().begin();
+	    for (list<long>::const_iterator idx = prefix_indices.begin()
+		 ; idx != prefix_indices.end() ; ++idx, ++dim) {
+		  long low = min(dim->get_msb(), dim->get_lsb());
+		  long high = max(dim->get_msb(), dim->get_lsb());
+		  if (*idx < low || *idx > high) {
+			prefix_valid = false;
+			break;
+		  }
+	    }
+	    if (prefix_valid) {
+		  const netrange_t&leaf = reg->packed_dims().back();
+		  long carrier_off = reg->sb_to_idx(prefix_indices,
+						 leaf.get_lsb());
+		  ivl_assert(*this, carrier_off >= 0);
+		  const NetEConst*constant_base = dynamic_cast<const NetEConst*>(base);
+		  verinum_part_select_t overlap;
+		  if (constant_base && constant_base->value().is_defined())
+			overlap = verinum_part_select_overlap(
+			      constant_base->value(), wid, reg->vector_width());
+		  bool within_carrier = constant_base
+			&& constant_base->value().is_defined()
+			&& overlap.width == wid && overlap.source_base == 0
+			&& overlap.destination_base
+				   >= static_cast<uint64_t>(carrier_off)
+			&& overlap.destination_base
+				   - static_cast<uint64_t>(carrier_off) <= leaf.width()
+			&& wid <= leaf.width()
+				   - (overlap.destination_base
+				      - static_cast<uint64_t>(carrier_off));
+		  if (!within_carrier)
+			lv->set_part_carrier(static_cast<uint64_t>(carrier_off),
+					     leaf.width());
+	    }
+      }
+
       return true;
 }
 
