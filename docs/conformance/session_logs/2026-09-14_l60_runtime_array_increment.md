@@ -51,8 +51,8 @@ Runtime: `a6788f42934e9bb16a0b1409408c84a776033727ff8aaba8d37c20b269c3bc76`.
 
 ## Remaining scope
 
-L60 is not counted until local integration. Seven focused features precede
-it in the current batch; full suites remain deferred until approximately ten.
+L60 was fast-forwarded into local main as `bceb03f89`, bringing the batch
+to eight focused features; full suites remain deferred until approximately ten.
 The last broadly qualified semantic baseline remains `c686a4781`.
 
 DD-028 tracks missing class-property updates and real property aborts.
