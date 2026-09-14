@@ -37,3 +37,6 @@ Final evidence: `root-final/results.json` and `l62-final/`.
 Compiler SHA: `b99ccb5838ab074a1d97ce876f39039cd753392b5c83008b25f6aff579eedec8`.
 Target SHA: `e3b1a4042fae5d4d49268f91679e8e057534aa15fd6871ae145133dbccad58c3`.
 Runtime SHA: `65baa472d97e06f56ae30a22a51250adfa9f13404f9ab6ccb0dc96fef44d0488`.
+
+Locally integrated on main as `5dfcc959f`, tenth feature. Full batch gates
+are now due; the focused checks do not replace that qualification.

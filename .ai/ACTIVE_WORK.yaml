@@ -1,6 +1,6 @@
 id: L62
 title: Preserve wide fixed string-array indices at runtime
-status: FOCUSED_VALIDATED_FREEZE
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: 841aec48d
 origin: DD-029
 standards:
@@ -23,3 +23,5 @@ stop_after_completion: false
 l60_root_final: "Root94/94 +6/6literalXchecks and10/10neighbors pass. Corrected consumers with originalindexconverter; no preponedchange. Ready for localintegration; broadgatespending."
 
 l60_local_integration: "bceb03f89 on local main; eighth focusedfeature. Root94+6 and10neighbors pass; permanent4legacy8JSON. Broadgatespending. DD028next."
+
+local_integration: "5dfcc959f on localmain; tenth feature. Full batch gates pending."
