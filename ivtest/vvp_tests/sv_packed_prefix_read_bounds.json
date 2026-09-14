@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_packed_prefix_read_bounds.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_packed_prefix_read_bounds"
+}

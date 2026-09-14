@@ -3007,3 +3007,5 @@ sv_packed_wide_select_monitor normal,-g2017 ivltests gold=sv_packed_wide_select_
 sv_wire_procedural_compound_fail CE,-g2017	ivltests gold=sv_wire_procedural_compound_fail.gold
 sv_task_lookup_resolution normal,-g2017	ivltests gold=sv_task_lookup_resolution.gold
 sv_missing_bare_task_fail CE,-g2017	ivltests gold=sv_missing_bare_task_fail.gold
+sv_packed_prefix_read_bounds normal,-g2017 ivltests gold=sv_packed_prefix_read_bounds.gold
+sv_packed_real_prefix_fail CE,-g2017 ivltests gold=sv_packed_real_prefix_fail.gold

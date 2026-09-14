@@ -1,38 +1,44 @@
-id: L47
-title: One-dimensional wide constant indexed-select reads preserve their base
+id: L48
+title: Preserve packed-dimension bounds and four-state prefixes in indexed reads
 status: IMPLEMENTED_FOCUSED_PASS
-base_revision: bcda22349
-origin: DD-023
+base_revision: c3fb934fd
+origin: DD-022
 standards:
-  - IEEE 1800-2017 11.5.1 and VPI chapters 36-37
-  - IEEE 1800-2023 11.5.1 and VPI chapters 36-37
-reproducer: evidence/dynamic-mixed-driver-assessment/one-dimensional-wide.sv
-current_behavior: A one-dimensional constant indexed-select base of 2^32 is narrowed to zero in the constant elaboration and VPI part-select-handle paths, so formatting reads 0101 rather than xxxx while the equivalent dynamic read is X.
-expected_behavior: Defined constant and dynamic indexed-select bases retain their mathematical value. Wholly out-of-range reads return X in direct expressions and system-task/function VPI arguments, and VPI handle operations do not alias another part of the signal.
-root_cause: The final-dimension constant expression path converts through host long instead of normalize_variable_part_base, and __vpiPV stores a constant part-select base in int even though the descriptor accepts a wider value.
+  - IEEE 1800-2017 11.5.1 and 11.5.2
+  - IEEE 1800-2023 11.5.1 and 11.5.2
+reproducer:
+  - evidence/dynamic-mixed-driver-assessment/prefix-outside.sv
+  - evidence/dynamic-mixed-driver-assessment/prefix-unknown.sv
+current_behavior: A multidimensional packed indexed read flattens fixed prefixes through native long values, so an out-of-range or unknown middle prefix can alias a valid sibling element.
+expected_behavior: Each packed dimension validates its own index and retains X/Z. Invalid four-state prefixes yield X, invalid two-state prefixes yield zero, and the final indexed base is evaluated once.
+root_cause: Constant prefixes were converted to list<long> without per-dimension validation, while dynamic prefixes were collapsed into one flat offset. Both representations discarded the dimension boundary needed to prevent sibling aliasing.
 allowed_scope:
-  - elab_expr.cc final-dimension defined constant indexed +:/-: read normalization
-  - VVP constant and dynamic __vpiPV base storage, out-of-range get/put behavior, callbacks and int-limited range queries
-  - Shared arbitrary-width vec4-to-int64 conversion used by packed selects, queue slices and VPI handles
-  - Focused positive/negative read regressions, manifests, gold, evidence and ACTIVE_WORK
+  - Read-only packed prefix lowering for final indexed +:/-: selections
+  - Pure packed signals and packed suffixes of fixed unpacked words
+  - VVP evaluation of immediate X/Z select bases and two-state selected values
+  - Focused positive/negative regressions, manifests, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - L-value indexed-select normalization or writes
-  - Invalid fixed-prefix validation or dynamic mixed-driver enablement
-  - General VPI API widening
-  - Broad packed-select redesign
+  - Packed lvalue bounds or writes
+  - Dynamic mixed-driver enablement
+  - Short subarray or general packed-select redesign
+  - Broad regression suites before the campaign batch boundary
 completion_requirements:
-  - Constant 2^32 and maximum unsigned +:/-: reads return X in assignment, sformatf and display contexts in 2017 and 2023
-  - Dynamic wide behavior remains X; signed negative partial overlap, ordinary constant, X/Z and 32/64/128-bit cases pass
-  - Constant and dynamic VPI part-select handles retain wide bases, produce X when wholly out of range, perform no out-of-range writes and report bounded internal int range properties
-  - Normal and partial part-select callbacks fire only when their selected value changes; wholly out-of-range callbacks remain quiet
-  - Multidimensional subarray indexed selection stays green
-  - Existing illegal variable part-select bound remains rejected in both editions
-  - Focused legacy, JSON and direct VPI regressions plus null-target and synthesis smoke pass; broad suites deferred to the campaign batch boundary
+  - Constant and dynamic outer/middle invalid and X/Z prefixes cannot alias siblings in 2017 or 2023
+  - Valid prefixes, ascending/descending nonzero ranges, +:/-:, wide indices and fixed-unpacked-word suffixes pass
+  - Prefix and final index side effects occur once even for an invalid prefix
+  - Invalid two-state prefixes produce zero and four-state prefixes produce X
+  - Real packed prefixes and variable indexed widths remain rejected
+  - Focused legacy, JSON, null-target and synthesis checks pass; L46 neighbor remains green
 validation_batch: 20260914
-focused_features_before_this: 4
-last_validated_revision: Working tree after incremental compiler, tgt-vvp and VVP rebuild/install. Reproducer passes in 2017 and 2023. Focused legacy 3/3, JSON 6/6 and direct VPI 1/1 pass. Null-target and synthesis smoke pass in both editions. Wide and partially overlapping monitor callbacks are bounded and stable.
-pending_gates: Root review/checkpoint and campaign batch gates; broad suites deferred until batch boundary.
-next_action: Root reviews and checkpoints L47; DD-022 writes, DD-021 dynamic mixed-driver support and invalid fixed-prefix bounds remain open.
-evidence: evidence/dynamic-mixed-driver-assessment/final-l47-focus-{legacy,json,vpi}.log and final-l47-repro-null-synth.log
-discovery_policy: Adjacent l-value and invalid-prefix gaps remain separately tracked and out of scope.
+focused_features_before_this: 5
+last_validated_revision: Working tree after incremental compiler and tgt-vvp rebuild/install. Focused legacy 2/2, JSON 4/4 and L46 JSON neighbor 2/2 pass. Null-target and synthesis checks pass in both editions; variable-width negative rejects with exit 4.
+pending_gates: Root review/checkpoint and campaign batch gates. An accidental partial broad legacy invocation was terminated with exit 143; root observed sv_rand_distribution1 mismatch, so it qualifies no gate and requires fresh batch assessment.
+next_action: Root reviews and checkpoints L48. DD-022 packed writes and DD-021 dynamic mixed-driver support remain open.
+evidence:
+  - evidence/dynamic-mixed-driver-assessment/final-l48-focus-legacy.log
+  - evidence/dynamic-mixed-driver-assessment/final-l48-focus-json.log
+  - evidence/dynamic-mixed-driver-assessment/final-l48-l46-neighbor.log
+  - evidence/dynamic-mixed-driver-assessment/final-l48-null-synth-negative.log
+  - evidence/dynamic-mixed-driver-assessment/accidental-partial-broad-legacy.note
+discovery_policy: Packed lvalue bounds remain separately tracked and out of scope.
 stop_after_completion: false

@@ -1054,6 +1054,12 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   `prefix-results.json` records the 2023 failure. Constant prefix flattening
   also lacks per-dimension bounds checks; L46's valid-prefix read scope does
   not qualify this case.
+- **L48 focused read correction:** final-dimension indexed reads preserve every
+  packed prefix as a nested selection, including dynamic and unknown prefixes.
+  Focused tests cover both editions, unpacked-word suffixes, two-state results,
+  wide indices, single evaluation, and unchanged subarray selection. Legacy 2/2,
+  JSON 4/4, L46 neighbor 2/2, and null/synthesis checks pass. Packed writes remain
+  OPEN and broad qualification remains pending.
 
 ### DD-023 — Wide constant one-dimensional select aliases in formatting arguments
 
@@ -1076,3 +1082,10 @@ DD-022 follow-up evidence: `prefix-boundary-results.json` shows both editions
 reading neighboring bits for an out-of-range or X middle prefix, while evaluating
 the final index function once. `prefix-outside.sv` and `prefix-unknown.sv` are the
 next read-side reproducers; neither is qualified by L46/L47.
+
+DD-022 write-side preparation: `write-boundary-results.json` contains six failing
+checks across both editions. Blocking and nonblocking writes to `words[0][6+:4]`
+change `a520` into `a7e0` instead of `a5e0`; compound XOR produces `a6e0`, also
+changing the adjacent element. Sources are `write-blocking.sv`,
+`write-compound.sv` and `write-nonblocking.sv` in the same evidence directory.
+The read fixes do not qualify these assignment paths.

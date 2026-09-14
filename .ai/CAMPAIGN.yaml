@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44, L45, L46, L47]
-  in_progress: L48
+  focused_validated_features: [L43, L44, L45, L46, L47, L48]
+  in_progress: L49_write_bounds_design
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -816,3 +816,7 @@ l46_runtime_prerequisite: "Boundarytests exposed PART int32 indextruncation and 
 l46_checkpoint: "Focusedlegacy1/1 JSON2/2; null/synthesis bothmodes; negativebothmodes; L44neighbor4/4; nestedwideformatbothmodes pass. Rootreviewclear. Fourthfocusedfeature; fullsuitesdeferred. DD023 one-dimensionalwideconstantformat next; writebounds/DD021remainopen."
 
 l47_checkpoint: "Legacy3/3 JSON6/6 directVPIbothmodes null/synthesisbothmodes; L46neighbor2/2 pass. CompilerVPIvalue/callbackreviewclear. Fifthfocusedfeature; broadgatesdeferred. NextDD022invalidpackedprefixreads, withwriteboundsretainedopen."
+
+l47_local_integration: "L46bcda22349 andL47c3fb934fd fast-forwarded into localmain. Sharedgraph updatedfrommain50972nodes94667edges. No remote push/merge ornewclone/worktree. Same retainedcheckout nowagent/l48-packed-prefix-reads-20260914; five focusedfeatures, broadgatespending atapproximatelyten."
+
+l48_checkpoint: "Per-dimension final indexed reads reviewed. Legacy2/2 JSON4/4 L46neighbor2/2 null/synthesisbothmodes pass; variable part-bound negative rejects. Sixth focusedfeature. Accidental partial broad run terminated143 because ./regress ignoresarguments; observed sv_rand_distribution1 mismatch requiresfreshbatchassessment. Use perl vvp_reg.pl positional-list directly. Next DD022writeboundsdesign; fullqualificationpending."

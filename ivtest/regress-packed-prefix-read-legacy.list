@@ -1,0 +1,2 @@
+sv_packed_prefix_read_bounds normal,-g2017 ivltests gold=sv_packed_prefix_read_bounds.gold
+sv_packed_real_prefix_fail CE,-g2017 ivltests gold=sv_packed_real_prefix_fail.gold

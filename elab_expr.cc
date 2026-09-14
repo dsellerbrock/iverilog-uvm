@@ -24815,7 +24815,12 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
       list<index_component_t> packed_indices = name_tail.index;
       for (size_t idx = 0 ; idx < net->unpacked_dimensions() ; idx += 1)
 	    packed_indices.pop_front();
-      if (!need_const
+      const bool final_indexed_packed =
+	    !packed_indices.empty()
+	    && packed_indices.size() == net->packed_dimensions()
+	    && (packed_indices.back().sel == index_component_t::SEL_IDX_UP
+		|| packed_indices.back().sel == index_component_t::SEL_IDX_DO);
+      if (!need_const && !final_indexed_packed
 	  && packed_base_needs_expr_(des, scope, net, packed_indices)) {
 	    unsigned long sel_wid = 0;
 	    NetExpr*base = collapse_packed_base(des, scope, this, net,
@@ -25039,6 +25044,71 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 /*
  * Part select indexed up, i.e. net[<m> +: <l>]
  */
+static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
+					const PEIdent*ident, NetESignal*net,
+					bool need_const, NetExpr*&carrier)
+{
+      const NetNet*sig = net->sig();
+      const netranges_t&dims = sig->packed_dims();
+      if (dims.size() < 2)
+	    return false;
+
+      list<index_component_t> indices = ident->path().back().index;
+      if (indices.size() < sig->unpacked_dimensions())
+	    return false;
+      for (size_t idx = 0 ; idx < sig->unpacked_dimensions() ; idx += 1)
+	    indices.pop_front();
+
+      if (indices.size() != dims.size())
+	    return false;
+      list<index_component_t>::const_iterator last = indices.end();
+      --last;
+      if (last->sel != index_component_t::SEL_IDX_UP
+	  && last->sel != index_component_t::SEL_IDX_DO)
+	    return false;
+      for (list<index_component_t>::const_iterator cur = indices.begin()
+		 ; cur != last ; ++cur) {
+	    if (cur->sel != index_component_t::SEL_BIT || !cur->msb)
+		  return false;
+      }
+
+	/* IEEE 1800-2017/2023 11.5.1: retain every packed dimension as
+	 * a carrier. Flattening the prefix lets an out-of-range or unknown
+	 * index in one dimension alias a valid element in another. */
+      carrier = net;
+      netranges_t::const_iterator dim = dims.begin();
+      size_t used = 0;
+      for (list<index_component_t>::const_iterator cur = indices.begin()
+		 ; cur != last ; ++cur, ++dim) {
+	    NetExpr*base = elab_and_eval(des, scope, cur->msb, -1, need_const);
+	    if (!base) {
+		  delete carrier;
+		  carrier = 0;
+		  return true;
+	    }
+	    if (base->expr_type() == IVL_VT_REAL) {
+		  cerr << ident->get_fileline() << ": error: Packed array index "
+		       << *base << " cannot be a real value." << endl;
+		  des->errors += 1;
+		  delete base;
+		  delete carrier;
+		  carrier = 0;
+		  return true;
+	    }
+	    base = normalize_variable_base(base, dim->get_msb(), dim->get_lsb(),
+					   1, true, 0);
+	    unsigned long slice_wid = sig->slice_width(++used);
+	    base = scale_index_to_bits(base, slice_wid, *ident);
+	    ivl_type_t selected = packed_type_after_dims(sig->net_type(), used);
+	    NetESelect*slice = selected
+		  ? new NetESelect(carrier, base, slice_wid, selected)
+		  : new NetESelect(carrier, base, slice_wid);
+	    slice->set_line(*ident);
+	    carrier = slice;
+      }
+      return true;
+}
+
 NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 				             NetESignal*net, NetScope*,
                                              bool need_const) const
@@ -25049,11 +25119,6 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return 0;
       }
-
-      list<long>prefix_indices;
-      bool rc = calculate_packed_indices_(des, scope, net->sig(), prefix_indices);
-      if (!rc)
-	    return 0;
 
       NetExpr*base = calculate_up_do_base_(des, scope, need_const);
       if (!base)
@@ -25070,25 +25135,27 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      const NetEConst*slice_base_constant = dynamic_cast<NetEConst*> (base);
-      /* IEEE 1800-2017/2023 11.5.1: retain the selected packed
-	 element as the carrier so an indexed select cannot reach a sibling. */
-      if (!prefix_indices.empty()
-	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()
-	  && (!slice_base_constant
-	      || slice_base_constant->value().is_defined())) {
+      NetExpr*carrier = 0;
+      if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
+					     carrier)) {
+	    if (!carrier) {
+		  delete base;
+		  return 0;
+	    }
 	    const netrange_t&rng = net->sig()->packed_dims().back();
-	    long slice_off = net->sig()->sb_to_idx(prefix_indices,
-						     rng.get_lsb());
-	    NetESelect*slice = new NetESelect(net,
-		  new NetEConst(verinum(slice_off)), rng.width());
-	    slice->set_line(*this);
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, true, 0);
-	    NetESelect*ss = new NetESelect(slice, base, wid, IVL_SEL_IDX_UP);
+	    NetESelect*ss = new NetESelect(carrier, base, wid, IVL_SEL_IDX_UP);
 	    ss->set_line(*this);
 	    return ss;
       }
+
+      list<long>prefix_indices;
+      bool rc = calculate_packed_indices_(des, scope, net->sig(), prefix_indices);
+      if (!rc)
+	    return 0;
+
+      const NetEConst*slice_base_constant = dynamic_cast<NetEConst*> (base);
 
       if (slice_base_constant
 	  && slice_base_constant->value().is_defined()
@@ -25238,11 +25305,6 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      list<long>prefix_indices;
-      bool rc = calculate_packed_indices_(des, scope, net->sig(), prefix_indices);
-      if (!rc)
-	    return 0;
-
       NetExpr*base = calculate_up_do_base_(des, scope, need_const);
       if (!base)
 	    return nullptr;
@@ -25258,25 +25320,27 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    return 0;
       }
 
-      const NetEConst*slice_base_constant = dynamic_cast<NetEConst*> (base);
-      /* IEEE 1800-2017/2023 11.5.1: retain the selected packed
-	 element as the carrier so an indexed select cannot reach a sibling. */
-      if (!prefix_indices.empty()
-	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()
-	  && (!slice_base_constant
-	      || slice_base_constant->value().is_defined())) {
+      NetExpr*carrier = 0;
+      if (make_packed_prefix_carrier_(des, scope, this, net, need_const,
+					     carrier)) {
+	    if (!carrier) {
+		  delete base;
+		  return 0;
+	    }
 	    const netrange_t&rng = net->sig()->packed_dims().back();
-	    long slice_off = net->sig()->sb_to_idx(prefix_indices,
-						     rng.get_lsb());
-	    NetESelect*slice = new NetESelect(net,
-		  new NetEConst(verinum(slice_off)), rng.width());
-	    slice->set_line(*this);
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, false, 0);
-	    NetESelect*ss = new NetESelect(slice, base, wid, IVL_SEL_IDX_DOWN);
+	    NetESelect*ss = new NetESelect(carrier, base, wid, IVL_SEL_IDX_DOWN);
 	    ss->set_line(*this);
 	    return ss;
       }
+
+      list<long>prefix_indices;
+      bool rc = calculate_packed_indices_(des, scope, net->sig(), prefix_indices);
+      if (!rc)
+	    return 0;
+
+      const NetEConst*slice_base_constant = dynamic_cast<NetEConst*> (base);
 
       if (slice_base_constant
 	  && slice_base_constant->value().is_defined()
@@ -25996,7 +26060,12 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	// i has to take the general computed-base path. This test is false
 	// for every shape the prefix path already handles, so that path
 	// stays in charge of them.
-      if (node->sig()->unpacked_dimensions() == 0
+      const bool final_indexed_packed =
+	    !path_.back().index.empty()
+	    && path_.back().index.size() == node->sig()->packed_dimensions()
+	    && (path_.back().index.back().sel == index_component_t::SEL_IDX_UP
+		|| path_.back().index.back().sel == index_component_t::SEL_IDX_DO);
+      if (!final_indexed_packed && node->sig()->unpacked_dimensions() == 0
 	  && packed_base_needs_expr_(des, scope, node->sig(),
 				 path_.back().index)) {
 	    unsigned long sel_wid = 0;
@@ -26016,6 +26085,16 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	    delete pbase;
       }
 
+	/* Final indexed reads retain their packed prefixes as expressions;
+	 * do not send them through the constant-only list<long> path. */
+      if (use_sel == index_component_t::SEL_IDX_UP)
+	    return elaborate_expr_net_idx_up_(des, scope, node, found_in,
+                                              need_const);
+
+      if (use_sel == index_component_t::SEL_IDX_DO)
+	    return elaborate_expr_net_idx_do_(des, scope, node, found_in,
+                                              need_const);
+
       list<long> prefix_indices;
       bool rc = evaluate_index_prefix(des, scope, prefix_indices, path_.back().index);
       if (!rc) return 0;
@@ -26027,14 +26106,6 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
       if (use_sel == index_component_t::SEL_PART)
 	    return elaborate_expr_net_part_(des, scope, node, found_in,
                                             expr_wid);
-
-      if (use_sel == index_component_t::SEL_IDX_UP)
-	    return elaborate_expr_net_idx_up_(des, scope, node, found_in,
-                                              need_const);
-
-      if (use_sel == index_component_t::SEL_IDX_DO)
-	    return elaborate_expr_net_idx_do_(des, scope, node, found_in,
-                                              need_const);
 
       if (use_sel == index_component_t::SEL_BIT)
 	    return elaborate_expr_net_bit_(des, scope, node, found_in,

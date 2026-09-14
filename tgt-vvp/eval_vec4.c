@@ -1286,17 +1286,24 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    unsigned long val0, valx;
 	    unsigned base_wid;
 	    make_immediate_vec4_words(base, &val0, &valx, &base_wid);
-	    assert(valx == 0);
-
-	    draw_eval_vec4(subexpr);
-	    fprintf(vvp_out, "    %%parti/%c %u, %lu, %u;\n",
-		    sign_suff, wid, val0, base_wid);
+	    if (valx == 0) {
+		  draw_eval_vec4(subexpr);
+		  fprintf(vvp_out, "    %%parti/%c %u, %lu, %u;\n",
+			  sign_suff, wid, val0, base_wid);
+	    } else {
+		  draw_eval_vec4(subexpr);
+		  draw_eval_vec4(base);
+		  fprintf(vvp_out, "    %%part/%c %u;\n", sign_suff, wid);
+	    }
 
       } else {
 	    draw_eval_vec4(subexpr);
 	    draw_eval_vec4(base);
 	    fprintf(vvp_out, "    %%part/%c %u;\n", sign_suff, wid);
       }
+
+      if (ivl_expr_value(expr) == IVL_VT_BOOL)
+	    fprintf(vvp_out, "    %%cast2;\n");
 }
 
 static void draw_select_pad_vec4(ivl_expr_t expr)
