@@ -1,23 +1,23 @@
 status: active
-branch: "agent/batch-regression-corrections-20260914"
-current_blocker: "L43-L52 combined regression failures: null statements, sensitivity, assertion selectors, selection typing and VPI signed array words"
-phase: "full_batch_validation"
+branch: "main"
+current_blocker: "Next: DD-020 unindexed hierarchical missing task calls; DD-022 invalid fixed packed write prefixes"
+phase: "batch_qualified"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "d0b6015bf"
+last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Correct first-pass legacy29/JSON13 failures with focused tests, then qualify the corrected batch; frontend deferred until corrections."
+pending_gates: "None for L43-L52 corrected batch; all local qualification gates passed."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "Finish batch regression corrections before selecting another feature."
-next_action: "Complete shared compiler regression corrections, review and merge locally, then run combined qualification. No remote publication requested."
-next_command: "Review reused implementation agent fixes and focused results; freeze corrected source before broad gates."
+next_selection: "DD-020 unindexed hierarchy calls, then DD-022 constant-invalid packed prefixes; both have frozen-candidate evidence."
+next_action: "Begin next focused batch with DD-020 unindexed hierarchical missing task calls; reuse the existing implementation agent and retained checkout."
+next_command: "Use frozen-candidate unindexed-hier evidence to implement bounded scope-proven rejection, with focused positive/negative controls."
 next_command_cwd: repository root
-candidate_state: "Ten focused features L43-L52 locally integrated at e5a1eb846; batch corrections in progress."
-installed_tools: "Installed batch candidate plus active regression corrections; not yet fully qualified."
-validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
-next_validation: "Focused correction reproducers, then full batch gates with installed-tool provenance."
+candidate_state: "L43-L52 plus regression corrections locally qualified at c686a4781."
+installed_tools: "c686a4781; six compiler/runtime/DPI/header hashes match after frontend restoration."
+validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
+next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -791,8 +791,10 @@ validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
   focused_validated_features: [L43, L44, L45, L46, L47, L48, L49, L50, L51, L52]
-  in_progress: full_batch_validation
-  broad_gates: corrected_candidate_ready
+  in_progress: none
+  broad_gates: passed
+  qualified_revision: c686a4781
+  qualification_evidence: evidence/batch-20260914-l43-l52/qualification-corrected/qualification-summary.json
   first_pass_candidate: e5a1eb846
   first_pass_results: "Legacy 5018 total / 4984 pass / 29 fail / 2 NI / 3 EF; JSON 1927 / 13 fail; VPI108/108, negative149/149, runtime15/15, copyout6/6; UVM357/0/0 REAL DPI, NFA58/58, releases15/15 SMOKE_PASS, make check passed. Frontend deferred."
   first_pass_evidence: evidence/batch-20260914-l43-l52/first-pass-summary.json
@@ -837,3 +839,5 @@ l51_checkpoint: "Packagequalified task/function statement lookup usesexistingdow
 l52_checkpoint: "Indexedmodule/generate taskcalls execute withdelay,args,copyout andcorrectinstance effects; indexedvoidfunctions andruntimeobjectindices preserved. Legacy5/5 JSON10/10, rootnegativeindex+INT_MINcontrols both editions pass. Sharedscopeindices rejectunknown,OOB andrepresentationoverflow. Tenth focusedincrement, readyforonefullbatch. No remotechanges ornewworktree."
 
 batch_corrections_focused: "All first-pass failures rechecked: legacy45/45 and JSON42/42 pass; permanent two-state packed-prefix synthesis regression both editions; build/install and root source review clear. Corrected broad qualification pending; first-pass evidence preserved. No remote changes or new worktree."
+
+batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full frontend restore preserves six hashes. Shared main graph:51083nodes94825edges. Next constant-invalid packed-write matrix fails6/6 per edition with RHS/base evaluated once; unindexed dut.missing compiles0. These are next bounded increments, not regression waivers."

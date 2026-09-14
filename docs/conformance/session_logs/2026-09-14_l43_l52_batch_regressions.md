@@ -62,5 +62,36 @@ controls and independent signed-base/unknown-value controls pass in both
 editions. Build/install and diff checks pass. Final correction logs are named
 `corrections/final-*`; earlier intermediate runs are not qualification.
 
-Broad qualification of the corrected candidate remains pending. Its results
-will be recorded under `qualification-corrected/`, preserving the first pass.
+Corrected candidate `c686a4781` passed every broad gate:
+
+| Gate | Corrected result |
+| --- | --- |
+| Legacy | 5019 total; 5014 passed, 0 failed, 2 not implemented, 3 expected failures |
+| JSON | 1929 run, 0 failed |
+| VPI / negative diagnostics | 108 / 149 passed |
+| Runtime invariants / copy-out / exports | 15 / 6 / 66 passed |
+| UVM | 357 passed, 0 failed, 0 skipped; real DPI umbrella |
+| SVA NFA | 58 passed |
+| Release matrix | 15 SMOKE_PASS |
+| make check | Passed with configured Bison 3.8.2 |
+| Frontend | All 12 scenarios passed |
+
+Frontend restoration preserved all six frozen compiler/runtime/DPI/header
+hashes. The tracked tree was clean. Results and exact installed hashes are in
+`qualification-corrected/qualification-summary.json`. An initial make-check
+invocation resolved the older system Bison and stopped at parser generation;
+its separate invocation-error log is preserved. The rerun used the Bison
+3.8.2 toolchain recorded by configure and passed. No compiler source changed
+between these two invocations.
+
+An evidence-only VPI probe independently checked signed and unsigned fixed
+and dynamic array words, with constant and runtime indices: 8/8 properties
+passed in each edition. Its sources, commands and outputs are in
+`corrections/vpi-signed-array-probe/`.
+
+This qualifies the bounded L43–L52 batch, not full IEEE/UVM conformance.
+Unindexed hierarchical missing-task calls remain DD-020, and constant-invalid
+or dynamic packed write prefixes remain DD-022. Frozen-candidate reproducers
+for both next increments were prepared without changing the candidate.
+No remote push or merge occurred. No new clone or worktree was created;
+the active campaign tree and unrelated dirty controlling tree were retained.

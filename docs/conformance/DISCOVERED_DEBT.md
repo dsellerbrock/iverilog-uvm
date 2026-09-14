@@ -1157,3 +1157,22 @@ qualification remain OPEN; DD-021 is not relaxed by this increment.
   preserving dormant X output, time-zero always_comb execution and ordinary
   retriggering. Forced synthesis still rejects explicitly. Broad qualification
   remains pending.
+
+
+L43–L52 batch qualification checkpoint (`c686a4781`, 2026-09-14): all local
+broad gates pass after correcting null AST actions, selector name handling,
+sensitivity selection kinds, declared two-state read casts and VPI array-word
+signedness. This supersedes the broad-pending notes for L43–L52 above; DD-024
+is locally qualified within its stated empty-wait scope. The broader DD-020,
+DD-021 and DD-022 obligations remain open.
+
+Next DD-020 evidence: `unindexed-hier-frozen-candidate.json` still observes
+`dut.missing()` compiling successfully in both editions. Valid module/package
+forward tasks and indexed object methods pass the accompanying controls.
+
+Next DD-022 evidence:
+`evidence/dynamic-mixed-driver-assessment/invalid-prefix-writes/results.json`
+records constant OOB and X prefixes leaking blocking, compound and NBA writes
+in both editions (six cases per edition). Final-index and RHS functions each
+execute once. A correction must preserve that evaluation while preventing
+invalid stores; classifying dynamic prefixes as constant-invalid is incorrect.
