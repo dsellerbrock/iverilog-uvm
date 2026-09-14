@@ -48,8 +48,8 @@ replay. Installed compiler SHA-256: `54e6d71e3cf32e99b9c50b9f62e32601ec345b5bd39
 
 This is focused feature validation, not a full-suite conformance claim.
 The last broad-qualified semantic baseline remains `c686a4781`. L53, L54,
-and L55 are already focused-validated; L56 becomes the fourth item only
-after local integration. Full suites remain deferred until approximately
+and L55 are already focused-validated; L56 is the fourth item, integrated
+into local main at `e9531fbfb`. Full suites remain deferred until approximately
 ten features under the user's batching policy.
 
 Dynamic mixed-driver prefixes remain conservatively rejected. Existing

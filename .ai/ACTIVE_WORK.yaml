@@ -1,6 +1,6 @@
 id: L56
 title: Preserve bounds for dynamic packed-prefix writes
-status: FROZEN_FOR_REVIEW
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: c39c0b997
 origin: DD-022
 standards:
@@ -15,6 +15,6 @@ forbidden_scope:
 validation_batch: 20260914
 focused_features_before_this: 3
 last_validated_revision: Dynamic packed-prefix blocking, compound and NBA writes pass the 378-case pure-packed, 108-case bit/whole-element, 504-case fixed-array, and 108-case nonleaf matrices in IEEE 2017/2023. Delayed NBA capture, compound old-value arithmetic, constant-function static/dynamic carrier evaluation, exact wide signed/unsigned synthesis results, functional synthesis, sensitivity, and clocking controls pass. Permanent array tests cover constant range writes and invalid constant-word compound selector evaluation. Source targets either consume the carrier (VVP/stub) or diagnose unsupported bounded writes (vlog95/VHDL). Final focused legacy 5/5 and JSON 10/10 pass; logs are evidence/dynamic-mixed-driver-assessment/l56/final-tightened-legacy-3.log and final-tightened-json-3.log.
-pending_gates: Root source review and the next feature-batch broad qualification.
-next_action: Keep source frozen for root review and integration.
+pending_gates: Next approximately-ten-feature batch broad qualification.
+next_action: L56 integrated at e9531fbfb; continue DD-020 receiver task-call assessment.
 stop_after_completion: false
