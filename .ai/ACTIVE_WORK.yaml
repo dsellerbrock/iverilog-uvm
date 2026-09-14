@@ -1,6 +1,6 @@
 id: L57
 title: Diagnose unresolved receiver task calls
-status: FROZEN_FOR_REVIEW
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: 36e74e8c3
 origin: DD-020
 standards:
@@ -15,6 +15,6 @@ forbidden_scope:
 validation_batch: 20260914
 focused_features_before_this: 4
 last_validated_revision: Unresolved, indexed, invalid intermediate, familiar-name, missing-constraint, and scalar-as-collection receiver calls now produce compilation errors after real task, method, function, built-in, constraint, and deferred-type resolution. Exact-effect class, indexed, nested, named-constraint, hierarchy, package, type-parameter, semaphore, and member-queue controls pass. Focused legacy 9/9 and JSON 10/10 pass in IEEE 2017/2023; logs are evidence/unresolved-task-assessment/l57/final-legacy-2.log and final-json-2.log.
-pending_gates: Root source review and the next feature-batch broad qualification.
-next_action: Keep source frozen for root review and integration.
+pending_gates: Next approximately-ten-feature batch broad qualification.
+next_action: L57 integrated at e025a775d; continue DD-025 constant-function expression effects.
 stop_after_completion: false

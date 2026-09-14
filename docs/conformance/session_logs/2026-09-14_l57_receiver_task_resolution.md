@@ -39,8 +39,8 @@ specializations must resolve real calls or diagnose invalid ones.
   source additionally removes the untyped collection-name fallback.
 - `git diff --check` passes. Installed compiler SHA-256: `b646b0f33501c55f2646adaa21bf58ef3234af78cca994245ca28812d3bf2cb5`.
 
-No broad suite was run. L53–L56 provide four focused batch items; L57 becomes
-the fifth after local integration. The last full qualification remains
+No broad suite was run. L53–L56 provide four focused batch items; L57 is
+the fifth, integrated into local main at `e025a775d`. The last full qualification remains
 `c686a4781`; larger UVM/application effects will be checked at the requested
 approximately-ten-feature gate. No UVM or application source was modified,
 no remote action was taken, and the same worker and worktree were reused.

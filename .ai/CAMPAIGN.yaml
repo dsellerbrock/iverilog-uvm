@@ -1,7 +1,7 @@
 status: active
-branch: "agent/l57-unresolved-receiver-tasks-20260914"
+branch: "main"
 current_blocker: "DD-020 unresolved receiver task calls can be discarded without execution"
-phase: "focused_validated_pending_local_integration"
+phase: "focused_batch_continuation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
@@ -845,8 +845,8 @@ batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full fron
 validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
-  focused_validated_features: [L53, L54, L55, L56]
-  in_progress: L57_unresolved_receiver_tasks
+  focused_validated_features: [L53, L54, L55, L56, L57]
+  in_progress: none
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -897,3 +897,5 @@ l57_root_named_escape_review: "Installed candidate 0a7819c74fdaf4022a6ae7d57d41e
 l57_collection_review: "Secondcandidate root48/48 receiver controls pass. Additional scalar-member collection calls reveal8wrongcompile0 vs2pop_backCE controls; untyped multi-hop collection name fallback must be removed after real dispatch. Worker assigned; valid class-owned queue control prepared."
 
 l57_final_review: "Final root40/40 and specialization/hook neighbors12/12 paired outcomes pass; permanentlegacy9/9 JSON10/10; source removes untyped UVM/TLM/collection name stubs and diagnoses unresolved receivers after proper lookup. Source frozen, diffcheckpassed. Ready for local integration; no full-suite claim."
+
+l57_local_integration: "e025a775d fast-forwarded into local main; fifth focused feature in batch. Same worker/worktree, no remote changes; graph refresh follows this checkpoint. DD025 constant function assignment/inc-dec is next."
