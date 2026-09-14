@@ -1,7 +1,7 @@
 status: active
-branch: "main"
+branch: "agent/l62-wide-string-array-reads-20260914"
 current_blocker: "DD-029 wide fixed string-array reads alias valid elements"
-phase: "focused_batch_continuation"
+phase: "focused_validated_pending_local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
@@ -846,7 +846,7 @@ validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
   focused_validated_features: [L53, L54, L55, L56, L57, L58, L59, L60, L61]
-  in_progress: none
+  in_progress: L62_wide_string_array_reads
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -951,3 +951,15 @@ l61_start: "Same retained checkout branchedfrom490f7c51c afterL60 integration an
 l61_root_frozen: "114/114 independent paired outcomes pass with stable ivl0f6667ad, target41b624bc, runtimea6788f42. Baseline48, boundaries48, capture6, notifications6, restrictions6. Worker neighbors21/21; permanentlegacy2/2 JSON4/4. Source reviewed; local integration next, broad gates pending."
 
 l61_local_integration: "497110d63 fast-forwarded to local main; ninth focused feature. Root114/114, neighbors21/21, legacy2/2 JSON4/4. No remote action or extra worktree. DD029 next; broad qualification pending tenth feature."
+
+l62_start: "Same retained checkout branched from841aec48d afterL61 integration and graph terminal0(51245nodes95083edges7311communities). Reused existing sol worker; no extra trees/models. DD029 root matrix8paired failures prepared. Tenth feature then full gates."
+
+l62_root_automatic_baseline: "Eight additional paired automatic-function string-array matrix runs compile clean then fail exact wide-index empty-default oracle. Evidence runtime-string-array-index-assessment/automatic/baseline-results.json. IEEE7.4.6 Table7-1 confirmed from local2023text. Existing seven-gate batch runner prepared; frontend must run last alone due to installed-resource relocation."
+
+l62_first_candidate_root: "Stable ivl0f6667ad/target41b624bc/runtime65baa472 candidate passes16/20 independent runs. Four failures are module/automatic unsigned128 allones index into[-1:1] aliasing -1. Runtime consumer fix alone is insufficient; worker investigating declared-index normalization overflow. Root-candidate/results.json preserved. No batch qualification launched."
+
+l62_normalized_root: "Shared unpacked normalization zeroextends unsigned indices before signed canonical arithmetic. Root36/36 pass stable compilerb99ccb58/targete3b1a404/runtime65baa472: original4,matrix8,automatic8,neighborreads8,invalidstores8. Prior four aliases resolved; permanent validation/freeze pending. Evidence root-normalized/results.json."
+
+l62_signedness_width_controls: "32/32 paired int/logic/real/string controls at index widths8/32/64/128 preserve signed -1 reads while rejecting unsigned allones aliases. Evidence signedness-widths/results.json. This complements36 normalized root runs; permanent freeze pending."
+
+l62_final_freeze: "Root68/68 stable b99ccb58/e3b1a404/65baa472; permanentlegacy1/1 JSON2/2 neighbors4/4. Direct int expression regression requires declared two-state conversion after generic array load, included. Source/tests reviewed. Ready localintegration then fullbatchgates."

@@ -1193,7 +1193,12 @@ NetExpr* normalize_variable_unpacked(const LineInfo&loc, const netranges_t&dims,
 	      // have a proper width to make sure there are no
 	      // losses. So calculate a min_wid width.
 	    unsigned tmp_wid;
-	    unsigned min_wid = tmp->expr_width();
+	      /* Canonical array addresses are signed mathematical values. Add a
+	       * leading zero to an unsigned source before applying a declared
+	       * range offset so UINT_MAX-like values cannot wrap onto a valid
+	       * word. */
+	    bool add_tmp_sign = !tmp->has_sign();
+	    unsigned min_wid = tmp->expr_width() + add_tmp_sign;
 	    if (use_base != 0 && ((tmp_wid = num_bits(use_base)) >= min_wid))
 		  min_wid = tmp_wid + 1;
 	    if ((tmp_wid = num_bits(dims[idx].width()+1)) >= min_wid)
@@ -1202,6 +1207,12 @@ NetExpr* normalize_variable_unpacked(const LineInfo&loc, const netranges_t&dims,
 		  min_wid += num_bits(use_stride);
 
 	    tmp = pad_to_width(tmp, min_wid, loc);
+	    if (add_tmp_sign) {
+		  NetESelect*as_signed = new NetESelect(tmp, 0, min_wid);
+		  as_signed->set_line(loc);
+		  as_signed->cast_signed(true);
+		  tmp = as_signed;
+	    }
 
 	      // Now generate the math to calculate the canonical address.
 	    NetExpr*tmp_scaled = 0;

@@ -1,22 +1,23 @@
-id: L61
-title: Apply class-property increment and decrement effects at runtime
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: 490f7c51c
-origin: DD-028
+id: L62
+title: Preserve wide fixed string-array indices at runtime
+status: FOCUSED_VALIDATED_FREEZE
+base_revision: 841aec48d
+origin: DD-029
 standards:
-  - IEEE 1800-2017/2023 6.11.2, 7.4.6, 8.4, and 11.4.2
+  - IEEE 1800-2017/2023 7.4.6 and 11.5.1
 allowed_scope:
-  - Scalar and fixed-array class-property whole-value pre/post increment and decrement
-  - Captured receiver and normalized fixed-array index with integral and real property storage
-  - Typed invalid-index reads, suppressed invalid stores, and preserved neighboring properties
+  - Fixed unpacked string-array reads with signed and unsigned wide indices
+  - Empty-string defaults for X/Z, out-of-range, and unrepresentable indices
+  - Existing native array bounds and shared index-conversion flag contract
+  - Common unsigned unpacked-index normalization needed to preserve overflow flags, with integral/logic/real sibling controls
 forbidden_scope:
-  - Packed property subselect increment, string-array reads, and non-property container expansion
+  - String-array writes, dynamic arrays, queues, and unrelated index consumers
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 8
-last_validated_revision: Target 41b624bc72b60858fba2ba1fa8c217f0b1c295336e7073f2d82b950044ef2d0b passes the 48-case scalar/fixed-array matrix, 48 boundary runs, 8 capture/const-handle controls, focused legacy 2/2, and JSON 4/4 across IEEE 2017/2023.
-pending_gates: Full feature-batch qualification after approximately ten features.
-next_action: L62 DD-029 wide string-array reads; L61 integrated as 497110d63.
+focused_features_before_this: 9
+last_validated_revision: Module, automatic-function, sibling read, and invalid-store matrices pass 32/32; permanent focused legacy 1/1, JSON 2/2, and four existing string/array neighbors pass with the final installed compiler/target/runtime.
+pending_gates: Root review, local integration, and ten-feature batch qualification.
+next_action: Keep source and tests frozen for root review.
 stop_after_completion: false
 
 l60_root_final: "Root94/94 +6/6literalXchecks and10/10neighbors pass. Corrected consumers with originalindexconverter; no preponedchange. Ready for localintegration; broadgatespending."

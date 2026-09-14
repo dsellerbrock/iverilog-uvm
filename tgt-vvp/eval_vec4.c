@@ -2242,7 +2242,11 @@ static void draw_signal_vec4(ivl_expr_t expr)
 
       note_array_signal_use(sig);
       fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, addr_index);
-	    resize_loaded_signal_vec4_(expr, sig);
+	/* An invalid fixed-array index loads X from the generic vec4 array
+	   opcode. Apply the declared two-state element conversion here. */
+      if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+	    fprintf(vvp_out, "    %%cast2; fixed array element read\n");
+      resize_loaded_signal_vec4_(expr, sig);
       clr_word(addr_index);
 }
 

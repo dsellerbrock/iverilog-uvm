@@ -22120,11 +22120,13 @@ bool of_LOAD_STRA(vthread_t thr, vvp_code_t cp)
       string word;
       vvp_array_t array = resolve_runtime_array_(cp, "%load/stra");
 
-      if (thr->flags[4] == BIT4_1) {
+      int64_t adr = thr->words[idx].w_int;
+
+      if (thr->flags[4] != BIT4_0 || !array || adr < 0
+          || uint64_t(adr) >= array->get_size()) {
 	    word = "";
       } else {
-	    unsigned adr = thr->words[idx].w_int;
-	    word = array ? array->get_word_str(adr) : "";
+	    word = array->get_word_str(static_cast<unsigned>(adr));
       }
 
       thr->push_str(word);

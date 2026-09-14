@@ -1649,3 +1649,30 @@ DD-029 next: the expanded signed/unsigned 128-bit string-array read matrix
 has eight failing paired runs (40 semantic cases per edition), including
 nonzero/negative declared ranges and indices above 32, 63, and 100 bits.
 Evidence: `evidence/runtime-string-array-index-assessment/matrix/baseline-results.json`.
+
+### DD-029 L62 first-candidate review — 2026-09-14
+
+The runtime consumer now rejects wide native addresses before narrowing and
+recognizes all invalid-index flags. Root replay at runtime SHA `65baa472`
+passes 16/20 runs, but four module/automatic paired unsigned-128 cases still
+alias element -1 in a declared [-1:1] array when the source index is all ones.
+The source index is a large positive unsigned value; normalization appears to
+wrap it into a valid coordinate before the runtime bounds check. This remains
+under investigation, not qualified or waived. Evidence:
+`evidence/runtime-string-array-index-assessment/root-candidate/results.json`.
+
+### DD-029 L62 normalized candidate — 2026-09-14
+
+Independent sibling probes establish that unsigned all-ones normalization also
+aliased integral and real array reads. The shared normalizer now zero-extends
+unsigned source indices before signed canonical arithmetic, following the
+existing packed-offset representation. Root replay passes 36/36 paired runs:
+original reproducers, module/automatic range matrices, int/logic/real/string
+read controls, and invalid-store neighbor preservation. Stable hashes are in
+`evidence/runtime-string-array-index-assessment/root-normalized/results.json`.
+Permanent regressions, final freeze, and broad batch qualification remain pending.
+
+L62 frozen review:68/68 root cases, permanentlegacy1/1 JSON2/2, fourneighbors.
+Direct two-state element comparison also verifies conversion after generic
+vector array load, before any assignment can hide X. Source reviewed; batch
+qualification remains pending. Evidence `root-final/results.json`.
