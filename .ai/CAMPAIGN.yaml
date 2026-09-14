@@ -1,7 +1,7 @@
 status: active
-branch: "main"
-current_blocker: "DD-026 runtime assignment expressions omit destination two-state conversion"
-phase: "focused_batch_continuation"
+branch: "agent/l60-runtime-array-increment-20260914"
+current_blocker: "DD-027 runtime fixed-array increment/decrement uses incorrect scalar storage"
+phase: "focused_validated_pending_local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
@@ -11,11 +11,11 @@ pending_gates: "Seven focused features integrated locally; next approximately-te
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "L60 DD-027 runtime fixed-array increment/decrement"
-next_action: "Refresh shared graph, then reuse worker to correct fixed-array increment/decrement addressing and effects."
-next_command: "Update shared graph from local main."
+next_action: "Reuse worker to implement fixed-array increment/decrement; root expands exact boundary and effect checks."
+next_command: "Focused L60 implementation and independent paired boundary assessment."
 next_command_cwd: repository root
-candidate_state: "L59 focused validation passed; previous broad qualification remains c686a4781."
-installed_tools: "L58 focused build; ivl d745779660da40278f77fa5e5418faca6755c03bebe1d80e7b3cd841b9d21386. Previous full qualification c686a4781 does not qualify this build."
+candidate_state: "L60 focused validation passed; previous broad qualification remains c686a4781."
+installed_tools: "L60 focused build: ivl0f6667ad, target78e456f9, runtimea6788f42. Full suite qualification remains atc686a4781."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -846,7 +846,7 @@ validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
   focused_validated_features: [L53, L54, L55, L56, L57, L58, L59]
-  in_progress: none
+  in_progress: L60_runtime_array_increment
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -923,3 +923,23 @@ l59_start: "Same retained checkout branched from76c50bac8 after L58 integration 
 l59_final_review: "Two-line common destination cast before duplication/storage. Final root96/96 operator/width cases with exact clean output and stable3hashes; existing expression/negative/constant neighbors8/8 paired; permanentlegacy2/2 JSON4/4; target build/install0/0. Source/testreview clear, frozen. Ready for local integration; M4C22 remains PARTIAL pending broad batch qualification."
 
 l59_local_integration: "177e7e448 fast-forwarded into local main. Seventh focused feature; full gates deferred to approximately-ten-feature batch. Same worker and retained checkout, no remote changes. DD027 runtime fixed-array increment/decrement selected next."
+
+l60_start: "Same retained checkout branched from0c85d32a8 after L59 integration and graph terminal0(51218nodes95036edges7343communities). Reusedgpt-5.6-sol worker assigned DD027 runtimearray increment/decrement with32paired baseline. Sevenfocusedfeatures beforethis; no newtree/remotes/broadgates. Root expands wide/OOB/ascending/typed-default boundaries in parallel."
+
+l60_boundary_baseline: "Root24paired runs encode108semanticcases peredition across bit8/logic8/real, ascending/nonzero/negative ranges, preincrement/postdecrement, exact valid/OOB/X/Z/positive-negative128bit indices, once-only selector and unchangedneighbors. Allcompile0;16integralSIGSEGV and8realSIGABRT before completion. StableL59threehashes. Evidence runtime-array-increment-assessment/boundaries/baseline-results.json; worker implementing rootcause."
+
+dd028_property_increment_baseline: "Root4paired scalar/fixed-array property postfix cases compileclean then fail exactstorageeffects; emitted scalarbytecode reads but has noincrement/store. Same prop_word read-only fallback existsatbase0c85d32a8, notintroducedbyL60. Evidence runtime-property-increment-assessment/baseline-results.json. QueuedL61; packed bit/part-select8paired controls already emitfocusedunsupporteddiagnostics."
+
+dd028_expanded_baseline: "Root48paired propertyincdec cases (int/logic/real,scalar/array,all4forms) allcompileclean;32integralwrongresult and16realruntimeabort. Stable3hash. Evidence runtime-property-increment-assessment/matrix/baseline-results.json. L61queued afterL60."
+
+dd029_string_array_index_baseline: "Rootunsigned128 index1<<32 and1<<100 alias stringelement0 in4paired runs, expectedempty. Cleancompile thenwrongresult; stablehashes. of_LOAD_STRA narrowsunsigned andmissesoverflowflag. Evidence runtime-string-array-index-assessment/baseline-results.json. QueuedafterDD028."
+
+l60_root_checkpoint: "Installed d7457796compiler/78e456f9target/bd56a091runtime passes84/84 rootruns with exactcleanresults, includingoriginal32,boundary24,wide-real16,recursive2,sharedstore2,and8L58formerstartupwarnings nowclean. Root negativeconstarrayincrement stillcompile0inbothmodes; assignedworkerexistinglvaluevalidation+CEcoverage beforeintegration. Netarraynegativealreadyrejects. Sourceindexhelper/sampledneighborcleanupreview pending; nofeaturecredit yet."
+
+l60_static_invalid_review: "LiteralOOB a[2]++ on2element int/logic/real arrays fails6paired compilations after operandrvaluefolding eraseslvalueidentity (inappropriate++). Dynamicinvalid84rootchecks remainpass. Sameworker assignedpreservearrayoperandidentity andtypeddefault/no-store forliteralinvalidindices beforeintegration. Evidence runtime-array-increment-assessment/static-invalid/results.json. Constarraynegativevalidation also inprogress."
+
+dd030_packed_select_increment_baseline: "Earlier8widenedcontext CE controls didnotprove universalrejection. Matching-widthbit1/part4 operands compileclean thenVVPabortwidthassert in4pairedruns; evidence runtime-selected-increment-assessment/matching-width/results.json. Separateexistingpackedselectdefect, queuedafterDD028/DD029."
+
+l60_final_root_review: "Stable0f6667adcompiler/78e456f9target/179d69ffruntime passes94/94 rootoutcomes incl84cleanpositives,6literalOOBpositiveswithexpectedwarnings,4const/netCE. Existinginc/genvar/realarray/stringarray/assignment10neighborspass. Permanentstaticinvalidcoverage and removalofredundantindexhelperrewrite pendingbeforefinalfreeze. Broadgatesremainpending; L60notyetcounted."
+
+l60_frozen_final: "Root94/94 atstable0f6667ad/78e456f9/a6788f42, plus6/6 literalX constant/runtime checks;10/10existingneighbors. Permanentlegacy4/4 JSON8/8 final-5. Originalindexconverterrestored, isolatedboundary24/24passwithfixedconsumers; no genericconverterrewrite or preponedpathchange. ConstCE/staticinvalidcoveragepermanent. Readyforlocalintegration, broadgatespending."

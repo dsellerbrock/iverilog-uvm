@@ -17810,7 +17810,6 @@ static uint64_t vec4_to_index(vthread_t thr, bool signed_flag)
 
       uint64_t v = 0;
       thr->flags[4] = BIT4_0;
-
       assert(sizeof(bits[0]) <= sizeof(v));
 
       v = 0;
@@ -18906,15 +18905,16 @@ bool of_JOIN_DETACH(vthread_t thr, vvp_code_t cp)
 bool of_LOAD_AR(vthread_t thr, vvp_code_t cp)
 {
       unsigned idx = cp->bit_idx[0];
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/ar");
       double word;
 
 	/* The result is 0.0 if the address is undefined. */
-      if (thr->flags[4] == BIT4_1) {
+      int64_t adr = thr->words[idx].w_int;
+      if (thr->flags[4] != BIT4_0 || !array || adr < 0
+          || uint64_t(adr) >= array->get_size()) {
 	    word = 0.0;
       } else {
-	    unsigned adr = thr->words[idx].w_int;
-	    vvp_array_t array = resolve_runtime_array_(cp, "%load/ar");
-	    word = array ? array->get_word_r(adr) : 0.0;
+	    word = array->get_word_r(static_cast<unsigned>(adr));
       }
 
       thr->push_real(word);
@@ -22317,12 +22317,12 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
       int adr_index = cp->bit_idx[0];
       vvp_array_t array = resolve_runtime_array_(cp, "%load/vec4a");
 
-      long adr = thr->words[adr_index].w_int;
+      int64_t adr = thr->words[adr_index].w_int;
 
 	// If flag[3] is set, then the calculation of the address
 	// failed, and this load should return X instead of the actual
 	// value.
-      if (thr->flags[4] == BIT4_1) {
+      if (thr->flags[4] != BIT4_0) {
 	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
@@ -22333,7 +22333,13 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      vvp_vector4_t tmp (array->get_word(adr));
+      if (adr < 0 || uint64_t(adr) >= array->get_size()) {
+	    vvp_vector4_t tmp (array->get_word_size(), BIT4_X);
+	    thr->push_vec4(tmp);
+	    return true;
+      }
+
+      vvp_vector4_t tmp (array->get_word(static_cast<unsigned>(adr)));
       thr->push_vec4(tmp);
       return true;
 }
@@ -29732,12 +29738,11 @@ static bool storea(vthread_t thr, vvp_code_t cp, const char*op)
       ELEM val;
       pop_value(thr, val, 0);
 
-      if (thr->flags[4] != BIT4_1) {
-	    unsigned adr = thr->words[idx].w_int;
-	    vvp_array_t array = resolve_runtime_array_(cp, op);
-	    if (array)
-		  array->set_word(adr, val);
-      }
+      int64_t adr = thr->words[idx].w_int;
+      vvp_array_t array = resolve_runtime_array_(cp, op);
+      if (thr->flags[4] == BIT4_0 && array && adr >= 0
+          && uint64_t(adr) < array->get_size())
+	    array->set_word(static_cast<unsigned>(adr), val);
 
       return true;
 }

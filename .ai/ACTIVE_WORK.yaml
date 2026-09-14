@@ -1,22 +1,22 @@
-id: L59
-title: Convert runtime assignment-expression results to destination type
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: 76c50bac8
-origin: DD-026
+id: L60
+title: Evaluate fixed-array element increment and decrement at runtime
+status: FROZEN_FOR_REVIEW
+base_revision: 0c85d32a8
+origin: DD-027
 standards:
-  - IEEE 1800-2017/2023 6.11.2 and 11.3.6
+  - IEEE 1800-2017/2023 6.11.2, 7.4.6, and 11.4.2
 allowed_scope:
-  - Apply destination two-state conversion before assignment-expression storage and returned-value duplication
-  - Plain and compound integral scalar assignment expressions across widths and signedness
-  - Preserve four-state values and existing invalid-lvalue diagnostics
+  - Fixed unpacked-array whole-element pre/post increment and decrement
+  - Integral two-state/four-state and real elements with one captured normalized index
+  - Typed invalid-index reads, suppressed invalid stores, and preserved neighboring elements
 forbidden_scope:
-  - Runtime indexed increment and decrement support (DD-027)
+  - Packed subselect and class-property increment expansion
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 6
-last_validated_revision: Final target passes the permanent conversion test in both editions, focused legacy 2/2, focused JSON 4/4, and the independent 96/96 operator matrix. Destination conversion covers plain, compound, shift, nested, signed, wide, and atom two-state cases while four-state values and write restrictions remain intact.
+focused_features_before_this: 7
+last_validated_revision: Final compiler/target/runtime passes focused legacy 4/4 and JSON 8/8, the original 32 cases, boundary 24 cases, static-invalid 6 cases, recursive/multidimensional controls, and root final 94/94 review outcomes. Const arrays reject normally; packed subselect increments remain DD-030.
 pending_gates: Root review and feature-batch broad qualification.
-next_action: Root reviews the frozen L59 target change and focused evidence.
+next_action: Root reviews the frozen L60 implementation and focused evidence.
 stop_after_completion: false
 
-l59_local_integration: "177e7e448 on local main; seventh focused feature. Root96/96 plus8/8 neighbors and permanent2legacy4JSON pass. Broad gates pending. DD027 next."
+l60_root_final: "Root94/94 +6/6literalXchecks and10/10neighbors pass. Corrected consumers with originalindexconverter; no preponedchange. Ready for localintegration; broadgatespending."

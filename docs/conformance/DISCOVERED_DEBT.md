@@ -1532,3 +1532,91 @@ The independent 96-case matrix now passes with exact clean output, compared
 with 8/96 before the fix. Eight paired existing expression/negative/constant
 neighbors pass; permanent legacy 2/2 and JSON 4/4 pass. See the L59 session
 log. DD-027 runtime array increment remains separate and open.
+
+
+DD-027 L60 boundary baseline adds 108 semantic cases per edition across
+bit[7:0], logic[7:0], and real elements; ascending/nonzero/negative ranges;
+preincrement and postdecrement; valid, out-of-range, X/Z, and signed
+128-bit indices. It pins selector evaluation once and unchanged neighboring
+elements. All 24 runs compile, but 16 integral runs crash with signal 11
+and eight real runs abort with signal 6 before completing the cases.
+Evidence: `evidence/runtime-array-increment-assessment/boundaries/baseline-results.json`.
+These are failing baselines, not completed runtime coverage.
+
+
+### DD-028 — Property increment expressions return without updating storage
+
+- **Discovered during:** L60 adjacent property-path review.
+- **Reducers:** `evidence/runtime-property-increment-assessment/scalar.sv`
+  and `array.sv`. A scalar `c.a++` returns 5 but fails to update 5 to 6.
+  A fixed-array property `c.a[index++]++` evaluates the index once and returns
+  the old value, but also omits the element update.
+- **Evidence:** `baseline-results.json` records four clean compilations and
+  four exact-result failures across IEEE 2017 and 2023, with stable installed
+  hashes. Emitted scalar bytecode contains property reads but no increment
+  or subsequent property store. The same `prop_word` read-only fallback
+  exists in `0c85d32a8:tgt-vvp/eval_vec4.c`, before L60 edits.
+- **Expected:** IEEE 1800-2017/2023 11.4.2 requires increment/decrement to
+  update the operand and return the appropriate old/new value. A read-only
+  substitution does not implement this operation.
+- **Status:** OPEN. Queued for L61 after the active fixed-array runtime repair.
+  This is distinct from local fixed-array signal storage in DD-027.
+
+DD-028 expanded matrix: int/logic/real, scalar/fixed-array properties, and
+all four pre/post ++/-- forms produce 48 failing paired runs: 32 integral
+wrong-result exits and 16 real runtime aborts after clean compilation.
+Stable-hash evidence: `evidence/runtime-property-increment-assessment/matrix/baseline-results.json`.
+
+
+### DD-029 — Wide fixed string-array reads alias a valid element
+
+- **Discovered during:** L60 shared array load/store review.
+- **Reducers:** `evidence/runtime-string-array-index-assessment/read-32.sv`
+  and `read-100.sv`. A two-element string array indexed by unsigned 128-bit
+  values `1<<32` or `1<<100` returns element zero instead of the empty string.
+- **Evidence:** `baseline-results.json`: four clean compilations followed by
+  four exact runtime failures, stable hashes, both IEEE editions.
+- **Source:** `of_LOAD_STRA` narrows the index to unsigned and recognizes only
+  the unknown flag value, not the separate overflow flag value. This is the
+  string-read counterpart of the integral/real bounds work in L60.
+- **Expected:** IEEE 1800-2017/2023 7.4.6 typed invalid-index read behavior;
+  the result is the element type's default, without reading a valid element.
+- **Status:** OPEN. Queued after DD-028; the active L60 shared store fix does
+  not by itself repair string reads.
+
+L60 review remains open: literal out-of-range array-element increments are
+folded as rvalue defaults before unary elaboration, then rejected as constant
+operands (six paired int/logic/real compile failures). Dynamic invalid-index
+checks pass, but do not establish literal-index support. Readonly const-array
+increment validation also required correction before integration.
+
+
+### DD-030 — Matching-width packed-select increment crashes at runtime
+
+- **Discovered during:** L60 operand-reconstruction boundary review.
+- **Reducers:** `evidence/runtime-selected-increment-assessment/matching-width/`.
+  `logic result; result=a[index++]++;` and a four-bit result assigned from
+  `a[3:0]++` compile cleanly, then abort in `vvp_vector4_t::add` on a width
+  assertion. Four paired runs fail with signal 6.
+- **Correction to earlier assessment:** the eight earlier widened-result
+  probes were rejected as unsupported vector slices. That evidence does not
+  prove all packed-select increment forms are diagnosed: matching result
+  widths reach the backend path, which uses the whole carrier width.
+- **Expected:** IEEE 1800-2017/2023 11.4.2 selected-lvalue update with the
+  selected width, correct prefix/postfix result, and untouched carrier bits.
+- **Status:** OPEN. Separate from L60 whole unpacked-array elements. Queued
+  after the silent-result DD-028 and DD-029 defects.
+
+
+### DD-027 L60 final review — 2026-09-14
+
+**Focused fix validated; broad batch qualification pending.** Whole fixed
+unpacked-array element pre/post ++/-- now captures the index once and uses
+array storage. Native bounds and all invalid-index flags are checked before
+narrowing addresses. Const updates are rejected, while literal-invalid
+operands preserve typed defaults and suppress stores. Final independent
+94/94 outcomes plus six constant/runtime literal-X checks pass; ten existing
+neighbors and permanent legacy 4/4, JSON 8/8 pass. The original index converter
+is retained: the defect was in its consumers' treatment of overflow flags.
+See `session_logs/2026-09-14_l60_runtime_array_increment.md` for exact scope,
+known compile warnings, and hashes. DD-028/029/030 remain separate and open.

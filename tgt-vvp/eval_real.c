@@ -637,26 +637,35 @@ static void draw_ternary_real(ivl_expr_t expr)
       clr_flag(cond_flag);
 }
 
-static void increment(ivl_expr_t e, bool pre)
+static void change_real(ivl_expr_t e, bool pre, bool incr)
 {
       ivl_signal_t sig = ivl_expr_signal(e);
-      fprintf(vvp_out, "    %%load/real v%p_0;\n", sig);
+      int word_ix = -1;
+      int index_flag = -1;
+      if (ivl_signal_dimensions(sig) > 0) {
+            word_ix = allocate_word();
+            index_flag = allocate_flag();
+            draw_eval_expr_into_integer(ivl_expr_oper1(e), word_ix);
+            fprintf(vvp_out, "    %%flag_mov %d, 4; preserve array index validity\n",
+                    index_flag);
+            note_array_signal_use(sig);
+            fprintf(vvp_out, "    %%load/ar v%p, %d;\n", sig, word_ix);
+      } else {
+            fprintf(vvp_out, "    %%load/real v%p_0;\n", sig);
+      }
       if (!pre) fprintf(vvp_out, "    %%dup/real;\n");
       fprintf(vvp_out, "    %%pushi/real 1, 0x1000;\n");
-      fprintf(vvp_out, "    %%add/wr;\n");
+      fprintf(vvp_out, incr ? "    %%add/wr;\n" : "    %%sub/wr;\n");
       if ( pre) fprintf(vvp_out, "    %%dup/real;\n");
-      fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
-}
-
-static void decrement(ivl_expr_t e, bool pre)
-{
-      ivl_signal_t sig = ivl_expr_signal(e);
-      fprintf(vvp_out, "    %%load/real v%p_0;\n", sig);
-      if (!pre) fprintf(vvp_out, "    %%dup/real;\n");
-      fprintf(vvp_out, "    %%pushi/real 1, 0x1000;\n");
-      fprintf(vvp_out, "    %%sub/wr;\n");
-      if ( pre) fprintf(vvp_out, "    %%dup/real;\n");
-      fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+      if (word_ix >= 0) {
+            fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
+                    index_flag);
+            fprintf(vvp_out, "    %%store/reala v%p, %d;\n", sig, word_ix);
+            clr_word(word_ix);
+            clr_flag(index_flag);
+      } else {
+            fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+      }
 }
 
 static void draw_unary_real(ivl_expr_t expr)
@@ -709,17 +718,17 @@ static void draw_unary_real(ivl_expr_t expr)
 
       switch (ivl_expr_opcode(expr)) {
 	  case 'I':
-	    increment(sube, true);
+	    change_real(sube, true, true);
 	    return;
 	  case 'i':
-	    increment(sube, false);
+	    change_real(sube, false, true);
 	    return;
 
 	  case 'D':
-	    decrement(sube, true);
+	    change_real(sube, true, false);
 	    return;
 	  case 'd':
-	    decrement(sube, false);
+	    change_real(sube, false, false);
 	    return;
 	}
 

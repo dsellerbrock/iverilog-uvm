@@ -27661,6 +27661,12 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 {
       flags &= ~SYS_TASK_ARG; // don't propagate the SYS_TASK_ARG flag
       ivl_variable_type_t t;
+      NetAssign_*inc_lval = 0;
+
+      if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
+	    inc_lval = expr_->elaborate_lval(des, scope, false, false);
+	    if (!inc_lval) return 0;
+      }
 
       unsigned sub_width = expr_wid;
       switch (op_) {
@@ -27682,7 +27688,10 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
       }
       NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width, flags);
-      if (ip == 0) return 0;
+      if (ip == 0) {
+	    delete inc_lval;
+	    return 0;
+      }
 
       ivl_variable_type_t etype = expr_type_;
       if (etype == IVL_VT_NO_TYPE) {
@@ -27699,6 +27708,25 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case 'I':
 	  case 'D':
 	  case 'd':
+		/* Keep a statically invalid array word as a writable signal
+		 * expression. Its read supplies the element type's default and
+		 * its store is suppressed at run time. */
+		if ((dynamic_cast<NetEConst*>(ip)
+		     || dynamic_cast<NetECReal*>(ip))
+		    && inc_lval->sig() && inc_lval->word()
+		    && !inc_lval->nest() && !inc_lval->get_base()
+		    && !inc_lval->has_part_carrier()
+		    && !inc_lval->has_dynamic_part_carrier()
+		    && inc_lval->sig()->unpacked_dimensions() > 0
+		    && inc_lval->lwidth() == inc_lval->sig()->vector_width()) {
+		      delete ip;
+		      ip = new NetESignal(inc_lval->sig(),
+			      inc_lval->word()->dup_expr());
+		      ip->set_line(*this);
+		      ip->cast_signed(signed_flag_);
+		}
+		delete inc_lval;
+		inc_lval = 0;
 		if (ip->enumeration()) {
 		      // IEEE 1800-2017 6.19.4: increment/decrement is a
 		      // numerical expression, so an enum operand first becomes

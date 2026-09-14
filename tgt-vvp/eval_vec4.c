@@ -2335,6 +2335,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       ivl_expr_t prop_base = 0;
       ivl_expr_t prop_word = 0;
       bool is_property = false;
+      bool is_array_word = false;
+      int array_index = -1;
+      int array_flag = -1;
       unsigned lab_null = 0;
       unsigned lab_out = 0;
 
@@ -2349,6 +2352,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	  case IVL_EX_SIGNAL:
 	    sig = ivl_expr_signal(sub);
 	    wid = ivl_expr_width(sub);
+	    is_array_word = ivl_signal_dimensions(sig) > 0;
 	    break;
 
 	  case IVL_EX_PROPERTY:
@@ -2378,19 +2382,36 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    fprintf(vvp_out, "    %%test_nul/obj;\n");
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
 	    fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
-      } else {
+	  } else if (is_array_word) {
+	    array_index = allocate_word();
+	    array_flag = allocate_flag();
+	    draw_eval_expr_into_integer(ivl_expr_oper1(sub), array_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve array index validity\n",
+	            array_flag);
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, array_index);
+	  } else {
 	    draw_eval_vec4(sub);
       }
 
       const char*cmd = incr? "%add" : "%sub";
 
+      if (ivl_expr_value(sub) == IVL_VT_BOOL)
+	    fprintf(vvp_out, "    %%cast2; increment destination\n");
+
       if (pre) {
 	      /* prefix means we add the result first, and store the
 		 result, as well as leaving a copy on the stack. */
 	    fprintf(vvp_out, "    %si 1, 0, %u;\n", cmd, wid);
+	    if (ivl_expr_value(sub) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2; increment result\n");
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    if (is_property) {
 		  fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+	    } else if (is_array_word) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
+		          array_flag);
+		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, array_index);
 	    } else {
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
 	    }
@@ -2400,8 +2421,14 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		 version, so there is a slight re-arrange. */
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    fprintf(vvp_out, "    %si 1, 0, %u;\n", cmd, wid);
+	    if (ivl_expr_value(sub) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2; increment result\n");
 	    if (is_property) {
 		  fprintf(vvp_out, "    %%store/prop/v %u, %u;\n", pidx, wid);
+	    } else if (is_array_word) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
+		          array_flag);
+		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, array_index);
 	    } else {
 		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
 	    }
@@ -2414,6 +2441,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+      } else if (is_array_word) {
+	    clr_word(array_index);
+	    clr_flag(array_flag);
       }
 }
 
