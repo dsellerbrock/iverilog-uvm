@@ -937,3 +937,35 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   A future selection should scope it explicitly as its own multi-part
   feature (which object kinds, what elaboration-to-vvp plumbing) rather than
   a single reducer-sized fix.
+
+### DD-018 — `import pkg::*;` anywhere inside a function/task body fails outright
+
+- **Discovered while working:** L41 (class-body import diagnostic quality)
+- **Observation:** while writing a positive-control test to confirm L41's
+  fix left method-body imports unaffected, found that `import pkg::*;`
+  written ANYWHERE inside an ordinary (non-class) function or task body
+  fails with a plain `syntax error` / `I give up on this function
+  definition.` -- independent of position (first statement or after
+  another declaration) and independent of whether a class is involved at
+  all. The grammar's `data_declaration` production nominally includes a
+  `package_import_declaration` alternative (used by
+  `block_item_decl`/function-body declarations per IEEE 1800-2017/2023
+  A.2.1.3), so this looks like an intended-but-unreachable path, likely
+  shadowed by a grammar conflict rather than a deliberate omission --
+  not confirmed. NOT investigated further; genuinely out of scope for
+  L41, which only touches the class-body case.
+- **File/function:** `parse.y` `data_declaration` (~line 4909-4948) and
+  whatever conflicting production wins in that parser state for a
+  function/task-body `data_declaration` context; root cause not traced.
+- **Possible clause:** IEEE 1800-2017/2023 A.2.1.3 (package import
+  declaration is a legal `data_declaration` alternative, unrestricted to
+  module/package scope).
+- **Evidence:** minimal reducer, `import pkg1::*;` as either the first or
+  second statement in a plain module-scope function body, both fail
+  identically; not archived to a permanent evidence directory this pass.
+- **Reproducer status:** confirmed (hand-built reducer, not from real
+  application source)
+- **Triage status:** untriaged; needs its own dedicated investigation
+  (trace which grammar production actually wins in that parser state,
+  likely via `bison --report=state` on the specific conflicting states,
+  not just a conflict-count diff) before attempting a fix.
