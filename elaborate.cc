@@ -10516,6 +10516,13 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       return cur;
 }
 
+NetProc* PNoop::elaborate(Design*, NetScope*) const
+{
+      NetBlock*res = new NetBlock(NetBlock::SEQU, nullptr);
+      res->set_line(*this);
+      return res;
+}
+
 NetProc* PBreak::elaborate(Design*des, NetScope*) const
 {
       if (!gn_system_verilog()) {
@@ -11772,11 +11779,6 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  des->errors++;
 	    }
 
-	    if (diagnose_interconnect_value_reference_(des, scope, parm.parm)) {
-		  eparms[idx] = 0;
-		  continue;
-	    }
-
 	    /* IEEE 1800-2017 20.12: arguments after `levels' are names of
 	       scopes or assertion directives, not value expressions. Preserve
 	       their hierarchical spelling for the runtime assertion registry;
@@ -11790,6 +11792,11 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 			eparms[idx] = selector;
 			continue;
 		  }
+	    }
+
+	    if (diagnose_interconnect_value_reference_(des, scope, parm.parm)) {
+		  eparms[idx] = 0;
+		  continue;
 	    }
 
             eparms[idx] = elab_sys_task_arg(des, scope, name, idx,

@@ -599,8 +599,8 @@ NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
 }
 
 NetESelect::NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
-                       ivl_type_t use_type)
-: NetExpr(use_type), expr_(exp), base_(base), sel_type_(IVL_SEL_OTHER)
+                       ivl_type_t use_type, ivl_select_type_t sel_type)
+: NetExpr(use_type), expr_(exp), base_(base), sel_type_(sel_type)
 {
       expr_width(wid);
 }

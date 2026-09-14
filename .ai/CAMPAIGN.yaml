@@ -1,23 +1,23 @@
 status: active
-branch: "agent/l44-mixed-driver-compound-20260914"
-current_blocker: "L44 / DD-019 packed mixed-driver compound assignment"
-phase: "focused_implementation"
+branch: "agent/batch-regression-corrections-20260914"
+current_blocker: "L43-L52 combined regression failures: null statements, sensitivity, assertion selectors, selection typing and VPI signed array words"
+phase: "full_batch_validation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "d0b6015bf"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Whole suite at approximately ten-feature batch boundary; L43 legacy3/3 and JSON6/6 passed"
+pending_gates: "Correct first-pass legacy29/JSON13 failures with focused tests, then qualify the corrected batch; frontend deferred until corrections."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "Fresh OpenTitan prim_prince concat-width runtime abort assessment in parallel; implementation remains L43 only"
-next_action: "PR #276 (whole post-275 batch through L33) is open; L34, the DD046 re-triage, and L35 all landed as new commits directly in that same branch/PR per campaign publication policy (no new PR, no CI gating per explicit user instruction). Report phases 1-2 complete to the user and let them confirm the phase-3 shift rather than selecting it unilaterally."
-next_command: "Ask the user to confirm the phase-3 shift to broader implementation work, or, if they want DD046 continued, mine fallback-tracked-candidates.tsv (awk -F'\\t' filter on stub/degradation tags in tgt-vvp/*.c, vvp/*.cc, elab_expr.cc, netmisc.cc excluding lines near an existing cerr/fprintf(stderr)) or size the real-typed CPR/__vpiClassPropertyRealVar work as its own increment."
+next_selection: "Finish batch regression corrections before selecting another feature."
+next_action: "Complete shared compiler regression corrections, review and merge locally, then run combined qualification. No remote publication requested."
+next_command: "Review reused implementation agent fixes and focused results; freeze corrected source before broad gates."
 next_command_cwd: repository root
-candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
-installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
+candidate_state: "Ten focused features L43-L52 locally integrated at e5a1eb846; batch corrections in progress."
+installed_tools: "Installed batch candidate plus active regression corrections; not yet fully qualified."
 validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
-next_validation: "Next selected prerequisite requires its own reducer,contract,review and fullgates."
+next_validation: "Focused correction reproducers, then full batch gates with installed-tool provenance."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -792,7 +792,10 @@ validation_batch_20260914:
   target_features: 10
   focused_validated_features: [L43, L44, L45, L46, L47, L48, L49, L50, L51, L52]
   in_progress: full_batch_validation
-  broad_gates: pending_source_freeze
+  broad_gates: corrected_candidate_ready
+  first_pass_candidate: e5a1eb846
+  first_pass_results: "Legacy 5018 total / 4984 pass / 29 fail / 2 NI / 3 EF; JSON 1927 / 13 fail; VPI108/108, negative149/149, runtime15/15, copyout6/6; UVM357/0/0 REAL DPI, NFA58/58, releases15/15 SMOKE_PASS, make check passed. Frontend deferred."
+  first_pass_evidence: evidence/batch-20260914-l43-l52/first-pass-summary.json
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
   integration: "User authorized local merges; no remote merge or push authorization inferred. No new clone/worktree created. Retire only completed eligible trees through the cleanup script."
@@ -832,3 +835,5 @@ l50_checkpoint: "Empty implicit event waits preserve runtime semantics through p
 l51_checkpoint: "Packagequalified task/function statement lookup usesexistingdownwardimport-aware resolver; selfqualifiedforward tasks execute; missingpkgcalls cannotcaptureunitshadows. Legacy4/4 JSON8/8 pass includingexports andclassshadownegative. Ninth focused increment; L50/L51 locallycommitted inretainedfeaturebranch forbatchmerge."
 
 l52_checkpoint: "Indexedmodule/generate taskcalls execute withdelay,args,copyout andcorrectinstance effects; indexedvoidfunctions andruntimeobjectindices preserved. Legacy5/5 JSON10/10, rootnegativeindex+INT_MINcontrols both editions pass. Sharedscopeindices rejectunknown,OOB andrepresentationoverflow. Tenth focusedincrement, readyforonefullbatch. No remotechanges ornewworktree."
+
+batch_corrections_focused: "All first-pass failures rechecked: legacy45/45 and JSON42/42 pass; permanent two-state packed-prefix synthesis regression both editions; build/install and root source review clear. Corrected broad qualification pending; first-pass evidence preserved. No remote changes or new worktree."

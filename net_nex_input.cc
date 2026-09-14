@@ -268,7 +268,6 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
       bool const_select = result->size() == 0;
       if (always_sens && const_select) {
 	    if (const NetEConst *val = dynamic_cast <NetEConst*> (base_)) {
-		  assert(select_type() == IVL_SEL_OTHER);
 		  if (const NetESignal *sig = dynamic_cast<NetESignal*> (expr_)) {
 			delete tmp;
 			tmp = sig->nex_input_base(rem_out, always_sens, nested_func,

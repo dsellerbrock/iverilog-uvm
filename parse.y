@@ -8597,7 +8597,7 @@ statement_or_null /* IEEE1800-2005: A.6.4 */
   : statement
       { $$ = $1; }
   | attribute_list_opt ';'
-      { PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+      { PNoop*tmp = new PNoop;
 	FILE_NAME(tmp, @2);
 	pform_bind_attributes(tmp->attributes, $1);
 	$$ = tmp;

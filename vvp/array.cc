@@ -599,6 +599,14 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
 	  case vpiIndex:
 	    return my_parent->get_word_declared_index(obj->get_index());
 
+	  case vpiSigned:
+	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
+		  return fixed->signed_flag ? 1 : 0;
+	    if (__vpiDarrayVar*dynamic =
+	          dynamic_cast<__vpiDarrayVar*>(my_parent))
+		  return dynamic->element_signed() ? 1 : 0;
+	    return 0;
+
 	  case vpiAutomatic:
 	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
 		  return fixed->automatic_storage ? 1 : 0;
@@ -635,6 +643,9 @@ int __vpiArrayVthrA::vpi_get(int code)
 
 	  case vpiIndex:
 	    return (int)get_address() + array->first_addr.get_value();
+
+	  case vpiSigned:
+	    return array->signed_flag ? 1 : 0;
 
 	  case vpiAutomatic:
 	    return array->automatic_storage ? 1 : 0;

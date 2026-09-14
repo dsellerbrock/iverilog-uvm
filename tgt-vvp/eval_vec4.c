@@ -1302,8 +1302,6 @@ static void draw_select_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%part/%c %u;\n", sign_suff, wid);
       }
 
-      if (ivl_expr_value(expr) == IVL_VT_BOOL)
-	    fprintf(vvp_out, "    %%cast2;\n");
 }
 
 static void draw_select_pad_vec4(ivl_expr_t expr)

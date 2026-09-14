@@ -1,0 +1,45 @@
+sv_immediate_cover_action normal,-g2012 ivltests gold=sv_immediate_cover_action.gold
+sv_deferred_null_action0 normal,-g2012 ivltests gold=sv_deferred_null_action0.gold
+sv_deferred_cover_actions0 normal,-g2012 ivltests gold=sv_deferred_cover_actions0.gold
+sv_fork_deferred_null_action normal,-g2017,-s,main ivltests gold=sv_fork_deferred_null_action.gold
+sv_fork_deferred_null_action_2023 normal,-g2023,-s,main ivltests gold=sv_fork_deferred_null_action.gold
+sv_procedural_package_import normal,-g2017 ivltests gold=sv_procedural_package_import.gold
+sv_procedural_package_import_late_fail CE,-g2017 ivltests
+sv_procedural_package_import_substatement_fail CE,-g2017 ivltests
+sv_assert_control_relative_selector normal,-g2012 ivltests gold=sv_assert_control_relative_selector.gold
+sv_assert_control_undefined_selector normal,-g2012 ivltests gold=sv_assert_control_undefined_selector.gold
+sv_interconnect_reference_fail CE,-g2012 ivltests gold=sv_interconnect_reference_fail.gold
+sv_interconnect_variable_fail CE,-g2012 ivltests gold=sv_interconnect_variable_fail.gold
+sv_packed_prefix_read_bounds normal,-g2017 ivltests gold=sv_packed_prefix_read_bounds.gold
+sv_packed_prefix_read_synth normal,-g2017,-S ivltests gold=sv_packed_prefix_read_synth.gold
+sv_packed_element_write_synth normal,-g2017,-S ivltests
+synth_disjoint_packed_processes normal,-g2012 ivltests
+br_gh1223a		normal,-g2009		ivltests
+br_gh1223b		normal,-g2009		ivltests
+br_gh1223c		normal,-g2009		ivltests
+pr2835632b		normal			ivltests
+pr2913927		normal			ivltests
+pr3054101a		normal			ivltests gold=pr3054101a.gold
+pr3054101b		normal			ivltests gold=pr3054101a.gold
+pr3054101c		normal			ivltests gold=pr3054101c.gold
+pr3054101d		normal			ivltests gold=pr3054101c.gold
+pr3054101e		normal			ivltests gold=pr3054101e.gold
+pr3054101f		normal			ivltests gold=pr3054101e.gold
+sel_rval_bit_ob		normal,-Wselect-range	ivltests gold=sel_rval_bit_ob.gold
+sel_rval_part_ob	normal,-Wselect-range	ivltests gold=sel_rval_part_ob.gold
+signed_pv		normal			ivltests
+sv_cover_cycle_delay_override normal,-g2017 ivltests gold=sv_cover_cycle_delay_override.gold
+sv_cover_cycle_delay_override_2023 normal,-g2023 ivltests gold=sv_cover_cycle_delay_override.gold
+sv_deferred_assert1	normal,-g2009		ivltests gold=sv_deferred_assert1.gold
+sv_deferred_assert2	normal,-g2009		ivltests gold=sv_deferred_assert2.gold
+sv_deferred_assume1	normal,-g2009		ivltests gold=sv_deferred_assume1.gold
+sv_deferred_assume2	normal,-g2009		ivltests gold=sv_deferred_assume2.gold
+sv_deferred_final_latest1	normal,-g2012		ivltests gold=sv_deferred_final_latest1.gold
+sv_deferred_final_null_default0	normal,-g2012		ivltests gold=sv_deferred_final_null_default0.gold
+sv_deferred_supported_only0	normal,-g2012,-gsupported-assertions	ivltests gold=sv_deferred_supported_only0.gold
+synth_concurrent_assertion_transparent normal,-g2012,-gassertions	ivltests gold=synth_concurrent_assertion_transparent.gold
+sv_packed_wide_constant_select_read normal,-g2017 ivltests gold=sv_packed_wide_constant_select_read.gold
+sv_packed_wide_select_monitor normal,-g2017 ivltests gold=sv_packed_wide_select_monitor.gold
+sv_packed_element_write_bounds normal,-g2017 ivltests gold=sv_packed_element_write_bounds.gold
+sv_packed_element_write_compound normal,-g2017 ivltests gold=sv_packed_element_write_compound.gold
+sv_packed_element_write_nba normal,-g2017 ivltests gold=sv_packed_element_write_nba.gold

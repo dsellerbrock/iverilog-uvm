@@ -5507,7 +5507,8 @@ class NetESelect  : public NetExpr {
       NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
                  ivl_select_type_t sel_type = IVL_SEL_OTHER);
       NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
-                 ivl_type_t use_type);
+                 ivl_type_t use_type,
+                 ivl_select_type_t sel_type = IVL_SEL_OTHER);
       ~NetESelect() override;
 
       const NetExpr*sub_expr() const;

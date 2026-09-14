@@ -271,7 +271,7 @@ NetESelect* NetESelect::dup_expr() const
       NetESelect*tmp = net_type()
 	    ? new NetESelect(expr_->dup_expr(),
 			     base_? base_->dup_expr() : 0,
-			     expr_width(), net_type())
+			     expr_width(), net_type(), sel_type_)
 	    : new NetESelect(expr_->dup_expr(),
 			     base_? base_->dup_expr() : 0,
 			     expr_width(), sel_type_);

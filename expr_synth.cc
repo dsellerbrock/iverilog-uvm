@@ -1202,6 +1202,8 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
       NetNet*sub = expr_->synthesize(des, scope, root);
 
       if (sub == 0) return 0;
+      ivl_variable_type_t result_type = net_type()
+	    ? expr_type() : sub->data_type();
 
 	// Detect the special case that there is a base expression and
 	// it is constant. In this case we can generate fixed part selects.
@@ -1290,7 +1292,7 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 	    des->add_node(sel);
 
 	    ivl_assert(*this, select_width > 0);
-	    const netvector_t*tmp_vec = new netvector_t(sub->data_type(),
+	    const netvector_t*tmp_vec = new netvector_t(result_type,
 	                                                select_width-1, 0);
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
 				    NetNet::WIRE, tmp_vec);
@@ -1318,7 +1320,7 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 			connect(cat->pin(concat_count), above->pin(0));
 		  }
 
-		  tmp_vec = new netvector_t(sub->data_type(), expr_width()-1, 0);
+		  tmp_vec = new netvector_t(result_type, expr_width()-1, 0);
 		  tmp = new NetNet(scope, scope->local_symbol(),
 				   NetNet::WIRE, tmp_vec);
 		  tmp->set_line(*this);
@@ -1339,7 +1341,7 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 	    sel->set_line(*this);
 	    des->add_node(sel);
 
-	    const netvector_t*tmp_vec = new netvector_t(sub->data_type(),
+	    const netvector_t*tmp_vec = new netvector_t(result_type,
 	                                                expr_width()-1, 0);
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
 				    NetNet::IMPLICIT, tmp_vec);

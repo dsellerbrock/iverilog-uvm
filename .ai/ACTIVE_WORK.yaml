@@ -1,27 +1,21 @@
-id: L52
-title: Resolve indexed hierarchical task calls
+id: BATCH-L43-L52-CORRECTIONS
+title: Correct focused regressions exposed by the ten-feature batch
 status: FOCUSED_VALIDATED
-base_revision: 904a835ae
-origin: DD-020
-standards:
-  - IEEE 1800-2017 13.3, 23.6 and 23.8.1
-  - IEEE 1800-2023 13.3, 23.6 and 23.8.1
-reproducer:
-  - evidence/unresolved-task-assessment/indexed_hier_task_valid.sv
-  - evidence/unresolved-task-assessment/indexed_object_task_valid.sv
-current_behavior: Every indexed task path is treated as an object-method candidate, so a valid task on a constant-selected module instance is silently discarded.
-expected_behavior: A receiver proven by symbol lookup to be a module, instance-array or generate scope proceeds through ordinary hierarchical task/function resolution. Indexed object arrays retain dynamic method dispatch; invalid scope indices and missing tasks are diagnosed.
+base_revision: e5a1eb846
+origin: Full legacy and JSON batch qualification after L43-L52
 allowed_scope:
-  - PCallTask indexed-path receiver classification and hierarchical lookup routing
-  - Focused positive and negative tests, registrations, gold, evidence and ACTIVE_WORK
+  - Represent an explicit null statement with PNoop while retaining attributes and executable ordering
+  - Accept canonical indexed NetESelect nodes in precise sensitivity analysis
+  - Treat assertion-control selector identifiers as names before value-reference diagnostics
+  - Preserve declared two-state semantics on packed-prefix selects in simulation and synthesis
+  - Report fixed and dynamic array-element signedness through VPI word handles
+  - Focused reused regression lists, evidence and ACTIVE_WORK
 forbidden_scope:
-  - General class, object, interface, deferred or compile-progress fallback redesign
-  - Dynamic selection of module or generate instances
-  - Broad suites before the tenth-feature batch checkpoint
+  - New test framework or weakened expected results
+  - Broad suites before root review
 validation_batch: 20260914
-focused_features_before_this: 9
-last_validated_revision: Uncommitted L52 tree. Incremental build/install passed; focused legacy 5/5 and JSON 10/10 passed. Constant-selected module-array and generate tasks execute with delay, arguments and copyout; indexed void functions and runtime-selected object methods execute; missing, nonconstant, X, out-of-range and over-wide scope indices are rejected in both editions.
-pending_gates: Root review, then the deferred full batch gate for ten focused features.
-next_action: Root review and atomic integration, then the ten-feature batch qualification.
-discovery_policy: Other unresolved hierarchical lookup gaps remain separate debt.
+focused_features_before_this: 10
+last_validated_revision: Uncommitted correction tree. Build and install passed; final focused legacy 45/45 and JSON 42/42 passed, covering all 29 legacy and 13 JSON failures from the first batch plus procedural-import, interconnect, packed read/write, wide VPI and signed-array controls. A permanent synthesized two-state packed-prefix regression passes in IEEE 2017 and 2023. Ordinary initial, loop, repeat and conditional null statements also pass in both editions.
+pending_gates: Root source review passed; corrected broad batch and frontend qualification pending.
+next_action: Integrate locally and keep source frozen through corrected broad qualification.
 stop_after_completion: false

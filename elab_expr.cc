@@ -25145,9 +25145,18 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, true, 0);
-	    NetESelect*ss = new NetESelect(carrier, base, wid, IVL_SEL_IDX_UP);
+	    ivl_type_t select_type = net->sig()->data_type() == IVL_VT_BOOL
+		  ? new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false)
+		  : nullptr;
+	    NetESelect*ss = select_type
+		  ? new NetESelect(carrier, base, wid, select_type, IVL_SEL_IDX_UP)
+		  : new NetESelect(carrier, base, wid, IVL_SEL_IDX_UP);
 	    ss->set_line(*this);
-	    return ss;
+	    if (!select_type)
+		  return ss;
+	    NetECast*cast = new NetECast('2', ss, wid, false);
+	    cast->set_line(*this);
+	    return cast;
       }
 
       list<long>prefix_indices;
@@ -25330,9 +25339,18 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	    const netrange_t&rng = net->sig()->packed_dims().back();
 	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
 					   wid, false, 0);
-	    NetESelect*ss = new NetESelect(carrier, base, wid, IVL_SEL_IDX_DOWN);
+	    ivl_type_t select_type = net->sig()->data_type() == IVL_VT_BOOL
+		  ? new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0, false)
+		  : nullptr;
+	    NetESelect*ss = select_type
+		  ? new NetESelect(carrier, base, wid, select_type, IVL_SEL_IDX_DOWN)
+		  : new NetESelect(carrier, base, wid, IVL_SEL_IDX_DOWN);
 	    ss->set_line(*this);
-	    return ss;
+	    if (!select_type)
+		  return ss;
+	    NetECast*cast = new NetECast('2', ss, wid, false);
+	    cast->set_line(*this);
+	    return cast;
       }
 
       list<long>prefix_indices;

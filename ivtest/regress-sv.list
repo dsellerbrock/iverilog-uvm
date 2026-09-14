@@ -3008,6 +3008,7 @@ sv_wire_procedural_compound_fail CE,-g2017	ivltests gold=sv_wire_procedural_comp
 sv_task_lookup_resolution normal,-g2017	ivltests gold=sv_task_lookup_resolution.gold
 sv_missing_bare_task_fail CE,-g2017	ivltests gold=sv_missing_bare_task_fail.gold
 sv_packed_prefix_read_bounds normal,-g2017 ivltests gold=sv_packed_prefix_read_bounds.gold
+sv_packed_prefix_read_synth normal,-g2017,-S ivltests gold=sv_packed_prefix_read_synth.gold
 sv_packed_real_prefix_fail CE,-g2017 ivltests gold=sv_packed_real_prefix_fail.gold
 sv_packed_element_write_bounds normal,-g2017 ivltests gold=sv_packed_element_write_bounds.gold
 sv_packed_element_write_compound normal,-g2017 ivltests gold=sv_packed_element_write_compound.gold

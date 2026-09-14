@@ -22703,8 +22703,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* `else ;' is an explicit null failure action, whereas a null
 	   fail_stmt pointer means there was no else arm and requests the LRM
 	   default $error action. parse.y carries the former as a PNoop sentinel.
-	   A bare PNoop cannot reach statement elaboration, so consume it here
-	   into an empty block. Keeping that block non-null preserves the
+	   Consume that sentinel here into an empty block. Keeping the explicit
+	   action non-null preserves the
 	   distinction through procedural-clock parking, named-property
 	   expansion, and every specialized assertion lowering. */
       if (dynamic_cast<PNoop*>(fail_stmt)) {
@@ -22712,6 +22712,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    PBlock*empty = new PBlock(PBlock::BL_SEQ);
 	    FILE_NAME(empty, loc);
 	    fail_stmt = empty;
+      }
+
+	/* A null pass action has no executable behavior. Consume its marker
+	   before checking whether this cover lowering supports pass actions. */
+      if (kind == 2 && dynamic_cast<PNoop*>(pass_stmt)) {
+	    delete pass_stmt;
+	    pass_stmt = nullptr;
       }
 
 	/* M9-10: no explicit clock and no default clocking -- park it and
