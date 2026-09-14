@@ -2997,3 +2997,6 @@ sv_class_handle_string_specialized_fail CE,-g2012	ivltests gold=sv_class_handle_
 sv_class_handle_string_seed_ok normal,-g2012	ivltests gold=sv_class_handle_string_seed_ok.gold
 sv_class_body_import_fail CE,-g2012	ivltests gold=sv_class_body_import_fail.gold
 sv_class_property_string_conversion normal,-g2012	ivltests
+sv_procedural_package_import normal,-g2017	ivltests gold=sv_procedural_package_import.gold
+sv_procedural_package_import_late_fail CE,-g2017	ivltests
+sv_procedural_package_import_substatement_fail CE,-g2017	ivltests

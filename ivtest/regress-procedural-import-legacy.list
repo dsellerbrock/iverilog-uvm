@@ -1,0 +1,3 @@
+sv_procedural_package_import normal,-g2017	ivltests gold=sv_procedural_package_import.gold
+sv_procedural_package_import_late_fail CE,-g2017	ivltests
+sv_procedural_package_import_substatement_fail CE,-g2017	ivltests

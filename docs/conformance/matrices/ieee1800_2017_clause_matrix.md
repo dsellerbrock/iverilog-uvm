@@ -1233,3 +1233,15 @@ arithmetic, mixed unsigned operands, wide arithmetic, self-determined shifts,
 four-state propagation, class properties and unsigned selections. All required
 local gates pass. Key/receiver single-evaluation and full associative compound
 qualification remain separate; this is not complete feature qualification.
+
+
+### L43 — Procedural package imports (26.3, A.2.1.3, A.2.6-A.2.8)
+
+IMPLEMENTED for the focused sequential-block/task/function/method declaration
+subset: explicit and wildcard imports after local declarations resolve types
+and values, including attributed imports. Late imports after executable or null
+statements and direct conditional/loop imports are rejected. A legal import
+produces no executable statement; an explicit null statement remains executable
+for declaration-order checking. Both 2017 and 2023 modes pass focused semantic
+checks. This is not full package qualification: the batch-level regression suite
+remains pending under the user's approximately ten-feature cadence.

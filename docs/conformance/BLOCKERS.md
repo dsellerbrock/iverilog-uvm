@@ -1821,3 +1821,22 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   1873/0, UVM 357/0/0, NFA dual-run 58/58, UVM release matrix 15/15
   SMOKE_PASS, frontend all S1-S12.
 - **Evidence:** `evidence/campaign-20260908/l42/`.
+
+
+### L43 — Package imports after local declarations
+
+- **State:** IMPLEMENTED; focused validation passes. Full regression
+  qualification is deferred to the approximately ten-feature batch boundary
+  under the user's 2026-09-14 validation cadence.
+- **Origin:** DD-018, corrected after inspecting its invalid return-type reducer.
+- **Expected:** legal imports in procedural declaration prefixes resolve local
+  types and values without generating an executable operation. Imports after
+  statements and direct conditional/loop imports remain rejected.
+- **Root cause:** an existing import-as-statement production created `PNoop`,
+  which fell into `Statement::elaborate`'s internal-error path.
+- **Scope:** parser routing to declaration-capable lists, attribute handling,
+  preserving explicit null statements for placement checks, focused tests.
+- **Authority:** IEEE 1800-2017 and 1800-2023 A.2.1.3, A.2.6-A.2.8, 26.3.
+- **Evidence:** `evidence/dd018-assessment/`; permanent
+  `sv_procedural_package_import` tests. Both editions failed with six internal
+  errors before the patch. See the current ACTIVE_WORK record for final gates.

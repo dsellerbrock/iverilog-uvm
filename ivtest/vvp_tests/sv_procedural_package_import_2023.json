@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_procedural_package_import.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_procedural_package_import"
+}

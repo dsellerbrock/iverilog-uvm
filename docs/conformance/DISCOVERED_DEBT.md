@@ -938,55 +938,51 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   feature (which object kinds, what elaboration-to-vvp plumbing) rather than
   a single reducer-sized fix.
 
-### DD-018 — `import pkg::*;` anywhere inside a function/task body fails outright
+### DD-018 — Procedural package import after a local declaration (L43)
 
-- **Discovered while working:** L41 (class-body import diagnostic quality)
-- **Observation:** while writing a positive-control test to confirm L41's
-  fix left method-body imports unaffected, found that `import pkg::*;`
-  written ANYWHERE inside an ordinary (non-class) function or task body
-  fails with a plain `syntax error` / `I give up on this function
-  definition.` -- independent of position (first statement or after
-  another declaration) and independent of whether a class is involved at
-  all. Confirmed against the LRM's own formal grammar: IEEE 1800-2017/2023
-  A.2.1.3's `data_declaration ::= ... | package_import_declaration` and
-  A.6.3's `block_item_declaration ::= data_declaration | ...` -- so this
-  is legal SystemVerilog unrestricted to module/package scope, not a
-  guess.
-- **Attempted fix, REVERTED:** added `package_import_declaration` as a
-  `block_item_decl` alternative in `parse.y` (the same shape as L41's
-  `class_item` addition). Unlike L41, this was NOT a clean, zero-conflict
-  change: bison's reduce/reduce conflict count jumped from 1122 to 1344
-  (+222; shift/reduce stayed flat at 563). `block_item_decl` is reachable
-  from far more contexts than `class_item` was (module bodies, named
-  begin/end blocks, task/function bodies, generate blocks, all via
-  `block_item_decls_opt`), and `K_import` is also the leading token of
-  `dpi_import_export_declaration`'s several forms -- the ambiguity is
-  suspected to be an import-vs-DPI-import overlap reachable from a shared
-  block-level state, but this was NOT traced to a specific state before
-  reverting. A jump this large, unlike L41's identical-before-and-after
-  result, is not something to force through on a "probably fine" basis --
-  reverted rather than risk silently corrupting an unrelated construct's
-  parse. `parse.y` is back to its pre-attempt state; no source change
-  landed for this row.
-- **File/function:** `parse.y` `block_item_decl` (~line 9088-9353,
-  post-L41 line numbers) and whatever `dpi_import_export_declaration`
-  state actually collides with it; root cause not traced.
-- **Possible clause:** IEEE 1800-2017/2023 A.2.1.3 + A.6.3 (cited above,
-  confirmed against the LRM text directly, not inferred).
-- **Evidence:** minimal reducer, `import pkg1::*;` as either the first or
-  second statement in a plain module-scope function body, both fail
-  identically; not archived to a permanent evidence directory this pass.
-- **Reproducer status:** confirmed (hand-built reducer, not from real
-  application source)
-- **Triage status:** untriaged; needs its own dedicated investigation
-  (a full `bison --report=state` diff identifying exactly which new
-  states appear and what collides in them -- not just a conflict-count
-  diff, which only tells you THAT something new collides, not WHAT) --
-  do not re-attempt the plain `block_item_decl` addition without that
-  trace, it reproduces the same +222 reduce/reduce jump. A narrower
-  alternative worth trying first: a dedicated production for
-  `K_import package_import_item_list ';'` used only inside
-  `block_item_decl` (not reusing the shared `package_import_declaration`
-  nonterminal DPI-import forms might also reach), which may sidestep the
-  overlap entirely.
-  not just a conflict-count diff) before attempting a fix.
+- **Current status (2026-09-14):** IMPLEMENTED with focused validation; L43 implements
+  the legal declaration-prefix case with invalid-placement safeguards.
+- **Correction to the L41 assessment:** the archived reducers declared
+  `function foo_t get_val()` before importing `foo_t` inside the body. Their
+  syntax failure occurred at the return type, before the import. With an `int`
+  return type, a leading import already works. An import after `int dummy;`
+  instead reaches an existing statement-context production and fails with
+  `What kind of statement? 5PNoop` during elaboration.
+- **Root cause:** package lookup is already installed by
+  `pform_package_import`; the fallback statement production creates an
+  unelaboratable `PNoop` for a declaration. A one-line null replacement was
+  rejected in review because it also accepts illegal conditional/late imports
+  and crashes when an attribute is bound through the null statement.
+- **Grammar investigation:** the old +222 reduce/reduce jump is reproduced
+  by duplicating the already-present `block_item_decl` import alternative.
+  Bison state 1230 contains two identical completed productions and all 222
+  extra conflicts. This is not evidence of a DPI-import collision. Scratch
+  reports: `evidence/dd018-assessment/{baseline,duplicate}.output`.
+- **Normative basis:** both IEEE 1800-2017 and 1800-2023 A.2.1.3,
+  A.2.6-A.2.8 and 26.3. Imports belong in declaration prefixes, not arbitrary
+  statement positions. The earlier A.6.3 citation was imprecise; the
+  `block_item_declaration` production is in A.2.8.
+- **Evidence:** corrected reducers and pre-fix six-error regression logs in
+  `evidence/dd018-assessment/`. Permanent positive source:
+  `ivtest/ivltests/sv_procedural_package_import.v`.
+
+### DD-019 — Packed mixed-driver compound assignment aborts (PRINCE)
+
+- **Discovered during:** L43; independent assessment only, not active implementation.
+- **Observation:** freshly compiled unmodified OpenTitan `prim_prince_sim`
+  aborts in `vvp_fun_concat::recv_vec4_pv`: port 0 expects 256 bits, receives
+  384. Compiler/target/runtime hashes were unchanged during this replay.
+- **Reducer:** `evidence/opentitan-runtime-assessment/packed_compound_drivers.sv`.
+  A six-word packed array has word 0 assigned in `always_comb`, with `^= 0`
+  following the ordinary assignment; other words are continuously driven.
+  The plain-assignment control passes. Compound form reproduces the exact abort.
+- **Root-cause hypothesis:** ordinary assignments use `%force/vec4/off` for
+  a signal lowered to an unresolved net, while `put_vec_to_lval` emits
+  `%store/vec4` for the compound form. The runtime store reaches the concat
+  network with the full packed width. Investigate target write routing,
+  not a width-clamping workaround in the concat runtime.
+- **Normative basis to verify at activation:** IEEE 1800-2017/2023 6.5
+  (independent packed elements may have different kinds of drivers), 11.4.1
+  (compound assignment equivalence and single index evaluation).
+- **Status:** ready for activation after L43. Full PRINCE success is unproven;
+  missing native DPI dependencies may expose a later independent failure.

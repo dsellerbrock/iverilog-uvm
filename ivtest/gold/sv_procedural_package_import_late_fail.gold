@@ -1,0 +1,2 @@
+./ivltests/sv_procedural_package_import_late_fail.v:9: error: Package imports must precede statements in a procedural block.
+./ivltests/sv_procedural_package_import_late_fail.v:17: error: Package imports must precede statements in a procedural block.

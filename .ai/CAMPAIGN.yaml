@@ -1,16 +1,16 @@
 status: active
-branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "none (L35 closed -- real=string implicit-conversion hard error, found by fire-testing the DD046 empirical-sweep probe on a hand-built case after an advisor review challenged the initial 'empirically unreached' disposition; all six gates pass at 4982/4977/0/2NI/3EF (+1 new CE test). DD046's curated candidates are now exhausted; next candidate not yet selected)"
-phase: "blocker_selection"
+branch: "agent/l43-procedural-import-20260914"
+current_blocker: "L43 focused validated; local integration next, then DD-019"
+phase: "local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "d0b6015bf"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None. L35 closed with all six required gates exit0 (evidence/campaign-20260908/l35/). Only local-install/lib/ivl/ivl (the frontend binary) changed vs the L34 baseline -- pure elaboration-time fix, no codegen/runtime touched; re-baselined in l35/installed-frozen-sha256.json."
+pending_gates: "Whole suite at approximately ten-feature batch boundary; L43 legacy3/3 and JSON6/6 passed"
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33/L34/L35 all closed this pass, plus the full 12-row curated-table re-triage. L35 is the notable one: DD046's re-triage first dispositioned 'Lost expression typing' as 'empirically unreached' (0 hits across a 357-test UVM sweep + a ~5000-test ivtest sweep with an instrumented probe) -- but an advisor review pointed out a probe that never fires and one that's never reached look identical, so a hand-built sanity construct was compiled to fire-test the probe before trusting the negative result. It fired immediately on the most ordinary construct possible (`real r; string s; r = s;`), reproducing a real, previously-silent defect (0.0 substitution for a well-typed string assigned to a real target, no implicit conversion is defined per IEEE 1800 6.16). Root-caused, fixed as a hard error mirroring the existing class-handle/aggregate precedent, and closed as L35 with all six gates passing (4982/4977/0/2NI/3EF, +1 new permanent CE test). Methodology lesson recorded: fire-test an instrumentation probe on a positive case before trusting its silence on a corpus sweep. DD046's curated 12-row table (now 13 with L35 split out) is fully exhausted for quickly-bounded candidates. The second elab_and_eval overload's un-excluded vectorable branch (netmisc.cc:2392-2398) was investigated and ruled out, not left open: netqueue_t inherits from netdarray_t, so the existing well-typed-aggregate hard error already catches a queue source there the same as a fixed array, leaving only a genuinely unresolved-generic (VOID/NO_TYPE) tmp able to reach it -- the same wall every other probed-but-unfired branch in this sweep hit; not a quick-win reducer target. Remaining next-step options, none yet selected: (a) mine the raw 12849-line fallback-tracked-candidates.tsv for fresh uncurated candidates; (b) the real-typed (IVL_VT_REAL) nested class-property VPI-lvalue gap (L33/L34's named follow-on, sized as needing a new runtime class + grammar token); (c) shift to the user's third priority phase (broader implementation work) -- both of the user's first two explicit phases (smokes, then compile fallbacks) are now satisfied with evidence."
+next_selection: "Fresh OpenTitan prim_prince concat-width runtime abort assessment in parallel; implementation remains L43 only"
 next_action: "PR #276 (whole post-275 batch through L33) is open; L34, the DD046 re-triage, and L35 all landed as new commits directly in that same branch/PR per campaign publication policy (no new PR, no CI gating per explicit user instruction). Report phases 1-2 complete to the user and let them confirm the phase-3 shift rather than selecting it unilaterally."
 next_command: "Ask the user to confirm the phase-3 shift to broader implementation work, or, if they want DD046 continued, mine fallback-tracked-candidates.tsv (awk -F'\\t' filter on stub/degradation tags in tgt-vvp/*.c, vvp/*.cc, elab_expr.cc, netmisc.cc excluding lines near an existing cerr/fprintf(stderr)) or size the real-typed CPR/__vpiClassPropertyRealVar work as its own increment."
 next_command_cwd: repository root
@@ -786,3 +786,15 @@ l32_focused: "Both permanent editions fail beforepatch andpass after; raw litera
 l32_full_gate_start: "Semanticab54351c3,focused2/2,VPIneighbors6/6,makecheck andindependentreviewclear. Integrated36861,UVM45709,NFA1979,releases6583 running;JSON/frontend unstarted. Source/installfreeze active,hashes l32/installed-frozen-sha256.json. Lastfullyvalidated729edce3c. Aftervalidation closure L32 is third validated increment afterPR275,so assess coherent newPR publication milestone before resumingU15; no merging authorization."
 
 handoff_checkpoint: "User requests handoff to another model due usage boundary. L32ab54351c3 awaitingvalidation; no further implementation by outgoing agent. NFA1979exit0:58/58. Releases6583exit1 forpreserved1.1b/c compilegaps;results-j96p2nep complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15statuses/source/archivehashes identical toU14; separate1.1d lifecyclePASS. Integrated36861/UVM45709 were stillrunning at handoff; JSON/frontend unstarted. Six frozen hashes match. Do not startanotherimplementationwriter or duplicategates. Resume exactcheckpoint; U15remains suspended."
+
+validation_batch_20260914:
+  authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
+  target_features: 10
+  focused_validated_features: [L43]
+  in_progress: none
+  broad_gates: deferred_until_batch_boundary
+  rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
+  implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
+  integration: "User authorized local merges; no remote merge or push authorization inferred. No new clone/worktree created. Retire only completed eligible trees through the cleanup script."
+
+l43_checkpoint: "Focused legacy3/3, JSON6/6 (positive and negative in 2017/2023); Bison562SR1122RR vs563SR1122RR; no full suite claimed. Next: commit, integrate locally, activate DD-019. No new worktree or clone."

@@ -8597,7 +8597,11 @@ statement_or_null /* IEEE1800-2005: A.6.4 */
   : statement
       { $$ = $1; }
   | attribute_list_opt ';'
-      { $$ = 0; }
+      { PBlock*tmp = new PBlock(PBlock::BL_SEQ);
+	FILE_NAME(tmp, @2);
+	pform_bind_attributes(tmp->attributes, $1);
+	$$ = tmp;
+      }
   ;
 
 stream_expression
@@ -18593,10 +18597,6 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = new PNoop;
       }
 
-  /* IEEE 1800-2012 §26.7: package import inside function/task body */
-  | package_import_declaration
-      { $$ = new PNoop; }
-
   ;
 
   /* Randsequence production grammar (IEEE 1800-2017 A.5.2).  The parse
@@ -18843,10 +18843,32 @@ statement_or_null_list
 	if ($2) tmp->push_back($2);
 	$$ = tmp;
       }
+  /* Imports update lexical lookup while parsing and emit no statement.
+     Keep them on the top-level block/routine list so they cannot appear as
+     conditional or loop substatements. The empty executable list identifies
+     the declaration prefix, including declarations routed through the
+     statement grammar by its existing conflict resolution. */
+  | statement_or_null_list package_import_declaration
+      { if (!$1->empty())
+	      yyerror(@2, "error: Package imports must precede statements in a procedural block.");
+	$$ = $1;
+      }
+  | statement_or_null_list attribute_instance_list package_import_declaration
+      { if (!$1->empty())
+	      yyerror(@3, "error: Package imports must precede statements in a procedural block.");
+	pform_discard_call_attributes($2);
+	$$ = $1;
+      }
   | statement_or_null
       { std::vector<Statement*>*tmp = new std::vector<Statement*>(0);
 	if ($1) tmp->push_back($1);
 	$$ = tmp;
+      }
+  | package_import_declaration
+      { $$ = new std::vector<Statement*>; }
+  | attribute_instance_list package_import_declaration
+      { pform_discard_call_attributes($1);
+	$$ = new std::vector<Statement*>;
       }
   ;
 

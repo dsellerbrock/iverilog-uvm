@@ -1,18 +1,36 @@
-id: "L42"
-title: "Integral class-property read/written as a string used the wrong conversion (or none)"
-status: "closed"
-phase: "phase 3 (implementation campaign), second increment"
-base_revision: "631bba6e8 (PR #277 merged, L36-L41 closed pending PR #278)"
-last_validated_revision: "HEAD (L42 closed, all six gates passed)"
-parent: "Phase-B backlog (tasks/todo.md), found incidentally during L40's investigation on 2026-09-11, deferred as feature-sized, picked up as the next implementation-campaign item after L41."
-reproducer: "evidence/campaign-20260908/l42/l42_plain_int_property.sv (the get_string fix); l42_set_string.sv (the set_string fix, including left-truncation); l42_edge_cases.sv (byte/shortint, zero-value, zero-fill); l42_bit_vector.sv (property_bit already worked, property_logic didn't -- confirms the fix's precise scope); l42_xbit.sv (X-bit safety); ivtest/ivltests/sv_class_property_string_conversion.v (new permanent regression)."
-expected_behavior: "An integral class property read/written as a string must get the same IEEE 1800-2017/2023 6.16 packed-byte conversion a plain (non-property) vec4-typed variable already gets, not a warn-and-stub."
-root_cause: "property_atom<T> and property_logic (vvp/class_type.cc) never overrode class_property_t::get_string/set_string, falling to the base class's generic 'unsupported' stub."
-allowed_scope: ["vvp/vvp_net.h + vvp_net.cc: new shared vector4_to_packed_string() helper, extracted from vthread.cc's existing of_PUSHV_STR opcode (which was refactored to call it -- dedup, no behavior change for the pre-existing plain-variable path).", "vvp/class_type.cc: get_string/set_string overrides on property_atom<T> and property_logic, plus a new shared pack_string_into_vec4_() helper for the write direction.", "ivtest/regress-sv.list + ivtest/ivltests/sv_class_property_string_conversion.v: new permanent regression."]
-non_goals: ["Did not touch property_bit (2-state bit vectors) -- confirmed already correct before this fix, no change needed.", "Did not touch property_string (actual string-typed properties) -- already correct.", "Did not add any new X/Z-specific handling -- the shared conversion already treats X/Z as 0, matching the pre-existing plain-variable behavior, verified not to crash."]
-validation_contract: "All six required gates: integrated ivtest 4991/4986/0F/2NI/3EF (prior baseline 4990/4985 +1 new normal test), JSON 1873/0 (unaffected), UVM 357/0/0, NFA 58/58, releases 15/15 SMOKE_PASS, frontend all S1-S12."
-discovery_policy: "First hypothesis (from the L40-era DISCOVERED_DEBT.md entry) guessed this needed a 'property_vec4-style get_string override doing the itoa conversion' -- i.e. decimal formatting. Verified against the LRM directly before implementing anything: 6.16 defines integral-to-string as byte-PACKING, not decimal formatting (confirmed empirically too: a plain int variable with value 42 already converts to the 1-character string '*', not '42'). Implementing the wrong (itoa) conversion would have been a second, different-shaped bug; tracing the actual existing plain-variable opcode (%pushv/str) before writing any new code avoided that."
-evidence: "../evidence/campaign-20260908/l42/"
-next_action: "Select the next Phase-B implementation-backlog item from tasks/todo.md. DD-018 (function/task-body import) remains blocked pending a proper bison --report=state trace -- do not re-attempt the plain block_item_decl addition, it reproduces the +222 reduce/reduce conflict jump. Other candidates: the $low()/$high() 'object code 615' fallback; eval_string.c:249; a fresh re-audit of BLOCKERS.md for superseded rows."
-next_command: "Commit and push L42, open a PR, then continue the implementation campaign per the user's standing directive."
+id: L43
+title: Package import after a procedural local declaration creates an unelaboratable PNoop
+status: IMPLEMENTED_FOCUSED_PASS
+base_revision: 3c8e2b576
+standards:
+  - IEEE 1800-2017 A.2.1.3, A.2.6, A.2.7, A.2.8 and 26.3
+  - IEEE 1800-2023 A.2.1.3, A.2.6, A.2.7, A.2.8 and 26.3
+reproducer: evidence/dd018-assessment/function_second_valid.sv
+current_behavior: Internal elaboration error for PNoop after int declaration followed by import.
+expected_behavior: Resolve imported types and values in the local scope, execute the body, emit no executable operation for the import declaration.
+root_cause: The existing statement_item import production creates PNoop, which inherits Statement::elaborate and emits an internal error. Imports already take effect during parsing via pform_package_import.
+allowed_scope:
+  - parse.y statement_item package_import_declaration semantic action
+  - parse.y procedural statement-list placement for package imports
+  - parse.y executable-list tracking for explicit null statements
+  - Focused import regressions and registrations
+  - Directly affected conformance, blocker, debt and campaign records
+forbidden_scope:
+  - General PNoop behavior or other producers, including assertion and error recovery
+  - Unrelated grammar alternatives or declaration-order extensions
+  - Unrelated conformance defects
+completion_requirements:
+  - Pre-fix failure and post-fix semantic checks in 2017 and 2023
+  - Scope, wildcard and explicit import, function/task/method/block interaction checks
+  - Attributed legal import and illegal late/conditional/loop placement checks
+  - Bison state report with the intended import-statement conflict removed and no new conflicts
+  - Focused legacy and JSON regression paths
+  - Batch-level integrated, JSON, real-DPI UVM, NFA, release and frontend gates after approximately ten completed features
+  - Documentation, diff check and local implementation checkpoint
+last_validated_revision: Working tree after local rebuild/install; focused legacy 3/3 and JSON 6/6 pass with pinned negative diagnostics; direct positive, negative, and explicit-null interaction checks pass in 2017 and 2023. Durable logs are evidence/dd018-assessment/final-focus-{legacy,json}.log and record EXIT_STATUS=0.
+pending_gates: Campaign batch gates only, deferred under the user-directed approximately-ten-feature cadence.
+next_action: Freeze L43 after documentation review, then continue to the next campaign feature; run broad gates at the batch boundary.
+evidence: evidence/dd018-assessment/
+discovery_policy: Record unrelated defects without expanding this implementation.
+scope_expansion_rationale: The one-line PNoop-to-nullptr fix made the existing statement_item grammar accept imports wherever any statement is legal, although IEEE 1800 permits them only in a block/task/function declaration prefix. It also exposed statement's unconditional attribute binding through a null declaration result. Placement enforcement and attributed-import coverage are therefore prerequisites of the root fix, not unrelated cleanup.
 stop_after_completion: false
