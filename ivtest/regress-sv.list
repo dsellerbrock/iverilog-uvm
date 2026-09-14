@@ -3027,3 +3027,5 @@ sv_indexed_hierarchical_out_of_range_fail CE,-g2017 ivltests gold=sv_indexed_hie
 sv_indexed_hierarchical_wide_fail CE,-g2017 ivltests gold=sv_indexed_hierarchical_wide_fail.gold
 sv_hierarchical_subroutine_lookup normal,-g2017 ivltests gold=sv_hierarchical_subroutine_lookup.gold
 sv_hierarchical_missing_task_fail CE,-g2017 ivltests gold=sv_hierarchical_missing_task_fail.gold
+sv_disjoint_dynamic_packed_subpart normal,-g2017 ivltests gold=sv_disjoint_dynamic_packed_subpart.gold
+sv_overlapping_dynamic_packed_subpart_fail CE,-g2017 ivltests gold=sv_overlapping_dynamic_packed_subpart_fail.gold

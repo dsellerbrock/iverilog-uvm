@@ -1,6 +1,6 @@
 status: active
-branch: "agent/l54-invalid-packed-write-prefix-20260914"
-current_blocker: "Next DD-021: permit dynamic subparts within disjoint fixed packed driver prefixes"
+branch: "agent/l55-disjoint-dynamic-subpart-20260914"
+current_blocker: "DD-022 dynamic packed prefixes alias invalid elements and spill final selects"
 phase: "focused_implementation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
@@ -10,12 +10,12 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: "None for L43-L52 corrected batch; all local qualification gates passed."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD-020 unindexed hierarchy calls, then DD-022 constant-invalid packed prefixes; both have frozen-candidate evidence."
-next_action: "Continue focused batch with DD-021 disjoint mixed-driver dynamic subparts; reuse existing carrier proof and partial-store runtime."
-next_command: "Reproduce dynamic.sv and inspect early mixed-driver rejection before carrier attachment; permit only proven disjoint static prefixes and retain overlap errors."
+next_selection: "DD-022 dynamic packed write prefixes; six corruption cases per edition reproduced."
+next_action: "Preserve runtime prefix bounds and final packed carrier clipping with each index and RHS evaluated once."
+next_command: "Assess shared packed-index lowering and assignment IR before implementing dynamic carrier support."
 next_command_cwd: repository root
 candidate_state: "L43-L52 plus regression corrections locally qualified at c686a4781."
-installed_tools: "c686a4781; six compiler/runtime/DPI/header hashes match after frontend restoration."
+installed_tools: "L55 focused build; ivl f0390347ebcebe8fa9b276180b67e6a52bea9d9f0da0ba0fd80d3a4a9a17f5f6. Historical c686a4781 broad qualification does not qualify this build."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -845,8 +845,8 @@ batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full fron
 validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
-  focused_validated_features: [L53, L54]
-  in_progress: DD021_assessment
+  focused_validated_features: [L53, L54, L55]
+  in_progress: DD022_dynamic_prefix_design
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -856,3 +856,5 @@ l53_checkpoint: "Scope-proven unindexed hierarchical missing tasks reject; valid
 l53_local_integration: "e9d9b5ad7 fast-forwarded into localmain; shared graph updated51090nodes94829edges. No newworktree orremotechanges. L54 uses same retained checkout on a new branch."
 
 l54_checkpoint: "Common indexed-lvalue IR suppresses proven-invalid constant prefix writes while preserving index/RHS evaluation. Legacy4/4 JSON8/8, original6-case matrix both modes, 128-bit prefix probe, and root ordinary/synthesized runtime4/4 pass. Dynamic prefixes and DD021 remain open. Two focused features in currentbatch."
+
+l55_checkpoint: "Proven fixed packed carriers permit disjoint dynamic subpart writes; actual overlap remains a compile error. Legacy7/7, JSON14/14, null both modes pass. Root source/test review clear. Three focused features in current batch; broad suites deferred. Dynamic prefixes and same-word unpacked mixed-driver restrictions remain open."

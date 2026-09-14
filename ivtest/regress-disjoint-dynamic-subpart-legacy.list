@@ -1,0 +1,7 @@
+sv_disjoint_dynamic_packed_subpart normal,-g2017 ivltests gold=sv_disjoint_dynamic_packed_subpart.gold
+sv_overlapping_dynamic_packed_subpart_fail CE,-g2017 ivltests gold=sv_overlapping_dynamic_packed_subpart_fail.gold
+sv_packed_element_write_bounds normal,-g2017 ivltests gold=sv_packed_element_write_bounds.gold
+sv_packed_element_write_compound normal,-g2017 ivltests gold=sv_packed_element_write_compound.gold
+sv_packed_element_write_nba normal,-g2017 ivltests gold=sv_packed_element_write_nba.gold
+sv_packed_element_write_synth normal,-g2017,-S ivltests
+sv_packed_mixed_driver_compound normal,-g2017 ivltests gold=sv_packed_mixed_driver_compound.gold

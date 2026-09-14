@@ -1192,3 +1192,19 @@ prefixes remain open. DD-021 still reproduces on the L53 baseline in
 `dynamic-after-l53-results.json`: a dynamic subpart of words[0] is rejected
 when words[1] has the disjoint continuous driver. The next implementation must
 reuse exact static-prefix bounds rather than relax driver conflicts globally.
+
+L55 focused DD-021 correction checks the driven mask of a proven valid fixed
+packed carrier before permitting a dynamic final subpart write. The permanent
+positive exercises blocking, compound and delayed NBA, partial low/high and
+both directions, unknown/OOB bases, continuous neighbor updates and evaluation
+counts. Actual same-carrier overlap remains a compile error. Legacy7/7 and
+JSON14/14 pass. The earlier unpacked whole-word conflict guard and unproven
+prefix cases remain open; this is not full mixed-driver completion.
+
+DD-022 next runtime-prefix evidence:
+`evidence/dynamic-mixed-driver-assessment/dynamic-prefix-next/results.json`
+records six failures per edition on the L55 focused binary. An invalid middle
+index aliases an adjacent element; a valid dynamic prefix with a partial final
+select spills into adjacent bits. Blocking, compound and NBA all fail, while
+each prefix, final-index and RHS function executes once. Runtime per-dimension
+validation and selected-element clipping must preserve those evaluation counts.

@@ -1,20 +1,19 @@
-id: L54
-title: Suppress writes through proven-invalid constant packed prefixes
+id: L55
+title: Allow disjoint dynamic subpart writes within a fixed packed element
 status: FOCUSED_VALIDATED
-base_revision: e9d9b5ad7
-origin: DD-022
+base_revision: 950aefea2
+origin: DD-021
 standards:
-  - IEEE 1800-2017/2023 11.5.1 and 11.5.2
+  - IEEE 1800-2017/2023 6.5
 allowed_scope:
-  - Common indexed-lvalue normalization for constant X/Z, exact out-of-range and exact-wide packed prefixes
-  - Blocking, compound and nonblocking assignments including unpacked array words
-  - Focused tests, registration, evidence and ACTIVE_WORK
+  - Mixed-driver overlap checking against a proven fixed packed-element carrier
+  - Blocking, compound and nonblocking behavior plus focused regressions
 forbidden_scope:
-  - Dynamic packed-prefix write semantics
-  - New runtime store architecture or broad suites before the feature-batch checkpoint
+  - Dynamic or unproven packed prefixes
+  - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 1
-last_validated_revision: Build/install passed; six-case blocking/compound/NBA matrix and beyond-host-wide control pass in IEEE 2017/2023 with final index and RHS evaluated once. Permanent bounds tests cover X/Z, exact OOB/wide, unpacked words, and valid ascending/nonzero/negative ranges. Focused legacy passed 4/4 and JSON passed 8/8; null and synthesized VVP compile checks pass both editions.
+focused_features_before_this: 2
+last_validated_revision: Build/install passed. Disjoint blocking, compound, delayed NBA, high/low/descending/invalid bases, continuous-neighbor updates and single-evaluation controls pass in IEEE 2017/2023; actual overlap remains a compile error. Focused legacy passed 7/7 and JSON passed 14/14 with L44/L49/L54 neighbors and synthesis coverage; null checks pass both editions.
 pending_gates: Root source/test review and feature-batch qualification.
-next_action: Freeze L54 source and tests for root review and integration.
+next_action: Freeze L55 source and tests for root review and integration.
 stop_after_completion: false

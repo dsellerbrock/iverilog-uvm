@@ -2459,6 +2459,8 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 	 * the invalid select value. */
       bool invalid_constant_prefix = false;
       bool valid_constant_prefix = false;
+      uint64_t prefix_carrier_off = 0;
+      unsigned prefix_carrier_wid = 0;
       if (!prefix_indices.empty()
 	  && prefix_indices.size()+1 == reg->packed_dims().size()) {
 	    list<index_component_t> packed_indices = path_.back().index;
@@ -2507,6 +2509,13 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 			valid_constant_prefix = false;
 		  }
 		  delete raw_expr;
+	    }
+	    if (valid_constant_prefix) {
+		  const netrange_t&leaf = reg->packed_dims().back();
+		  long carrier_off = reg->sb_to_idx(prefix_indices, leaf.get_lsb());
+		  ivl_assert(*this, carrier_off >= 0);
+		  prefix_carrier_off = static_cast<uint64_t>(carrier_off);
+		  prefix_carrier_wid = leaf.width();
 	    }
 	}
 	if (invalid_constant_prefix && base) {
@@ -2718,9 +2727,27 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 	    }
 	    if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 		  ivl_assert(*this, reg->coerced_to_uwire());
-		  report_mixed_assignment_conflict_("part select");
-		  des->errors += 1;
-		  return false;
+		  bool conflict = true;
+		  if (valid_constant_prefix) {
+			int word_index = 0;
+			bool known_word = lv->word() == 0;
+			if (const NetEConst*word =
+			      dynamic_cast<const NetEConst*>(lv->word())) {
+			      if (word->value().is_defined()) {
+				    word_index = word->value().as_long();
+				    known_word = true;
+			      }
+			}
+			if (known_word)
+			      conflict = reg->test_part_driven(
+				    prefix_carrier_off+prefix_carrier_wid-1,
+				    prefix_carrier_off, word_index);
+		  }
+		  if (conflict) {
+			report_mixed_assignment_conflict_("part select");
+			des->errors += 1;
+			return false;
+		  }
 	    }
 	    ivl_assert(*this, prefix_indices.size()+1 == reg->packed_dims().size());
 	      /* Correct the mux for the range of the vector. */
@@ -2743,10 +2770,6 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
       lv->set_part(base, wid, sel_type);
 
       if (valid_constant_prefix) {
-		  const netrange_t&leaf = reg->packed_dims().back();
-		  long carrier_off = reg->sb_to_idx(prefix_indices,
-						 leaf.get_lsb());
-		  ivl_assert(*this, carrier_off >= 0);
 		  const NetEConst*constant_base = dynamic_cast<const NetEConst*>(base);
 		  verinum_part_select_t overlap;
 		  if (constant_base && constant_base->value().is_defined())
@@ -2756,15 +2779,15 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 			&& constant_base->value().is_defined()
 			&& overlap.width == wid && overlap.source_base == 0
 			&& overlap.destination_base
-				   >= static_cast<uint64_t>(carrier_off)
+				   >= prefix_carrier_off
 			&& overlap.destination_base
-				   - static_cast<uint64_t>(carrier_off) <= leaf.width()
-			&& wid <= leaf.width()
+				   - prefix_carrier_off <= prefix_carrier_wid
+			&& wid <= prefix_carrier_wid
 				   - (overlap.destination_base
-				      - static_cast<uint64_t>(carrier_off));
+				      - prefix_carrier_off);
 		  if (!within_carrier)
-			lv->set_part_carrier(static_cast<uint64_t>(carrier_off),
-					     leaf.width());
+			lv->set_part_carrier(prefix_carrier_off,
+					     prefix_carrier_wid);
       }
 
       return true;

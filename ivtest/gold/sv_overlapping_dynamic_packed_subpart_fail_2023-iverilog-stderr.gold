@@ -1,0 +1,2 @@
+ivltests/sv_overlapping_dynamic_packed_subpart_fail.v:5: error: Cannot perform procedural assignment to part select 'words['sd0][pos+:'sd4]' because it is also continuously assigned.
+1 error(s) during elaboration.
