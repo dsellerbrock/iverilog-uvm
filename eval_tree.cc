@@ -1266,7 +1266,7 @@ NetEConst* NetESelect::eval_tree()
 	    eval_expr(base_);
 	    const NetEConst*base = dynamic_cast<NetEConst*>(base_);
 
-	    if (base == 0) return 0;
+	    if (base == 0 || expr == 0) return 0;
 
 	    bval = base->value().as_long();
       }

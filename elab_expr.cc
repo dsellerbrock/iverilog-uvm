@@ -25070,6 +25070,26 @@ NetExpr* PEIdent::elaborate_expr_net_idx_up_(Design*des, NetScope*scope,
 	    return 0;
       }
 
+      const NetEConst*slice_base_constant = dynamic_cast<NetEConst*> (base);
+      /* IEEE 1800-2017/2023 11.5.1: retain the selected packed
+	 element as the carrier so an indexed select cannot reach a sibling. */
+      if (!prefix_indices.empty()
+	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()
+	  && (!slice_base_constant
+	      || slice_base_constant->value().is_defined())) {
+	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    long slice_off = net->sig()->sb_to_idx(prefix_indices,
+						     rng.get_lsb());
+	    NetESelect*slice = new NetESelect(net,
+		  new NetEConst(verinum(slice_off)), rng.width());
+	    slice->set_line(*this);
+	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
+					   wid, true, 0);
+	    NetESelect*ss = new NetESelect(slice, base, wid, IVL_SEL_IDX_UP);
+	    ss->set_line(*this);
+	    return ss;
+      }
+
 	// Handle the special case that the base is constant as
 	// well. In this case it can be converted to a conventional
 	// part select.
@@ -25226,6 +25246,26 @@ NetExpr* PEIdent::elaborate_expr_net_idx_do_(Design*des, NetScope*scope,
 	         << "-:" << wid << "] cannot be a real value." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+      const NetEConst*slice_base_constant = dynamic_cast<NetEConst*> (base);
+      /* IEEE 1800-2017/2023 11.5.1: retain the selected packed
+	 element as the carrier so an indexed select cannot reach a sibling. */
+      if (!prefix_indices.empty()
+	  && prefix_indices.size()+1 == net->sig()->packed_dims().size()
+	  && (!slice_base_constant
+	      || slice_base_constant->value().is_defined())) {
+	    const netrange_t&rng = net->sig()->packed_dims().back();
+	    long slice_off = net->sig()->sb_to_idx(prefix_indices,
+						     rng.get_lsb());
+	    NetESelect*slice = new NetESelect(net,
+		  new NetEConst(verinum(slice_off)), rng.width());
+	    slice->set_line(*this);
+	    base = normalize_variable_base(base, rng.get_msb(), rng.get_lsb(),
+					   wid, false, 0);
+	    NetESelect*ss = new NetESelect(slice, base, wid, IVL_SEL_IDX_DOWN);
+	    ss->set_line(*this);
+	    return ss;
       }
 
 	// Handle the special case that the base is constant as

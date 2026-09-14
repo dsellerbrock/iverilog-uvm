@@ -1040,3 +1040,31 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   Assess ordinary, compound and nonblocking write paths plus read semantics,
   partial overlaps, index single evaluation, ascending/descending declarations
   and unknown indexes before choosing the shared correction.
+
+- **L46 bounded implementation:** read-only indexed `+:`/`-:` selects with a
+  fixed packed prefix will retain the selected carrier as nested `NetESelect`
+  nodes. Write semantics remain OPEN regardless of read-focused test results.
+- **Write design checkpoint:** preserve canonical selected-carrier bounds through
+  `NetAssign_`, `dup_lval`, target lvalue transport and synthesis. Consumers include
+  VVP blocking/compound/NBA paths, procedural sensitivity/write analysis,
+  `synth2.cc`, and VHDL/Verilog source targets. Reuse interval intersection logic;
+  do not duplicate index evaluation or silently drop partial in-range writes.
+- **Additional boundary:** `prefix-bounds.sv` reads `3` instead of `x` from
+  `words[0][3][0+:4]` when the middle declared dimension is `[2:0]`.
+  `prefix-results.json` records the 2023 failure. Constant prefix flattening
+  also lacks per-dimension bounds checks; L46's valid-prefix read scope does
+  not qualify this case.
+
+### DD-023 — Wide constant one-dimensional select aliases in formatting arguments
+
+- **Discovered during:** L46 wide-index review.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/one-dimensional-wide.sv`.
+  Formatting `value[64'h1_0000_0000+:4]` for an eight-bit value produces `0101`
+  instead of `xxxx`, while the dynamic-base version produces `xxxx` after L46.
+  Both editions fail the string-result assertion. Assignment context does not
+  reproduce this case, so do not claim all constant reads are affected.
+- **Authority:** IEEE 1800-2017/2023 11.5.1.
+- **Evidence:** `one-dimensional-wide-results.json`. The analogous nested packed
+  read passes both modes (`nested-wide-format-results.json`).
+- **Status:** OPEN. Assess the one-dimensional constant elaboration path and
+  context-dependent normalization; do not weaken L46's wide-index regression.

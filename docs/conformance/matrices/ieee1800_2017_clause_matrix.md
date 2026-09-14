@@ -1260,3 +1260,11 @@ IMPLEMENTED diagnostic for a bare task call that remains unresolved after normal
 lookup. Valid forward, upward, compilation-unit and implicit class calls are
 covered separately in both editions. Qualified/class fallback paths remain OPEN;
 this is not full subroutine or UVM qualification. Batch regression is pending.
+
+### L46 — Indexed reads within a selected packed element (11.5.1)
+
+IMPLEMENTED with focused validation for final indexed `+:`/`-:` reads with
+valid fixed packed prefixes.
+The selected element must remain the carrier for X padding at either boundary.
+Legacy 1/1, JSON 2/2 and null/synthesis checks pass both editions. Write clipping,
+invalid earlier prefixes, DD-023 and batch regression remain open.

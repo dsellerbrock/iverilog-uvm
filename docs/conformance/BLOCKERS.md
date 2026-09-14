@@ -1864,3 +1864,16 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 - **Scope:** bare unresolved calls after normal lookup. Qualified/class fallback
   gaps remain open. Forward, upward, compilation-unit and implicit class task
   calls must continue to work. Broad regression follows the batch cadence.
+
+### L46 — Preserve packed-element bounds for indexed reads
+
+- **State:** IMPLEMENTED; legacy 1/1, JSON 2/2, null/synthesis and negative
+  checks pass both editions. DD-022 writes remain open.
+- **Authority:** IEEE 1800-2017/2023 11.5.1.
+- **Scope:** final indexed `+:`/`-:` reads after valid fixed packed prefixes
+  retain a bounded carrier through nested select expressions. Out-of-range bits
+  must read X without exposing neighboring packed elements. Shared runtime
+  part-select conversion must preserve wide index magnitude and signedness;
+  clipping must avoid overflow and retain in-range bits with X padding.
+- **Limits:** writes, invalid earlier prefixes and dynamic-prefix elaboration
+  remain open. DD-021 mixed-driver restrictions are unchanged.

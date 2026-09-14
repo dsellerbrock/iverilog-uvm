@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44, L45]
-  in_progress: L46
+  focused_validated_features: [L43, L44, L45, L46]
+  in_progress: L47
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -806,3 +806,11 @@ l44_parallel_assessment: "DD-020 reproduces bare missing-task calls compiling an
 l44_checkpoint: "Focused legacy2/2 and JSON4/4; original eight reduced cases pass both editions. Root target/test review clear. PRINCE compiles0, runtime reaches CPU300 guard(-24); no application pass. Full suites deferred. DD021 dynamic mixed-driver elaboration remains open."
 
 l45_checkpoint: "One-line unresolved bare-task fallback guard reviewed; forward/upward/unit/implicit-class calls pass both editions. Legacy2/2, JSON4/4, real UVM cfgdb smoke pass. Third focused feature; broad suites deferred. Next DD022 element-bound correctness before DD021."
+
+l45_local_integration: "ad33d31e2 (L44) and67b6750af (L45) fast-forwarded into localmain; no remote push/merge. Shared AST graph refreshed from localmain:50940nodes94622edges. Current L46branch reuses same checkout. No clone/worktree created; existing two trees retained."
+
+l46_selection: "DD022 first bounded read increment uses nested NetESelect to retain selected packed-element width for indexed +:/-: reads. Read/write defect remains one tracked debt; write IR carrier bounds need separate design covering plain/compound/NBA/synthesis. No mixeddriver rejection relaxation until writes preserve prefix bounds. Three focused features completed; full suites still deferred."
+
+l46_runtime_prerequisite: "Boundarytests exposed PART int32 indextruncation and PARTI unsigned-to-signed narrowing. Read increment includes reuse ofexisting exact/saturatingwide indexconversion and shared overflow-safe X-padding clip. Do not dropwide tests or substituteconstantguards; no runtimeassertions weakened."
+
+l46_checkpoint: "Focusedlegacy1/1 JSON2/2; null/synthesis bothmodes; negativebothmodes; L44neighbor4/4; nestedwideformatbothmodes pass. Rootreviewclear. Fourthfocusedfeature; fullsuitesdeferred. DD023 one-dimensionalwideconstantformat next; writebounds/DD021remainopen."

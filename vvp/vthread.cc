@@ -3588,13 +3588,13 @@ static bool qslice_result_(vthread_t thr, const vvp_object_t&src_obj,
       return true;
 }
 
-/* Queue slice bounds can be arbitrary-width signed or unsigned
+/* Packed and queue slice bounds can be arbitrary-width signed or unsigned
  * integral expressions. Convert exactly when the value fits in int64_t and
  * saturate only values outside that range. Exact negative values matter for
  * indexed slices: q[-100 +: 102] and q[-1 +: 102] have different upper
  * bounds before 7.10.1 clamping. */
-static bool qslice_bound_value_(const vvp_vector4_t&vec, bool is_signed,
-                                int64_t&value)
+static bool vec4_to_int64_saturated_(const vvp_vector4_t&vec, bool is_signed,
+                                    int64_t&value)
 {
       for (unsigned idx = 0; idx < vec.size(); idx += 1) {
             vvp_bit4_t bit = vec.value(idx);
@@ -3659,8 +3659,8 @@ static bool qslice_(vthread_t thr, bool msb_signed, bool lsb_signed)
       int64_t lsb = 0, msb = 0;
       vvp_vector4_t lsv = thr->pop_vec4();
       vvp_vector4_t msv = thr->pop_vec4();
-      bool lsb_defined = qslice_bound_value_(lsv, lsb_signed, lsb);
-      bool msb_defined = qslice_bound_value_(msv, msb_signed, msb);
+      bool lsb_defined = vec4_to_int64_saturated_(lsv, lsb_signed, lsb);
+      bool msb_defined = vec4_to_int64_saturated_(msv, msb_signed, msb);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
@@ -3687,7 +3687,7 @@ static bool qslice_left_(vthread_t thr, bool hi_signed)
 {
       int64_t hi = 0;
       vvp_vector4_t hiv = thr->pop_vec4();
-      bool hi_defined = qslice_bound_value_(hiv, hi_signed, hi);
+      bool hi_defined = vec4_to_int64_saturated_(hiv, hi_signed, hi);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
@@ -4071,7 +4071,7 @@ static bool qslice_last_(vthread_t thr, bool lo_signed)
 {
       int64_t lo = 0;
       vvp_vector4_t lov = thr->pop_vec4();
-      bool lo_defined = qslice_bound_value_(lov, lo_signed, lo);
+      bool lo_defined = vec4_to_int64_saturated_(lov, lo_signed, lo);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
@@ -4098,9 +4098,9 @@ static bool qslice_off_(vthread_t thr, bool lo_signed, bool offset_signed)
       int64_t offset = 0, lo = 0;
       vvp_vector4_t offv = thr->pop_vec4();
       vvp_vector4_t lov = thr->pop_vec4();
-      bool offset_defined = qslice_bound_value_(
+      bool offset_defined = vec4_to_int64_saturated_(
             offv, offset_signed, offset);
-      bool lo_defined = qslice_bound_value_(lov, lo_signed, lo);
+      bool lo_defined = vec4_to_int64_saturated_(lov, lo_signed, lo);
 
       vvp_object_t src_obj;
       thr->pop_object(src_obj);
@@ -22704,6 +22704,35 @@ bool of_PAD_U(vthread_t thr, vvp_code_t cp)
  * index of the part select, and second is the value to be
  * selected. The result is pushed back to the stack.
  */
+static void part_select_value_(vvp_vector4_t&value, unsigned result_wid,
+                               int64_t base)
+{
+      vvp_vector4_t res(result_wid, BIT4_X);
+      uint64_t source_base = 0;
+      uint64_t result_base = 0;
+
+      if (base < 0) {
+            uint64_t before = uint64_t(-(base+1)) + 1;
+            if (before >= result_wid) {
+                  value = res;
+                  return;
+            }
+            result_base = before;
+      } else {
+            source_base = static_cast<uint64_t>(base);
+            if (source_base >= value.size()) {
+                  value = res;
+                  return;
+            }
+      }
+
+      uint64_t copy_wid = result_wid - result_base;
+      if (copy_wid > value.size() - source_base)
+            copy_wid = value.size() - source_base;
+      res.set_vec(result_base, value.subvalue(source_base, copy_wid));
+      value = res;
+}
+
 static bool of_PART_base(vthread_t thr, vvp_code_t cp, bool signed_flag)
 {
       unsigned wid = cp->number;
@@ -22711,39 +22740,13 @@ static bool of_PART_base(vthread_t thr, vvp_code_t cp, bool signed_flag)
       vvp_vector4_t base4 = thr->pop_vec4();
       vvp_vector4_t&value = thr->peek_vec4();
 
-      vvp_vector4_t res (wid, BIT4_X);
-
-	// NOTE: This is treating the vector as signed. Is that correct?
-      int32_t base;
-      bool value_ok = vector4_to_value(base4, base, signed_flag);
+      int64_t base;
+      bool value_ok = vec4_to_int64_saturated_(base4, signed_flag, base);
       if (! value_ok) {
-	    value = res;
+	    value = vvp_vector4_t(wid, BIT4_X);
 	    return true;
       }
-
-      if (base >= (int32_t)value.size()) {
-	    value = res;
-	    return true;
-      }
-
-      if ((base+(int)wid) <= 0) {
-	    value = res;
-	    return true;
-      }
-
-      long vbase = 0;
-      if (base < 0) {
-	    vbase = -base;
-	    wid -= vbase;
-	    base = 0;
-      }
-
-      if ((base+wid) > value.size()) {
-	    wid = value.size() - base;
-      }
-
-      res .set_vec(vbase, value.subvalue(base, wid));
-      value = res;
+      part_select_value_(value, wid, base);
 
       return true;
 }
@@ -22772,37 +22775,11 @@ static bool of_PARTI_base(vthread_t thr, vvp_code_t cp, bool signed_flag)
 
       vvp_vector4_t&value = thr->peek_vec4();
 
-      vvp_vector4_t res (wid, BIT4_X);
-
-	// NOTE: This is treating the vector as signed. Is that correct?
-      int32_t use_base = base;
-      if (signed_flag && bwid < 32 && (base&(1<<(bwid-1)))) {
-	    use_base |= -1UL << bwid;
-      }
-
-      if (use_base >= (int32_t)value.size()) {
-	    value = res;
-	    return true;
-      }
-
-      if ((use_base+(int32_t)wid) <= 0) {
-	    value = res;
-	    return true;
-      }
-
-      long vbase = 0;
-      if (use_base < 0) {
-	    vbase = -use_base;
-	    wid -= vbase;
-	    use_base = 0;
-      }
-
-      if ((use_base+wid) > value.size()) {
-	    wid = value.size() - use_base;
-      }
-
-      res .set_vec(vbase, value.subvalue(use_base, wid));
-      value = res;
+      int64_t use_base = base;
+      if (signed_flag && bwid > 0 && bwid <= 32
+	  && (base & (uint32_t(1) << (bwid-1))))
+	    use_base -= int64_t(1) << bwid;
+      part_select_value_(value, wid, use_base);
 
       return true;
 }

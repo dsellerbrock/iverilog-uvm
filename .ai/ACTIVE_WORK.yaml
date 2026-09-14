@@ -1,34 +1,36 @@
-id: L45
-title: Bare unresolved SystemVerilog task calls compile as warning-only no-ops
+id: L46
+title: Fixed-prefix packed indexed subpart reads retain element bounds
 status: IMPLEMENTED_FOCUSED_PASS
-base_revision: ad33d31e2
-origin: DD-020
+base_revision: 67b6750af
+origin: DD-022
 standards:
-  - IEEE 1800-2017 13.3 and 23.8.1
-  - IEEE 1800-2023 13.3 and 23.8.1
-reproducer: evidence/unresolved-task-assessment/missing_task.sv
-current_behavior: A bare missing_task() call warns, compiles successfully, and execution continues after silently dropping the call.
-expected_behavior: After task, function, upward, compilation-unit, and implicit-class lookup fail, an unresolved bare task enable is an elaboration error.
-root_cause: PCallTask::elaborate_usr converts the final unresolved SystemVerilog task path to an empty NetBlock under a broad compile-progress fallback.
+  - IEEE 1800-2017 11.5.1
+  - IEEE 1800-2023 11.5.1
+reproducer: evidence/dynamic-mixed-driver-assessment/subpart_read_bounds.sv
+current_behavior: A final indexed part select after valid fixed packed-prefix indices is flattened onto the complete signal, so reads can leak into a sibling packed element. VVP also truncates arbitrary-width packed-select bases to 32 bits.
+expected_behavior: The selected packed element bounds the read. Out-of-range result bits are X, valid overlapping bits retain their result positions, and the index is evaluated once.
+root_cause: normalize_variable_part_base adds the fixed element's canonical offset before NetESelect loses the element boundary; VVP %part and %parti narrow select bases through signed int32 arithmetic.
 allowed_scope:
-  - elaborate.cc final bare unresolved SystemVerilog task diagnostic
-  - Focused missing-task and legal lookup regressions, manifests, gold and evidence
-  - ACTIVE_WORK and directly related campaign records
+  - elab_expr.cc final indexed +:/-: reads after valid fixed packed-prefix indices
+  - vvp/vthread.cc shared exact or saturating packed and queue slice base conversion and overflow-safe read clipping
+  - Focused read-boundary regressions, manifests, gold, evidence, and ACTIVE_WORK
 forbidden_scope:
-  - Qualified or indexed unknown-task compile-progress fallbacks
-  - Class/interface method resolution changes
-  - UVM stub-candidate policy changes
-  - Broad lookup refactoring
+  - Blocking, compound, or nonblocking l-value boundary semantics
+  - Dynamic mixed-driver enablement
+  - Invalid fixed-prefix index validation
+  - Broad packed-select or l-value IR redesign
 completion_requirements:
-  - Missing bare task is red before and a compile error after in 2017 and 2023
-  - Forward same-scope, complete compilation-unit, upward enclosing-scope, and implicit class task lookup stay green
-  - Focused legacy and JSON regressions plus one cheap applicable UVM smoke
+  - Wholly out-of-range and partial-overlap reads for +: and -: preserve element boundaries
+  - Descending, ascending, nonzero and multiple valid fixed-prefix dimensions pass
+  - Dynamic index evaluation occurs once; X/Z, signed negative, unsigned 32-bit, 64-bit and 128-bit bases are handled without integer overflow
+  - Existing multidimensional subarray +: selection remains green
+  - Focused legacy and JSON regressions plus null-target and synthesis smoke pass in 2017 and 2023
   - Durable logs with exit status; broad suites deferred to the campaign batch boundary
 validation_batch: 20260914
-focused_features_before_this: 2
-last_validated_revision: Working tree after rebuild/install. Missing bare task is a compile error in 2017 and 2023; forward same-scope, complete compilation-unit, upward enclosing-scope and implicit class task lookup pass in both. Focused legacy 2/2 and JSON 4/4 pass. Real UVM config-db smoke compiles and runs PASS. Durable logs are evidence/unresolved-task-assessment/final-focus-{legacy,json}.log and final-uvm-smoke.log, all with zero status.
-pending_gates: Root review/checkpoint and campaign batch gates; broad suites deferred until batch boundary.
-next_action: Root reviews and checkpoints L45; qualified/indexed/class compile-progress fallbacks remain out of scope.
-evidence: evidence/unresolved-task-assessment/
-discovery_policy: Qualified and class fallback gaps remain separately tracked and out of scope.
+focused_features_before_this: 3
+last_validated_revision: Working tree after incremental rebuild/install. Original read reproducer passes in 2017 and 2023. Focused legacy 1/1 and JSON 2/2 pass. Null-target and synthesis smoke pass in both editions; the existing invalid variable-bound source is rejected in both. Nonconstant carriers avoid a needless host-width conversion during constant folding. The installed runtime uses exact/saturating int64 conversion for arbitrary-width dynamic bases and overflow-safe clipping.
+pending_gates: Campaign batch gates; broad suites deferred until batch boundary.
+next_action: Root completed negative checks both editions, L44 neighbors4/4 and review; checkpoint L46. DD-022 l-value writes and DD-021 dynamic mixed-driver support remain open.
+evidence: evidence/dynamic-mixed-driver-assessment/final-l46-focus-{legacy,json}.log, final-l46-null-synth.log and final-l46-negative.log
+discovery_policy: Invalid preceding packed-prefix indices and the preexisting one-dimensional constant 2^32 elaboration alias remain separately tracked; neither is claimed fixed here.
 stop_after_completion: false
