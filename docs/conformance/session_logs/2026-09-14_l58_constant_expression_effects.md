@@ -51,7 +51,8 @@ Runtime: `cee0a60c11c7d401646159701e2d341932a6812a4e5199fed18f6cda516d9e2f`.
 ## Remaining scope
 
 Full suites remain deferred to the user's approximately-ten-feature batch.
-L53–L57 are five focused items; L58 is not counted until local integration.
+L53–L58 are six focused items. L58 was fast-forwarded into local main as
+`53624bc87`; broad batch qualification remains pending.
 The last broadly qualified semantic baseline remains `c686a4781`.
 
 DD-026 separately records missing two-state conversion in runtime assignment

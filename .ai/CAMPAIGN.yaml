@@ -1,18 +1,18 @@
 status: active
-branch: "agent/l58-constant-expression-effects-20260914"
+branch: "main"
 current_blocker: "DD-025 assignment and increment/decrement expression effects fail constant-function evaluation"
-phase: "focused_validated_pending_local_integration"
+phase: "focused_batch_continuation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "L58 local integration and next approximately-ten-feature batch broad qualification pending."
+pending_gates: "Six focused features integrated locally; next approximately-ten-feature batch broad qualification pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "L58 constant-function expression effects"
-next_action: "Reuse local assignment evaluation to preserve expression result, storage conversion, and local mutation in constant functions."
-next_command: "Reused implementation agent verifies paired15-form baseline and implements evaluator paths."
+next_selection: "L59 DD-026 runtime assignment-expression two-state conversion"
+next_action: "Refresh shared graph, then reuse worker to correct runtime assignment-expression destination conversion."
+next_command: "Update canonical graph from local main."
 next_command_cwd: repository root
 candidate_state: "L58 focused validation passed; previous broad qualification remains c686a4781."
 installed_tools: "L58 focused build; ivl d745779660da40278f77fa5e5418faca6755c03bebe1d80e7b3cd841b9d21386. Previous full qualification c686a4781 does not qualify this build."
@@ -845,8 +845,8 @@ batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full fron
 validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
-  focused_validated_features: [L53, L54, L55, L56, L57]
-  in_progress: L58_constant_expression_effects
+  focused_validated_features: [L53, L54, L55, L56, L57, L58]
+  in_progress: none
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -915,3 +915,5 @@ dd026_dynamic_runtime_baseline: "Fresh module-level delayed assignment from a ru
 dd027_expanded_runtime_baseline: "Stable3hash paired32run matrix: int/bit/logic fixed-array pre/post increment/decrement compile but runtimeSIGSEGV in24runs; real8runs omit index effects, report unresolvedfunctor placeholder, and return wrong values. Evidence runtime-array-increment-assessment/baseline-results.json. Root assessment only, no runtime edits."
 
 l58_reviewed_final: "Corrected signed-default metadata; signed invalid postfix comparison red before and green after in both editions. Final root80/80 exact outcome checks, stable3hashes, existing constant-function neighbors18/18, permanentlegacy4/4 JSON6/6. Eight root runtime invocations emit known DD027 unresolvedfunctor warnings from uncalled array-function bytecode; exact constant results pass but no clean runtime qualification claimed. Permanent indexed-local coverage is compile-only. Ready for local integration; full gates remain pending."
+
+l58_local_integration: "53624bc87 fast-forwarded into local main. Sixth focused feature in batch, broad gates pending. No remote action, new clone, or new worktree. Shared graph refresh follows."

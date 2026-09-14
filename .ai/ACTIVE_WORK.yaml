@@ -1,6 +1,6 @@
 id: L58
 title: Evaluate assignment-expression effects in constant functions
-status: FROZEN_FOR_REVIEW
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: cbbf3b3b7
 origin: DD-025
 standards:
@@ -20,3 +20,5 @@ next_action: Root reviews the signed-default correction and frozen L58 evidence.
 stop_after_completion: false
 
 l58_root_review: "Final root80/80 expected outcomes and18/18 existing constant-function neighbors. Eight known DD027 startup warnings explicitly retained; indexed-local permanent gate is compile-only. Ready for local integration, broad gates pending."
+
+l58_local_integration: "53624bc87 on local main; sixth focused feature. Same retained checkout and worker; DD026 next. Broad qualification remains pending."
