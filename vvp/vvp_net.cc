@@ -3894,3 +3894,41 @@ vvp_bit4_t compare_gtge_signed(const vvp_vector4_t&a,
       else
 	    return BIT4_0;
 }
+
+/*
+ * IEEE 1800-2017/2023 6.16 integral-to-string conversion: 8-bit
+ * big-endian bytes, any all-zero byte dropped ("assigning the value 0
+ * to a string character shall be ignored" -- not just leading zero
+ * bytes; a zero byte anywhere in the value is skipped). Extracted from
+ * the %pushv/str vvp opcode (vthread.cc of_PUSHV_STR) so class-property
+ * get_string() overrides can share the identical, already-correct
+ * conversion a plain (non-property) vec4-typed variable gets.
+ */
+string vector4_to_packed_string(const vvp_vector4_t&vec)
+{
+      vector<char> buf;
+      buf.reserve((vec.size() + 7) / 8);
+
+      for (size_t idx = 0 ; idx < vec.size() ; idx += 8) {
+	    char tmp = 0;
+	    size_t trans = 8;
+	    if (idx+trans > vec.size())
+		  trans = vec.size() - idx;
+
+	    for (size_t bdx = 0 ; bdx < trans ; bdx += 1) {
+		  if (vec.value(idx+bdx) == BIT4_1)
+			tmp |= 1 << bdx;
+	    }
+
+	    if (tmp != 0)
+		  buf.push_back(tmp);
+      }
+
+      string val;
+      for (vector<char>::reverse_iterator cur = buf.rbegin()
+		 ; cur != buf.rend() ; ++cur) {
+	    val.push_back(*cur);
+      }
+
+      return val;
+}

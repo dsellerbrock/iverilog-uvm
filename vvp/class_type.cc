@@ -605,6 +605,16 @@ template <class T> class property_atom : public class_property_t {
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
 
+      // L42: an integral class property read/written as a string (e.g.
+      // `s = obj.int_prop;`) used to fall through to the base class's
+      // "unsupported" stub (warn once, return ""/ignore write) since
+      // neither get_string nor set_string was overridden here -- unlike
+      // a plain (non-property) vec4-typed variable, which already gets
+      // the correct IEEE 1800-2017/2023 6.16 packed-byte conversion via
+      // the same vector4_to_packed_string() this reuses.
+      string get_string(char*buf) override;
+      void set_string(char*buf, const string&val) override;
+
       // G49: integer properties use get_vec4; get_object returns null silently.
       void get_object(char*, vvp_object_t&, uint64_t) override {}
 
@@ -676,6 +686,14 @@ class property_logic : public class_property_t {
       void get_vec4(char*buf, vvp_vector4_t&val) override;
       void set_vec4(char*buf, const vvp_vector4_t&val, uint64_t idx) override;
       void get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx) override;
+
+      // L42: same gap as property_atom<T> above -- a logic-typed class
+      // property read/written as a string fell through to the base
+      // class's "unsupported" stub. X/Z bits contribute 0 to a packed
+      // byte, matching how a plain (non-property) logic variable's
+      // existing %pushv/str conversion already treats them.
+      string get_string(char*buf) override;
+      void set_string(char*buf, const string&val) override;
 
       void get_object(char*, vvp_object_t&, uint64_t) override {}
 
@@ -1004,6 +1022,45 @@ template <class T> void property_atom<T>::get_vec4(char*buf, vvp_vector4_t&val, 
       val.setarray(0, val.size(), tmp);
 }
 
+// L42: shared by property_atom<T>::set_string and property_logic::
+// set_string. IEEE 1800-2017/2023 6.16: a string assigned to an
+// integral target is right-justified, zero-filled or truncated on the
+// left as necessary -- the same shape as %cast/vec4/str (vthread.cc
+// of_CAST_VEC4_STR), reimplemented here to build a fixed-width vec4
+// directly rather than the growable one that opcode produces.
+static vvp_vector4_t pack_string_into_vec4_(const string&sval, size_t wid)
+{
+      vvp_vector4_t val(wid, BIT4_0);
+      const size_t use_chars = sval.size() < wid/8 ? sval.size() : wid/8;
+
+      size_t sdx = 0;
+      size_t vdx = use_chars*8;
+      while (vdx > 0 && sdx < use_chars) {
+	    char ch = sval[sval.size() - use_chars + sdx];
+	    sdx += 1;
+	    for (size_t bdx = 0 ; bdx < 8 && vdx > 0 ; bdx += 1) {
+		  vdx -= 1;
+		  if (ch & 1)
+			val.set_bit(vdx, BIT4_1);
+		  ch >>= 1;
+	    }
+      }
+
+      return val;
+}
+
+template <class T> string property_atom<T>::get_string(char*buf)
+{
+      vvp_vector4_t val;
+      get_vec4(buf, val);
+      return vector4_to_packed_string(val);
+}
+
+template <class T> void property_atom<T>::set_string(char*buf, const string&sval)
+{
+      set_vec4(buf, pack_string_into_vec4_(sval, 8*sizeof(T)));
+}
+
 template <class T> void property_atom<T>::copy(char*dst, char*src)
 {
       T*dst_obj = reinterpret_cast<T*> (dst+offset_);
@@ -1092,6 +1149,18 @@ void property_logic::get_vec4(char*buf, vvp_vector4_t&val, uint64_t idx)
       assert(idx < array_size_);
       const vvp_vector4_t*obj = reinterpret_cast<const vvp_vector4_t*> (buf+offset_);
       val = obj[idx];
+}
+
+string property_logic::get_string(char*buf)
+{
+      vvp_vector4_t val;
+      get_vec4(buf, val);
+      return vector4_to_packed_string(val);
+}
+
+void property_logic::set_string(char*buf, const string&sval)
+{
+      set_vec4(buf, pack_string_into_vec4_(sval, wid_));
 }
 
 void property_logic::copy(char*dst, char*src)

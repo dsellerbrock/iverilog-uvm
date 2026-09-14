@@ -1763,3 +1763,61 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   UVM 357/0/0, NFA dual-run 58/58, UVM release matrix 15/15 SMOKE_PASS,
   frontend all S1-S12.
 - **Evidence:** `evidence/campaign-20260908/l41/`.
+
+### L42 — Integral class-property read/written as a string used the wrong conversion (or none)
+
+- **Status:** CLOSED 2026-09-13. Found incidentally while building an
+  L40 "must stay silent" reducer, deferred as feature-sized at the time;
+  picked up as the next Phase-B implementation-campaign item.
+- **Symptom:** reading an ordinary integral class property (`int`, `byte`,
+  `shortint`, `longint`, `bit [N:0]`, `logic [N:0]`) back as a `string`
+  from inside its own class method -- `class c; int val; function string
+  f(); string s; s = val; return s; endfunction endclass` -- warned
+  `class_property_t::get_string on unsupported property type ...
+  returning empty string` and produced `""`, instead of the correct IEEE
+  1800-2017/2023 6.16 packed-byte value (`42` -> `"*"`, the same
+  conversion a plain, non-property `int` variable already got correctly:
+  confirmed `int x; string s; x=42; s=x;` already produced `"*"` before
+  this fix, len 1, leading zero bytes dropped). Writing a string INTO
+  such a property (`obj.val = "*";`) had the identical gap in reverse.
+- **Root cause:** `property_atom<T>` (the class handling `int`/`byte`/
+  `shortint`/`longint` properties) and `property_logic` (4-state vector
+  properties) never overrode `class_property_t::get_string`/
+  `set_string`; every call fell to the base class's generic "unsupported"
+  stub (warn once, return `""` / ignore the write). This was NOT a
+  decimal/itoa-formatting gap as first hypothesized while triaging --
+  confirmed against the LRM directly (6.16: "values of integral type can
+  be assigned to a string variable... if the size of the integral value
+  is not a multiple of 8 bits, [it] shall be zero-filled on the left") --
+  it is a missing BYTE-PACKING conversion, identical in shape to the one
+  a plain (non-property) vec4-typed variable's existing `%pushv/str` vvp
+  opcode (`of_PUSHV_STR`, vthread.cc) already performs correctly.
+- **Fix:** Extracted `of_PUSHV_STR`'s conversion (8-bit big-endian bytes,
+  any all-zero byte dropped -- not just leading ones, per 6.16's "assigning
+  the value 0 to a string character shall be ignored") into a shared
+  `vector4_to_packed_string()` (`vvp/vvp_net.h`/`vvp_net.cc`), and
+  refactored `of_PUSHV_STR` itself to call it (dedup, zero behavior
+  change for the existing plain-variable path). Added `get_string`/
+  `set_string` overrides to `property_atom<T>` and `property_logic`
+  (`vvp/class_type.cc`) built on this shared helper for reads, and a new
+  shared `pack_string_into_vec4_()` helper (right-justify, zero-fill or
+  truncate on the left, mirroring `%cast/vec4/str`'s `of_CAST_VEC4_STR`
+  semantics) for writes.
+- **Scope:** `property_bit` (2-state `bit [N:0]` vectors) needed no
+  change -- confirmed already correct before this fix (`obj.bit_prop`
+  read as a string already worked), apparently materializing through the
+  same path as `property_atom<T>` for common widths. `property_string`
+  (actual `string`-typed properties) was already correct and untouched.
+  X/Z bits in a `logic`-typed property contribute 0 to a packed byte,
+  matching how the pre-existing plain-variable path already treats them
+  (verified, no crash, no special-casing needed).
+- **Permanent regression:**
+  `ivtest/ivltests/sv_class_property_string_conversion.v` (new,
+  `normal`) -- covers `int`/`byte`/`bit`/`logic` reads (including the
+  zero-value-collapses-to-empty-string and X-bit cases) and `int`/
+  `shortint` writes (including left-truncation for an over-length
+  string).
+- **Validation:** integrated ivtest 4991/4986/0F/2NI/3EF, JSON/VVP
+  1873/0, UVM 357/0/0, NFA dual-run 58/58, UVM release matrix 15/15
+  SMOKE_PASS, frontend all S1-S12.
+- **Evidence:** `evidence/campaign-20260908/l42/`.

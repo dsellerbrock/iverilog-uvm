@@ -26091,34 +26091,7 @@ bool of_PUSHI_VEC4(vthread_t thr, vvp_code_t cp)
 bool of_PUSHV_STR(vthread_t thr, vvp_code_t)
 {
       vvp_vector4_t vec = thr->pop_vec4();
-
-      size_t slen = (vec.size() + 7)/8;
-      vector<char>buf;
-      buf.reserve(slen);
-
-      for (size_t idx = 0 ; idx < vec.size() ; idx += 8) {
-	    char tmp = 0;
-	    size_t trans = 8;
-	    if (idx+trans > vec.size())
-		  trans = vec.size() - idx;
-
-	    for (size_t bdx = 0 ; bdx < trans ; bdx += 1) {
-		  if (vec.value(idx+bdx) == BIT4_1)
-			tmp |= 1 << bdx;
-	    }
-
-	    if (tmp != 0)
-		  buf.push_back(tmp);
-      }
-
-      string val;
-      for (vector<char>::reverse_iterator cur = buf.rbegin()
-		 ; cur != buf.rend() ; ++cur) {
-	    val.push_back(*cur);
-      }
-
-      thr->push_str(val);
-
+      thr->push_str(vector4_to_packed_string(vec));
       return true;
 }
 
