@@ -1,0 +1,2 @@
+sv_packed_mixed_driver_compound normal,-g2017	ivltests gold=sv_packed_mixed_driver_compound.gold
+sv_wire_procedural_compound_fail CE,-g2017	ivltests gold=sv_wire_procedural_compound_fail.gold

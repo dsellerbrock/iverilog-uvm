@@ -1,7 +1,7 @@
 status: active
-branch: "agent/l43-procedural-import-20260914"
-current_blocker: "L43 focused validated; local integration next, then DD-019"
-phase: "local_integration"
+branch: "agent/l44-mixed-driver-compound-20260914"
+current_blocker: "L44 / DD-019 packed mixed-driver compound assignment"
+phase: "focused_implementation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "d0b6015bf"
@@ -790,11 +790,17 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43]
-  in_progress: none
+  focused_validated_features: [L43, L44]
+  in_progress: L44
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
   integration: "User authorized local merges; no remote merge or push authorization inferred. No new clone/worktree created. Retire only completed eligible trees through the cleanup script."
 
 l43_checkpoint: "Focused legacy3/3, JSON6/6 (positive and negative in 2017/2023); Bison562SR1122RR vs563SR1122RR; no full suite claimed. Next: commit, integrate locally, activate DD-019. No new worktree or clone."
+
+l43_local_integration: "d4f344ec7 fast-forwarded into local main; not pushed. Shared AST graph refreshed from main, excluding scratch evidence/local-install/downloaded third_party. Existing worktrees retained; no new clone created."
+
+l44_parallel_assessment: "DD-020 reproduces bare missing-task calls compiling and executing the following marker in2017/2023; OpenTitan synchronizer calls absent setters. Queued afterL44, no unrelated implementation. Reset-time scoreboard mismatch not attributed to compiler."
+
+l44_checkpoint: "Focused legacy2/2 and JSON4/4; original eight reduced cases pass both editions. Root target/test review clear. PRINCE bounded replay pending; full suites deferred. DD021 dynamic mixed-driver elaboration remains open."

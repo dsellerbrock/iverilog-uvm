@@ -1840,3 +1840,17 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 - **Evidence:** `evidence/dd018-assessment/`; permanent
   `sv_procedural_package_import` tests. Both editions failed with six internal
   errors before the patch. See the current ACTIVE_WORK record for final gates.
+
+### L44 — Compound stores to disjoint mixed-driver packed elements
+
+- **State:** IMPLEMENTED; focused validation passes, batch regression pending.
+- **Origin:** DD-019, unmodified OpenTitan PRINCE concat width assertion.
+- **Fix:** compound partial stores use the existing unresolved-net partial-force
+  route shared with ordinary assignments. No runtime assertion is relaxed.
+- **Authority:** IEEE 1800-2017 and 1800-2023 6.5 and 11.4.1.
+- **Validation:** original N=2/4/5/6 reducer passes in both editions; permanent
+  tests verify two successive input values, preservation of continuously driven
+  elements, ordinary dynamic index single evaluation and unknown-index no-write.
+  Explicit wire procedural assignment remains rejected. Legacy 2/2, JSON 4/4.
+- **Limit:** dynamic subparts of mixed-driver elements remain DD-021; full
+  application qualification and batch-wide regression are not claimed.

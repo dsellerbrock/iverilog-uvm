@@ -355,6 +355,17 @@ static void put_vec_to_ret_slice(ivl_signal_t sig, struct vec_slice_info*slice,
       }
 }
 
+static void put_vec_to_signal_part(ivl_signal_t sig, int part_off_idx,
+				   unsigned wid)
+{
+      if (ivl_signal_type(sig) == IVL_SIT_UWIRE)
+	    fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n",
+		    sig, part_off_idx);
+      else
+	    fprintf(vvp_out, "    %%store/vec4 v%p_0, %d, %u;\n",
+		    sig, part_off_idx, wid);
+}
+
 static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 				  unsigned wid)
 {
@@ -393,16 +404,15 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 	    fprintf(vvp_out, "    %%ix/load %d, %lu, 0;\n",
 		    part_off_idx, slice->u_.part_select_static.part_off);
 	    fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, %d, %u;\n",
-		    sig, part_off_idx, wid);
+	    put_vec_to_signal_part(sig, part_off_idx, wid);
 	    clr_word(part_off_idx);
 	    break;
 
 	  case SLICE_PART_SELECT_DYNAMIC:
 	    fprintf(vvp_out, "    %%flag_mov 4, %u;\n",
 		    slice->u_.part_select_dynamic.x_flag);
-	    fprintf(vvp_out, "    %%store/vec4 v%p_0, %d, %u;\n",
-		    sig, slice->u_.part_select_dynamic.word_idx_reg, wid);
+	    put_vec_to_signal_part(sig,
+		    slice->u_.part_select_dynamic.word_idx_reg, wid);
 	    clr_word(slice->u_.part_select_dynamic.word_idx_reg);
 	    clr_flag(slice->u_.part_select_dynamic.x_flag);
 	    break;
@@ -1541,12 +1551,8 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 		  if (signal_is_return_value(lsig)) {
 			fprintf(vvp_out, "    %%ret/vec4 0, %d, %u; Assign to %s (store_vec4_to_lval)\n",
 				offset_index, lwid, ivl_signal_basename(lsig));
-		  } else if (ivl_signal_type(lsig)==IVL_SIT_UWIRE) {
-			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n",
-				lsig, offset_index);
 		  } else {
-			fprintf(vvp_out, "    %%store/vec4 v%p_0, %d, %u;\n",
-				lsig, offset_index, lwid);
+			put_vec_to_signal_part(lsig, offset_index, lwid);
 		  }
 		  clr_word(offset_index);
 

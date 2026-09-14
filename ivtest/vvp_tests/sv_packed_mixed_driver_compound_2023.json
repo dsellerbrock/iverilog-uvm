@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_packed_mixed_driver_compound.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_packed_mixed_driver_compound"
+}

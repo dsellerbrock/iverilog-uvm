@@ -1245,3 +1245,11 @@ produces no executable statement; an explicit null statement remains executable
 for declaration-order checking. Both 2017 and 2023 modes pass focused semantic
 checks. This is not full package qualification: the batch-level regression suite
 remains pending under the user's approximately ten-feature cadence.
+
+### L44 — Mixed-driver packed compound assignment (6.5, 11.4.1)
+
+IMPLEMENTED for accepted static packed elements with disjoint procedural and
+continuous drivers. Compound stores preserve other driven elements and subsequent
+input changes in both 2017 and 2023 modes. Ordinary dynamic index and X-index
+behavior remain covered. The legal mixed-driver dynamic-subpart elaboration gap
+is OPEN as DD-021. Focused legacy 2/2 and JSON 4/4 pass; broad suites pending.

@@ -984,5 +984,36 @@ probe that depended on it. An upstream report is a separate, unfiled action.
 - **Normative basis to verify at activation:** IEEE 1800-2017/2023 6.5
   (independent packed elements may have different kinds of drivers), 11.4.1
   (compound assignment equivalence and single index evaluation).
-- **Status:** ready for activation after L43. Full PRINCE success is unproven;
+- **Status:** L44 implemented with focused validation. Full PRINCE success is unproven;
   missing native DPI dependencies may expose a later independent failure.
+
+### DD-020 — Unresolved task calls compile and continue after a warning
+
+- **Discovered during:** L44, independent next-blocker assessment.
+- **Observation:** the OpenTitan synchronizer test calls mode/interval setter
+  tasks absent from the pinned `prim_cdc_rand_delay` implementation. The
+  compiler ignores all six enables instead of rejecting the unresolved calls.
+  That application cannot serve as clean simulator qualification evidence.
+- **Reducer:** `evidence/unresolved-task-assessment/missing_task.sv` calls an
+  undeclared task and prints a marker afterward. Both 2017 and 2023 compile
+  with exit 0 and execute the marker. `results.json` records both runs.
+- **Location:** `PCallTask` elaboration in `elaborate.cc`, including the
+  SystemVerilog-only bare unknown-task warning/no-op branch near line 14069;
+  qualified/class paths contain related fallbacks requiring separate assessment.
+- **Expected:** an unresolved enable cannot be treated as a successful call.
+  Identify the exact subroutine/name-resolution clauses at activation.
+- **Status:** ready for bounded assessment after L44; no implementation here.
+  The synchronizer's reset-time queue mismatch itself remains untriaged; the
+  missing setters are not claimed to be its root cause.
+
+### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
+
+- **Discovered during:** L44 boundary validation.
+- **Observation:** a fixed packed element written procedurally through a dynamic
+  subpart, with a different fixed element continuously driven, is rejected as
+  also continuously assigned before target emission.
+- **Authority:** IEEE 1800-2017/2023 6.5 permits disjoint static prefixes to have
+  different driver kinds; dynamic selection inside a fixed element does not
+  make the entire containing array the longest static prefix.
+- **Status:** OPEN. L44 covers the accepted static mixed-driver route only.
+  Do not register this legal source as an expected language-error regression.

@@ -1,36 +1,36 @@
-id: L43
-title: Package import after a procedural local declaration creates an unelaboratable PNoop
+id: L44
+title: Compound assignment to a procedurally driven packed element uses the wrong net-store operation
 status: IMPLEMENTED_FOCUSED_PASS
-base_revision: 3c8e2b576
+base_revision: d4f344ec73b9862666032c568e93adcdf7684755
+origin: DD-019, fresh unmodified OpenTitan prim_prince_sim runtime abort
 standards:
-  - IEEE 1800-2017 A.2.1.3, A.2.6, A.2.7, A.2.8 and 26.3
-  - IEEE 1800-2023 A.2.1.3, A.2.6, A.2.7, A.2.8 and 26.3
-reproducer: evidence/dd018-assessment/function_second_valid.sv
-current_behavior: Internal elaboration error for PNoop after int declaration followed by import.
-expected_behavior: Resolve imported types and values in the local scope, execute the body, emit no executable operation for the import declaration.
-root_cause: The existing statement_item import production creates PNoop, which inherits Statement::elaborate and emits an internal error. Imports already take effect during parsing via pform_package_import.
+  - IEEE 1800-2017 6.5 and 11.4.1
+  - IEEE 1800-2023 6.5 and 11.4.1
+reproducer: evidence/opentitan-runtime-assessment/packed_compound_min.sv
+current_behavior: Compile succeeds; runtime aborts in part/concat width invariants for 2/4/5/6-word packed arrays, both editions.
+expected_behavior: Disjoint procedural and continuous drivers coexist; compound assignment updates only the selected element with the same result as blocking assignment and evaluates each index once.
+root_cause_hypothesis: Confirmed. store_vec4_to_one_lval routed a lowered UWIRE through force/vec4/off, while put_vec_to_lval_slice emitted store/vec4 for the same compound lvalue, feeding the full packed value into a narrower driver-network leaf.
 allowed_scope:
-  - parse.y statement_item package_import_declaration semantic action
-  - parse.y procedural statement-list placement for package imports
-  - parse.y executable-list tracking for explicit null statements
-  - Focused import regressions and registrations
-  - Directly affected conformance, blocker, debt and campaign records
+  - tgt-vvp/stmt_assign.c shared compound vector lvalue write routing and directly necessary helper reuse
+  - Permanent positive/negative regression sources, focused lists and legacy/JSON manifests/gold
+  - Directly related conformance and campaign records
 forbidden_scope:
-  - General PNoop behavior or other producers, including assertion and error recovery
-  - Unrelated grammar alternatives or declaration-order extensions
-  - Unrelated conformance defects
+  - Width-clamping or disabling runtime assertions
+  - Modifying OpenTitan/Caliptra sources
+  - Unrelated scheduler, net resolution or compound-expression arithmetic changes
+  - Broad architecture changes without an explicit recorded invariant and updated contract
 completion_requirements:
-  - Pre-fix failure and post-fix semantic checks in 2017 and 2023
-  - Scope, wildcard and explicit import, function/task/method/block interaction checks
-  - Attributed legal import and illegal late/conditional/loop placement checks
-  - Bison state report with the intended import-statement conflict removed and no new conflicts
-  - Focused legacy and JSON regression paths
-  - Batch-level integrated, JSON, real-DPI UVM, NFA, release and frontend gates after approximately ten completed features
-  - Documentation, diff check and local implementation checkpoint
-last_validated_revision: Working tree after local rebuild/install; focused legacy 3/3 and JSON 6/6 pass with pinned negative diagnostics; direct positive, negative, and explicit-null interaction checks pass in 2017 and 2023. Durable logs are evidence/dd018-assessment/final-focus-{legacy,json}.log and record EXIT_STATUS=0.
-pending_gates: Campaign batch gates only, deferred under the user-directed approximately-ten-feature cadence.
-next_action: Freeze L43 after documentation review, then continue to the next campaign feature; run broad gates at the batch boundary.
-evidence: evidence/dd018-assessment/
-discovery_policy: Record unrelated defects without expanding this implementation.
-scope_expansion_rationale: The one-line PNoop-to-nullptr fix made the existing statement_item grammar accept imports wherever any statement is legal, although IEEE 1800 permits them only in a block/task/function declaration prefix. It also exposed statement's unconditional attribute binding through a null declaration result. Placement enforcement and attributed-import coverage are therefore prerequisites of the root fix, not unrelated cleanup.
+  - Pre-fix red and post-fix observable value checks in 2017/2023
+  - Positive, negative and boundary tests for affected lvalue routes
+  - Preserve nonselected continuously driven elements, update behavior, width/state, and single index evaluation where legal
+  - Focused legacy and JSON regressions
+  - Replay original PRINCE only when the reduced semantic checks pass; record remaining independent failures honestly
+  - Local checkpoint after review; broad suites at approximately ten-feature batch boundary
+validation_batch: 20260914
+focused_features_before_this: 1
+last_validated_revision: Working tree after tgt-vvp rebuild/install. Original reduced reproducer passes for N=2/4/5/6 in 2017 and 2023; permanent positive covers actual mixed-driver updates at two input values, nonselected continuous elements, widths N=2/N=6, ordinary dynamic single index evaluation, and X-offset no-write. Focused legacy 2/2 and JSON 4/4 pass.
+pending_gates: Original PRINCE replay by root and campaign batch gates; broad suites deferred until batch boundary.
+next_action: Root reviews and checkpoints L44. Track dynamically selected subparts of a mixed-driver packed signal separately: elaboration currently rejects the legal fixed-element/dynamic-subpart shape before target emission.
+evidence: evidence/opentitan-runtime-assessment/
+discovery_policy: Unrelated discoveries remain record-only.
 stop_after_completion: false

@@ -3000,3 +3000,5 @@ sv_class_property_string_conversion normal,-g2012	ivltests
 sv_procedural_package_import normal,-g2017	ivltests gold=sv_procedural_package_import.gold
 sv_procedural_package_import_late_fail CE,-g2017	ivltests
 sv_procedural_package_import_substatement_fail CE,-g2017	ivltests
+sv_packed_mixed_driver_compound normal,-g2017	ivltests gold=sv_packed_mixed_driver_compound.gold
+sv_wire_procedural_compound_fail CE,-g2017	ivltests gold=sv_wire_procedural_compound_fail.gold
