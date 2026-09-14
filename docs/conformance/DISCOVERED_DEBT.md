@@ -811,7 +811,7 @@ loss still require reducers; comments and diagnostic wording are not an oracle):
 | Qualification fallback | .github/uvm_test.sh:139 | Already understood at DD046's original writing: this row's own "Qualification needed" column already states the correct handling (keep real-DPI/no-DPI evidence separate). Not re-examined this pass; harness-flavored, not a compiler-semantics candidate. | Low priority; the existing disposition already looks correct. |
 | Chained container index + string select | elab_expr.cc: `apply_trailing_container_indices_` (~2499) | **CLOSED as L39 (2026-09-11).** New row -- found (not in the original DD046 table) while auditing container-indexing paths. `obj.q[0][1]` (a class-property queue-of-strings, element-select then byte-select) hit `sorry: this index does not select a queue or associative-array class-property value`, even though both a bare `string_var[1]` and a class-property queue-of-queues `obj.q[0][0]` already worked independently via the identical `NetESelect` shape -- the shared indexing loop dispatched on `netvector_t`/`netarray_t` for the intermediate type but had no `netstring_t` branch. Fixed by adding one, reusing the existing `elab_assoc_index` helper. See BLOCKERS.md L39. | None -- fixed. |
 | Class-handle rvalue degrade inside a real specialization | netmisc.cc `class_rval_degrade_ok` (~1644-1750) | **CLOSED as L40 (2026-09-11).** New row -- found while auditing the STRING/CLASS `netmisc.cc` stub candidates for a genuine unresolved-generic reproducer. A specialized parameterized class (`container#(obj_c)`) whose own method assigns a class-handle-typed value (via its type parameter `T`) to a `string` local variable silently produced `""` with ZERO diagnostic, because the guard's `in_class_scope` check is coarse (true for any class body, dead template-seed or real specialization alike). A first wholesale-narrowing attempt (swap `in_class_scope` for `in_unspecialized_param_class` outright) broke `uvm_vreg::allocate()`'s ordinary `this.mem = mam.get_memory();` -- instrumentation traced this to a THIRD scenario: `uvm_vreg.svh`/`uvm_mem_mam.svh`'s circular forward-declaration collapses the target to `cast_type==IVL_VT_BOOL` (the same mechanism as the documented LOGIC forward-ref case, just 2-state). Fixed correctly with a narrow additional carve-out (`in_real_specialized_param_class`, the logical complement of `in_unspecialized_param_class` within a parameterized class body) that hard-errors only a real specialization, leaving `in_class_scope`'s broad permissiveness -- BOOL collapse included -- completely untouched. See BLOCKERS.md L40. | None -- fixed. |
-| Integral class-property read as a string | vvp/class_type.cc:536 (`class_property_t::get_string` base-class default) | **NEW, OPEN (2026-09-11).** Found incidentally while building the L40 "must stay silent" reducer. Reading an ORDINARY integral class property back as a `string` from inside its own class method -- `class c; int val; function string f(); string s; s = val; return s; endfunction endclass`, called with no generics/parameterization involved at all -- warns `class_property_t::get_string on unsupported property type (... type=sb32); returning empty string` and produces `""`. Confirmed unrelated to L40: this expression is `IVL_VT_LOGIC`, never enters the `IVL_VT_CLASS` guard L40 touched. The base `class_property_t::get_string()` only has a real override in `property_string`; no subclass converts a vector-typed property's value to its decimal string form the way a plain (non-property) `int`-to-`string` assignment does at elaboration time. Confirmed with two reducers, one with generics and one (the minimal one) with none. | Needs tracing why a class-property read, unlike a plain-variable read, doesn't get the same elaboration-time numeric-to-string conversion inserted -- likely needs either a `property_vec4`-style `get_string` override doing the itoa conversion, or routing the property read through the same conversion codegen a plain variable gets. Feature-sized; not attempted this pass. |
+| Integral class-property read as a string | vvp/class_type.cc:536 (`class_property_t::get_string` base-class default) | **CLOSED as L42 (2026-09-13).** Found incidentally while building the L40 "must stay silent" reducer. Reading an ORDINARY integral class property back as a `string` from inside its own class method warned and returned `""` instead of the IEEE 1800-2017/2023 6.16 packed-byte value a plain (non-property) variable already got. Root cause confirmed: `property_atom<T>` (int/byte/shortint/longint properties) and `property_logic` (4-state vector properties) never overrode `get_string`/`set_string`, falling to the base class's "unsupported" stub -- NOT a decimal/itoa formatting gap as first guessed, but a missing byte-packing conversion (confirmed against the LRM: "values of integral type can be assigned to a string variable... zero-filled on the left"). Fixed by extracting the exact conversion the existing `%pushv/str` vvp opcode already used for plain variables into a shared `vector4_to_packed_string()` helper, and adding `get_string`/`set_string` overrides to both classes that reuse it (plus a shared `pack_string_into_vec4_()` for the write direction, mirroring `%cast/vec4/str`'s right-justify/truncate/zero-fill semantics). `property_bit` (2-state `bit` vectors) turned out unaffected -- it already worked, apparently routing through the same materialization as `property_atom<T>` for common widths. See BLOCKERS.md L42. | None -- fixed. |
 
 - **Triage:** OPEN, semantic classification pending. Ordinary allocation
   fallbacks, generated DPI bridge stubs, valid empty-container results and
@@ -947,25 +947,46 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   fails with a plain `syntax error` / `I give up on this function
   definition.` -- independent of position (first statement or after
   another declaration) and independent of whether a class is involved at
-  all. The grammar's `data_declaration` production nominally includes a
-  `package_import_declaration` alternative (used by
-  `block_item_decl`/function-body declarations per IEEE 1800-2017/2023
-  A.2.1.3), so this looks like an intended-but-unreachable path, likely
-  shadowed by a grammar conflict rather than a deliberate omission --
-  not confirmed. NOT investigated further; genuinely out of scope for
-  L41, which only touches the class-body case.
-- **File/function:** `parse.y` `data_declaration` (~line 4909-4948) and
-  whatever conflicting production wins in that parser state for a
-  function/task-body `data_declaration` context; root cause not traced.
-- **Possible clause:** IEEE 1800-2017/2023 A.2.1.3 (package import
-  declaration is a legal `data_declaration` alternative, unrestricted to
-  module/package scope).
+  all. Confirmed against the LRM's own formal grammar: IEEE 1800-2017/2023
+  A.2.1.3's `data_declaration ::= ... | package_import_declaration` and
+  A.6.3's `block_item_declaration ::= data_declaration | ...` -- so this
+  is legal SystemVerilog unrestricted to module/package scope, not a
+  guess.
+- **Attempted fix, REVERTED:** added `package_import_declaration` as a
+  `block_item_decl` alternative in `parse.y` (the same shape as L41's
+  `class_item` addition). Unlike L41, this was NOT a clean, zero-conflict
+  change: bison's reduce/reduce conflict count jumped from 1122 to 1344
+  (+222; shift/reduce stayed flat at 563). `block_item_decl` is reachable
+  from far more contexts than `class_item` was (module bodies, named
+  begin/end blocks, task/function bodies, generate blocks, all via
+  `block_item_decls_opt`), and `K_import` is also the leading token of
+  `dpi_import_export_declaration`'s several forms -- the ambiguity is
+  suspected to be an import-vs-DPI-import overlap reachable from a shared
+  block-level state, but this was NOT traced to a specific state before
+  reverting. A jump this large, unlike L41's identical-before-and-after
+  result, is not something to force through on a "probably fine" basis --
+  reverted rather than risk silently corrupting an unrelated construct's
+  parse. `parse.y` is back to its pre-attempt state; no source change
+  landed for this row.
+- **File/function:** `parse.y` `block_item_decl` (~line 9088-9353,
+  post-L41 line numbers) and whatever `dpi_import_export_declaration`
+  state actually collides with it; root cause not traced.
+- **Possible clause:** IEEE 1800-2017/2023 A.2.1.3 + A.6.3 (cited above,
+  confirmed against the LRM text directly, not inferred).
 - **Evidence:** minimal reducer, `import pkg1::*;` as either the first or
   second statement in a plain module-scope function body, both fail
   identically; not archived to a permanent evidence directory this pass.
 - **Reproducer status:** confirmed (hand-built reducer, not from real
   application source)
 - **Triage status:** untriaged; needs its own dedicated investigation
-  (trace which grammar production actually wins in that parser state,
-  likely via `bison --report=state` on the specific conflicting states,
+  (a full `bison --report=state` diff identifying exactly which new
+  states appear and what collides in them -- not just a conflict-count
+  diff, which only tells you THAT something new collides, not WHAT) --
+  do not re-attempt the plain `block_item_decl` addition without that
+  trace, it reproduces the same +222 reduce/reduce jump. A narrower
+  alternative worth trying first: a dedicated production for
+  `K_import package_import_item_list ';'` used only inside
+  `block_item_decl` (not reusing the shared `package_import_declaration`
+  nonterminal DPI-import forms might also reach), which may sidestep the
+  overlap entirely.
   not just a conflict-count diff) before attempting a fix.

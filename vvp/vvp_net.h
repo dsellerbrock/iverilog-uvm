@@ -633,6 +633,17 @@ extern bool vector2_to_value(const vvp_vector2_t&a, int32_t&val, bool is_signed)
 
 extern vvp_vector4_t vector4_from_text(const char*bits, unsigned wid);
 
+/*
+ * Packs a vec4 value into a string per IEEE 1800-2017/2023 6.16's
+ * integral-to-string conversion: 8-bit big-endian bytes, any all-zero
+ * byte dropped (not just leading ones -- "assigning the value 0 to a
+ * string character shall be ignored"). Shared by the %pushv/str vvp
+ * opcode (vthread.cc) and class_type.cc's integral class-property
+ * get_string() overrides, which need the identical conversion a plain
+ * (non-property) vec4-typed variable already gets.
+ */
+extern std::string vector4_to_packed_string(const vvp_vector4_t&a);
+
 inline vvp_vector4_t double_to_vector4_LSB(double real)
 {
       // Convert the double to a bit vector and then use the LSB.
