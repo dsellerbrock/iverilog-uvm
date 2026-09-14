@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_hierarchical_missing_task_fail.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_hierarchical_missing_task_fail_2023"
+}

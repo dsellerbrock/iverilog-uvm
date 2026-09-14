@@ -1,7 +1,7 @@
 status: active
-branch: "main"
+branch: "agent/l53-hierarchical-task-resolution-20260914"
 current_blocker: "Next: DD-020 unindexed hierarchical missing task calls; DD-022 invalid fixed packed write prefixes"
-phase: "batch_qualified"
+phase: "focused_implementation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
@@ -841,3 +841,14 @@ l52_checkpoint: "Indexedmodule/generate taskcalls execute withdelay,args,copyout
 batch_corrections_focused: "All first-pass failures rechecked: legacy45/45 and JSON42/42 pass; permanent two-state packed-prefix synthesis regression both editions; build/install and root source review clear. Corrected broad qualification pending; first-pass evidence preserved. No remote changes or new worktree."
 
 batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full frontend restore preserves six hashes. Shared main graph:51083nodes94825edges. Next constant-invalid packed-write matrix fails6/6 per edition with RHS/base evaluated once; unindexed dut.missing compiles0. These are next bounded increments, not regression waivers."
+
+validation_batch_after_l52:
+  target_features: 10
+  baseline: c686a4781
+  focused_validated_features: [L53]
+  in_progress: L54
+  broad_gates: deferred_until_approximately_ten_features
+  implementation_model: gpt-5.6-sol, same reused agent
+  rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
+
+l53_checkpoint: "Scope-proven unindexed hierarchical missing tasks reject; valid forward tasks/functions preserve delay/copyout/effects. Corrected case-comparison test, legacy13/13 JSON24/24, incremental build/install and root review pass. First focused feature in next batch. Remaining object/unresolved receiver fallback is open."

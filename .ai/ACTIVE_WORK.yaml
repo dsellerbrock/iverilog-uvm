@@ -1,21 +1,19 @@
-id: BATCH-L43-L52-CORRECTIONS
-title: Correct focused regressions exposed by the ten-feature batch
-status: QUALIFIED
-base_revision: e5a1eb846
-origin: Full legacy and JSON batch qualification after L43-L52
+id: L53
+title: Diagnose unresolved calls on proven hierarchical receivers
+status: FOCUSED_VALIDATED
+base_revision: 3e9cc8661
+origin: DD-020
+standards:
+  - IEEE 1800-2017/2023 13.3, 23.6 and 23.8.1
 allowed_scope:
-  - Represent an explicit null statement with PNoop while retaining attributes and executable ordering
-  - Accept canonical indexed NetESelect nodes in precise sensitivity analysis
-  - Treat assertion-control selector identifiers as names before value-reference diagnostics
-  - Preserve declared two-state semantics on packed-prefix selects in simulation and synthesis
-  - Report fixed and dynamic array-element signedness through VPI word handles
-  - Focused reused regression lists, evidence and ACTIVE_WORK
+  - PCallTask receiver-scope classification for unindexed hierarchical calls
+  - Focused positive and negative tests, registration, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - New test framework or weakened expected results
-  - Broad suites before root review
+  - General object, class, package or compile-progress fallback redesign
+  - Broad suites before the next feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 10
-last_validated_revision: c686a4781, locally integrated and broadly qualified. Build and install passed; final focused legacy 45/45 and JSON 42/42 passed, covering all 29 legacy and 13 JSON failures from the first batch plus procedural-import, interconnect, packed read/write, wide VPI and signed-array controls. A permanent synthesized two-state packed-prefix regression passes in IEEE 2017 and 2023. Ordinary initial, loop, repeat and conditional null statements also pass in both editions.
-pending_gates: None for corrected L43-L52 batch. All broad gates passed at c686a4781; six installed hashes match after frontend restoration.
-next_action: Begin the next focused batch from qualified c686a4781; DD020 unindexed hierarchy rejection is prepared.
+focused_features_before_this: 0
+last_validated_revision: Incremental build/install passed; corrected direct positive and negative checks passed in IEEE 2017 and 2023; focused legacy passed 13/13 and focused JSON passed 24/24, including package, indexed-hierarchy and inherited object-method controls.
+pending_gates: Root source/test review and feature-batch qualification.
+next_action: Freeze L53 source and tests for root review and integration.
 stop_after_completion: false

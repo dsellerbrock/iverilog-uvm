@@ -1176,3 +1176,9 @@ records constant OOB and X prefixes leaking blocking, compound and NBA writes
 in both editions (six cases per edition). Final-index and RHS functions each
 execute once. A correction must preserve that evaluation while preventing
 invalid stores; classifying dynamic prefixes as constant-invalid is incorrect.
+
+L53 focused follow-up closes the proven non-class/non-package unindexed
+hierarchy receiver case: missing tasks are diagnosed after existing resolution
+attempts. Legacy13/13 and JSON24/24 pass with forward-call effects and inherited
+method controls. Unresolved receivers and broader object-method fallbacks
+remain open; full batch qualification is pending.

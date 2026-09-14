@@ -13761,12 +13761,13 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    ivl_assert(*this, pscope);
       }
 
-	/* An indexed prefix can name either a fixed hierarchical scope or a
-	 * runtime-selected object. Resolve the receiver alone first so module
-	 * instance arrays and generate scopes retain ordinary task lookup. */
-      bool indexed_hierarchical_receiver = false;
-      if (gn_system_verilog() && has_indexed_path_component
-	  && path_.size() > 1) {
+	/* A dotted prefix can name either a hierarchical scope or an object.
+	 * Resolve the receiver alone first so a missing task on a real module,
+	 * generate or named-block scope is not discarded by the object-method
+	 * compile-progress fallback. Class and package scopes retain their
+	 * dedicated lookup rules below. */
+      bool hierarchical_receiver = false;
+      if (gn_system_verilog() && !package_ && path_.size() > 1) {
 	    pform_name_t receiver_path = path_;
 	    receiver_path.pop_back();
 	    symbol_search_results receiver;
@@ -13775,11 +13776,13 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 				UINT_MAX, &receiver);
 	    if (receiver.scope_index_error || des->errors != errors_before)
 		  return 0;
-	    indexed_hierarchical_receiver = found && receiver.is_scope();
+	    hierarchical_receiver = found && receiver.is_scope()
+		  && receiver.scope->type() != NetScope::CLASS
+		  && receiver.scope->type() != NetScope::PACKAGE;
       }
 
 	      if (gn_system_verilog() && has_indexed_path_component
-		  && !indexed_hierarchical_receiver) {
+		  && !hierarchical_receiver) {
 		      // Hierarchical task lookup treats indexed path components as scope
 		      // indices (which must be constant). For SV object methods like
 		      // q[idx].method(), try method elaboration first and otherwise
@@ -13931,7 +13934,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  if (tmp) return tmp;
 	    }
 
-	    if (indexed_hierarchical_receiver) {
+	    if (hierarchical_receiver) {
 		  cerr << get_fileline() << ": error: Enable of unknown task "
 		       << "``" << path_ << "''." << endl;
 		  des->errors += 1;
