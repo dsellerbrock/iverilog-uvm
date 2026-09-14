@@ -6217,10 +6217,14 @@ class Design {
       void finalize_interconnects();
 
 	// Functions
-      NetFuncDef* find_function(NetScope*scope, const pform_name_t&key);
+	/* search_up=false confines lookup to the starting scope and its
+	 * imports; package-qualified calls use this downward-only form. */
+      NetFuncDef* find_function(NetScope*scope, const pform_name_t&key,
+				bool search_up = true);
 
 	// Tasks
-      NetScope* find_task(NetScope*scope, const pform_name_t&name);
+      NetScope* find_task(NetScope*scope, const pform_name_t&name,
+			  bool search_up = true);
 
 	// NODES
       void add_node(NetNode*);

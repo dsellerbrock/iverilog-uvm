@@ -1,0 +1,2 @@
+./ivltests/sv_package_qualified_subroutine_lookup.v:47: warning: User function 'value' is being called as a task.
+PASSED

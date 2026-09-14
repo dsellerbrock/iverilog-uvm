@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44, L45, L46, L47, L48, L49, L50]
-  in_progress: L51_package_task_resolution
+  focused_validated_features: [L43, L44, L45, L46, L47, L48, L49, L50, L51]
+  in_progress: L52_indexed_hierarchical_tasks
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -828,3 +828,5 @@ l49_checkpoint: "Fixed-prefix bounded writes reviewed across IR, VVP blocking/co
 l49_local_integration: "8e5a86047 fast-forwarded into local main. Canonical graph refreshed51018nodes94766edges. Samecheckout nowagent/l50-empty-sensitivity-20260914; no remote changes ornewworktree. DD024minimal classifier correction selected while rootextends DD020 qualified-call controls."
 
 l50_checkpoint: "Empty implicit event waits preserve runtime semantics through primary classification and legacy synthesis tokenization. Both null-body dereferences corrected; second confirmed by crashstack. Focusedlegacy2/2 JSON4/4 pass, including forced-synthesis diagnostic. Eighth focused increment; broadqualificationpending."
+
+l51_checkpoint: "Packagequalified task/function statement lookup usesexistingdownwardimport-aware resolver; selfqualifiedforward tasks execute; missingpkgcalls cannotcaptureunitshadows. Legacy4/4 JSON8/8 pass includingexports andclassshadownegative. Ninth focused increment; L50/L51 locallycommitted inretainedfeaturebranch forbatchmerge."

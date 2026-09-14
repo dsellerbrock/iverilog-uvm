@@ -11664,6 +11664,14 @@ static bool subroutine_needs_call_frame_(const NetScope*task)
       return false;
 }
 
+static bool scope_is_within_(const NetScope*scope, const NetScope*container)
+{
+      for (const NetScope*cur = scope; cur; cur = cur->parent())
+	    if (cur == container)
+		  return true;
+      return false;
+}
+
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
 	// Method-call statement on an arbitrary receiver expression,
@@ -13740,6 +13748,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
       }
 
       NetScope*pscope = scope;
+      bool package_qualified_call = package_ != nullptr;
       if (package_) {
 	    pscope = des->find_package(package_->pscope_name());
 	    ivl_assert(*this, pscope);
@@ -13793,7 +13802,22 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  return elaborate_function_(des, scope);
       }
 
-      NetScope*task = des->find_task(pscope, path_);
+      NetScope*task = des->find_task(pscope, path_,
+				    !package_qualified_call);
+
+	// Inside a package body, pkg::task may retain the package name as the
+	// first path component until package subroutines are registered. Rebase
+	// that alternate form onto the package scope, as function lookup does.
+      if (!task && !package_ && path_.size() == 2) {
+	    NetScope*pkg_scope = des->find_package(path_.front().name);
+	    bool inside_package = scope_is_within_(scope, pkg_scope);
+	    if (inside_package) {
+		  pform_name_t tail_path;
+		  tail_path.push_back(path_.back());
+		  task = des->find_task(pkg_scope, tail_path, false);
+		  package_qualified_call = true;
+	    }
+      }
       if (gn_system_verilog() && path_.size() > 1
 	  && !has_indexed_path_component
 	  && (leading_type_args() || (task && task->get_class_scope()))) {
@@ -13948,7 +13972,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  }
 	    }
 
-	    if (gn_system_verilog() && path_.size() > 1) {
+	    if (gn_system_verilog() && path_.size() > 1
+		&& !package_qualified_call) {
 		    // Compile-progress fallback: multi-component task path
 		    // that couldn't be resolved as a method call.
 		  perm_string tail = peek_tail_name(path_);
@@ -14065,7 +14090,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  return noop;
 	    }
 
-	    if (gn_system_verilog() && (package_ || path_.size() != 1)) {
+	    if (gn_system_verilog() && !package_qualified_call
+		&& path_.size() != 1) {
 		  // Compile-progress: covergroup sample(), interface methods, and
 		  // other SV constructs may not resolve as tasks. Drop silently.
 		  cerr << get_fileline() << ": warning: Enable of unknown task "
@@ -16445,8 +16471,9 @@ NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
 	// virtual-dispatch recursion (see csr_utils_pkg::reset_asserted being
 	// called from dv_base_env_cfg::reset_asserted).
       if (package_) {
-	    if (NetScope*pkg_scope = des->find_package(package_->pscope_name()))
-		  func = des->find_function(pkg_scope, path_);
+	    if (NetScope*pkg_scope = des->find_package(package_->pscope_name())) {
+		  func = des->find_function(pkg_scope, path_, false);
+	    }
 	    if (!func) return nullptr;
       } else {
 	    func = des->find_function(scope, path_);
@@ -16460,7 +16487,7 @@ NetProc* PCallTask::elaborate_function_(Design*des, NetScope*scope) const
 		  if (NetScope*pkg_scope = des->find_package(possible_pkg)) {
 			pform_name_t tail_path;
 			tail_path.push_back(path_.back());
-			func = des->find_function(pkg_scope, tail_path);
+			func = des->find_function(pkg_scope, tail_path, false);
 		  }
 	    }
       }

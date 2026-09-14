@@ -1,0 +1,4 @@
+sv_package_qualified_subroutine_lookup normal,-g2017 ivltests gold=sv_package_qualified_subroutine_lookup.gold
+sv_missing_package_task_fail CE,-g2017 ivltests gold=sv_missing_package_task_fail.gold
+sv_missing_package_task_shadow_fail CE,-g2017 ivltests gold=sv_missing_package_task_shadow_fail.gold
+sv_missing_package_self_task_fail CE,-g2017 ivltests gold=sv_missing_package_self_task_fail.gold

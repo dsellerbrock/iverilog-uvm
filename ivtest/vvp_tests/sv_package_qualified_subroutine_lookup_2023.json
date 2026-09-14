@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_package_qualified_subroutine_lookup.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_package_qualified_subroutine_lookup_2023"
+}

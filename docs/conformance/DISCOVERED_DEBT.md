@@ -1027,6 +1027,12 @@ valid call, distinct from missing-call diagnostics. The early indexed-object
 fallback bypasses ordinary hierarchical task lookup. Scope/object separation
 must preserve valid object-array methods when fixing module/generate calls.
 
+L51 implements downward package-qualified task/function statement lookup,
+including valid self-qualified forward tasks and exported subroutines. Missing
+members no longer fall back to compilation-unit task/function shadows or
+warning/no-op paths. IEEE 23.7.1 requires this downward-only resolution.
+Legacy 4/4 and JSON 8/8 pass; hierarchical and class fallback debt remains open.
+
 ### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
 
 - **Discovered during:** L44 boundary validation.

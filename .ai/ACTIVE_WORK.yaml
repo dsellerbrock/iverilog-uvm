@@ -1,28 +1,29 @@
-id: L50
-title: Preserve empty implicit-sensitivity waits during synthesis
+id: L51
+title: Resolve and diagnose package-qualified task calls
 status: FOCUSED_VALIDATED
-base_revision: 8e5a86047
-origin: DD-024
+base_revision: c20349f51
+origin: DD-020
 standards:
-  - IEEE 1800-2017 9.4.2.2 and 9.2.2.2
-  - IEEE 1800-2023 9.4.2.2 and 9.2.2.2
+  - IEEE 1800-2017 13.3 and 23.8.1
+  - IEEE 1800-2023 13.3 and 23.8.1
 reproducer:
-  - evidence/dynamic-mixed-driver-assessment/synthesis-empty-sensitivity.sv
-  - evidence/dynamic-mixed-driver-assessment/synthesis-empty-always-comb.sv
-current_behavior: Synthesis classifies the permanent null-body wait used for an empty always @* by dereferencing its absent statement and crashes.
-expected_behavior: Empty always @* remains an unsynthesized process that never executes, while constant-only always_comb executes at time zero and synthesizes constant logic.
+  - evidence/unresolved-task-assessment/missing_package_task.sv
+  - evidence/unresolved-task-assessment/missing_package_shadow.sv
+  - evidence/unresolved-task-assessment/missing_package_self.sv
+  - evidence/unresolved-task-assessment/qualified_package_self_valid.sv
+current_behavior: Explicit package-qualified calls can reach compile-progress no-ops; the alternate same-package path form also fails to resolve a valid forward task.
+expected_behavior: Valid package tasks and statement-form functions resolve in package scope, including same-package forward calls; an absent package member produces the existing unknown-task error even when a same-named class method exists.
 allowed_scope:
-  - NetEvWait asynchronous classification null-body guard
-  - Legacy synthesis tokenizer null-body guard for the retained permanent wait
-  - Focused synthesis/runtime tests, registrations, gold, evidence and ACTIVE_WORK
+  - PCallTask package-scope identification, task lookup and final unresolved-call fallback
+  - Focused positive and negative tests, registrations, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - Changing implicit sensitivity construction or runtime scheduling
-  - Changing always_comb time-zero semantics
+  - Unqualified, class, object, interface or deferred unknown-call fallbacks
+  - Indexed hierarchical task calls tracked by L52
   - Broad suites before the campaign batch boundary
 validation_batch: 20260914
-focused_features_before_this: 7
-last_validated_revision: Uncommitted L50 tree. Incremental build/install passed; focused legacy 2/2 and JSON 4/4 passed; empty always @* and always_comb null-target synthesis passed in both editions.
+focused_features_before_this: 8
+last_validated_revision: Uncommitted L51 tree. Incremental build/install passed; focused legacy 4/4 and JSON 8/8 passed. Valid package task/function calls, same-package forward lookup and exported members execute; module, class-shadowed, same-package, and compilation-unit-shadowed misses are rejected in both editions.
 pending_gates: Broad suites remain deferred until the campaign batch boundary.
-next_action: Root review and atomic integration, then L51 package-qualified task diagnostics.
-discovery_policy: Other synthesis crashes remain separate debt.
+next_action: Root review and atomic integration, then L52 indexed hierarchical task resolution.
+discovery_policy: Other qualified lookup gaps remain separate debt.
 stop_after_completion: false
