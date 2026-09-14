@@ -21,7 +21,7 @@ Installed SHA-256 values:
 - Target: `41b624bc72b60858fba2ba1fa8c217f0b1c295336e7073f2d82b950044ef2d0b`
 - Runtime: `a6788f42934e9bb16a0b1409408c84a776033727ff8aaba8d37c20b269c3bc76`
 
-Local integration pending. This is the ninth focused feature in the current
+Locally fast-forwarded into main as `497110d63`. This is the ninth focused feature in the current
 batch; broad qualification remains at `c686a4781` until the batch gates run.
 DD-029 wide string-array reads are next; DD-030 packed-select increments remain
 open. No null-access value, parser expansion, or full property-context coverage

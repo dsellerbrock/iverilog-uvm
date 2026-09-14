@@ -1,21 +1,21 @@
 status: active
-branch: "agent/l61-property-increment-effects-20260914"
-current_blocker: "DD-028 property increment/decrement omits writes or uses scalar storage"
-phase: "focused_validated_pending_local_integration"
+branch: "main"
+current_blocker: "DD-029 wide fixed string-array reads alias valid elements"
+phase: "focused_batch_continuation"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Eight focused features integrated locally; next approximately-ten-feature batch broad qualification pending."
+pending_gates: "Nine focused features integrated locally; next approximately-ten-feature batch broad qualification pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "L61 DD-028 class-property increment/decrement"
-next_action: "Reuse worker to implement property effects; root independently checks receiver and index evaluation."
-next_command: "Focused L61 implementation and paired receiver/property probes."
+next_selection: "L62 DD-029 wide fixed string-array reads"
+next_action: "Reuse worker for DD-029; qualify full batch after tenth focused feature."
+next_command: "Focused L62 string-array read implementation and paired index probes."
 next_command_cwd: repository root
-candidate_state: "L60 focused validation passed; previous broad qualification remains c686a4781."
-installed_tools: "L60 focused build: ivl0f6667ad, target78e456f9, runtimea6788f42. Full suite qualification remains atc686a4781."
+candidate_state: "L61 locally integrated as 497110d63; broad qualification remains c686a4781."
+installed_tools: "L61 focused build: ivl0f6667ad, target41b624bc, runtimea6788f42. Broad qualification remains c686a4781."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -845,8 +845,8 @@ batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full fron
 validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
-  focused_validated_features: [L53, L54, L55, L56, L57, L58, L59, L60]
-  in_progress: L61_property_increment_effects
+  focused_validated_features: [L53, L54, L55, L56, L57, L58, L59, L60, L61]
+  in_progress: none
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -949,3 +949,5 @@ l60_local_integration: "bceb03f89 fast-forwarded into local main. Eighth focused
 l61_start: "Same retained checkout branchedfrom490f7c51c afterL60 integration andgraphterminal0(51234nodes95061edges7325communities). Reusedgpt-5.6-sol workerassignedDD028; eightfeaturesbeforethis. Rootcapture-indexed6paired baseline: scalarint2pass,arrayint2wrongresult,real2compilerabort. Directsignal vs expressionreceiverdistinctionmatters. Functionreturn-member syntaxisunverified andexcludedfromclaim. No newtree/remotes/broadgates."
 
 l61_root_frozen: "114/114 independent paired outcomes pass with stable ivl0f6667ad, target41b624bc, runtimea6788f42. Baseline48, boundaries48, capture6, notifications6, restrictions6. Worker neighbors21/21; permanentlegacy2/2 JSON4/4. Source reviewed; local integration next, broad gates pending."
+
+l61_local_integration: "497110d63 fast-forwarded to local main; ninth focused feature. Root114/114, neighbors21/21, legacy2/2 JSON4/4. No remote action or extra worktree. DD029 next; broad qualification pending tenth feature."

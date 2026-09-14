@@ -1,6 +1,6 @@
 id: L61
 title: Apply class-property increment and decrement effects at runtime
-status: FOCUSED_VALIDATED_FREEZE
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: 490f7c51c
 origin: DD-028
 standards:
@@ -14,9 +14,9 @@ forbidden_scope:
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
 focused_features_before_this: 8
-last_validated_revision: Target 41b624bc72b60858fba2ba1fa8c217f0b1c295336e7073f2d82b950044ef2d0 passes the 48-case scalar/fixed-array matrix, 48 boundary runs, 8 capture/const-handle controls, focused legacy 2/2, and JSON 4/4 across IEEE 2017/2023.
-pending_gates: Root source/test review and feature-batch integration; broad gates remain deferred.
-next_action: Keep source and tests frozen for root review.
+last_validated_revision: Target 41b624bc72b60858fba2ba1fa8c217f0b1c295336e7073f2d82b950044ef2d0b passes the 48-case scalar/fixed-array matrix, 48 boundary runs, 8 capture/const-handle controls, focused legacy 2/2, and JSON 4/4 across IEEE 2017/2023.
+pending_gates: Full feature-batch qualification after approximately ten features.
+next_action: L62 DD-029 wide string-array reads; L61 integrated as 497110d63.
 stop_after_completion: false
 
 l60_root_final: "Root94/94 +6/6literalXchecks and10/10neighbors pass. Corrected consumers with originalindexconverter; no preponedchange. Ready for localintegration; broadgatespending."
