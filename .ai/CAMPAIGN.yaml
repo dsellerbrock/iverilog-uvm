@@ -1,5 +1,5 @@
 status: active
-branch: "agent/release-type-parameter-method-repair-20260914"
+branch: "main"
 current_blocker: "UVM release regressions: type-parameter method dispatch and function-valued constraints"
 phase: "batch_regression_repairs"
 policy_checkpoint: 5f0be599c
@@ -11,7 +11,7 @@ pending_gates: "L53-L62 broad qualification failed: four legacy failures repaire
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
 next_selection: "Finish type-parameter scoped method dispatch, then implement real pre-solve constraint function evaluation."
-next_action: "Freeze worker implementation, review permanent isolated negatives and unchanged UVM 2020.3.2 smoke, integrate locally after focused validation."
+next_action: "L63 integrated f57a08a78; implement real function-valued constraints using existing runtime call and solver-slot machinery."
 next_command: "Focused type-parameter method review; no per-fix full-suite rerun."
 next_command_cwd: repository root
 candidate_state: "L61 locally integrated as 497110d63; broad qualification remains c686a4781."
@@ -986,3 +986,6 @@ legacy_repairs_frozen: "Reviewfinal5legacy2JSON2deferredcontrols allpass; neighb
 legacy_repairs_integrated: "fac7f8a11 fastforwardedlocalmain; rootfocused22passplus2documentedmonitorunsupported, originalfourrestored. Nextrelease typeparamstaticlookup andrealfunctionconstraint semantics. DD031retained. Broadbaselinec686a4781 unchanged untilcorrectedgates."
 
 release_typeparam_repair_start: "Samecheckout fromdb7d2bf01 aftercanonicalgraphterminal0. Existing solworker implementsreal typeformal staticmethod lookup; pairedsemanticreducer prepared. Rootindependentconstraints tests. No newtree or broadretest."
+
+l63_local_integration: f57a08a78
+l63_validation: "Legacy5/5, JSON10/10, independent18/18, neighbors9/9; unchanged2020.3.2 smoke passes. Broad requalification pending."

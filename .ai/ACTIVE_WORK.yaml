@@ -1,6 +1,6 @@
 id: RELEASE-TYPE-PARAMETER-STATIC-METHOD
 title: Resolve type-parameter-qualified class methods
-status: FOCUSED_VALIDATED
+status: INTEGRATED_LOCALLY
 base_revision: db7d2bf01
 allowed_scope:
   - Resolve static task and function statement calls through concrete class type parameters
@@ -17,3 +17,5 @@ last_validated_revision: Legacy 5/5 and JSON 10/10 focused tests pass; independe
 pending_gates: Corrected broad batch qualification after release repair cluster.
 next_action: Integrate locally, then implement real pre-solve function-valued constraints.
 stop_after_completion: false
+
+local_integration: f57a08a78

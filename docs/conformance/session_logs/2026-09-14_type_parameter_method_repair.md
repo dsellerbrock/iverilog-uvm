@@ -58,3 +58,5 @@ contains only the DPI export C generation note. This replays the existing
 Final diff review and whitespace check pass. Local integration follows; no
 remote publication is authorized by this checkpoint. Old-release function-valued
 constraints and corrected broad qualification remain outstanding.
+
+Local semantic integration: `f57a08a78` (fast-forward onto local main).
