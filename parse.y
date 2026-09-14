@@ -3780,6 +3780,23 @@ class_item /* IEEE1800-2005: A.1.8 */
 
   | parameter_declaration
 
+    /* L41: `import pkg::*;' directly in a class body is syntactically
+       parseable SystemVerilog -- just semantically illegal (IEEE
+       1800-2017/2023 A.1.8/A.2.1.3 footnote: "It shall be illegal to
+       have an import statement directly within a class scope"). Give it
+       its own class_item alternative so it reaches
+       pform_package_import()'s dedicated class-scope check and gets ONE
+       focused diagnostic, instead of falling through to the generic
+       `error ';'' recovery below: that used to derail on the bare
+       `import' keyword, then resynchronize and blame a LATER, unrelated
+       line via the `IDENTIFIER error ';'' rule above ("<name> doesn't
+       name a type") -- a real, observed OpenTitan misdiagnosis
+       (ac_range_check_env_cov.sv, pwrmgr_base_vseq.sv). Scoped narrowly
+       to the class-body case via pform_package_import()'s PClass check;
+       whether import inside a method body works at all is a separate,
+       pre-existing question this change does not touch either way. */
+  | package_import_declaration
+
     /* Empty class item */
   | ';'
 

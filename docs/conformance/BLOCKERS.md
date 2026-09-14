@@ -1692,7 +1692,74 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   L36+L37+L38+L39+L40 changeset (elab_expr.cc, tgt-vvp/eval_vec4.c,
   netmisc.cc, plus 9 new permanent ivtest cases): integrated ivtest,
   JSON/VVP, UVM, NFA dual-run, UVM release matrix, frontend (alone/last).
-  See `evidence/campaign-20260908/l36/`...`l40/` for exact counts and
+  Final counts: integrated ivtest 4989/4984/0F/2NI/3EF, JSON/VVP 1873/0,
+  UVM 357/0/0, NFA dual-run 58/58, UVM release matrix 15/15 SMOKE_PASS
+  (all 15, including 1.0p1 -- restored by L37's follow-up class-cast
+  fix), frontend all S1-S12. Merged as PR #277 (2026-09-12), all 6 CI
+  platforms green (macOS, Ubuntu 22.04/24.04, MINGW64, UCRT64, CLANG64).
+  See `evidence/campaign-20260908/l36/`...`l40/` for reducers and
   `installed-frozen-sha256.json` for the post-install binary hash diff.
-  (Filled in after the gate run this pass; see session status report for
-  the live numbers if this note is read before the commit lands.)
+
+### L41 — Class-body `import` statement misdiagnosed on error recovery
+
+- **Status:** CLOSED 2026-09-13. Found while rebaselining OpenTitan after
+  PR #277 -- re-verifying the original goal file's "parameterized-class
+  inheritance blocking `ac_range_check_env_cov`" priority item against
+  fresh census data.
+- **Symptom:** an `import pkg::*;` statement written directly inside a
+  class body (illegal per IEEE 1800-2017/2023 A.1.8/A.2.1.3, footnote:
+  "It shall be illegal to have an import statement directly within a
+  class scope" -- confirmed independently by Slang, `error: package
+  import not allowed in class declaration`) was already correctly
+  rejected by Icarus, but only via bison's generic syntax-error recovery
+  on the bare `import` keyword: a bare `syntax error` + `Invalid class
+  item.`, after which recovery resynchronizes mid-declaration and emits
+  several misleading follow-on errors (e.g. `<pkg> doesn't name a type`)
+  that blame later, unrelated lines instead of naming the actual illegal
+  construct. This produced a real misdiagnosis in the field: the original
+  2026-08-26 OpenTitan baseline session mischaracterized this exact
+  construct in `ac_range_check_env_cov.sv` as "parameterized-class
+  inheritance" being unimplemented -- a defect that never existed. (This
+  specific misdiagnosis was already caught and corrected by an earlier
+  session, recorded as memory `class-body-import-is-illegal`; L41 is the
+  follow-through fix for the diagnostic-quality half of that finding.)
+- **Root cause:** `parse.y`'s `class_item` production has no
+  `package_import_declaration` alternative, so a bare `K_import` directly
+  in a class body cannot be matched by any `class_item` alternative and
+  falls straight to the generic `error ';'` / `error ';'` (with an
+  `IDENTIFIER error ';'` variant that produces the misleading "doesn't
+  name a type" text) recovery rules at the bottom of that production.
+- **Fix:** Added `package_import_declaration` as a `class_item`
+  alternative (parse.y) so the construct parses successfully and reaches
+  `pform_package_import()` (pform_package.cc) instead of derailing.
+  `pform_package_import()` now checks `dynamic_cast<const PClass*>(pform_peek_scope())`
+  and, when the immediate enclosing scope IS the class body itself (not a
+  method's own function/task scope nested inside it -- `PClass` is a
+  `LexicalScope` via `PScopeExtra`/`PScope`; a method's scope is a
+  different, non-`PClass` `LexicalScope` even though its parent is one),
+  reports one focused, citation-bearing error and refuses the import
+  (does not add its symbols to the scope) instead of proceeding. Verified
+  zero new bison grammar conflicts (563 shift/reduce, 1122 reduce/reduce,
+  identical totals before and after this change).
+- **Verified against real OpenTitan source:** `ac_range_check_env_cov.sv:12`
+  hard-error-count dropped from 72 to 69 (line 12 is now the single clean
+  diagnostic; the line-19 cascade was already present in the ORIGINAL,
+  unfixed trace too -- confirmed separate and pre-existing, not something
+  this fix left unaddressed). `pwrmgr_base_vseq.sv:21` (3 tops) dropped
+  from 4 to 3 hard errors each (now one clean diagnostic; the remaining 2
+  errors are a wholly unrelated duplicate-module-declaration issue in a
+  different file, `pwrmgr_csr_assert_fpv.sv`).
+- **An unverified claim caught and corrected in-flight:** the first draft
+  of this fix's comments asserted "an import inside a method body is
+  unaffected, still legal" without testing it. It doesn't hold: `import
+  pkg::*;` written ANYWHERE inside an ordinary (non-class) function or
+  task body already fails with a plain syntax error in Icarus today,
+  completely independent of this fix or of classes at all. Corrected the
+  comments before closing; recorded as `DISCOVERED_DEBT.md` DD-018, a
+  separate, unfixed, untriaged finding -- not investigated further here.
+- **Permanent regression:** `ivtest/ivltests/sv_class_body_import_fail.v`
+  (new, `CE`).
+- **Validation:** integrated ivtest 4990/4985/0F/2NI/3EF, JSON/VVP 1873/0,
+  UVM 357/0/0, NFA dual-run 58/58, UVM release matrix 15/15 SMOKE_PASS,
+  frontend all S1-S12.
+- **Evidence:** `evidence/campaign-20260908/l41/`.

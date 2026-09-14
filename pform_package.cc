@@ -21,6 +21,7 @@
 # include  <cstdarg>
 # include  "pform.h"
 # include  "PPackage.h"
+# include  "PClass.h"
 # include  "parse_misc.h"
 # include  "parse_api.h"
 # include  <map>
@@ -138,6 +139,38 @@ PPackage *pform_package_importable(PPackage *pkg, perm_string name)
 void pform_package_import(const struct vlltype&loc, PPackage*pkg, const char*ident)
 {
       LexicalScope*scope = pform_peek_scope();
+
+      // L41: an import statement is illegal directly within a class scope
+      // (IEEE 1800-2017/2023 A.1.8/A.2.1.3, footnote: "It shall be illegal
+      // to have an import statement directly within a class scope"). The
+      // grammar's class_item list has no package_import_declaration
+      // alternative, so this used to reach here only via bison's generic
+      // syntax-error recovery on the bare `import' keyword -- a bare
+      // "syntax error" plus "Invalid class item.", after which recovery
+      // resynchronizes mid-declaration and emits several misleading
+      // follow-on errors (e.g. "<pkg> doesn't name a type") that blame
+      // unrelated later lines instead of naming the actual illegal
+      // construct. That path is now closed off earlier in the grammar
+      // (class_item gained a package_import_declaration alternative that
+      // routes here instead of derailing the parse); this check is what
+      // makes that alternative a hard rejection rather than a silent
+      // accept. This check is scoped narrowly to the class-body case: a
+      // method's own scope (function/task) is NOT a PClass even though
+      // its parent is one, so this check does not fire there. Whether
+      // Icarus's function/task-body import support itself is complete is
+      // a SEPARATE, untouched question -- do not read this comment as a
+      // claim that it works; a quick probe during this fix found
+      // `import pkg::*;' anywhere inside an ordinary (non-class)
+      // function body already fails with a plain syntax error,
+      // independent of this change. Not investigated or fixed here; see
+      // DISCOVERED_DEBT.md.
+      if (dynamic_cast<const PClass*>(scope)) {
+	    cerr << loc.get_fileline() << ": error: An import statement is "
+		    "illegal directly within a class scope (IEEE "
+		    "1800-2017/2023 A.1.8/A.2.1.3)." << endl;
+	    error_count += 1;
+	    return;
+      }
 
       if (ident) {
 	    perm_string use_ident = lex_strings.make(ident);
