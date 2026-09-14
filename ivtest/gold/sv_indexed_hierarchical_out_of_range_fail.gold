@@ -1,0 +1,2 @@
+./ivltests/sv_indexed_hierarchical_out_of_range_fail.v:7: error: Scope index for `dut' is out of range.
+Elaboration failed

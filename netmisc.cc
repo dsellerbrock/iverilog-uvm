@@ -2849,10 +2849,37 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 		  return hname_t(comp.name, 0);
 	    }
 
-	    if (NetEConst*ctmp = dynamic_cast<NetEConst*>(tmp)) {
-		  index_values.push_back(ctmp->value().as_long());
+	    NetEConst*ctmp = dynamic_cast<NetEConst*>(tmp);
+	    if (ctmp && ctmp->value().is_defined()) {
+		  bool negative = false;
+		  uint64_t magnitude = verinum_signed_magnitude(
+			ctmp->value(), negative);
+		  /* hname_t stores every elaborated scope index as an int. */
+		  uint64_t negative_limit =
+			static_cast<uint64_t>(INT_MAX) + 1;
+		  bool in_range = negative ? magnitude <= negative_limit
+					   : magnitude <= INT_MAX;
+		  if (in_range) {
+			int use_index;
+			if (!negative)
+			      use_index = static_cast<int>(magnitude);
+			else if (magnitude == negative_limit)
+			      use_index = INT_MIN;
+			else
+			      use_index = -static_cast<int>(magnitude);
+			index_values.push_back(use_index);
+			delete ctmp;
+			continue;
+		  }
+		  if (!quiet) {
+			cerr << index.msb->get_fileline() << ": error: "
+			     << "Scope index expression is outside the supported "
+				"scope-index range: " << *index.msb << endl;
+			des->errors += 1;
+		  }
+		  error_flag = true;
 		  delete ctmp;
-		  continue;
+		  return hname_t(comp.name, 0);
 	    }
 	      // Darn, the expression doesn't evaluate to a constant. A
 	      // quiet probe (e.g. Design::find_signal() checking whether a

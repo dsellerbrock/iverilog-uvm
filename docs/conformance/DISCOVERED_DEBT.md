@@ -1033,6 +1033,13 @@ members no longer fall back to compilation-unit task/function shadows or
 warning/no-op paths. IEEE 23.7.1 requires this downward-only resolution.
 Legacy 4/4 and JSON 8/8 pass; hierarchical and class fallback debt remains open.
 
+L52 resolves fixed indexed hierarchy through the ordinary task/function path
+and rejects missing members on proven indexed scopes. Module/generate tasks,
+copy-out, delays, void functions and object-array controls pass (legacy 5/5,
+JSON 10/10). Unknown/out-of-range/over-wide instance selections are diagnosed;
+legal negative indices including INT_MIN pass. Unindexed missing hierarchical
+tasks and class fallback paths remain OPEN. Full batch qualification is pending.
+
 ### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
 
 - **Discovered during:** L44 boundary validation.

@@ -13754,7 +13754,25 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    ivl_assert(*this, pscope);
       }
 
-	      if (gn_system_verilog() && has_indexed_path_component) {
+	/* An indexed prefix can name either a fixed hierarchical scope or a
+	 * runtime-selected object. Resolve the receiver alone first so module
+	 * instance arrays and generate scopes retain ordinary task lookup. */
+      bool indexed_hierarchical_receiver = false;
+      if (gn_system_verilog() && has_indexed_path_component
+	  && path_.size() > 1) {
+	    pform_name_t receiver_path = path_;
+	    receiver_path.pop_back();
+	    symbol_search_results receiver;
+	    unsigned errors_before = des->errors;
+	    bool found = symbol_search(this, des, pscope, receiver_path,
+				UINT_MAX, &receiver);
+	    if (receiver.scope_index_error || des->errors != errors_before)
+		  return 0;
+	    indexed_hierarchical_receiver = found && receiver.is_scope();
+      }
+
+	      if (gn_system_verilog() && has_indexed_path_component
+		  && !indexed_hierarchical_receiver) {
 		      // Hierarchical task lookup treats indexed path components as scope
 		      // indices (which must be constant). For SV object methods like
 		      // q[idx].method(), try method elaboration first and otherwise
@@ -13904,6 +13922,13 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		    // Or it could be a function call ignoring the return?
 		  tmp = elaborate_function_(des, scope);
 		  if (tmp) return tmp;
+	    }
+
+	    if (indexed_hierarchical_receiver) {
+		  cerr << get_fileline() << ": error: Enable of unknown task "
+		       << "``" << path_ << "''." << endl;
+		  des->errors += 1;
+		  return 0;
 	    }
 
 	    /* IEEE 1800-2017 18.12, Syntax 18-11 makes the `std::` prefix

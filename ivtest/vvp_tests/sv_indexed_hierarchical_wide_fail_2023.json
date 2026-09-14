@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_indexed_hierarchical_wide_fail.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_indexed_hierarchical_wide_fail_2023"
+}

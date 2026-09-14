@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_indexed_hierarchical_task_lookup.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_indexed_hierarchical_task_lookup"
+}

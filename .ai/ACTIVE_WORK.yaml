@@ -1,29 +1,27 @@
-id: L51
-title: Resolve and diagnose package-qualified task calls
+id: L52
+title: Resolve indexed hierarchical task calls
 status: FOCUSED_VALIDATED
-base_revision: c20349f51
+base_revision: 904a835ae
 origin: DD-020
 standards:
-  - IEEE 1800-2017 13.3 and 23.8.1
-  - IEEE 1800-2023 13.3 and 23.8.1
+  - IEEE 1800-2017 13.3, 23.6 and 23.8.1
+  - IEEE 1800-2023 13.3, 23.6 and 23.8.1
 reproducer:
-  - evidence/unresolved-task-assessment/missing_package_task.sv
-  - evidence/unresolved-task-assessment/missing_package_shadow.sv
-  - evidence/unresolved-task-assessment/missing_package_self.sv
-  - evidence/unresolved-task-assessment/qualified_package_self_valid.sv
-current_behavior: Explicit package-qualified calls can reach compile-progress no-ops; the alternate same-package path form also fails to resolve a valid forward task.
-expected_behavior: Valid package tasks and statement-form functions resolve in package scope, including same-package forward calls; an absent package member produces the existing unknown-task error even when a same-named class method exists.
+  - evidence/unresolved-task-assessment/indexed_hier_task_valid.sv
+  - evidence/unresolved-task-assessment/indexed_object_task_valid.sv
+current_behavior: Every indexed task path is treated as an object-method candidate, so a valid task on a constant-selected module instance is silently discarded.
+expected_behavior: A receiver proven by symbol lookup to be a module, instance-array or generate scope proceeds through ordinary hierarchical task/function resolution. Indexed object arrays retain dynamic method dispatch; invalid scope indices and missing tasks are diagnosed.
 allowed_scope:
-  - PCallTask package-scope identification, task lookup and final unresolved-call fallback
+  - PCallTask indexed-path receiver classification and hierarchical lookup routing
   - Focused positive and negative tests, registrations, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - Unqualified, class, object, interface or deferred unknown-call fallbacks
-  - Indexed hierarchical task calls tracked by L52
-  - Broad suites before the campaign batch boundary
+  - General class, object, interface, deferred or compile-progress fallback redesign
+  - Dynamic selection of module or generate instances
+  - Broad suites before the tenth-feature batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 8
-last_validated_revision: Uncommitted L51 tree. Incremental build/install passed; focused legacy 4/4 and JSON 8/8 passed. Valid package task/function calls, same-package forward lookup and exported members execute; module, class-shadowed, same-package, and compilation-unit-shadowed misses are rejected in both editions.
-pending_gates: Broad suites remain deferred until the campaign batch boundary.
-next_action: Root review and atomic integration, then L52 indexed hierarchical task resolution.
-discovery_policy: Other qualified lookup gaps remain separate debt.
+focused_features_before_this: 9
+last_validated_revision: Uncommitted L52 tree. Incremental build/install passed; focused legacy 5/5 and JSON 10/10 passed. Constant-selected module-array and generate tasks execute with delay, arguments and copyout; indexed void functions and runtime-selected object methods execute; missing, nonconstant, X, out-of-range and over-wide scope indices are rejected in both editions.
+pending_gates: Root review, then the deferred full batch gate for ten focused features.
+next_action: Root review and atomic integration, then the ten-feature batch qualification.
+discovery_policy: Other unresolved hierarchical lookup gaps remain separate debt.
 stop_after_completion: false
