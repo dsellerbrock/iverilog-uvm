@@ -1671,6 +1671,9 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 
       int ix = allocate_word();
       for (idx = 0 ; idx < word_count ; idx += 1) {
+	    /* A function call may leave flag 4 set. Constant source words are
+	     * valid independently of that prior conversion state. */
+	    fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
 	    unsigned src_word = uarray_decl_to_canonical_(retval, 0, idx);
 	    unsigned dst_word = uarray_decl_to_canonical_(dst_sig,
 						     dst_first, idx);

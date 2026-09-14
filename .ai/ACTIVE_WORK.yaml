@@ -1,27 +1,20 @@
-id: L62
-title: Preserve wide fixed string-array indices at runtime
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: 841aec48d
-origin: DD-029
-standards:
-  - IEEE 1800-2017/2023 7.4.6 and 11.5.1
+id: BATCH-L53-L62-LEGACY-REPAIRS
+title: Repair four integrated legacy regressions
+status: FOCUSED_VALIDATED
+base_revision: 6d617022d
+origin: L56/L57/L62 batch qualification
 allowed_scope:
-  - Fixed unpacked string-array reads with signed and unsigned wide indices
-  - Empty-string defaults for X/Z, out-of-range, and unrepresentable indices
-  - Existing native array bounds and shared index-conversion flag contract
-  - Common unsigned unpacked-index normalization needed to preserve overflow flags, with integral/logic/real sibling controls
+  - Clear stale flag 4 before fixed unpacked-array function-return loads
+  - Preserve unsigned checked-index zero extension through synthesis
+  - Keep normalized fixed-array indices live for deferred strobe and monitor sampling
+  - Correct oversized signed_a array-index expectation while retaining a valid index control
 forbidden_scope:
-  - String-array writes, dynamic arrays, queues, and unrelated index consumers
-  - Broad suites before the feature-batch checkpoint
+  - Constraint-function no-op behavior
+  - General deferred-expression lowering beyond normalized fixed-array indices
+  - Real and string array-return element stores (DD-031)
 validation_batch: 20260914
-focused_features_before_this: 9
-last_validated_revision: Module, automatic-function, sibling read, and invalid-store matrices pass 32/32; permanent focused legacy 1/1, JSON 2/2, and four existing string/array neighbors pass with the final installed compiler/target/runtime.
-pending_gates: Root review, local integration, and ten-feature batch qualification.
+focused_features_before_this: 10
+last_validated_revision: Exact four legacy failures plus permanent strobe control pass 5/5; JSON editions pass 2/2; five close neighbors pass 5/5; deferred immediate/final capture controls pass 2/2. Installed ivl bec6fae4, vvp target 48ee3f66, runtime 65baa472.
+pending_gates: Root review, integration, and corrected batch qualification.
 next_action: Keep source and tests frozen for root review.
 stop_after_completion: false
-
-l60_root_final: "Root94/94 +6/6literalXchecks and10/10neighbors pass. Corrected consumers with originalindexconverter; no preponedchange. Ready for localintegration; broadgatespending."
-
-l60_local_integration: "bceb03f89 on local main; eighth focusedfeature. Root94+6 and10neighbors pass; permanent4legacy8JSON. Broadgatespending. DD028next."
-
-local_integration: "5dfcc959f on localmain; tenth feature. Full batch gates pending."

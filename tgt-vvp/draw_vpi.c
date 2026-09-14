@@ -50,6 +50,25 @@ struct deferred_vpi_call_info {
       int is_final;
 };
 
+static int is_live_sample_task_(const char*name)
+{
+      static const char*bases[] = {
+	    "$strobe", "$fstrobe", "$monitor", "$fmonitor"
+      };
+      unsigned idx;
+      if (!name) return 0;
+      for (idx = 0; idx < sizeof bases / sizeof bases[0]; idx += 1) {
+	    size_t len = strlen(bases[idx]);
+	    const char*suffix;
+	    if (strncmp(name, bases[idx], len) != 0) continue;
+	    suffix = name + len;
+	    if (!*suffix || ((suffix[0] == 'b' || suffix[0] == 'h'
+			       || suffix[0] == 'o') && !suffix[1]))
+		  return 1;
+      }
+      return 0;
+}
+
 static const char* magic_sfuncs[] = {
       "$time",
       "$stime",
@@ -1003,12 +1022,66 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  }
 		  break;
 
-		case IVL_EX_SIGNAL:
-		case IVL_EX_PROPERTY:
-		case IVL_EX_SELECT:
-		  if (!force_value_capture) {
-			args[idx].stack = vec4_stack_need;
-			if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
+	case IVL_EX_SIGNAL:
+	case IVL_EX_PROPERTY:
+	case IVL_EX_SELECT:
+	  {
+	  int live_sample = !force_value_capture
+		&& is_live_sample_task_(tf_name);
+	  if (!force_value_capture) {
+		args[idx].stack = vec4_stack_need;
+		/* normalize_variable_unpacked represents an unsigned index as a
+		 * one-bit zero extension followed by a signed wrapper. In the IVL
+		 * expression both are pad selects (no base operand). Peel only those
+		 * wrappers when forming a live sampled array handle. Any real
+		 * bit/part selection beneath them retains its base operand. */
+		if (live_sample && ivl_expr_type(expr) == IVL_EX_SIGNAL
+		    && ivl_signal_dimensions(ivl_expr_signal(expr)) != 0) {
+		      ivl_expr_t outer = ivl_expr_oper1(expr);
+		      ivl_expr_t inner = outer && ivl_expr_type(outer) == IVL_EX_SELECT
+			    && !ivl_expr_oper2(outer) ? ivl_expr_oper1(outer) : 0;
+		      ivl_expr_t word = inner && ivl_expr_type(inner) == IVL_EX_SELECT
+			    && !ivl_expr_oper2(inner) ? ivl_expr_oper1(inner) : 0;
+		      if (!(outer && inner && word
+			    && ivl_expr_signed(outer)
+			    && !ivl_expr_signed(inner)
+			    && !ivl_expr_signed(word)
+			    && ivl_expr_width(outer) == ivl_expr_width(inner)
+			    && ivl_expr_width(inner) > ivl_expr_width(word)))
+			    word = 0;
+		      /* An explicit leading-zero concatenation is another lossless
+		       * spelling of the same live index. Preserve the selected source;
+		       * nonzero/multiple data operands still use value capture. */
+		      if (word && ivl_expr_type(word) == IVL_EX_CONCAT
+			  && ivl_expr_repeat(word) == 1 && ivl_expr_parms(word) == 2) {
+			    ivl_expr_t zero = ivl_expr_parm(word, 0);
+			    ivl_expr_t data = ivl_expr_parm(word, 1);
+			    if (zero && data && number_is_immediate(zero, 64, 1)
+				&& !number_is_unknown(zero)
+				&& get_number_immediate64(zero) == 0)
+			      word = data;
+			    else
+			      word = 0;
+		      }
+		      if (word) {
+			    if (ivl_expr_type(word) == IVL_EX_SIGNAL
+				|| ivl_expr_type(word) == IVL_EX_SELECT) {
+				  args[idx].child = calloc(1, sizeof(struct args_info));
+				  if (get_vpi_taskfunc_signal_arg(args[idx].child, word)) {
+					char live[4096];
+					snprintf(live, sizeof live, "&A<v%p, %s >",
+						 ivl_expr_signal(expr), args[idx].child->text);
+					free(args[idx].child->text);
+					args[idx].text = strdup(live);
+					args[idx].stack = 0;
+					continue;
+				  }
+				  free(args[idx].child);
+				  args[idx].child = NULL;
+			    }
+		      }
+		}
+		if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
 			      if (args[idx].vec_flag) {
 				    vec4_stack_need += 1;
 			      } else {
@@ -1017,8 +1090,9 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 			      continue;
 			}
 			args[idx].stack = 0;
-		  }
-		  break;
+	  }
+	  }
+	  break;
 		case IVL_EX_NULL:
 		  snprintf(buffer, sizeof buffer, "null");
 		  args[idx].text = strdup(buffer);

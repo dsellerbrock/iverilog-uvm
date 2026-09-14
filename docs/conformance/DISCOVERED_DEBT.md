@@ -1676,3 +1676,17 @@ L62 frozen review:68/68 root cases, permanentlegacy1/1 JSON2/2, fourneighbors.
 Direct two-state element comparison also verifies conversion after generic
 vector array load, before any assignment can hide X. Source reviewed; batch
 qualification remains pending. Evidence `root-final/results.json`.
+
+### DD-031 — Real/string array-return element stores take scalar return path
+
+Status: OPEN, observed during L53–L62 batch repair review.
+Legal automatic functions returning typedef unpacked arrays and assigning
+individual result elements in a loop abort compilation for real and string
+elements: store_real_to_lval at stmt_assign.c2654 and
+show_stmt_assign_sig_string at stmt_assign.c2773 assert dimensions==0.
+The scalar return-value special case precedes fixed-array element handling.
+Integral and logic variants compile but reproduce the separately diagnosed
+stale flag4 on the first returned element. Whole-array pattern results in the
+existing sv_uarray_func_return test do not cover these element assignments.
+Paired2017/2023 evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/baseline-results.json`.
+Do not claim full typed array-return support from whole-pattern tests alone.

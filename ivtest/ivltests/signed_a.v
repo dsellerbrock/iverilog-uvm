@@ -18,10 +18,17 @@ module top;
     end
 
     b = 7;
-    b[120] = 1'b1; // This should be stripped!
+    b[120] = 1'b1;
+    $sformat(res, "%b", array[b]);
+    if (res !== "xxxx") begin
+      $display("Failed: &A<> large, expected 4'bxxxx, got %s.", res);
+      pass = 1'b0;
+    end
+
+    b = 7;
     $sformat(res, "%b", array[b]);
     if (res !== "1001") begin
-      $display("Failed: &A<> large, expected 4'b1001, got %s.", res);
+      $display("Failed: &A<> valid, expected 4'b1001, got %s.", res);
       pass = 1'b0;
     end
 

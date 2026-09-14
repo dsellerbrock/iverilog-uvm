@@ -1643,10 +1643,20 @@ NetNet* NetESFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  }
 		  auto raw_value = [raw_net, this]() -> NetExpr* {
 			NetExpr*value = new NetESignal(raw_net);
-			if (!raw_net->get_signed())
+			if (!raw_net->get_signed()) {
 			      value = pad_to_width(value,
-					   raw_net->vector_width()+1, *this);
-			value->cast_signed(true);
+				   raw_net->vector_width()+1, *this);
+			      /* Keep the added bit zero-filled. Changing the pad node
+			       * itself to signed makes synthesis sign-extend the raw
+			       * unsigned index before the bounds comparison. */
+			      NetESelect*as_signed = new NetESelect(
+				    value, 0, value->expr_width());
+			      as_signed->set_line(*this);
+			      as_signed->cast_signed(true);
+			      value = as_signed;
+			} else {
+			      value->cast_signed(true);
+			}
 			return value;
 		  };
 		  NetExpr*ge = new NetEBComp('G', raw_value(),

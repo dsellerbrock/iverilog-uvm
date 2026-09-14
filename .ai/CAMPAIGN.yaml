@@ -1,7 +1,7 @@
 status: active
-branch: "main"
+branch: "agent/batch-l53-l62-regression-repairs-20260914"
 current_blocker: "DD-029 wide fixed string-array reads alias valid elements"
-phase: "batch_qualification"
+phase: "batch_regression_repairs"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
@@ -965,3 +965,20 @@ l62_signedness_width_controls: "32/32 paired int/logic/real/string controls at i
 l62_final_freeze: "Root68/68 stable b99ccb58/e3b1a404/65baa472; permanentlegacy1/1 JSON2/2 neighbors4/4. Direct int expression regression requires declared two-state conversion after generic array load, included. Source/tests reviewed. Ready localintegration then fullbatchgates."
 
 l62_local_integration: "5dfcc959f fast-forwarded localmain; tenth focusedfeature. Seven full gates next; previous broadqualifiedbaseline remainsc686a4781. No remotes/newtrees."
+
+batch_l53_l62_firstpass: "All7gates terminal at6d617022d. JSON1971/0,UVM357/0/0 realDPI,NFA58,makecheck,frontend12 pass. Integratedlegacy5041total5032pass4fail2NI3EF; VPI108,negative149,runtime15,copyout6,exports66pass. Releases8SMOKE_PASS7COMPILE_FAIL. All6installedhashesrestored; trackedclean. Notqualified. Evidence qualification/first-pass-summary.json."
+batch_l53_l62_repairs_start: "Samecheckout branch from6d617022d; reusedworker legacy4repairs with cheaptests. Rootownsdoc/evidence. UVM release missingconstraintfunction semantics require actualpresolveevaluation, noemptyconstraint_modestub. Statictypeparammethodlookup separate. Lastbroadqualifiedbaseline staysc686a4781."
+
+release_constraint_semantic_baseline: "Root paired function-valued state constraint warnsignored then randomize returns1 withwrongx; modeenable/disable form failslookup. Equivalentdirectstate-variablecontrols all4pass includingunsat. Evidence uvm-release-regression-assessment/semantic/{baseline-results,direct-control-results}.json. Existing randomize_invoke_hook_/free_hook_ supplies frame/reentry machinery forfutureactualpresolvefunctionevaluation."
+
+batch_return_type_sibling: "Root8paired element-return-loop probes: int/logic4wrongfirstword, real/string4compilerabort scalarreturn dimensionassertions. DD031 recorded; worker alerted. Strobe padding controls prepared to prevent erasing genuineOOBselectXbits. No broad rerun."
+
+legacy_repair_root_first: "Candidatebec6fae4/5883cae4/65baa472 passes4integral/logic elementreturn probes and6synthesis reductions. Fourreal/string wholepattern+terminalcomparison returnload probes also pass. Strobe10stillSORRY onfirstcandidate; DD031elementreturn4stillabort. Evidence root-repair-replay/first.json andreturn-patterns/candidate-results.json. Worker continuingactualstrobeIR investigation."
+
+repair_additional_oracles: "Deferred strobe cast controls preserve explicit8bittruncation andsigned/unsigned reinterpretation; blindSELECT-padpeeling rejected atreview. Root type-parameter staticmethod reducer failsbothmodes with exactLIBTYPElookup, independent ofUVM. Evidence strobe-casts/first-results.json anduvm-release-regression-assessment/type-parameter-baseline.json."
+
+legacy_repair_root_second: "Stabletarget23e7239f passes10deferredstrobe outcomes includinglive5/128bitindex,OOBpackedselectX,andzeroextension. Sixexplicitcaststrobe cases remainfocusedSORRY, notsilentwrongvalues. Originalfourreplay restored: signed_a,arrayreturn,synthPASSED; pr1830834onlyline22SORRYmatchesexistinggold. Permanentexactharness/freeze pending. Evidence root-repair-replay/{strobe-second,original-four}.json."
+
+legacy_repair_final_review_pending: "Exactfourlegacyharness4/4pass final4/four.log. Neighborpr1988302b expectedCE perregress-vlg.list, worker correctingfocusedlist. Filevariantsfstrobe/fmonitor root4paired currentlySORRY; same-familyrepair requestedbeforefreeze. PermanentpairedJSONregistration pending. ActualUVMpick-sequence2paired reducer ignoreslegalfunctionconstraint then returnswrongvalue withsuccess; semantic/pick-sequence-baseline.json."
+
+legacy_repairs_frozen: "Reviewfinal5legacy2JSON2deferredcontrols allpass; neighbors5pass. Root22/24finalreplay passes;2fmonitor cases retainconstantwordrestrictiondiagnostic, notclaimedfixed. Finaltarget48ee3f66; compilerbec6fae4/runtime65baa472. Ready localintegration; all4originallegacyoutcomes restored. UVMrelease7failuresremain andno broadretestyet."
