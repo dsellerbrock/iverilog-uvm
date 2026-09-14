@@ -53,3 +53,6 @@ restriction; dynamic monitor support is not claimed. Six explicitcast sampled
 indices likewise remain diagnosed. Finaltarget SHA:
 `48ee3f6609c7c4c1da28572388c8b0d356631eb7dcdd8fd9da55aecfd96d2b58`.
 The forced-capture bypass was removed; assertion capture rules remain enforced.
+
+Legacy repairs locally integrated as `fac7f8a11`. Release fixes precede the
+corrected broad rerun; the last qualified baseline is still `c686a4781`.

@@ -1,6 +1,6 @@
 id: BATCH-L53-L62-LEGACY-REPAIRS
 title: Repair four integrated legacy regressions
-status: FOCUSED_VALIDATED
+status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
 base_revision: 6d617022d
 origin: L56/L57/L62 batch qualification
 allowed_scope:
@@ -18,3 +18,5 @@ last_validated_revision: Exact four legacy failures plus permanent strobe contro
 pending_gates: Root review, integration, and corrected batch qualification.
 next_action: Keep source and tests frozen for root review.
 stop_after_completion: false
+
+local_integration: fac7f8a11

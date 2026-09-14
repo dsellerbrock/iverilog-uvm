@@ -1,5 +1,5 @@
 status: active
-branch: "agent/batch-l53-l62-regression-repairs-20260914"
+branch: "main"
 current_blocker: "DD-029 wide fixed string-array reads alias valid elements"
 phase: "batch_regression_repairs"
 policy_checkpoint: 5f0be599c
@@ -982,3 +982,5 @@ legacy_repair_root_second: "Stabletarget23e7239f passes10deferredstrobe outcomes
 legacy_repair_final_review_pending: "Exactfourlegacyharness4/4pass final4/four.log. Neighborpr1988302b expectedCE perregress-vlg.list, worker correctingfocusedlist. Filevariantsfstrobe/fmonitor root4paired currentlySORRY; same-familyrepair requestedbeforefreeze. PermanentpairedJSONregistration pending. ActualUVMpick-sequence2paired reducer ignoreslegalfunctionconstraint then returnswrongvalue withsuccess; semantic/pick-sequence-baseline.json."
 
 legacy_repairs_frozen: "Reviewfinal5legacy2JSON2deferredcontrols allpass; neighbors5pass. Root22/24finalreplay passes;2fmonitor cases retainconstantwordrestrictiondiagnostic, notclaimedfixed. Finaltarget48ee3f66; compilerbec6fae4/runtime65baa472. Ready localintegration; all4originallegacyoutcomes restored. UVMrelease7failuresremain andno broadretestyet."
+
+legacy_repairs_integrated: "fac7f8a11 fastforwardedlocalmain; rootfocused22passplus2documentedmonitorunsupported, originalfourrestored. Nextrelease typeparamstaticlookup andrealfunctionconstraint semantics. DD031retained. Broadbaselinec686a4781 unchanged untilcorrectedgates."
