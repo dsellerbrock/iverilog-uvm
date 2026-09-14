@@ -1,22 +1,19 @@
-id: BATCH-L53-L62-LEGACY-REPAIRS
-title: Repair four integrated legacy regressions
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: 6d617022d
-origin: L56/L57/L62 batch qualification
+id: RELEASE-TYPE-PARAMETER-STATIC-METHOD
+title: Resolve type-parameter-qualified class methods
+status: FOCUSED_VALIDATED
+base_revision: db7d2bf01
 allowed_scope:
-  - Clear stale flag 4 before fixed unpacked-array function-return loads
-  - Preserve unsigned checked-index zero extension through synthesis
-  - Keep normalized fixed-array indices live for deferred strobe and monitor sampling
-  - Correct oversized signed_a array-index expectation while retaining a valid index control
+  - Resolve static task and function statement calls through concrete class type parameters
+  - Defer calls only while the enclosing parameterized class template is unspecialized
+  - Preserve implicit-this dispatch for legal superclass-qualified non-static calls
+  - Diagnose unrelated or static-context non-static calls and missing/nonclass receivers
 forbidden_scope:
-  - Constraint-function no-op behavior
-  - General deferred-expression lowering beyond normalized fixed-array indices
-  - Real and string array-return element stores (DD-031)
+  - Identifier or method-name no-op stubs
+  - Constraint-function state or constraint_mode implementation
+  - General class/object/package/hierarchy dispatch rewrites
+focused_features_before_this: 0
 validation_batch: 20260914
-focused_features_before_this: 10
-last_validated_revision: Exact four legacy failures plus permanent strobe control pass 5/5; JSON editions pass 2/2; five close neighbors pass 5/5; deferred immediate/final capture controls pass 2/2. Installed ivl bec6fae4, vvp target 48ee3f66, runtime 65baa472.
-pending_gates: Root review, integration, and corrected batch qualification.
-next_action: Keep source and tests frozen for root review.
+last_validated_revision: Legacy 5/5 and JSON 10/10 focused tests pass; independent receiver/task/function controls 18/18 pass.
+pending_gates: Corrected broad batch qualification after release repair cluster.
+next_action: Integrate locally, then implement real pre-solve function-valued constraints.
 stop_after_completion: false
-
-local_integration: fac7f8a11

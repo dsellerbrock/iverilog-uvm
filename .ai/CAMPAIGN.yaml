@@ -1,23 +1,23 @@
 status: active
-branch: "main"
-current_blocker: "DD-029 wide fixed string-array reads alias valid elements"
+branch: "agent/release-type-parameter-method-repair-20260914"
+current_blocker: "UVM release regressions: type-parameter method dispatch and function-valued constraints"
 phase: "batch_regression_repairs"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Ten focused features integrated locally; next approximately-ten-feature batch broad qualification pending."
+pending_gates: "L53-L62 broad qualification failed: four legacy failures repaired locally in fac7f8a11; seven release compile failures remain under repair. Corrected broad run pending repair cluster."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "L62 DD-029 wide fixed string-array reads"
-next_action: "Reuse worker for DD-029; qualify full batch after tenth focused feature."
-next_command: "Focused L62 string-array read implementation and paired index probes."
+next_selection: "Finish type-parameter scoped method dispatch, then implement real pre-solve constraint function evaluation."
+next_action: "Freeze worker implementation, review permanent isolated negatives and unchanged UVM 2020.3.2 smoke, integrate locally after focused validation."
+next_command: "Focused type-parameter method review; no per-fix full-suite rerun."
 next_command_cwd: repository root
 candidate_state: "L61 locally integrated as 497110d63; broad qualification remains c686a4781."
-installed_tools: "L61 focused build: ivl0f6667ad, target41b624bc, runtimea6788f42. Broad qualification remains c686a4781."
+installed_tools: "Current intermediate method-repair artifacts recorded by SHA256 in evidence/uvm-release-regression-assessment/root-method-controls/static-context-review.json. Broad baseline remains c686a4781."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
-next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
+next_validation: "Finish release repair cluster with cheap positive/negative reproducers, then rerun corrected combined qualification; frontend relocation gate last and alone."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -984,3 +984,5 @@ legacy_repair_final_review_pending: "Exactfourlegacyharness4/4pass final4/four.l
 legacy_repairs_frozen: "Reviewfinal5legacy2JSON2deferredcontrols allpass; neighbors5pass. Root22/24finalreplay passes;2fmonitor cases retainconstantwordrestrictiondiagnostic, notclaimedfixed. Finaltarget48ee3f66; compilerbec6fae4/runtime65baa472. Ready localintegration; all4originallegacyoutcomes restored. UVMrelease7failuresremain andno broadretestyet."
 
 legacy_repairs_integrated: "fac7f8a11 fastforwardedlocalmain; rootfocused22passplus2documentedmonitorunsupported, originalfourrestored. Nextrelease typeparamstaticlookup andrealfunctionconstraint semantics. DD031retained. Broadbaselinec686a4781 unchanged untilcorrectedgates."
+
+release_typeparam_repair_start: "Samecheckout fromdb7d2bf01 aftercanonicalgraphterminal0. Existing solworker implementsreal typeformal staticmethod lookup; pairedsemanticreducer prepared. Rootindependentconstraints tests. No newtree or broadretest."

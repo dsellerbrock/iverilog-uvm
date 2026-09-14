@@ -1690,3 +1690,11 @@ stale flag4 on the first returned element. Whole-array pattern results in the
 existing sv_uarray_func_return test do not cover these element assignments.
 Paired2017/2023 evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/baseline-results.json`.
 Do not claim full typed array-return support from whole-pattern tests alone.
+
+DD-031 follow-up: real array-return compound assignments also abort in both
+editions. Constant and dynamic selectors reach get_real_from_lval assertions
+at stmt_assign.c2564 and c2579 respectively. put_real_to_lval also unconditionally
+routes return signals through scalar `%ret/real`, so removing the read asserts
+alone would not be sufficient. Reuse the existing array load/store paths for
+array return storage, retaining the scalar return path only for scalar values.
+Evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/compound-baseline.json`.

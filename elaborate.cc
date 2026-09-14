@@ -764,7 +764,10 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 						   perm_string method_name,
 						   const parmvalue_t*leading_type_args = 0,
 						   bool*illegal_bare_generic = 0,
-						   perm_string*nonclass_typedef = 0)
+						   perm_string*nonclass_typedef = 0,
+						   bool*deferred_type_parameter = 0,
+						   bool*illegal_nonstatic = 0,
+						   bool*use_implicit_this = 0)
 {
       if (!gn_system_verilog())
 	    return nullptr;
@@ -775,6 +778,12 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    *illegal_bare_generic = false;
       if (nonclass_typedef)
 	    *nonclass_typedef = perm_string();
+      if (deferred_type_parameter)
+	    *deferred_type_parameter = false;
+      if (illegal_nonstatic)
+	    *illegal_nonstatic = false;
+      if (use_implicit_this)
+	    *use_implicit_this = false;
 
       const netclass_t*class_type = nullptr;
       bool first_comp = true;
@@ -791,6 +800,13 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 
 	    scoped_class_name_result_task_t resolved =
 		  resolve_scoped_class_type_name_task_(des, comp_scope, comp.name);
+	    if (!resolved.class_type
+		&& resolved.kind == SCOPED_CLASS_NAME_TASK_TYPE_PARAMETER
+		&& class_type_parameter_is_deferred(des, comp_scope, comp.name)) {
+		  if (deferred_type_parameter)
+			*deferred_type_parameter = true;
+		  return nullptr;
+	    }
 	    if (resolved.kind == SCOPED_CLASS_NAME_TASK_NONCLASS_TYPEDEF) {
 		  if (nonclass_typedef)
 			*nonclass_typedef = comp.name;
@@ -834,6 +850,34 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    return nullptr;
       if (method_scope->type() != NetScope::TASK && method_scope->type() != NetScope::FUNC)
 	    return nullptr;
+
+      const PTaskFunc*definition = method_scope->func_pform();
+      if (!definition) definition = method_scope->task_pform();
+      if (definition && !definition->method_qualifiers().test_static()) {
+	    const netclass_t*caller = scope->get_class_scope()
+		  ? scope->get_class_scope()->class_def() : nullptr;
+	    bool implicit_this = false;
+	    for (const netclass_t*cur = caller; cur; cur = cur->get_super())
+		  if (cur == class_type) {
+			implicit_this = true;
+			break;
+		  }
+	    for (NetScope*cur = scope; implicit_this && cur; cur = cur->parent()) {
+		  const PTaskFunc*caller_def = cur->func_pform();
+		  if (!caller_def) caller_def = cur->task_pform();
+		  if (!caller_def) continue;
+		  if (caller_def->method_qualifiers().test_static())
+			implicit_this = false;
+		  break;
+	    }
+	    if (implicit_this && !find_implicit_this_handle(des, scope))
+		  implicit_this = false;
+	    if (!implicit_this) {
+		  if (illegal_nonstatic) *illegal_nonstatic = true;
+		  return nullptr;
+	    }
+	    if (use_implicit_this) *use_implicit_this = true;
+      }
 
       return method_scope;
 }
@@ -13832,17 +13876,32 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    }
       }
       if (gn_system_verilog() && path_.size() > 1
-	  && !has_indexed_path_component
-	  && (leading_type_args() || (task && task->get_class_scope()))) {
+	  && !has_indexed_path_component) {
 	    pform_name_t type_path = path_;
 	    perm_string method_name = peek_tail_name(type_path);
 	    type_path.pop_back();
 
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
+	    bool deferred_type_parameter = false;
+	    bool illegal_nonstatic = false;
+	    bool use_implicit_this = false;
 	    NetScope*static_method = resolve_scoped_class_method_task_(
 		  des, pscope, type_path, method_name, leading_type_args(),
-		  &illegal_bare_generic, &nonclass_typedef);
+		  &illegal_bare_generic, &nonclass_typedef,
+		  &deferred_type_parameter, &illegal_nonstatic,
+		  &use_implicit_this);
+	    if (deferred_type_parameter) {
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+		  noop->set_line(*this);
+		  return noop;
+	    }
+	    if (illegal_nonstatic) {
+		  cerr << get_fileline() << ": error: Non-static method `"
+		       << method_name << "' requires an object receiver." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    if (!nonclass_typedef.nil()) {
 		  report_nonclass_typedef_class_scope_task_(
 			des, this, nonclass_typedef);
@@ -13857,6 +13916,14 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    }
 
 	    if (static_method) {
+		  if (use_implicit_this) {
+			NetNet*this_net = find_implicit_this_handle(des, scope);
+			ivl_assert(*this, this_net);
+			NetESignal*this_expr = new NetESignal(this_net);
+			this_expr->set_line(*this);
+			return elaborate_build_call_(des, scope, static_method,
+						 this_expr);
+		  }
 		  if (task == 0 || task != static_method)
 			task = static_method;
 	    }
@@ -14826,9 +14893,12 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       if (net == 0) {
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
+	    bool illegal_nonstatic = false;
+	    bool use_implicit_this = false;
 	    NetScope*static_method = resolve_scoped_class_method_task_(
 		  des, search_scope, use_path, method_name, leading_type_args(),
-		  &illegal_bare_generic, &nonclass_typedef);
+		  &illegal_bare_generic, &nonclass_typedef, nullptr,
+		  &illegal_nonstatic, &use_implicit_this);
 	    if (!nonclass_typedef.nil()) {
 		  report_nonclass_typedef_class_scope_task_(
 			des, this, nonclass_typedef);
@@ -14841,8 +14911,21 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			des, this, use_path.front().name);
 		  return 0;
 	    }
+	    if (illegal_nonstatic) {
+		  cerr << get_fileline() << ": error: Non-static method `"
+		       << method_name << "' requires an object receiver." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
 	    if (static_method) {
-		  return elaborate_build_call_(des, scope, static_method, nullptr);
+		  NetExpr*this_expr = nullptr;
+		  if (use_implicit_this) {
+			NetNet*this_net = find_implicit_this_handle(des, scope);
+			ivl_assert(*this, this_net);
+			this_expr = new NetESignal(this_net);
+			this_expr->set_line(*this);
+		  }
+		  return elaborate_build_call_(des, scope, static_method, this_expr);
 	    }
 	    return 0;
       }

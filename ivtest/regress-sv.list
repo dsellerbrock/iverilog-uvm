@@ -3048,3 +3048,8 @@ sv_runtime_const_property_incdec_fail CE,-g2017 ivltests gold=sv_runtime_const_p
 sv_runtime_array_const_incdec_fail CE,-g2017 ivltests gold=sv_runtime_array_const_incdec_fail.gold
 sv_runtime_array_static_invalid_incdec normal,-g2017 ivltests gold=sv_runtime_array_static_invalid_incdec.gold
 sv_deferred_array_index_live normal,-g2012 ivltests gold=sv_deferred_array_index_live.gold
+sv_type_parameter_static_method normal,-g2017 ivltests gold=sv_type_parameter_static_method.gold
+sv_type_parameter_static_method_missing_fail CE,-g2017 ivltests
+sv_type_parameter_static_method_nonstatic_fail CE,-g2017 ivltests
+sv_type_parameter_static_method_nonclass_fail CE,-g2017 ivltests
+sv_type_parameter_static_method_static_context_fail CE,-g2017 ivltests
