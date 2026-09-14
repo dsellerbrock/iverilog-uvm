@@ -1525,6 +1525,8 @@ static void draw_assign_expr_vec4(ivl_expr_t expr)
             }
       }
 
+      if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+            fprintf(vvp_out, "    %%cast2; assignment expression destination\n");
       fprintf(vvp_out, "    %%dup/vec4;\n");
       fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
 }

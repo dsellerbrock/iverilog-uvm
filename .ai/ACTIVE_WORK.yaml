@@ -1,24 +1,20 @@
-id: L58
-title: Evaluate assignment-expression effects in constant functions
-status: FOCUSED_VALIDATED_LOCAL_INTEGRATION
-base_revision: cbbf3b3b7
-origin: DD-025
+id: L59
+title: Convert runtime assignment-expression results to destination type
+status: FROZEN_FOR_REVIEW
+base_revision: 76c50bac8
+origin: DD-026
 standards:
-  - IEEE 1800-2017/2023 11.3, 11.4.1, 11.4.2, and 13.4.3
+  - IEEE 1800-2017/2023 6.11.2 and 11.3.6
 allowed_scope:
-  - Local assignment and pre/post increment/decrement expression mutation during constant-function evaluation
-  - Integral, two-state, real, wide, signed, short-circuit, and indexed local behavior
-  - Preserve rejection of nonlocal and reference-argument constant-function effects
+  - Apply destination two-state conversion before assignment-expression storage and returned-value duplication
+  - Plain and compound integral scalar assignment expressions across widths and signedness
+  - Preserve four-state values and existing invalid-lvalue diagnostics
 forbidden_scope:
-  - Runtime indexed increment implementation
+  - Runtime indexed increment and decrement support (DD-027)
   - Broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 5
-last_validated_revision: Final installed compiler passes the 4/4 legacy and 6/6 JSON focused lists, including signed two-state invalid-index default metadata. Root's prior replay passed 68/68 constant cases; permanent coverage includes assignment and inc-dec forms, typed defaults, independent invocations, exact valid/OOB/X/wide indexed locals, and L56 invalid-carrier side effects. Nonlocal and reference-argument cases remain compile errors.
-pending_gates: Root review and the next feature-batch broad qualification.
-next_action: Root reviews the signed-default correction and frozen L58 evidence.
+focused_features_before_this: 6
+last_validated_revision: Final target passes the permanent conversion test in both editions, focused legacy 2/2, focused JSON 4/4, and the independent 96/96 operator matrix. Destination conversion covers plain, compound, shift, nested, signed, wide, and atom two-state cases while four-state values and write restrictions remain intact.
+pending_gates: Root review and feature-batch broad qualification.
+next_action: Root reviews the frozen L59 target change and focused evidence.
 stop_after_completion: false
-
-l58_root_review: "Final root80/80 expected outcomes and18/18 existing constant-function neighbors. Eight known DD027 startup warnings explicitly retained; indexed-local permanent gate is compile-only. Ready for local integration, broad gates pending."
-
-l58_local_integration: "53624bc87 on local main; sixth focused feature. Same retained checkout and worker; DD026 next. Broad qualification remains pending."

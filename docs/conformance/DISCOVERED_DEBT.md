@@ -1508,3 +1508,27 @@ failed index evaluation remains an error. Final independent outcomes are
 Eight independent constant-result runtime checks retain DD-027 startup
 warnings from uncalled array-function bodies. No clean runtime claim is
 made for those forms. DD-026 and DD-027 remain open.
+
+
+DD-026 L59 independent operator/width baseline: 96 paired cases cover
+plain assignment and eleven compound forms on bit[7:0], signed byte,
+signed int, and bit[127:0]. Dynamic mixed X/Z input is checked against
+manually derived converted storage and 128-bit expression results; 8 pass
+and 88 fail on the frozen L58 target. Evidence:
+`evidence/runtime-assignment-conversion-assessment/operator-matrix/baseline-results.json`.
+
+M4C-22 is reopened to PARTIAL while the L58 constant-evaluation and L59
+runtime-conversion corrections await the next batch qualification. Its
+original destination-conversion claim was too broad for the X/Z cases.
+
+
+### DD-026 L59 final review — 2026-09-14
+
+**Focused fix validated; broad batch qualification pending.** Runtime
+assignment-expression code generation now applies the existing two-state
+conversion before copying the result for storage and return. This corrects
+plain, arithmetic, bitwise, and shift compounds through one common path.
+The independent 96-case matrix now passes with exact clean output, compared
+with 8/96 before the fix. Eight paired existing expression/negative/constant
+neighbors pass; permanent legacy 2/2 and JSON 4/4 pass. See the L59 session
+log. DD-027 runtime array increment remains separate and open.
