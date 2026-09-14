@@ -526,7 +526,6 @@ extern void set_scope_timescale(Design*des, NetScope*scope, const PScope*pscope)
 static bool warned_event_control_empty_set = false;
 static bool warned_wait_no_event_sources = false;
 static bool warned_wait_empty_event_set = false;
-static bool warned_indexed_object_method_ignored = false;
 static bool warned_class_property_event_expr_ignored = false;
 
 // A subroutine body has its own lexical context. If lazy elaboration happens
@@ -1834,8 +1833,6 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       out_type = elem_type;
       return sel;
 }
-
-static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path);
 
 static NetExpr* elaborate_return_enum_literal_fallback_(Design*,
 							NetScope*,
@@ -13787,31 +13784,17 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  && !hierarchical_receiver) {
 		      // Hierarchical task lookup treats indexed path components as scope
 		      // indices (which must be constant). For SV object methods like
-		      // q[idx].method(), try method elaboration first and otherwise
-		      // degrade to a warning/no-op to keep UVM compilation progressing.
+		      // q[idx].method(), try method elaboration before diagnosing a
+		      // receiver that does not resolve to a task or method.
 		    unsigned method_errors_before = des->errors;
 		    NetProc *tmp = elaborate_method_(des, scope, false);
 		    if (tmp) return tmp;
 		    if (des->errors != method_errors_before)
 			  return 0;
-		    if (is_uvm_compile_progress_task_stub_candidate_(path_)) {
-			  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			  noop->set_line(*this);
-			  return noop;
-		    }
-		    if (peek_tail_name(path_) == perm_string::literal("clear")) {
-			  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			  noop->set_line(*this);
-			  return noop;
-		    }
-		    if (!warned_indexed_object_method_ignored) {
-			  cerr << get_fileline() << ": warning: indexed object method call `"
-			       << path_ << "' ignored (limited support, further similar warnings suppressed)." << endl;
-			  warned_indexed_object_method_ignored = true;
-		    }
-		    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-		    noop->set_line(*this);
-		    return noop;
+		    cerr << get_fileline() << ": error: Enable of unknown task "
+			 << "``" << path_ << "''." << endl;
+		    des->errors += 1;
+		    return 0;
 	      }
 
       // Use lexical class lookup before the task-only package search. This
@@ -13899,9 +13882,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		  unsigned method_errors_before = des->errors;
 		  tmp = elaborate_method_(des, scope, try_implicit_this);
 		  if (tmp) return tmp;
-		  if (des->errors != method_errors_before
-		      && (peek_tail_name(path_) == "unique"
-		          || peek_tail_name(path_) == "unique_index"))
+		  if (des->errors != method_errors_before)
 			return 0;
 
 		    /* A call through a type parameter is deferred only in the
@@ -13953,12 +13934,6 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 		&& path_.front().name == perm_string::literal("randomize")
 		&& !scope->get_class_scope())
 		  return elaborate_scope_randomize_task_(this, des, scope);
-
-	    if (gn_system_verilog() && is_uvm_compile_progress_task_stub_candidate_(path_)) {
-		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-		  noop->set_line(*this);
-		  return noop;
-	    }
 
 	    // Route `<assoc>.first/last/next/prev(key)` task calls through
 	    // the existing assoc-method runtime hooks. This case typically
@@ -14091,52 +14066,14 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			      }
 			      delete obj_expr;
 			}
-			// Fallthrough: constraint name not found — silent noop
-			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			noop->set_line(*this);
-			return noop;
+			// A missing constraint or receiver is an unresolved call.
 		  }
-		  // rand_mode with multi-component path is still a noop.
-		  bool silent_noop = (tail == perm_string::literal("rand_mode"));
-		  // Phase 63b/B3: silence task-enable warnings for known
-		  // UVM dead-spec patterns (uvm_pair.first.copy() /
-		  // uvm_pair.second.copy() etc., where T=int default).
-		  if (!silent_noop && (
-			tail == perm_string::literal("copy")
-			|| tail == perm_string::literal("do_copy")
-			|| tail == perm_string::literal("print")
-			|| tail == perm_string::literal("record")
-			// Phase 63b/B4: uvm_registry.svh:656 calls
-			// rgtry.initialize() inside a static
-			// __deferred_init.  The spec class doesn't always
-			// elaborate initialize() at static init time, so
-			// the call appears unresolved.  The task is
-			// otherwise resolved later via uvm_init's
-			// deferred-init queue, so the static-time
-			// no-op is safe.
-			|| tail == perm_string::literal("initialize")
-			|| tail == perm_string::literal("m_initialize"))) {
-			silent_noop = true;
-		  }
-		  if (!silent_noop) {
-			cerr << get_fileline() << ": warning: Enable of unknown task "
-			     << "``" << path_ << "'' ignored (compile-progress fallback)." << endl;
-		  }
-		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-		  noop->set_line(*this);
-		  return noop;
+		  cerr << get_fileline() << ": error: Enable of unknown task "
+		       << "``" << path_ << "''." << endl;
+		  des->errors += 1;
+		  return 0;
 	    }
 
-	    if (gn_system_verilog() && !package_qualified_call
-		&& path_.size() != 1) {
-		  // Compile-progress: covergroup sample(), interface methods, and
-		  // other SV constructs may not resolve as tasks. Drop silently.
-		  cerr << get_fileline() << ": warning: Enable of unknown task "
-		       << "``" << path_ << "'' ignored (compile-progress)." << endl;
-		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-		  noop->set_line(*this);
-		  return noop;
-	    }
 	    cerr << get_fileline() << ": error: Enable of unknown task "
 		 << "``" << path_ << "''." << endl;
 	    des->errors += 1;
@@ -14514,57 +14451,6 @@ NetProc* PCallTask::elaborate_randomize_with_(
       return cur;
 }
 
-static bool is_tlm_forward_task_stub_candidate_(const pform_name_t&use_path,
-						perm_string method_name)
-{
-      if (use_path.empty())
-	    return false;
-
-      perm_string target_name = peek_tail_name(use_path);
-      if (target_name != perm_string::literal("m_if")
-	  && target_name != perm_string::literal("m_imp")
-	  && target_name != perm_string::literal("m_req_imp")
-	  && target_name != perm_string::literal("m_rsp_imp")
-	  && target_name != perm_string::literal("m_port")
-	  && target_name != perm_string::literal("m"))
-	    return false;
-
-      if (target_name == perm_string::literal("m_port")) {
-	    return method_name == perm_string::literal("resolve_bindings")
-		|| method_name == perm_string::literal("get_connected_to")
-		|| method_name == perm_string::literal("get_provided_to");
-      }
-
-      return method_name == perm_string::literal("put")
-	  || method_name == perm_string::literal("get")
-	  || method_name == perm_string::literal("peek")
-	  || method_name == perm_string::literal("write")
-	  || method_name == perm_string::literal("transport")
-	  || method_name == perm_string::literal("b_transport")
-	  || method_name == perm_string::literal("get_next_item")
-	  || method_name == perm_string::literal("try_next_item")
-	  || method_name == perm_string::literal("item_done")
-	  || method_name == perm_string::literal("put_response")
-	  || method_name == perm_string::literal("wait_for_sequences")
-	  || method_name == perm_string::literal("disable_auto_item_recording");
-}
-
-static bool is_multi_hop_collection_task_stub_candidate_(const pform_name_t&use_path,
-							  perm_string method_name)
-{
-      if (use_path.size() < 2)
-	    return false;
-
-      return method_name == perm_string::literal("delete")
-	  || method_name == perm_string::literal("push_front")
-	  || method_name == perm_string::literal("push_back")
-	  || method_name == perm_string::literal("insert")
-	  || method_name == perm_string::literal("sort")
-	  || method_name == perm_string::literal("rsort")
-	  || method_name == perm_string::literal("shuffle")
-	  || method_name == perm_string::literal("reverse");
-}
-
 /* A parameterized class body is a template: calls through a property whose
  * declared type is a type parameter must be checked in each specialization,
  * not against the parameter's default type while the unspecialized parse-form
@@ -14619,66 +14505,6 @@ static bool is_deferred_type_parameter_receiver_(Design*des, NetScope*scope,
 {
       return type_parameter_receiver_state_(des, scope, use_path)
 	    == TPR_DEFERRED;
-}
-
-static bool is_uvm_compile_progress_task_stub_candidate_(const pform_name_t&path)
-{
-      if (path.empty())
-	    return false;
-
-      perm_string tail = peek_tail_name(path);
-
-      // UVM register-model internals: these methods are genuinely complex/incomplete
-      // in iverilog's implementation and must remain as noops.
-      if (tail == perm_string::literal("get_fields")
-	  || tail == perm_string::literal("get_maps")
-	  || tail == perm_string::literal("reset")
-	  || tail == perm_string::literal("set_lock")
-	  || tail == perm_string::literal("get_virtual_registers")
-	  || tail == perm_string::literal("get_submaps")
-	  || tail == perm_string::literal("get_blocks")
-	  || tail == perm_string::literal("mirror")
-	  || tail == perm_string::literal("set_local")
-	  || tail == perm_string::literal("init_address_map")
-	  || tail == perm_string::literal("Xinit_address_mapX")
-	  || tail == perm_string::literal("do_predict"))
-	    return true;
-
-      // UVM phase recursion guards: these appear in loop-like UVM internal
-      // constructs that would cause elaboration recursion if not stubbed.
-      if (tail == perm_string::literal("m_print_successors")
-	  || tail == perm_string::literal("kill_successors")
-	  || tail == perm_string::literal("clear_successors")
-	  || tail == perm_string::literal("process_guard_triggered"))
-	    return true;
-
-      // SV semaphore/mailbox operations that map to UVM internal synchronization
-      // primitives not yet supported in the iverilog VVP runtime.
-      if (tail == perm_string::literal("put")
-	  || tail == perm_string::literal("get")
-	  || tail == perm_string::literal("try_get")) {
-	    pform_name_t use_path = path;
-	    use_path.pop_back();
-	    if (!use_path.empty()) {
-		  perm_string parent = peek_tail_name(use_path);
-		  if (parent == perm_string::literal("m_sequence_state_mutex")
-		      || parent == perm_string::literal("m_atomic")
-		      || parent == perm_string::literal("m_frontdoor_mutex")
-		      || parent == perm_string::literal("atomic"))
-			return true;
-	    }
-      }
-
-      // (Previously stubbed `m_maps.first/last/next/prev` here because
-      // the codegen for `%aa/first/sig/obj` pushed a 1-bit success flag
-      // while the caller expected 32 bits, tripping an of_STORE_VEC4
-      // assertion. That width mismatch is now fixed in
-      // `tgt-vvp/eval_vec4.c` — a `%pad/u` is emitted after the /sig/
-      // form so the result extends to the expected width. With the
-      // codegen fixed, UVM `get_default_map` returns the registered
-      // map and the null-map UVM_ERROR no longer fires.)
-
-      return false;
 }
 
 /* IEEE 1800-2017/2023 18.6.2 gives every class two implicit void
@@ -15110,49 +14936,6 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		       << *net->net_type() << endl;
 	    cerr << get_fileline() << ": PCallTask::elaborate_method_: "
 		 << net->name() << ".data_type() --> " << net->data_type() << endl;
-      }
-
-      // Skip TLM stub for built-in class types that have real implementations
-      // (mailbox/semaphore/process) — their variable names may collide with
-      // TLM port variable name patterns (e.g. a mailbox named "m").
-      {
-	    bool is_builtin_type = false;
-	    if (const netclass_t*ct = dynamic_cast<const netclass_t*>(obj_type)) {
-		  perm_string cn = ct->get_name();
-		  is_builtin_type = (cn == perm_string::literal("mailbox") ||
-				     cn == perm_string::literal("semaphore") ||
-				     cn == perm_string::literal("process"));
-	    }
-	    if (!is_builtin_type && is_tlm_forward_task_stub_candidate_(use_path, method_name)) {
-		  // Certain TLM methods must NOT be early-stubbed because the class
-		  // type is known here and the real method can be found.
-		  // - m_port.resolve_bindings(): port binding resolution needs real impl.
-		  // - m_if.{get_next_item,try_next_item,item_done,put_response}: the
-		  //   seq/driver TLM handshake requires real virtual dispatch through
-		  //   the sequencer imp.
-		  // When method lookup later fails (e.g. generic specializations),
-		  // the post-lookup stub below handles it safely.
-		  perm_string path_target = peek_tail_name(use_path);
-		  bool is_real_call_candidate = false;
-		  if (path_target == perm_string::literal("m_port")
-		      && method_name == perm_string::literal("resolve_bindings")) {
-			is_real_call_candidate = true;
-		  } else if (path_target == perm_string::literal("m_if")
-			     || path_target == perm_string::literal("m_imp")
-			     || path_target == perm_string::literal("m_req_imp")
-			     || path_target == perm_string::literal("m_rsp_imp")) {
-			// All TLM data-transfer methods on m_if/m_imp/m_req_imp/m_rsp_imp
-			// must be elaborated for real virtual dispatch. If method lookup
-			// fails (e.g. abstract base type), the post-lookup stub handles it.
-			is_real_call_candidate = true;
-		  }
-		  if (!is_real_call_candidate) {
-			delete obj_expr;
-			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			noop->set_line(*this);
-			return noop;
-		  }
-	    }
       }
 
 	// Is this a method of a "string" type?
@@ -15710,21 +15493,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			    class_type, method_name))
 			return elaborate_implicit_randomization_hook_(
 			      this, des, obj_expr, method_name);
-		  pform_name_t full_path = use_path;
-		  full_path.push_back(name_component_t(method_name));
 		  if (is_deferred_type_parameter_receiver_(des, scope, use_path)) {
-			delete obj_expr;
-			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			noop->set_line(*this);
-			return noop;
-		  }
-		  if (is_tlm_forward_task_stub_candidate_(use_path, method_name)) {
-			delete obj_expr;
-			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			noop->set_line(*this);
-			return noop;
-		  }
-		  if (is_uvm_compile_progress_task_stub_candidate_(full_path)) {
 			delete obj_expr;
 			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			noop->set_line(*this);
@@ -16418,28 +16187,6 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			  return noop;
 		    }
 	    return elaborate_build_call_(des, scope, task, obj_expr, explicit_super);
-      }
-
-      if (is_multi_hop_collection_task_stub_candidate_(use_path, method_name)) {
-	    if (getenv("IVL_PHASE50D_TRACE"))
-		  fprintf(stderr, "[P50D-NOOP] method=%s use_path.size=%zu obj_type=%s\n",
-			  method_name.str(), use_path.size(),
-			  obj_type ? typeid(*obj_type).name() : "<null>");
-	    delete obj_expr;
-	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-	    noop->set_line(*this);
-	    return noop;
-      }
-
-      // For TLM stub candidates (m_if.put, m_imp.get, etc.) on non-class types
-      // (e.g., base-class instantiations with IMP=int where the type parameter
-      // is not a class), return a silent noop. Concrete specializations with a
-      // real class type will have succeeded above via the class method lookup.
-      if (is_tlm_forward_task_stub_candidate_(use_path, method_name)) {
-	    delete obj_expr;
-	    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-	    noop->set_line(*this);
-	    return noop;
       }
 
       delete obj_expr;

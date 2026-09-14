@@ -1317,10 +1317,12 @@ of the separate constant-expression evaluation defect below.
 - **Expected:** expression postincrement returns the old value and increments
   the local variable once during constant-function evaluation. Track IEEE
   1800-2017 and 2023 compatibility separately.
-- **Status:** OPEN. `NetEAssignExpr` lacks a dedicated constant-function
-  evaluator; implementation and prefix/compound expression siblings require
-  assessment. Do not count `root_const_index_effects.sv` as a passing L56
-  side-effect check while this prerequisite remains unsupported.
+- **Status:** OPEN. Increment/decrement uses `NetEUnary`, whose constant
+  evaluator currently evaluates an operand as a value without updating its
+  local l-value. Assignment expressions use `NetEAssignExpr` and separately
+  lack a dedicated constant-function evaluator. Do not count
+  `root_const_index_effects.sv` as a passing L56 side-effect check while this
+  prerequisite remains unsupported.
 
 ### L56 pre-integration review checkpoint — 2026-09-14
 
@@ -1370,3 +1372,58 @@ mixed-driver tests and checked-property-index controls. These results
 supersede the review failures above for this candidate; the historical
 failure logs are retained. DD-025 remains separate and open. Full-suite
 qualification still belongs to the previous batch until the next broad gate.
+
+### DD-025 expanded baseline — 2026-09-14 after L56
+
+`evidence/constant-assignment-expression-assessment/baseline-results.json`
+records 15 forms in both IEEE modes: pre/post increment and decrement,
+plain assignment, arithmetic/bitwise compound assignments, and shifts.
+All 30 runtime controls pass exact final-local and expression-result checks;
+all 30 constant-function invocations fail elaboration. Compiler/target/runtime
+hashes are stable across the sweep. The functions use local scalar integers,
+with sequenced statements, avoiding unspecified ordering between competing
+side effects in one expression. This confirms two missing evaluator routes:
+`NetEUnary::evaluate_function` for increment/decrement and `NetEAssignExpr`
+(inherited `NetESFunc::evaluate_function`) for assignment expressions.
+
+Authority checked in local IEEE texts: 2017 11.4.1/11.4.2 and 13.4.3,
+2023 11.3/11.4.1/11.4.2 and 13.4.3. The assignment-expression result must
+reflect the destination type; prefix/postfix forms must return the proper
+new/old value while changing the local variable exactly once. Existing
+statement assignment evaluation provides a candidate shared implementation,
+but no DD-025 compiler change has been made during L57.
+
+### DD-020 L57 receiver review — 2026-09-14
+
+The first installed L57 candidate rejects ordinary missing receiver calls,
+but name-based UVM/TLM and constraint-mode fallbacks still accept invalid
+receivers or missing methods. The paired root probe accepts 16/24 invalid
+calls: `absent.reset`, `absent[0].get_fields`, missing constraint-mode
+receivers/constraints, `atomic.put`, and missing `mirror`/`m.write` methods.
+The other eight controls reject. Evidence:
+`evidence/unresolved-task-assessment/l57-root/named-escape-baseline.json`,
+with stable compiler hash `0a7819c74fdaf4022a6ae7d57d41ecc232f07376a9d0bd9649e4a19a476c0b16`.
+
+These are active L57 review findings, not retained exceptions for familiar
+method names. Valid direct/indexed/nested methods with those same names and
+named constraint-mode updates have independent exact-effect controls ready
+for the corrected build. No UVM source changes or broad-suite claims follow
+from this focused receiver review.
+
+L57 second-candidate review passes all 28 named-receiver and exact-effect
+controls plus the 20-case original paired receiver corpus. A further typed
+receiver probe finds the remaining untyped collection-name fallback:
+`obj.member.delete/push_back/push_front/insert` accepts an integer member
+without diagnostics (eight paired wrong passes), while `pop_back` rejects.
+`l57-root/scalar-member-escape-results.json` records this finding. Removal
+of `is_multi_hop_collection_task_stub_candidate_` is assigned to the existing
+worker; a valid class-owned queue control checks contents and method effects.
+
+L57 final review supersedes the receiver and scalar-member failures above:
+`l57-root/final-results.json` passes 40/40 paired outcomes with stable hashes,
+and `specialization-neighbor-results.json` passes 12/12, including concrete
+specialized task effects and invalid default specialization rejection.
+Permanent focus passes 9 legacy and 10 JSON tests. All name-only receiver
+stubs identified in L57 are removed; unspecialized type-parameter deferral
+remains separate from concrete call execution. Broad/application qualification
+remains pending at the feature-batch gate.

@@ -1,0 +1,9 @@
+sv_receiver_task_resolution normal,-g2017 ivltests gold=sv_receiver_task_resolution.gold
+sv_unresolved_receiver_task_fail CE,-g2017 ivltests gold=sv_unresolved_receiver_task_fail.gold
+sv_hierarchical_subroutine_lookup normal,-g2017 ivltests gold=sv_hierarchical_subroutine_lookup.gold
+sv_hierarchical_missing_task_fail CE,-g2017 ivltests gold=sv_hierarchical_missing_task_fail.gold
+sv_indexed_hierarchical_task_lookup normal,-g2017 ivltests gold=sv_indexed_hierarchical_task_lookup.gold
+sv_indexed_hierarchical_missing_task_fail CE,-g2017 ivltests gold=sv_indexed_hierarchical_missing_task_fail.gold
+sv_package_qualified_subroutine_lookup normal,-g2017 ivltests gold=sv_package_qualified_subroutine_lookup.gold
+sv_typeparam_receiver_method normal,-g2012 ivltests
+sv_semaphore_kill_blocked_get normal,-g2012 ivltests gold=sv_semaphore_kill_blocked_get.gold

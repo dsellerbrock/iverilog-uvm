@@ -1,21 +1,21 @@
 status: active
-branch: "main"
-current_blocker: "DD-022 dynamic packed prefixes alias invalid elements and spill final selects"
-phase: "focused_batch_continuation"
+branch: "agent/l57-unresolved-receiver-tasks-20260914"
+current_blocker: "DD-020 unresolved receiver task calls can be discarded without execution"
+phase: "focused_validated_pending_local_integration"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
 last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "Next approximately-ten-feature batch broad qualification; L56 focused checks passed."
+pending_gates: "L57 focused validation passed; next approximately-ten-feature batch broad qualification pending."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD-022 dynamic packed write prefixes; six corruption cases per edition reproduced."
-next_action: "Integrate L56 locally, then select the next unresolved receiver task-call defect (DD-020)."
-next_command: "Local commit and fast-forward main; refresh shared graph from main."
+next_selection: "L57 unresolved receiver task-call resolution and diagnostics"
+next_action: "Integrate L57 locally, then implement DD-025 constant-function assignment and increment/decrement effects."
+next_command: "Reused implementation agent assesses PCallTask::elaborate_usr receiver paths."
 next_command_cwd: repository root
 candidate_state: "L56 focused validation passed; previous broad qualification remains c686a4781."
-installed_tools: "L56 focused build; ivl 54e6d71e3cf32e99b9c50b9f62e32601ec345b5bd39c313c55fcdd4b42465875. Not full-suite qualified."
+installed_tools: "L57 focused build; ivl b646b0f33501c55f2646adaa21bf58ef3234af78cca994245ca28812d3bf2cb5. Previous full qualification c686a4781 does not qualify this build."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Next roughly ten features use cheap focused reproducers and negative tests before another combined suite."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -846,7 +846,7 @@ validation_batch_after_l52:
   target_features: 10
   baseline: c686a4781
   focused_validated_features: [L53, L54, L55, L56]
-  in_progress: none
+  in_progress: L57_unresolved_receiver_tasks
   broad_gates: deferred_until_approximately_ten_features
   implementation_model: gpt-5.6-sol, same reused agent
   rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
@@ -887,3 +887,13 @@ l56_corrected_root_checkpoint: "Stable installed compiler 54e6d71e3cf32e99b9c50b
 l56_final_focus: "Final tightened legacy5/5 and JSON10/10, status0; final-tightened-{legacy,json}-3 logs. Root review50/50 runs and neighbor11legacy19JSON pass. Ready for local integration. Session2026-09-14_l56_dynamic_packed_write_bounds.md. No remote changes."
 
 l56_local_integration: "e9531fbfb fast-forwarded into local main. Fourth focused-validated feature in current batch. Broad gates deferred until approximately ten features; no remote action or new worktree. Shared graph refresh follows this checkpoint."
+
+l57_start: "Same retained checkout branched from36e74e8c3 after L56 integration and shared graph terminal0 (51153nodes94948edges7299communities). Same gpt-5.6-sol worker implementing DD020; no new clone/worktree. Root records independent next evidence. Broad gates remain deferred at4 focused features."
+
+dd025_post_l56_assessment: "Root15-form constant assignment/inc-dec baseline:30/30 runtime controls pass,0/30 constant invocations compile, both editions, stable3hashes. Corrected earlier evaluator attribution: inc-dec is NetEUnary; plain/compound assignment is NetEAssignExpr. Evidence constant-assignment-expression-assessment/baseline-results.json. Queued after L57; no unrelated source edits."
+
+l57_root_named_escape_review: "Installed candidate 0a7819c74fdaf4022a6ae7d57d41ecc232f07376a9d0bd9649e4a19a476c0b16 rejects unknown_copy and nested collection errors, but16/24 paired invalid calls remain compile0 through name-based UVM/TLM and constraint-mode noops. Root named-escape-baseline.json records stable hash. Existing worker removing those bypasses; independent exact-effect named-method and constraint-mode controls prepared."
+
+l57_collection_review: "Secondcandidate root48/48 receiver controls pass. Additional scalar-member collection calls reveal8wrongcompile0 vs2pop_backCE controls; untyped multi-hop collection name fallback must be removed after real dispatch. Worker assigned; valid class-owned queue control prepared."
+
+l57_final_review: "Final root40/40 and specialization/hook neighbors12/12 paired outcomes pass; permanentlegacy9/9 JSON10/10; source removes untyped UVM/TLM/collection name stubs and diagnoses unresolved receivers after proper lookup. Source frozen, diffcheckpassed. Ready for local integration; no full-suite claim."
