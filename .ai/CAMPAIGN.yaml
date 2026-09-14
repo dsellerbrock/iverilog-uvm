@@ -790,8 +790,8 @@ handoff_checkpoint: "User requests handoff to another model due usage boundary. 
 validation_batch_20260914:
   authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
   target_features: 10
-  focused_validated_features: [L43, L44, L45, L46, L47, L48, L49]
-  in_progress: L50_empty_sensitivity
+  focused_validated_features: [L43, L44, L45, L46, L47, L48, L49, L50]
+  in_progress: L51_package_task_resolution
   broad_gates: deferred_until_batch_boundary
   rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
   implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
@@ -824,3 +824,7 @@ l48_checkpoint: "Per-dimension final indexed reads reviewed. Legacy2/2 JSON4/4 L
 l48_local_integration: "d28149794 fast-forwarded into localmain; canonicalgraph refreshed50983nodes94686edges. Samecheckout nowagent/l49-packed-write-bounds-20260914. ReusedSolworker assesseswriteboundswhile root reproducedpackage/hierarchical unresolvedtaskno-ops inbotheditions. No remote push/merge ornewclone/worktree."
 
 l49_checkpoint: "Fixed-prefix bounded writes reviewed across IR, VVP blocking/compound/NBA, synthesis and source targets. Legacy4/4 JSON8/8, root228-case boundary matrix both editions pass. Review caught and corrected blocking array-stack handling, constant compound routing, and full-width NBA bypass. Seventh focused increment; broad suites pending. Dynamic/invalid prefix writes and DD021 remain open."
+
+l49_local_integration: "8e5a86047 fast-forwarded into local main. Canonical graph refreshed51018nodes94766edges. Samecheckout nowagent/l50-empty-sensitivity-20260914; no remote changes ornewworktree. DD024minimal classifier correction selected while rootextends DD020 qualified-call controls."
+
+l50_checkpoint: "Empty implicit event waits preserve runtime semantics through primary classification and legacy synthesis tokenization. Both null-body dereferences corrected; second confirmed by crashstack. Focusedlegacy2/2 JSON4/4 pass, including forced-synthesis diagnostic. Eighth focused increment; broadqualificationpending."

@@ -40,6 +40,12 @@ bool NetAssign::is_asynchronous()
  */
 bool NetEvWait::is_asynchronous()
 {
+	/* An empty @* is represented as a permanent wait on an unreferenced
+	 * event, with no statement to execute. It is neither combinational nor
+	 * clocked logic. */
+      if (!statement_)
+	    return false;
+
 	/* The "sense" set contains the set of Nexa that are in the
 	   sensitivity list. We also require that the events are all
 	   level sensitive, but the nex_async_ method takes care of

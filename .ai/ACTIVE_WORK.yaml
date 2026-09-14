@@ -1,33 +1,28 @@
-id: L49
-title: Bound packed indexed writes to their fixed-prefix carrier
+id: L50
+title: Preserve empty implicit-sensitivity waits during synthesis
 status: FOCUSED_VALIDATED
-base_revision: d28149794
-origin: DD-022
+base_revision: 8e5a86047
+origin: DD-024
 standards:
-  - IEEE 1800-2017 11.5.1 and 11.5.2
-  - IEEE 1800-2023 11.5.1 and 11.5.2
+  - IEEE 1800-2017 9.4.2.2 and 9.2.2.2
+  - IEEE 1800-2023 9.4.2.2 and 9.2.2.2
 reproducer:
-  - evidence/dynamic-mixed-driver-assessment/write-blocking.sv
-  - evidence/dynamic-mixed-driver-assessment/write-compound.sv
-  - evidence/dynamic-mixed-driver-assessment/write-nonblocking.sv
-current_behavior: A final indexed write with a fixed packed prefix uses one flattened signal offset, so partial overlap escapes the selected element and overwrites a sibling.
-expected_behavior: Blocking, compound and nonblocking writes clip only against the fixed-prefix carrier. Partial overlap updates valid carrier bits; wholly out-of-range or X/Z bases do no write; indices evaluate once.
-representation_invariant: NetAssign_ retains the existing absolute canonical part base plus a constant canonical carrier offset and width. Only defined in-range fixed prefixes receive metadata. Targets subtract the carrier offset for clipping, then store the surviving slice at its absolute signal offset.
+  - evidence/dynamic-mixed-driver-assessment/synthesis-empty-sensitivity.sv
+  - evidence/dynamic-mixed-driver-assessment/synthesis-empty-always-comb.sv
+current_behavior: Synthesis classifies the permanent null-body wait used for an empty always @* by dereferencing its absent statement and crashes.
+expected_behavior: Empty always @* remains an unsynthesized process that never executes, while constant-only always_comb executes at time zero and synthesizes constant logic.
 allowed_scope:
-  - NetAssign_ carrier metadata, duplication, target transport and analysis
-  - Fixed valid packed prefixes with final indexed +:/-: writes
-  - Blocking, compound and NBA signal and packed array-word stores
-  - VVP runtime clipping via resize_rval_vec and synthesis bounded lowering
-  - Focused tests, manifests, gold, evidence and ACTIVE_WORK
+  - NetEvWait asynchronous classification null-body guard
+  - Legacy synthesis tokenizer null-body guard for the retained permanent wait
+  - Focused synthesis/runtime tests, registrations, gold, evidence and ACTIVE_WORK
 forbidden_scope:
-  - Dynamic or invalid packed prefixes
-  - DD-021 dynamic mixed-driver relaxation beyond already accepted forms
+  - Changing implicit sensitivity construction or runtime scheduling
+  - Changing always_comb time-zero semantics
   - Broad suites before the campaign batch boundary
-remaining_consumers: []
 validation_batch: 20260914
-focused_features_before_this: 6
-last_validated_revision: Uncommitted L49 tree. Focused legacy 4/4 and JSON 8/8 pass; blocking, compound, delayed NBA capture, function return, two-state arithmetic, constant/dynamic synthesis, and sensitivity controls pass in both applicable editions.
+focused_features_before_this: 7
+last_validated_revision: Uncommitted L50 tree. Incremental build/install passed; focused legacy 2/2 and JSON 4/4 passed; empty always @* and always_comb null-target synthesis passed in both editions.
 pending_gates: Broad suites remain deferred until the campaign batch boundary.
-next_action: Local integration, then DD024 empty implicit-sensitivity synthesis.
-discovery_policy: Dynamic packed-prefix writes remain separately open.
+next_action: Root review and atomic integration, then L51 package-qualified task diagnostics.
+discovery_policy: Other synthesis crashes remain separate debt.
 stop_after_completion: false

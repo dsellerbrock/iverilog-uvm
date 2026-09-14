@@ -289,7 +289,8 @@ struct tokenize : public proc_match_t {
 	    last_->next_ = cur;
 	    last_ = cur;
 
-	    dev -> statement() -> match_proc(this);
+	    if (dev->statement())
+		  dev->statement()->match_proc(this);
 
 	    cur = new syn_token_t;
 	    cur->token = ';';

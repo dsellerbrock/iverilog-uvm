@@ -3013,3 +3013,5 @@ sv_packed_element_write_bounds normal,-g2017 ivltests gold=sv_packed_element_wri
 sv_packed_element_write_compound normal,-g2017 ivltests gold=sv_packed_element_write_compound.gold
 sv_packed_element_write_nba normal,-g2017 ivltests gold=sv_packed_element_write_nba.gold
 sv_packed_element_write_synth normal,-g2017,-S ivltests
+sv_synth_empty_implicit_sensitivity normal,-g2017,-S ivltests
+sv_synth_empty_implicit_sensitivity_forced_fail CE,-g2017,-S,-tnull ivltests gold=sv_synth_empty_implicit_sensitivity_forced_fail.gold

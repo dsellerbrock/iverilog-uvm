@@ -1014,6 +1014,19 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   preserve valid forward declarations and class method dispatch when correcting
   them. No implementation or qualification is claimed yet.
 
+DD-020 qualified-call follow-up: `qualified-shadow-function-results.json`
+records an explicit missing package call from a class compiling and continuing
+in both editions despite a same-named class method. Valid package void/nonvoid
+functions and hierarchical void functions retain their side effects in the
+positive control. These form the next bounded elaboration checks.
+
+Indexed hierarchy follow-up: `indexed_hier_task_valid.sv` calls a real task in
+`child dut[1:0]`. Both editions discard `dut[1].bump()` and leave both counters
+zero (`indexed-hier-task-results.json`). This is an execution defect for a
+valid call, distinct from missing-call diagnostics. The early indexed-object
+fallback bypasses ordinary hierarchical task lookup. Scope/object separation
+must preserve valid object-array methods when fixing module/generate calls.
+
 ### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
 
 - **Discovered during:** L44 boundary validation.
@@ -1126,5 +1139,8 @@ qualification remain OPEN; DD-021 is not relaxed by this increment.
   driver merely because the unreachable assignment contains a constant.
   IEEE 1800-2017/2023 9.4.2.2 governs implicit event controls; compare the distinct
   time-zero execution rule for `always_comb` in 9.2.2.2.
-- **Status:** OPEN. Investigate the synthesis event-wait path with separate
-  controls for `always @*` and `always_comb` before choosing a correction.
+- **Status:** L50 fixes null-body dereferences in asynchronous classification
+  and legacy synthesis tokenization. Focused legacy 2/2 and JSON 4/4 pass,
+  preserving dormant X output, time-zero always_comb execution and ordinary
+  retriggering. Forced synthesis still rejects explicitly. Broad qualification
+  remains pending.
