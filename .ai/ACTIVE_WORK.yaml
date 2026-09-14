@@ -1,19 +1,20 @@
-id: L53
-title: Diagnose unresolved calls on proven hierarchical receivers
+id: L54
+title: Suppress writes through proven-invalid constant packed prefixes
 status: FOCUSED_VALIDATED
-base_revision: 3e9cc8661
-origin: DD-020
+base_revision: e9d9b5ad7
+origin: DD-022
 standards:
-  - IEEE 1800-2017/2023 13.3, 23.6 and 23.8.1
+  - IEEE 1800-2017/2023 11.5.1 and 11.5.2
 allowed_scope:
-  - PCallTask receiver-scope classification for unindexed hierarchical calls
-  - Focused positive and negative tests, registration, gold, evidence and ACTIVE_WORK
+  - Common indexed-lvalue normalization for constant X/Z, exact out-of-range and exact-wide packed prefixes
+  - Blocking, compound and nonblocking assignments including unpacked array words
+  - Focused tests, registration, evidence and ACTIVE_WORK
 forbidden_scope:
-  - General object, class, package or compile-progress fallback redesign
-  - Broad suites before the next feature-batch checkpoint
+  - Dynamic packed-prefix write semantics
+  - New runtime store architecture or broad suites before the feature-batch checkpoint
 validation_batch: 20260914
-focused_features_before_this: 0
-last_validated_revision: Incremental build/install passed; corrected direct positive and negative checks passed in IEEE 2017 and 2023; focused legacy passed 13/13 and focused JSON passed 24/24, including package, indexed-hierarchy and inherited object-method controls.
+focused_features_before_this: 1
+last_validated_revision: Build/install passed; six-case blocking/compound/NBA matrix and beyond-host-wide control pass in IEEE 2017/2023 with final index and RHS evaluated once. Permanent bounds tests cover X/Z, exact OOB/wide, unpacked words, and valid ascending/nonzero/negative ranges. Focused legacy passed 4/4 and JSON passed 8/8; null and synthesized VVP compile checks pass both editions.
 pending_gates: Root source/test review and feature-batch qualification.
-next_action: Freeze L53 source and tests for root review and integration.
+next_action: Freeze L54 source and tests for root review and integration.
 stop_after_completion: false

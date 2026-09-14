@@ -1182,3 +1182,13 @@ hierarchy receiver case: missing tasks are diagnosed after existing resolution
 attempts. Legacy13/13 and JSON24/24 pass with forward-call effects and inherited
 method controls. Unresolved receivers and broader object-method fallbacks
 remain open; full batch qualification is pending.
+
+L54 focused correction suppresses indexed writes through proven-invalid
+constant packed prefixes in the common lvalue path. Blocking, compound, NBA
+and unpacked-word controls preserve evaluation counts and unchanged storage;
+legacy4/4, JSON8/8 and independent ordinary/synthesized runtime checks pass.
+A 128-bit prefix probe passes with existing host-width warnings. Dynamic
+prefixes remain open. DD-021 still reproduces on the L53 baseline in
+`dynamic-after-l53-results.json`: a dynamic subpart of words[0] is rejected
+when words[1] has the disjoint continuous driver. The next implementation must
+reuse exact static-prefix bounds rather than relax driver conflicts globally.

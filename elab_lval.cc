@@ -2451,6 +2451,75 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 	    return 0;
       }
 
+	/* A constant packed prefix is part of the selected element, not part of
+	 * the final indexed-select arithmetic. Preserve the final base expression
+	 * evaluation, but make the normalized base unknown when an earlier packed
+	 * dimension is provably invalid. VVP then performs the required no-op for
+	 * blocking and nonblocking stores while compound assignments still read
+	 * the invalid select value. */
+      bool invalid_constant_prefix = false;
+      bool valid_constant_prefix = false;
+      if (!prefix_indices.empty()
+	  && prefix_indices.size()+1 == reg->packed_dims().size()) {
+	    list<index_component_t> packed_indices = path_.back().index;
+	    for (size_t idx = 0; idx < reg->unpacked_dimensions(); idx += 1)
+		  packed_indices.pop_front();
+	    switch (reg->data_type()) {
+		case IVL_VT_STRING:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  if (!packed_indices.empty()) packed_indices.pop_front();
+		  break;
+		default:
+		  break;
+	    }
+	    valid_constant_prefix =
+		  packed_indices.size() == prefix_indices.size()+1;
+	    list<index_component_t>::const_iterator raw = packed_indices.begin();
+	    list<long>::const_iterator folded = prefix_indices.begin();
+	    netranges_t::const_iterator dim = reg->packed_dims().begin();
+	    for (; valid_constant_prefix && raw != packed_indices.end()
+		 && folded != prefix_indices.end();
+		 ++raw, ++folded, ++dim) {
+		  NetExpr*raw_expr = elab_and_eval(des, scope, raw->msb, -1, false);
+		  const NetEConst*raw_constant =
+			dynamic_cast<const NetEConst*>(raw_expr);
+		  if (raw_constant) {
+			if (!raw_constant->value().is_defined()) {
+			      invalid_constant_prefix = true;
+			      valid_constant_prefix = false;
+			} else {
+			      bool negative = false;
+			      uint64_t magnitude = verinum_signed_magnitude(
+				    raw_constant->value(), negative);
+			      uint64_t expected = *folded < 0
+				    ? uint64_t(-(*folded+1))+1
+				    : static_cast<uint64_t>(*folded);
+			      long low = min(dim->get_msb(), dim->get_lsb());
+			      long high = max(dim->get_msb(), dim->get_lsb());
+			      if (negative != (*folded < 0) || magnitude != expected
+				  || *folded < low || *folded > high) {
+				    invalid_constant_prefix = true;
+				    valid_constant_prefix = false;
+			      }
+			}
+		  } else {
+			valid_constant_prefix = false;
+		  }
+		  delete raw_expr;
+	    }
+	}
+	if (invalid_constant_prefix && base) {
+	    unsigned base_width = base->expr_width();
+	    NetEConst*xbase = new NetEConst(
+		  verinum(verinum::Vx, base_width, true));
+	    xbase->set_line(*base);
+	    NetEBAdd*invalid_base = new NetEBAdd(
+		  '+', base, xbase, base_width, base->has_sign());
+	    invalid_base->set_line(*base);
+	    base = invalid_base;
+	}
+
       ivl_select_type_t sel_type = IVL_SEL_OTHER;
 
 	/* Normalize a constant in the final packed dimension with the same
@@ -2673,50 +2742,7 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 
       lv->set_part(base, wid, sel_type);
 
-      if (!prefix_indices.empty()
-	  && prefix_indices.size()+1 == reg->packed_dims().size()) {
-	    list<index_component_t> packed_indices = path_.back().index;
-	    for (size_t idx = 0; idx < reg->unpacked_dimensions(); idx += 1)
-		  packed_indices.pop_front();
-	    switch (reg->data_type()) {
-		case IVL_VT_STRING:
-		case IVL_VT_DARRAY:
-		case IVL_VT_QUEUE:
-		  if (!packed_indices.empty()) packed_indices.pop_front();
-		  break;
-		default:
-		  break;
-	    }
-	    bool prefix_valid = packed_indices.size() == prefix_indices.size()+1;
-	    list<index_component_t>::const_iterator raw = packed_indices.begin();
-	    list<long>::const_iterator folded = prefix_indices.begin();
-	    for (; prefix_valid && folded != prefix_indices.end();
-		 ++raw, ++folded) {
-		  NetExpr*raw_expr = elab_and_eval(des, scope, raw->msb, -1, false);
-		  const NetEConst*raw_constant =
-			dynamic_cast<const NetEConst*>(raw_expr);
-		  bool negative = false;
-		  uint64_t magnitude = raw_constant
-			&& raw_constant->value().is_defined()
-			? verinum_signed_magnitude(raw_constant->value(), negative) : 0;
-		  uint64_t expected = *folded < 0
-			? uint64_t(-(*folded+1))+1 : static_cast<uint64_t>(*folded);
-		  prefix_valid = raw_constant
-			&& raw_constant->value().is_defined()
-			&& negative == (*folded < 0) && magnitude == expected;
-		  delete raw_expr;
-	    }
-	    netranges_t::const_iterator dim = reg->packed_dims().begin();
-	    for (list<long>::const_iterator idx = prefix_indices.begin()
-		 ; idx != prefix_indices.end() ; ++idx, ++dim) {
-		  long low = min(dim->get_msb(), dim->get_lsb());
-		  long high = max(dim->get_msb(), dim->get_lsb());
-		  if (*idx < low || *idx > high) {
-			prefix_valid = false;
-			break;
-		  }
-	    }
-	    if (prefix_valid) {
+      if (valid_constant_prefix) {
 		  const netrange_t&leaf = reg->packed_dims().back();
 		  long carrier_off = reg->sb_to_idx(prefix_indices,
 						 leaf.get_lsb());
@@ -2739,7 +2765,6 @@ bool PEIdent::elaborate_lval_net_idx_(Design*des,
 		  if (!within_carrier)
 			lv->set_part_carrier(static_cast<uint64_t>(carrier_off),
 					     leaf.width());
-	    }
       }
 
       return true;
