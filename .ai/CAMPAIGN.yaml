@@ -1,7 +1,7 @@
 status: active
 branch: agent/ci-strcmp-header-20260914
 current_blocker: CI-TARGET-API-EXPORTS
-phase: reviewed_pending_publication_and_windows_ci
+phase: published_awaiting_windows_ci
 source_revision: 1b41c8e4c
 documentation_sync_revision: 3ab991187
 main_documentation_revision: fdbb8f34a
@@ -17,10 +17,13 @@ published_work:
     merge_revision: 5c0f5588e
     evidence: docs/conformance/session_logs/2026-09-14_constraint_function_presolve_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/281
-    state: open_update_pending_push
+    state: open
     scope: Direct strcmp declaration and complete PR280 Windows target API exports
     header_revision: 4956b2c1c
     export_revision: 1b41c8e4c
+    published_head: 34dc9e16a
+    current_ci_run: 34920408447
+    current_ci_observation: Six jobs queued or running; no current-head result claimed.
     prior_ci_run: 34919528675
     prior_ci_observation: Linux/macOS builds passed; Windows failed missing exports; Linux/macOS regressions were still running.
     pending: Windows linkage and full required CI on the updated head
@@ -38,8 +41,8 @@ preserved_local_batch:
   next_sync: Merge the updated repair/documentation branch before resuming; preserve tested feature commits and resolve operational metadata to current state.
 installed_tools: Last built for L65/L66 candidate before returning to CI branch; rebuild before testing current source. Fingerprints in evidence/dd031-current-assessment/after/results.json.
 pending_gates: Updated PR281 cross-platform CI; next feature batch broad gates at the user-requested approximately ten-feature checkpoint.
-next_action: Publish reviewed export repair and reconciled handoff to existing PR281, verify its new CI run, then resume preserved local feature batch.
-next_command: git push origin agent/ci-strcmp-header-20260914
+next_action: Inspect current PR281 CI run, then sync and resume the preserved local feature batch without replaying already qualified L64 gates.
+next_command: gh run view 34920408447 --json status,jobs
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
