@@ -24,6 +24,8 @@ Latest focused runtime increment: [L109 independent cyclic components](session_l
 
 Latest focused coverage increment: [L110 constructor transition endpoints](session_logs/2026-09-15_constructor_transition_bins.md); broad qualification pending.
 
+Latest focused constraint increment: [L111 coupled cyclic ordered solving](session_logs/2026-09-15_coupled_randc_ordered_solving.md); broad qualification pending.
+
 ## Application evidence
 
 The [L108 OpenTitan smoke replay](session_logs/2026-09-15_implicit_property_method_lookup.md)

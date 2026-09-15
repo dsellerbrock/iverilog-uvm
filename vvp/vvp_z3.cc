@@ -4893,7 +4893,9 @@ static bool z3_enumerate_domain_single_var_fast_(Z3_context ctx,
  * documented hard-union + soft-weight fallback. On success the winning value
  * is pinned as a hard equality into both `base` (so later enumerations/dist
  * picks see it) and `opt` (so the final model reports it). */
-static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
+enum z3_dist_result_t { Z3_DIST_OK, Z3_DIST_EMPTY, Z3_DIST_UNSUPPORTED };
+
+static z3_dist_result_t z3_resolve_dist_exact_result_(Z3_context ctx, Z3_solver base,
                                    Z3_optimize opt,
                                    const Z3Builder::DistSpec& spec,
 				   z3_rng_stream_t& rng,
@@ -4948,7 +4950,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 				      (unsigned long long)RANGE_EXPAND_CAP);
 			      warned_expand_cap = true;
 			}
-			return false;
+			return Z3_DIST_UNSUPPORTED;
 		  }
 	    }
 
@@ -4979,7 +4981,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 		     * enumeration transactionally and let the caller use its
 		     * documented fallback instead. */
 		  if (feasible == Z3_L_UNDEF)
-			return false;
+			return Z3_DIST_UNSUPPORTED;
 		  if (feasible == Z3_L_TRUE)
 			item.values.push_back(v);
 		  if (coord == UINT64_MAX) break;
@@ -4988,11 +4990,11 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
             // exclusion; 2017 18.5.4 lacks that clarification. The new shared
             // joint subset admits only fully feasible positive-weight ranges.
             if (require_complete_ranges && br.is_range && item.values.size() != span)
-                  return false;
+                  return Z3_DIST_UNSUPPORTED;
 	    if (!item.values.empty() && item.aggregate_weight > 0)
 		  items.push_back(item);
       }
-      if (items.empty()) return false;
+      if (items.empty()) return Z3_DIST_EMPTY;
 
       uint64_t total = 0;
 	for (const auto& item : items) {
@@ -5005,12 +5007,12 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 				"suppressed).\n");
 			warned_total_overflow = true;
 		  }
-		  return false;
+		  return Z3_DIST_UNSUPPORTED;
 	    }
 	    total += item.aggregate_weight;
 	}
-	if (total == 0) return false;
-      if (validate_only) return true;
+	if (total == 0) return Z3_DIST_EMPTY;
+      if (validate_only) return Z3_DIST_OK;
       uint64_t ticket = rng.uniform_u64(total);
       size_t item_idx = items.size() - 1;
       for (size_t i = 0 ; i < items.size() ; i += 1) {
@@ -5030,7 +5032,19 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
       Z3_solver_assert(ctx, base, eq);
       Z3_optimize_assert(ctx, opt, eq);
       chosen = v;
-      return true;
+      return Z3_DIST_OK;
+}
+
+
+static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
+                                   Z3_optimize opt,
+                                   const Z3Builder::DistSpec&spec,
+                                   z3_rng_stream_t&rng, uint64_t&chosen,
+                                   bool require_complete_ranges = false,
+                                   bool validate_only = false)
+{
+      return z3_resolve_dist_exact_result_(ctx, base, opt, spec, rng, chosen,
+            require_complete_ranges, validate_only) == Z3_DIST_OK;
 }
 
 /* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: sample complete legal
@@ -5789,21 +5803,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   for (const auto&sv : builder.size_vars)
                         if (rand_size_active_(builder, prop_active, sv.idx))
                               active_vars.push_back(sv.var);
-                  auto mark_ref = [&](Z3Builder::OrderRef::Kind kind,
-                                      unsigned idx, unsigned elem) {
+                  auto ref_var = [&](Z3Builder::OrderRef::Kind kind,
+                                     unsigned idx, unsigned elem) -> Z3_ast {
                         if (kind == Z3Builder::OrderRef::PROP) {
                               for (const auto&pv : builder.prop_vars)
                                     if (pv.idx == idx)
-                                          ordered_or_dist_vars.insert(pv.var);
+                                          return pv.var;
                         } else if (kind == Z3Builder::OrderRef::ELEM) {
                               for (const auto&ev : builder.elem_vars)
                                     if (ev.idx == idx && ev.elem == elem)
-                                          ordered_or_dist_vars.insert(ev.var);
+                                          return ev.var;
                         } else if (kind == Z3Builder::OrderRef::SIZE) {
                               for (const auto&sv : builder.size_vars)
                                     if (sv.idx == idx)
-                                          ordered_or_dist_vars.insert(sv.var);
+                                          return sv.var;
                         }
+                        return nullptr;
+                  };
+                  auto mark_ref = [&](Z3Builder::OrderRef::Kind kind,
+                                      unsigned idx, unsigned elem) {
+                        Z3_ast var = ref_var(kind, idx, elem);
+                        if (var) ordered_or_dist_vars.insert(var);
                   };
                   for (const auto&pair : builder.order_pairs) {
                         mark_ref(pair.first.kind, pair.first.idx,
@@ -5827,14 +5847,86 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                                   components))
                               return fail_joint("the joint dependency graph contains an unsupported expression");
                         for (const auto&component : components) {
-                              bool cyclic = false;
+                              size_t cyclic = 0;
                               bool ordered_or_dist = false;
                               for (Z3_ast var : component) {
-                                    cyclic |= cyclic_vars.count(var);
+                                    cyclic += cyclic_vars.count(var);
                                     ordered_or_dist |= ordered_or_dist_vars.count(var);
                               }
-                              if (cyclic && ordered_or_dist)
-                                    return fail_joint("joint solve-before with a coupled active randc component is not yet supported");
+                              if (!cyclic || !ordered_or_dist) continue;
+                              if (cyclic != 1)
+                                    return fail_joint("joint solve-before with multiple coupled active randc leaves is not yet supported");
+
+                              // Prove that the complete coupled component is
+                              // representable before the randc-first sampler
+                              // consumes a tentative draw.  A later failure
+                              // caused by the selected cyclic fiber remains a
+                              // semantic randomize failure and is rolled back
+                              // by the surrounding graph transaction.
+                              vector<vector<uint64_t> > tuples;
+                              const char*reason = nullptr;
+                              if (z3_enumerate_joint_(ctx, base, component,
+                                    ENUM_DOMAIN_CAP, tuples, reason) != Z3_L_TRUE)
+                                    return fail_joint(reason);
+
+                              Z3_ast cyclic_var = nullptr;
+                              size_t cyclic_column = 0;
+                              for (size_t i = 0; i < component.size(); ++i)
+                                    if (cyclic_vars.count(component[i])) {
+                                          cyclic_var = component[i];
+                                          cyclic_column = i;
+                                          break;
+                                    }
+
+                              size_t distributions = 0;
+                              for (const auto&spec : builder.dist_specs) {
+                                    if (dist_disabled(spec) || !dist_active(spec))
+                                          continue;
+                                    bool touches = false;
+                                    for (const auto&ref : spec.refs) {
+                                          Z3_ast var = ref_var(
+                                                static_cast<Z3Builder::OrderRef::Kind>(ref.kind),
+                                                ref.idx, ref.leaf);
+                                          if (var && find(component.begin(),
+                                                component.end(), var) != component.end())
+                                                touches = true;
+                                    }
+                                    if (!touches) continue;
+                                    ++distributions;
+                                    if (spec.disableable || !spec.exact_supported
+                                        || !spec.state_weights)
+                                          return fail_joint("a coupled randc distribution requires unconditional state-only ground weights");
+                                    if (find(component.begin(), component.end(),
+                                             spec.subject) == component.end())
+                                          return fail_joint("joint dist requires a direct canonical scalar or element subject");
+
+                                    set<uint64_t> cyclic_values;
+                                    for (const auto&tuple : tuples)
+                                          cyclic_values.insert(tuple[cyclic_column]);
+                                    for (uint64_t bits : cyclic_values) {
+                                          Z3_solver_push(ctx, base);
+                                          Z3_ast value = Z3_mk_unsigned_int64(
+                                                ctx, bits,
+                                                Z3_get_sort(ctx, cyclic_var));
+                                          Z3_solver_assert(ctx, base,
+                                                Z3_mk_eq(ctx, cyclic_var, value));
+                                          uint64_t ignored = 0;
+                                          z3_dist_result_t result =
+                                                z3_resolve_dist_exact_result_(
+                                                      ctx, base, opt, spec,
+                                                      owner_rng(spec.rng_owner),
+                                                      ignored, true, true);
+                                          Z3_solver_pop(ctx, base, 1);
+                                          // An empty weighted fiber is the
+                                          // permitted randc-first failure of
+                                          // 18.4.2. Representation failures
+                                          // must be rejected before drawing.
+                                          if (result == Z3_DIST_UNSUPPORTED)
+                                                return fail_joint("a coupled randc distribution cannot be represented exactly");
+                                    }
+                              }
+                              if (distributions > 1)
+                                    return fail_joint("multiple distributions in a coupled randc component are not yet supported");
                         }
                   }
             }

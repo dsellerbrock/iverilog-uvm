@@ -2349,7 +2349,7 @@ L109 evidence: [independent cyclic components](session_logs/2026-09-15_joint_ord
 
 ### L111 — Coupled randc-first ordered distributions
 
-- **State:** IN_PROGRESS; coordinator-authorized runtime lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Standards:** IEEE1800-2017 18.4.2/18.5.10;2023 18.4.2/18.5.9.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-z01-coupled-assessment/assessment.md`.
 - **Closure:** Complete cyclic-first sampling followed by ordered conditional sampling for enumerable components, preserving failure and history semantics.
@@ -2362,3 +2362,5 @@ L110 evidence and oracle correction: [constructor transition endpoints](session_
 - **Evidence:** `evidence/application-check-20260915/root-seed-assessment/l110-followup/ASSESSMENT.md`.
 - **Closure:** Numeric root seed control before thread creation, preserving default and hierarchical RNG behavior; test original OpenTitan with explicit seeds.
 - **Classification:** Application DV capability; not an IEEE-mandated CLI spelling or new clause-completion claim.
+
+L111 evidence: [coupled cyclic ordered solving](session_logs/2026-09-15_coupled_randc_ordered_solving.md).

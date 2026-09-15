@@ -1754,3 +1754,12 @@ Record-only while coverage owns vthread.cc; future work should expose and test
 reproducible root-seed control without changing per-process/object stability.
 
 Seed-control reducer evidence: `evidence/application-check-20260915/root-seed-assessment/result.json` records identical four-value root RNG output for +ntb_random_seed=1 and2 on the installed L109 runtime.
+
+## Nested indexed constraint member — L111 discovery
+
+A constraint on `leaf.cyc[0]` in the initial L111 element probe emitted an
+ignored-constraint warning and then printed PASSED. It is invalid conformance
+evidence. Preserve `evidence/application-check-20260915/l111-focused/boundary-direct.json`
+and the agent-preserved original source; assess frontend lowering separately.
+The L111 acceptance case uses supported local indexing to exercise runtime
+cyclic element semantics without dropping constraints.

@@ -1510,3 +1510,7 @@ IMPLEMENTED for the [recorded independent enumerable subset](../session_logs/202
 ### L110 — Constructor transition endpoints
 
 IMPLEMENTED for the [recorded constructor-endpoint subset](../session_logs/2026-09-15_constructor_transition_bins.md); broad qualification pending. Dynamic repetition bounds and broader coverage obligations remain PARTIAL.
+
+### L111 — Coupled randc-first ordered solving
+
+IMPLEMENTED for the [recorded enumerable one-cyclic subset](../session_logs/2026-09-15_coupled_randc_ordered_solving.md); supersedes L109 coupled rejection for this subset. Broad qualification pending; broader randomization remains PARTIAL.
