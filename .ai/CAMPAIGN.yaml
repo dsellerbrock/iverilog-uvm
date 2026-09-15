@@ -1,8 +1,8 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
 current_blocker: PARALLEL-BATCH-L94-L95
-phase: parallel_implementation
-source_revision: 13fee7ec9
+phase: batch_qualification
+source_revision: 1db987101
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 240dd5f6f
@@ -253,3 +253,13 @@ l94_integration_checkpoint:
   next: freeze full source, rebuild/install once, run seven required gates and publish coherent PR
   shared_processes: none
   active_implementation_lanes: none; both completed patches frozen for batch qualification
+
+batch_l85_l95_qualification:
+  status: rebuilding frozen eleven-fix candidate
+  semantic_revision: 1db987101
+  build_session: 9095
+  evidence_directory: evidence/batch-20260914-after-l84/qualification
+  required_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
+  execution_policy: Coordinator only; legacy and JSON serial; frontend last; no source changes or installation during gates.
+  latest_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_grouped_repetition_validation.json
+  next: poll build9095, capture candidate hashes, run seven gates and inspect exact results before PR publication
