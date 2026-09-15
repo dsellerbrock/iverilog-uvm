@@ -2244,3 +2244,11 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json`; constant putc/itoa abort, runtime controls leave words unchanged in both editions.
 - **Closure:** Correct selected fixed-array string mutation for all six mutating methods in constant and runtime paths, including locality, bounds, once-only evaluation and neighboring word preservation.
+
+### L100 — Finite multiclock consequence alternatives rejected
+
+- **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.12.7,16.12.22,16.13.2.
+- **State:** IN_PROGRESS; coordinator-authorized independent lane.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md`; internal one-copy consequence fails at50 while two-copy branch should succeed at90, but both editions reject the source.
+- **Closure:** Distinct finite consequence NFA per child; one existential child result feeds universal parent aggregation. Preserve synchronization, controls, pending backlogs and unsupported construction boundaries with paired behavioral tests.

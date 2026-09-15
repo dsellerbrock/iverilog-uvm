@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
-current_blocker: PARALLEL-L99-L97
+current_blocker: PARALLEL-L99-L100
 phase: parallel_implementation
 source_revision: e43ecd536
 documentation_sync_revision: 1decd88ef
@@ -306,8 +306,7 @@ latest_checkpoint:
   published_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/285
   published_head: 5726ab0eb
   shared_processes: none; session36956 completed all seven gates successfully
-  active_implementation_lanes: [L99-FIXED-STRING-ARRAY-METHODS]
-  assessment_lane: nested finite Boolean repetition after integrated L97
+  active_implementation_lanes: [L99-FIXED-STRING-ARRAY-METHODS, L100-FINITE-MULTICLOCK-CONSEQUENT-NFA]
   next: reuse constraint_abi and constraint_wide; inspect owned patches, build/install centrally and run focused paired acceptance tests
   prior_checkpoints: historical; latest_checkpoint and top-level fields govern resumption
 
@@ -336,3 +335,9 @@ l99_authorization:
   status: reproduced and coordinator-authorized
   evidence: evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json
   scope: constant selected fixed-string-array mutation plus matching VPI word write
+
+l100_authorization:
+  status: reproduced and coordinator-authorized
+  evidence: evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md
+  architecture: per-child finite consequence mask in existing tagged destination queues; unchanged parent result protocol and scheduler
+  nonblocker: nested one-step Boolean repetition already passes paired probes; no change counted
