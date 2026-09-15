@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_typed_uarray_return_elements.v",
+    "iverilog-args": [ "-g2023", "-s", "sv_typed_uarray_return_elements" ],
+    "gold": "sv_typed_uarray_return_elements"
+}

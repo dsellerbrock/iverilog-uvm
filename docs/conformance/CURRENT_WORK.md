@@ -1,22 +1,21 @@
 # Current evidence and work
 
 Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
-`5c0f5588e`; operational handoff reconciled after documentation merge
+`9c8f716b1`; operational handoff reconciled after documentation merge
 `fdbb8f34a` and local sync `3ab991187`. This page points to recorded evidence; it does not claim a fresh
 run on every later checkout.
 
 ## Latest recorded compiler qualification
 
-The [L64 qualification record](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
-records a passing seven-gate batch for semantic revision `4bc02c51b`, integrated
-locally as `0c6d5994a`. The subsequent change removed test whitespace; the
-compiler/runtime artifacts were unchanged. The
-[session's final qualification](session_logs/2026-09-14_constraint_function_presolve.md#final-seven-gate-qualification)
-explains the checks and earlier failed attempts. Counts and artifact hashes
-live in the JSON record rather than being copied here.
+The [L65–L74 qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
+records the passing seven-gate batch at `e25971651`, with semantic source
+`374318731`. The [batch session](session_logs/2026-09-14_compiler_batch_l65_l74.md)
+links each implementation scope and its focused evidence. Counts, commands and
+artifact hashes live in the JSON record.
 
-This is regression qualification of that candidate. It does not close clause
-18, either IEEE edition, IEEE 1800.2, or whole application verification.
+This qualifies that local candidate, not full IEEE, UVM or whole-application
+support. Earlier [L64 qualification](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
+remains preserved with its original revision and limits.
 
 ## Application evidence
 
@@ -39,19 +38,18 @@ and [2023 survey](ieee1800_2023_delta.md) own standards dispositions.
 - [DISCOVERED_DEBT](DISCOVERED_DEBT.md): observations awaiting triage.
 - [AGENTS](../../AGENTS.md): workflow, toolchain, and validation requirements.
 
-The campaign owner reconciled the handoff with the final L64 JSON above.
+The campaign owner reconciled the handoff with the final L64 JSON linked above.
 The earlier operational record is preserved in the
 [handoff archive](session_logs/2026-09-14_campaign_handoff_archive.yaml).
 L64 was published in [PR280](https://github.com/dsellerbrock/iverilog-uvm/pull/280)
 and externally merged as `5c0f5588e`; this does not turn its local qualification
 into cross-platform qualification.
 
-[PR281](https://github.com/dsellerbrock/iverilog-uvm/pull/281) repairs build defects
-exposed by that publication. Its current revision, CI state, and exact next
-command belong to CAMPAIGN. The separately preserved local L65/L66 batch at
-`711e54893` has focused evidence but has not received broad batch qualification;
-its session records remain on the branch identified in CAMPAIGN. No newer
-whole-application replay is claimed.
+[PR281](https://github.com/dsellerbrock/iverilog-uvm/pull/281), externally merged
+as `9c8f716b1`, repairs build defects exposed by that publication. Its current revision, CI state, and exact next
+command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
+latest record above. Publication status and subsequent work remain in CAMPAIGN.
+No newer whole-application replay is claimed.
 
 ## History
 

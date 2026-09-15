@@ -2561,8 +2561,6 @@ static void get_real_from_lval(ivl_lval_t lval, struct real_lval_info*slice)
 
       } else if (ivl_signal_dimensions(sig) > 0 && word_ix == 0) {
 
-	    assert(!signal_is_return_value(sig)); // NOT IMPLEMENTED
-
 	    slice->type = REAL_MEMORY_WORD_STATIC;
 	    slice->u_.memory_word_static.use_word = use_word;
 	    if (use_word < ivl_signal_array_count(sig)) {
@@ -2575,8 +2573,6 @@ static void get_real_from_lval(ivl_lval_t lval, struct real_lval_info*slice)
 	    }
 
       } else if (ivl_signal_dimensions(sig) > 0 && word_ix != 0) {
-
-	    assert(!signal_is_return_value(sig)); // NOT IMPLEMENTED
 	    slice->type = REAL_MEMORY_WORD_DYNAMIC;
 
 	    slice->u_.memory_word_dynamic.word_idx_reg = allocate_word();
@@ -2598,7 +2594,7 @@ static void put_real_to_lval(ivl_lval_t lval, struct real_lval_info*slice)
 	/* Special Case: If the l-value signal is named after its scope,
 	   and the scope is a function, then this is an assign to a return
 	   value and should be handled differently. */
-      if (signal_is_return_value(sig)) {
+      if (signal_is_return_value(sig) && ivl_signal_dimensions(sig) == 0) {
 	    assert(slice->u_.simple_word.use_word == 0);
 	    fprintf(vvp_out, "    %%ret/real 0;\n");
 	    return;
@@ -2650,8 +2646,8 @@ static void store_real_to_lval(ivl_lval_t lval)
 	   value and should be handled differently. */
       ivl_scope_t sig_scope = ivl_signal_scope(var);
       if ((ivl_scope_type(sig_scope) == IVL_SCT_FUNCTION)
-	  && (strcmp(ivl_signal_basename(var), ivl_scope_basename(sig_scope)) == 0)) {
-	    assert(ivl_signal_dimensions(var) == 0);
+	  && (strcmp(ivl_signal_basename(var), ivl_scope_basename(sig_scope)) == 0)
+	  && ivl_signal_dimensions(var) == 0) {
 	    fprintf(vvp_out, "    %%ret/real 0; Assign to %s\n",
 		    ivl_signal_basename(var));
 	    return;
@@ -2751,9 +2747,41 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
       ivl_signal_t var= ivl_lval_sig(lval);
 
       assert(ivl_stmt_lvals(net) == 1);
-      /* Compound string assignments (+=, etc.) are not yet supported.
-       * Compile-progress: skip and continue rather than asserting. */
       if (ivl_stmt_opcode(net) != 0) {
+	    /* A character selection is an 8-bit integral l-value. Capture its
+	     * selector once, read the old byte with the established string-select
+	     * path, apply the ordinary vector compound operation, and write it
+	     * through putc. putc retains the standard invalid-index, empty-string,
+	     * and zero-byte behavior. */
+	    if (part && !aidx && !signal_is_return_value(var)) {
+		  int mux_word = allocate_word();
+		  int mux_flag = allocate_flag();
+		  /* string.getc/putc take a two-state signed int index. Perform
+		   * that conversion once here so reads and writes use the same
+		   * low 32 bits, including X/Z-to-zero conversion. */
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string character selector\n",
+		          mux_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string character selector\n",
+		          mux_flag);
+		  fprintf(vvp_out, "    %%load/str v%p_0; string character compound read\n",
+		          var);
+		  fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string character\n",
+		          mux_word);
+		  fprintf(vvp_out, "    %%pop/str 1; discard captured string\n");
+		  draw_stmt_assign_vector_rhs(net, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
+		          mux_flag);
+		  fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d; string character compound store\n",
+		          var, mux_word);
+		  clr_word(mux_word);
+		  clr_flag(mux_flag);
+		  return 0;
+	    }
+	    /* Whole-string and string-array compound assignments remain separate
+	     * unsupported forms. */
 	    fprintf(stderr, "%s: warning: compound string assignment (op='%c') "
 		    "not yet supported (compile-progress: skipped).\n",
 		    ivl_stmt_file(net), ivl_stmt_opcode(net));
@@ -2769,8 +2797,7 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 	   its scope, and the scope is a function, then this is an
 	   assign to a return value and should be handled
 	   differently. */
-      if (signal_is_return_value(var)) {
-	    assert(ivl_signal_dimensions(var) == 0);
+      if (signal_is_return_value(var) && ivl_signal_dimensions(var) == 0) {
 	    if (part == 0 && aidx == 0) {
 		  draw_eval_string(rval);
 		  fprintf(vvp_out, "    %%ret/str 0; Assign to %s\n",

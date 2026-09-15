@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_real_uarray_return_boundary.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_real_uarray_return_boundary"
+}

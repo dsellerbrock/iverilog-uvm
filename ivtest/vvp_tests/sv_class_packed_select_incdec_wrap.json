@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_class_packed_select_incdec_wrap.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_class_packed_select_incdec_wrap"
+    ],
+    "gold": "sv_class_packed_select_incdec_wrap"
+}

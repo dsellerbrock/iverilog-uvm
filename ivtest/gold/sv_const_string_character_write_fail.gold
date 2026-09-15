@@ -1,0 +1,2 @@
+./ivltests/sv_const_string_character_write_fail.v:4: error: A reference to a non-local net or variable (`nonlocal['sd0]') is not allowed in a constant function.
+1 error(s) during elaboration.

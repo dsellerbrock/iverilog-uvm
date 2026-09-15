@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_nested_packed_incdec_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_nested_packed_incdec_fail"
+    ],
+    "gold": "sv_nested_packed_incdec_fail"
+}

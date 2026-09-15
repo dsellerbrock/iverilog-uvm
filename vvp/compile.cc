@@ -683,6 +683,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/prop/v/bits/ux",of_STORE_PROP_V_BITSUX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%store/prop/v/bits/x",of_STORE_PROP_V_BITSX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%store/prop/v/i",of_STORE_PROP_V_I,3,{OA_NUMBER,  OA_BIT1, OA_BIT2} },
+      { "%store/prop/v/i/bits/ux",of_STORE_PROP_V_I_BITSUX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
+      { "%store/prop/v/i/bits/x",of_STORE_PROP_V_I_BITSX,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%store/qb/obj", of_STORE_QB_OBJ,  2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%store/qb/r",   of_STORE_QB_R,    2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%store/qb/str", of_STORE_QB_STR,  2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },

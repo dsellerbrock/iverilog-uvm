@@ -1,0 +1,2 @@
+ivltests/sv_const_string_character_write_package_fail.v:7: error: A reference to a non-local net or variable (`storage['sd0]') is not allowed in a constant function.
+1 error(s) during elaboration.

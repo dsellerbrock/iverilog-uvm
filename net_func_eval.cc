@@ -59,10 +59,34 @@ static bool warned_eval_stmt_unsupported = false;
 static bool warned_eval_string_len_fallback = false;
 static bool warned_eval_unknown_init = false;
 
+static int64_t const_string_index_(const verinum&value)
+{
+      /* String character access is equivalent to getc/putc, whose index
+	 formal is a signed 32-bit 2-state int. */
+      verinum int_index = cast_to_width(value, 32);
+      int_index.cast_to_int2();
+      int_index.has_sign(true);
+      return int_index.as_long();
+}
+
 static NetExpr* fix_assign_value(const NetNet*lhs, NetExpr*rhs)
 {
       NetEConst*ce = dynamic_cast<NetEConst*>(rhs);
       if (ce == 0) return rhs;
+
+      /* A string signal's vector_width() is an implementation placeholder,
+	 not the number of bits in its current value. Preserve string arguments
+	 and local string assignments as strings; resizing them here truncates
+	 every value to one packed bit before a character select can read it. */
+      if (lhs->data_type() == IVL_VT_STRING
+	  && (rhs->expr_type() == IVL_VT_STRING || ce->value().is_string())) {
+	    if (rhs->expr_type() == IVL_VT_STRING)
+		  return rhs;
+	    NetECString*text = new NetECString(ce->value());
+	    text->set_line(*rhs);
+	    delete rhs;
+	    return text;
+      }
 
       unsigned lhs_width = lhs->vector_width();
       unsigned rhs_width = rhs->expr_width();
@@ -484,6 +508,50 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
       }
 
       if (const NetExpr*base_expr = lval->get_base()) {
+	    if (lval->sig() && lval->sig()->data_type() == IVL_VT_STRING
+		&& !lval->has_part_carrier()
+		&& !lval->dynamic_part_carrier()) {
+		  NetExpr*base_result = base_expr->evaluate_function(loc,
+			context_map);
+		  const NetEConst*base_const =
+			dynamic_cast<const NetEConst*>(base_result);
+		  const NetEConst*rval_const =
+			dynamic_cast<const NetEConst*>(rval_result);
+		  const NetEConst*old_const =
+			dynamic_cast<const NetEConst*>(old_lval);
+		  if (!base_const || !rval_const || (old_lval && !old_const)) {
+			delete base_result;
+			delete rval_result;
+			return false;
+		  }
+
+		  string text = old_const
+			? old_const->value().as_raw_string() : string();
+		  int64_t index = const_string_index_(base_const->value());
+		  verinum character = rval_const->value();
+		  if (op_ && index >= 0
+		      && static_cast<uint64_t>(index) < text.size()) {
+			verinum old_character(
+			      static_cast<uint64_t>(
+				static_cast<unsigned char>(text[index])), 8);
+			old_character.has_sign(true);
+			eval_func_lval_op_(loc, old_character, character);
+			character = old_character;
+		  } else {
+			character = cast_to_width(character, 8);
+		  }
+		  character.cast_to_int2();
+		  character.has_sign(true);
+		  unsigned char byte =
+			static_cast<unsigned char>(character.as_ulong64());
+		  if (index >= 0 && static_cast<uint64_t>(index) < text.size()
+		      && byte != 0)
+			text[index] = static_cast<char>(byte);
+
+		  delete base_result;
+		  delete rval_result;
+		  rval_result = new NetECString(verinum::from_raw_string(text));
+	    } else {
 	    int64_t carrier_base = 0;
 	    uint64_t carrier_width = lval->sig()
 		  ? lval->sig()->vector_width() : lval->lwidth();
@@ -595,6 +663,7 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
 			if (lval_v[idx] != verinum::V1)
 			      lval_v.set(idx, verinum::V0);
 	    rval_result = new NetEConst(lval_v);
+	    }
       } else {
 	    if (op_ == 0) {
 		  rval_result = fix_assign_value(lval->sig(), rval_result);
@@ -1373,10 +1442,15 @@ NetExpr* NetESelect::evaluate_function(const LineInfo&loc,
 	    return 0;
       }
 
+      const bool string_select = base_ && expr_width() == 8
+	    && sub_exp->expr_type() == IVL_VT_STRING;
+      const string string_value = string_select
+	    ? sub_const->value().as_raw_string() : string();
       verinum sub = sub_const->value();
       delete sub_exp;
 
       long base = 0;
+      int64_t string_index = 0;
       if (base_) {
 	    NetExpr*base_val = base_->evaluate_function(loc, context_map);
 	    if (base_val == 0) {
@@ -1389,11 +1463,33 @@ NetExpr* NetESelect::evaluate_function(const LineInfo&loc,
 		  return 0;
 	    }
 
-	    base = base_const->value().as_long();
+	    const verinum&base_number = base_const->value();
+	    if (string_select) {
+		  /* Str[index] is semantically Str.getc(index), whose formal is
+		     a 32-bit 2-state int. Apply that assignment conversion before
+		     checking the character range: high source bits are truncated
+		     and X/Z bits convert to zero independently. */
+		  string_index = const_string_index_(base_number);
+	    } else {
+		  base = base_number.as_long();
+	    }
 	    delete base_val;
       } else {
 	    sub.has_sign(has_sign());
 	    sub = pad_to_width(sub, expr_width());
+      }
+
+      if (string_select) {
+	    uint64_t character = 0;
+	    if (string_index >= 0
+		&& static_cast<uint64_t>(string_index) < string_value.size())
+		  character = static_cast<unsigned char>(string_value[string_index]);
+
+	    verinum value(character, 8);
+	    value.has_sign(has_sign());
+	    NetEConst*res_const = new NetEConst(value);
+	    res_const->set_line(*this);
+	    return res_const;
       }
 
       verinum res (verinum::Vx, expr_width());
@@ -1404,6 +1500,7 @@ NetExpr* NetESelect::evaluate_function(const LineInfo&loc,
       }
 
       NetEConst*res_const = new NetEConst(res);
+      res_const->set_line(*this);
       return res_const;
 }
 

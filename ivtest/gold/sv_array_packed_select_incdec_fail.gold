@@ -1,0 +1,4 @@
+./ivltests/sv_array_packed_select_incdec_fail.v:5: error: Assignment to const signal `constants` is not allowed.
+./ivltests/sv_array_packed_select_incdec_fail.v:6: error: 'nets['sd1]['sd3:'sd0]' is not a valid l-value for a procedural assignment.
+./ivltests/sv_array_packed_select_incdec_fail.v:3:      : 'nets['sd1]['sd3:'sd0]' is declared here as a wire.
+2 error(s) during elaboration.

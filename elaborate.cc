@@ -30094,12 +30094,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (prop != cpath.end()) {
 			pform_name_t::const_iterator method = prop;
 			++method;
-			/* A constant prefix select of a multidimensional fixed array
-			 * leaves a fixed one-dimensional receiver, e.g.
-			 * values[0].sum() with (item). Validate and canonicalize the
-			 * prefix below once the declared dimensions are known. */
-			if (method != cpath.end() && prop->index.size() > 1)
-			      method = cpath.end();
+			/* Constant prefix selects of a multidimensional fixed array
+			 * leave a fixed one-dimensional receiver, e.g.
+			 * values[0][1].sum() with (item). Validate and canonicalize
+			 * every prefix below once the declared dimensions are known. */
 			if (method != cpath.end() && !method->index.empty())
 			      method = cpath.end();
 			if (method != cpath.end()) {
@@ -30170,12 +30168,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						"after constant prefix selection.");
 				    }
 				    unsigned long canonical_base = 0;
-				    unsigned long stride = 1;
-				    for (size_t dim = dimensions.size(); dim > 1; --dim)
-					  stride *= dimensions[dim-1].width();
-				    if (!prop->index.empty()) {
-					  const index_component_t&select =
-						prop->index.front();
+				    size_t dim = 0;
+				    for (const index_component_t&select : prop->index) {
 					  if (!select.msb || select.lsb
 					      || select.sel != index_component_t::SEL_BIT)
 						return reduction_error(
@@ -30189,13 +30183,30 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						      "requires a constant fixed-array prefix index.");
 					  uint64_t word = constraint_resize_const_bits_(
 						index, 64, index.is_signed);
-					  const netrange_t&outer = dimensions.front();
+					  const netrange_t&outer = dimensions[dim];
 					  word -= (uint64_t)std::min(
 						outer.get_msb(), outer.get_lsb());
 					  if (word >= outer.width())
 						return reduction_error(
 						      "has an out-of-bounds fixed-array prefix index.");
-					  canonical_base = (unsigned long)word * stride;
+					  unsigned long stride = 1;
+					  for (size_t tail = dim + 1;
+					       tail < dimensions.size(); ++tail) {
+						unsigned long width = dimensions[tail].width();
+						if (width && stride > ULONG_MAX / width)
+						      return reduction_error(
+							"has fixed-array dimensions too large to canonicalize.");
+						stride *= width;
+					  }
+					  if (word && stride > ULONG_MAX / (unsigned long)word)
+						return reduction_error(
+						      "has a fixed-array prefix too large to canonicalize.");
+					  unsigned long offset = (unsigned long)word * stride;
+					  if (canonical_base > ULONG_MAX - offset)
+						return reduction_error(
+						      "has a fixed-array prefix too large to canonicalize.");
+					  canonical_base += offset;
+					  ++dim;
 				    }
 				    if (ebase != IVL_VT_BOOL
 					&& ebase != IVL_VT_LOGIC) {
@@ -30266,6 +30277,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    long range_lo = std::min(range.get_msb(),
 							     range.get_lsb());
 				    unsigned long count = range.width();
+				    if (count && canonical_base > ULONG_MAX - (count - 1))
+					  return reduction_error(
+						"has a fixed-array row too large to canonicalize.");
 				    string reduction;
 				    for (unsigned long elem = 0 ; elem < count;
 					 elem += 1) {

@@ -1,0 +1,21 @@
+{
+  "scope": "L73 focused constant-function string character writes and signed character lvalue metadata",
+  "source_base": "e06b77b1126f73130d2ed9029376185078d235b3",
+  "source_sha256": {
+    "elab_lval.cc": "79c9987b0ed1c2c802205eab08fc4f55994ae8a784bdf8e7d64c953e44881ee7",
+    "net_func_eval.cc": "65018b507628c3b9b3101a00d117fbe8431e949ba9f00ead3289b8ff5cd12a9a"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "3743aba55cbf6a24d271bf88ff445faf376646c278718190eb2be4f65ff074ae",
+    "local-install/lib/ivl/ivl": "770f319cce0cea0040c6c649a7f16d23333e789699fe99fabc7245e36268dfeb",
+    "local-install/lib/ivl/vvp.tgt": "3cc683e4d8389e5ede307d6d3607836cf0e6293d63f3bb872831cfda1ae7cecc"
+  },
+  "artifact_context": "Full coordinator serial build/install includes frozen L73 compiler and L74 runtime target candidate. Runtime compound lowering is L74 scope.",
+  "permanent_legacy": 12,
+  "permanent_json": 12,
+  "constant_generate_oracles": 2,
+  "neighbors_json": 34,
+  "broad_qualified": false,
+  "evidence": "evidence/parallel-batch-l71-l72/l73-l74-integration-harness.json"
+}

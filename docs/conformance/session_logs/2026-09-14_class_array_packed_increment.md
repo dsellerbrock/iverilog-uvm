@@ -1,0 +1,11 @@
+# L70 — Packed increment/decrement within fixed-array class-property words
+
+L69 supported selected updates on scalar integral properties but explicitly rejected the same operation within a fixed unpacked-array property word. The target could load the word and ordinary assignments could merge a selected field, but expression-valued prefix/postfix updates also had to retain their yielded result and merge into the current word after selector side effects.
+
+The target now captures the receiver, canonical word index, and packed base once. Two indexed partial-property store opcodes consume the selected replacement width from the vec4 stack, validate signed or full-width unsigned offsets, reload the current property word, merge only overlapping bits, and store the same word. This preserves changes to neighboring bits made while evaluating the packed base. Invalid word and packed selectors independently suppress the write while retaining typed selected results.
+
+The paired scope covers receiver rebinding, current-neighbor preservation, four-state and two-state invalid words, signed negative overlap, uint64 all-ones offsets, wide result contexts, multidimensional/nonzero declared ranges, neighboring words, and const rejection. Null-handle behavior is not qualified here.
+
+The root candidate passes 18/18 paired outcomes in `evidence/class-array-packed-incdec-l70/candidate/results.json`. Permanent regressions pass 10/10 in each harness with raw streams in `permanent-legacy.log` and `permanent-json.log`. The [compact validation record](2026-09-14_class_array_packed_increment_validation.json) owns the four source and four artifact hashes. Broad batch qualification remains pending.
+
+Array indexing is governed by IEEE 1800-2017 7.4.6 and 1800-2023 7.4.5; both editions use 11.4.1/11.4.2 for single-index blocking updates and 11.5.1 for packed bounds. Neighboring JSON checks passed: L67 8/8, L68 8/8, L69 10/10, whole-property increments 4/4, partial-property offsets 8/8, and signed property compound assignments 2/2. Exact commands and logs are retained beside `neighbors.json`. Generated code using the new indexed partial-store opcodes requires the matching updated runtime; existing scalar opcode encodings are unchanged.

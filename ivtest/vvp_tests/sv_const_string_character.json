@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_const_string_character.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_const_string_character"
+    ],
+    "gold": "sv_const_string_character"
+}

@@ -1,0 +1,140 @@
+{
+  "scope": "L65-L74 ten-fix local compiler batch; not full IEEE, UVM or application conformance",
+  "completed_at": 1789445353.9677272,
+  "qualified": true,
+  "revision": "e259716513ac2bf3bec341abc9c64e127d260780",
+  "semantic_revision": "374318731",
+  "source_files": 14995,
+  "source_snapshot_sha256": "ce225352ad2e09f46c6c0449594ee63aba6bdb24b4a54677c70cc3033c4d75b0",
+  "source_mismatches": [],
+  "artifact_mismatches": [],
+  "tracked_diff_stable": true,
+  "gates": {
+    "integrated": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "json": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "uvm": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "nfa": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "releases": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "makecheck": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "frontend": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    }
+  },
+  "counts": {
+    "legacy": {
+      "total": 5335,
+      "passed": 5330,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "ran": 2269,
+      "failed": 0
+    },
+    "uvm": {
+      "passed": 357,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi": true,
+      "edition": "2012 (existing suite invocation); no separate 2017/2023 full-UVM qualification inferred"
+    },
+    "nfa": {
+      "passed": 58,
+      "failed": 0
+    },
+    "release_smoke": 15,
+    "frontend_scenarios": 12,
+    "vpi": 108,
+    "negative": 149,
+    "state_foreach_runtime": 15,
+    "copyout_runtime": 6,
+    "covergroup_exports": 66
+  },
+  "candidate_artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "3743aba55cbf6a24d271bf88ff445faf376646c278718190eb2be4f65ff074ae",
+    "local-install/lib/ivl/ivl": "770f319cce0cea0040c6c649a7f16d23333e789699fe99fabc7245e36268dfeb",
+    "local-install/lib/ivl/vvp.tgt": "3cc683e4d8389e5ede307d6d3607836cf0e6293d63f3bb872831cfda1ae7cecc",
+    "local-install/lib/ivl/uvm_dpi.vpi": "c7715ba14d9614c0bd42628e039fe1143d79821ff4bc1352bd187fb5e000f098",
+    "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+  },
+  "features": [
+    "L65",
+    "L66",
+    "L67",
+    "L68",
+    "L69",
+    "L70",
+    "L71",
+    "L72",
+    "L73",
+    "L74"
+  ],
+  "raw_evidence": "evidence/batch-20260914-l74/qualification",
+  "gate_commands": {
+    "integrated": [
+      "bash",
+      ".github/ivtest_gate.sh"
+    ],
+    "json": [
+      "python3",
+      "vvp_reg.py",
+      "regress-vvp.list"
+    ],
+    "uvm": [
+      "bash",
+      ".github/uvm_test.sh"
+    ],
+    "nfa": [
+      "bash",
+      "tests/sva_nfa/run.sh"
+    ],
+    "releases": [
+      "python3",
+      "scripts/uvm_release_matrix.py",
+      "--prefix",
+      "local-install"
+    ],
+    "makecheck": [
+      "make",
+      "check"
+    ],
+    "frontend": [
+      "bash",
+      ".github/uvm_frontend_test.sh"
+    ]
+  },
+  "new_registrations": {
+    "legacy": 82,
+    "json": 80,
+    "legacy_edition_pairs": 41,
+    "json_edition_pairs": 40
+  }
+}

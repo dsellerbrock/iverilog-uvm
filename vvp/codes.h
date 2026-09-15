@@ -578,6 +578,8 @@ extern bool of_STORE_PROP_V_I(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V_BITS(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V_BITSUX(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_PROP_V_I_BITSUX(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_PROP_V_I_BITSX(vthread_t thr, vvp_code_t code);
 extern bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_QB_R(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_QB_OBJ(vthread_t thr, vvp_code_t code);

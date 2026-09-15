@@ -1,20 +1,43 @@
-id: CI-TARGET-API-EXPORTS
-title: Export the public target API additions from PR280 on Windows
-status: REVIEWED
-base_revision: 4956b2c1c
-reproducer: evidence/ci-strcmp-header/mingw64.log
-current_behavior: "PR281 Windows target link fails on ivl_lval_part_carrier_width and ivl_lval_dynamic_part_carrier; Ubuntu builds passed the header fix."
-expected_behavior: "Public target API functions used by targets are present in the Windows import library."
-allowed_scope:
-  - Add all PR280 public target API declarations missing from ivl.def: carrier, signal const, and constraint state-call families
-  - Check declarations, definitions and consumer names for exact consistency
-  - Update existing PR281 and observe platform CI
-forbidden_scope:
-  - Fold preserved L65/L66 features into this repair
-  - Change carrier semantics or target ABI signatures
-standards: "Build linkage repair for existing target API, no language semantic change"
-prerequisites: "L65/L66 tested local branch agent/typed-array-return-20260914 at711e54893. Two focused features in next batch."
-pending_gates: "Independent export review and Windows CI"
+id: PARALLEL-BATCH-L74-L73
+title: Coordinator-authorized independent compiler implementation lanes
+status: QUALIFIED
+base_revision: a83b9623c
+authority: "User explicitly authorized two parallel implementation lanes with disjoint file ownership; this supersedes the prior single-blocker workflow."
+coordinator_owns:
+  - Shared builds and installation
+  - All legacy and JSON harness execution and shared ivtest/log output
+  - Main manifests, shared documentation, integration commits and review
+lanes:
+  - id: L74-RUNTIME-STRING-CHARACTER-COMPOUND
+    agent: /root/constraint_abi
+    status: INTEGRATED
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1, 10.4"
+    reproducer: evidence/parallel-batch-l71-l72/runtime-string-character-compound.sv
+    actual: "Both editions warn and skip text[index_once()] += 1; text remains ABC and selector call count stays zero."
+    expected: "Read and update selected byte with single selector evaluation; ABC becomes ACC and call count becomes one."
+    owns: [tgt-vvp/stmt_assign.c, tgt-vvp/eval_string.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
+    test_prefix: sv_string_character_compound
+    allowed_scope: "Runtime compound arithmetic on characters of scalar string variables; reuse existing integral operations and getc/putc machinery."
+    forbidden_scope: "Constant evaluator, lvalue elaboration, parser, whole-string concatenation or unrelated container updates."
+    dependencies: "Existing runtime string character operations plus integrated L73 signed-character lvalue metadata at352a15164."
+    acceptance: "Paired arithmetic/bitwise/shift controls, selector-once, signed byte and int index conversion, empty/invalid/zero bytes, readonly negative, ordinary locals and argument storage; focused runtime neighbors."
+  - id: L73-CONSTANT-STRING-CHARACTER-WRITE
+    agent: /root/constraint_wide
+    status: INTEGRATED
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 13.4.3"
+    reproducer: evidence/parallel-batch-l71-l72/constant-string-character-write.sv
+    actual: "Both editions evaluate text[0]=Z on ABC as ABB instead of ZBC in a constant function."
+    expected: "String character writes replace the selected byte using putc(int,byte) semantics; invalid indices and zero bytes leave the string unchanged."
+    owns: [net_func_eval.cc, elab_lval.cc]
+    test_prefix: sv_const_string_character_write
+    allowed_scope: "Constant-function blocking character assignment, shared lvalue read/write normalization and focused permanent regressions. Narrow elaboration validation of nonlocal character writes is authorized to ensure counted diagnostics for required constant-function contexts; ordinary runtime side effects remain legal."
+    forbidden_scope: "Runtime/lowering files owned by L71, parser, global string storage, unrelated evaluator fallbacks."
+    dependencies: "Integrated L72 string preservation and character reads at1f2441a23; no dependency on L71."
+    acceptance: "Paired first/last byte, local/argument/return, bounds/empty/zero-byte, two-state index conversion, signed-byte conversion, selector-once and compound controls; exact nonlocal-write rejection and L72/evaluator neighbors."
+file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
+validation_batch: 20260914_after_l64
+focused_features_completed_in_batch: 10
+pending_gates: "Seven required broad gates passed; publish coherent PR, then select prepared L75/L76 lanes."
+last_broad_qualified_semantic_revision: 374318731
+baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json
 stop_after_completion: false
-
-validation: "Complete14-function declaration/export/C-linkage audit passed and independent review agreed. Current Windows CI remains pending updated PR head."
