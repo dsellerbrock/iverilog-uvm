@@ -25,7 +25,8 @@ records retain their original revisions and limits.
 [L88 dynamic-array ordering](session_logs/2026-09-15_joint_dynamic_element_ordering.md),
 [L89 queue ordering](session_logs/2026-09-15_joint_queue_element_ordering.md),
 [L86 multiclock antecedents](session_logs/2026-09-15_multiclock_bounded_antecedents.md),
-and [L91 finite repetition](session_logs/2026-09-15_multiclock_boolean_repetition.md)
+[L91 finite repetition](session_logs/2026-09-15_multiclock_boolean_repetition.md),
+and [L90 enum packed selects](session_logs/2026-09-15_enum_container_packed_selects.md)
 record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence

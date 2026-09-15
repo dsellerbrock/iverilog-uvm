@@ -2141,7 +2141,7 @@ static NetExpr* make_last_array_index_expr_(const LineInfo&loc,
 static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const LineInfo*li,
 					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
+					     ivl_type_t pvec,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type);
 
@@ -2513,8 +2513,10 @@ static NetExpr* apply_trailing_container_indices_(
 	       * container word. Keep the exact selected vector type and consume all
 	       * residual components through the established packed-property
 	       * canonicalizer. */
-	    if (const netvector_t*vector_type =
-		  dynamic_cast<const netvector_t*>(cur_type)) {
+	    ivl_type_t vector_type =
+		  dynamic_cast<const netvector_t*>(cur_type)
+		  || dynamic_cast<const netenum_t*>(cur_type) ? cur_type : nullptr;
+	    if (vector_type) {
 		  list<index_component_t>packed_indices(idx_it, indices.end());
 		  ivl_type_t selected_type = nullptr;
 		  NetExpr*selected = make_vector_property_select_(
@@ -12467,11 +12469,11 @@ static void set_scoped_class_parameter_result_(
 static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const LineInfo*li,
 					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
+					     ivl_type_t pvec,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type)
 {
-      const netranges_t&dims = pvec->packed_dims();
+      const netranges_t dims = pvec->slice_dimensions();
       if (indices.empty() || dims.empty())
 	    return nullptr;
       for (size_t di = 0; di < dims.size(); di += 1)

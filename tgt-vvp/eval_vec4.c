@@ -1290,16 +1290,22 @@ static void draw_select_vec4(ivl_expr_t expr)
 		  draw_eval_vec4(subexpr);
 		  fprintf(vvp_out, "    %%parti/%c %u, %lu, %u;\n",
 			  sign_suff, wid, val0, base_wid);
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
 	    } else {
 		  draw_eval_vec4(subexpr);
 		  draw_eval_vec4(base);
 		  fprintf(vvp_out, "    %%part/%c %u;\n", sign_suff, wid);
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
 	    }
 
       } else {
 	    draw_eval_vec4(subexpr);
 	    draw_eval_vec4(base);
 	    fprintf(vvp_out, "    %%part/%c %u;\n", sign_suff, wid);
+	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
       }
 
 }
@@ -2359,6 +2365,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       bool is_signal_select = false;
       bool is_string_character = false;
       bool is_nested_signal_select = false;
+      bool is_nested_property_select = false;
       bool is_array_word_select = false;
       bool is_array_string_character = false;
       ivl_expr_t array_word = 0;
@@ -2442,6 +2449,39 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		      while (root && ivl_expr_type(root) == IVL_EX_SELECT) {
 			    carrier_count += 1;
 			    root = ivl_expr_oper1(root);
+		      }
+		      ivl_type_t root_prop_type = root && ivl_expr_type(root) == IVL_EX_PROPERTY
+		            ? property_expr_type_(root) : 0;
+		      if (root_prop_type
+		          && carrier_count == 1
+		          && ivl_expr_oper1(root) == 0
+		          && (ivl_type_base(root_prop_type) == IVL_VT_QUEUE
+		              || ivl_type_base(root_prop_type) == IVL_VT_DARRAY)) {
+			    pidx = ivl_expr_property_idx(root);
+			    prop_sig = ivl_expr_signal(root);
+			    prop_base = ivl_expr_oper2(root);
+			    if (pidx == (unsigned)-1 || (!prop_sig && !prop_base)) {
+			          fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
+			                  "property ++/-- destination.\n", ivl_expr_file(sub),
+			                  ivl_expr_lineno(sub));
+			          vvp_errors += 1; draw_eval_vec4(sub); return;
+			    }
+			    carrier_base = calloc(1, sizeof *carrier_base);
+			    carrier_width = calloc(1, sizeof *carrier_width);
+			    carrier_base[0] = ivl_expr_oper2(e1);
+			    carrier_width[0] = ivl_expr_width(e1);
+			    if (!carrier_base[0] || !carrier_width[0]) {
+			          free(carrier_base); free(carrier_width);
+			          fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
+			                  "property ++/-- destination.\n", ivl_expr_file(sub),
+			                  ivl_expr_lineno(sub));
+			          vvp_errors += 1; draw_eval_vec4(sub); return;
+			    }
+			    wid = ivl_expr_width(sub);
+			    is_nested_property_select = true;
+			    lab_null = local_count++;
+			    lab_out = local_count++;
+			    break;
 		      }
 		      if (!root || ivl_expr_type(root) != IVL_EX_SIGNAL
 		          || !ivl_expr_signal(root)
@@ -2607,6 +2647,37 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		        ? "    %%part/s %u; increment selected property value\n"
 		        : "    %%part/u %u; increment selected property value\n", wid);
 	    }
+	  } else if (is_nested_property_select) {
+	    carrier_index = calloc(1, sizeof *carrier_index);
+	    carrier_flag = calloc(1, sizeof *carrier_flag);
+	    carrier_index[0] = allocate_word();
+	    carrier_flag[0] = allocate_flag();
+	    select_index = allocate_word(); select_flag = allocate_flag();
+	    if (prop_sig)
+	          fprintf(vvp_out, "    %%load/obj v%p_0; nested property receiver\n", prop_sig);
+	    else
+	          draw_eval_object(prop_base);
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%prop/obj %u, 0; nested packed container\n", pidx);
+	    fprintf(vvp_out, "    %%pop/obj 1, 1; discard class owner\n");
+	    draw_eval_expr_into_integer(carrier_base[0], carrier_index[0]);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve container word validity\n",
+	            carrier_flag[0]);
+	    fprintf(vvp_out, "    %%ix/mov 3, %d; container word\n", carrier_index[0]);
+	    fprintf(vvp_out, "    %%dup/obj/ref; preserve packed container receiver\n");
+	    fprintf(vvp_out, "    %%load/qo/v %u; nested packed container word\n",
+	            carrier_width[0]);
+	    draw_eval_vec4(select_base);
+	    fprintf(vvp_out, "    %%dup/vec4; preserve nested property select base\n");
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	          ? "    %%ix/vec4/s %d; nested property select base\n"
+	          : "    %%ix/vec4 %d; nested property select base\n", select_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve nested property select validity\n",
+	            select_flag);
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	          ? "    %%part/s %u; nested property selected value\n"
+	          : "    %%part/u %u; nested property selected value\n", wid);
 	  } else if (is_nested_signal_select) {
 	    select_index = allocate_word(); select_flag = allocate_flag();
 	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
@@ -2775,6 +2846,13 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 		  }
+	    } else if (is_nested_property_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested property select validity\n",
+		          select_flag);
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine container word validity\n",
+		          carrier_flag[0]);
+		  fprintf(vvp_out, "    %%set/dar/obj/vec4/off %d, %d, %u;\n",
+		          carrier_index[0], select_index, wid);
 	    } else if (is_nested_signal_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested select validity\n", select_flag);
 		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
@@ -2866,6 +2944,13 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 		  }
+	    } else if (is_nested_property_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested property select validity\n",
+		          select_flag);
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine container word validity\n",
+		          carrier_flag[0]);
+		  fprintf(vvp_out, "    %%set/dar/obj/vec4/off %d, %d, %u;\n",
+		          carrier_index[0], select_index, wid);
 	    } else if (is_nested_signal_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested select validity\n", select_flag);
 		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
@@ -2933,6 +3018,20 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  clr_word(select_index);
 		  clr_flag(select_flag);
 	    }
+	  } else if (is_nested_property_select) {
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; discard packed container receiver\n");
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0; discard null class receiver\n");
+	    if (destination_type == IVL_VT_LOGIC)
+	          draw_pushi_all_x(wid);
+	    else
+	          fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", wid);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+	    clr_word(carrier_index[0]); clr_flag(carrier_flag[0]);
+	    clr_word(select_index); clr_flag(select_flag);
+	    free(carrier_index); free(carrier_flag);
+	    free(carrier_width); free(carrier_base);
 	  } else if (is_nested_signal_select) {
 	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
 	          clr_word(carrier_index[idx]); clr_flag(carrier_flag[idx]);

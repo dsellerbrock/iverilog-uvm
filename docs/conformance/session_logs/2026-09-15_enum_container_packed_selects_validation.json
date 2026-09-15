@@ -1,0 +1,112 @@
+{
+  "blocker": "L90",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "standards": {
+    "2017": [
+      "6.19",
+      "6.19.3",
+      "11.4.2",
+      "11.5.1"
+    ],
+    "2023": [
+      "6.19",
+      "6.19.3",
+      "11.4.2",
+      "11.5.1"
+    ]
+  },
+  "source_hashes": {
+    "elab_expr.cc": "dc6a51d06c8a9adf128184e7d1eed9f010891cdb5b2e24e37b8b9692fa68f6a7",
+    "elab_lval.cc": "60db0372b4a9d5b5f0708221c921302ff8026c03ee094756b45978cd181eef33",
+    "tgt-vvp/eval_vec4.c": "93eea6e5fe9100c0037effca3f407971f0821569e198f6c37081afc9067add5d",
+    "vvp/vthread.cc": "a330b42a1ffb9843b974ea6bfa3d6ac3b5e5505a61cb0181340076fc2ed0c47c",
+    "vvp/codes.h": "2af1fc3661a3cc61aac30a95b4d6b0eb2ff23abe1d6518a048f58462b54398f4",
+    "vvp/compile.cc": "968501222b91b11a2cbee7867506862983dab519dd16076d9641431972c9c19b"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "7404b4d2fde0d4051a9b718ba726b3145afe1bfcaf9266c677825166bbf9bd63",
+    "local-install/lib/ivl/vvp.tgt": "4dbd47f4b419cbac76e63d1b36fa738415c641964bbfe5ba70911daf20f082c4",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "focused": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-class-enum-container-packed-select-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "ed_select_ascending: Passed.\nsv_class_enum_container_packed_select_ascending_2023: Passed.\n============================================================================\nTest results:\n  Total=10, Passed=10, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-class-enum-container-packed-select-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "23: Passed - CE.\n          sv_class_enum_container_packed_select_once: Passed.\n     sv_class_enum_container_packed_select_once_2023: Passed.\n============================================================================\nTest results: Ran 10, Failed 0.\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l90-neighbors-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "_packed_incdec_fail: Passed - CE.\n         sv_nested_packed_incdec_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=26, Passed=26, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l90-neighbors-json.list"
+      ],
+      "returncode": 0,
+      "tail": "ncdec_bounds_2023: Passed.\n              sv_nested_packed_incdec_fail: Passed - CE.\n         sv_nested_packed_incdec_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 26, Failed 0.\n"
+    }
+  ],
+  "boundary_review": [
+    {
+      "name": "clip",
+      "edition": "2017",
+      "compile_rc": 0,
+      "compile": "",
+      "run_rc": 0,
+      "run": "PASSED\n"
+    },
+    {
+      "name": "clip",
+      "edition": "2023",
+      "compile_rc": 0,
+      "compile": "",
+      "run_rc": 0,
+      "run": "PASSED\n"
+    },
+    {
+      "name": "nominal_fail",
+      "edition": "2017",
+      "compile_rc": 1,
+      "compile": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l90-final-review/nominal_fail.sv:2: error: This assignment requires an explicit cast.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "name": "nominal_fail",
+      "edition": "2023",
+      "compile_rc": 1,
+      "compile": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l90-final-review/nominal_fail.sv:2: error: This assignment requires an explicit cast.\n1 error(s) during elaboration.\n"
+    }
+  ],
+  "failed_evidence": [
+    "l90-first-focused.json",
+    "l90-second-focused.json",
+    "l90-l91-third-focused.json",
+    "l90-fourth-focused.json",
+    "l90-fifth-focused.json"
+  ],
+  "limits": [
+    "Class dynamic-array/queue packed integral/enum elements in existing direct property selection paths.",
+    "Method-call-result property chaining grammar is not implemented by this change.",
+    "Wide invalid container indices remain diagnosed no-ops under existing runtime index limits.",
+    "No broad batch, UVM or application qualification."
+  ]
+}

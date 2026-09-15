@@ -1,24 +1,10 @@
-id: PARALLEL-BATCH-L90-L92
-title: Enum container packed selects and fixed multiclock assertion control
+id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
+title: Fixed multiclock assertion control; next independent selection pending
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
 lanes:
-  - id: L90-ENUM-CONTAINER-PACKED-SELECTS
-    parent: IEEE1800 enum and packed-select elaboration
-    agent: /root/constraint_abi
-    status: REPRODUCED
-    standards: "IEEE1800-2017/2023 6.19,6.19.3,11.5.1; preserve enum nominal type for whole-object assignment."
-    reproducer: evidence/batch-20260914-after-l84/next-packed-assessment/enum.sv
-    actual: "Both editions reject b.values[0][1] and b.values[0][3:2] for a dynamic array of enum values; equivalent bit/signed/logic controls run PASSED. See typed-baseline.json."
-    expected: "Recognize the enum packed carrier for selected class-container elements, preserving canonical indices, selected vector type and partial-write behavior."
-    owns: [elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
-    test_prefix: sv_class_enum_container_packed_select
-    allowed_scope: "Packed bit, fixed-part and indexed-part selects on enum elements of class dynamic arrays and queues, for read and generic lvalue paths; use enum base_type_obj and existing select/word-part lowering. Fix sibling read/write gates once, preserve signedness/four-state/direction, evaluate selectors/RHS once, preserve neighboring words/bits."
-    forbidden_scope: "Whole-enum conversion relaxation, object/real containers, array-return expansion, unrelated parser/runtime changes, pform/SVA/solver sources, fabricated values or ignored indices."
-    dependencies: "L89 integrated1ffe476b6; independent of L86. Root owns shared builds/install, harnesses/manifests, documentation/integration."
-    acceptance: "Both editions: dynamic/queue element bit/fixed/indexed +/- reads and blocking writes, signed/ascending and2/4-state enum bases, full-width selected vector vs nominal whole-enum typing, side-effectful selectors/RHS exactly once, neighbor preservation, X/OOB defaults and suppressed writes, const/readonly negatives; compound/incdec generic lvalue controls and non-enum neighbors."
   - id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
     parent: DD-032
     agent: /root/constraint_wide
@@ -35,7 +21,7 @@ lanes:
     acceptance: "Both editions: On/Off/Kill, pending completion vs abort, no vacuous actions from disabled starts, restart before source/destination next edges, fixed antecedent and plain sequence, first-clock prefix, |->/|=>, assertion and cover, selected-instance isolation, exact repetition, coincident clocks; L86/L91 and NFA neighbors."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 6
+focused_features_completed_in_batch: 7
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -75,3 +61,5 @@ l90_runtime_refinement: "Target review proves existing partial dynamic-array opc
 l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolean_repetition_validation.json
 
 l91_integration_revision: fec7a4b9a
+
+l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json

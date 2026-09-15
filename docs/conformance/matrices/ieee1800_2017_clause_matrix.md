@@ -1422,3 +1422,7 @@ IMPLEMENTED for the [recorded finite delay-window subset](../session_logs/2026-0
 ### L91 — Finite Boolean multiclock repetition
 
 IMPLEMENTED within the [recorded finite Boolean repetition subset](../session_logs/2026-09-15_multiclock_boolean_repetition.md), including legal empty alternatives and parent-level verdicts. Broader repetition and SVA remain PARTIAL; broad qualification is pending.
+
+### L90 — Enum container packed selects
+
+IMPLEMENTED within the [recorded class-container selection subset](../session_logs/2026-09-15_enum_container_packed_selects.md), preserving enum nominal typing, selected vector state and captured partial updates. Broader receiver syntax remains PARTIAL; broad qualification is pending.

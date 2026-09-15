@@ -2153,9 +2153,11 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 
 ### L90 — Packed selects on class-container enum elements
 
-- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad batch qualification pending.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json`; paired enum element reads reject, while equivalent bit/signed/logic controls pass.
 - **Scope:** Existing read and lvalue packed-select paths for class dynamic-array/queue enum elements, preserving nominal whole-enum typing and existing partial-write semantics.
+
+- **L90 evidence:** [Focused session](session_logs/2026-09-15_enum_container_packed_selects.md).
 
 ### L91 — Finite Boolean consecutive repetition in multiclock antecedents
 

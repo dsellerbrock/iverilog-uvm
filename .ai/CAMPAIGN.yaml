@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: PARALLEL-BATCH-L90-L92
+current_blocker: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
 phase: parallel_implementation
 source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
@@ -75,9 +75,6 @@ latest_focused_evidence: docs/conformance/session_logs/2026-09-14_joint_element_
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
-  - id: L90-ENUM-CONTAINER-PACKED-SELECTS
-    agent: /root/constraint_abi
-    files: elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc
   - id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
     agent: /root/constraint_wide
     files: pform.cc
@@ -113,13 +110,13 @@ l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
 
 current_batch:
   base_revision: fd500e2b5
-  focused_features: 6
+  focused_features: 7
   integrated_l85: 9f416e09a
   integrated_l87: 831cdeca2
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
   integrated_l86: 13fee7ec9
-  selected_lanes: [L90, L92]
+  selected_lanes: [L92]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -182,3 +179,6 @@ l91_integration_checkpoint: "Six integrated focused fixes after L91; next indepe
 
 l91_integration_revision: fec7a4b9a
 l92_selection: "Four paired current-candidate failures reconfirmed; evidence l92-baseline/baseline.json. Fixed source gate is unconditionally true. L92 independent pform lane authorized, paired focused validation required. Six integrated fixes; broad gates near ten."
+
+l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json
+l90_integration_checkpoint: "Seven focused fixes integrated after L90. L92focused20passed both; neighbor/NFA session69306 still needs terminal verification. Next independent lane selection pending."

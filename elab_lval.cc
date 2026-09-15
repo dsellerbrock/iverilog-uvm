@@ -3908,21 +3908,26 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			}
 
 		  } else if (dynamic_cast<const netdarray_t*>(ptype)) {
+			auto packed_element_type = [](ivl_type_t type) -> ivl_type_t {
+			      return dynamic_cast<const netvector_t*>(type)
+				    || dynamic_cast<const netenum_t*>(type)
+				    ? type : nullptr;
+			};
 			size_t idx_pos = 0;
 			const size_t idx_count = member_cur.index.size();
 			for (std::list<index_component_t>::const_iterator idx_it =
 			       member_cur.index.begin();
 			     idx_it != member_cur.index.end(); ) {
 			      if (applied_multi_dyn_word_index) {
-				    if (const netvector_t*vector_type =
-					  dynamic_cast<const netvector_t*>(ptype)) {
+				    if (ivl_type_t vector_type =
+					  packed_element_type(ptype)) {
 					  std::list<index_component_t>packed_indices(
 						idx_it, member_cur.index.cend());
 					  NetExpr*part_off = nullptr;
 					  unsigned long part_wid = 0;
 					  if (!collapse_packed_member_indices(
 						des, scope, this,
-						vector_type->packed_dims(),
+						vector_type->slice_dimensions(),
 						packed_indices, part_off, part_wid)) {
 						cerr << get_fileline() << ": sorry: this packed "
 						     << "select after a queue or associative-array "
@@ -3972,7 +3977,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    dynamic_cast<const netdarray_t*>(ptype);
 			      const bool packed_element_tail =
 				    idx_pos + 1 < idx_count && word_container
-				    && dynamic_cast<const netvector_t*>(
+				    && packed_element_type(
 					  word_container->element_type());
 			      if (applied_multi_dyn_word_index || packed_element_tail)
 				    lv = new NetAssign_(lv);
@@ -3984,7 +3989,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			      ++idx_it;
 			      if (idx_pos < idx_count
 				  && !dynamic_cast<const netarray_t*>(ptype)
-				  && !dynamic_cast<const netvector_t*>(ptype)) {
+				  && !packed_element_type(ptype)) {
 				    cerr << get_fileline() << ": error: residual index "
 					 << "does not apply to the selected property element."
 					 << endl;

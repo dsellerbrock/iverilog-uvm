@@ -28115,6 +28115,41 @@ bool of_SET_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %set/dar/obj/vec4/off <index_reg>, <off_reg>, <wid>
+ *
+ * Merge the vec4 value on top of the stack into one packed queue/darray
+ * element. The receiver remains on the object stack. The replacement is
+ * consumed, leaving the duplicate expression result below it.
+ */
+bool of_SET_DAR_OBJ_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[cp->bit_idx[0]].w_int;
+      int64_t off = thr->words[cp->bit_idx[1]].w_int;
+      vvp_vector4_t replacement = thr->pop_vec4();
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*dar = top.peek<vvp_darray>();
+      if (!dar || thr->flags[4] != BIT4_0)
+	    return true;
+
+      adr = darray_canonical_index_(dar, adr);
+      if (adr < 0 || container_index_exceeds_runtime_range_(thr, adr)
+	  || (uint64_t)adr >= dar->get_size())
+	    return true;
+
+      vvp_vector4_t word;
+      dar->get_word((unsigned)adr, word);
+      if (replacement.size() > cp->number)
+	    replacement = replacement.subvalue(0, cp->number);
+      if (!resize_rval_vec(replacement, off, word.size()))
+	    return true;
+      word.set_vec((unsigned)off, replacement);
+      dar->set_word((unsigned)adr, word);
+      notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "set-dar-obj-vec4-off");
+      return true;
+}
+
+/*
  * %shiftl <idx>
  *
  * Pop the operand, then push the result.

@@ -209,3 +209,7 @@ The 2023 sequence, implication, clock-flow and assertion-action clauses16.7,16.1
 ## L91 shared finite repetition evidence
 
 The 2023 repetition, implication and nondegeneracy clauses share the bounded implementation in the [2017 matrix L91 entry](matrices/ieee1800_2017_clause_matrix.md#l91--finite-boolean-multiclock-repetition), with separate edition regressions and shared evidence.
+
+## L90 shared enum selection evidence
+
+The 2023 enum, increment/decrement and packed-select clauses share the implementation in the [2017 matrix L90 entry](matrices/ieee1800_2017_clause_matrix.md#l90--enum-container-packed-selects), with separate edition regressions.
