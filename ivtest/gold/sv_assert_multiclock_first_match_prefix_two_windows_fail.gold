@@ -1,0 +1,1 @@
+./ivltests/sv_assert_multiclock_first_match_prefix_two_windows_fail.v:1: sorry: a multiclocked first-clock `first_match' outside the direct finite Boolean-chain subset is not supported (IEEE 1800-2017 16.13); the assertion is dropped.

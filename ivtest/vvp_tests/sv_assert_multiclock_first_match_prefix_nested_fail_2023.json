@@ -1,0 +1,9 @@
+{
+  "type": "CE",
+  "source": "sv_assert_multiclock_first_match_prefix_nested_fail_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions"
+  ],
+  "gold": "sv_assert_multiclock_first_match_prefix_nested_fail_2023"
+}

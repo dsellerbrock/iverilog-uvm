@@ -21,7 +21,7 @@ lanes:
     acceptance: Paired constant/runtime string and integral arrays, exact element order and nonzero/ascending/descending bounds, signed/width conversions, repeated automatic/recursive frames, const initializer legality and readonly mutation rejection, positional and already-supported keyed/default pattern boundaries, malformed shape/type negatives, unchanged selected-element stores and L99/L101 neighbors.
   - id: L107-FINITE-FIRST-MATCH-MULTICLOCK-PREFIX
     agent: /root/constraint_wide
-    status: AUTHORIZED
+    status: FOCUSED_TESTED_BROAD_PENDING
     standards: IEEE1800-2017 and2023 16.9.8,16.13.1,16.13.2
     reproducer: evidence/batch-20260915-after-l95/next-finite-sva-assessment/assessment.md
     actual: Both editions reject first_match(a ##[1:2] b) as a finite first-clock prefix; ordinary ranged-prefix support exists.
@@ -33,7 +33,7 @@ lanes:
     scope: Direct Boolean first_match first-clock chains with one finite delay window, including exact-window boundary; reuse earliest-endpoint source closure without new scheduler/destination machinery. Do not accept broader nested/wrapper/match-item forms without proving preserved cut scope; diagnose unsupported forms explicitly.
     acceptance: Both editions earliest failure versus later would-pass endpoint, earliest success, no endpoint, exact/ranged windows, plain and implication use, ##0/##1 and reversed event order, overlapping attempts, cover once, Off/Kill/async disable/restart, destination backlog, construction/unsupported negatives and preserved ordinary L100/L102/L103 aggregation. Honor all earliest same-tick matches; do not claim Boolean-only merged paths are observably different without proof.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared build/install or shared harnesses. Report source freeze and do not edit again until coordinator releases it.
-focused_features_completed_in_batch: 1
+focused_features_completed_in_batch: 2
 integrated_revisions: []
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml

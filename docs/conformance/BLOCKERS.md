@@ -2313,9 +2313,18 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
 
 ### L107 — Finite first_match multiclock prefix
 
-- **State:** IN_PROGRESS; coordinator-authorized SVA lane.
+- **State:** FOCUSED_TESTED; required broad batch qualification pending.
 - **Standards:** IEEE1800-2017 and2023 16.9.8,16.13.1,16.13.2.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-finite-sva-assessment/assessment.md`.
 - **Closure:** Earliest source endpoint cut for the selected finite direct Boolean subset, preserving clock handoff, controls and plain/implication aggregation.
 
 L106 focused evidence: [local fixed-array patterns](session_logs/2026-09-15_constant_local_array_patterns.md).
+
+L107 focused evidence: [finite first_match prefixes](session_logs/2026-09-15_first_match_multiclock_prefix.md).
+
+### L108 — OpenTitan implicit object-method lookup
+
+- **State:** IN_PROGRESS; actual void-call dispatch traced to PCallTask, expression-only candidates failed.
+- **Standards:** IEEE1800-2017/2023 8.2,8.4,8.11,8.25.1.
+- **Evidence:** [application assessment](session_logs/2026-09-15_application_priority_assessment.md).
+- **Closure:** Correct void/value receiver lookup and lexical shadowing without weakening genuine class-scope diagnostics; replay real OpenTitan smoke.

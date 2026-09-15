@@ -1494,3 +1494,7 @@ The ten recorded subsets have passed the [revision-scoped seven-gate checkpoint]
 ### L106 — Whole local fixed-array pattern constant evaluation
 
 FOCUSED_TESTED for the [recorded subset](../session_logs/2026-09-15_constant_local_array_patterns.md); broad batch qualification pending. Broader constant-function and assignment-pattern coverage remains PARTIAL.
+
+### L107 — Finite first_match multiclock prefix
+
+FOCUSED_TESTED for the [recorded direct finite Boolean subset](../session_logs/2026-09-15_first_match_multiclock_prefix.md); broad batch qualification pending. Broader first_match and multiclock semantics remain PARTIAL.

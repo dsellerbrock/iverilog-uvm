@@ -1,0 +1,47 @@
+{
+  "status": "FOCUSED_TESTED; broad batch qualification pending",
+  "head_before_integration": "415823320addc31644ef2288061eadc80fe76479",
+  "source_sha256": "0ed5b86b2b29020e3c68fafb4d5049e79951a11212cd24f9498f1495bb533a93",
+  "installed_engine_sha256": "3c1361989785f05bf47ed37f0a506ec94b80fc93570bb329c575afb975bc0888",
+  "candidate_note": "Same installed candidate as L106 focused evidence; failed unbuilt elaborate.cc L108 follow-up is not installed. L108 remains unqualified.",
+  "standards": [
+    "IEEE1800-2017 16.9.8,16.13.1,16.13.2",
+    "IEEE1800-2023 16.9.8,16.13.1,16.13.2"
+  ],
+  "focused": {
+    "legacy": 36,
+    "json": 36,
+    "failed": 0
+  },
+  "neighbors": {
+    "legacy": 90,
+    "json": 90,
+    "failed": 0
+  },
+  "nfa": {
+    "passed": 58,
+    "failed": 0
+  },
+  "logs": {
+    "evidence/application-check-20260915/l107-focused/legacy.log": {
+      "sha256": "dc87157abfd46de5dbebd08974d65a0a39d92f7a320e5735e51b6d69b2dcd253",
+      "summary": "tch_prefix_overlapping_2023: Passed.\n     sv_assert_multiclock_first_match_prefix_two_windows_fail: Passed - CE.\nsv_assert_multiclock_first_match_prefix_two_windows_fail_2023: Passed - CE.\n       sv_assert_multiclock_first_match_prefix_unbounded_fail: Passed - CE.\n  sv_assert_multiclock_first_match_prefix_unbounded_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=36, Passed=36, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    "evidence/application-check-20260915/l107-focused/vvp.log": {
+      "sha256": "5e9a6b43514495ed11f5ae483de66fc92f7472482049c3226644047b6e46ba44",
+      "summary": "apping: Passed.\n     sv_assert_multiclock_first_match_prefix_overlapping_2023: Passed.\n     sv_assert_multiclock_first_match_prefix_two_windows_fail: Passed - CE.\nsv_assert_multiclock_first_match_prefix_two_windows_fail_2023: Passed - CE.\n       sv_assert_multiclock_first_match_prefix_unbounded_fail: Passed - CE.\n  sv_assert_multiclock_first_match_prefix_unbounded_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 36, Failed 0.\n"
+    },
+    "evidence/application-check-20260915/l107-focused/neighbors-legacy.log": {
+      "sha256": "4bee8e205d2771f3d45001c69e475030d906548e23b44ccdac7d51cd55d0bead",
+      "summary": "d.\n                      sv_assert_multiclock_consequence_nfa_reverse_order: Passed.\n                 sv_assert_multiclock_consequence_nfa_reverse_order_2023: Passed.\n                       sv_assert_multiclock_consequence_nfa_depth65_fail: Passed - CE.\n                  sv_assert_multiclock_consequence_nfa_depth65_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=90, Passed=90, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    "evidence/application-check-20260915/l107-focused/neighbors-vvp.log": {
+      "sha256": "30c67dea808e711017f5a25199ef26d752062f307baf41187106b17719e14874",
+      "summary": "lticlock_ranged_prefix_overlap_reverse_2023: Passed.\n                    sv_assert_plain_multiclock_ranged_prefix_overlapping: Passed.\n               sv_assert_plain_multiclock_ranged_prefix_overlapping_2023: Passed.\n                 sv_assert_plain_multiclock_ranged_prefix_unbounded_fail: Passed - CE.\n            sv_assert_plain_multiclock_ranged_prefix_unbounded_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 90, Failed 0.\n"
+    },
+    "evidence/application-check-20260915/l107-focused/nfa.log": {
+      "sha256": "209e37555a28f8dd530630a35d5f73806d7d1255cee2e98c9a622ea03a645763",
+      "summary": "trig_compound                            PASS (verdict parity)\n  window_final                             PASS (verdict parity)\n  window_goto_isolation_nfa_only           PASS (nfa-only vs gold)\n  window_goto_nfa_only                     PASS (nfa-only vs gold)\n  within_fixed                             PASS (verdict parity)\n  within_nfa_only                          PASS (nfa-only vs gold)\n  zero_repeat_antecedent_nfa_only          PASS (nfa-only vs gold)\n\nsva_nfa dual-run: 58 passed, 0 failed\n"
+    }
+  }
+}

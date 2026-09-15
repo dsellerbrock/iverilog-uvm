@@ -18948,7 +18948,8 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
    general same-clock NFA engine owns repetitions, locals, and first_match. */
 static bool sva_mc_bounded_chain_nfa_(
 		const std::vector<sva_seq_step_t>&steps, sva_nfa_t&nfa,
-		long&depth, bool&accepts_empty, bool require_ranged = true)
+		long&depth, bool&accepts_empty, bool require_ranged = true,
+		bool allow_first_match = false)
 {
       bool ranged = false;
       accepts_empty = false;
@@ -18960,7 +18961,8 @@ static bool sva_mc_bounded_chain_nfa_(
 			|| st.rep_hi < st.rep_lo || st.rep_hi < 0))
 		|| (st.grouped_repeat && !st.group_repeat_start
 		    && !st.group_repeat_end && steps.size() == 1)
-		|| st.lv_rhs || st.fm || !st.match_calls.empty())
+		|| st.lv_rhs || (st.fm && !allow_first_match)
+		|| !st.match_calls.empty())
 		  return false;
 	    PExpr*probe = sva_clone_expr_(st.expr);
 	    if (!probe) return false;
@@ -18989,6 +18991,26 @@ static bool sva_mc_bounded_chain_nfa_(
 	    }
       }
 	return terminal || accepts_empty;
+}
+
+/* The multiclock source transport can implement a direct finite
+   first_match chain by closing its parent at the first accepting source
+   tick. Keep this admission deliberately narrow: one Boolean chain, every
+   step inside the same wrapper, and at most one finite delay window. */
+static bool sva_mc_direct_first_match_(
+		const std::vector<sva_seq_step_t>&steps)
+{
+      if (steps.empty()) return false;
+      unsigned windows = 0;
+      for (size_t i = 0; i < steps.size(); ++i) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (!st.fm || st.delay_lo < 0 || st.delay_hi < st.delay_lo
+		|| st.rep_kind || st.rep_tail || st.grouped_repeat
+		|| st.lv_rhs || !st.match_calls.empty())
+		  return false;
+	    if (i && st.delay_lo != st.delay_hi) ++windows;
+      }
+      return windows <= 1;
 }
 
 /* Absolute-key producer storage for L86's cross-clock record stream.
@@ -19107,6 +19129,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       bool antecedent_accepts_empty = false;
       bool consequence_accepts_empty = false;
       bool ranged_antecedent = false;
+      bool source_first_match = false;
+      bool source_has_first_match = false;
       bool consequence_nfa_mode = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
@@ -19115,14 +19139,23 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->mc_prefix)
 		  sva_splice_sequences_(loc, *prop->mc_prefix);
 	    sva_splice_sequences_(loc, *prop->seq);
+	    const std::vector<sva_seq_step_t>*source_steps = prop->antecedent
+		  ? prop->antecedent : (plain ? prop->mc_prefix : nullptr);
+	    if (source_steps)
+		  for (size_t k = 0; k < source_steps->size(); ++k)
+			source_has_first_match |= (*source_steps)[k].fm;
+	    source_first_match = source_steps
+		  && sva_mc_direct_first_match_(*source_steps);
 	    if (prop->antecedent)
 		  ranged_antecedent = sva_mc_bounded_chain_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
-			antecedent_accepts_empty);
+			antecedent_accepts_empty, !source_first_match,
+			source_first_match);
             else if (plain && prop->mc_prefix)
                   ranged_antecedent = sva_mc_bounded_chain_nfa_(
                         *prop->mc_prefix, a_nfa, a_depth,
-                        antecedent_accepts_empty);
+			antecedent_accepts_empty, !source_first_match,
+			source_first_match);
 	    bool antecedent_group = false;
 	    if (prop->antecedent)
 		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
@@ -19184,6 +19217,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		     || b_slots.size() + b_window > 64))
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
+	    if (source_has_first_match && !source_first_match)
+		  why = "a multiclocked first-clock `first_match' outside the "
+			"direct finite Boolean-chain subset";
       }
       if (!why && plain && ranged_antecedent && antecedent_accepts_empty)
             why = "a plain multiclocked sequence whose first-clock maximal "
@@ -19812,6 +19848,19 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      } else {
 				    endpoint = emit_record(
 					  1, sva_id_(loc, ran_parent[k]), nullptr);
+			      }
+			      if (source_first_match) {
+				    /* This admitted direct chain has at most one match at
+				       an ending tick. Publish that earliest endpoint, then
+				       close the parent in the same source-clock evaluation so
+				       no later endpoint can launch a destination child. */
+				    std::vector<Statement*>cut;
+				    cut.push_back(endpoint);
+				    cut.push_back(emit_record(
+					  2, sva_id_(loc, ran_parent[k]), nullptr));
+				    cut.push_back(sva_assign_(loc, ran_live[k],
+						       sva_bit_(loc, 0)));
+				    endpoint = sva_block_(loc, cut);
 			      }
 			      body1.push_back(sva_if_(loc, hit, endpoint, nullptr));
 			}
