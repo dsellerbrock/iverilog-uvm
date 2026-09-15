@@ -116,9 +116,9 @@ coverage_implementation_lane:
   status: AUTHORIZED
   agent: /root/constraint_abi
   standards: IEEE1800-2017 and2023 19.5.2,19.11.3
-  reproducer: evidence/batch-20260915-after-l95/next-v01-assessment/transition-union.sv
+  reproducer: evidence/application-check-20260915/l110-focused/nonzero-weight-union.sv
   assessment: evidence/batch-20260915-after-l95/next-v01-assessment/frontend-mechanism.md
-  actual: Constructor-dependent transition endpoints are dropped; disjoint two-instance merged coverage reports0 instead of50percent.
+  actual: Baseline drops constructor-dependent transition endpoints. Original zero-weight oracle was invalid; corrected default-weight two-instance oracle expects50percent and passes initial candidate. Remaining review and acceptance pending.
   expected: Resolve transition endpoint expressions at construction, retain the complete transition recognizer, and merge unsized bins by resolved transition identity.
   owns: [elaborate.cc, netclass.h, ivl_target.h, t-dll-api.cc, ivl.def, tgt-vvp/draw_class.c, vvp/parse.y, vvp/compile.h, vvp/class_type.h, vvp/class_type.cc, vvp/vthread.cc, vvp/vvp_cobject.h]
   fixture_prefix: sv_cov_ctor_transition

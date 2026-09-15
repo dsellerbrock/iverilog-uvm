@@ -18,11 +18,11 @@ current_candidate:
   base_revision: 05b0c44e1
   installed_semantic_revision: 6d346269f
   installed_fingerprints: docs/conformance/session_logs/2026-09-15_joint_ordered_independent_randc_validation.json
-  shared_process: L110 build/install session95636 is active. L111 intermediate source preserved in evidence/application-check-20260915/l111-preserved and temporarily restored to integrated L109 for this build. Restore exact patch after build terminal before releasing runtime lane. L110 review corrections pending after build.
+  shared_process: L110 corrected rebuild/install74399 is active; initial95636 completed0. L111 intermediate saved in evidence/application-check-20260915/l111-preserved, temporarily restored to integrated L109 during build. Restore saved source after terminal and restart runtime agent with followup_task (currently idle).
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Poll95636 without restarting. After terminal, restore L111 saved source and release runtime agent for typed-result/shared-plan refactor. Run cheap L110 reducers on candidate, then release coverage source for reviewed named-bin deduplication, full term identity and empty-term atomicity corrections.
+  next_action: Poll74399. Restore L111 exact saved source after terminal, restart runtime agent for authorized typed-result/shared-plan implementation. Validate expanded L110 fixtures; corrected nonzero-weight union passes initial candidate but broad acceptance remains pending.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
