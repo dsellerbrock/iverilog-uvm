@@ -1,14 +1,14 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L115-WIDE-FIXED-RAND-ELEMENT-TRANSPORT + L116-FIRST-MATCH-RANGED-SOURCE-SUFFIX
-phase: parallel_wide_transport_refinement_and_sva_implementation
+current_blocker: APP-STABLE-OPENTITAN-SETUP + L106-L116-BROAD-QUALIFICATION
+phase: stable_application_setup_and_batch_qualification
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l105_archive.yaml
 integrated_since_last_broad_batch:
-  count: 9
-  revisions: [415823320, 0a5293059, 3823bd356, 6d346269f, 9027c1938, 836ec3b19, 8be562e9e, 355243ab4, d25b1f94d]
+  count: 11
+  revisions: [415823320, 0a5293059, 3823bd356, 6d346269f, 9027c1938, 836ec3b19, 8be562e9e, 355243ab4, d25b1f94d, bbc6c2b78, a689e79df]
 latest_broad_qualification:
   integration_revision: 053e07d373c0fbd94f16eddae63b7ccc0327000c
   semantic_revision: 366ef2bf1
@@ -16,13 +16,13 @@ latest_broad_qualification:
   scope: Ten recorded local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   base_revision: 05b0c44e1
-  installed_semantic_revision: Diagnostic64706 only; source changed during build. Last integrated/qualified-focused semantic base d25b1f94d. No L115 qualification.
-  installed_fingerprints: evidence/application-check-20260915/l115-first-candidate/diagnostic-direct.json
-  shared_process: None. L115 build64706 terminal0 but concurrent agent source edit invalidates stable source attribution; diagnostic installed candidate only. Fresh source freeze/build required. L116 baseline compile-exit2 both editions.
+  installed_semantic_revision: a689e79df; build16947 frozen source matches L115/L116 integrations; broad pending
+  installed_fingerprints: evidence/application-check-20260915/l115-domain-repair/source-hashes.json
+  shared_process: None; all prior build/test/application handles terminal. Broad run will be recorded in evidence/batch-20260915-l106-l116/qualification/
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Finish L115 full-width literal and vector tuple transport, then combined fresh build with frozen L116 source. Test original high-bit reducer before expanded acceptance. Broad gates at coherent approximately-ten-fix checkpoint, not while source refinement remains active.
+  next_action: Freeze release-aware harness, capture candidate, run all broad gates plus root-seed checker; continue application setup without corpus edits.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
@@ -41,3 +41,32 @@ worktrees:
 completion:
   full_mission: incomplete
   remaining_feature_total: Not reliably enumerated; two concrete next blockers selected, not the whole remaining scope.
+
+wide_domain_refinement:
+  status: coordinator-authorized L115 source refinement
+  finding: Unconstrained wide exact-joint domain exceeds capped enumeration; prior positives exercise small constrained domains only.
+  action: Preserve failing reproducer; implement exact uniform full-vector rejection proposals with complete enumeration fallback, preserving narrow ordered/dist/cyclic paths and transactional RNG rollback. No arbitrary model fallback.
+  shared_build: None; installed retry61326 remains unchanged while neighbor harness session27849 runs. Rebuild only after renewed source freeze.
+
+application_release_audit:
+  evidence: docs/conformance/session_logs/2026-09-15_application_release_validity.md
+  result: Both application pins are clean upstream development snapshots, not tagged releases. Caliptra gitlink is consistent; power2round disconnected valid input also exists in stable Adams v2.0.3.
+  baseline_requirement: Stable Caliptra claims require fresh v2.1.2 plus its exact Adams v2.0.3 gitlink. OpenTitan Darjeeling smoke must not be relabeled Earlgrey release qualification.
+  compiler_state: Domain repair16947 built successfully; focused21411 terminal. L11624/24both and NFA58/58 pass; L11518/20both had missing inactive-X golds now supplied, rerun pending.
+
+stable_switch_checkpoint:
+  switched: Both stable tags and exact Caliptra gitlink checked out clean; original branches and historical evidence preserved
+  caliptra: Unmodified stable power2round reports2048 cases passed; checker audit underway. Prior inference stable shares snapshot wiring failure is contradicted by execution.
+  opentitan: Stable peri UVM smoke SETUP_FAIL because newer harness assumes missing prim_generic all mapping; ABI lane owns release-aware setup repair
+  corpus_patches: None
+
+checkpoint_after_l116:
+  integrated: bbc6c2b78 L116; batch semantic count10
+  validation: L11624/24both,72/72neighborsboth,NFA58/58; L11520/20both now pass but integration review and neighbors pending
+  active_application_setup: OpenTitan release FuseSoC/Edalize installed with required archive hashes; embedded CoreManager discovery API adaptation pending ABI lane
+  caliptra_compress: Missing package dependency corrected in external manifest only; now stale DUT ports fail compile. No runtime pass, corpus unchanged. Wide lane assessing whether bench is obsolete.
+
+stable_component_checkpoint:
+  masked_or: Unchanged stable abr_masked_OR_tb with listed abr_masked_AND dependency passes5 checks Errors0; evidence stable-baseline/masked-or/with-dependency.json
+  compress: Obsolete TB expects removed direct-write ports; no patch applied, no runtime pass
+  opentitan: Stable release tool API discovery now exposes missing _capi_data field; ABI lane adapting complete metadata access before replay

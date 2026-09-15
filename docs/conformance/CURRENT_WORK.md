@@ -28,6 +28,10 @@ Latest focused constraint increment: [L111 coupled cyclic ordered solving](sessi
 
 ## Application evidence
 
+The [stable application baseline](session_logs/2026-09-15_stable_application_baseline.md) records the user-directed release switch, a checked unmodified Caliptra component pass, and pending OpenTitan release-specific setup.
+
+The [release validity audit](session_logs/2026-09-15_application_release_validity.md) identifies both tested application pins as development snapshots, verifies dependency consistency, and separates valid runtime evidence from upstream bench defects and untested release baselines.
+
 [Explicit-seed OpenTitan smoke replays](session_logs/2026-09-15_runtime_root_seed.md) pass
 with the new root-seed runtime control; compile provenance and scope are
 recorded separately from full application qualification.
@@ -90,3 +94,5 @@ Latest focused SVA increment: [L112 multi-window first_match](session_logs/2026-
 Latest focused nested-constraint increment: [L113](session_logs/2026-09-15_nested_fixed_element_constraints.md); broad qualification pending.
 
 Latest focused SVA increment: [L114 first_match source suffix](session_logs/2026-09-15_first_match_source_suffix.md); broad qualification pending.
+
+Latest integrated focused increments: [L115 wide fixed constraint elements](session_logs/2026-09-15_wide_fixed_constraint_elements.md) and [L116 first_match ranged suffix](session_logs/2026-09-15_first_match_ranged_suffix.md). Broad qualification pending.

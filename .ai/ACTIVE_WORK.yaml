@@ -1,5 +1,5 @@
-id: PARALLEL-AFTER-L111
-title: Finite first-match implementation and nested indexed constraint assessment
+id: STABLE-APPLICATIONS-AND-L106-L116-QUALIFICATION
+title: Stable application setup and integrated compiler batch qualification
 status: IMPLEMENTING
 base_revision: 05b0c44e1
 qualified_semantic_base: 366ef2bf1
@@ -323,3 +323,17 @@ L115_constant_refinement:
   emitted_ir: '(eq e:0:65:0 c:1:65)'
   observation: Diagnostic candidate still loses high bit; RHS literal65h10000000000000001 is truncated before runtime, so first-loss assessment was incomplete.
   requirement: Preserve full-width literal serialization and solver parsing in the existing elaborate.cc/vvp_z3.cc scope as well as vector state/model/writeback transport. Rebuild only after a new source freeze; prior freezes withdrawn.
+
+wide_domain_acceptance_refinement:
+  authorized_by: coordinator under existing L115 transport scope
+  requirement: Exercise unconstrained wide high-bit diversity and deterministic replay, plus inactive wide X/Z rejection. Small exact domains alone do not validate wide ordinary randomization.
+  ownership: constraint_abi source ownership unchanged; coordinator retains all builds and harnesses.
+
+stable_application_baseline:
+  authorized_by: User stable release switch and absolutely necessary honest application fixes only
+  opentitan: Earlgrey-PROD-M6 a78922f14a; existing corpus path retained despite historical name
+  caliptra: v2.1.2 49370266 with exact Adams Bridge v2.0.3 b77e3d8
+  coordinator: Preserve snapshot evidence; own all builds, baseline runtime and any corpus patch application
+  lane_abi: Release-aware OpenTitan FuseSoC provider setup in scripts/opentitan_matrix.py and focused adapter tests; no corpus edits
+  lane_wide: Audit stable Caliptra runtime checker and protocol differences; no corpus edits or patch until demonstrated necessary
+  evidence: evidence/application-check-20260915/stable-baseline/
