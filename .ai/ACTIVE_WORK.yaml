@@ -1,5 +1,5 @@
-id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
-title: Fixed multiclock assertion control; next independent selection pending
+id: PARALLEL-BATCH-L92-L93
+title: Fixed multiclock control and constant-function string formatting
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
@@ -19,6 +19,19 @@ lanes:
     forbidden_scope: "L90 expression/lvalue/target/runtime files, new control task families, unrelated SVA semantics."
     dependencies: "L91 integrated fec7a4b9a. Independent from L90. Coordinator owns builds/install/harnesses/docs/main manifests."
     acceptance: "Both editions: On/Off/Kill, pending completion vs abort, no vacuous actions from disabled starts, restart before source/destination next edges, fixed antecedent and plain sequence, first-clock prefix, |->/|=>, assertion and cover, selected-instance isolation, exact repetition, coincident clocks; L86/L91 and NFA neighbors."
+  - id: L93-CONSTANT-STRING-FORMATTING
+    agent: /root/constraint_abi
+    status: REPRODUCED
+    standards: "IEEE1800-2017/2023 6.16.11-6.16.15 and13.4.3; distinguish language methods from ignorable system tasks."
+    reproducer: evidence/batch-20260914-after-l84/next-string-format/baseline.json
+    actual: "Both editions compile a constant function using s.itoa(-123), but silently return the unchanged empty string. Runtime control returns -123."
+    expected: "Evaluate itoa/hextoa/octtoa/bintoa/realtoa mutations inside constant functions, preserving receiver updates, argument conversions and evaluation order."
+    owns: [net_func_eval.cc, elaborate.cc]
+    test_prefix: sv_const_string_format
+    allowed_scope: "Recognize compiler-internal string formatting method lowering in constant evaluation; reuse local-value and argument evaluation machinery. Support local string and function-result receivers, overwrite/repeated calls, integer and real formatting families. Elaborate argument typing only if evidence requires it."
+    forbidden_scope: "Unrelated system-task semantics, pform/SVA sources, new runtime formatting policy, general putc or array-receiver expansion without coordinator assessment."
+    dependencies: "L90 integrated6cf8d70de; independent of L92pform lane. Coordinator owns builds/install/harnesses/main manifests/docs."
+    acceptance: "Both editions runtime and constant controls: all five conversions, zero/negative/extrema, narrow/wide signed input conversion to integer, real zero/fraction/negative with standards-justified string checks, overwrite/loops/nested calls, argument and receiver locality, invalid/nonconstant calls and function purity controls; preserve existing constant evaluator neighbors."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
 focused_features_completed_in_batch: 7
@@ -63,3 +76,5 @@ l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolea
 l91_integration_revision: fec7a4b9a
 
 l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json
+
+l90_integration_revision: 6cf8d70de

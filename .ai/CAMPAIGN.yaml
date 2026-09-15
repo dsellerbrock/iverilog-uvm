@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
+current_blocker: PARALLEL-BATCH-L92-L93
 phase: parallel_implementation
 source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
@@ -78,6 +78,9 @@ active_lanes:
   - id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
     agent: /root/constraint_wide
     files: pform.cc
+  - id: L93-CONSTANT-STRING-FORMATTING
+    agent: /root/constraint_abi
+    files: net_func_eval.cc, elaborate.cc
 shared_execution_owner: coordinator
 parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
 
@@ -116,7 +119,7 @@ current_batch:
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
   integrated_l86: 13fee7ec9
-  selected_lanes: [L92]
+  selected_lanes: [L92, L93]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -182,3 +185,8 @@ l92_selection: "Four paired current-candidate failures reconfirmed; evidence l92
 
 l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json
 l90_integration_checkpoint: "Seven focused fixes integrated after L90. L92focused20passed both; neighbor/NFA session69306 still needs terminal verification. Next independent lane selection pending."
+
+l90_integration_revision: 6cf8d70de
+l92_final_evidence: evidence/batch-20260914-after-l84/l92-final-focused.json
+l93_selection: "RuntimepairedPASS versus constantpairedwrongemptystring confirmed; internal string methods become NetSTask, whose constant evaluator ignores every task. L93authorized five formatting methods within evaluator/elaborate ownership. Method-to-method chaining control passed; no blocker selected from property-chain fixture."
+shared_execution_checkpoint: "All processes terminal:69306 passedL92focus20perharness,L91/L86neighborsand58NFA. InstalledcompilerL92first; targetL90fourth and runtimeL90corrected replacement-pop. Hashes l90-final-installed.json. Seven integrated fixes; L92documentation/integration next, L93implementation active."
