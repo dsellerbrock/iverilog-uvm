@@ -12618,11 +12618,25 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		         : off_expr)
 	    : c32(const_off);
 
+      const bool enum_bool = dynamic_cast<const netenum_t*>(pvec)
+	    && pvec->base_type() == IVL_VT_BOOL;
       netvector_t*res_type = new netvector_t(pvec->base_type(),
 					     (long)wid - 1, 0);
-      NetESelect*sel = new NetESelect(prop_expr, base, wid, res_type);
+	/* A two-state enum still needs the packed select evaluated with 4-state
+	 * address semantics before converting its result to the enum base type
+	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
+	 * target-side BOOL cast also changes 4-state parameter selects. */
+      ivl_type_t select_type = enum_bool
+	    ? ivl_type_t(new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0))
+	    : ivl_type_t(res_type);
+      NetESelect*sel = new NetESelect(prop_expr, base, wid, select_type);
       sel->set_line(*li);
       out_type = res_type;
+      if (enum_bool) {
+	    NetECast*cast = new NetECast('2', sel, wid, false);
+	    cast->set_line(*li);
+	    return cast;
+      }
       return sel;
 }
 
