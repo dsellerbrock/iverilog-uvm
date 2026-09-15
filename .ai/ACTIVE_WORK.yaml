@@ -1,24 +1,10 @@
-id: PARALLEL-BATCH-L92-L93
-title: Fixed multiclock control and constant-function string formatting
+id: L93-CONSTANT-STRING-FORMATTING
+title: Constant-function string formatting; next independent selection pending
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
 lanes:
-  - id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
-    parent: DD-032
-    agent: /root/constraint_wide
-    status: REPRODUCED
-    standards: "IEEE1800-2017/2023 20.12 assertion controls,16.12.7 implication and16.14 actions; verify both editions."
-    reproducer: evidence/batch-20260914-after-l84/l92-baseline/baseline.json
-    actual: "Both editions start fresh fixed multiclock attempts after Off/Kill; Off produces2passes rather than1, Kill produces1rather than0."
-    expected: "Off gates fresh starts while pending attempts finish; Kill discards pending and gates new starts until On. Preserve selected-instance controls and event-region semantics."
-    owns: [pform.cc]
-    test_prefix: sv_assert_multiclock_fixed_control
-    allowed_scope: "Existing fixed multiclock source start gates for implication and plain assertion/cover sequences, including first-clock prefixes and exact repeated Boolean chains. Reuse enabled and kill-generation helpers; no new scheduler."
-    forbidden_scope: "L90 expression/lvalue/target/runtime files, new control task families, unrelated SVA semantics."
-    dependencies: "L91 integrated fec7a4b9a. Independent from L90. Coordinator owns builds/install/harnesses/docs/main manifests."
-    acceptance: "Both editions: On/Off/Kill, pending completion vs abort, no vacuous actions from disabled starts, restart before source/destination next edges, fixed antecedent and plain sequence, first-clock prefix, |->/|=>, assertion and cover, selected-instance isolation, exact repetition, coincident clocks; L86/L91 and NFA neighbors."
   - id: L93-CONSTANT-STRING-FORMATTING
     agent: /root/constraint_abi
     status: REPRODUCED
@@ -34,7 +20,7 @@ lanes:
     acceptance: "Both editions runtime and constant controls: all five conversions, zero/negative/extrema, narrow/wide signed input conversion to integer, real zero/fraction/negative with standards-justified string checks, overwrite/loops/nested calls, argument and receiver locality, invalid/nonconstant calls and function purity controls; preserve existing constant evaluator neighbors."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 7
+focused_features_completed_in_batch: 8
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -78,3 +64,5 @@ l91_integration_revision: fec7a4b9a
 l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json
 
 l90_integration_revision: 6cf8d70de
+
+l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_assertion_control_validation.json

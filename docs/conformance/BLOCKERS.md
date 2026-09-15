@@ -2171,9 +2171,11 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 ### L92 — Fixed multiclock assertion control
 
 - **Parent:** DD-032.
-- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad batch qualification pending.
 - **Evidence:** `evidence/batch-20260914-after-l84/l92-baseline/baseline.json`.
 - **Scope:** Gate fresh fixed multiclock attempts under Off/Kill while preserving pending completion, restart and selected-instance behavior; reuse existing control helpers.
+
+- **L92 evidence:** [Focused session](session_logs/2026-09-15_fixed_multiclock_assertion_control.md).
 
 ### L93 — Constant-function string formatting silently leaves the receiver unchanged
 

@@ -1426,3 +1426,7 @@ IMPLEMENTED within the [recorded finite Boolean repetition subset](../session_lo
 ### L90 — Enum container packed selects
 
 IMPLEMENTED within the [recorded class-container selection subset](../session_logs/2026-09-15_enum_container_packed_selects.md), preserving enum nominal typing, selected vector state and captured partial updates. Broader receiver syntax remains PARTIAL; broad qualification is pending.
+
+### L92 — Fixed multiclock assertion control
+
+IMPLEMENTED for the [recorded fixed-pipeline control subset](../session_logs/2026-09-15_fixed_multiclock_assertion_control.md), preserving pending attempts under Off and aborting them under Kill. Broader assertion control remains PARTIAL; broad qualification is pending.

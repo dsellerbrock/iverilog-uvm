@@ -26,7 +26,8 @@ records retain their original revisions and limits.
 [L89 queue ordering](session_logs/2026-09-15_joint_queue_element_ordering.md),
 [L86 multiclock antecedents](session_logs/2026-09-15_multiclock_bounded_antecedents.md),
 [L91 finite repetition](session_logs/2026-09-15_multiclock_boolean_repetition.md),
-and [L90 enum packed selects](session_logs/2026-09-15_enum_container_packed_selects.md)
+[L90 enum packed selects](session_logs/2026-09-15_enum_container_packed_selects.md),
+and [L92 assertion control](session_logs/2026-09-15_fixed_multiclock_assertion_control.md)
 record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence

@@ -213,3 +213,7 @@ The 2023 repetition, implication and nondegeneracy clauses share the bounded imp
 ## L90 shared enum selection evidence
 
 The 2023 enum, increment/decrement and packed-select clauses share the implementation in the [2017 matrix L90 entry](matrices/ieee1800_2017_clause_matrix.md#l90--enum-container-packed-selects), with separate edition regressions.
+
+## L92 shared assertion-control evidence
+
+The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions.

@@ -19681,7 +19681,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			: sva_assign_nb_(loc, req, published));
 	    } else {
 	    auto ante_gate = [&](size_t k) -> PExpr* {
-		  return (k == 0) ? sva_bit_(loc, 1)
+		  /* Assertion control gates only creation of a new source-clock
+		     attempt.  Pipeline stages belong to attempts that were already
+		     active and must finish while assertion evaluation is off. */
+		  return (k == 0) ? sva_enabled_expr_(loc, inst)
 				  : (PExpr*)sva_id_(loc, pa[k]);
 	    };
 	    perm_string vcount;
@@ -19735,7 +19738,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 
 		  PExpr*prefix_start;
 		  if (plain) {
-			prefix_start = sva_bit_(loc, 1);
+			/* A plain multiclock sequence begins one source-domain
+			   attempt per enabled source tick. */
+			prefix_start = sva_enabled_expr_(loc, inst);
 		  } else if (prop->op_type == 1) {
 			prefix_start = ante_match;
 			ante_match = nullptr;

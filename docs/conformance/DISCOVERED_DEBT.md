@@ -1723,3 +1723,5 @@ DD-030 update: L67 implements the scalar packed-signal and return-slot subset wi
   unconditional gate; the L86 ranged pipeline has an enabled-state gate.
   A fix must gate new starts while preserving pending attempts for Off,
   and retain kill/restart, coincident clocks, and action scheduling.
+
+DD032 is resolved for the fixed-pipeline control subset by [L92](session_logs/2026-09-15_fixed_multiclock_assertion_control.md); original failing records remain preserved. Broad qualification is pending.
