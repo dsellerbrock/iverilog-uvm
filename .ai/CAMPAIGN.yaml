@@ -1,8 +1,8 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
 current_blocker: PARALLEL-BATCH-REGRESSION-REPAIR
-phase: regression_repair
-source_revision: 1db987101
+phase: batch_qualification
+source_revision: e43ecd536
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 240dd5f6f
@@ -283,3 +283,12 @@ regression_audit_resolution:
   randc_finding: Both histories contained1,5; remaining3,3 cannot satisfy inequality, so18.4.2 permits recomputation. Original three-call coupled-cycle oracle is too strict.
   rejected_runtime_patch: evidence/batch-20260914-after-l84/randc-fixed-array-audit/rejected-joint-history.patch
   active_test_repair: separate guaranteed independent cycles from constrained reset checking, retaining mode/static/rollback coverage
+
+qualification_retry1:
+  source_revision: e43ecd536
+  source_state: frozen; all14 legacy failures resolved or standards-correctly reclassified with preserved behavioral coverage
+  negative_result: 148 passed; formerly supported-form negative migrated to three runtime cases
+  evidence: evidence/batch-20260914-after-l84/qualification-retry1
+  previous_failure: evidence/batch-20260914-after-l84/qualification
+  required_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
+  next: complete rebuild/install, capture exact hashes, execute all seven gates serially, publish only after qualification

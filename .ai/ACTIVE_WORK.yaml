@@ -1,6 +1,6 @@
 id: PARALLEL-BATCH-REGRESSION-REPAIR
 title: Repair packed-select and randc regressions exposed by broad qualification
-status: REGRESSION_REPAIR
+status: AWAITING_BATCH_QUALIFICATION
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
@@ -126,3 +126,9 @@ coordinator_authorized_regression_lanes:
     acceptance: Existing sv_randc_fixed_array_modes seed/cycle oracle, focused fixed/dynamic/queue ordering and rollback neighbors; do not weaken expectations.
     dependencies: Independent of compiler target lane; coordinator owns build, install and harnesses.
 regression_policy: These are corrections within the eleven-fix batch, not additional counted features. Full seven-gate qualification must restart from a corrected frozen candidate.
+
+regression_repairs_frozen:
+  packed_select: e8cf2ac5b
+  migrated_negative: 7913bd871
+  randc_oracle: e43ecd536
+  status: focused checks pass; all compiler and test source frozen for retry
