@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: PARALLEL-BATCH-L85-L86
+current_blocker: PARALLEL-BATCH-L86-L87
 phase: parallel_implementation
 source_revision: 240dd5f6f
 documentation_sync_revision: 1decd88ef
@@ -65,7 +65,7 @@ preserved_local_batch:
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: Full serial build/install of L75-L84 completed; candidate hashes and broad evidence live in evidence/batch-20260914-l84/qualification.
 pending_gates: PR284 and parent PR283 cross-platform CI and authorized merge; all local L75-L84 gates passed.
-next_action: Implement the authorized independent L85 solver and L86 multiclock lanes; root owns shared builds/harnesses/review. Keep PR283/284 branches fixed.
+next_action: Implement L87 selected-element joint ordering and L86 bounded multiclock antecedents; coordinator owns builds/harnesses/review. L85 integrated with focused validation; keep published branches fixed.
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
@@ -75,9 +75,9 @@ latest_focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
-  - id: L85-JOINT-ORDERED-DISTRIBUTION
+  - id: L87-JOINT-SELECTED-ELEMENT-ORDERING
     agent: /root/constraint_abi
-    files: vvp/vvp_z3.cc, vvp/vthread.cc
+    files: vvp/vvp_z3.cc
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     agent: /root/constraint_wide
     files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
@@ -113,8 +113,9 @@ l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
 
 next_batch:
   base_revision: fd500e2b5
-  focused_features: 0
-  selected_lanes: [L85, L86]
+  focused_features: 1
+  integrated_l85: 9f416e09a
+  selected_lanes: [L86, L87]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -123,3 +124,8 @@ active_scope_refinement:
 shared_process_observation: No shared build or harness running at scope-refinement checkpoint.
 
 l85_transaction_refinement: Exact range rollback test exposed prefill RNG advancement before Z3. Coordinator authorizes snapshot/restore of each visited object RNG in existing graph transaction; preserves successful-call consumption and existing object visitation/alias policy. Evidence l85-ranges-direct.json; source baseline remains installed until rebuilt.
+
+l85_status: Integrated9f416e09a; eight cases each harness and23 neighbors passed. Broad qualification pending.
+latest_runtime_install: L85 including graph RNG rollback; candidate hashes in evidence/batch-20260914-after-l84/l85-candidate.json.
+shared_process_observation_latest: All L85 builds and focused harnesses terminal; no shared process active.
+l87_baseline: evidence/batch-20260914-after-l84/next-selection/baseline.json

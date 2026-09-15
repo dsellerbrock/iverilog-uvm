@@ -2120,3 +2120,11 @@ parent-tagged transport and per-attempt verdict aggregation in ACTIVE_WORK.
 The paired action-count reducer is preserved at
 `evidence/next-batch-after-l84/parent-actions-baseline.json`; no candidate
 qualification is established by this scope refinement.
+
+### L87 — Joint selected integral array-element ordering
+
+- **Parent:** Z01.
+- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-selection/baseline.json` at L85; both editions reject selected-element ordering.
+- **Scope:** Statically selected fixed-array integral elements with exact ordered stage identity/projection; dynamic ordering and other unsupported families remain separate.
+- **Standards:** 2017 18.5.9/18.5.10; 2023 18.5.8/18.5.9.

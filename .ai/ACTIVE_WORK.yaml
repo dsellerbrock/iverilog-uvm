@@ -1,24 +1,24 @@
-id: PARALLEL-BATCH-L85-L86
-title: Ordered joint distribution and bounded multiclock antecedent semantics
+id: PARALLEL-BATCH-L86-L87
+title: Selected-element ordering and bounded multiclock antecedent semantics
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
 lanes:
-  - id: L85-JOINT-ORDERED-DISTRIBUTION
+  - id: L87-JOINT-SELECTED-ELEMENT-ORDERING
     parent: Z01
     agent: /root/constraint_abi
-    status: IMPLEMENTING
-    standards: "IEEE 1800-2017 18.5.4, 18.5.9, 18.5.10; IEEE 1800-2023 18.5.3, 18.5.8, 18.5.9"
-    reproducer: evidence/next-batch-after-l84/joint_ordered_dist.sv
-    actual: "Both editions compile, but legal randomize returns failure: joint solve-before with dist is not yet supported."
-    expected: "Sample each solve-before stage with its prescribed distribution, preserving conditional fibers and joint hard relations."
-    owns: [vvp/vvp_z3.cc, vvp/vthread.cc]
-    test_prefix: sv_randomize_joint_ordered_dist
-    allowed_scope: "Joint canonical scalar solve-before stages with the existing supported unconditional hard distribution family and state-only weights, preserving exact stage projection and existing enumeration limits. Reuse existing distribution and ordered-stage machinery. Include exact conditional-fiber validation in the distribution helper where needed; prove any retained unsupported range boundary before RNG draws, preserving unordered semantics and edition differences. Include per-object RNG-state snapshot/restore in the existing graph transaction in vvp/vthread.cc because prefill advances streams before the new rejection can occur. This is the campaign transaction contract, not a claim that IEEE requires failed calls to preserve RNG state."
-    forbidden_scope: "New randc ordering, arbitrary coupled distribution algebra, non-scalar ordering variables, parser/target redesign, SVA sources and weakening unsupported guards."
-    dependencies: "Existing Z01A ordered stages and exact joint distribution sampling; independent of L86."
-    acceptance: "Both editions: first/later stage weights, hand-derived marginal/conditional probabilities, unequal fiber sizes, := and :/ range weights within supported family, root/child alias identity, mode/callbacks, seeded replay, unsatisfiable/cap/zero-weight rollback, unsupported coupled shapes rejected; solver neighbors. Update the old ordered-dist rejection fixture only for newly supported semantics, retaining other rejection coverage."
+    status: REPRODUCED
+    standards: "IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9; distribution interaction uses L85 shared subset."
+    reproducer: evidence/batch-20260914-after-l84/next-selection/joint_element_order.sv
+    actual: "Both editions compile, then reject legal selected integral array-element ordering because the joint stage map accepts only scalar property references."
+    expected: "Distinct selected integral elements have distinct canonical ordering identities; sample complete legal stage projections and conditional fibers."
+    owns: [vvp/vvp_z3.cc]
+    test_prefix: sv_randomize_joint_element_order
+    allowed_scope: "Bounded joint solve-before over statically selected fixed-array integral elements, including scalar/element mixtures. Reuse OrderRef identities and existing element ASTs, exact stage projection, L85 distribution preflight and transaction rollback."
+    forbidden_scope: "Dynamic selection/size ordering, real ordering, randc ordering, new distribution families, parser/target changes, SVA files and weakened diagnostics."
+    dependencies: "L85 integrated at9f416e09a with focused validation; independent of L86. Root owns old global_ordered_fail fixture/golds."
+    acceptance: "Both editions: hand-derived marginal/fiber probabilities, distinct elements of same array, scalar/element mixtures, aliases, nonzero declared bounds, transitive/partial ordering, frozen rand_mode, L85 supported dist interaction, seeded replay, unsat/cap/RNG rollback, cyclic and out-of-range/unsupported references; focused solver neighbors."
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     parent: S01
     agent: /root/constraint_wide
@@ -35,7 +35,7 @@ lanes:
     acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 0
+focused_features_completed_in_batch: 1
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -43,3 +43,9 @@ stop_after_completion: false
 coordinator_scope_refinement:
   l85: "A retained complete-range guard evaluated after a prefix draw can cause seed-dependent unsupported rejection. Prove every reachable prefix before sampling or implement exact conditional range behavior; no success-conditioned sampling."
   l86: "IEEE 16.12.7 and 16.14.1 require a single property-attempt verdict across sibling antecedent endpoints. Scalar request counts lose parent identity. A parent with two matches and one failed child must dispatch pass=0/fail=1. Dynamic parent-tagged transport and retirement are necessary because a paused destination clock leaves an unbounded backlog even with a finite antecedent. Architecture expansion is coordinator-authorized; fixed-path cloning is incorrect."
+
+integrated_focused_fixes:
+  - id: L85
+    revision: 9f416e09a
+    evidence: docs/conformance/session_logs/2026-09-14_joint_ordered_distribution_validation.json
+    broad_qualification: pending near ten integrated fixes
