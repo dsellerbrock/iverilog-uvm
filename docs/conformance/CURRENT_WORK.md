@@ -51,8 +51,8 @@ command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
 latest record above. Publication status and subsequent work remain in CAMPAIGN.
 No newer whole-application replay is claimed.
 
-The next local batch has focused [L75 evidence](session_logs/2026-09-14_string_return_character.md)
-but has not received broad qualification.
+The next local batch has focused [L75](session_logs/2026-09-14_string_return_character.md)
+and [L76](session_logs/2026-09-14_constant_string_case_conversion.md) evidence but has not received broad qualification.
 
 ## History
 

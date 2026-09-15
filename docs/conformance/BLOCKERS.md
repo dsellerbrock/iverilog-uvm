@@ -2010,10 +2010,12 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 - **Focused implementation evidence:** [L75 session](session_logs/2026-09-14_string_return_character.md).
 
-### L76 — Constant-function string.toupper()
+### L76 — Constant-function string case conversion
 
-- **State:** REPRODUCED; prepared for a later selected batch.
-- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 13.4.3.
+- **State:** IMPLEMENTED for toupper/tolower; focused checks pass, broad batch pending.
+- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 6.16.5, 13.4.3.
 - **Evidence:** `evidence/next-constant-assessment/ASSESSMENT.md`: both editions reject the internal method during constant evaluation and then assert; runtime control passes.
 - **Closure:** Correct byte conversion without receiver mutation, empty/high-byte/local/argument cases, runtime parity and focused invalid-call diagnostics.
 - **Last verified revision:** `e25971651` frozen candidate.
+
+- **Focused implementation evidence:** [L76 session](session_logs/2026-09-14_constant_string_case_conversion.md).

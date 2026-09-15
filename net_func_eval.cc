@@ -1880,6 +1880,34 @@ NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 	    return res;
       }
 
+      bool string_toupper = strcmp(name_, "$ivl_string_method$toupper") == 0;
+      bool string_tolower = strcmp(name_, "$ivl_string_method$tolower") == 0;
+      if ((string_toupper || string_tolower) && parms_.size() == 1) {
+	    NetExpr*arg = parms_[0]->evaluate_function(loc, context_map);
+	    if (arg == 0) return 0;
+	    const NetEConst*arg_const = dynamic_cast<const NetEConst*>(arg);
+	    if (arg_const == 0 || !arg_const->value().is_string()) {
+		  delete arg;
+		  return 0;
+	    }
+
+	    string text = arg_const->value().as_raw_string();
+	    delete arg;
+	    /* SystemVerilog strings are byte sequences. Restrict conversion to
+	       ASCII letters so the folded value does not depend on the host
+	       locale, and preserve every other byte. */
+	    for (size_t idx = 0; idx < text.size(); ++idx) {
+		  unsigned char ch = static_cast<unsigned char>(text[idx]);
+		  if (string_toupper && ch >= 'a' && ch <= 'z')
+			text[idx] = static_cast<char>(ch - 'a' + 'A');
+		  else if (string_tolower && ch >= 'A' && ch <= 'Z')
+			text[idx] = static_cast<char>(ch - 'A' + 'a');
+	    }
+	    NetECString*res = new NetECString(text);
+	    res->set_line(*this);
+	    return res;
+      }
+
       ID id = built_in_id_();
       if (id == NOT_BUILT_IN) {
 	    if (!warned_eval_string_len_fallback || strcmp(name_, "$ivl_string_method$len") != 0) {

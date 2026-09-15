@@ -1358,3 +1358,7 @@ The bounded scopes above now have [joint local batch qualification](../session_l
 ### L75 — Scalar string-function-return character stores
 
 IMPLEMENTED for plain and compound character assignments to scalar string return variables, with return-frame isolation and byte/index semantics. See [L75 evidence](../session_logs/2026-09-14_string_return_character.md); broader receiver forms and batch qualification remain pending.
+
+### L76 — Constant-function string case conversion (6.16.4, 6.16.5)
+
+IMPLEMENTED for toupper/tolower byte conversion and receiver preservation during constant evaluation. See [L76 evidence](../session_logs/2026-09-14_constant_string_case_conversion.md); other methods and broad qualification remain separate.
