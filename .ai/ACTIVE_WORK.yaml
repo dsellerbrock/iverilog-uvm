@@ -1,6 +1,6 @@
 id: PARALLEL-BATCH-REGRESSION-REPAIR
 title: Repair packed-select and randc regressions exposed by broad qualification
-status: AWAITING_BATCH_QUALIFICATION
+status: LOCALLY_QUALIFIED_PENDING_PUBLICATION
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
@@ -132,3 +132,8 @@ regression_repairs_frozen:
   migrated_negative: 7913bd871
   randc_oracle: e43ecd536
   status: focused checks pass; all compiler and test source frozen for retry
+
+latest_checkpoint:
+  status: all eleven fixes locally qualified; prior lane statuses above are historical
+  evidence: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
+  next: publish before activating the next two independent implementation items

@@ -7,31 +7,17 @@ run on every later checkout.
 
 ## Latest recorded compiler qualification
 
-The [L75–L84 qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json)
-records the passing seven-gate batch at `304507aeb`, with semantic source
-`240dd5f6f`. The [batch session](session_logs/2026-09-14_compiler_batch_l75_l84.md)
-links each bounded implementation and its focused evidence. Counts, commands and
+The [L85–L95 qualification record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json)
+records the passing seven-gate batch at `d45ee87ab`, with semantic source
+`e43ecd536`. The [batch session](session_logs/2026-09-15_compiler_batch_l85_l95.md)
+links the eleven bounded fixes and regression corrections. Counts, commands and
 artifact fingerprints live in the JSON record.
 
 This qualifies that local candidate, not full IEEE, UVM or whole-application
-support. Earlier [L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
+support. Earlier [L75–L84](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json),
+[L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
 and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
 records retain their original revisions and limits.
-
-## Newer focused implementation evidence
-
-[L85 ordered distributions](session_logs/2026-09-14_joint_ordered_distribution.md),
-[L87 selected-element ordering](session_logs/2026-09-14_joint_element_ordering.md),
-[L88 dynamic-array ordering](session_logs/2026-09-15_joint_dynamic_element_ordering.md),
-[L89 queue ordering](session_logs/2026-09-15_joint_queue_element_ordering.md),
-[L86 multiclock antecedents](session_logs/2026-09-15_multiclock_bounded_antecedents.md),
-[L91 finite repetition](session_logs/2026-09-15_multiclock_boolean_repetition.md),
-[L90 enum packed selects](session_logs/2026-09-15_enum_container_packed_selects.md),
-and [L92 assertion control](session_logs/2026-09-15_fixed_multiclock_assertion_control.md)
-and [L93 string formatting](session_logs/2026-09-15_constant_string_formatting.md)
-and [L95 putc](session_logs/2026-09-15_constant_string_putc.md)
-and [L94 grouped repetition](session_logs/2026-09-15_multiclock_grouped_repetition.md)
-record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence
 

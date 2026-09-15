@@ -1,14 +1,14 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
 current_blocker: PARALLEL-BATCH-REGRESSION-REPAIR
-phase: batch_qualification
+phase: locally_qualified_pending_publication
 source_revision: e43ecd536
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
-last_broad_qualified_semantic_revision: 240dd5f6f
-last_broad_qualified_integration_revision: 304507aeb
-qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
-qualification_scope: L75-L84 local batch only; full IEEE, UVM and application goals remain incomplete.
+last_broad_qualified_semantic_revision: e43ecd536
+last_broad_qualified_integration_revision: d45ee87ab
+qualification_record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
+qualification_scope: L85-L95 local batch only; full IEEE, UVM and application goals remain incomplete.
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
 published_work:
@@ -292,3 +292,11 @@ qualification_retry1:
   previous_failure: evidence/batch-20260914-after-l84/qualification
   required_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
   next: complete rebuild/install, capture exact hashes, execute all seven gates serially, publish only after qualification
+
+latest_checkpoint:
+  status: all seven gates passed; source and installation unchanged
+  candidate: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
+  session: 36956 terminal success
+  next: publish coherent eleven-fix PR stacked on PR284, then authorize two next independent lanes
+  active_implementation_lanes: none during qualification and publication
+  prior_checkpoints: historical; latest_checkpoint and top-level fields govern resumption
