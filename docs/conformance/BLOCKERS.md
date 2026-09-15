@@ -2019,3 +2019,17 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 - **Last verified revision:** `e25971651` frozen candidate.
 
 - **Focused implementation evidence:** [L76 session](session_logs/2026-09-14_constant_string_case_conversion.md).
+
+### L77 — Runtime string-character increment/decrement expressions
+
+- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l74/l77-baseline.json`: both editions abort loading string storage through the vector loader.
+- **Scope:** Scalar string variables and scalar string returns, pre/post byte update/result semantics, bounds and index capture.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
+
+### L78 — Constant-function string comparisons
+
+- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l74/l78-baseline.json`: both editions reject constant compare/icompare evaluation.
+- **Scope:** Case-sensitive and insensitive comparison signs, byte ordering, operand preservation and diagnostics.
+- **Standards:** IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3.

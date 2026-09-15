@@ -1,43 +1,42 @@
-id: PARALLEL-BATCH-L75-L76
+id: PARALLEL-BATCH-L77-L78
 title: Coordinator-authorized independent return-storage and constant-evaluator lanes
 status: IMPLEMENTING
-base_revision: 9f79ff51c
+base_revision: 24feb1f28
 authority: "User authorized two existing cheaper implementation agents, disjoint ownership, focused checks per fix and broad qualification near ten integrated fixes."
 coordinator_owns:
   - Shared builds and installation
   - All legacy and JSON harness execution and shared ivtest/log output
   - Main manifests, shared documentation, integration commits and review
 lanes:
-  - id: L75-STRING-RETURN-CHARACTER-STORES
+  - id: L77-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_abi
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1, 13.4.1"
-    reproducer: evidence/parallel-batch-l71-l72/l75-assessment-function-return-character.sv
-    additional_reproducer: evidence/parallel-batch-l71-l72/l75-assessment-function-return-plain.sv
-    actual: "Both editions leave ABC unchanged; plain selector executes once while compound selector is skipped."
-    expected: "Function return characters receive plain and compound byte updates with exact single evaluation and isolated return storage."
-    owns: [tgt-vvp/stmt_assign.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
-    test_prefix: sv_string_return_character
-    allowed_scope: "Scalar string function-return character storage, plain and compound; reuse existing arithmetic, int/byte conversions and return-frame conventions."
-    forbidden_scope: "Constant evaluator, parser/elaborator, whole-string compound operations, array return containers or unrelated runtime redesign."
-    dependencies: "Published L73 signed-byte metadata and L74 scalar string character lowering; no dependency on L76."
-    acceptance: "Paired plain/compound results, signed arithmetic and shifts, all compound operator families, int32 index conversion, bounds/empty/zero byte, selector/RHS once, automatic recursion and readonly negatives; runtime string neighbors."
-  - id: L76-CONSTANT-STRING-TOUPPER
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.2, 13.4.1"
+    reproducer: evidence/batch-20260914-after-l74/string-character-incdec.sv
+    actual: "Both editions compile but abort in of_LOAD_VEC4 when incrementing a scalar string character."
+    expected: "Read/update the selected byte with pre/post results, int index conversion and one selector evaluation."
+    owns: [tgt-vvp/eval_vec4.c, elab_expr.cc]
+    test_prefix: sv_string_character_incdec
+    allowed_scope: "Scalar string variable and scalar string-function-return character increment/decrement expressions, their destination/result typing and focused regressions."
+    forbidden_scope: "Constant evaluator, array/property receivers, unrelated runtime opcodes and parser redesign."
+    dependencies: "Integrated L75 return-character store and L74 scalar string character primitives; no dependency on L78."
+    acceptance: "Paired pre/post increment/decrement, byte signedness/wrap/result contexts, scalar/local/return storage, negative/empty/zero-byte/index conversion, selector once, recursive return isolation and readonly rejection; selected-update/string neighbors."
+  - id: L78-CONSTANT-STRING-COMPARISON
     agent: /root/constraint_wide
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 6.16.4, 13.4.3"
-    reproducer: evidence/next-constant-assessment/ASSESSMENT.md
-    actual: "Both editions reject internal toupper during constant evaluation and then assert; runtime control passes."
-    expected: "Return uppercase string without changing receiver; valid constant calls produce correct strings and invalid calls receive focused diagnostics."
+    standards: "IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3"
+    reproducer: evidence/batch-20260914-after-l74/constant-string-comparison.sv
+    actual: "Both editions fail to evaluate compare/icompare in constant functions."
+    expected: "Lexicographic signed comparison results, with ASCII case-insensitive behavior for icompare and unchanged operands."
     owns: [net_func_eval.cc]
-    test_prefix: sv_const_string_toupper
-    allowed_scope: "Existing toupper internal method constant evaluation, byte behavior, receiver preservation and focused diagnostic regressions."
-    forbidden_scope: "Runtime/target sources owned by L75, parser/elaborator, other string methods and generic fallback redesign."
-    dependencies: "Published L72/L73 preserved string values; no dependency on L75."
-    acceptance: "Paired mixed ASCII/digits/punctuation, empty/high bytes, local/argument receivers, receiver unchanged, repeat stability, runtime parity, invalid arity/type diagnostics without abort; constant/string neighbors."
+    test_prefix: sv_const_string_comparison
+    allowed_scope: "Shared compare/icompare constant evaluation, parameter typing, byte ordering, operand preservation and focused diagnostics."
+    forbidden_scope: "Runtime/target or elaboration sources owned by L77, other string methods and generic fallback redesign."
+    dependencies: "Integrated L72/L73 string preservation and L76 case conversion; no dependency on L77."
+    acceptance: "Paired equal/less/greater sign checks, prefixes, empty/high bytes, case-sensitive versus insensitive controls, both operands unchanged, runtime sign parity and arity/type rejection; constant/string neighbors."
 file_conflict_policy: "Do not edit outside ownership; report necessary expansion to coordinator. Never concurrently edit shared files."
 validation_batch: 20260914_after_l74
-focused_features_completed_in_batch: 0
+focused_features_completed_in_batch: 2
 pending_gates: "Focused lane validation then seven broad gates after approximately ten integrated fixes; PR283 cross-platform CI is separate."
 last_broad_qualified_semantic_revision: 374318731
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json

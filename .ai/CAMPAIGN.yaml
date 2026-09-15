@@ -1,8 +1,8 @@
 status: active
 branch: agent/string-return-uppercase-20260914
-current_blocker: PARALLEL-BATCH-L75-L76
+current_blocker: PARALLEL-BATCH-L77-L78
 phase: parallel_implementation
-source_revision: 374318731
+source_revision: 24feb1f28
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 374318731
@@ -56,7 +56,7 @@ preserved_local_batch:
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: Full serial build/install of L73/L74 final candidate; focused fingerprints in latest session validation records. Seven broad gates passed; final artifacts stable.
 pending_gates: PR283 required cross-platform CI; focused checks and later broad qualification for the next independent batch.
-next_action: Implement authorized L75 and L76 on the new local branch using existing agents; coordinator integrates focused-tested fixes and owns all shared execution. Keep PR283 branch fixed.
+next_action: Implement authorized independent L77/L78 lanes after integrating L75/L76; coordinator owns builds, harnesses and review. Keep PR283 branch fixed.
 next_command: git diff --stat
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
@@ -66,10 +66,10 @@ latest_focused_evidence: docs/conformance/session_logs/2026-09-14_runtime_string
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
-  - id: L75-STRING-RETURN-CHARACTER-STORES
+  - id: L77-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_abi
-    files: tgt-vvp/stmt_assign.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc
-  - id: L76-CONSTANT-STRING-TOUPPER
+    files: tgt-vvp/eval_vec4.c, elab_expr.cc
+  - id: L78-CONSTANT-STRING-COMPARISON
     agent: /root/constraint_wide
     files: net_func_eval.cc
 shared_execution_owner: coordinator
@@ -83,6 +83,10 @@ l74_status: Integrated374318731; six cases per harness and two additional runtim
 
 current_batch:
   base_revision: 9f79ff51c
-  focused_features: 0
-  selected_lanes: [L75, L76]
-  source_edits: Not started at authorization checkpoint.
+  focused_features: 2
+  integrated_l75: f95f0bc11
+  integrated_l76: 24feb1f28
+  selected_lanes: [L77, L78]
+  source_edits: New lanes authorized after current failing reproducers; L75/L76 focused qualification only.
+
+l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.
