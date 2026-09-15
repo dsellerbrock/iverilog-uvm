@@ -1,5 +1,8 @@
 # vvp Scheduler Architecture Audit — 2026-07-12
 
+> **Historical record.** July 2026 scheduler audit; queue diagrams and findings describe that revision.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Manifesto-v2 "Scheduler remediation program" audit (M6 gate). Evidence:
 `vvp/schedule.h`, `vvp/schedule.cc` (event queues and main loop),
 `vvp/vthread.cc` (thread execution, callf, fork), `vvp/vpi_priv.cc`

@@ -1,5 +1,8 @@
 # OpenTitan assertions: measured state
 
+> **Historical record.** Historical assertion census and reproducers; results apply to the named revisions and flags.
+> See the [documentation index](../../README.md) for current guidance and evidence.
+
 `-DSYNTHESIS` disables OpenTitan's assertions entirely (prim_assert.sv
 selects `prim_assert_dummy_macros.svh` for it). Every "OpenTitan clean"
 figure elsewhere in this directory is an assertions-OFF measurement of

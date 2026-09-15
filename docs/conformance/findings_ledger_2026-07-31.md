@@ -1,5 +1,8 @@
 # Findings ledger — recovery campaign, 2026-07-31
 
+> **Historical record.** July 2026 findings ledger; use the blocker registry for current dispositions.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Every entry here was reproduced by the lead against a build of this tree, not
 taken on report. Where a finding came from a subagent and was NOT independently
 reproduced, it says so.

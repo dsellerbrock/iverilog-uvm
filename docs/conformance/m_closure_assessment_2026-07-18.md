@@ -1,5 +1,8 @@
 # Milestone Closure Assessment — 2026-07-18
 
+> **Historical record.** July 2026 milestone assessment; completion labels describe that checkpoint.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Purpose: a hard-nosed answer to three questions after the
 automatic-variable-storage refactor (PR #79) and the conformance
 campaign (PRs #77/#78/#80) merged: **what is genuinely missing per

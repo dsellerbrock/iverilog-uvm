@@ -1,5 +1,8 @@
 # M9-NFA: automaton-based SVA engine — design (Phase 2)
 
+> **Historical record.** Historical NFA design and rollout. The NFA engine is now the default; the old opt-in rollout text below is historical.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Status: DESIGN + staging plan. Implementation lands behind the
 `IVL_SVA_NFA` flag; the legacy linear engine remains the default until
 the compatibility gate (below) is green.

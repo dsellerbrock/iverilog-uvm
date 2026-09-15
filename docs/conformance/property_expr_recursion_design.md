@@ -1,5 +1,8 @@
 # Recursive `property_expr`: ground truth and design
 
+> **Historical record.** Historical property-expression design; this is not a current feature-support inventory.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 IEEE 1800-2017 A.2.10 defines `property_expr` **recursively**. This fork
 models a property as a flat step chain plus a scalar `op_type`, so most
 of that recursion is unreachable. This document records what is actually

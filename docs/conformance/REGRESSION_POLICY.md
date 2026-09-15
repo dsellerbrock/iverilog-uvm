@@ -5,31 +5,29 @@ the current change; escalate by risk. Optimize the PLACEMENT of expensive
 validation, not its existence. Full UVM is a checkpoint/promotion gate, not
 an inner-loop tool.
 
-## Measured suite costs (this container, 2026-07-23)
+## Commands and evidence
 
-| Suite | Cost | Command |
-|---|---|---|
-| Tier 0: single test (compile+run) | ~2-6 s | `iverilog -g2012 ... && vvp ...` |
-| Tier 0: single UVM test | ~8-12 s | `.github/regression/run_uvm_subset.sh <name>` |
-| Tier 1: negative suite (53) | ~40 s | `tests/negative/run_negative.sh` |
-| Tier 1: sva_nfa dual-run (33) | ~40 s | `tests/sva_nfa/run.sh` |
-| Tier 1: full ivtest SV list (~1045) | ~3-4 min | `cd ivtest && perl vvp_reg.pl regress-sv.list` |
-| Tier 2: targeted UVM group | ~1-8 min | `run_uvm_subset.sh --group <group>` |
-| Tier 3: UVM smoke (14) | ~2-3 min | `run_uvm_subset.sh .github/regression/smoke.list` |
-| Tier 4: full UVM (212) | ~25-30 min | 4 batches via `UVM_TESTS_DIR` (never in parallel: `/tmp/uvm_dpi_iv.vpi` race) |
-| Tier 5: full project | Tier 4 + Tier 1 + CI 6-platform | promotion gate |
+The [README](../../README.md#testing) owns full-suite commands. For narrower
+UVM runs use `.github/regression/run_uvm_subset.sh <name>` or `--group <group>`
+from the repository root. Suite membership lives in the runner and list files.
+Costs vary by host and revision; old July timing estimates are not current budgets.
+
+[CURRENT_WORK](CURRENT_WORK.md) links the latest committed qualification.
+[CAMPAIGN](../../.ai/CAMPAIGN.yaml) records operational pending gates and the
+last validated revision. The [July UVM ledger](../../.github/regression/UVM_DEBT.md)
+is historical. Do not copy its counts into a current pass claim.
 
 ## Tiers
 
 - **Tier 0 — microtests**: exact reproducer + directly adjacent positive/
   negative/adversarial tests. Run after almost every meaningful edit.
-- **Tier 1 — focused subsystem**: negative + sva_nfa (always cheap enough) +
-  full ivtest at coherent increments. ivtest is cheap here (~3.5 min) and
-  broad — treat it as the default increment gate.
+- **Tier 1 — focused subsystem**: negative + sva_nfa +
+  full ivtest at coherent increments. Use the active ticket and
+  [AGENTS](../../AGENTS.md) to select directly affected gates.
 - **Tier 2 — targeted UVM**: `.github/regression/groups.conf` maps subsystems
   to test globs; `.github/regression/fingerprints.conf` maps changed source
   files to groups. Run the mapped groups.
-- **Tier 3 — UVM smoke**: `.github/regression/smoke.list` (14 cross-cutting
+- **Tier 3 — UVM smoke**: `.github/regression/smoke.list` (cross-cutting
   tests: boot/factory, config DB, vif+cfgdb, objections, sequences, TLM,
   callbacks, field automation, RAL basic + front door, type-param stress,
   scheduler litmus, DPI). Run before promoting a normal feature commit and
@@ -39,7 +37,7 @@ an inner-loop tool.
   changes, UVM package changes, or when adversarial testing reveals
   unexpected blast radius. Periodic: HIGH-risk commits since last full >= 2,
   or stable commits since last full >= 8 (tracked in
-  `.github/regression/UVM_DEBT.md`). Never rerun on an identical
+  the campaign handoff against its last validated revision). Never rerun on an identical
   already-passed commit.
 - **Tier 5 — full project**: Tier 4 + all Tier 1 + CI matrix. Promotion gate.
 
@@ -65,11 +63,14 @@ Fast-failure order: reproducer -> adjacent micro -> Tier 1 -> Tier 2 ->
 smoke -> full. Stop escalation on the first failure; fix first. Do not run
 UVM batches concurrently (shared `/tmp/uvm_dpi_iv.vpi`; historical
 load-flake: m9h_combinator under parallel load). Cache: record full-UVM
-passes per commit in UVM_DEBT.md; never rerun the same commit.
+passes with exact tool/input fingerprints in the qualification record;
+[CURRENT_WORK](CURRENT_WORK.md) links it. Reuse identical validated evidence;
+changed tools, inputs, or unresolved concerns require fresh checks.
 
 ## Evidence-driven growth
 
 When a broad run catches what a focused run missed: identify the small test
 that would have caught it, add it to the right group in groups.conf, and
-extend fingerprints.conf. CI: per-push runs Tier 1 + smoke-equivalent; the
-6-platform matrix remains the merge gate (full suite).
+extend fingerprints.conf. CI requirements live in
+[the workflow](../../.github/workflows/test.yml); required remote checks remain
+merge gates.

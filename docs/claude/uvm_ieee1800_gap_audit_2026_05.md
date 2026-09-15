@@ -6,6 +6,9 @@ originSessionId: 3eb4c85e-78b0-4475-96cd-5139307107dc
 ---
 # Methodology
 
+> **Historical record.** May 2026 gap audit; feature claims apply to that audit, not current main.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 - **Probes** in `/tmp/audit_2026_05/p*.sv` (99 files): each compiles+runs through `iverilog/install/bin/{iverilog,vvp}` with UVM include path. Results saved to `p*.log`.
 - **Source-grounded** entries cite `file:line` of `sorry:` strings or `Compile-progress fallback` comments where I did not write a fresh probe.
 - Tags: **VERIFIED-FAILS** = reproducer in /tmp/audit_2026_05/ exhibits the failure. **REVERIFY** = source comments or single-line evidence indicate a gap but I didn't run a probe.

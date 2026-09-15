@@ -1,5 +1,8 @@
 # Frontier Roadmap — 2026-07-17
 
+> **Historical record.** Superseded July 2026 roadmap; its ordering is historical.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 A forward plan of the remaining IEEE 1800 / UVM conformance frontiers,
 ordered by tractability and value. Grounded in the milestone truth audit
 and the architectural findings recorded this session. Each item lists

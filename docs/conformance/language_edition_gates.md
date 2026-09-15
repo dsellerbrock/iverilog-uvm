@@ -47,59 +47,27 @@ Reports are deduplicated per (location, feature): elaboration visits an
 expression more than once, and the message otherwise printed two or three
 times for one line.
 
-## What is gated today
+## Implemented feature gates
 
-| feature | edition | gated at | earliest layer? |
-|---|---|---|---|
-| `$stacktrace` task | 1800-2023 | `PCallTask::elaborate` | yes — the compiler has no system-task name table before elaboration; names are otherwise resolved at VPI link time |
+[`sv_edition.h`](../../sv_edition.h) is the source of truth for the feature
+table. It currently includes the 2023 `$stacktrace` task and the constant
+`option.cross_retain_auto_bins` subset. Iterator `index()` is metadata for
+SystemVerilog 2005, not a 2023-only feature. The
+[2023 survey](ieee1800_2023_delta.md) owns the detailed edition dispositions.
 
-`SVF_ITERATOR_INDEX` remains in the feature table as introduction
-metadata, but its introducing generation is `GN_VER2005_SV`, not
-`GN_VER2023`. Iterator index querying was already specified by
-SystemVerilog 3.1a and IEEE 1800-2005 §5.15.4. It needs no separate elaboration
-gate: array-method syntax is SystemVerilog grammar, and the existing
-`gn_system_verilog()` receiver check already establishes the relevant
-language boundary. In particular, `GN_VER2005` names IEEE 1364-2005;
-the first SystemVerilog row is `GN_VER2005_SV` (`-g2005-sv`).
+## Edition boundaries
 
-## Scope findings that shaped this work
-
-**IEEE 1800-2017 introduces no new syntax.** It is a maintenance/errata
-revision of 1800-2012. The set of "2017-only additions used by this fork"
-is therefore **empty**, and no `SV_FEATURE_TABLE` row names `GN_VER2017`.
-`-g2017` exists so a design can state the edition it targets — this fork
-documents itself against 1800-2017 — not because it gates anything.
-`-g2012` and `-g2017` accept the same language by construction, and a
-test pins that a 2023 feature is refused under `-g2017` exactly as under
-`-g2012`.
-
-**The implemented 1800-2023 leak surface was `$stacktrace`, not iterator
-index querying.** Every other
-item in `ieee1800_2023_delta.md` and in the campaign's gate list
-(triple-quoted strings, `ref static`, `type(this)`, restricted type
-parameters, `dist default :/`, class/method specifiers, soft unions,
-`map()`, covergroup `extends`, `weak_reference`, `rand real`, tolerance
-ranges, preprocessor booleans) is *unimplemented* and already rejected in
-every mode. Checker constructs are 1800-2012 clause 17, so accepting them
-is correct, not a leak.
-
-**The keyword table was already correctly tiered.** Every keyword's mask
-bit matches the edition that introduced it, and this fork never modified
-`lexor_keyword.gperf`. The gap was that no tier existed above 2012 and
-that the fork's own constructs key off `gn_system_verilog()` — true for
-anything ≥ 1800-2005 — rather than a tier.
-
-A keyword whose bit is off becomes an ordinary `IDENTIFIER` with no
-diagnostic. That is **correct**: if `unique0` is not reserved in 2005,
-using it as a variable name must be legal. Edition gating for constructs
-therefore belongs at the grammar/elaboration layer, not in the lexer.
+The selector chooses language rules; it does not certify implementation.
+A keyword disabled in an earlier edition becomes an ordinary identifier.
+Feature checks therefore also belong in parsing/elaboration. Shared rules
+need paired tests, and edition-specific constructs need earlier-edition
+rejection tests. Do not infer identical semantics merely from shared syntax.
 
 ## What this does not claim
 
-Selecting `-g2023` does not mean IEEE 1800-2023 is implemented. Most of
-that edition is unimplemented and rejected in every mode. The flag
-guarantees the converse only: constructs this compiler *has* implemented
-from an edition are available only when that edition is requested.
+Selecting `-g2023` does not mean IEEE 1800-2023 is implemented. Consult the
+survey for tested subsets and gaps. Edition gates enforce the recorded
+feature boundaries; they do not establish exhaustive edition qualification.
 
 Per the campaign directive: do not claim edition conformance merely
 because the command-line switch exists.
