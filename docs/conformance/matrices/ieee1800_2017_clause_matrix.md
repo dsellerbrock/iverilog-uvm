@@ -1338,3 +1338,7 @@ Broad batch qualification remains pending.
 ### L72 — Constant-function string character selection (6.16, 13.4.3)
 
 IMPLEMENTED for the evidenced argument/local string character reads, with byte typing, getc(int) index conversion and preserved string values during evaluation. See the paired [L72 evidence](../session_logs/2026-09-14_constant_string_character.md); broad qualification remains pending.
+
+### L71 — Nested scalar packed increment/decrement (11.4.2, 11.5.1)
+
+IMPLEMENTED for retained nested selections rooted in scalar packed signals and function returns. Per-carrier bounds, single index evaluation and selected result typing are preserved. See [L71 evidence](../session_logs/2026-09-14_nested_packed_increment.md); broader receiver scope and batch qualification remain pending.

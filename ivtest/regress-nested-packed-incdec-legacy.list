@@ -1,0 +1,6 @@
+sv_nested_packed_incdec normal,-g2017 ivltests gold=sv_nested_packed_incdec.gold
+sv_nested_packed_incdec_2023 normal,-g2023 ivltests gold=sv_nested_packed_incdec.gold
+sv_nested_packed_incdec_bounds normal,-g2017 ivltests gold=sv_nested_packed_incdec_bounds.gold
+sv_nested_packed_incdec_bounds_2023 normal,-g2023 ivltests gold=sv_nested_packed_incdec_bounds.gold
+sv_nested_packed_incdec_fail CE,-g2017 ivltests gold=sv_nested_packed_incdec_fail.gold
+sv_nested_packed_incdec_fail_2023 CE,-g2023 ivltests gold=sv_nested_packed_incdec_fail.gold

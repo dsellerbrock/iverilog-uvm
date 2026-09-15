@@ -1977,3 +1977,9 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **Origin:** DD026 re-assessed on L70; string arguments collapsed to one bit.
 - **Scope:** preserve argument/local string values and evaluate typed character reads.
 - **Evidence:** [L72 session](session_logs/2026-09-14_constant_string_character.md).
+
+### L71 — Nested scalar packed increment/decrement
+
+- **Status:** IMPLEMENTED for the focused scalar packed-signal and function-return scope; broad qualification pending.
+- **Remaining:** Nested array/property roots and the earlier-aborting intermediate-part-select probe require independent assessment.
+- **Evidence:** [L71 session](session_logs/2026-09-14_nested_packed_increment.md).

@@ -1,0 +1,70 @@
+{
+  "scope": "L71 focused nested scalar packed increment/decrement",
+  "source_base": "6e5d6a4551c6eb1b79d70636f5c8b345a705e44f",
+  "source_sha256": {
+    "tgt-vvp/eval_vec4.c": "3afd6fe83258cb9a02108bd4846f417795e771f8b2e530b5a9f8a7bf75445771"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "3743aba55cbf6a24d271bf88ff445faf376646c278718190eb2be4f65ff074ae",
+    "local-install/lib/ivl/ivl": "dd592edbd56159ad7531c29430ff7899fa8f07f74a382f6a847cadf0699e3282",
+    "local-install/lib/ivl/vvp.tgt": "501c82a30c560c47e3f4e35fce3012841466d1a70aa620adebdc319684126e03"
+  },
+  "artifact_context": "L71 target rebuilt and installed, L70 runtime, L73 compiler candidate with first counted module-write diagnostic. Focused integration checks rerun after compiler installation; L73 further repairs pending.",
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "neighbors_json": 36,
+  "broad_qualified": false,
+  "evidence": "evidence/parallel-batch-l71-l72/l71-final-harness.json",
+  "neighbors": "evidence/parallel-batch-l71-l72/l71-final-neighbors.json",
+  "integration_checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-nested-packed-incdec-legacy.list"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-nested-packed-incdec-vvp.list"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-packed-select-incdec-vvp.list"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-array-packed-select-incdec-vvp.list"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-class-packed-select-incdec-vvp.list"
+      ],
+      "exit": 0
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-class-array-packed-incdec-vvp.list"
+      ],
+      "exit": 0
+    }
+  ]
+}

@@ -2333,6 +2333,19 @@ static void draw_ternary_vec4(ivl_expr_t expr)
 
 static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 {
+      ivl_variable_type_t destination_type = ivl_expr_value(sub);
+
+      /* A two-state selected l-value may carry a width-preserving bool cast
+       * around the writable expression. The increment still targets the
+       * underlying selection; draw_unary_expr applies the yielded-value
+       * context after this routine returns. */
+      if (ivl_expr_type(sub) == IVL_EX_UNARY
+	  && ivl_expr_opcode(sub) == '2'
+	  && destination_type == IVL_VT_BOOL
+	  && ivl_expr_oper1(sub)
+	  && ivl_expr_width(ivl_expr_oper1(sub)) == ivl_expr_width(sub))
+	    sub = ivl_expr_oper1(sub);
+
       ivl_signal_t sig = 0;
       unsigned wid = 0;
       unsigned pidx = 0;
@@ -2344,11 +2357,17 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       bool is_property_select = false;
       bool is_array_word = false;
       bool is_signal_select = false;
+      bool is_nested_signal_select = false;
       bool is_array_word_select = false;
       ivl_expr_t array_word = 0;
       ivl_expr_t select_base = 0;
       int select_index = -1;
       int select_flag = -1;
+      unsigned carrier_count = 0;
+      int*carrier_index = 0;
+      int*carrier_flag = 0;
+      unsigned*carrier_width = 0;
+      ivl_expr_t*carrier_base = 0;
       int array_index = -1;
       int array_flag = -1;
       int prop_index = 0;
@@ -2368,7 +2387,8 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		select_base = ivl_expr_oper2(sub);
 		if (!e1 || !select_base
 		    || (ivl_expr_type(e1) != IVL_EX_SIGNAL
-		        && ivl_expr_type(e1) != IVL_EX_PROPERTY)) {
+		        && ivl_expr_type(e1) != IVL_EX_PROPERTY
+		        && ivl_expr_type(e1) != IVL_EX_SELECT)) {
 		      fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
 		              "++/-- destination.\n",
 		              ivl_expr_file(sub), ivl_expr_lineno(sub));
@@ -2413,6 +2433,44 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			    lab_after_store = local_count++;
 		      }
 		      wid = ivl_expr_width(sub);
+		      break;
+		}
+		if (ivl_expr_type(e1) == IVL_EX_SELECT) {
+		      ivl_expr_t root = e1;
+		      while (root && ivl_expr_type(root) == IVL_EX_SELECT) {
+			    carrier_count += 1;
+			    root = ivl_expr_oper1(root);
+		      }
+		      if (!root || ivl_expr_type(root) != IVL_EX_SIGNAL
+		          || !ivl_expr_signal(root)
+		          || ivl_signal_dimensions(ivl_expr_signal(root)) != 0) {
+			    fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
+			            "++/-- destination.\n", ivl_expr_file(sub),
+			            ivl_expr_lineno(sub));
+			    vvp_errors += 1; draw_eval_vec4(sub); return;
+		      }
+		      sig = ivl_expr_signal(root);
+		      carrier_index = calloc(carrier_count, sizeof *carrier_index);
+		      carrier_flag = calloc(carrier_count, sizeof *carrier_flag);
+		      carrier_width = calloc(carrier_count, sizeof *carrier_width);
+		      carrier_base = calloc(carrier_count, sizeof *carrier_base);
+		      root = e1;
+		      for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+			    carrier_base[idx] = ivl_expr_oper2(root);
+			    carrier_width[idx] = ivl_expr_width(root);
+			    if (!carrier_base[idx] || !carrier_width[idx]) {
+			          fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
+			                  "++/-- destination.\n", ivl_expr_file(sub),
+			                  ivl_expr_lineno(sub));
+			          vvp_errors += 1;
+			          free(carrier_index); free(carrier_flag);
+			          free(carrier_width); free(carrier_base);
+			          draw_eval_vec4(sub); return;
+			    }
+			    root = ivl_expr_oper1(root);
+		      }
+		      wid = ivl_expr_width(sub);
+		      is_nested_signal_select = true;
 		      break;
 		}
 		sig = ivl_expr_signal(e1);
@@ -2503,7 +2561,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  fprintf(vvp_out, "    %%prop/v/i %u, %d;\n", pidx, prop_index);
 		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_value);
 		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_invalid);
-		  if (ivl_expr_value(sub) == IVL_VT_LOGIC)
+		  if (destination_type == IVL_VT_LOGIC)
 			draw_pushi_all_x(is_property_select
 			      ? prop_carrier_width : wid);
 		  else
@@ -2528,6 +2586,43 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		        ? "    %%part/s %u; increment selected property value\n"
 		        : "    %%part/u %u; increment selected property value\n", wid);
 	    }
+	  } else if (is_nested_signal_select) {
+	    select_index = allocate_word(); select_flag = allocate_flag();
+	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+	          carrier_index[idx] = allocate_word();
+	          carrier_flag[idx] = allocate_flag();
+	    }
+	    if (signal_is_return_value(sig))
+	          fprintf(vvp_out, "    %%retload/vec4 0; nested packed return carrier\n");
+	    else
+	          fprintf(vvp_out, "    %%load/vec4 v%p_0; nested packed carrier\n", sig);
+	    for (unsigned pos = carrier_count; pos > 0; pos -= 1) {
+	          unsigned idx = pos - 1;
+	          draw_eval_vec4(carrier_base[idx]);
+	          fprintf(vvp_out, "    %%dup/vec4; preserve carrier base\n");
+	          if (!ivl_expr_signed(carrier_base[idx])) {
+			unsigned bwid = ivl_expr_width(carrier_base[idx]);
+			fprintf(vvp_out, "    %%pad/u %u; validate unsigned carrier base\n",
+			        bwid < 65 ? 65 : bwid);
+	          }
+	          fprintf(vvp_out, "    %%ix/vec4/s %d; carrier base\n", carrier_index[idx]);
+	          fprintf(vvp_out, "    %%flag_mov %d, 4; preserve carrier validity\n", carrier_flag[idx]);
+	          fprintf(vvp_out, ivl_expr_signed(carrier_base[idx])
+	                ? "    %%part/s %u; nested carrier\n"
+	                : "    %%part/u %u; nested carrier\n", carrier_width[idx]);
+	    }
+	    draw_eval_vec4(select_base);
+	    fprintf(vvp_out, "    %%dup/vec4; preserve nested select base\n");
+	    if (!ivl_expr_signed(select_base)) {
+	          unsigned bwid = ivl_expr_width(select_base);
+	          fprintf(vvp_out, "    %%pad/u %u; validate unsigned nested select base\n",
+	                  bwid < 65 ? 65 : bwid);
+	    }
+	    fprintf(vvp_out, "    %%ix/vec4/s %d; nested select base\n", select_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve nested select validity\n", select_flag);
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	          ? "    %%part/s %u; nested selected value\n"
+	          : "    %%part/u %u; nested selected value\n", wid);
 	  } else if (is_array_word_select) {
 	    array_index = allocate_word();
 	    array_flag = allocate_flag();
@@ -2581,14 +2676,14 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 
       const char*cmd = incr? "%add" : "%sub";
 
-      if (ivl_expr_value(sub) == IVL_VT_BOOL)
+      if (destination_type == IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2; increment destination\n");
 
       if (pre) {
 	      /* prefix means we add the result first, and store the
 		 result, as well as leaving a copy on the stack. */
 	    fprintf(vvp_out, "    %si 1, 0, %u;\n", cmd, wid);
-	    if (ivl_expr_value(sub) == IVL_VT_BOOL)
+	    if (destination_type == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2; increment result\n");
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    if (is_property) {
@@ -2623,6 +2718,18 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 		  }
+	    } else if (is_nested_signal_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested select validity\n", select_flag);
+		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+			fprintf(vvp_out, "    %%flag_or 4, %d; combine carrier validity\n",
+			        carrier_flag[idx]);
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			        carrier_width[idx]);
+			fprintf(vvp_out, "    %%clip/vec4/d %d, %d; bounded nested store\n",
+			        select_index, carrier_index[idx]);
+		  }
+		  if (signal_is_return_value(sig)) fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
+		  else fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
 	    } else if (is_array_word_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
 		          select_flag);
@@ -2654,7 +2761,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		 version, so there is a slight re-arrange. */
 	    fprintf(vvp_out, "    %%dup/vec4;\n");
 	    fprintf(vvp_out, "    %si 1, 0, %u;\n", cmd, wid);
-	    if (ivl_expr_value(sub) == IVL_VT_BOOL)
+	    if (destination_type == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2; increment result\n");
 	    if (is_property) {
 		  if (prop_word) {
@@ -2688,6 +2795,18 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 		  }
+	    } else if (is_nested_signal_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore nested select validity\n", select_flag);
+		  for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+			fprintf(vvp_out, "    %%flag_or 4, %d; combine carrier validity\n",
+			        carrier_flag[idx]);
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32; carrier width\n",
+			        carrier_width[idx]);
+			fprintf(vvp_out, "    %%clip/vec4/d %d, %d; bounded nested store\n",
+			        select_index, carrier_index[idx]);
+		  }
+		  if (signal_is_return_value(sig)) fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
+		  else fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
 	    } else if (is_array_word_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
 		          select_flag);
@@ -2729,6 +2848,13 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  clr_word(select_index);
 		  clr_flag(select_flag);
 	    }
+	  } else if (is_nested_signal_select) {
+	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
+	          clr_word(carrier_index[idx]); clr_flag(carrier_flag[idx]);
+	    }
+	    free(carrier_index); free(carrier_flag);
+	    free(carrier_width); free(carrier_base);
+	    clr_word(select_index); clr_flag(select_flag);
 	  } else if (is_array_word_select) {
 	    clr_word(array_index);
 	    clr_flag(array_flag);
