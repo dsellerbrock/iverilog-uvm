@@ -2220,11 +2220,13 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L97 — Nested finite whole-sequence repetition rejected
 
 - **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.9.2.1,16.12.22,16.13.
-- **State:** IN_PROGRESS; coordinator-authorized parallel lane in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-nested-group-assessment/baseline.json`; both editions reject the nested exact-count endpoint witness.
 - **Closure:** Preserve inner/outer copies and endpoints, nested empty composition and parent verdicts within the existing finite construction scope. Keep fixed pipeline and same-clock behavior correct; preserve loud unsupported boundaries.
 - **Last verified revision:** `e43ecd536` installed candidate, qualified at `d45ee87ab`.
+
+- **Implementation evidence:** [L97 session](session_logs/2026-09-15_nested_finite_grouped_repetition.md).
 
 ### L98 — Generated function accepted in constant evaluation
 

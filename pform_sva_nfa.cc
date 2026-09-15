@@ -606,17 +606,33 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
                               unsigned&exit)
 {
       if (k == steps.size()) { exit = cur; return true; }
-      if (!steps[k].group_repeat_start) {
+      bool tagged = !steps[k].group_repeat_opens.empty();
+      if (!tagged && !steps[k].group_repeat_start) {
             if (steps[k].grouped_repeat) return false;
             unsigned next = nfa_add_step_(nfa, cur, steps[k], first);
             if (next == ~0u) return false;
             return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
       }
 
+      sva_group_repeat_t group;
+      if (tagged) group = steps[k].group_repeat_opens.back();
+      else {
+            group.lo = steps[k].group_repeat_lo;
+            group.hi = steps[k].group_repeat_hi;
+            group.first_delay_lo = steps[k].group_repeat_first_delay_lo;
+            group.first_delay_hi = steps[k].group_repeat_first_delay_hi;
+      }
       size_t last = k;
-      while (last < steps.size() && !steps[last].group_repeat_end) ++last;
+      if (tagged) {
+            while (last < steps.size()
+                   && find(steps[last].group_repeat_closes.begin(),
+                           steps[last].group_repeat_closes.end(), group.id)
+                        == steps[last].group_repeat_closes.end()) ++last;
+      } else {
+            while (last < steps.size() && !steps[last].group_repeat_end) ++last;
+      }
       if (last == steps.size()) return false;
-      long lo = steps[k].group_repeat_lo, hi = steps[k].group_repeat_hi;
+      long lo = group.lo, hi = group.hi;
       if (lo < 0 || hi < lo) return false;
       unsigned join = nfa.new_state();
       bool any = false;
@@ -626,21 +642,43 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
          delay algebra and cannot share one pre-suffix group exit. */
       unsigned copy_cur = cur;
       for (long r = 1; r <= hi; ++r) {
+            std::vector<sva_seq_step_t>body;
             for (size_t j = k; j <= last; ++j) {
                   sva_seq_step_t st = steps[j];
-                  st.grouped_repeat = false;
+                  if (tagged) {
+                        st.group_repeat_members.erase(remove(
+                              st.group_repeat_members.begin(),
+                              st.group_repeat_members.end(), group.id),
+                              st.group_repeat_members.end());
+                        st.group_repeat_opens.erase(remove_if(
+                              st.group_repeat_opens.begin(),
+                              st.group_repeat_opens.end(),
+                              [&](const sva_group_repeat_t&item) {
+                                    return item.id == group.id;
+                              }), st.group_repeat_opens.end());
+                        st.group_repeat_closes.erase(remove(
+                              st.group_repeat_closes.begin(),
+                              st.group_repeat_closes.end(), group.id),
+                              st.group_repeat_closes.end());
+                        st.grouped_repeat = !st.group_repeat_members.empty();
+                  } else st.grouped_repeat = false;
                   st.group_repeat_start = st.group_repeat_end = false;
                   if (r > 1 && j == k) {
-                        long il = steps[k].group_repeat_first_delay_lo;
-                        long ih = steps[k].group_repeat_first_delay_hi;
+                        long il = group.first_delay_lo;
+                        long ih = group.first_delay_hi;
                         if (il < 0 || ih < il) return false;
                         st.delay_lo = il + 1;
                         st.delay_hi = ih + 1;
                   }
-                  copy_cur = nfa_add_step_(nfa, copy_cur, st,
-                                            first && r == 1 && j == k);
-                  if (copy_cur == ~0u) return false;
+                  body.push_back(st);
             }
+            unsigned body_exit = 0;
+            if (!nfa_chain_suffix_(nfa, body, 0, copy_cur,
+                                   first && r == 1, body_exit)) return false;
+            copy_cur = body_exit;
+            // A nested body can denote the empty language even though the
+            // enclosing repetition has a legal zero-copy alternative.
+            if (copy_cur == ~0u) break;
             if (r >= lo) {
                   unsigned tail = 0;
                   if (!nfa_chain_suffix_(nfa, steps, last+1, copy_cur,
@@ -654,9 +692,9 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
 
       if (lo == 0) {
             long outer_lo = steps[k].delay_lo
-                          - steps[k].group_repeat_first_delay_lo;
+                          - group.first_delay_lo;
             long outer_hi = steps[k].delay_hi
-                          - steps[k].group_repeat_first_delay_hi;
+                          - group.first_delay_hi;
             if (outer_lo < 0 || outer_hi < outer_lo) return false;
             if (last + 1 == steps.size()) {
                   /* `prefix ##d empty' has no match for d==0. For d>0

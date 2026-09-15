@@ -1454,3 +1454,7 @@ IMPLEMENTED for the [recorded non-input formal checks](../session_logs/2026-09-1
 ### L98 — Generated constant-function legality
 
 IMPLEMENTED for the [recorded declaration-scope checks](../session_logs/2026-09-15_generated_constant_function_legality.md). Runtime generated functions remain legal; broad qualification is pending.
+
+### L97 — Nested finite grouped repetition
+
+IMPLEMENTED for the [recorded nested multi-term group subset](../session_logs/2026-09-15_nested_finite_grouped_repetition.md). Nested ranged fixed consequents, unbounded groups and broader sequence operands remain PARTIAL; broad qualification is pending.

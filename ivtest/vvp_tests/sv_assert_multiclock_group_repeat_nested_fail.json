@@ -1,5 +1,5 @@
 {
-  "type": "CE",
+  "type": "normal",
   "source": "sv_assert_multiclock_group_repeat_nested_fail.v",
   "iverilog-args": [
     "-g2017"

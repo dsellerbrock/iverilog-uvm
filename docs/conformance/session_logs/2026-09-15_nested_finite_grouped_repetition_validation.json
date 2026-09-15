@@ -1,0 +1,59 @@
+{
+  "scope": "L97 nested finite multi-term Boolean/delay groups; focused validation only",
+  "base_revision": "fc296ee077bca7fbf32a1138e5797b5dd879d813",
+  "standards": [
+    "IEEE1800-2017 16.9.2,16.9.2.1,16.12.22,16.13",
+    "IEEE1800-2023 16.9.2,16.9.2.1,16.12.22,16.13"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 28,
+      "failed": 0
+    },
+    "json": {
+      "ran": 28,
+      "failed": 0
+    }
+  },
+  "group_neighbors": {
+    "legacy": {
+      "ran": 58,
+      "failed": 0
+    },
+    "json": {
+      "ran": 58,
+      "failed": 0
+    }
+  },
+  "nfa_neighbors": {
+    "passed": 58,
+    "failed": 0
+  },
+  "source_and_artifacts": {
+    "elab_expr.cc": "e11d1979c2d99196c8803f78101e88fdbe6b32a1407aa37269e0b442d2bf0374",
+    "parse_misc.h": "a517f59a9b8cf428a6031a62c2b3777fe3206f1b93810a04b18cafcf7a9598d7",
+    "pform.cc": "08000d463dd7970d19d78f7eceb6709a602472953dea8f8c1cea5c0253682f01",
+    "pform_sva_nfa.cc": "429d3b9ae1cc65b4a2602e9eedb171cbe26bb11a6524c24c3e945d258cf5f86f",
+    "local-install/lib/ivl/ivl": "1929a80667ad68bf7cd28f8f350064acd34b9186f6e84268d633d5cd08d062ac",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "logs": [
+    "l97-complete-legacy.log",
+    "l97-complete-json.log",
+    "l97-migration-legacy.log",
+    "l97-migration-json.log",
+    "l97-nfa.log",
+    "l97-l98-direct.json"
+  ],
+  "build": "l97-l98-build.log",
+  "install": "l97-l98-install.log",
+  "limits": [
+    "Finite literal nested multi-term Boolean/delay groups; unbounded and broader sequence operators remain unsupported",
+    "Nested fixed prefix/consequent materialization requires positive exact group counts; nested ranged consequents remain diagnosed",
+    "New nested expansion admits at most1024 physical expanded steps; existing multiclock NFA depth64 restriction remains",
+    "No bound on paused-clock parent-obligation backlog is introduced"
+  ],
+  "migration": "Existing grouped_repeat_nested_fail pair is retained as exact runtime parent failure at195 instead of unsupported-form CE",
+  "broad_qualification": "Pending near ten integrated fixes"
+}

@@ -229,3 +229,5 @@ The L85–L95 subsets share the [local qualification checkpoint](matrices/ieee18
 L96 shares the 13.4.3 input-only constant-function rule; [paired evidence](session_logs/2026-09-15_constant_function_formal_legality_validation.json) records separate edition checks.
 
 L98 shares the 13.4.3 generated-declaration restriction; [paired evidence](session_logs/2026-09-15_generated_constant_function_legality_validation.json) records both editions.
+
+L97 applies the shared repetition and empty-composition requirements; [paired evidence](session_logs/2026-09-15_nested_finite_grouped_repetition_validation.json) records edition-specific validation.

@@ -324,3 +324,9 @@ l98_checkpoint:
   status: focused tested, integrating second fix after PR285
   evidence: docs/conformance/session_logs/2026-09-15_generated_constant_function_legality_validation.json
   broad_validation: pending near ten fixes
+
+l97_checkpoint:
+  status: focused tested, integrating third fix after PR285
+  evidence: docs/conformance/session_logs/2026-09-15_nested_finite_grouped_repetition_validation.json
+  broad_validation: pending near ten fixes
+  shared_processes: none

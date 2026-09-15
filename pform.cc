@@ -39,6 +39,7 @@
 # include  "discipline.h"
 # include  "util.h"
 # include  <list>
+# include  <functional>
 # include  <map>
 # include  <set>
 # include  <cassert>
@@ -13382,26 +13383,68 @@ pform_sva_repeat(const struct vlltype&loc,
       }
 
       bool grouped_repeat = steps->size() > 1;
-      if (grouped_repeat)
-	    for (size_t k = 0; k < steps->size(); ++k)
-		  if ((*steps)[k].grouped_repeat) {
-			/* Nested grouped repetition needs a nested fragment tree; the
-			   flat start/end carrier cannot represent it without truncation. */
+      if (grouped_repeat && !unbounded) {
+	    bool nested = false;
+	    std::map<unsigned,uint64_t> inner_counts;
+	    for (const auto&st : *steps)
+		  for (const auto&inner : st.group_repeat_opens) {
+			nested = true;
+			inner_counts[inner.id] = (uint64_t)inner.hi;
+		  }
+	    /* Bound only the newly admitted nested expansion. Its cost is the
+	       sum of each physical step's containing-group products; disjoint
+	       sibling groups add rather than multiply. Saturate before either
+	       fixed-path cloning or NFA state creation. */
+	    if (nested && hiv != 0) {
+		  uint64_t expanded_steps = 0;
+		  for (const auto&st : *steps) {
+			uint64_t weight = 1;
+			for (unsigned member : st.group_repeat_members) {
+			      uint64_t count = inner_counts[member];
+			      if (count == 0) { weight = 0; break; }
+			      if (weight > 1024 / count) { weight = 1025; break; }
+			      weight *= count;
+			}
+			if (expanded_steps > 1024 - std::min(weight, uint64_t(1024))) {
+			      expanded_steps = 1025; break;
+			}
+			expanded_steps += weight;
+		  }
+		  uint64_t outer_count = (uint64_t)hiv;
+		  if (expanded_steps > 1024
+		      || expanded_steps > 1024 / outer_count) {
 			(*steps)[0].delay_lo = (*steps)[0].delay_hi = -3;
 			return steps;
 		  }
-      if (grouped_repeat && !unbounded) {
+	    }
 	    /* Retain the whole fragment.  The NFA builder repeats the fragment,
 	       including every interior delay and Boolean, and exposes an exit
 	       after each permitted copy count. */
-	    for (size_t k = 0; k < steps->size(); ++k)
+	    static unsigned next_group_repeat_id = 1;
+	    unsigned id = next_group_repeat_id++;
+	    sva_group_repeat_t group;
+	    group.id = id;
+	    group.lo = lov;
+	    group.hi = hiv;
+	    group.first_delay_lo = steps->front().delay_lo;
+	    group.first_delay_hi = steps->front().delay_hi;
+	    for (size_t k = 0; k < steps->size(); ++k) {
 		  (*steps)[k].grouped_repeat = true;
-	    steps->front().group_repeat_start = true;
-	    steps->front().group_repeat_lo = lov;
-	    steps->front().group_repeat_hi = hiv;
-	    steps->front().group_repeat_first_delay_lo = steps->front().delay_lo;
-	    steps->front().group_repeat_first_delay_hi = steps->front().delay_hi;
-	    steps->back().group_repeat_end = true;
+		  (*steps)[k].group_repeat_members.push_back(id);
+	    }
+	    steps->front().group_repeat_opens.push_back(group);
+	    steps->back().group_repeat_closes.push_back(id);
+	    /* Retain the original one-level fields for fixed-path diagnostics and
+	       compatibility. The nested NFA consumes the ID-tagged metadata. */
+	    if (!steps->front().group_repeat_start) {
+		  steps->front().group_repeat_start = true;
+		  steps->front().group_repeat_lo = lov;
+		  steps->front().group_repeat_hi = hiv;
+		  steps->front().group_repeat_first_delay_lo = group.first_delay_lo;
+		  steps->front().group_repeat_first_delay_hi = group.first_delay_hi;
+	    }
+	    if (!steps->back().group_repeat_end)
+		  steps->back().group_repeat_end = true;
 	    return steps;
       }
 
@@ -18695,6 +18738,81 @@ static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst
       return match;
 }
 
+/* Materialize nested exact finite groups for the fixed multiclock prefix and
+   consequent pipelines. Ranged nested groups branch before a distinguishing
+   suffix and remain on the NFA/diagnostic path; choosing their minimum would
+   silently discard legal later matches. */
+static bool sva_mc_expand_nested_exact_(std::vector<sva_seq_step_t>&steps)
+{
+      bool nested = false;
+      for (const auto&st : steps)
+            nested |= st.group_repeat_members.size() > 1;
+      if (!nested) return true;
+
+      std::function<bool(const std::vector<sva_seq_step_t>&,
+                         std::vector<sva_seq_step_t>&)> expand;
+      expand = [&](const std::vector<sva_seq_step_t>&input,
+                   std::vector<sva_seq_step_t>&output) -> bool {
+            for (size_t k = 0; k < input.size();) {
+                  if (input[k].group_repeat_opens.empty()) {
+                        if (input[k].grouped_repeat) return false;
+                        output.push_back(input[k++]);
+                        continue;
+                  }
+                  sva_group_repeat_t group = input[k].group_repeat_opens.back();
+                  if (group.lo <= 0 || group.hi != group.lo) return false;
+                  size_t last = k;
+                  while (last < input.size()
+                         && find(input[last].group_repeat_closes.begin(),
+                                 input[last].group_repeat_closes.end(), group.id)
+                              == input[last].group_repeat_closes.end()) ++last;
+                  if (last == input.size()) return false;
+                  std::vector<sva_seq_step_t>body(input.begin()+k,
+                                                   input.begin()+last+1);
+                  for (auto&st : body) {
+                        st.group_repeat_members.erase(remove(
+                              st.group_repeat_members.begin(),
+                              st.group_repeat_members.end(), group.id),
+                              st.group_repeat_members.end());
+                        st.group_repeat_opens.erase(remove_if(
+                              st.group_repeat_opens.begin(),
+                              st.group_repeat_opens.end(),
+                              [&](const sva_group_repeat_t&item) {
+                                    return item.id == group.id;
+                              }), st.group_repeat_opens.end());
+                        st.group_repeat_closes.erase(remove(
+                              st.group_repeat_closes.begin(),
+                              st.group_repeat_closes.end(), group.id),
+                              st.group_repeat_closes.end());
+                        st.grouped_repeat = !st.group_repeat_members.empty();
+                        st.group_repeat_start = st.group_repeat_end = false;
+                  }
+                  std::vector<sva_seq_step_t>one;
+                  if (!expand(body, one) || one.empty()) return false;
+                  for (long r = 0; r < group.lo; ++r) {
+                        for (size_t j = 0; j < one.size(); ++j) {
+                              sva_seq_step_t copy = one[j];
+                              if (r != 0) {
+                                    copy.expr = sva_clone_expr_(one[j].expr);
+                                    if (!copy.expr) return false;
+                              }
+                              if (r != 0 && j == 0) {
+                                    copy.delay_lo = group.first_delay_lo + 1;
+                                    copy.delay_hi = group.first_delay_hi + 1;
+                              }
+                              output.push_back(copy);
+                        }
+                  }
+                  k = last + 1;
+            }
+            return true;
+      };
+      std::vector<sva_seq_step_t>expanded;
+      if (!expand(steps, expanded)) return false;
+      steps.swap(expanded);
+      return true;
+}
+
 /* M9-7: expand a FIXED-length sequence chain (constant ##N delays, no
    repetition/goto/local-variable/first_match) into per-tick boolean
    slots. slots[t] is the boolean checked at tick offset t (null = a
@@ -18728,6 +18846,7 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
 {
       long off = 0;
       if (window) *window = 0;
+      if (!sva_mc_expand_nested_exact_(steps)) return false;
 
       /* A fixed prefix/consequent still uses the established linear
          pipeline. Materialize a retained finite group completely for an

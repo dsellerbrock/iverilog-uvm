@@ -1,0 +1,1 @@
+ivltests/sv_assert_nested_group_outer_zero_overlap_fail.v:5: sorry: an overlapped implication with a degenerate empty antecedent is not supported (IEEE 1800-2017 16.13); the assertion is dropped.
