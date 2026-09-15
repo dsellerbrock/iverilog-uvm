@@ -1,5 +1,8 @@
 # M7 stress findings — 2026-07-18
 
+> **Historical record.** July 2026 stress findings; original defects and pending checks are historical.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 The Phase-1 M7 stress work (register-model + objections suites) found two
 compiler/runtime defects. Both are reduced to minimal repros here so the
 follow-up work does not depend on session state.

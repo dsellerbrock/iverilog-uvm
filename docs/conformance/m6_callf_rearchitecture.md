@@ -1,5 +1,8 @@
 # M6 item 5 — rearchitecting the synchronous call model (step 5)
 
+> **Historical record.** Historical synchronous-call design record; inspect current source before relying on implementation details.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 The scheduled-call experiment (steps 2-3) established, empirically, that
 a Verilog function call **must** execute synchronously within the
 calling process: a function is atomic, zero-time, and part of the

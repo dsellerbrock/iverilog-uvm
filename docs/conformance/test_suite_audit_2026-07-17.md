@@ -1,5 +1,8 @@
 # Test-suite audit — 2026-07-17
 
+> **Historical record.** July 2026 harness audit; test counts and failure lists below are historical.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Goal (as posed): *ensure the test suite is working properly, that every
 failure is documented with a definitive breakage reason, and that no
 failure is merely "flaky."*

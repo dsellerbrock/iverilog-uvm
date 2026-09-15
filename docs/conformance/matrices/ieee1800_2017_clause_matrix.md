@@ -1,5 +1,10 @@
 # IEEE 1800-2017 Clause Conformance Matrix (paired with 1800-2023)
 
+Canonical standards record. Read dated refinements alongside the initial
+matrix: an older row is not a newer qualification claim. Operational blocker
+status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
+linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
+
 Governing milestone: **M14B — exhaustive subclause campaign.** The table below
 is the retained M14 simulation-led snapshot. It is useful evidence, but it is
 **not** a full-compliance certificate. Former `FULL` rows are labeled
