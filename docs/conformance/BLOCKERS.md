@@ -2139,3 +2139,10 @@ qualification is established by this scope refinement.
 - **Scope:** Constant selected integral dynamic-array elements with one proved size before element solving; preserve resize, exact ordering, bounds and transaction invariants. Other container/order families remain separate.
 
 - **L88 implementation evidence:** [Focused session](session_logs/2026-09-15_joint_dynamic_element_ordering.md).
+
+### L89 — Joint queue selected-element ordering
+
+- **Parent:** Z01.
+- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-queue-assessment/after-l88-baseline.json`; paired queue ordering is dropped and violates the first-stage probability oracle.
+- **Scope:** Constant selected integral queue elements with one proved size, bounded queue limits, retained-element modes and exact joint ordering. Other queue/order families remain separate.
