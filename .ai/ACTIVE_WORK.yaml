@@ -1,37 +1,40 @@
-id: PARALLEL-L104-L105
-title: Constant comparison sizing and nonlocal constant-function legality
-status: LOCALLY_QUALIFIED_AWAITING_PUBLICATION
-base_revision: eb5eb6ebb
-authority: User authorizes two existing cheaper implementation agents, independent mechanisms and focused validation before broad gates near ten fixes.
+id: PARALLEL-L106-L107
+title: Local fixed-array pattern evaluation and finite first_match multiclock prefixes
+status: IMPLEMENTING
+base_revision: 05b0c44e1
+qualified_semantic_base: 366ef2bf1
+authority: User authorizes two existing cheaper implementation agents, disjoint compiler mechanisms and focused validation, with seven broad gates near ten integrated fixes.
 coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Main manifests, Documentation, Integration and review]
 lanes:
-  - id: L104-CONSTANT-MIXED-EQUALITY
+  - id: L106-CONSTANT-LOCAL-ARRAY-PATTERN
     agent: /root/constraint_abi
-    status: REGRESSION_TESTED
-    standards: IEEE1800-2017 and2023 5.9, Table11-21,11.8.2
-    reproducer: evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md
-    actual: Constant function comparing integer97 with packed literal a fails evaluation in both editions; runtime equivalent returns true.
-    expected: Apply standard common integral operand sizing and signedness; preserve four-state results and true string equality.
-    owns: [eval_tree.cc, elab_expr.cc]
-    test_prefix: sv_const_mixed_equality
-    dependencies: Existing comparison folders and contextual sizing; independent of nonlocal signal lookup.
-    scope: Trace comparison callers and fix the common sizing mechanism for integral equality, including related equality operators where affected. No net_func_eval.cc edits; report if that file is necessary before proceeding.
-    acceptance: Both editions operand order, unequal widths, signed/unsigned and X/Z, ==/!=/===/!== and wildcard neighbors, literals and explicit casts, true string variables, constant/runtime parity and illegal-type diagnostic control.
-  - id: L105-NONLOCAL-CONSTANT-FALLBACK
+    status: AUTHORIZED
+    standards: IEEE1800-2017 and2023 10.9,13.4.3
+    reproducer: evidence/batch-20260915-after-l95/next-const-string-array-initializer-assessment/assessment.md
+    actual: Both editions crash during constant evaluation of mutable, const and static-function local fixed-string-array aggregate initializers; runtime and separate element assignments pass.
+    expected: Evaluate each compatible local fixed-array assignment-pattern leaf into the correct local slot, preserving array shape, type conversions and frame lifetime.
+    root_cause: NetAssign::eval_func_lval_ dereferences a missing word selector when a whole-array NetEArrayPattern assignment reaches the local array path.
+    owns: [net_func_eval.cc]
+    test_prefix: sv_const_local_array_pattern
+    dependencies: Existing pattern flattening, LocalVar array storage and slot conversion; no assertion-lane dependency.
+    scope: Whole local fixed-array assignment patterns through the existing evaluator; cover declaration initialization and equivalent whole-array assignment where supported. No dynamic/queue representation, parser or target edits; report broader requirements before editing.
+    acceptance: Paired constant/runtime string and integral arrays, exact element order and nonzero/ascending/descending bounds, signed/width conversions, repeated automatic/recursive frames, const initializer legality and readonly mutation rejection, positional and already-supported keyed/default pattern boundaries, malformed shape/type negatives, unchanged selected-element stores and L99/L101 neighbors.
+  - id: L107-FINITE-FIRST-MATCH-MULTICLOCK-PREFIX
     agent: /root/constraint_wide
-    status: REGRESSION_TESTED
-    standards: IEEE1800-2017 and2023 13.4.3
-    reproducer: evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md
-    actual: Reading mutable package state initialized to7 silently yields constant0 in both editions.
-    expected: Nonlocal mutable variables cannot supply constant-function values; legal package parameters and local values remain valid and ordinary runtime reads retain state.
-    owns: [net_func_eval.cc, net_design.cc]
-    test_prefix: sv_const_nonlocal_static
-    dependencies: Existing NetESignal local context lookup; L101 integrated at7ef17f630. Independent of comparison sizing.
-    scope: Remove fabricated default fallback for nonlocal package/class static reads, preserve legal local evaluation and focused diagnostics. The string parameter branch in net_design.cc must reject an unreduced expression before target lowering, matching existing real/integral checks; direct L105 string reducers otherwise abort in t-dll.cc. No elab_expr.cc or eval_tree.cc edits.
-    acceptance: Both editions initialized/uninitialized mutable package scalar and string values reject, class-static controls reject, legal parameter/local/automatic-frame constants pass, runtime package and static reads observe actual state. Check constant string/array neighbors; no compilation-only success claim.
-file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
-focused_features_completed_in_batch: 10
-integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
+    status: AUTHORIZED
+    standards: IEEE1800-2017 and2023 16.9.8,16.13.1,16.13.2
+    reproducer: evidence/batch-20260915-after-l95/next-finite-sva-assessment/assessment.md
+    actual: Both editions reject first_match(a ##[1:2] b) as a finite first-clock prefix; ordinary ranged-prefix support exists.
+    expected: Retain earliest source endpoint; a child failure at35 cannot be rescued by a later source endpoint whose child would pass at55.
+    root_cause: Parser fm metadata reaches bounded multiclock NFA admission, which explicitly rejects it; source attempt lacks first-accept cut handling.
+    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
+    test_prefix: sv_assert_multiclock_first_match_prefix
+    dependencies: Existing finite source NFA, MATCH/CLOSE lifecycle and L103 parent aggregation. Independent of constant evaluation.
+    scope: Direct Boolean first_match first-clock chains with one finite delay window, including exact-window boundary; reuse earliest-endpoint source closure without new scheduler/destination machinery. Do not accept broader nested/wrapper/match-item forms without proving preserved cut scope; diagnose unsupported forms explicitly.
+    acceptance: Both editions earliest failure versus later would-pass endpoint, earliest success, no endpoint, exact/ranged windows, plain and implication use, ##0/##1 and reversed event order, overlapping attempts, cover once, Off/Kill/async disable/restart, destination backlog, construction/unsupported negatives and preserved ordinary L100/L102/L103 aggregation. Honor all earliest same-tick matches; do not claim Boolean-only merged paths are observably different without proof.
+file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared build/install or shared harnesses. Report source freeze and do not edit again until coordinator releases it.
+focused_features_completed_in_batch: 0
+integrated_revisions: []
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
-prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml
+prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml
 stop_after_completion: false
