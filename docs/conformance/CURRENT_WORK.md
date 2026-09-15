@@ -7,21 +7,18 @@ run on every later checkout.
 
 ## Latest recorded compiler qualification
 
-The [L85–L95 qualification record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json)
-records the passing seven-gate batch at `d45ee87ab`, with semantic source
-`e43ecd536`. The [batch session](session_logs/2026-09-15_compiler_batch_l85_l95.md)
-links the eleven bounded fixes and regression corrections. Counts, commands and
-artifact fingerprints live in the JSON record.
+The [L96–L105 qualification record](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json)
+records the passing seven-gate candidate `053e07d37`, with semantic source
+`366ef2bf1`. The [batch session](session_logs/2026-09-15_compiler_batch_l96_l105.md)
+links the ten bounded fixes and the preserved first-gate correction. Counts,
+commands, source and artifact fingerprints live in the JSON record.
 
 This qualifies that local candidate, not full IEEE, UVM or whole-application
-support. Earlier [L75–L84](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json),
+support. Earlier [L85–L95](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json),
+[L75–L84](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json),
 [L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
 and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
 records retain their original revisions and limits.
-
-## Newer focused evidence
-
-[L96 constant-function formal legality](session_logs/2026-09-15_constant_function_formal_legality.md) is focused-tested after the qualified batch. Its broad gates remain pending. [L98 generated-function legality](session_logs/2026-09-15_generated_constant_function_legality.md) is also focused-tested. [L97 nested finite groups](session_logs/2026-09-15_nested_finite_grouped_repetition.md) adds focused assertion evidence.
 
 ## Application evidence
 
@@ -56,22 +53,6 @@ as `9c8f716b1`, repairs build defects exposed by that publication. Its current r
 command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
 latest record above. Publication status and subsequent work remain in CAMPAIGN.
 No newer whole-application replay is claimed.
-
-Latest additional focused evidence: [L99 fixed string-array methods](session_logs/2026-09-15_fixed_string_array_methods.md). Broad qualification remains the revision-scoped batch record above.
-
-Latest SVA focused evidence: [L100 finite multiclock consequences](session_logs/2026-09-15_finite_multiclock_consequences.md).
-
-Latest additional SVA evidence: [L102 plain multiclock consequences](session_logs/2026-09-15_plain_multiclock_consequences.md).
-
-Latest L101 focused evidence: [Constant fixed-array string-character increment](session_logs/2026-09-15_constant_array_character_increment.md).
-
-Latest L103 focused evidence: [Plain multiclock ranged first-clock prefixes](session_logs/2026-09-15_plain_multiclock_ranged_prefix.md).
-
-Latest L104 focused evidence: [constant mixed equality](session_logs/2026-09-15_constant_mixed_equality.md).
-
-Latest L105 focused evidence: [nonlocal constant-function values](session_logs/2026-09-15_nonlocal_constant_function_values.md).
-
-Current batch broad validation: [first-gate correction](session_logs/2026-09-15_l96_l105_first_gate_correction.md); retry pending.
 
 ## History
 

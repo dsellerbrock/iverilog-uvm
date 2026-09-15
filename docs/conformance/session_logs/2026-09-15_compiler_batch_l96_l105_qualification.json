@@ -1,0 +1,218 @@
+{
+  "scope": "L96-L105 ten-fix local compiler batch; not full IEEE, UVM or application conformance",
+  "completed_at": 1789487887.138774,
+  "qualified": true,
+  "revision": "053e07d373c0fbd94f16eddae63b7ccc0327000c",
+  "semantic_revision": "366ef2bf1",
+  "source_files": 18051,
+  "source_snapshot_sha256": "7bf9e8d29e8af3dee847493408b559a7689d0b7133031da918355f62b934ef79",
+  "source_mismatches": [],
+  "artifact_mismatches": [],
+  "tracked_diff_stable": true,
+  "gates": {
+    "integrated": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "json": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "uvm": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "nfa": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "releases": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "makecheck": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "frontend": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    }
+  },
+  "counts": {
+    "legacy": {
+      "total": 5810,
+      "passed": 5805,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "ran": 2744,
+      "failed": 0
+    },
+    "uvm": {
+      "passed": 357,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi": true,
+      "edition": "2012 (existing suite invocation); no separate 2017/2023 full-UVM qualification inferred"
+    },
+    "nfa": {
+      "passed": 58,
+      "failed": 0
+    },
+    "release_smoke": 15,
+    "frontend_scenarios": 12,
+    "vpi": {
+      "total": 108,
+      "passed": 108,
+      "failed": 0,
+      "not_implemented": 0
+    },
+    "negative": {
+      "passed": 148,
+      "failed": 0
+    }
+  },
+  "candidate_artifacts": {
+    "local-install/bin/iverilog": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b",
+    "local-install/bin/vvp": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f",
+    "local-install/lib/ivl/ivl": "98d5c9d43b087e3bdfd667e5b5fea1895482a22b3e0a37fa7f2df1e61b86be10",
+    "local-install/lib/ivl/vvp.tgt": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1",
+    "local-install/lib/ivl/uvm_dpi.vpi": "e0a27aef75c26f4b35b7a4ce722e48aff4921490585f0ce3b5718651f9151f8f",
+    "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+  },
+  "features": [
+    [
+      "L96",
+      "c681f81a5",
+      "constant_function_formal_legality"
+    ],
+    [
+      "L97",
+      "a49ee5d3e",
+      "nested_finite_grouped_repetition"
+    ],
+    [
+      "L98",
+      "fc296ee07",
+      "generated_constant_function_legality"
+    ],
+    [
+      "L99",
+      "34b1cc24c",
+      "fixed_string_array_methods"
+    ],
+    [
+      "L100",
+      "450c63f00",
+      "finite_multiclock_consequences"
+    ],
+    [
+      "L101",
+      "7ef17f630",
+      "constant_array_character_increment"
+    ],
+    [
+      "L102",
+      "0efbf81c5",
+      "plain_multiclock_consequences"
+    ],
+    [
+      "L103",
+      "eb5eb6ebb",
+      "plain_multiclock_ranged_prefix"
+    ],
+    [
+      "L104",
+      "c26384d29",
+      "constant_mixed_equality"
+    ],
+    [
+      "L105",
+      "366ef2bf1",
+      "nonlocal_constant_function_values"
+    ]
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95/qualification-retry1",
+  "commands": {
+    "integrated": [
+      "bash",
+      ".github/ivtest_gate.sh"
+    ],
+    "json": [
+      "python3",
+      "vvp_reg.py",
+      "regress-vvp.list"
+    ],
+    "uvm": [
+      "bash",
+      ".github/uvm_test.sh"
+    ],
+    "nfa": [
+      "bash",
+      "tests/sva_nfa/run.sh"
+    ],
+    "releases": [
+      "python3",
+      "scripts/uvm_release_matrix.py",
+      "--prefix",
+      "local-install"
+    ],
+    "makecheck": [
+      "make",
+      "check"
+    ],
+    "frontend": [
+      "bash",
+      ".github/uvm_frontend_test.sh"
+    ]
+  },
+  "toolchain": "Command Line Tools Apple clang21.0.0; Homebrew Bison3.8.2; /usr/bin/flex; serial native ARM64 build; DEVELOPER_DIR=/Library/Developer/CommandLineTools",
+  "uvm_dpi_provenance": {
+    "captured_at": 1789487185.80296,
+    "module": "/tmp/uvm_dpi_iv.vpi",
+    "sha256": "a84427d5eeaa1ad0e49633f033ef9c5db79b83a8bc60e11812652dd8d8dc7a14",
+    "format": "/tmp/uvm_dpi_iv.vpi: Mach-O 64-bit bundle arm64",
+    "library_revisions": " 39dfb0077ae25d69d1e66bf7d6a56861e244150f third_party/uvm/2020.2.0 (2020-2.0)\n b5f8562d8bee8ea11b06fc2692ed2ba0b5b7eeb7 third_party/uvm/2020.3.0 (2020.3.0)\n 78c06547a2a0a29b3dc9dcafae62b75b2ff61544 uvm-core (2020.3.0-7-g78c0654)\n",
+    "suite_mode": "2012; no full 2017/2023 UVM inference",
+    "log": "uvm.log"
+  },
+  "first_failed_candidate": "a0609dff3e9ba95c9721fc5a90a58ed9a0528420",
+  "correction_record": "2026-09-15_l96_l105_first_gate_correction.json",
+  "ci": "Pending new publication; six-platform run34973595268 passed for prior PR285 only.",
+  "compiler_source_sha256": {
+    "elab_expr.cc": "e11d1979c2d99196c8803f78101e88fdbe6b32a1407aa37269e0b442d2bf0374",
+    "elab_lval.cc": "60db0372b4a9d5b5f0708221c921302ff8026c03ee094756b45978cd181eef33",
+    "elaborate.cc": "5ce01044cd1f22d8d83dd27dddb1751c957d98fc67c22697873beed8783f9962",
+    "eval_tree.cc": "cdb030d672c8b9a15b46a3d47843a31b768dc98559fdc0c2816fab10d3118d17",
+    "net_design.cc": "96d527565bf130af6a7deb64d068b93e6d796e9838acdd69dadadeebe735cc36",
+    "net_func_eval.cc": "a1f861b88217933c4d2e532b18409890e7d44b3d39474aa9a47d4b5b06cfba40",
+    "netmisc.cc": "7d7d1513aa250c62edd9ccbb73c4c014876218e151896f02edaa7e9e513b416f",
+    "netmisc.h": "68e6a0498ab7eaceee17cde24ed1d5bb39b679329260d6e74ddae10bd039f589",
+    "parse_misc.h": "a517f59a9b8cf428a6031a62c2b3777fe3206f1b93810a04b18cafcf7a9598d7",
+    "pform.cc": "885acb987fc12061e97be4a145d239358f306a82fb53cd683576ef4d6b29e48c",
+    "pform_sva_nfa.cc": "429d3b9ae1cc65b4a2602e9eedb171cbe26bb11a6524c24c3e945d258cf5f86f",
+    "pform_sva_nfa.h": "2b47ca214b055d68f4a5bcd18fefeb3a07f5f2813e6a74327d1c164f083493d5",
+    "tgt-vvp/draw_vpi.c": "3dbe174fa481cde6dcdbf1bec3f2510f4f47bfa043fc1ce50a668757bdff4e24",
+    "tgt-vvp/eval_vec4.c": "f442505a7bd603164403c8d92145bb27d1f684bda49078e0ac8e9d785ed71cac",
+    "tgt-vvp/stmt_assign.c": "40181ab2fd2c31b72a16e05244f01731d6c3fc775a47be708df9061293b3038c",
+    "vvp/array.cc": "603b6a9e84b1e8462e8b56c970a41ef03bb9b82a70f3244c842bec72839717c1",
+    "vvp/codes.h": "2af1fc3661a3cc61aac30a95b4d6b0eb2ff23abe1d6518a048f58462b54398f4",
+    "vvp/compile.cc": "968501222b91b11a2cbee7867506862983dab519dd16076d9641431972c9c19b",
+    "vvp/vthread.cc": "a330b42a1ffb9843b974ea6bfa3d6ac3b5e5505a61cb0181340076fc2ed0c47c",
+    "vvp/vvp_z3.cc": "bb31fa8b54cd0b5bdd0961f649559aabcf089a482a8d73074870189cfc928d4a"
+  },
+  "additional_installed": {
+    "local-install/lib/ivl/fpga.tgt": "5b62952431824671d43ba36b385316d7919de32d1d53c86dab7090c50674a6ae",
+    "local-install/lib/ivl/fpga.conf": "b9b473bf5fa9ba4c97cfba65e3a63be0930f9dec3a44d120df878bc03d9b9a98"
+  }
+}

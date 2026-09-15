@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
 current_blocker: PARALLEL-L104-L105
-phase: broad_qualification_retry
+phase: locally_qualified_awaiting_publication
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -10,10 +10,10 @@ integrated_since_last_broad_batch:
   count: 10
   revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
 latest_broad_qualification:
-  integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
-  semantic_revision: e43ecd536
-  record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
-  scope: Eleven recorded subsets only; not qualification of current candidate or full IEEE/UVM/application mission.
+  integration_revision: 053e07d373c0fbd94f16eddae63b7ccc0327000c
+  semantic_revision: 366ef2bf1
+  record: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
+  scope: Ten local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   semantic_revision: 366ef2bf1
   compiler_sources: All ten L96-L105 fixes integrated; sources and fixtures frozen for broad qualification.
@@ -25,12 +25,12 @@ current_candidate:
   focused_records: [docs/conformance/session_logs/2026-09-15_constant_mixed_equality_validation.json, docs/conformance/session_logs/2026-09-15_nonlocal_constant_function_values_validation.json]
   broad_evidence: evidence/batch-20260915-after-l95/qualification-retry1
   broad_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
-  shared_process: First integrated gate42159 exited1 with five stale diagnostic golds; exact corrections and focused replays pass. No compiler source changed. Retry after fresh snapshot.
+  shared_process: none; orchestrator93732 completed all remaining gates with exit0 and final fingerprint audit passed.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
-  next_action: Run seven broad gates serially, stop escalation on any failure, preserve exact candidate and raw logs. Publish coherent main PR only after qualification.
-  exact_next_command: python3 evidence/batch-20260915-after-l95/qualification-retry1/run_gate.py integrated
+  next_action: Publish qualified coherent PR against main, then select two independent next blockers from preserved array-initializer and first_match assessments. No new implementation currently authorized.
+  exact_next_command: git push -u origin agent/compiler-campaign-after-l95-20260915
   next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
   broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
 publication:
@@ -42,7 +42,7 @@ publication:
   main_content: Only L65-L74 batch propagated to main in the observed stack merges; L75 onward remains preserved here.
   next_pr: Publish coherent qualified changes against main, including preserved later batches unless main advances first; remote merge remains unrequested.
   ci_run: 34973595268
-  ci_observation: All six platform jobs completed successfully in run34973595268; prior batch evidence only. Current batch seven gates still pending.
+  ci_observation: All six platform jobs completed successfully in run34973595268; prior batch evidence only. Current batch seven local gates also passed at053e07d37; new publication CI is pending.
 worktrees:
   created_this_batch: none
   cleanup: No eligible campaign-created completed tree; active/other-owner trees retained under established safeguards.

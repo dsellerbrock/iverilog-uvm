@@ -2209,7 +2209,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L96 — Constant-function non-input formals accepted
 
 - **Area / edition:** Function elaboration / IEEE1800-2017 and2023 13.4.3.
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-const-formals-assessment/baseline.json`; both editions accept prohibited output/inout/ref constant calls.
 - **Closure:** Reject prohibited formals in constant evaluation, including nested calls, while preserving input-only constant functions and ordinary runtime writable-formal calls. Paired diagnostics and behavioral controls required.
@@ -2220,7 +2220,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L97 — Nested finite whole-sequence repetition rejected
 
 - **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.9.2.1,16.12.22,16.13.
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-nested-group-assessment/baseline.json`; both editions reject the nested exact-count endpoint witness.
 - **Closure:** Preserve inner/outer copies and endpoints, nested empty composition and parent verdicts within the existing finite construction scope. Keep fixed pipeline and same-clock behavior correct; preserve loud unsupported boundaries.
@@ -2231,7 +2231,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L98 — Generated function accepted in constant evaluation
 
 - **Area / edition:** Function elaboration / IEEE1800-2017 and2023 13.4.3.
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json` at the L96/L97 focused install.
 - **Closure:** Reject constant calls to functions declared in generate blocks, including nested/cached paths; preserve ordinary runtime generated functions and module/package constant functions. Paired edition tests required.
@@ -2240,7 +2240,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L99 — String methods lose fixed-array word mutations
 
 - **Area / edition:** Constant evaluation and VPI array words / IEEE1800-2017 and2023 6.16,7.4,13.4.3.
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json`; constant putc/itoa abort, runtime controls leave words unchanged in both editions.
 - **Closure:** Correct selected fixed-array string mutation for all six mutating methods in constant and runtime paths, including locality, bounds, once-only evaluation and neighboring word preservation.
@@ -2250,7 +2250,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L100 — Finite multiclock consequence alternatives rejected
 
 - **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.12.7,16.12.22,16.13.2.
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md`; internal one-copy consequence fails at50 while two-copy branch should succeed at90, but both editions reject the source.
 - **Closure:** Distinct finite consequence NFA per child; one existential child result feeds universal parent aggregation. Preserve synchronization, controls, pending backlogs and unsupported construction boundaries with paired behavioral tests.
@@ -2259,7 +2259,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L101 — Constant fixed-array string-character increment
 
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Standards:** IEEE1800-2017 and2023 6.16,11.4.2,13.4.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-const-array-character-assessment/isolated-baseline.json`.
 - **Closure:** Correct pre/post byte updates through the selected local fixed-array word, with runtime parity, once-only selectors, bounds and locality controls.
@@ -2268,7 +2268,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L102 — Plain finite multiclock consequence alternatives
 
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Standards:** IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-plain-consequence-nfa-assessment/ASSESSMENT.md`.
 - **Closure:** Fixed first-clock sequence prefix followed by finite second-clock alternatives yields a correctly timed single verdict per attempt, preserving clock boundaries, controls and pending backlogs.
@@ -2277,7 +2277,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L103 — Plain multiclock ranged first-clock prefix
 
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Standards:** IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-plain-ranged-prefix-assessment/assessment.md`; both editions reject the legal finite ranged prefix.
 - **Closure:** Existential complete-path aggregation for each plain sequence attempt, with exact times, all-fail/early-success behavior, controls, backlogs and preserved implication universality.
@@ -2286,7 +2286,7 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L104 — Constant mixed integral/literal equality
 
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Standards:** IEEE1800-2017 and2023 5.9, Table11-21,11.8.2.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md`.
 - **Closure:** Common integral operand sizing, signedness and four-state equality with constant/runtime parity.
@@ -2295,9 +2295,11 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L105 — Fabricated nonlocal constant-function values
 
-- **State:** FOCUSED_TESTED; broad qualification pending.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
 - **Standards:** IEEE1800-2017 and2023 13.4.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md`.
 - **Closure:** Reject nonlocal mutable state during constant evaluation; retain actual runtime state and legal constant inputs.
 
 - **Implementation evidence:** [L105 session](session_logs/2026-09-15_nonlocal_constant_function_values.md).
+
+L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json).

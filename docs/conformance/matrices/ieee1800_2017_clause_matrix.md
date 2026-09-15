@@ -1486,3 +1486,7 @@ IMPLEMENTED for the [recorded integral equality subset](../session_logs/2026-09-
 ### L105 — Nonlocal constant-function values
 
 IMPLEMENTED for the [recorded package/class-state rejection subset](../session_logs/2026-09-15_nonlocal_constant_function_values.md), preserving actual runtime state and legal constant inputs. Broader constant-function coverage remains PARTIAL; broad qualification pending.
+
+### L96–L105 local qualification checkpoint
+
+The ten recorded subsets have passed the [revision-scoped seven-gate checkpoint](../session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json). This supersedes the pending broad-gate notes for those subsets above. Broader clause coverage and full IEEE1800/UVM/application qualification remain incomplete; remote CI for the new publication is separate.

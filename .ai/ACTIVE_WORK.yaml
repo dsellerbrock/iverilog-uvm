@@ -1,13 +1,13 @@
 id: PARALLEL-L104-L105
 title: Constant comparison sizing and nonlocal constant-function legality
-status: AWAITING_BATCH_QUALIFICATION
+status: LOCALLY_QUALIFIED_AWAITING_PUBLICATION
 base_revision: eb5eb6ebb
 authority: User authorizes two existing cheaper implementation agents, independent mechanisms and focused validation before broad gates near ten fixes.
 coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Main manifests, Documentation, Integration and review]
 lanes:
   - id: L104-CONSTANT-MIXED-EQUALITY
     agent: /root/constraint_abi
-    status: FOCUSED_TESTED
+    status: REGRESSION_TESTED
     standards: IEEE1800-2017 and2023 5.9, Table11-21,11.8.2
     reproducer: evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md
     actual: Constant function comparing integer97 with packed literal a fails evaluation in both editions; runtime equivalent returns true.
@@ -19,7 +19,7 @@ lanes:
     acceptance: Both editions operand order, unequal widths, signed/unsigned and X/Z, ==/!=/===/!== and wildcard neighbors, literals and explicit casts, true string variables, constant/runtime parity and illegal-type diagnostic control.
   - id: L105-NONLOCAL-CONSTANT-FALLBACK
     agent: /root/constraint_wide
-    status: FOCUSED_TESTED
+    status: REGRESSION_TESTED
     standards: IEEE1800-2017 and2023 13.4.3
     reproducer: evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md
     actual: Reading mutable package state initialized to7 silently yields constant0 in both editions.
@@ -32,6 +32,6 @@ lanes:
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
 focused_features_completed_in_batch: 10
 integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
-last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
+last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml
 stop_after_completion: false
