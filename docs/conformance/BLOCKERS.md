@@ -2366,3 +2366,12 @@ L110 evidence and oracle correction: [constructor transition endpoints](session_
 L111 evidence: [coupled cyclic ordered solving](session_logs/2026-09-15_coupled_randc_ordered_solving.md).
 
 Root-seed implementation evidence: [runtime seed control](session_logs/2026-09-15_runtime_root_seed.md).
+
+### L112 — finite two-window first_match source prefix
+
+SELECTED for coordinator-authorized parallel implementation in ACTIVE_WORK.
+Both editions reject the legal finite Boolean prefix at a one-window admission
+cap. The existing NFA and earliest-endpoint mechanism are the proposed repair;
+acceptance includes tied endpoints, cancellation, clock handoff and depth limits.
+Assessment: `evidence/batch-20260915-after-l95/next-first-match-two-window-assessment/assessment.md`.
+Nested indexed class constraints are assessment-only in the independent lane.

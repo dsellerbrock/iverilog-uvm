@@ -1,5 +1,5 @@
-id: PARALLEL-AFTER-L108
-title: Independent ordered randc implementation and Caliptra blocker selection
+id: PARALLEL-AFTER-L111
+title: Finite first-match implementation and nested indexed constraint assessment
 status: IMPLEMENTING
 base_revision: 05b0c44e1
 qualified_semantic_base: 366ef2bf1
@@ -129,7 +129,7 @@ coverage_implementation_lane:
 
 constraint_implementation_lane:
   id: L111-COUPLED-RANDC-ORDERED-DIST
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_wide
   standards: IEEE1800-2017 18.4.2,18.5.10; IEEE1800-2023 18.4.2,18.5.9
   reproducer: evidence/batch-20260915-after-l95/next-z01-coupled-assessment/coupled_randc_ordered_dist.sv
@@ -145,7 +145,7 @@ constraint_implementation_lane:
 
 application_seed_lane:
   id: APP-ROOT-SEED-CONTROL
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_abi
   assessment: evidence/application-check-20260915/root-seed-assessment/l110-followup/ASSESSMENT.md
   reproducer: evidence/application-check-20260915/root-seed-assessment/root_seed.sv
@@ -161,3 +161,37 @@ application_seed_lane:
   coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. No agent builds or commits.
 
 L111_failure_refinement: Touching cyclic/distribution representation is preflighted with typed results. Other existing late unsupported rejections may remain because all exact-joint streams draw only from snapshotted graph owners; failed calls restore root/child RNG, values and cyclic histories. Deterministic failed-call-versus-control regression proves no draw is committed or skipped. Diagnostic timing alone is not a correctness requirement; semantic EMPTY is distinct from unsupported representation.
+
+current_checkpoint:
+  semantic_integrations: [L106, L107, L108, L109, L110, L111]
+  application_capability_revision: a8b831496
+  installed_revision: a8b831496
+  processes: None live at coordinator audit.
+  l111_evidence: docs/conformance/session_logs/2026-09-15_coupled_randc_ordered_solving_validation.json
+  seed_evidence: docs/conformance/session_logs/2026-09-15_runtime_root_seed_validation.json
+  previous_goal_turn: Status response only; no implementation progress. Resume available authorized work.
+
+sva_implementation_lane:
+  id: L112-TWO-WINDOW-FIRST-MATCH
+  status: AUTHORIZED
+  agent: /root/constraint_wide
+  standards: IEEE1800-2017 and2023 16.9.8,16.13
+  reproducer: evidence/batch-20260915-after-l95/next-first-match-two-window-assessment/two_window_earliest_failure.sv
+  actual: Both editions reject legal finite two-window first_match source prefix at explicit windows <= 1 admission.
+  expected: Earliest source endpoint at50 launches failing child at55; later endpoint must not rescue failure. Preserve all tied earliest matches.
+  owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
+  fixture_prefix: sv_assert_multiclock_first_match_two_window
+  dependencies: Integrated L107 finite source NFA and earliest-close lifecycle. Independent frontend assessment may not edit these files.
+  scope: Admit direct finite Boolean chains with multiple literal windows through existing NFA depth proof and earliest endpoint closure. No runtime/scheduler changes or weakened shape diagnostics; request revised scope if existing NFA cannot preserve required semantics.
+  acceptance: Paired earliest failure/success, tied paths, exact/ranged windows, cross-clock delay0/1 and coincident reverse order, implication/plain/cover, overlapping attempts, cancellation/restart/backlog, depth64/65 and unsupported unbounded controls, L107/L86 neighbors.
+  coordinator: Owns all builds/installations/shared harnesses/main manifests/docs/review/integration. Agent prepares source and private fixtures only; no commits or agents.
+
+frontend_assessment_lane:
+  agent: /root/constraint_abi
+  status: ASSESSMENT_ONLY
+  scope: Trace nested indexed class constraint leaf.cyc[0] silently dropped in original L111 fixture. Establish standards, exact root cause, cheap reproducer and independent file ownership before implementation authorization. If ownership overlaps SVA files, report and select another independent mechanism with coordinator.
+  evidence: evidence/application-check-20260915/l111-focused/boundary-direct.json
+  owns: [evidence/application-check-20260915/nested-indexed-constraint-assessment]
+  execution: Coordinator owns shared build and harness execution; agent may prepare source/commands and request coordinator repro runs.
+
+L112_oracle_review: Original assessed c2 generator produces posedges25/65, not55/75, and b stimulus races source edge30. Preserve original evidence; require corrected off-edge stimulus and explicitly computed clock schedule before accepting earliest-failure oracle. Admission rejection remains reproduced, runtime timing claim needs correction.
