@@ -231,3 +231,17 @@ l95_integration_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-15_constant_string_putc_validation.json
   broad_validation: pending; finish active L94 correction before freezing coherent batch
   integrated_fix_count: 10
+
+l94_review_checkpoint:
+  l95_revision: 5366be16a
+  l95_main_registration_revision: 75cc57fde
+  integrated_fix_count: 10
+  latest_nfa: evidence/batch-20260914-after-l84/l94-empty-context-nfa.log
+  nfa_result: 58 passed
+  latest_direct: evidence/batch-20260914-after-l84/l94-empty-context-direct.json
+  blocking_regression: retained grouped metadata enters fixed consequent fallback and uses one copy instead of two
+  regression_reproducer: evidence/batch-20260914-after-l84/l94-fixed-fallback-review/baseline.json
+  source_lane: L94 repairing fixed consequent and prefix materialization; source not frozen
+  shared_processes: none
+  next_batch_assessment: evidence/batch-20260914-after-l84/next-const-formals-assessment/baseline.json
+  next_batch_assessment_status: invalid ref/output/inout constant calls accepted in both editions; implementation not yet selected
