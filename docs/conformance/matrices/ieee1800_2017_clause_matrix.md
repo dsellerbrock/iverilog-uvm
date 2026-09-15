@@ -1474,3 +1474,7 @@ IMPLEMENTED for the [fixed first-clock prefix subset](../session_logs/2026-09-15
 ### L101 — Constant fixed-array string-character increment
 
 IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_constant_array_character_increment.md). Broader clause coverage remains PARTIAL; broad qualification pending.
+
+### L103 — Plain multiclock ranged first-clock prefixes
+
+IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_plain_multiclock_ranged_prefix.md). Broader clause coverage remains PARTIAL; broad qualification pending.

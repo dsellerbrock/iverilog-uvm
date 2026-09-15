@@ -1,0 +1,85 @@
+{
+  "scope": "L103 Plain multiclock ranged first-clock prefixes; focused only",
+  "base_revision": "7ef17f630f4ba4c5614bad4e440d38985dcc9dcf",
+  "standards": [
+    "IEEE1800-2017 16.9.2,16.13.1,16.13.2",
+    "IEEE1800-2023 16.9.2,16.13.1,16.13.2"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 30,
+      "failed": 0
+    },
+    "json": {
+      "ran": 30,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 126,
+      "failed": 0
+    },
+    "json": {
+      "ran": 126,
+      "failed": 0
+    }
+  },
+  "source_and_artifacts": {
+    "net_func_eval.cc": "f39e29487da00e9d47bcb1909559a94fb0adbb2902720fc1b8828f0251c82ed2",
+    "pform.cc": "885acb987fc12061e97be4a145d239358f306a82fb53cd683576ef4d6b29e48c",
+    "local-install/lib/ivl/ivl": "b42a4ef23832a63210d320812d44907a759c030b1de66702a51414becdaadfdd",
+    "local-install/lib/ivl/vvp.tgt": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1",
+    "local-install/bin/iverilog": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b",
+    "local-install/bin/vvp": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f"
+  },
+  "candidate_scope": "Installed candidate includes both L101 and L103 final sources. This record qualifies only its stated focused subset.",
+  "toolchain": "Command Line Tools Apple clang21.0.0, Homebrew Bison3.8.2, /usr/bin/flex; DEVELOPER_DIR=/Library/Developer/CommandLineTools",
+  "build": "l101-result-width-build.log",
+  "install": "l101-result-width-install.log",
+  "logs": [
+    "l103-focused-legacy.log",
+    "l103-focused-vvp.log",
+    "l103-neighbors-legacy.log",
+    "l103-neighbors-vvp.log",
+    "l103-nfa.log"
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "fixture_hashes": {
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_all_fail.v": "c4e97c15e5ee91a2b67d32281848b4e5a9536087b878971ae94009a5d7a2498f",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_all_fail_2023.v": "49ac014bc407662eb88ad5dd9602f3d744003acbfe406ac6de0e95a91c3f3389",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_backlog.v": "afdd22418bdcd7e0d6d5d2c69522971d868459274e0d18fc80f8ae1fd1db1fb6",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_backlog_2023.v": "8bff576353e7220ae6c84c4c8407107f05200e2b000f861d72012989aef5e38a",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_cover_once.v": "c4225aee9e7aa1e94dd8fe4139cad5e20dc868b5850870dfa394bba1e16e2839",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_cover_once_2023.v": "1af4b12df79e4a3a443bb5670a39647b4cefcef179788da9802750378bd4caa1",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_depth64.v": "d32e6ca088283da0a8748ee88a678ae192aca10bc689fc11200b7482c891c101",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_depth64_2023.v": "83756903b5d863bb587aa39fd69096556f62edf16d4a2b8d46a25c28a8590770",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_disable.v": "f8cf747daa76e43ce29263607cd1d40b3e6d5aed0b93a60c1e47612b11c6584a",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_disable_2023.v": "a195975a30770e5eb6042c7aa755d40d9f34458b7b13ff92e490f17edba5268e",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_fixed_suffix.v": "b538135ccd0d84db07ea0e3b2ecef5bdf8ac3d6110c1f1ed0a4a3630c12591fd",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_fixed_suffix_2023.v": "a3bf54c7155dd3f5538aa4bb8461c26f50c04e3c1a7890dc793d449a41aa45e5",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_implication_neighbor.v": "30164c8df077913016c5a41a999d8ec93d3e8e12a4c00995881cdca49bf75f85",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_implication_neighbor_2023.v": "6f84b23495be97815e399320596b7f7e25860e88a92e8a35291ee0e4a689b1a2",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_kill.v": "aa2b28537a718e040e9c0bfd7f54a4caa11cf57956937cc5dff4ca76813d0c67",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_kill_2023.v": "0ff8a1fb712329149d69f40f18a49db3907587b0c66111a19691cbc754c95606",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_late_success.v": "1bd1b0a3d1b4e9b7edf8e928d239dc7273f6dbd06b4df147a1417af8ca7d7097",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_late_success_2023.v": "eaa2bddef4d048645c6a951cf7ebcb0ad4999936bb81426abb9e39121c4b99a7",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_no_match.v": "38c9a44127984ed3d8c899eb5a43ca78118f7b0451b2afa2fcadeffaaa349eb3",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_no_match_2023.v": "7f5e2844d8137128ec0a4136f49181a802afd6a04d42a5cd95503b07f3c99ef8",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_nullable_fail.v": "ea4d11bc8fcc6fcbbb15afbb93be6ae4bde0b76ee3f1699a44bfdc07eda93646",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_nullable_fail_2023.v": "703a931a9fc69ddf76e03df47af0b42487dfb8a652402002dc926ea93c201826",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_open_success.v": "32311def2e8cf01232b442a6071470d567623654a155066efc111ea53b4a1b29",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_open_success_2023.v": "a71ef562e1d745a9e7765ec014e3cbbfd71f497020d8cdffa5de6dfa5360f256",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_overlap_reverse.v": "61e122573dd9c7bfd30c35dcfb60444465be5e93bd01480ab6bbc620e74f7755",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_overlap_reverse_2023.v": "081237d8a44e4c4bcd2843bb20230b8181642bcff4969514f3fa2ce6ce67caf3",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_overlapping.v": "49ddcac50648a6d54d63f9eeaa24a219fe3e51b3552cf434ce262f51c5366b6b",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_overlapping_2023.v": "c0be5c15261af6ca18baa2b9e5e96bb5203ec3787661c1a1cec9d85c5770eb1b",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_unbounded_fail.v": "98001e0ef791b45cba6e809bc20de8630203d14b34b9037d60f66ac3c562b9a5",
+    "ivtest/ivltests/sv_assert_plain_multiclock_ranged_prefix_unbounded_fail_2023.v": "50545fa3a0ae31f82d2e0d075c4611b6bb8e86b35497074e040d1d3bc27974a5"
+  },
+  "broad_qualification": "Pending current batch seven gates; not whole-standard/UVM qualification.",
+  "nfa": {
+    "passed": 58,
+    "failed": 0
+  }
+}

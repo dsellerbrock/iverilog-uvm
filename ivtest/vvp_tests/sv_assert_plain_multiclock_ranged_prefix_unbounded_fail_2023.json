@@ -1,0 +1,9 @@
+{
+  "type": "CE",
+  "source": "sv_assert_plain_multiclock_ranged_prefix_unbounded_fail_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions"
+  ],
+  "gold": "sv_assert_plain_multiclock_ranged_prefix_unbounded_fail_2023"
+}

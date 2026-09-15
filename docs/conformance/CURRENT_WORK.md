@@ -65,6 +65,8 @@ Latest additional SVA evidence: [L102 plain multiclock consequences](session_log
 
 Latest L101 focused evidence: [Constant fixed-array string-character increment](session_logs/2026-09-15_constant_array_character_increment.md).
 
+Latest L103 focused evidence: [Plain multiclock ranged first-clock prefixes](session_logs/2026-09-15_plain_multiclock_ranged_prefix.md).
+
 ## History
 
 The former continuation narrative is preserved in the

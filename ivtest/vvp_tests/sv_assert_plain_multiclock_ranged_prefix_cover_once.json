@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_assert_plain_multiclock_ranged_prefix_cover_once.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions"
+  ],
+  "gold": "sv_assert_plain_multiclock_ranged_prefix_cover_once"
+}

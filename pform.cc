@@ -19119,6 +19119,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  ranged_antecedent = sva_mc_bounded_chain_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
 			antecedent_accepts_empty);
+            else if (plain && prop->mc_prefix)
+                  ranged_antecedent = sva_mc_bounded_chain_nfa_(
+                        *prop->mc_prefix, a_nfa, a_depth,
+                        antecedent_accepts_empty);
 	    bool antecedent_group = false;
 	    if (prop->antecedent)
 		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
@@ -19129,7 +19133,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  why = "a multiclocked implication whose ANTECEDENT is not "
 			"a fixed chain containing only finite constant delay "
 			"windows";
-	    else if (prop->mc_prefix
+	    else if (prop->mc_prefix && !(plain && ranged_antecedent)
 		     && !sva_mc_expand_chain_(*prop->mc_prefix, p_slots))
 		  why = "a multiclocked sequence whose first-clock prefix is "
 			"not a fixed-length boolean chain (constant ##N delays "
@@ -19181,7 +19185,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
       }
-      if (!why && ranged_antecedent && antecedent_accepts_empty
+      if (!why && plain && ranged_antecedent && antecedent_accepts_empty)
+            why = "a plain multiclocked sequence whose first-clock maximal "
+                  "subsequence can match empty";
+      if (!why && !plain && ranged_antecedent && antecedent_accepts_empty
           && a_depth == 0 && prop->mc_boundary == 0)
             why = "an overlapped implication with a degenerate empty "
                   "antecedent";
@@ -19310,7 +19317,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->antecedent && !ranged_antecedent)
 	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
 		  (*prop->antecedent)[j].expr = nullptr;
-      if (prop->mc_prefix && !(consequence_nfa_mode && plain))
+      if (prop->mc_prefix && !(ranged_antecedent && plain))
 	    for (size_t j = 0 ; j < prop->mc_prefix->size() ; j += 1)
 		  (*prop->mc_prefix)[j].expr = nullptr;
       if (!consequence_nfa_mode)
@@ -20779,6 +20786,14 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  done.push_back(retire_parent());
 		  return sva_block_(loc, done);
 	    };
+            auto finish_plain_failure = [&]() -> Statement* {
+                  std::vector<Statement*> done;
+                  done.push_back(parent_failure());
+                  done.push_back(set_parent(par_failed, sva_bit_(loc, 1)));
+                  done.push_back(set_parent(par_reported, sva_bit_(loc, 1)));
+                  done.push_back(retire_parent());
+                  return sva_block_(loc, done);
+            };
 
 	    std::vector<Statement*>aggregate;
 
@@ -20868,7 +20883,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    FILE_NAME(none_pending, loc);
 	    close_parent.push_back(sva_if_(loc, none_pending,
 		  sva_if_(loc, at_parent(par_reported), retire_parent(),
-			  finish_success()), nullptr));
+			  plain ? finish_plain_failure() : finish_success()), nullptr));
 	    life_one.push_back(sva_if_(loc, is_close,
 					 sva_block_(loc, close_parent), nullptr));
 	    PEBinary*life_next = new PEBinary(
@@ -20880,9 +20895,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    FILE_NAME(life_loop, loc);
 	    aggregate.push_back(life_loop);
 
-	    /* Child result: zero is success, one is failure.  A first failure
-	       settles the property immediately; success waits for CLOSE and
-	       the final outstanding sibling. */
+	    /* Child result: zero is success, one is failure. Implication parents
+               fail on the first failed child and require every child success.
+               Plain sequence parents succeed on the first complete child path;
+               failure waits for CLOSE and exhaustion of every child. */
 	    PEBComp*result_more = new PEBComp(
 		  '<', sva_id_(loc, result_scan), sva_id_(loc, result_req));
 	    FILE_NAME(result_more, loc);
@@ -20896,24 +20912,48 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    FILE_NAME(pend_sub, loc);
 	    result_one.push_back(set_parent(par_pending, pend_sub));
 	    PExpr*first_failure = sva_logic_(loc, 'a',
-		  sva_id_(loc, life_kind_tmp),
-		  sva_not_(loc, at_parent(par_reported)));
+                  sva_not_(loc, sva_bit_(loc, plain)),
+                  sva_logic_(loc, 'a', sva_id_(loc, life_kind_tmp),
+		    sva_not_(loc, at_parent(par_reported))));
 	    std::vector<Statement*>fail_parent;
 	    fail_parent.push_back(parent_failure());
 	    fail_parent.push_back(set_parent(par_failed, sva_bit_(loc, 1)));
 	    fail_parent.push_back(set_parent(par_reported, sva_bit_(loc, 1)));
 	    result_one.push_back(sva_if_(loc, first_failure,
 					   sva_block_(loc, fail_parent), nullptr));
+            PExpr*plain_first_success = sva_logic_(loc, 'a',
+                  sva_bit_(loc, plain),
+                  sva_logic_(loc, 'a',
+                        sva_not_(loc, sva_id_(loc, life_kind_tmp)),
+                        sva_not_(loc, at_parent(par_reported))));
+            std::vector<Statement*>plain_success;
+            plain_success.push_back(parent_success(false));
+            plain_success.push_back(set_parent(par_reported, sva_bit_(loc, 1)));
+            result_one.push_back(sva_if_(loc, plain_first_success,
+                                         sva_block_(loc, plain_success), nullptr));
 	    PEBComp*successful_last_count = new PEBComp(
 		  'e', at_parent(par_pending), sva_num32_(loc, 0));
 	    FILE_NAME(successful_last_count, loc);
 	    PExpr*successful_last = sva_logic_(loc, 'a',
-		  sva_not_(loc, sva_id_(loc, life_kind_tmp)),
-		  sva_logic_(loc, 'a', successful_last_count,
+                  sva_not_(loc, sva_bit_(loc, plain)),
+                  sva_logic_(loc, 'a',
+		    sva_not_(loc, sva_id_(loc, life_kind_tmp)),
+		    sva_logic_(loc, 'a', successful_last_count,
 		    sva_logic_(loc, 'a', at_parent(par_closed),
-		      sva_not_(loc, at_parent(par_reported)))));
+		      sva_not_(loc, at_parent(par_reported))))));
 	    result_one.push_back(sva_if_(loc, successful_last,
 					   finish_success(), nullptr));
+            PEBComp*plain_none_pending = new PEBComp(
+                  'e', at_parent(par_pending), sva_num32_(loc, 0));
+            FILE_NAME(plain_none_pending, loc);
+            PExpr*plain_failed_last = sva_logic_(loc, 'a',
+                  sva_bit_(loc, plain),
+                  sva_logic_(loc, 'a', plain_none_pending,
+                        sva_logic_(loc, 'a', at_parent(par_closed),
+                                   sva_not_(loc, at_parent(par_reported)))));
+            FILE_NAME(plain_failed_last, loc);
+            result_one.push_back(sva_if_(loc, plain_failed_last,
+                                         finish_plain_failure(), nullptr));
 	    PEBComp*failed_last_count = new PEBComp(
 		  'e', at_parent(par_pending), sva_num32_(loc, 0));
 	    FILE_NAME(failed_last_count, loc);

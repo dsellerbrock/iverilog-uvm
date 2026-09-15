@@ -1,0 +1,1 @@
+./ivltests/sv_assert_plain_multiclock_ranged_prefix_nullable_fail.v:1: sorry: a plain multiclocked sequence whose first-clock maximal subsequence can match empty is not supported (IEEE 1800-2017 16.13); the assertion is dropped.
