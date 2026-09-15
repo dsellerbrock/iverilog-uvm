@@ -150,7 +150,12 @@ The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.
 
-## First whole-RTL checkpoint
+## Historical checkpoints
+
+The following first-run results are retained evidence. For newer compiler and
+application results, use [CURRENT_WORK](CURRENT_WORK.md).
+
+### First whole-RTL checkpoint
 
 A pinned pre-G20 run at OpenTitan `7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19`
 completed 113 of 267 RTL jobs before deliberate interruption: 4
@@ -197,7 +202,7 @@ After the complete-branch refinement and G26 warning cleanup,
 errors, zero semantic-debt lines, no timeout, and a 0.334-second compile. This
 replay includes the adversarial per-bit-state guard added after v5.
 
-## First ADC-control matrix witness
+### First ADC-control matrix witness
 
 The first three-lane run exposed the intended distinction immediately:
 

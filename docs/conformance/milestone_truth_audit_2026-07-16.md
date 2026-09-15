@@ -1,5 +1,8 @@
 # Milestone Truth Audit — 2026-07-16
 
+> **Historical record.** July 2026 truth audit; use the current conformance records for later changes.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Purpose: a constructively adversarial re-classification of milestones
 M1–M14 against their **manifesto-defined scope**, correcting
 "CLOSED" labels that were justified only by a recorded-corners ledger.

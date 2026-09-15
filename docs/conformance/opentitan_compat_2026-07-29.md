@@ -1,5 +1,8 @@
 # Running OpenTitan on this fork — first assessment (2026-07-29)
 
+> **Historical record.** Historical OpenTitan assessment and follow-ups; counts and frontiers are revision-scoped.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Question asked: can this simulator be used with OpenTitan?
 
 Short answer: **yes for block-level RTL, and that is now demonstrated end to

@@ -1,5 +1,8 @@
 # Automatic-variable storage refactor — working notes
 
+> **Historical record.** Historical migration notes; the in-progress status below is revision-scoped.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Status: in progress (incremental migration).
 Governing doc: `iverilog_ieee1800_uvm_manifesto.md`; root-cause writeup:
 `test_suite_audit_2026-07-17.md` (search "automatic_events2").

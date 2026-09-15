@@ -166,12 +166,8 @@ and [PR template](.github/pull_request_template.md).
 
 ## Documentation
 
-- [UVM usage](docs/uvm.md) and [frontend options](docs/uvm_frontend.md)
-- [Current status](docs/conformance/CURRENT_WORK.md) and [roadmap](docs/conformance/ROADMAP.md)
-- [IEEE 1800-2017 matrix](docs/conformance/matrices/ieee1800_2017_clause_matrix.md) and [2023 survey](docs/conformance/ieee1800_2023_delta.md)
-- [Project principles](docs/conformance/iverilog_ieee1800_uvm_manifesto.md)
-- [Icarus developer documentation](Documentation) and [scheduler audit](docs/conformance/scheduler_audit_2026_07.md)
-- [Session logs](docs/conformance/session_logs) and [design history](CHANGES.md)
+The [documentation index](docs/README.md) maps usage guides, current status,
+conformance records, and historical evidence to their owning documents.
 
 ## Credits and license
 

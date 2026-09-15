@@ -59,9 +59,10 @@ Documentation has four authority levels.
 `docs/conformance/iverilog_ieee1800_uvm_manifesto.md` defines mission,
 correctness policy, evidence rules, implementation philosophy,
 qualification policy, blocker lifecycle, and Definition of Done. It is
-not a backlog. Its own milestone/execution-order sections are retained
-planning history; they do not by themselves authorize current
-implementation (see Targeted-fix protocol below).
+not a backlog. Its former milestone/execution-order sections are linked as
+archived planning history; they do not authorize current implementation
+(see Targeted-fix protocol below). Use `docs/README.md` to find the owner
+of each maintained documentation topic.
 
 ### Level 2 — Canonical conformance state
 

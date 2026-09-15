@@ -6,6 +6,9 @@ originSessionId: 3eb4c85e-78b0-4475-96cd-5139307107dc
 ---
 # How this plan works
 
+> **Historical record.** Historical phase plan; OPEN/NEXT items are not current implementation assignments.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Each phase is a self-contained deliverable: pick the gap(s), root-cause via probe + source read, implement, run the canonical UVM regression (`PATH=...install/bin:$PATH bash .github/uvm_test.sh`), require **94/94 PASS**, commit with `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`, update the **Status** section at the bottom of this file with commit SHA + a 2-line outcome.
 
 Each phase has **scope**, **acceptance**, and **scheduling priority**. If a probe shows a gap is NOT ACTUALLY broken (e.g. fixed by overlapping work), mark the gap "RESOLVED-BY-PRIOR" in the audit file and skip.

@@ -3,35 +3,8 @@
 This document describes the architecture of the supported UVM front end: how
 `iverilog -uvm` and the installed toolchain make the standard UVM + DPI flow
 work with no user-specified paths, the way a commercial simulator does. For
-day-to-day usage see the [README](../README.md#running-a-uvm-testbench) and
+day-to-day usage see the [README](../README.md#run-uvm) and
 the [UVM usage guide](uvm.md); this document is the *design* reference.
-
-## Goal
-
-Replace the plumbing-heavy invocation
-
-```bash
-g++ -shared -fPIC -I<prefix>/include/iverilog -I uvm-core/src/dpi \
-    -o uvm_dpi.so uvm_dpi/uvm_dpi_iverilog.cc
-iverilog -g2012 -I uvm-core/src -o sim.vvp uvm-core/src/uvm_pkg.sv tb.sv
-vvp -d ./uvm_dpi.so sim.vvp +UVM_TESTNAME=my_test
-```
-
-with
-
-```bash
-iverilog -g2012 -uvm -s top -o sim.vvp tb.sv
-vvp sim.vvp +UVM_TESTNAME=my_test
-```
-
-(Options precede the source files, the ordering `iverilog` expects on every
-platform; `getopt` on macOS/BSD does not reorder arguments the way glibc
-does.)
-
-The user no longer needs to know where the UVM sources live, which include
-directory to add, where the DPI C/C++ sources are, how the DPI library is
-built, where it ends up, or which `vvp -M/-m/-d` arguments to pass. The
-installed toolchain knows where its own resources are and wires them up.
 
 ## Installed layout
 
@@ -155,7 +128,7 @@ The bundled UVM is the easy default, not the only option:
 | Option | Effect |
 | --- | --- |
 | `--uvm-home=<path>` | Use the UVM library at `<path>` instead of the bundled one. `<path>` may contain `uvm_pkg.sv` directly or a `src/` subdirectory that does. Implies `-uvm`. |
-| `$IVERILOG_UVM_HOME` | Same as `--uvm-home`, via the environment. |
+| `$IVERILOG_UVM_HOME` | Source-path default when neither explicit selector is supplied. |
 | `--uvm-no-dpi` | Compile UVM's pure-SystemVerilog fallbacks; do not record the DPI module (defines `UVM_NO_DPI`). |
 | `--uvm-version` | Print the bundled UVM version and exit. Also shown by `iverilog -V`. |
 
@@ -173,11 +146,13 @@ These are deliberately separate:
 
 ## Build and install
 
-The UVM DPI umbrella is built and installed by `make install` — no separate
-manual step. The build is best effort: if it fails (or the `uvm-core`
-submodule is not checked out), the install still succeeds and `-uvm` degrades
-to a clear diagnostic (and `--uvm-no-dpi` still works), rather than silently
-shipping a broken configuration.
+`make install` invokes `installuvm` to install the sources and build the DPI
+umbrella. Initialize `uvm-core` before the first compiler build; the driver
+records that version at build time.
+
+If the source submodule is missing, UVM installation is skipped and `-uvm`
+fails to find the package. If only the DPI build fails, the package is
+installed and the driver warns before selecting `UVM_NO_DPI`.
 
 The compile/link details of the umbrella live in one place,
 [`uvm_dpi/build_uvm_dpi.sh`](../uvm_dpi/build_uvm_dpi.sh). It wraps
@@ -225,7 +200,8 @@ verified in CI by a front-end step that compiles and runs a UVM test on the
 installed toolchain and asserts native DPI via a necessity contrast. The
 regression suite's separate **per-test merged module** path
 ([`.github/uvm_test.sh`](../.github/uvm_test.sh)) exercises the same DPI layer
-against every test and gates at 209/0 on all three toolchains.
+against each selected test. Results are revision-scoped in
+[CURRENT_WORK](conformance/CURRENT_WORK.md).
 
 ## Diagnostics
 
@@ -246,25 +222,10 @@ no-provider build), the manual override, `--uvm-no-dpi`, `--uvm-home`,
 from a working directory outside the source tree.
 
 
-## Select an acquired release
+## Release selection
 
-Run `python3 scripts/uvm_release_matrix.py --fetch-only --register` in the source
-checkout to acquire and register the pinned release inventory with `local-install`.
-Use `--prefix` for another installation. Then `iverilog --uvm-list` lists available
-release IDs and `iverilog --uvm=2020.3.1 -o test.vvp test.sv` selects one.
-`IVERILOG_UVM_RELEASES` can name another catalog directory. Registrations link to
-the acquired source trees; keep those trees in place. The compiler never downloads
-sources or substitutes another release when the requested one is missing.
-`--uvm-home` remains available for explicit paths; it cannot be combined with
-`--uvm=<release>`. The installed Icarus DPI backend is used for every selection.
-See [the release matrix](conformance/uvm_release_matrix.md) for acquisition details
-and measured compatibility; availability alone does not establish a passing release.
-
-
-Legacy UVM libraries using `#setting.offset` rely on miscellaneous syntax
-extensions (`-gicarus-misc`, enabled by default). `-gno-icarus-misc` rejects
-this unparenthesized dotted-name delay; the IEEE form is `#(setting.offset)`.
-This compatibility syntax reuses ordinary delay evaluation and is not an
-IEEE language-coverage gain. Arithmetic, indexed and call expressions still
-require parentheses. Other library compatibility gaps remain in the release
-matrix; accepting this syntax alone does not qualify a release.
+The [release matrix](conformance/uvm_release_matrix.md) owns acquisition,
+registration, compatibility syntax, and measured release results. The driver
+selects registered sources with `--uvm=<release>` and lists them with
+`--uvm-list`. `--uvm-home` selects an explicit tree; the two selectors cannot
+be combined. Neither selection downloads sources.

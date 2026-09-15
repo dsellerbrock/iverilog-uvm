@@ -1,5 +1,8 @@
 # DPI export — design (Phase 3 big-rock item)
 
+> **Historical record.** July 2026 design record; export implementation has advanced since this proposal.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 `export "DPI-C" function f;` / `export "DPI-C" task t;` (IEEE 1800-2017
 35.5) makes a SystemVerilog subroutine callable from C. It is the last
 DPI item and one of the deepest remaining features: unlike everything in
