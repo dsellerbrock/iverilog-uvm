@@ -172,3 +172,5 @@ latest_installed_state: "L90 first compiler candidate plus integrated L89 runtim
 l90_target_refinement: "Nested SELECT-over-PROPERTY incdec admitted in target scope by coordinator; existing store operations only. First focused failures preserved; revised compiler and target build required after freeze."
 
 l90_runtime_refinement: "Object-stack partial vector store authorized after target trace; compiler,target,runtime rebuild required after source freeze. Existing signal-only store cannot address captured class-property container."
+
+l90_l91_build_checkpoint: "Compiler source frozen; combined build/install running as session50943, log evidence/batch-20260914-after-l84/l90-l91-first-compiler-build.log. L90 target/runtime source work continues; no harness running. Re-poll this process before starting any new build."
