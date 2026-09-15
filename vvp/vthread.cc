@@ -27690,6 +27690,38 @@ bool of_RETLOAD_STR(vthread_t thr, vvp_code_t cp)
       return retload<string>(thr, cp);
 }
 
+/* %putc/ret/vec4 <return-index>, <mux>
+ * Update one byte of the string return slot owned by the active function. */
+bool of_PUTC_RET_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned muxr = cp->bit_idx[0];
+      int64_t mux = muxr ? thr->words[muxr].w_int : 0;
+      vvp_vector4_t val = thr->pop_vec4();
+      assert(val.size() == 8);
+      if ((muxr && thr->flags[4] != BIT4_0) || mux < 0)
+	    return true;
+
+      string type;
+      vthread_t fun_thr = get_func(thr);
+      size_t index = cp->number;
+      assert(index < get_max(fun_thr, type));
+      unsigned depth = get_depth(fun_thr, index, type);
+      string tmp = fun_thr->parent->peek_str(depth);
+      if ((uint64_t)mux >= (uint64_t)tmp.size())
+	    return true;
+
+      unsigned char byte = 0;
+      for (size_t bit = 0; bit < 8; bit += 1)
+	    if (val.value(bit) == BIT4_1)
+		  byte |= 1U << bit;
+      if (byte == 0)
+	    return true;
+
+      tmp[mux] = byte;
+      fun_thr->parent->poke_str(depth, tmp);
+      return true;
+}
+
 /*
  * Phase 63b/B6: %ret/obj <index>
  *

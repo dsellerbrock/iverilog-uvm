@@ -2002,11 +2002,13 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L75 — String-function-return character stores
 
-- **State:** REPRODUCED; prepared for a later selected batch.
+- **State:** IMPLEMENTED for scalar return characters; focused checks pass, broad batch pending.
 - **Area / edition:** Runtime return storage; IEEE 1800-2017/2023 6.16, 11.4.1, 13.4.1.
 - **Evidence:** `evidence/parallel-batch-l71-l72/l75-assessment/`: both editions leave ABC unchanged for plain/compound character writes to a function return. Plain selectors execute once; compound selectors are skipped.
 - **Closure:** Plain and compound byte stores, signed arithmetic, index/RHS capture, bounds/defaults/zero-byte behavior and automatic/recursive return-slot isolation.
 - **Last verified revision:** `e25971651` frozen candidate.
+
+- **Focused implementation evidence:** [L75 session](session_logs/2026-09-14_string_return_character.md).
 
 ### L76 — Constant-function string.toupper()
 

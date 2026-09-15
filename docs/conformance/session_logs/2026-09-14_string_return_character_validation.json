@@ -1,0 +1,22 @@
+{
+  "scope": "L75 scalar string-function-return plain and compound character stores",
+  "source_base": "0f0762114c1aa8ff743e2c5da95606532640ff89",
+  "source_sha256": {
+    "tgt-vvp/stmt_assign.c": "f77c0b75ba84872c42255af025148734d66b41ea46ac79a3bf41d124e989c873",
+    "vvp/codes.h": "c290bc18204ef8e78cb3174daab03cebf984cb4ac6cbdd6cff04a16d50a26985",
+    "vvp/compile.cc": "d55f84e27bd64f3fa938800c416e1f8839b11b55e2c32e1ead9081979d7f13e1",
+    "vvp/vthread.cc": "443332e730dbdd3744d17b47a6a6bde497ffc5f71043a2f25166ea5dbae7ac8b"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "dd2c1181611f87ebdef9503969f9ba9ae6bffdd3e2aa60512ea1a05d3f01e33d",
+    "local-install/lib/ivl/ivl": "63c122b336692f02661983eced3bbdc6ccb0a2fb47e95ff1cb9eb681547c207d",
+    "local-install/lib/ivl/vvp.tgt": "3402452f0ed6cfe91151d489d7567dc7a63cccb39baaceb83d328b3f14fa99a5"
+  },
+  "artifact_context": "Coordinator rebuilt/installed L75 target/runtime components and L76 compiler candidate; L76 registration validation still pending.",
+  "permanent_legacy": 8,
+  "permanent_json": 8,
+  "runtime_string_and_return_neighbors_json": 14,
+  "broad_qualified": false,
+  "evidence": "evidence/batch-20260914-after-l74/l75-l76-final-harness.json"
+}

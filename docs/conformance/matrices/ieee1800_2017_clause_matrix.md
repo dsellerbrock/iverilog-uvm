@@ -1354,3 +1354,7 @@ IMPLEMENTED for scalar string character compound arithmetic, with byte typing, c
 ### L65–L74 qualification refinement — 2026-09-14
 
 The bounded scopes above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate only; it does not expand receiver coverage or establish full-clause conformance.
+
+### L75 — Scalar string-function-return character stores
+
+IMPLEMENTED for plain and compound character assignments to scalar string return variables, with return-frame isolation and byte/index semantics. See [L75 evidence](../session_logs/2026-09-14_string_return_character.md); broader receiver forms and batch qualification remain pending.

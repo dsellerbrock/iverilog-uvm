@@ -3361,3 +3361,13 @@ sv_string_character_compound_bounds normal,-g2017 ivltests gold=sv_string_charac
 sv_string_character_compound_bounds_2023 normal,-g2023 ivltests gold=sv_string_character_compound_bounds.gold
 sv_string_character_compound_fail CE,-g2017 ivltests gold=sv_string_character_compound_fail.gold
 sv_string_character_compound_fail_2023 CE,-g2023 ivltests gold=sv_string_character_compound_fail.gold
+
+# L75: scalar string-function-return character stores
+sv_string_return_character normal,-g2017 ivltests gold=sv_string_return_character.gold
+sv_string_return_character_2023 normal,-g2023 ivltests gold=sv_string_return_character.gold
+sv_string_return_character_bounds normal,-g2017 ivltests gold=sv_string_return_character_bounds.gold
+sv_string_return_character_bounds_2023 normal,-g2023 ivltests gold=sv_string_return_character_bounds.gold
+sv_string_return_character_ops normal,-g2017 ivltests gold=sv_string_return_character_ops.gold
+sv_string_return_character_ops_2023 normal,-g2023 ivltests gold=sv_string_return_character_ops.gold
+sv_string_return_character_fail CE,-g2017 ivltests gold=sv_string_return_character_fail.gold
+sv_string_return_character_fail_2023 CE,-g2023 ivltests gold=sv_string_return_character_fail.gold
