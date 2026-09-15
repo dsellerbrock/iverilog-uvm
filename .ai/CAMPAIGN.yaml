@@ -206,3 +206,12 @@ l93_focused_checkpoint:
   batch_integrated_fixes: 9
   installed_fingerprint_record: evidence/batch-20260914-after-l84/l93-l94-third-installed.json
   remaining_lane: L94 bounded leading-window rejection under repair
+
+parallel_l94_l95_checkpoint:
+  integrated_l93_revision: 701e116bd
+  integrated_batch_count: 9
+  lanes: [L94 grouped finite repetition, L95 constant string putc]
+  source_ownership: L94 pform.cc/parse_misc.h/pform_sva_nfa.cc; L95 net_func_eval.cc/elaborate.cc
+  shared_execution_owner: coordinator
+  l95_baseline: evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json
+  broad_validation: pending coherent ten-fix checkpoint

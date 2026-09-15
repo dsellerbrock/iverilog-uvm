@@ -1,5 +1,5 @@
-id: PARALLEL-BATCH-L93-L94
-title: Constant-function string formatting and grouped finite repetition
+id: PARALLEL-BATCH-L94-L95
+title: Grouped finite repetition and constant-function putc
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
@@ -84,3 +84,18 @@ l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_
 l92_integration_revision: 9f34faa98
 
 l93_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_formatting_validation.json
+
+l95_coordinator_authorization:
+  id: L95-CONSTANT-STRING-PUTC
+  agent: /root/constraint_abi
+  status: REPRODUCED
+  standards: IEEE1800-2017/2023 6.16.2 and13.4.3
+  reproducer: evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json
+  actual: Both editions compile but skip putc mutation and argument side effects in constant evaluation.
+  expected: Mutate local string character and evaluate each argument exactly once; preserve bounds and zero-character semantics.
+  owns: [net_func_eval.cc, elaborate.cc]
+  test_prefix: sv_const_string_putc
+  dependencies: L93701e116bd; independent of active L94 pform and NFA source ownership.
+  scope: Local scalar and function-result putc constant evaluation; numeric argument typing only if reducer proves defect. No array receiver, unrelated string methods or runtime policy changes.
+  acceptance: Both editions positive mutation, overwrite, function result, bounds including negative and wide index, zero character, argument once, purity and invalid actual diagnostics, runtime controls and neighboring constant string tests.
+  integration_policy: Coordinator owns all shared builds, tests, main manifests and integration. Finish coherent batch near ten fixes, with any unintegrated next-batch patch explicitly excluded from qualification.
