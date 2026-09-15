@@ -63,9 +63,9 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: "Compiler L91 second increment with retained L90 second frontend objects; target/runtime L90 second candidate. Runtime stack-pop correction is unbuilt. Hashes l91-second-compiler-candidate.json. No broad qualification."
-pending_gates: "L90/L91 focused validation and integration; broad current-batch gates near ten integrated fixes. PR283 and PR284 CI passed; both remain open. Remote merge is not authorized."
-next_action: "Repair L90 protected type mutation/build and BOOL result plus L91 kill/restart failure. Rebuild frozen candidates, finish focused boundaries and neighbors, integrate when correct. Five integrated fixes, broad gates near ten."
+installed_tools: "L92 compiler with integrated L90 target/runtime. Exact installed hashes in evidence/batch-20260914-after-l84/l90-final-installed.json. L93 source unbuilt; L94 implementation pending. Eight focused fixes integrated, broad gates pending."
+pending_gates: "L93/L94 focused implementation, then broad batch gates near ten fixes. PR283/284 CI passed; remote merge not authorized."
+next_action: "Validate L93 constant formatting source including formal argument conversions; continue L94 grouped repetition independently. Coordinator builds only frozen sources."
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
@@ -119,6 +119,9 @@ current_batch:
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
   integrated_l86: 13fee7ec9
+  integrated_l91: fec7a4b9a
+  integrated_l90: 6cf8d70de
+  integrated_l92: 9f34faa98
   selected_lanes: [L93, L94]
   baseline: evidence/next-batch-after-l84/baseline.json
 
@@ -141,7 +144,7 @@ l88_baseline: evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline
 l86_status: "Integrated13fee7ec9; current evidence is l86_focused_evidence. Earlier failures retained in evidence directories and resolved by the integrated patch."
 l88_status: "Focused tested; ten cases per harness, fourteen final dynamic neighbors and41 preceding ordering neighbors. Evidence docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json."
 installed_candidate_latest: evidence/batch-20260914-after-l84/l90-first-candidate.json
-shared_process_latest: "All shared processes terminal:50943 compiler success,85736 target/runtime success,96885 SVA compiler success. Third L90 compiler failed protected set_net_type before install; runtime rebuild not reached."
+shared_process_latest: "All shared builds/tests terminal. L90focused10andneighbors26perharnesspass; L92focused20plusL86/L91neighborsand58NFApass."
 
 l88_index_boundary: "Fresh l88-wide-index.json proves64-bit index silently narrows to element0. Shared delem pre-conversion guard authorized in ACTIVE_WORK; preserve current candidate until rebuild."
 
@@ -149,7 +152,7 @@ l89_baseline: evidence/batch-20260914-after-l84/next-queue-assessment/after-l88-
 l86_prefix_evidence: evidence/batch-20260914-after-l84/l86-prefix-first.json
 l86_prefix_candidate: evidence/batch-20260914-after-l84/l86-prefix-candidate.json
 current_installed_state: See installed_tools.
-coordinator_checkpoint: "Five fixes integrated; L90 and L91 active with existing agents. No shared process running at checkpoint. PR284 all six CI jobs passed; PR remains open."
+coordinator_checkpoint: "Eight integrated fixes. Existing two agents assigned L93/L94 independently. No new worktrees or agents."
 
 l88_integration_revision: d6a15ca2b
 l86_remaining_reducers: evidence/batch-20260914-after-l84/l86-kill-review/first.json; evidence/batch-20260914-after-l84/l86-lifecycle-review/first.json
@@ -159,7 +162,7 @@ l89_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_queue_eleme
 l89_integration_revision: 1ffe476b6
 l90_baseline: evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json
 latest_combined_candidate: evidence/batch-20260914-after-l84/l86-l89-second-candidate.json
-latest_focused_runs: "l91-second-focused.json six per harness pass; l91-direct/first.json exposes kill/restart and fixed-path control cases; l90-second-focused.json four failures per harness."
+latest_focused_runs: "l90-final-focused.json and l92-final-focused.json; owning committed session evidence linked below."
 current_process_state: See shared_process_latest.
 
 l86_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_bounded_antecedents_validation.json
