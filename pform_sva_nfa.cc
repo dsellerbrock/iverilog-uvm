@@ -600,18 +600,110 @@ static void prune_dead_states_(sva_nfa_t&nfa,
       if (old_to_new) old_to_new->swap(remap);
 }
 
+static bool nfa_chain_suffix_(sva_nfa_t&nfa,
+                              const std::vector<sva_seq_step_t>&steps,
+                              size_t k, unsigned cur, bool first,
+                              unsigned&exit)
+{
+      if (k == steps.size()) { exit = cur; return true; }
+      if (!steps[k].group_repeat_start) {
+            if (steps[k].grouped_repeat) return false;
+            unsigned next = nfa_add_step_(nfa, cur, steps[k], first);
+            if (next == ~0u) return false;
+            return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
+      }
+
+      size_t last = k;
+      while (last < steps.size() && !steps[last].group_repeat_end) ++last;
+      if (last == steps.size()) return false;
+      long lo = steps[k].group_repeat_lo, hi = steps[k].group_repeat_hi;
+      if (lo < 0 || hi < lo) return false;
+      unsigned join = nfa.new_state();
+      bool any = false;
+
+      /* Every nonempty copy count owns its own suffix. This is necessary
+         because the zero-copy alternative obeys different concatenation
+         delay algebra and cannot share one pre-suffix group exit. */
+      unsigned copy_cur = cur;
+      for (long r = 1; r <= hi; ++r) {
+            for (size_t j = k; j <= last; ++j) {
+                  sva_seq_step_t st = steps[j];
+                  st.grouped_repeat = false;
+                  st.group_repeat_start = st.group_repeat_end = false;
+                  if (r > 1 && j == k) {
+                        long il = steps[k].group_repeat_first_delay_lo;
+                        long ih = steps[k].group_repeat_first_delay_hi;
+                        if (il < 0 || ih < il) return false;
+                        st.delay_lo = il + 1;
+                        st.delay_hi = ih + 1;
+                  }
+                  copy_cur = nfa_add_step_(nfa, copy_cur, st,
+                                            first && r == 1 && j == k);
+                  if (copy_cur == ~0u) return false;
+            }
+            if (r >= lo) {
+                  unsigned tail = 0;
+                  if (!nfa_chain_suffix_(nfa, steps, last+1, copy_cur,
+                                         false, tail)) return false;
+                  if (tail != ~0u) {
+                        nfa.eps(tail, join);
+                        any = true;
+                  }
+            }
+      }
+
+      if (lo == 0) {
+            long outer_lo = steps[k].delay_lo
+                          - steps[k].group_repeat_first_delay_lo;
+            long outer_hi = steps[k].delay_hi
+                          - steps[k].group_repeat_first_delay_hi;
+            if (outer_lo < 0 || outer_hi < outer_lo) return false;
+            if (last + 1 == steps.size()) {
+                  /* `prefix ##d empty' has no match for d==0. For d>0
+                     its empty endpoint is one tick earlier than d. A group
+                     at the chain start is the canonical empty sequence. */
+                  if (first && outer_lo == 0) {
+                        nfa.eps(cur, join); any = true;
+                  }
+                  for (long d = std::max(outer_lo, 1L); d <= outer_hi; ++d) {
+                        unsigned z = cur;
+                        for (long tick = 1; tick < d; ++tick) {
+                              unsigned zn = nfa.new_state();
+                              nfa.tick(z, zn, nullptr); z = zn;
+                        }
+                        nfa.eps(z, join); any = true;
+                  }
+            } else {
+                  /* Both concatenations around the empty fragment must use
+                     positive delays. Their composed delay is d1+d2-1. */
+                  const sva_seq_step_t&next = steps[last+1];
+                  long ol = std::max(outer_lo, first ? 0L : 1L);
+                  long nl = std::max(next.delay_lo, 1L);
+                  if (next.delay_hi >= nl && outer_hi >= ol) {
+                        std::vector<sva_seq_step_t>tail(
+                              steps.begin()+last+1, steps.end());
+                        tail[0].delay_lo = ol + nl - 1;
+                        tail[0].delay_hi = outer_hi + next.delay_hi - 1;
+                        unsigned ze = 0;
+                        if (!nfa_chain_suffix_(nfa, tail, 0, cur, first, ze))
+                              return false;
+                        if (ze != ~0u) {
+                              nfa.eps(ze, join); any = true;
+                        }
+                  }
+            }
+      }
+      exit = any ? join : ~0u;
+      return true;
+}
+
 static bool nfa_chain_fragment_(sva_nfa_t&nfa,
-				const std::vector<sva_seq_step_t>&steps,
-				unsigned&start, unsigned&exit)
+                                const std::vector<sva_seq_step_t>&steps,
+                                unsigned&start, unsigned&exit)
 {
       start = nfa.new_state();
-      unsigned cur = start;
-      for (size_t k = 0; k < steps.size(); k += 1) {
-	    cur = nfa_add_step_(nfa, cur, steps[k], k == 0);
-	    if (cur == ~0u) return false;
-      }
-      exit = cur;
-      return true;
+      return nfa_chain_suffix_(nfa, steps, 0, start, true, exit)
+          && exit != ~0u;
 }
 
 static bool nfa_accepts_empty_(const sva_nfa_t&nfa)

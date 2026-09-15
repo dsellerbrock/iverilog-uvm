@@ -221,3 +221,5 @@ The 2023 assertion-control semantics share the implementation in the [2017 matri
 L93 uses the same 6.16.11–6.16.15 and 13.4.3 requirements in 2023; [paired evidence](session_logs/2026-09-15_constant_string_formatting_validation.json) records edition-specific tests.
 
 L95 applies the same 6.16.2 and 13.4.3 requirements in both editions; [paired evidence](session_logs/2026-09-15_constant_string_putc_validation.json) records the scoped implementation.
+
+L94 uses the shared repetition, empty-composition and nondegeneracy requirements in 2023; [paired evidence](session_logs/2026-09-15_multiclock_grouped_repetition_validation.json) records separate edition executions.

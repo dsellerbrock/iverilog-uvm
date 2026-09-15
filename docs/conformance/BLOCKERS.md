@@ -2188,9 +2188,11 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 ### L94 — Finite grouped consecutive repetition in multiclock antecedents
 
 - **Parent:** S02.
-- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad batch qualification pending.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-group-repeat/baseline.json`.
 - **Scope:** Preserve and repeat the entire finite grouped Boolean/delay fragment, including legal empty alternatives and parent-level verdicts. Unbounded and general match-action groups remain separate.
+
+- **L94 evidence:** [Focused session](session_logs/2026-09-15_multiclock_grouped_repetition.md).
 
 ### L95 — Constant-function putc silently skips mutation and arguments
 

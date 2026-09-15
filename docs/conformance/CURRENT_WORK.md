@@ -30,6 +30,7 @@ records retain their original revisions and limits.
 and [L92 assertion control](session_logs/2026-09-15_fixed_multiclock_assertion_control.md)
 and [L93 string formatting](session_logs/2026-09-15_constant_string_formatting.md)
 and [L95 putc](session_logs/2026-09-15_constant_string_putc.md)
+and [L94 grouped repetition](session_logs/2026-09-15_multiclock_grouped_repetition.md)
 record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence

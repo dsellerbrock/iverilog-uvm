@@ -1,0 +1,1 @@
+ivltests/sv_assert_multiclock_group_repeat_consequent_internal_range_fail_2023.v:2: sorry: a multiclocked property's second-clock suffix is neither a fixed-length boolean chain nor one with a single trailing bounded window (`##[m:n] b', `b[*m:n]') is not supported (IEEE 1800-2017 16.13); the assertion is dropped.

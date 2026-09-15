@@ -1,8 +1,8 @@
 {
-  "type": "CE",
+  "type": "normal",
   "source": "sv_assert_multiclock_boolean_repeat_grouped_fail_2023.v",
   "iverilog-args": [
     "-g2023"
   ],
-  "gold": "sv_assert_multiclock_boolean_repeat_grouped_fail_2023"
+  "gold": "sv_assert_multiclock_boolean_repeat_grouped_fail"
 }

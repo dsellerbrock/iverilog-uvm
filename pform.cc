@@ -13382,6 +13382,28 @@ pform_sva_repeat(const struct vlltype&loc,
       }
 
       bool grouped_repeat = steps->size() > 1;
+      if (grouped_repeat)
+	    for (size_t k = 0; k < steps->size(); ++k)
+		  if ((*steps)[k].grouped_repeat) {
+			/* Nested grouped repetition needs a nested fragment tree; the
+			   flat start/end carrier cannot represent it without truncation. */
+			(*steps)[0].delay_lo = (*steps)[0].delay_hi = -3;
+			return steps;
+		  }
+      if (grouped_repeat && !unbounded) {
+	    /* Retain the whole fragment.  The NFA builder repeats the fragment,
+	       including every interior delay and Boolean, and exposes an exit
+	       after each permitted copy count. */
+	    for (size_t k = 0; k < steps->size(); ++k)
+		  (*steps)[k].grouped_repeat = true;
+	    steps->front().group_repeat_start = true;
+	    steps->front().group_repeat_lo = lov;
+	    steps->front().group_repeat_hi = hiv;
+	    steps->front().group_repeat_first_delay_lo = steps->front().delay_lo;
+	    steps->front().group_repeat_first_delay_hi = steps->front().delay_hi;
+	    steps->back().group_repeat_end = true;
+	    return steps;
+      }
 
 	/* Preserve a finite ranged repetition of one Boolean as an explicit
 	   automaton operation.  Besides representing the zero-copy alternative,
@@ -13452,9 +13474,6 @@ pform_sva_repeat(const struct vlltype&loc,
 	    }
       }
       steps->back().rep_tail = unbounded ? -1 : (hiv - lov);
-      if (grouped_repeat)
-	    for (size_t k = 0; k < steps->size(); ++k)
-		  (*steps)[k].grouped_repeat = true;
       return steps;
 }
 
@@ -18710,6 +18729,44 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
       long off = 0;
       if (window) *window = 0;
 
+      /* A fixed prefix/consequent still uses the established linear
+         pipeline. Materialize a retained finite group completely for an
+         exact count; for a ranged consequent the earliest-match rule needs
+         only the minimum count. Antecedents are kept out of this fallback by
+         the caller because every endpoint creates an obligation. */
+      for (size_t k = 0; k < steps.size(); ++k) {
+            if (!steps[k].group_repeat_start) continue;
+            size_t last = k;
+            while (last < steps.size() && !steps[last].group_repeat_end) ++last;
+            if (last == steps.size()) return false;
+            long lo = steps[k].group_repeat_lo, hi = steps[k].group_repeat_hi;
+            if (lo <= 0 || hi < lo
+                || (hi != lo && (!window || last + 1 != steps.size())))
+                  return false;
+            std::vector<sva_seq_step_t>base(steps.begin()+k,
+                                             steps.begin()+last+1);
+            for (size_t j = 0; j < base.size(); ++j) {
+                  base[j].grouped_repeat = false;
+                  base[j].group_repeat_start = base[j].group_repeat_end = false;
+            }
+            std::vector<sva_seq_step_t>expanded = base;
+            for (long r = 1; r < lo; ++r) {
+                  for (size_t j = 0; j < base.size(); ++j) {
+                        sva_seq_step_t cp = base[j];
+                        cp.expr = sva_clone_expr_(base[j].expr);
+                        if (!cp.expr) return false;
+                        if (j == 0) {
+                              cp.delay_lo = steps[k].group_repeat_first_delay_lo + 1;
+                              cp.delay_hi = steps[k].group_repeat_first_delay_hi + 1;
+                        }
+                        expanded.push_back(cp);
+                  }
+            }
+            steps.erase(steps.begin()+k, steps.begin()+last+1);
+            steps.insert(steps.begin()+k, expanded.begin(), expanded.end());
+            k += expanded.size()-1;
+      }
+
       /* The parser retains a finite ranged Boolean repetition for the
          antecedent NFA.  A consequent still uses the established earliest-
          match lowering: materialize its minimum consecutive copies and keep
@@ -18782,13 +18839,15 @@ static bool sva_mc_bounded_antecedent_nfa_(
 		|| st.delay_hi < 0 || st.rep_tail
 		|| (st.rep_kind && (st.rep_kind != 3 || st.rep_lo < 0
 			|| st.rep_hi < st.rep_lo || st.rep_hi < 0))
-		|| st.grouped_repeat || st.lv_rhs || st.fm
-		|| !st.match_calls.empty())
+		|| (st.grouped_repeat && !st.group_repeat_start
+		    && !st.group_repeat_end && steps.size() == 1)
+		|| st.lv_rhs || st.fm || !st.match_calls.empty())
 		  return false;
 	    PExpr*probe = sva_clone_expr_(st.expr);
 	    if (!probe) return false;
 	    delete probe;
-	    ranged |= st.delay_lo != st.delay_hi || st.rep_kind == 3;
+	    ranged |= st.delay_lo != st.delay_hi || st.rep_kind == 3
+		  || st.group_repeat_start;
       }
       if (!ranged) return false;
 
@@ -18939,8 +18998,13 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  ranged_antecedent = sva_mc_bounded_antecedent_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
 			antecedent_accepts_empty);
+	    bool antecedent_group = false;
+	    if (prop->antecedent)
+		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
+			antecedent_group |= (*prop->antecedent)[k].grouped_repeat;
 	    if (prop->antecedent && !ranged_antecedent
-		&& !sva_mc_expand_chain_(*prop->antecedent, a_slots))
+		&& (antecedent_group
+		    || !sva_mc_expand_chain_(*prop->antecedent, a_slots)))
 		  why = "a multiclocked implication whose ANTECEDENT is not "
 			"a fixed chain containing only finite constant delay "
 			"windows";
@@ -24583,14 +24647,16 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	 linear engine cannot represent. */
       bool flat_needs_nfa = slot_lv || match_item_state == 1
 			 || prop->strength == 1 || prop->forbidden_consequent;
+      bool flat_group_repeat = false;
       auto scan_nfa_only = [&](const std::vector<sva_seq_step_t>*steps,
 				 bool antecedent) {
 	    if (!steps) return;
 	    for (size_t si = 0 ; si < steps->size() ; si += 1) {
 		  const sva_seq_step_t&st = (*steps)[si];
 		  bool last = si + 1 == steps->size();
-		  if (st.rep_kind != 0 || st.fm)
+		  if (st.rep_kind != 0 || st.fm || st.grouped_repeat)
 			flat_needs_nfa = true;
+		  flat_group_repeat |= st.grouped_repeat;
 		  if (antecedent && (st.delay_lo < 0
 			|| st.delay_lo != st.delay_hi || st.rep_tail != 0))
 			flat_needs_nfa = true;
@@ -24606,6 +24672,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (flat_needs_nfa && pform_sva_nfa_enabled()
 	  && pform_sva_nfa_try_assertion(loc, prop, fail_stmt, pass_stmt, kind))
 	    return;
+
+      if (flat_group_repeat) {
+	    cerr << loc << ": sorry: finite grouped consecutive repetition "
+		 << "requires the assertion automaton engine; the assertion is "
+		 << "dropped rather than repeating only the final term." << endl;
+	    error_count += 1;
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
 
       /* A validated match item has no legacy lowering. Any automaton
 	 preflight/build refusal must therefore terminate with one stable,

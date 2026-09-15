@@ -1438,3 +1438,7 @@ IMPLEMENTED within the [recorded scalar receiver subset](../session_logs/2026-09
 ### L95 — Constant-function putc
 
 IMPLEMENTED within the [recorded scalar local receiver subset](../session_logs/2026-09-15_constant_string_putc.md). Other method/receiver combinations remain PARTIAL; broad batch qualification is pending.
+
+### L94 — Finite grouped multiclock repetition
+
+IMPLEMENTED within the [recorded flat finite-group subset](../session_logs/2026-09-15_multiclock_grouped_repetition.md), including empty composition and fixed-pipeline compatibility. Nested/unbounded groups and broader SVA remain PARTIAL; broad batch qualification is pending.
