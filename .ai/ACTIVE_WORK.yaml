@@ -9,13 +9,13 @@ lanes:
     parent: Z01
     agent: /root/constraint_abi
     status: IMPLEMENTING
-    standards: "IEEE 1800-2017 18.5.4, 18.5.9, 18.5.10; IEEE 1800-2023 18.5.4, 18.5.8, 18.5.9"
+    standards: "IEEE 1800-2017 18.5.4, 18.5.9, 18.5.10; IEEE 1800-2023 18.5.3, 18.5.8, 18.5.9"
     reproducer: evidence/next-batch-after-l84/joint_ordered_dist.sv
     actual: "Both editions compile, but legal randomize returns failure: joint solve-before with dist is not yet supported."
     expected: "Sample each solve-before stage with its prescribed distribution, preserving conditional fibers and joint hard relations."
-    owns: [vvp/vvp_z3.cc]
+    owns: [vvp/vvp_z3.cc, vvp/vthread.cc]
     test_prefix: sv_randomize_joint_ordered_dist
-    allowed_scope: "Joint canonical scalar solve-before stages with the existing supported unconditional hard distribution family and state-only weights, preserving exact stage projection and existing enumeration limits. Reuse existing distribution and ordered-stage machinery. Include exact conditional-fiber validation in the distribution helper where needed; prove any retained unsupported range boundary before RNG draws, preserving unordered semantics and edition differences."
+    allowed_scope: "Joint canonical scalar solve-before stages with the existing supported unconditional hard distribution family and state-only weights, preserving exact stage projection and existing enumeration limits. Reuse existing distribution and ordered-stage machinery. Include exact conditional-fiber validation in the distribution helper where needed; prove any retained unsupported range boundary before RNG draws, preserving unordered semantics and edition differences. Include per-object RNG-state snapshot/restore in the existing graph transaction in vvp/vthread.cc because prefill advances streams before the new rejection can occur. This is the campaign transaction contract, not a claim that IEEE requires failed calls to preserve RNG state."
     forbidden_scope: "New randc ordering, arbitrary coupled distribution algebra, non-scalar ordering variables, parser/target redesign, SVA sources and weakening unsupported guards."
     dependencies: "Existing Z01A ordered stages and exact joint distribution sampling; independent of L86."
     acceptance: "Both editions: first/later stage weights, hand-derived marginal/conditional probabilities, unequal fiber sizes, := and :/ range weights within supported family, root/child alias identity, mode/callbacks, seeded replay, unsatisfiable/cap/zero-weight rollback, unsupported coupled shapes rejected; solver neighbors. Update the old ordered-dist rejection fixture only for newly supported semantics, retaining other rejection coverage."

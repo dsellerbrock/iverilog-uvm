@@ -77,7 +77,7 @@ parallel_authorization: User requested two existing cheaper implementation agent
 active_lanes:
   - id: L85-JOINT-ORDERED-DISTRIBUTION
     agent: /root/constraint_abi
-    files: vvp/vvp_z3.cc
+    files: vvp/vvp_z3.cc, vvp/vthread.cc
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     agent: /root/constraint_wide
     files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
@@ -121,3 +121,5 @@ active_scope_refinement:
   L85: Conditional range validation must not reject only after random prefix selection; source patch under review, no candidate build yet.
   L86: Authorized dynamic parent-tagged handoff and single-verdict aggregation within owned lowering files; preserve event regions, cancellation, and unbounded clock skew.
 shared_process_observation: No shared build or harness running at scope-refinement checkpoint.
+
+l85_transaction_refinement: Exact range rollback test exposed prefill RNG advancement before Z3. Coordinator authorizes snapshot/restore of each visited object RNG in existing graph transaction; preserves successful-call consumption and existing object visitation/alias policy. Evidence l85-ranges-direct.json; source baseline remains installed until rebuilt.
