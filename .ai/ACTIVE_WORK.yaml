@@ -1,43 +1,44 @@
-id: PARALLEL-BATCH-L74-L73
-title: Coordinator-authorized independent compiler implementation lanes
-status: QUALIFIED
-base_revision: a83b9623c
-authority: "User explicitly authorized two parallel implementation lanes with disjoint file ownership; this supersedes the prior single-blocker workflow."
+id: PARALLEL-BATCH-L75-L76
+title: Coordinator-authorized independent return-storage and constant-evaluator lanes
+status: IMPLEMENTING
+base_revision: 9f79ff51c
+authority: "User authorized two existing cheaper implementation agents, disjoint ownership, focused checks per fix and broad qualification near ten integrated fixes."
 coordinator_owns:
   - Shared builds and installation
   - All legacy and JSON harness execution and shared ivtest/log output
   - Main manifests, shared documentation, integration commits and review
 lanes:
-  - id: L74-RUNTIME-STRING-CHARACTER-COMPOUND
+  - id: L75-STRING-RETURN-CHARACTER-STORES
     agent: /root/constraint_abi
-    status: INTEGRATED
-    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1, 10.4"
-    reproducer: evidence/parallel-batch-l71-l72/runtime-string-character-compound.sv
-    actual: "Both editions warn and skip text[index_once()] += 1; text remains ABC and selector call count stays zero."
-    expected: "Read and update selected byte with single selector evaluation; ABC becomes ACC and call count becomes one."
-    owns: [tgt-vvp/stmt_assign.c, tgt-vvp/eval_string.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
-    test_prefix: sv_string_character_compound
-    allowed_scope: "Runtime compound arithmetic on characters of scalar string variables; reuse existing integral operations and getc/putc machinery."
-    forbidden_scope: "Constant evaluator, lvalue elaboration, parser, whole-string concatenation or unrelated container updates."
-    dependencies: "Existing runtime string character operations plus integrated L73 signed-character lvalue metadata at352a15164."
-    acceptance: "Paired arithmetic/bitwise/shift controls, selector-once, signed byte and int index conversion, empty/invalid/zero bytes, readonly negative, ordinary locals and argument storage; focused runtime neighbors."
-  - id: L73-CONSTANT-STRING-CHARACTER-WRITE
+    status: REPRODUCED
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1, 13.4.1"
+    reproducer: evidence/parallel-batch-l71-l72/l75-assessment-function-return-character.sv
+    additional_reproducer: evidence/parallel-batch-l71-l72/l75-assessment-function-return-plain.sv
+    actual: "Both editions leave ABC unchanged; plain selector executes once while compound selector is skipped."
+    expected: "Function return characters receive plain and compound byte updates with exact single evaluation and isolated return storage."
+    owns: [tgt-vvp/stmt_assign.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
+    test_prefix: sv_string_return_character
+    allowed_scope: "Scalar string function-return character storage, plain and compound; reuse existing arithmetic, int/byte conversions and return-frame conventions."
+    forbidden_scope: "Constant evaluator, parser/elaborator, whole-string compound operations, array return containers or unrelated runtime redesign."
+    dependencies: "Published L73 signed-byte metadata and L74 scalar string character lowering; no dependency on L76."
+    acceptance: "Paired plain/compound results, signed arithmetic and shifts, all compound operator families, int32 index conversion, bounds/empty/zero byte, selector/RHS once, automatic recursion and readonly negatives; runtime string neighbors."
+  - id: L76-CONSTANT-STRING-TOUPPER
     agent: /root/constraint_wide
-    status: INTEGRATED
-    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 13.4.3"
-    reproducer: evidence/parallel-batch-l71-l72/constant-string-character-write.sv
-    actual: "Both editions evaluate text[0]=Z on ABC as ABB instead of ZBC in a constant function."
-    expected: "String character writes replace the selected byte using putc(int,byte) semantics; invalid indices and zero bytes leave the string unchanged."
-    owns: [net_func_eval.cc, elab_lval.cc]
-    test_prefix: sv_const_string_character_write
-    allowed_scope: "Constant-function blocking character assignment, shared lvalue read/write normalization and focused permanent regressions. Narrow elaboration validation of nonlocal character writes is authorized to ensure counted diagnostics for required constant-function contexts; ordinary runtime side effects remain legal."
-    forbidden_scope: "Runtime/lowering files owned by L71, parser, global string storage, unrelated evaluator fallbacks."
-    dependencies: "Integrated L72 string preservation and character reads at1f2441a23; no dependency on L71."
-    acceptance: "Paired first/last byte, local/argument/return, bounds/empty/zero-byte, two-state index conversion, signed-byte conversion, selector-once and compound controls; exact nonlocal-write rejection and L72/evaluator neighbors."
-file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
-validation_batch: 20260914_after_l64
-focused_features_completed_in_batch: 10
-pending_gates: "Seven required broad gates passed; publish coherent PR, then select prepared L75/L76 lanes."
+    status: REPRODUCED
+    standards: "IEEE 1800-2017/2023 6.16.4, 13.4.3"
+    reproducer: evidence/next-constant-assessment/ASSESSMENT.md
+    actual: "Both editions reject internal toupper during constant evaluation and then assert; runtime control passes."
+    expected: "Return uppercase string without changing receiver; valid constant calls produce correct strings and invalid calls receive focused diagnostics."
+    owns: [net_func_eval.cc]
+    test_prefix: sv_const_string_toupper
+    allowed_scope: "Existing toupper internal method constant evaluation, byte behavior, receiver preservation and focused diagnostic regressions."
+    forbidden_scope: "Runtime/target sources owned by L75, parser/elaborator, other string methods and generic fallback redesign."
+    dependencies: "Published L72/L73 preserved string values; no dependency on L75."
+    acceptance: "Paired mixed ASCII/digits/punctuation, empty/high bytes, local/argument receivers, receiver unchanged, repeat stability, runtime parity, invalid arity/type diagnostics without abort; constant/string neighbors."
+file_conflict_policy: "Do not edit outside ownership; report necessary expansion to coordinator. Never concurrently edit shared files."
+validation_batch: 20260914_after_l74
+focused_features_completed_in_batch: 0
+pending_gates: "Focused lane validation then seven broad gates after approximately ten integrated fixes; PR283 cross-platform CI is separate."
 last_broad_qualified_semantic_revision: 374318731
-baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json
+last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
 stop_after_completion: false

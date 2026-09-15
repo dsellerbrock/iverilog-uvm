@@ -1,7 +1,7 @@
 status: active
-branch: agent/typed-array-return-20260914
-current_blocker: PARALLEL-BATCH-L74-L73
-phase: publishing_qualified_batch
+branch: agent/string-return-uppercase-20260914
+current_blocker: PARALLEL-BATCH-L75-L76
+phase: parallel_implementation
 source_revision: 374318731
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
@@ -12,6 +12,12 @@ qualification_scope: L65-L74 local batch only; full IEEE, UVM and application go
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
 published_work:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
+    state: open
+    published_head: 9f79ff51cefe85194beb954409750e2e741dfcc3
+    current_ci_run: 34927916125
+    current_ci_observation: Cross-platform CI started; local seven-gate qualification passed.
+    evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/280
     state: externally_merged
     merge_revision: 5c0f5588e
@@ -45,13 +51,13 @@ preserved_local_batch:
   l73_revision: 352a15164
   l74_revision: 374318731
   focused_features: 10
-  status: All seven broad gates passed at e25971651; publication pending
+  status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: Full serial build/install of L73/L74 final candidate; focused fingerprints in latest session validation records. Seven broad gates passed; final artifacts stable.
-pending_gates: PR publication and its required CI; no remaining local broad gate for this candidate.
-next_action: Publish the qualified ten-fix batch. Prepared L75 and L76 are reproduced but not yet authorized for implementation; use a separate local branch before new edits to preserve the published PR.
-next_command: git push -u origin agent/typed-array-return-20260914
+pending_gates: PR283 required cross-platform CI; focused checks and later broad qualification for the next independent batch.
+next_action: Implement authorized L75 and L76 on the new local branch using existing agents; coordinator integrates focused-tested fixes and owns all shared execution. Keep PR283 branch fixed.
+next_command: git diff --stat
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
@@ -60,12 +66,12 @@ latest_focused_evidence: docs/conformance/session_logs/2026-09-14_runtime_string
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
-  - id: L74-RUNTIME-STRING-CHARACTER-COMPOUND
+  - id: L75-STRING-RETURN-CHARACTER-STORES
     agent: /root/constraint_abi
-    files: tgt-vvp/stmt_assign.c, tgt-vvp/eval_string.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc
-  - id: L73-CONSTANT-STRING-CHARACTER-WRITE
+    files: tgt-vvp/stmt_assign.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc
+  - id: L76-CONSTANT-STRING-TOUPPER
     agent: /root/constraint_wide
-    files: net_func_eval.cc, elab_lval.cc
+    files: net_func_eval.cc
 shared_execution_owner: coordinator
 parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
 
@@ -75,4 +81,8 @@ l71_status: Integrated5a04f1e9d; six cases per harness and 36 neighbors passed.
 l73_status: Integrated352a15164; 12 cases per harness, two constant generate oracles and 34 neighbors passed.
 l74_status: Integrated374318731; six cases per harness and two additional runtime neighbors passed.
 
-prepared_next_lanes: [L75, L76]
+current_batch:
+  base_revision: 9f79ff51c
+  focused_features: 0
+  selected_lanes: [L75, L76]
+  source_edits: Not started at authorization checkpoint.
