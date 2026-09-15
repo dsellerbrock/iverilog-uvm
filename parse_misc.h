@@ -102,6 +102,13 @@ struct sva_seq_step_t {
 			    // expanded step carries n-m here. Valid
 			    // only in the last chain position
 			    // (match-existence equivalence).
+      bool grouped_repeat = false; // member of a finite repeated group
+      bool group_repeat_start = false;
+      bool group_repeat_end = false;
+      long group_repeat_lo = 0;
+      long group_repeat_hi = 0;
+      long group_repeat_first_delay_lo = 0; // intrinsic, before outer concat
+      long group_repeat_first_delay_hi = 0;
       PExpr* expr = nullptr;
       perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
       PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none

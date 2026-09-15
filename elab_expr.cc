@@ -2141,7 +2141,7 @@ static NetExpr* make_last_array_index_expr_(const LineInfo&loc,
 static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const LineInfo*li,
 					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
+					     ivl_type_t pvec,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type);
 
@@ -2513,8 +2513,10 @@ static NetExpr* apply_trailing_container_indices_(
 	       * container word. Keep the exact selected vector type and consume all
 	       * residual components through the established packed-property
 	       * canonicalizer. */
-	    if (const netvector_t*vector_type =
-		  dynamic_cast<const netvector_t*>(cur_type)) {
+	    ivl_type_t vector_type =
+		  dynamic_cast<const netvector_t*>(cur_type)
+		  || dynamic_cast<const netenum_t*>(cur_type) ? cur_type : nullptr;
+	    if (vector_type) {
 		  list<index_component_t>packed_indices(idx_it, indices.end());
 		  ivl_type_t selected_type = nullptr;
 		  NetExpr*selected = make_vector_property_select_(
@@ -12467,11 +12469,11 @@ static void set_scoped_class_parameter_result_(
 static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const LineInfo*li,
 					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
+					     ivl_type_t pvec,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type)
 {
-      const netranges_t&dims = pvec->packed_dims();
+      const netranges_t dims = pvec->slice_dimensions();
       if (indices.empty() || dims.empty())
 	    return nullptr;
       for (size_t di = 0; di < dims.size(); di += 1)
@@ -12616,11 +12618,25 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		         : off_expr)
 	    : c32(const_off);
 
+      const bool enum_bool = dynamic_cast<const netenum_t*>(pvec)
+	    && pvec->base_type() == IVL_VT_BOOL;
       netvector_t*res_type = new netvector_t(pvec->base_type(),
 					     (long)wid - 1, 0);
-      NetESelect*sel = new NetESelect(prop_expr, base, wid, res_type);
+	/* A two-state enum still needs the packed select evaluated with 4-state
+	 * address semantics before converting its result to the enum base type
+	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
+	 * target-side BOOL cast also changes 4-state parameter selects. */
+      ivl_type_t select_type = enum_bool
+	    ? ivl_type_t(new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0))
+	    : ivl_type_t(res_type);
+      NetESelect*sel = new NetESelect(prop_expr, base, wid, select_type);
       sel->set_line(*li);
       out_type = res_type;
+      if (enum_bool) {
+	    NetECast*cast = new NetECast('2', sel, wid, false);
+	    cast->set_line(*li);
+	    return cast;
+      }
       return sel;
 }
 

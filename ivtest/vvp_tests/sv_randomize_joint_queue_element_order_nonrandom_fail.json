@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_randomize_joint_queue_element_order_nonrandom_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_randomize_joint_queue_element_order_nonrandom_fail"
+}

@@ -1,0 +1,179 @@
+{
+  "blocker": "L88",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "candidate": {
+    "head": "0829d3b92e2133ef8107b1353fed5e52d99728c4",
+    "hashes": {
+      "elaborate.cc": "e0be7bad036a9b99ed38c3b84748ca70c0d8b5777ff82e7ca1ddf062b2cade36",
+      "vvp/vvp_z3.cc": "0c14a15c574a9cd7d4bd514ebdab8a75cabd1ca8062ccc09dca174ffa47045de",
+      "local-install/lib/ivl/ivl": "f7eee1b76bd5e8304e3c2f0b5fd5e9332c1b5f29f81c6a49cb943d4e6c78cfe6",
+      "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad",
+      "local-install/bin/vvp": "2b1e774aa95e2b11cf2fb725281682ed5cb10ce7dab089245290f365e31c546f"
+    },
+    "sva_object": "Retained L86 third compiler increment; subsequent unbuilt pform changes excluded. No L86 completion claim."
+  },
+  "baseline": [
+    {
+      "edition": 2017,
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/probe-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv:5: warning: Constraint item in 'c' of class root is not representable in the constraint solver and is ignored (further similar warnings suppressed).\n"
+      },
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/probe-2017.vvp"
+        ],
+        "returncode": 1,
+        "stdout": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv:15: ordered dynamic marginal 685\n       Time: 0  Scope: test\n",
+        "stderr": ""
+      }
+    },
+    {
+      "edition": 2023,
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/probe-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv:5: warning: Constraint item in 'c' of class root is not representable in the constraint solver and is ignored (further similar warnings suppressed).\n"
+      },
+      "runtime": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/probe-2023.vvp"
+        ],
+        "returncode": 1,
+        "stdout": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv:15: ordered dynamic marginal 685\n       Time: 0  Scope: test\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "wide_index_red": [
+    {
+      "edition": 2017,
+      "compile": {
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "runtime": {
+        "returncode": 1,
+        "stdout": "FATAL: evidence/batch-20260914-after-l84/l88-wide-index.sv:10: out-of-range ordering silently aliases element zero\n       Time: 0  Scope: test\n",
+        "stderr": ""
+      }
+    },
+    {
+      "edition": 2023,
+      "compile": {
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "runtime": {
+        "returncode": 1,
+        "stdout": "FATAL: evidence/batch-20260914-after-l84/l88-wide-index.sv:10: out-of-range ordering silently aliases element zero\n       Time: 0  Scope: test\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "wide_index_final": [
+    {
+      "edition": 2017,
+      "returncode": 0,
+      "stdout": "PASSED\n",
+      "stderr": "ERROR: constraint state read: dynamic array constraint element index 4294967296 exceeds the supported index representation.\n"
+    },
+    {
+      "edition": 2023,
+      "returncode": 0,
+      "stdout": "PASSED\n",
+      "stderr": "ERROR: constraint state read: dynamic array constraint element index 4294967296 exceeds the supported index representation.\n"
+    }
+  ],
+  "focused_initial_final_candidate": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-randomize-joint-dynamic-element-order-legacy.list"
+      ],
+      "returncode": 2,
+      "seconds": 37.41617393493652,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n                    sv_randomize_joint_dynamic_element_order: Passed.\n               sv_randomize_joint_dynamic_element_order_2023: Passed.\n              sv_randomize_joint_dynamic_element_order_mixed: Passed.\n         sv_randomize_joint_dynamic_element_order_mixed_2023: Passed.\n               sv_randomize_joint_dynamic_element_order_dist: Passed.\n          sv_randomize_joint_dynamic_element_order_dist_2023: Passed.\n               sv_randomize_joint_dynamic_element_order_fail: ==> Failed - output does not match gold file.\n          sv_randomize_joint_dynamic_element_order_fail_2023: ==> Failed - output does not match gold file.\n     sv_randomize_joint_dynamic_element_order_nonrandom_fail: Passed - CE.\nsv_randomize_joint_dynamic_element_order_nonrandom_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=10, Passed=8, Failed=2, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-randomize-joint-dynamic-element-order-vvp.list"
+      ],
+      "returncode": 2,
+      "seconds": 37.32710599899292,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-dynamic-element-order-vvp.list\n----------------------------------------------------------------------------\n                    sv_randomize_joint_dynamic_element_order: Passed.\n               sv_randomize_joint_dynamic_element_order_2023: Passed.\n               sv_randomize_joint_dynamic_element_order_dist: Passed.\n          sv_randomize_joint_dynamic_element_order_dist_2023: Passed.\ngold/sv_randomize_joint_dynamic_element_order_fail-vvp-stderr.gold and log/sv_randomize_joint_dynamic_element_order_fail-vvp-stderr.log differ:\n--- gold/sv_randomize_joint_dynamic_element_order_fail-vvp-stderr.gold\n+++ log/sv_randomize_joint_dynamic_element_order_fail-vvp-stderr.log\n@@ -1,5 +1,5 @@\n ERROR: global constraint sampling failed: dynamic element ordering index is outside the proved array size.\n-runtime error: constraint function priority: dynamic array constraint element index 4294967296 exceeds the supported index representation\n-runtime error: constraint function priority: dynamic array constraint element index 18446744073709551615 exceeds the supported index representation\n+ERROR: constraint state read: dynamic array constraint element index 4294967296 exceeds the supported index representation.\n+ERROR: constraint element 4294967295 remains outside the solved dynamic-container size 1.\n ERROR: global constraint sampling failed: global array sizes must have one proven value before element solving.\n ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.\n               sv_randomize_joint_dynamic_element_order_fail: Failed - Gold output doesn't match actual output.\ngold/sv_randomize_joint_dynamic_element_order_fail-vvp-stderr.gold and log/sv_randomize_joint_dynamic_element_order_fail_2023-vvp-stderr.log differ:\n--- gold/sv_randomize_joint_dynamic_element_order_fail-vvp-stderr.gold\n+++ log/sv_randomize_joint_dynamic_element_order_fail_2023-vvp-stderr.log\n@@ -1,5 +1,5 @@\n ERROR: global constraint sampling failed: dynamic element ordering index is outside the proved array size.\n-runtime error: constraint function priority: dynamic array constraint element index 4294967296 exceeds the supported index representation\n-runtime error: constraint function priority: dynamic array constraint element index 18446744073709551615 exceeds the supported index representation\n+ERROR: constraint state read: dynamic array constraint element index 4294967296 exceeds the supported index representation.\n+ERROR: constraint element 4294967295 remains outside the solved dynamic-container size 1.\n ERROR: global constraint sampling failed: global array sizes must have one proven value before element solving.\n ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.\n          sv_randomize_joint_dynamic_element_order_fail_2023: Failed - Gold output doesn't match actual output.\n              sv_randomize_joint_dynamic_element_order_mixed: Passed.\n         sv_randomize_joint_dynamic_element_order_mixed_2023: Passed.\n     sv_randomize_joint_dynamic_element_order_nonrandom_fail: Passed - CE.\nsv_randomize_joint_dynamic_element_order_nonrandom_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 10, Failed 2.\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-l88-dynamic-neighbors-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 0.45958900451660156,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-l88-dynamic-neighbors-vvp.list\n----------------------------------------------------------------------------\n               sv_constraint_function_dynamic_array_inactive: Passed.\n          sv_constraint_function_dynamic_array_inactive_2023: Passed.\n                sv_constraint_function_dynamic_queue_element: Passed.\n           sv_constraint_function_dynamic_queue_element_2023: Passed.\n                    sv_constraint_function_dynamic_size_mode: Passed.\n               sv_constraint_function_dynamic_size_mode_2023: Passed.\n                    sv_constraint_function_dynamic_size_zero: Passed.\n               sv_constraint_function_dynamic_size_zero_2023: Passed.\n     sv_constraint_function_static_dynamic_element_const_ref: Passed.\nsv_constraint_function_static_dynamic_element_const_ref_2023: Passed.\n         sv_constraint_function_static_dynamic_element_input: Passed.\n    sv_constraint_function_static_dynamic_element_input_2023: Passed.\n                              sv_randomize_global_queue_fail: Passed.\n                         sv_randomize_global_queue_fail_2023: Passed.\n============================================================================\nTest results: Ran 14, Failed 0.\n"
+    }
+  ],
+  "negative_golden_correction_recheck": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-l88-negative-recheck-legacy.list"
+      ],
+      "returncode": 0,
+      "seconds": 0.3279430866241455,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n     sv_randomize_joint_dynamic_element_order_fail: Passed.\nsv_randomize_joint_dynamic_element_order_fail_2023: Passed.\n============================================================================\nTest results:\n  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-l88-negative-recheck-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 0.33765625953674316,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-l88-negative-recheck-vvp.list\n----------------------------------------------------------------------------\n     sv_randomize_joint_dynamic_element_order_fail: Passed.\nsv_randomize_joint_dynamic_element_order_fail_2023: Passed.\n============================================================================\nTest results: Ran 2, Failed 0.\n"
+    }
+  ],
+  "preceding_candidate_neighbors": {
+    "command": [
+      "python3",
+      "vvp_reg.py",
+      "regress-randomize-joint-element-order-vvp.list",
+      "regress-randomize-joint-ordered-dist-vvp.list",
+      "regress-l85-neighbors-vvp.list"
+    ],
+    "returncode": 0,
+    "seconds": 96.57402300834656,
+    "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-element-order-vvp.list, regress-randomize-joint-ordered-dist-vvp.list, regress-l85-neighbors-vvp.list\n----------------------------------------------------------------------------\n                         sv_randc_txn_object_rng: Passed.\n              sv_randc_txn_recursive_alias_cycle: Passed.\n                 sv_randc_txn_recursive_rollback: Passed.\n                    sv_randc_txn_reentrant_hooks: Passed.\n                    sv_randc_txn_two_pass_commit: Passed.\n                 sv_randc_txn_two_pass_rng_order: Passed.\n                      sv_randc_txn_unsat_history: Passed.\n                  sv_randomize_global_alias_soft: Passed.\n             sv_randomize_global_alias_soft_2023: Passed.\n                  sv_randomize_global_components: Passed.\n             sv_randomize_global_components_2023: Passed.\n             sv_randomize_global_components_fail: Passed.\n        sv_randomize_global_components_fail_2023: Passed.\n             sv_randomize_global_dist_components: Passed.\n        sv_randomize_global_dist_components_2023: Passed.\n                     sv_randomize_global_ordered: Passed.\n                sv_randomize_global_ordered_2023: Passed.\n                sv_randomize_global_ordered_fail: Passed.\n           sv_randomize_global_ordered_fail_2023: Passed.\n               sv_randomize_global_ordered_limit: Passed.\n          sv_randomize_global_ordered_limit_2023: Passed.\n               sv_randomize_global_sampling_fail: Passed.\n          sv_randomize_global_sampling_fail_2023: Passed.\n                sv_randomize_joint_element_order: Passed.\n           sv_randomize_joint_element_order_2023: Passed.\n           sv_randomize_joint_element_order_dist: Passed.\n      sv_randomize_joint_element_order_dist_2023: Passed.\n           sv_randomize_joint_element_order_fail: Passed.\n      sv_randomize_joint_element_order_fail_2023: Passed.\n          sv_randomize_joint_element_order_mixed: Passed.\n     sv_randomize_joint_element_order_mixed_2023: Passed.\n       sv_randomize_joint_element_order_oob_fail: Passed - CE.\n  sv_randomize_joint_element_order_oob_fail_2023: Passed - CE.\n                 sv_randomize_joint_ordered_dist: Passed.\n            sv_randomize_joint_ordered_dist_2023: Passed.\n            sv_randomize_joint_ordered_dist_fail: Passed.\n       sv_randomize_joint_ordered_dist_fail_2023: Passed.\n          sv_randomize_joint_ordered_dist_ranges: Passed.\n     sv_randomize_joint_ordered_dist_ranges_2023: Passed.\n     sv_randomize_joint_ordered_dist_transaction: Passed.\nsv_randomize_joint_ordered_dist_transaction_2023: Passed.\n============================================================================\nTest results: Ran 41, Failed 0.\n"
+  },
+  "interpretation": "Ten cases per harness pass on final candidate: eight passed the full focused run; two negative cases passed after correcting diagnostic spelling and 32-bit signed index interpretation in gold only. Fourteen dynamic neighbors pass on final candidate; 41 ordering/transaction neighbors passed before the narrow index guard. No broad qualification or L86 completion claim.",
+  "standards": [
+    "IEEE1800-2017 18.4,18.5.8.2,18.5.9,18.5.10",
+    "IEEE1800-2023 18.4,18.5.7.2,18.5.8,18.5.9"
+  ],
+  "scope": "Constant selected integral dynamic-array elements with one proved size, including enum and signed elements; no queue/associative/nonconstant-selector or active randc extension."
+}

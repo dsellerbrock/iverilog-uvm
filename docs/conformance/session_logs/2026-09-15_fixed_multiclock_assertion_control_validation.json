@@ -1,0 +1,93 @@
+{
+  "blocker": "L92",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "standards": {
+    "2017": [
+      "20.12",
+      "16.12.7",
+      "16.14"
+    ],
+    "2023": [
+      "20.12",
+      "16.12.7",
+      "16.14"
+    ]
+  },
+  "source_hashes": {
+    "pform.cc": "82d589f9c20dd81775d0df97b84dc537967638b8ab16c63c3556fb2556bc4879"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "7404b4d2fde0d4051a9b718ba726b3145afe1bfcaf9266c677825166bbf9bd63",
+    "local-install/lib/ivl/vvp.tgt": "4dbd47f4b419cbac76e63d1b36fa738415c641964bbfe5ba70911daf20f082c4",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_fixed_control-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "k_fixed_control_coincident: Passed.\n     sv_assert_multiclock_fixed_control_coincident_2023: Passed.\n============================================================================\nTest results:\n  Total=20, Passed=20, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_fixed_control-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "estart_2023: Passed.\n            sv_assert_multiclock_fixed_control_selected: Passed.\n       sv_assert_multiclock_fixed_control_selected_2023: Passed.\n============================================================================\nTest results: Ran 20, Failed 0.\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_boolean_repeat-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "at_paused_backlog: Passed.\n         sv_assert_multiclock_boolean_repeat_paused_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=34, Passed=34, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_boolean_repeat-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "E.\n                sv_assert_multiclock_boolean_repeat_vector_truth: Passed.\n           sv_assert_multiclock_boolean_repeat_vector_truth_2023: Passed.\n============================================================================\nTest results: Ran 34, Failed 0.\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "log: Passed.\n                          sv_assert_multiclock_bounded_antecedent_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=46, Passed=46, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "_bounded_antecedent_vacuity_without_destination_clock: Passed.\nsv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock_2023: Passed.\n============================================================================\nTest results: Ran 46, Failed 0.\n"
+    },
+    {
+      "command": [
+        "bash",
+        "tests/sva_nfa/run.sh"
+      ],
+      "returncode": 0,
+      "tail": "SS (nfa-only vs gold)\n  within_fixed                             PASS (verdict parity)\n  within_nfa_only                          PASS (nfa-only vs gold)\n  zero_repeat_antecedent_nfa_only          PASS (nfa-only vs gold)\n\nsva_nfa dual-run: 58 passed, 0 failed\n"
+    }
+  ],
+  "baseline": "evidence/batch-20260914-after-l84/l92-baseline/baseline.json",
+  "limits": [
+    "Fixed multiclock start control only; broader assertion-control/task families remain separate.",
+    "No new broad UVM or application qualification."
+  ]
+}

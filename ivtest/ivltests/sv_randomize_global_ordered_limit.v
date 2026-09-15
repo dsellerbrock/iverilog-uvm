@@ -24,7 +24,7 @@ module main;
  bit [10:0] old_value;
  bit old_tail, old_child;
  initial begin
-  if(w.randomize() || w.a || w.b || w.child.value) $fatal(1,"ordered dist was accepted or changed values");
+  if(!w.randomize() || w.child.value!=w.b) $fatal(1,"ordered dist failed or violated child relation");
   if(!c.randomize() || c.posts!=1 || c.tail_value!=c.value[0] || c.child.value!=c.tail_value) $fatal(1,"1024 ordered tuples failed");
   old_value=c.value; old_tail=c.tail_value; old_child=c.child.value;
   c.limit=1024;

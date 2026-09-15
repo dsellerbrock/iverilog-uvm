@@ -2048,6 +2048,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    uint64_t idx64 = 0;
 	    bool ok = eval_const_ir(par, idx64);
 	    par.skip_ws(); par.expect(')');
+	    /* Element identities are represented by an unsigned leaf index.  Do
+	     * not truncate a wider constant into a different live element.  Keep
+	     * the full value in the parse error so every caller rejects the form
+	     * before planning or sampling. */
+	    if (ok && idx64 > UINT_MAX) {
+		  ostringstream msg;
+		  msg << "dynamic array constraint element index " << idx64
+		      << " exceeds the supported index representation";
+		  b.state_errors.push_back(msg.str());
+		  return Z3_mk_unsigned_int64(
+			b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
+	    }
 	    /* Planning precedes the size solve. An active dynamic element may be
 	     * created by that solve, so retain its typed dependency without
 	     * comparing it with the old container bound. The normal/second pass
@@ -3420,6 +3432,7 @@ struct random_container_desc_t {
       uint64_t max_size = 0;
       string elem_type;
       unsigned elem_width = 32;
+      bool elem_integral = false;
 };
 
 static random_container_desc_t random_container_desc_(const string&text)
@@ -3441,8 +3454,10 @@ static random_container_desc_t random_container_desc_(const string&text)
       if ((1 == sscanf(elem, "b%u%zn", &width, &n) && n == desc.elem_type.size())
 	  || (1 == sscanf(elem, "sb%u%zn", &width, &n) && n == desc.elem_type.size())
 	  || (1 == sscanf(elem, "v%u%zn", &width, &n) && n == desc.elem_type.size())
-	  || (1 == sscanf(elem, "sv%u%zn", &width, &n) && n == desc.elem_type.size()))
+	  || (1 == sscanf(elem, "sv%u%zn", &width, &n) && n == desc.elem_type.size())) {
 	    desc.elem_width = width ? width : 32;
+	    desc.elem_integral = true;
+      }
       return desc;
 }
 
@@ -4294,8 +4309,10 @@ enum z3_pass_status { Z3PASS_FAILED = 0, Z3PASS_SAT_APPLIED = 1,
  * requires a speculative size pass followed by the authoritative element
  * pass. Rewind replays pass-1 words from this tape without rewinding the
  * object's generator; only a pass that needs a longer prefix advances the
- * object further. Thus the two internal passes consume one external stream,
- * while a failed solve still leaves every word it requested consumed.
+ * object further. Thus the two internal passes consume one external stream.
+ * This local tape does not itself rewind the object after failure; the
+ * enclosing randomize graph transaction journals and restores every visited
+ * object's RNG as part of the campaign's atomic-call contract.
  *
  * uniform_index uses rejection against the largest multiple of `bound' in
  * [0,2^32), eliminating the low-index bias of `rng_next() % bound'. Exact
@@ -4881,7 +4898,8 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    const Z3Builder::DistSpec& spec,
 				   z3_rng_stream_t& rng,
                                    uint64_t& chosen,
-                                   bool require_complete_ranges = false)
+                                   bool require_complete_ranges = false,
+                                   bool validate_only = false)
 {
       static const uint64_t RANGE_EXPAND_CAP = 256;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
@@ -4992,6 +5010,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 	    total += item.aggregate_weight;
 	}
 	if (total == 0) return false;
+      if (validate_only) return true;
       uint64_t ticket = rng.uniform_u64(total);
       size_t item_idx = items.size() - 1;
       for (size_t i = 0 ; i < items.size() ; i += 1) {
@@ -5679,17 +5698,43 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, sa.a);
       }
 
+      map<unsigned, uint64_t> proved_joint_sizes;
       if (exact_joint) {
             // Ordered randc/dist and non-scalar stages need separate proofs.
             // Reject before any sampling; a cap failure after a randc draw
             // could otherwise condition successful calls on that draw.
             if (!builder.order_pairs.empty()) {
-                  if (!builder.dist_specs.empty())
-                        return fail_joint("joint solve-before with dist is not yet supported");
+                  auto supported_element_order_ref = [&](const Z3Builder::OrderRef&ref) {
+                        if (ref.kind != Z3Builder::OrderRef::ELEM) return false;
+                        const class_type*type = builder.type(ref.idx);
+                        unsigned pid = builder.local_index(ref.idx);
+                        const string&base = type->property_base_type(pid);
+                        bool fixed = type->property_array_size(pid) >= 1
+                              && !base.empty() && base != "o"
+                              && base.compare(0, 3, "oc:") != 0
+                              && base != "r" && base != "S"
+                              && base[0] != 'D' && base[0] != 'Q'
+                              && base[0] != 'M';
+                        const Z3Builder::SizeVar*size = nullptr;
+                        for (const auto&candidate : builder.size_vars)
+                              if (candidate.idx == ref.idx) {
+                                    size = &candidate;
+                                    break;
+                              }
+                        const random_container_desc_t desc = size
+                              ? random_container_desc_(size->container_type)
+                              : random_container_desc_t();
+                        bool variable_integral = size && desc.elem_integral
+                              && ((base.size() > 1 && base[0] == 'D')
+                                  || desc.is_queue);
+                        return fixed || variable_integral;
+                  };
                   for (const auto&pair : builder.order_pairs)
-                        if (pair.first.kind != Z3Builder::OrderRef::PROP
-                            || pair.second.kind != Z3Builder::OrderRef::PROP)
-                              return fail_joint("joint solve-before requires canonical scalar ordering variables");
+                        if ((pair.first.kind != Z3Builder::OrderRef::PROP
+                             && !supported_element_order_ref(pair.first))
+                            || (pair.second.kind != Z3Builder::OrderRef::PROP
+                                && !supported_element_order_ref(pair.second)))
+                              return fail_joint("joint solve-before requires canonical scalar or supported element ordering variables");
                   for (const auto&pv : builder.prop_vars)
                         if (rand_scalar_active_(builder, prop_active, pv.idx)
                             && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)))
@@ -5710,6 +5755,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         return fail_joint("global array sizes must have one proven value before element solving");
                   for (size_t i = 0; i < sizes.size(); ++i) {
                         const auto&sv = builder.size_vars[i];
+                        proved_joint_sizes[sv.idx] = values[0][i];
                         if (values[0][i] > random_container_size_cap_(sv.container_type))
                               return fail_joint("a fixed array size exceeds the supported allocation limit");
                         if (!rand_size_active_(builder, prop_active, sv.idx)
@@ -5718,6 +5764,29 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         for (uint64_t elem = 0; elem < values[0][i]; ++elem)
                               if (rand_elem_active_(builder, prop_active, sv.idx, (unsigned)elem))
                                     return fail_joint("a randc leaf exceeds the supported history representation");
+                  }
+            }
+            for (const auto&pair : builder.order_pairs) {
+                  for (const auto&ref : {pair.first, pair.second}) {
+                        if (ref.kind != Z3Builder::OrderRef::ELEM) continue;
+                        const string&base = builder.type(ref.idx)
+                              ->property_base_type(builder.local_index(ref.idx));
+                        const Z3Builder::SizeVar*size_var = nullptr;
+                        for (const auto&candidate : builder.size_vars)
+                              if (candidate.idx == ref.idx) {
+                                    size_var = &candidate;
+                                    break;
+                              }
+                        if (!size_var
+                            || ((base.empty() || base[0] != 'D')
+                                && !random_container_desc_(
+                                      size_var->container_type).is_queue))
+                              continue;
+                        auto size = proved_joint_sizes.find(ref.idx);
+                        if (size == proved_joint_sizes.end())
+                              return fail_joint("dynamic element ordering requires one proved array size");
+                        if (ref.elem >= size->second)
+                              return fail_joint("dynamic element ordering index is outside the proved array size");
                   }
             }
       }
@@ -6004,17 +6073,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Longest distance to a sink schedules partially ordered variables
             // as late as possible, with unordered variables in the final stage
             // (IEEE 1800-2017 18.5.10; IEEE 1800-2023 18.5.9).
-            map<unsigned, unsigned> remaining;
+            map<Z3Builder::OrderRef, unsigned> remaining;
             for (const auto&pair : builder.order_pairs) {
-                  remaining[pair.first.idx];
-                  remaining[pair.second.idx];
+                  remaining[pair.first];
+                  remaining[pair.second];
             }
             for (size_t pass = 0; pass < remaining.size(); ++pass) {
                   bool changed = false;
                   for (const auto&pair : builder.order_pairs) {
-                        unsigned want = remaining[pair.second.idx] + 1;
-                        if (remaining[pair.first.idx] < want) {
-                              remaining[pair.first.idx] = want;
+                        unsigned want = remaining[pair.second] + 1;
+                        if (remaining[pair.first] < want) {
+                              remaining[pair.first] = want;
                               changed = true;
                         }
                   }
@@ -6027,9 +6096,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   final_stage = max(final_stage, entry.second);
             map<Z3_ast, unsigned> stages;
             for (const auto&pv : builder.prop_vars) {
-                  auto found = remaining.find(pv.idx);
+                  Z3Builder::OrderRef ref = {
+                        Z3Builder::OrderRef::PROP, pv.idx, 0
+                  };
+                  auto found = remaining.find(ref);
                   if (found != remaining.end())
                         stages[pv.var] = final_stage - found->second;
+            }
+            for (const auto&ev : builder.elem_vars) {
+                  Z3Builder::OrderRef ref = {
+                        Z3Builder::OrderRef::ELEM, ev.idx, ev.elem
+                  };
+                  auto found = remaining.find(ref);
+                  if (found != remaining.end())
+                        stages[ev.var] = final_stage - found->second;
             }
             vector<vector<Z3_ast> > components;
             if (!z3_joint_components_(ctx, base, variables, components))
@@ -6067,23 +6147,92 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
                         return fail_joint(reason);
             }
+            // Prove every ordered prefix can resolve its due distribution
+            // before consuming any random draw. The common 2017/2023 subset
+            // keeps the existing complete-range requirement: 2023 18.5.3
+            // specifies retained source-range mass after exclusions, while
+            // 2017 18.5.4 has different per-value wording. Validation moves
+            // prefix-dependent exclusions, range/weight caps, and any solver
+            // UNKNOWN ahead of all component/stage sampling.
+            if (!builder.order_pairs.empty()) {
+                  for (size_t ci = 0; ci < components.size(); ++ci) {
+                        const auto*spec = distributions[ci];
+                        if (!spec) continue;
+                        const auto&component = components[ci];
+                        unsigned dist_stage = final_stage;
+                        auto subject_stage = stages.find(spec->subject);
+                        if (subject_stage != stages.end())
+                              dist_stage = subject_stage->second;
+                        vector<size_t> prefix_columns;
+                        for (size_t i = 0; i < component.size(); ++i) {
+                              auto found = stages.find(component[i]);
+                              if (found != stages.end() && found->second < dist_stage)
+                                    prefix_columns.push_back(i);
+                        }
+                        set<vector<uint64_t> > prefixes;
+                        for (const auto&tuple : tables[ci]) {
+                              vector<uint64_t> prefix;
+                              for (size_t column : prefix_columns)
+                                    prefix.push_back(tuple[column]);
+                              prefixes.insert(std::move(prefix));
+                        }
+                        for (const auto&prefix : prefixes) {
+                              Z3_solver_push(ctx, base);
+                              for (size_t i = 0; i < prefix_columns.size(); ++i) {
+                                    size_t column = prefix_columns[i];
+                                    Z3_ast value = Z3_mk_unsigned_int64(ctx,
+                                          prefix[i], Z3_get_sort(ctx, component[column]));
+                                    Z3_solver_assert(ctx, base,
+                                          Z3_mk_eq(ctx, component[column], value));
+                              }
+                              uint64_t ignored = 0;
+                              bool valid = z3_resolve_dist_exact(ctx, base, opt,
+                                    *spec, owner_rng(spec->rng_owner), ignored,
+                                    true, true);
+                              Z3_solver_pop(ctx, base, 1);
+                              if (!valid)
+                                    return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
+                        }
+                  }
+            }
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   const auto&component = components[ci];
                   auto&tuples = tables[ci];
-                  if (const auto*spec = distributions[ci]) {
-                        uint64_t subject = 0;
-                        if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
-                              owner_rng(spec->rng_owner), subject, true))
-                              return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
-                        unsigned width = bv_width(ctx, spec->subject);
-                        if (width < 64) subject &= (uint64_t(1) << width) - 1;
-                        size_t column = subject_columns[ci];
-                        tuples.erase(remove_if(tuples.begin(), tuples.end(),
-                              [&](const vector<uint64_t>&tuple) { return tuple[column] != subject; }), tuples.end());
-                        if (tuples.empty())
-                              return fail_joint("the sampled distribution value has no proved joint tuple");
+                  const auto*spec = distributions[ci];
+                  size_t subject_column = spec ? subject_columns[ci] : 0;
+                  unsigned dist_stage = final_stage;
+                  if (spec) {
+                        auto found = stages.find(spec->subject);
+                        if (found != stages.end()) dist_stage = found->second;
                   }
-                  for (unsigned stage = 0; stage < final_stage; ++stage) {
+                  auto pin_column = [&](size_t column, uint64_t bits) {
+                        Z3_ast value = Z3_mk_unsigned_int64(ctx, bits,
+                              Z3_get_sort(ctx, component[column]));
+                        Z3_ast pin = Z3_mk_eq(ctx, component[column], value);
+                        Z3_solver_assert(ctx, base, pin);
+                        Z3_optimize_assert(ctx, opt, pin);
+                  };
+                  // Resolve stages in order. Prefix pins are installed in the
+                  // hard solver immediately, so a distribution on a later
+                  // subject is sampled from its actual conditional fiber.
+                  for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                        if (spec && stage == dist_stage) {
+                              uint64_t subject = 0;
+                              if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
+                                    owner_rng(spec->rng_owner), subject,
+                                    true))
+                                    return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
+                              unsigned width = bv_width(ctx, spec->subject);
+                              if (width < 64) subject &= (uint64_t(1) << width) - 1;
+                              tuples.erase(remove_if(tuples.begin(), tuples.end(),
+                                    [&](const vector<uint64_t>&tuple) {
+                                          return tuple[subject_column] != subject;
+                                    }), tuples.end());
+                              if (tuples.empty())
+                                    return fail_joint("the sampled distribution value has no proved joint tuple");
+                              pin_column(subject_column, subject);
+                        }
+                        if (stage == final_stage) break;
                         vector<size_t> columns;
                         for (size_t i = 0; i < component.size(); ++i) {
                               auto found = stages.find(component[i]);
@@ -6109,6 +6258,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           if (tuple[columns[i]] != (*selected)[i]) return true;
                                     return false;
                               }), tuples.end());
+                        for (size_t i = 0; i < columns.size(); ++i)
+                              pin_column(columns[i], (*selected)[i]);
                   }
                   // A distribution/stage sets its marginal; the remaining
                   // complete fiber is uniform. Independent factors multiply.

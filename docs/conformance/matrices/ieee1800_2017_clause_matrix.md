@@ -1398,3 +1398,51 @@ IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_constant_str
 ### L75–L84 qualification refinement — 2026-09-14
 
 The bounded implementations above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate without expanding receiver coverage or declaring full-clause conformance.
+
+### L85 — Joint ordered distributions
+
+IMPLEMENTED for the [recorded canonical scalar subset](../session_logs/2026-09-14_joint_ordered_distribution.md), with exact staged distributions and atomic graph rollback. Broader joint distribution families remain PARTIAL; local batch qualification is recorded below.
+
+### L87 — Joint selected-element ordering
+
+IMPLEMENTED within the [recorded fixed-array integral subset](../session_logs/2026-09-14_joint_element_ordering.md), including exact staged element identity and focused out-of-range diagnostics. Dynamic containers and other ordering families remain separate; local batch qualification is recorded below.
+
+### L88 — Joint dynamic-array selected-element ordering
+
+IMPLEMENTED within the [recorded constant integral dynamic-array subset](../session_logs/2026-09-15_joint_dynamic_element_ordering.md), with one proved size, canonical ordering, resize and index-identity checks. Other container/ordering families remain PARTIAL; local batch qualification is recorded below.
+
+### L89 — Joint queue selected-element ordering
+
+IMPLEMENTED for the [recorded constant integral/enum queue subset](../session_logs/2026-09-15_joint_queue_element_ordering.md), using proved bounded/unbounded queue sizes and canonical ordering stages. Other ordering families remain PARTIAL; local batch qualification is recorded below.
+
+### L86 — Multiclock bounded delay-window antecedents
+
+IMPLEMENTED for the [recorded finite delay-window subset](../session_logs/2026-09-15_multiclock_bounded_antecedents.md), retaining every endpoint and one verdict per parent across clock handoff, prefix evaluation and cancellation. Repetition and broader SVA remain PARTIAL; local batch qualification is recorded below.
+
+### L91 — Finite Boolean multiclock repetition
+
+IMPLEMENTED within the [recorded finite Boolean repetition subset](../session_logs/2026-09-15_multiclock_boolean_repetition.md), including legal empty alternatives and parent-level verdicts. Broader repetition and SVA remain PARTIAL; local batch qualification is recorded below.
+
+### L90 — Enum container packed selects
+
+IMPLEMENTED within the [recorded class-container selection subset](../session_logs/2026-09-15_enum_container_packed_selects.md), preserving enum nominal typing, selected vector state and captured partial updates. Broader receiver syntax remains PARTIAL; local batch qualification is recorded below.
+
+### L92 — Fixed multiclock assertion control
+
+IMPLEMENTED for the [recorded fixed-pipeline control subset](../session_logs/2026-09-15_fixed_multiclock_assertion_control.md), preserving pending attempts under Off and aborting them under Kill. Broader assertion control remains PARTIAL; local batch qualification is recorded below.
+
+### L93 — Constant-function numeric string formatting
+
+IMPLEMENTED within the [recorded scalar receiver subset](../session_logs/2026-09-15_constant_string_formatting.md). Other constant-function methods remain PARTIAL; local batch qualification is recorded below.
+
+### L95 — Constant-function putc
+
+IMPLEMENTED within the [recorded scalar local receiver subset](../session_logs/2026-09-15_constant_string_putc.md). Other method/receiver combinations remain PARTIAL; local batch qualification is recorded below.
+
+### L94 — Finite grouped multiclock repetition
+
+IMPLEMENTED within the [recorded flat finite-group subset](../session_logs/2026-09-15_multiclock_grouped_repetition.md), including empty composition and fixed-pipeline compatibility. Nested/unbounded groups and broader SVA remain PARTIAL; local batch qualification is recorded below.
+
+### L85–L95 local qualification checkpoint
+
+The [batch record](../session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json) qualifies the eleven recorded subsets at `d45ee87ab`, including the [regression corrections](../session_logs/2026-09-15_batch_l85_l95_regression_repair.md). Broader clause and application scope remains open.

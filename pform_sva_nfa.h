@@ -43,6 +43,7 @@ struct sva_nfa_t {
       unsigned nstates = 0;
       unsigned start = 0;
       unsigned accept = 0;
+      bool accepts_empty = false; // start reaches accept using epsilon only
       std::vector<sva_nfa_edge_t> edges;
 
       unsigned new_state() { return nstates++; }

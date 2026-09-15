@@ -1,0 +1,126 @@
+{
+  "blocker": "L94",
+  "status": "FOCUSED_TESTED; broad batch qualification pending",
+  "standards": {
+    "2017": [
+      "16.9.2",
+      "16.9.2.1",
+      "16.12.7",
+      "16.12.22",
+      "16.13",
+      "20.12"
+    ],
+    "2023": [
+      "16.9.2",
+      "16.9.2.1",
+      "16.12.7",
+      "16.12.22",
+      "16.13",
+      "20.12"
+    ]
+  },
+  "source_hashes": {
+    "pform.cc": "5497953dfb55cdf87ed26da7903ed844a4a53843bd05aa3637a18763657910ee",
+    "parse_misc.h": "c8ff135ee69dadea5aa83247b2c46bbea36869fb25fe46cc2c83f40ecf86d490",
+    "pform_sva_nfa.cc": "abf7b50ce9469eb9b8cce7694a271cc3c965416bbc18d500e41744421e7a6909"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "7f26e7b4233b04f68bc5ac5643143a61613c421a00996bafe20396669d17e75f",
+    "local-install/lib/ivl/vvp.tgt": "4dbd47f4b419cbac76e63d1b36fa738415c641964bbfe5ba70911daf20f082c4",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_group_repeat-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "                    sv_assert_multiclock_group_repeat_zero_2023: Passed.\n                       sv_assert_multiclock_group_repeat_zero_concat0: Passed - CE.\n                  sv_assert_multiclock_group_repeat_zero_concat0_2023: Passed - CE.\n                   sv_assert_multiclock_group_repeat_zero_outer_delay: Passed.\n              sv_assert_multiclock_group_repeat_zero_outer_delay_2023: Passed.\n              sv_assert_multiclock_group_repeat_zero_suppression_left: Passed.\n         sv_assert_multiclock_group_repeat_zero_suppression_left_2023: Passed.\n             sv_assert_multiclock_group_repeat_zero_suppression_right: Passed.\n        sv_assert_multiclock_group_repeat_zero_suppression_right_2023: Passed.\n                  sv_assert_multiclock_group_repeat_zero_then_concat0: Passed - CE.\n             sv_assert_multiclock_group_repeat_zero_then_concat0_2023: Passed - CE.\n                      sv_assert_multiclock_group_repeat_zero_trailing: Passed.\n                 sv_assert_multiclock_group_repeat_zero_trailing_2023: Passed.\n============================================================================\nTest results:\n  Total=58, Passed=58, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_group_repeat-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "ssert_multiclock_group_repeat_zero: Passed.\n                          sv_assert_multiclock_group_repeat_zero_2023: Passed.\n                       sv_assert_multiclock_group_repeat_zero_concat0: Passed - CE.\n                  sv_assert_multiclock_group_repeat_zero_concat0_2023: Passed - CE.\n                   sv_assert_multiclock_group_repeat_zero_outer_delay: Passed.\n              sv_assert_multiclock_group_repeat_zero_outer_delay_2023: Passed.\n              sv_assert_multiclock_group_repeat_zero_suppression_left: Passed.\n         sv_assert_multiclock_group_repeat_zero_suppression_left_2023: Passed.\n             sv_assert_multiclock_group_repeat_zero_suppression_right: Passed.\n        sv_assert_multiclock_group_repeat_zero_suppression_right_2023: Passed.\n                  sv_assert_multiclock_group_repeat_zero_then_concat0: Passed - CE.\n             sv_assert_multiclock_group_repeat_zero_then_concat0_2023: Passed - CE.\n                      sv_assert_multiclock_group_repeat_zero_trailing: Passed.\n                 sv_assert_multiclock_group_repeat_zero_trailing_2023: Passed.\n============================================================================\nTest results: Ran 58, Failed 0.\n"
+    }
+  ],
+  "neighbors": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_boolean_repeat-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "peat_mixed_prefix_coincident_2023: Passed.\n              sv_assert_multiclock_boolean_repeat_paused_backlog: Passed.\n         sv_assert_multiclock_boolean_repeat_paused_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=34, Passed=34, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_boolean_repeat-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": " Passed - CE.\n  sv_assert_multiclock_boolean_repeat_unsupported_unbounded_2023: Passed - CE.\n                sv_assert_multiclock_boolean_repeat_vector_truth: Passed.\n           sv_assert_multiclock_boolean_repeat_vector_truth_2023: Passed.\n============================================================================\nTest results: Ran 34, Failed 0.\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": ": Passed - CE.\n                               sv_assert_multiclock_bounded_antecedent_backlog: Passed.\n                          sv_assert_multiclock_bounded_antecedent_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=46, Passed=46, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "lock_bounded_antecedent_unsupported_unbounded_2023: Passed - CE.\n     sv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock: Passed.\nsv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock_2023: Passed.\n============================================================================\nTest results: Ran 46, Failed 0.\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_fixed_control-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "   sv_assert_multiclock_fixed_control_selected_2023: Passed.\n          sv_assert_multiclock_fixed_control_coincident: Passed.\n     sv_assert_multiclock_fixed_control_coincident_2023: Passed.\n============================================================================\nTest results:\n  Total=20, Passed=20, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_fixed_control-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "ert_multiclock_fixed_control_restart: Passed.\n        sv_assert_multiclock_fixed_control_restart_2023: Passed.\n            sv_assert_multiclock_fixed_control_selected: Passed.\n       sv_assert_multiclock_fixed_control_selected_2023: Passed.\n============================================================================\nTest results: Ran 20, Failed 0.\n"
+    }
+  ],
+  "prior_nfa": {
+    "passed": 58,
+    "log": "evidence/batch-20260914-after-l84/l94-empty-context-nfa.log",
+    "scope": "Before final fixed-pipeline compatibility repair; full final NFA gate pending batch qualification."
+  },
+  "baseline": "evidence/batch-20260914-after-l84/next-group-repeat/baseline.json",
+  "review_reproducers": [
+    "evidence/batch-20260914-after-l84/l94-zero-delay-before.json",
+    "evidence/batch-20260914-after-l84/l94-window-debug.json",
+    "evidence/batch-20260914-after-l84/l94-l95-first-direct.json",
+    "evidence/batch-20260914-after-l84/l94-fixed-fallback-review/baseline.json"
+  ],
+  "limits": [
+    "Flat grouped Boolean/delay fragments with finite literal repetition; nested groups and unbounded forms remain unsupported.",
+    "Multiclock antecedent automata remain bounded to64 ticks; queue backlog is not limited by that syntax bound.",
+    "Fixed prefix/consequent groups preserve full exact copies; only trailing ranged consequent groups use minimum-match simplification. Internal ranged consequent groups remain unsupported.",
+    "No new full IEEE/UVM/application or hardware-formal qualification."
+  ]
+}

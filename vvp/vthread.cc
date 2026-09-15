@@ -4738,6 +4738,7 @@ struct randomize_static_value_s {
 struct randomize_graph_entry_s {
       vvp_object_t hold;
       vvp_cobject*cobj;
+      std::string rng_state;
       std::vector<rand_saved_prop_s> values;
       vvp_cobject::randc_history_state_t instance_history;
       std::vector<randomize_static_history_s> static_history;
@@ -4785,6 +4786,7 @@ class randomize_graph_session_t {
 	    randomize_graph_entry_s&entry = entries_.back();
 	    entry.hold = vvp_object_t(cobj);
 	    entry.cobj = cobj;
+	    entry.rng_state = cobj->rng_get_state();
 	    const class_type*defn = cobj->get_defn();
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!rand_call_active_(defn, cobj, sel, pid)
@@ -4848,6 +4850,7 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
+		  (void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =
@@ -28109,6 +28112,41 @@ bool of_SET_DAR_OBJ_STR(vthread_t thr, vvp_code_t cp)
 bool of_SET_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
 {
       return set_dar_obj<vvp_vector4_t>(thr, cp);
+}
+
+/*
+ * %set/dar/obj/vec4/off <index_reg>, <off_reg>, <wid>
+ *
+ * Merge the vec4 value on top of the stack into one packed queue/darray
+ * element. The receiver remains on the object stack. The replacement is
+ * consumed, leaving the duplicate expression result below it.
+ */
+bool of_SET_DAR_OBJ_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[cp->bit_idx[0]].w_int;
+      int64_t off = thr->words[cp->bit_idx[1]].w_int;
+      vvp_vector4_t replacement = thr->pop_vec4();
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*dar = top.peek<vvp_darray>();
+      if (!dar || thr->flags[4] != BIT4_0)
+	    return true;
+
+      adr = darray_canonical_index_(dar, adr);
+      if (adr < 0 || container_index_exceeds_runtime_range_(thr, adr)
+	  || (uint64_t)adr >= dar->get_size())
+	    return true;
+
+      vvp_vector4_t word;
+      dar->get_word((unsigned)adr, word);
+      if (replacement.size() > cp->number)
+	    replacement = replacement.subvalue(0, cp->number);
+      if (!resize_rval_vec(replacement, off, word.size()))
+	    return true;
+      word.set_vec((unsigned)off, replacement);
+      dar->set_word((unsigned)adr, word);
+      notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "set-dar-obj-vec4-off");
+      return true;
 }
 
 /*

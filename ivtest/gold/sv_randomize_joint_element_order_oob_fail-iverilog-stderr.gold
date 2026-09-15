@@ -1,0 +1,4 @@
+ivltests/sv_randomize_joint_element_order_oob_fail.v:3: error: selected fixed-array target of 'solve before' is outside its declared range.
+ivltests/sv_randomize_joint_element_order_oob_fail.v:7: error: selected fixed-array target of 'solve before' is outside its declared range.
+ivltests/sv_randomize_joint_element_order_oob_fail.v:11: error: selected fixed-array target of 'solve before' is outside its declared range.
+3 error(s) during elaboration.

@@ -1,0 +1,2 @@
+./ivltests/sv_class_enum_container_packed_select_fail.v:8: error: Property values is constant in this method. (scope=sv_class_enum_container_packed_select_fail)
+1 error(s) during elaboration.

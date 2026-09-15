@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_joint_dynamic_element_order_mixed_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_randomize_joint_dynamic_element_order_mixed"
+    ],
+    "gold": "sv_randomize_joint_dynamic_element_order_mixed"
+}

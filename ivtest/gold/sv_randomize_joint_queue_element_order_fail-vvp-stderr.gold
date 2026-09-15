@@ -1,0 +1,5 @@
+ERROR: global constraint sampling failed: dynamic element ordering index is outside the proved array size.
+ERROR: constraint state read: dynamic array constraint element index 4294967296 exceeds the supported index representation.
+ERROR: constraint element 4294967295 remains outside the solved dynamic-container size 1.
+ERROR: global constraint sampling failed: global array sizes must have one proven value before element solving.
+ERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.

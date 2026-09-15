@@ -1,0 +1,103 @@
+{
+  "blocker": "L87",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "candidate": {
+    "head": "c89a7025d9ea11df91ab9c7a485f085bda0e8ffc",
+    "hashes": {
+      "vvp/vvp_z3.cc": "e1b567904ffdc826ab90a41359bd5f0c10ae7abf49355b31eb06e3734182c468",
+      "vvp/vthread.cc": "20a033300eda8038a415df547ebc211b939b493e6c792b30947511d462a6abc5",
+      "elaborate.cc": "cdb2df2426427786b553aa0e2376a8821515e567bd1af603fb9c2a3067dc4b96",
+      "local-install/lib/ivl/ivl": "94ae9398a7ac27828592c77670809b3853f9bd436d5e7fb73a3427089b5f2abb",
+      "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad",
+      "local-install/bin/vvp": "fa84d2c841a818c2e11001adca97f187990574820bcc195a03dd2687d7e16222"
+    },
+    "retained_sva_objects": {
+      "pform.o": "d71a24db9d77999972908fcea896b9a047e1ea0c929230b3f2ff90fcb42a39cf",
+      "pform_sva_nfa.o": "54d377b5bdba6cf51cfc92f87b49ec93277c846326d63b607844d8ad4b60faf3"
+    },
+    "build_note": "make -o pform.o -o pform_sva_nfa.o -j1 ivl retains pre-L86 SVA objects; unfinished L86 source excluded."
+  },
+  "standards": {
+    "2017": [
+      "18.5.9",
+      "18.5.10"
+    ],
+    "2023": [
+      "18.5.8",
+      "18.5.9"
+    ]
+  },
+  "validation": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-randomize-joint-element-order-legacy.list"
+      ],
+      "returncode": 0,
+      "seconds": 21.47192406654358,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n              sv_randomize_joint_element_order: Passed.\n         sv_randomize_joint_element_order_2023: Passed.\n        sv_randomize_joint_element_order_mixed: Passed.\n   sv_randomize_joint_element_order_mixed_2023: Passed.\n         sv_randomize_joint_element_order_dist: Passed.\n    sv_randomize_joint_element_order_dist_2023: Passed.\n         sv_randomize_joint_element_order_fail: Passed.\n    sv_randomize_joint_element_order_fail_2023: Passed.\n     sv_randomize_joint_element_order_oob_fail: Passed - CE.\nsv_randomize_joint_element_order_oob_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=10, Passed=10, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-randomize-joint-element-order-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 21.69523525238037,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-element-order-vvp.list\n----------------------------------------------------------------------------\n              sv_randomize_joint_element_order: Passed.\n         sv_randomize_joint_element_order_2023: Passed.\n         sv_randomize_joint_element_order_dist: Passed.\n    sv_randomize_joint_element_order_dist_2023: Passed.\n         sv_randomize_joint_element_order_fail: Passed.\n    sv_randomize_joint_element_order_fail_2023: Passed.\n        sv_randomize_joint_element_order_mixed: Passed.\n   sv_randomize_joint_element_order_mixed_2023: Passed.\n     sv_randomize_joint_element_order_oob_fail: Passed - CE.\nsv_randomize_joint_element_order_oob_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 10, Failed 0.\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-randomize-joint-ordered-dist-vvp.list",
+        "regress-l85-neighbors-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 76.99473476409912,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-ordered-dist-vvp.list, regress-l85-neighbors-vvp.list\n----------------------------------------------------------------------------\n                         sv_randc_txn_object_rng: Passed.\n              sv_randc_txn_recursive_alias_cycle: Passed.\n                 sv_randc_txn_recursive_rollback: Passed.\n                    sv_randc_txn_reentrant_hooks: Passed.\n                    sv_randc_txn_two_pass_commit: Passed.\n                 sv_randc_txn_two_pass_rng_order: Passed.\n                      sv_randc_txn_unsat_history: Passed.\n                  sv_randomize_global_alias_soft: Passed.\n             sv_randomize_global_alias_soft_2023: Passed.\n                  sv_randomize_global_components: Passed.\n             sv_randomize_global_components_2023: Passed.\n             sv_randomize_global_components_fail: Passed.\n        sv_randomize_global_components_fail_2023: Passed.\n             sv_randomize_global_dist_components: Passed.\n        sv_randomize_global_dist_components_2023: Passed.\n                     sv_randomize_global_ordered: Passed.\n                sv_randomize_global_ordered_2023: Passed.\n                sv_randomize_global_ordered_fail: Passed.\n           sv_randomize_global_ordered_fail_2023: Passed.\n               sv_randomize_global_ordered_limit: Passed.\n          sv_randomize_global_ordered_limit_2023: Passed.\n               sv_randomize_global_sampling_fail: Passed.\n          sv_randomize_global_sampling_fail_2023: Passed.\n                 sv_randomize_joint_ordered_dist: Passed.\n            sv_randomize_joint_ordered_dist_2023: Passed.\n            sv_randomize_joint_ordered_dist_fail: Passed.\n       sv_randomize_joint_ordered_dist_fail_2023: Passed.\n          sv_randomize_joint_ordered_dist_ranges: Passed.\n     sv_randomize_joint_ordered_dist_ranges_2023: Passed.\n     sv_randomize_joint_ordered_dist_transaction: Passed.\nsv_randomize_joint_ordered_dist_transaction_2023: Passed.\n============================================================================\nTest results: Ran 31, Failed 0.\n"
+    }
+  ],
+  "baseline": "evidence/batch-20260914-after-l84/next-selection/baseline.json",
+  "initial_oob_failure": "evidence/batch-20260914-after-l84/l87-direct.json",
+  "final_oob_diagnostics": [
+    {
+      "edition": 2017,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l87-final-oob-2017.vvp",
+        "./ivltests/sv_randomize_joint_element_order_oob_fail.v"
+      ],
+      "returncode": 3,
+      "stdout": "",
+      "stderr": "./ivltests/sv_randomize_joint_element_order_oob_fail.v:3: error: selected fixed-array target of 'solve before' is outside its declared range.\n./ivltests/sv_randomize_joint_element_order_oob_fail.v:7: error: selected fixed-array target of 'solve before' is outside its declared range.\n./ivltests/sv_randomize_joint_element_order_oob_fail.v:11: error: selected fixed-array target of 'solve before' is outside its declared range.\n3 error(s) during elaboration.\n"
+    },
+    {
+      "edition": 2023,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l87-final-oob-2023.vvp",
+        "./ivltests/sv_randomize_joint_element_order_oob_fail.v"
+      ],
+      "returncode": 3,
+      "stdout": "",
+      "stderr": "./ivltests/sv_randomize_joint_element_order_oob_fail.v:3: error: selected fixed-array target of 'solve before' is outside its declared range.\n./ivltests/sv_randomize_joint_element_order_oob_fail.v:7: error: selected fixed-array target of 'solve before' is outside its declared range.\n./ivltests/sv_randomize_joint_element_order_oob_fail.v:11: error: selected fixed-array target of 'solve before' is outside its declared range.\n3 error(s) during elaboration.\n"
+    }
+  ],
+  "registrations": {
+    "legacy": 10,
+    "json": 10
+  },
+  "scope": "Canonical statically selected fixed unpacked-array integral elements, including size one and mixed scalar stages. Narrow constant direct fixed-array OOB order diagnostic. Dynamic containers and other ordering families remain separate.",
+  "pending": [
+    "Broad seven-gate batch qualification near ten fixes",
+    "L86 remains independently under implementation",
+    "No new full IEEE/UVM/application qualification"
+  ]
+}

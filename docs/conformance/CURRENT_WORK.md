@@ -7,14 +7,15 @@ run on every later checkout.
 
 ## Latest recorded compiler qualification
 
-The [L75–L84 qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json)
-records the passing seven-gate batch at `304507aeb`, with semantic source
-`240dd5f6f`. The [batch session](session_logs/2026-09-14_compiler_batch_l75_l84.md)
-links each bounded implementation and its focused evidence. Counts, commands and
+The [L85–L95 qualification record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json)
+records the passing seven-gate batch at `d45ee87ab`, with semantic source
+`e43ecd536`. The [batch session](session_logs/2026-09-15_compiler_batch_l85_l95.md)
+links the eleven bounded fixes and regression corrections. Counts, commands and
 artifact fingerprints live in the JSON record.
 
 This qualifies that local candidate, not full IEEE, UVM or whole-application
-support. Earlier [L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
+support. Earlier [L75–L84](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json),
+[L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
 and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
 records retain their original revisions and limits.
 

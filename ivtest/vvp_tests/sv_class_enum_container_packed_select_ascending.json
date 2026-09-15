@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_class_enum_container_packed_select_ascending.v",
+    "iverilog-args": ["-g2017", "-s", "sv_class_enum_container_packed_select_ascending"],
+    "gold": "sv_class_enum_container_packed_select_ascending"
+}

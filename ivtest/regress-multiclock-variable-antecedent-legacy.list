@@ -1,0 +1,3 @@
+sv_assert_multiclock_variable_antecedent_2012 normal,-g2012 ivltests gold=sv_assert_multiclock_variable_antecedent.gold
+sv_assert_multiclock_variable_antecedent normal,-g2017 ivltests gold=sv_assert_multiclock_variable_antecedent.gold
+sv_assert_multiclock_variable_antecedent_2023 normal,-g2023 ivltests gold=sv_assert_multiclock_variable_antecedent.gold

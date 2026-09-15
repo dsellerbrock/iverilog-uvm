@@ -1,26 +1,139 @@
-id: QUALIFY-BATCH-L75-L84
-title: Frozen ten-fix compiler batch qualification
-status: QUALIFIED_AWAITING_PUBLICATION
-base_revision: 240dd5f6f
-authority: "User authorized focused fixes followed by required broad suites near ten integrated fixes and coherent PR publication."
-coordinator_owns: [All builds and installation, All seven broad gates, Source freeze and artifact snapshots, Documentation and publication]
-implementation_lanes:
-  - agent: /root/constraint_abi
-    status: INTEGRATED_FROZEN
-    latest_fix: L83
-    revision: 2d8d1cab6
-  - agent: /root/constraint_wide
-    status: INTEGRATED_FROZEN
-    latest_fix: L84
-    revision: 240dd5f6f
-file_conflict_policy: "No tracked source/test edits during qualification. Existing agents retained; no new worktrees."
-validation_batch: 20260914_l84
-focused_features_completed_in_batch: 10
-focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
-qualification_directory: evidence/batch-20260914-l84/qualification
-pending_gates: []
-qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
-gate_order: "Run frontend last and exclusively because it moves installation; legacy and JSON harnesses must not overlap."
+id: PARALLEL-BATCH-REGRESSION-REPAIR
+title: Repair packed-select and randc regressions exposed by broad qualification
+status: LOCALLY_QUALIFIED_PENDING_PUBLICATION
+base_revision: fd500e2b5
+authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
+coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
+lanes:
+  - id: L93-CONSTANT-STRING-FORMATTING
+    agent: /root/constraint_abi
+    status: FOCUSED_TESTED
+    standards: "IEEE1800-2017/2023 6.16.11-6.16.15 and13.4.3; distinguish language methods from ignorable system tasks."
+    reproducer: evidence/batch-20260914-after-l84/next-string-format/baseline.json
+    actual: "Both editions compile a constant function using s.itoa(-123), but silently return the unchanged empty string. Runtime control returns -123."
+    expected: "Evaluate itoa/hextoa/octtoa/bintoa/realtoa mutations inside constant functions, preserving receiver updates, argument conversions and evaluation order."
+    owns: [net_func_eval.cc, elaborate.cc]
+    test_prefix: sv_const_string_format
+    allowed_scope: "Recognize compiler-internal string formatting method lowering in constant evaluation; reuse local-value and argument evaluation machinery. Support local string and function-result receivers, overwrite/repeated calls, integer and real formatting families. Elaborate argument typing only if evidence requires it."
+    forbidden_scope: "Unrelated system-task semantics, pform/SVA sources, new runtime formatting policy, general putc or array-receiver expansion without coordinator assessment."
+    dependencies: "L90 integrated6cf8d70de; independent of L92pform lane. Coordinator owns builds/install/harnesses/main manifests/docs."
+    acceptance: "Both editions runtime and constant controls: all five conversions, zero/negative/extrema, narrow/wide signed input conversion to integer, real zero/fraction/negative with standards-justified string checks, overwrite/loops/nested calls, argument and receiver locality, invalid/nonconstant calls and function purity controls; preserve existing constant evaluator neighbors."
+  - id: L94-FINITE-GROUPED-CONSECUTIVE-REPETITION
+    parent: S02
+    agent: /root/constraint_wide
+    status: FOCUSED_TESTED
+    standards: "IEEE1800-2017/2023 16.9.2,16.9.2.1,16.12.7,16.12.22,16.13,16.14."
+    reproducer: evidence/batch-20260914-after-l84/next-group-repeat/baseline.json
+    actual: "Both editions reject (a ##1 b)[*1:2] as a multiclock antecedent. Expected one parent failure at75 after second endpoint child fails."
+    expected: "Repeat the entire grouped finite sequence body, preserving every legal endpoint, empty alternative and parent verdict rather than repeating only the last expression."
+    owns: [pform.cc, parse_misc.h, pform_sva_nfa.cc, pform_sva_nfa.h]
+    test_prefix: sv_assert_multiclock_group_repeat
+    allowed_scope: "Finite literal consecutive repetition of grouped single-clock Boolean/delay chains using existing finite NFA support. Preserve group structure and repeat its whole finite fragment; include zero/exact/ranged counts and legal concatenation/empty semantics. Reuse L86/L91 parent transport and L92 controls. Correct shared same-clock group lowering when necessary to retain semantics."
+    forbidden_scope: "L93 evaluator/elaborate files, unbounded/goto/nonconsecutive operators, general match actions/locals or new runtime scheduler. Keep unsupported forms diagnosed."
+    dependencies: "L91fec7a4b9a and L929f34faa98 integrated; independent L93 lane. Coordinator owns shared execution, main manifests/docs and integration."
+    acceptance: "Both editions: whole-group endpoints with distinguishing interior values, m=0/1/>1 and m=n, internal/trailing group repetition, finite delay body and empty composition, both implications and prefixes, multiple parents/early failure/vacuity, coincident and paused clocks, Off/Kill/restart,64tick boundary/unsupported controls. Preserve L86/L91/L92 and same-clock NFA neighbors; replace newly supported CE expectations with exact runtime witnesses."
+file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
+validation_batch: 20260914_after_l84
+focused_features_completed_in_batch: 11
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
+
+coordinator_scope_refinement:
+  l85: "A retained complete-range guard evaluated after a prefix draw can cause seed-dependent unsupported rejection. Prove every reachable prefix before sampling or implement exact conditional range behavior; no success-conditioned sampling."
+  l86: "IEEE 16.12.7 and 16.14.1 require a single property-attempt verdict across sibling antecedent endpoints. Scalar request counts lose parent identity. A parent with two matches and one failed child must dispatch pass=0/fail=1. Dynamic parent-tagged transport and retirement are necessary because a paused destination clock leaves an unbounded backlog even with a finite antecedent. Architecture expansion is coordinator-authorized; fixed-path cloning is incorrect."
+
+integrated_focused_fixes:
+  - id: L85
+    revision: 9f416e09a
+    evidence: docs/conformance/session_logs/2026-09-14_joint_ordered_distribution_validation.json
+    broad_qualification: pending near ten integrated fixes
+  - id: L87
+    revision: 831cdeca2
+    evidence: docs/conformance/session_logs/2026-09-14_joint_element_ordering_validation.json
+    broad_qualification: pending near ten integrated fixes
+
+l86_increment_status: "Integrated13fee7ec9; see committed multiclock bounded antecedent validation evidence linked in CAMPAIGN."
+
+l88_index_identity_refinement: "Coordinator confirmed both editions silently accept ordering at64'h100000000 by narrowing it to element0; evidence l88-wide-index.json. Authorize a narrow shared delem bounds guard before unsigned VarRef/ElemVar conversion in vvp/vvp_z3.cc, preserving exact index identity and rejecting unsupported indices before sampling. Add wide-index and negative-index rollback controls. This is necessary L88 boundary correctness, not a separate counted fix."
+
+l88_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json
+
+l88_integration_revision: d6a15ca2b
+
+l86_latest_failures: "Historical failures resolved in13fee7ec9; original failed reducers preserved in CAMPAIGN-linked evidence."
+
+l89_integration_revision: 1ffe476b6
+
+l86_integration_revision: 13fee7ec9
+
+l90_scope_refinement: "First focused run exposes nested SELECT-over-PROPERTY incdec rejection in eval_vec4.c. Coordinator authorizes narrow target lowering using existing captured receiver/word/base and partial-property store machinery; no new runtime opcode. Preserve enum BOOL base type in packed selection rather than relying solely on its vector carrier. Evidence l90-first-focused.json; IEEE2017/2023 11.5.1 invalid bit defaults remain required."
+
+l90_runtime_refinement: "Target review proves existing partial dynamic-array opcode requires a signal receiver; class-property container object needs an object-stack partial store. Coordinator authorizes vvp/vthread.cc,codes.h,compile.cc for a narrow object partial-vector store using existing container mutation/notification and clipping helpers. No new storage model. Preserve receiver/index evaluation, invalid-index no-op, packed bounds clipping, result value and two-state conversion. This remains L90 correctness, not a separate counted fix."
+
+l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolean_repetition_validation.json
+
+l91_integration_revision: fec7a4b9a
+
+l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json
+
+l90_integration_revision: 6cf8d70de
+
+l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_assertion_control_validation.json
+
+l92_integration_revision: 9f34faa98
+
+l93_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_formatting_validation.json
+
+l95_coordinator_authorization:
+  id: L95-CONSTANT-STRING-PUTC
+  agent: /root/constraint_abi
+  status: FOCUSED_TESTED
+  standards: IEEE1800-2017/2023 6.16.2 and13.4.3
+  reproducer: evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json
+  actual: Both editions compile but skip putc mutation and argument side effects in constant evaluation.
+  expected: Mutate local string character and evaluate each argument exactly once; preserve bounds and zero-character semantics.
+  owns: [net_func_eval.cc, elaborate.cc]
+  test_prefix: sv_const_string_putc
+  dependencies: L93701e116bd; independent of active L94 pform and NFA source ownership.
+  scope: Local scalar and function-result putc constant evaluation; numeric argument typing only if reducer proves defect. No array receiver, unrelated string methods or runtime policy changes.
+  acceptance: Both editions positive mutation, overwrite, function result, bounds including negative and wide index, zero character, argument once, purity and invalid actual diagnostics, runtime controls and neighboring constant string tests.
+  integration_policy: Coordinator owns all shared builds, tests, main manifests and integration. Finish coherent batch near ten fixes, with any unintegrated next-batch patch explicitly excluded from qualification.
+
+l94_empty_composition_refinement: "Coordinator authorizes a recursive suffix fragment builder because a shared exit cannot preserve differing zero/nonzero group suffix delays under16.9.2.1. Pure no-match antecedents must be rejected under16.12.22; runtime suppression tests must retain a legal nonempty alternative. Preserve flat-group scope, exact branch endpoints and existing finite bound."
+
+l95_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_putc_validation.json
+
+l94_fixed_fallback_refinement: "Shared parser now preserves groups; coordinator reproduced one-copy false success in fixed multiclock consequent. Materialize supported fixed group copies for prefix/consequent, retain only sound trailing earliest-match relaxation, and reject grouped antecedent fixed fallback after NFA refusal. This is required regression repair in L94, not new scope."
+
+l94_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_grouped_repetition_validation.json
+
+coordinator_authorized_regression_lanes:
+  - id: L90-PACKED-SELECT-REGRESSION
+    agent: /root/constraint_abi
+    status: REPRODUCED
+    owns: [elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c]
+    baseline: evidence/batch-20260914-after-l84/qualification/legacy-test-logs
+    scope: Repair packed-select two-state conversion regressions introduced by L90; preserve legacy parameter selects and actual two-state enum behavior.
+    acceptance: All13 named broad packed-select failures, paired enum-container focused cases, fixed invalid-index and four-state compatibility controls.
+    dependencies: Independent of Z3 lane; coordinator owns build, install and harnesses.
+  - id: ORDERED-RANDC-REGRESSION
+    agent: /root/constraint_wide
+    status: REPRODUCED
+    owns: [ivtest/ivltests/sv_randc_fixed_array_modes.v, ivtest/ivltests/sv_randc_fixed_array_modes_2023.v]
+    baseline: evidence/batch-20260914-after-l84/qualification/legacy-test-logs/sv_randc_fixed_array_modes.log
+    scope: Correct an overstrong coupled randc test oracle under18.4.2; preserve independent exact cycles, coupled constraint checking, permitted-reset justification, rollback and modes. No runtime change is warranted by the captured trace.
+    acceptance: Existing sv_randc_fixed_array_modes seed/cycle oracle, focused fixed/dynamic/queue ordering and rollback neighbors; do not weaken expectations.
+    dependencies: Independent of compiler target lane; coordinator owns build, install and harnesses.
+regression_policy: These are corrections within the eleven-fix batch, not additional counted features. Full seven-gate qualification must restart from a corrected frozen candidate.
+
+regression_repairs_frozen:
+  packed_select: e8cf2ac5b
+  migrated_negative: 7913bd871
+  randc_oracle: e43ecd536
+  status: focused checks pass; all compiler and test source frozen for retry
+
+latest_checkpoint:
+  status: all eleven fixes locally qualified; prior lane statuses above are historical
+  evidence: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
+  next: publish before activating the next two independent implementation items

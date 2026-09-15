@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_bounded_antecedent_backlog.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_assert_multiclock_bounded_antecedent_backlog"
+}

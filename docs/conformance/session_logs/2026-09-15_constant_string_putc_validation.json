@@ -1,0 +1,90 @@
+{
+  "blocker": "L95",
+  "status": "FOCUSED_TESTED; broad batch qualification pending",
+  "standards": {
+    "2017": [
+      "6.16.2",
+      "13.4.3"
+    ],
+    "2023": [
+      "6.16.2",
+      "13.4.3"
+    ]
+  },
+  "source_hashes": {
+    "net_func_eval.cc": "73c9c26480547719670b6ae6473b512e2059a054c50f3fd2cdec02671b497989",
+    "elaborate.cc": "9ae7a2e2a4c91c2118487113aa29c47f9c2fd4d687c2aba62133e716892d6e00"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "7c77e53ac800a14f8de0326e650eaad347c47c5c05291dd87346769704ca6cd7",
+    "local-install/lib/ivl/vvp.tgt": "4dbd47f4b419cbac76e63d1b36fa738415c641964bbfe5ba70911daf20f082c4",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-const-string-putc-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "utc: Passed.\n               sv_const_string_putc_2023: Passed.\n               sv_const_string_putc_fail: Passed - CE.\n          sv_const_string_putc_fail_2023: Passed - CE.\n      sv_const_string_putc_argument_fail: Passed - CE.\n sv_const_string_putc_argument_fail_2023: Passed - CE.\n     sv_const_string_putc_character_fail: Passed - CE.\nsv_const_string_putc_character_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-const-string-putc-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "-----------\n                    sv_const_string_putc: Passed.\n               sv_const_string_putc_2023: Passed.\n      sv_const_string_putc_argument_fail: Passed - CE.\n sv_const_string_putc_argument_fail_2023: Passed - CE.\n     sv_const_string_putc_character_fail: Passed - CE.\nsv_const_string_putc_character_fail_2023: Passed - CE.\n               sv_const_string_putc_fail: Passed - CE.\n          sv_const_string_putc_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 8, Failed 0.\n"
+    }
+  ],
+  "neighbors": [
+    {
+      "label": "l93-legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-const-string-format-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "sed - CE.\n     sv_const_string_format_argument_fail_2023: Passed - CE.\n     sv_const_string_real_format_argument_fail: Passed - CE.\nsv_const_string_real_format_argument_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "label": "l93-json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-const-string-format-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "                 sv_const_string_format_fail: Passed - CE.\n              sv_const_string_format_fail_2023: Passed - CE.\n     sv_const_string_real_format_argument_fail: Passed - CE.\nsv_const_string_real_format_argument_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 8, Failed 0.\n"
+    },
+    {
+      "label": "neighbors-legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l93-neighbors-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "     sv_const_string_character_incdec_bounds_2023: Passed.\n              sv_const_string_character_incdec_fail: Passed - CE.\n         sv_const_string_character_incdec_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=48, Passed=48, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "label": "neighbors-json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l93-neighbors-json.list"
+      ],
+      "returncode": 0,
+      "tail": "              sv_const_string_toupper_bounds: Passed.\n              sv_const_string_toupper_bounds_2023: Passed.\n                     sv_const_string_toupper_fail: Passed - CE.\n                sv_const_string_toupper_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 46, Failed 0.\n"
+    }
+  ],
+  "baseline": "evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json",
+  "limits": [
+    "Scalar local string/function-result receiver only; arrays and other mutating methods remain separate.",
+    "Installed compiler includes an unintegrated L94 candidate; broad qualification pending."
+  ]
+}

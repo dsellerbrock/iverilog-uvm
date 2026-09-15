@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_joint_queue_element_order_dist_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_randomize_joint_queue_element_order_dist"
+    ],
+    "gold": "sv_randomize_joint_queue_element_order_dist"
+}

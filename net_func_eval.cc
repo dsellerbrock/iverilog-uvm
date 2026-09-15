@@ -21,7 +21,9 @@
 # include  "netmisc.h"
 # include  "compiler.h"
 # include  <typeinfo>
+# include  <algorithm>
 # include  <cstring>
+# include  <cstdio>
 # include  <functional>
 # include  "ivl_assert.h"
 
@@ -1220,9 +1222,133 @@ bool NetRepeat::evaluate_function(const LineInfo&loc,
       return flag;
 }
 
-bool NetSTask::evaluate_function(const LineInfo&,
-				 map<perm_string,LocalVar>&) const
+static string const_string_format_int_(int32_t value, unsigned radix)
 {
+      static const char digits[] = "0123456789abcdef";
+      bool negative = value < 0;
+      uint64_t magnitude = negative ? uint64_t(-int64_t(value))
+	    : uint64_t(value);
+      string text;
+      do {
+	    text.push_back(digits[magnitude % radix]);
+	    magnitude /= radix;
+      } while (magnitude);
+      if (negative) text.push_back('-');
+      reverse(text.begin(), text.end());
+      return text;
+}
+
+bool NetSTask::evaluate_function(const LineInfo&loc,
+				 map<perm_string,LocalVar>&context_map) const
+{
+	/* Elaboration lowers these receiver-updating language methods to internal
+	 * system tasks. During constant-function evaluation, apply that update to
+	 * the receiver's LocalVar slot. */
+      unsigned radix = 0;
+      if (strcmp(name_, "$ivl_string_method$itoa") == 0) radix = 10;
+      else if (strcmp(name_, "$ivl_string_method$hextoa") == 0) radix = 16;
+      else if (strcmp(name_, "$ivl_string_method$octtoa") == 0) radix = 8;
+      else if (strcmp(name_, "$ivl_string_method$bintoa") == 0) radix = 2;
+      bool realtoa = strcmp(name_, "$ivl_string_method$realtoa") == 0;
+      if ((radix || realtoa) && parms_.size() == 2) {
+	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
+	    if (!receiver || receiver->word_index()) return false;
+	    map<perm_string,LocalVar>::iterator slot_it =
+		  context_map.find(receiver->name());
+	    if (slot_it == context_map.end()) return false;
+	    LocalVar*slot = &slot_it->second;
+	    while (slot->nwords == -1) slot = slot->ref;
+	    if (slot->nwords != 0) return false;
+
+	    NetExpr*arg = parms_[1]->evaluate_function(loc, context_map);
+	    if (!arg) return false;
+	    string text;
+	    if (radix) {
+		  int32_t converted;
+		  if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg)) {
+			verinum converted_value = cast_to_width(value->value(), 32);
+			/* Match the existing VPI vpiIntVal conversion used at runtime. */
+			converted_value.cast_to_int2();
+			converted = static_cast<int32_t>(
+			      static_cast<uint32_t>(converted_value.as_long()));
+		  } else if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg)) {
+			converted = static_cast<int32_t>(value->value().as_long());
+		  } else { delete arg; return false; }
+		  text = const_string_format_int_(converted, radix);
+	    } else {
+		  double converted;
+		  if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg))
+			converted = value->value().as_double();
+		  else if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg))
+			converted = value->value().as_double();
+		  else { delete arg; return false; }
+		  char buffer[64];
+		  snprintf(buffer, sizeof buffer, "%g", converted);
+		  text = buffer;
+	    }
+	    delete arg;
+	    delete slot->value;
+	    slot->value = new NetECString(text);
+	    slot->value->set_line(*this);
+	    return true;
+      }
+
+      if (strcmp(name_, "$ivl_string_method$putc") == 0
+	  && parms_.size() == 3) {
+	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
+	    if (!receiver || receiver->word_index()) return false;
+	    map<perm_string,LocalVar>::iterator slot_it =
+		  context_map.find(receiver->name());
+	    if (slot_it == context_map.end()) return false;
+	    LocalVar*slot = &slot_it->second;
+	    while (slot->nwords == -1) slot = slot->ref;
+	    if (slot->nwords != 0) return false;
+
+	    auto numeric_arg = [&](const NetExpr*expr, unsigned width,
+				   int64_t&value) -> bool {
+		  NetExpr*evaluated = expr->evaluate_function(loc, context_map);
+		  if (!evaluated) return false;
+		  if (const NetEConst*number = dynamic_cast<const NetEConst*>(evaluated)) {
+			verinum converted = cast_to_width(number->value(), width);
+			converted.cast_to_int2();
+			value = width == 32
+			      ? int64_t(static_cast<int32_t>(
+				    static_cast<uint32_t>(converted.as_long())))
+			      : int64_t(static_cast<uint8_t>(converted.as_long()));
+		  } else if (const NetECReal*number =
+			       dynamic_cast<const NetECReal*>(evaluated)) {
+			int64_t rounded = number->value().as_long();
+			value = width == 32
+			      ? int64_t(static_cast<int32_t>(rounded))
+			      : int64_t(static_cast<uint8_t>(rounded));
+		  } else {
+			delete evaluated;
+			return false;
+		  }
+		  delete evaluated;
+		  return true;
+	    };
+
+	    int64_t index = 0;
+	    int64_t character = 0;
+	    if (!numeric_arg(parms_[1], 32, index)) return false;
+	    if (!numeric_arg(parms_[2], 8, character)) return false;
+	    string text;
+	    if (const NetEConst*old = dynamic_cast<const NetEConst*>(slot->value)) {
+		  if (!old->value().is_string()) return false;
+		  text = old->value().as_raw_string();
+	    } else if (slot->value) {
+		  return false;
+	    }
+	    if (index >= 0 && static_cast<uint64_t>(index) < text.size()
+		&& character != 0)
+		  text[static_cast<size_t>(index)] = static_cast<char>(character);
+	    delete slot->value;
+	    slot->value = new NetECString(text);
+	    slot->value->set_line(*this);
+	    return true;
+      }
+
 	// system tasks within a constant function are ignored
       return true;
 }

@@ -2095,3 +2095,113 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 ### L75–L84 local qualification checkpoint
 
 The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json) supersedes pending broad-gate notes for these bounded subsets. Remote CI and complete application/edition support remain separate obligations.
+
+### L85 — Ordered distributions in joint canonical scalar solves
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject a legal ordered weighted joint graph at runtime.
+- **Scope:** Existing supported hard distribution family combined with bounded canonical scalar solve-before stages; correct stage marginals and conditional fibers.
+- **Standards:** 2017 18.5.4/18.5.9/18.5.10; 2023 18.5.3/18.5.8/18.5.9.
+
+- **Implementation evidence:** [L85 session](session_logs/2026-09-14_joint_ordered_distribution.md).
+
+### L86 — Bounded delay-range antecedents in multiclock implications
+
+- **Parent:** S01 residual scope.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject the finite two-endpoint antecedent.
+- **Scope:** Finite constant delay windows with all matching endpoints, correct clock handoff and preserved attempt/action semantics.
+- **Standards:** IEEE 1800-2017/2023 16.6/16.7, 16.12.7, 16.13 and 16.14.1/.3.
+
+L86 architecture refinement: scalar cross-clock request counts cannot retain the
+parent of multiple antecedent matches. The coordinator authorized dynamic
+parent-tagged transport and per-attempt verdict aggregation in ACTIVE_WORK.
+The paired action-count reducer is preserved at
+`evidence/next-batch-after-l84/parent-actions-baseline.json`; no candidate
+qualification is established by this scope refinement.
+
+L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_antecedents.md) now provide the bounded delay-window foundation. S02 repetition remains separate.
+
+### L87 — Joint selected integral array-element ordering
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-selection/baseline.json` at L85; both editions reject selected-element ordering.
+- **Scope:** Statically selected fixed-array integral elements with exact ordered stage identity/projection; dynamic ordering and other unsupported families remain separate.
+- **Standards:** 2017 18.5.9/18.5.10; 2023 18.5.8/18.5.9.
+
+- **L87 implementation evidence:** [Focused session](session_logs/2026-09-14_joint_element_ordering.md).
+
+### L88 — Joint dynamic-array selected-element ordering
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json`; both editions drop the ordering and produce685 first-element ones in1024 calls, violating the uniform first-stage oracle.
+- **Scope:** Constant selected integral dynamic-array elements with one proved size before element solving; preserve resize, exact ordering, bounds and transaction invariants. Other container/order families remain separate.
+
+- **L88 implementation evidence:** [Focused session](session_logs/2026-09-15_joint_dynamic_element_ordering.md).
+
+### L89 — Joint queue selected-element ordering
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-queue-assessment/after-l88-baseline.json`; paired queue ordering is dropped and violates the first-stage probability oracle.
+- **Scope:** Constant selected integral queue elements with one proved size, bounded queue limits, retained-element modes and exact joint ordering. Other queue/order families remain separate.
+
+- **L89 evidence:** [Focused session](session_logs/2026-09-15_joint_queue_element_ordering.md).
+
+### L90 — Packed selects on class-container enum elements
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json`; paired enum element reads reject, while equivalent bit/signed/logic controls pass.
+- **Scope:** Existing read and lvalue packed-select paths for class dynamic-array/queue enum elements, preserving nominal whole-enum typing and existing partial-write semantics.
+
+- **L90 evidence:** [Focused session](session_logs/2026-09-15_enum_container_packed_selects.md).
+
+### L91 — Finite Boolean consecutive repetition in multiclock antecedents
+
+- **Parent:** S02.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-repeat-assessment/baseline.json`; paired rejection of `a[*1:2]` despite the L86 delay-window foundation.
+- **Scope:** Finite Boolean repetition with legal empty-match composition, endpoint/parent semantics, existing clock handoff and cancellation. Grouped and unbounded repetition remain distinct obligations.
+
+- **L91 evidence:** [Focused session](session_logs/2026-09-15_multiclock_boolean_repetition.md).
+
+### L92 — Fixed multiclock assertion control
+
+- **Parent:** DD-032.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/l92-baseline/baseline.json`.
+- **Scope:** Gate fresh fixed multiclock attempts under Off/Kill while preserving pending completion, restart and selected-instance behavior; reuse existing control helpers.
+
+- **L92 evidence:** [Focused session](session_logs/2026-09-15_fixed_multiclock_assertion_control.md).
+
+### L93 — Constant-function string formatting silently leaves the receiver unchanged
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-string-format/baseline.json`; runtime paired control succeeds, constant paired invocation returns the empty string after clean compilation.
+- **Scope:** Constant evaluation of the five string numeric-formatting methods; internal task lowering must retain the required function mutation. IEEE 1800-2017/2023 6.16.11–6.16.15 and 13.4.3.
+
+- **L93 evidence:** [Focused session](session_logs/2026-09-15_constant_string_formatting.md).
+
+### L94 — Finite grouped consecutive repetition in multiclock antecedents
+
+- **Parent:** S02.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-group-repeat/baseline.json`.
+- **Scope:** Preserve and repeat the entire finite grouped Boolean/delay fragment, including legal empty alternatives and parent-level verdicts. Unbounded and general match-action groups remain separate.
+
+- **L94 evidence:** [Focused session](session_logs/2026-09-15_multiclock_grouped_repetition.md).
+
+### L95 — Constant-function putc silently skips mutation and arguments
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json`.
+- **Scope:** Scalar local string and function-result character updates, IEEE1800-2017/2023 6.16.2 and13.4.3. Other receiver families remain separate.
+
+- **L95 evidence:** [Focused session](session_logs/2026-09-15_constant_string_putc.md).
+
+### L85–L95 local qualification checkpoint
+
+The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json) qualifies the eleven recorded subsets at `d45ee87ab`, including the [regression corrections](session_logs/2026-09-15_batch_l85_l95_regression_repair.md). Broader clause and application scope remains open.

@@ -1,0 +1,110 @@
+{
+  "blocker": "L89",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "candidate_hashes": {
+    "pform.cc": "e3d7b89da72380283ba25f588f814126a51de56f4866fefe2c9b1e3c2b23e8cc",
+    "elaborate.cc": "4db02aa5344109b62bbe58015c994d947b862c56231e10cd21f30542fa9a6988",
+    "vvp/vvp_z3.cc": "bb31fa8b54cd0b5bdd0961f649559aabcf089a482a8d73074870189cfc928d4a",
+    "local-install/lib/ivl/ivl": "545c8c7044903ae98019fae1ee3342ef62a8b0e830ff7c10d35fbcc834d7c684",
+    "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad",
+    "local-install/bin/vvp": "5d7d05c4323fa265eee9df12e155db6807bf35c743edc489f2b8fff2184f229e"
+  },
+  "baseline": {
+    "head": "d6a15ca2ba37007a8f0b144a164d38844fb7d944",
+    "runs": [
+      {
+        "edition": 2017,
+        "compile": {
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-queue-assessment/joint_queue_element_order.sv:5: warning: Constraint item in 'c' of class root is not representable in the constraint solver and is ignored (further similar warnings suppressed).\n"
+        },
+        "runtime": {
+          "returncode": 1,
+          "stdout": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-queue-assessment/joint_queue_element_order.sv:15: ordered dynamic marginal 685\n       Time: 0  Scope: test\n",
+          "stderr": ""
+        }
+      },
+      {
+        "edition": 2023,
+        "compile": {
+          "returncode": 0,
+          "stdout": "",
+          "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-queue-assessment/joint_queue_element_order.sv:5: warning: Constraint item in 'c' of class root is not representable in the constraint solver and is ignored (further similar warnings suppressed).\n"
+        },
+        "runtime": {
+          "returncode": 1,
+          "stdout": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/next-queue-assessment/joint_queue_element_order.sv:15: ordered dynamic marginal 685\n       Time: 0  Scope: test\n",
+          "stderr": ""
+        }
+      }
+    ],
+    "artifacts": {
+      "local-install/lib/ivl/ivl": "ec340c7bfd6b957c6f85faa15380bdc9b651e05c2b2b48b2fe1dd1214088d07c",
+      "local-install/bin/vvp": "2b1e774aa95e2b11cf2fb725281682ed5cb10ce7dab089245290f365e31c546f"
+    }
+  },
+  "focused": [
+    {
+      "tag": "l89-second-legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-randomize-joint-queue-element-order-legacy.list"
+      ],
+      "returncode": 0,
+      "seconds": 37.70045304298401,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n                    sv_randomize_joint_queue_element_order: Passed.\n               sv_randomize_joint_queue_element_order_2023: Passed.\n              sv_randomize_joint_queue_element_order_mixed: Passed.\n         sv_randomize_joint_queue_element_order_mixed_2023: Passed.\n               sv_randomize_joint_queue_element_order_dist: Passed.\n          sv_randomize_joint_queue_element_order_dist_2023: Passed.\n               sv_randomize_joint_queue_element_order_fail: Passed.\n          sv_randomize_joint_queue_element_order_fail_2023: Passed.\n     sv_randomize_joint_queue_element_order_nonrandom_fail: Passed - CE.\nsv_randomize_joint_queue_element_order_nonrandom_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=10, Passed=10, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "tag": "l89-second-json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-randomize-joint-queue-element-order-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 37.71973204612732,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-queue-element-order-vvp.list\n----------------------------------------------------------------------------\n                    sv_randomize_joint_queue_element_order: Passed.\n               sv_randomize_joint_queue_element_order_2023: Passed.\n               sv_randomize_joint_queue_element_order_dist: Passed.\n          sv_randomize_joint_queue_element_order_dist_2023: Passed.\n               sv_randomize_joint_queue_element_order_fail: Passed.\n          sv_randomize_joint_queue_element_order_fail_2023: Passed.\n              sv_randomize_joint_queue_element_order_mixed: Passed.\n         sv_randomize_joint_queue_element_order_mixed_2023: Passed.\n     sv_randomize_joint_queue_element_order_nonrandom_fail: Passed - CE.\nsv_randomize_joint_queue_element_order_nonrandom_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 10, Failed 0.\n"
+    }
+  ],
+  "additional_alias_resize_checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-l89-mode-alias-recheck-legacy.list"
+      ],
+      "returncode": 0,
+      "output": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n     sv_randomize_joint_queue_element_order_mixed: Passed.\nsv_randomize_joint_queue_element_order_mixed_2023: Passed.\n============================================================================\nTest results:\n  Total=2, Passed=2, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-l89-mode-alias-recheck-vvp.list"
+      ],
+      "returncode": 0,
+      "output": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-l89-mode-alias-recheck-vvp.list\n----------------------------------------------------------------------------\n     sv_randomize_joint_queue_element_order_mixed: Passed.\nsv_randomize_joint_queue_element_order_mixed_2023: Passed.\n============================================================================\nTest results: Ran 2, Failed 0.\n"
+    }
+  ],
+  "neighbors": {
+    "command": [
+      "python3",
+      "vvp_reg.py",
+      "regress-randomize-joint-dynamic-element-order-vvp.list",
+      "regress-randomize-joint-element-order-vvp.list",
+      "regress-l88-dynamic-neighbors-vvp.list"
+    ],
+    "returncode": 0,
+    "seconds": 58.159011125564575,
+    "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-dynamic-element-order-vvp.list, regress-randomize-joint-element-order-vvp.list, regress-l88-dynamic-neighbors-vvp.list\n----------------------------------------------------------------------------\n               sv_constraint_function_dynamic_array_inactive: Passed.\n          sv_constraint_function_dynamic_array_inactive_2023: Passed.\n                sv_constraint_function_dynamic_queue_element: Passed.\n           sv_constraint_function_dynamic_queue_element_2023: Passed.\n                    sv_constraint_function_dynamic_size_mode: Passed.\n               sv_constraint_function_dynamic_size_mode_2023: Passed.\n                    sv_constraint_function_dynamic_size_zero: Passed.\n               sv_constraint_function_dynamic_size_zero_2023: Passed.\n     sv_constraint_function_static_dynamic_element_const_ref: Passed.\nsv_constraint_function_static_dynamic_element_const_ref_2023: Passed.\n         sv_constraint_function_static_dynamic_element_input: Passed.\n    sv_constraint_function_static_dynamic_element_input_2023: Passed.\n                              sv_randomize_global_queue_fail: Passed.\n                         sv_randomize_global_queue_fail_2023: Passed.\n                    sv_randomize_joint_dynamic_element_order: Passed.\n               sv_randomize_joint_dynamic_element_order_2023: Passed.\n               sv_randomize_joint_dynamic_element_order_dist: Passed.\n          sv_randomize_joint_dynamic_element_order_dist_2023: Passed.\n               sv_randomize_joint_dynamic_element_order_fail: Passed.\n          sv_randomize_joint_dynamic_element_order_fail_2023: Passed.\n              sv_randomize_joint_dynamic_element_order_mixed: Passed.\n         sv_randomize_joint_dynamic_element_order_mixed_2023: Passed.\n     sv_randomize_joint_dynamic_element_order_nonrandom_fail: Passed - CE.\nsv_randomize_joint_dynamic_element_order_nonrandom_fail_2023: Passed - CE.\n                            sv_randomize_joint_element_order: Passed.\n                       sv_randomize_joint_element_order_2023: Passed.\n                       sv_randomize_joint_element_order_dist: Passed.\n                  sv_randomize_joint_element_order_dist_2023: Passed.\n                       sv_randomize_joint_element_order_fail: Passed.\n                  sv_randomize_joint_element_order_fail_2023: Passed.\n                      sv_randomize_joint_element_order_mixed: Passed.\n                 sv_randomize_joint_element_order_mixed_2023: Passed.\n                   sv_randomize_joint_element_order_oob_fail: Passed - CE.\n              sv_randomize_joint_element_order_oob_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 34, Failed 0.\n"
+  },
+  "initial_failure": "evidence/batch-20260914-after-l84/l89-first-focused.json",
+  "scope": "Constant selected packed integral/enum bounded and unbounded queue elements with one proved size. No associative/nonintegral/nonconstant/randc ordering extension.",
+  "standards": [
+    "IEEE1800-2017 18.4,18.5.9,18.5.10;7.10",
+    "IEEE1800-2023 18.4,18.5.8,18.5.9;7.10"
+  ],
+  "pending": "Broad seven-gate batch qualification; full compiler/UVM/application/formal mission remains incomplete."
+}

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_class_enum_container_packed_select_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_class_enum_container_packed_select"
+    ],
+    "gold": "sv_class_enum_container_packed_select"
+}
