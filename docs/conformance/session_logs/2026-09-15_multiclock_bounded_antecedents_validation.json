@@ -1,0 +1,113 @@
+{
+  "blocker": "L86",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "candidate_hashes": {
+    "pform.cc": "e3d7b89da72380283ba25f588f814126a51de56f4866fefe2c9b1e3c2b23e8cc",
+    "elaborate.cc": "4db02aa5344109b62bbe58015c994d947b862c56231e10cd21f30542fa9a6988",
+    "vvp/vvp_z3.cc": "bb31fa8b54cd0b5bdd0961f649559aabcf089a482a8d73074870189cfc928d4a",
+    "local-install/lib/ivl/ivl": "545c8c7044903ae98019fae1ee3342ef62a8b0e830ff7c10d35fbcc834d7c684",
+    "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad",
+    "local-install/bin/vvp": "5d7d05c4323fa265eee9df12e155db6807bf35c743edc489f2b8fff2184f229e"
+  },
+  "focused": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "_antecedent_kill_restart_before_source_edge: Passed.\n  sv_assert_multiclock_bounded_antecedent_kill_restart_before_source_edge_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_overlapping_parents: Passed.\n              sv_assert_multiclock_bounded_antecedent_overlapping_parents_2023: Passed.\n                     sv_assert_multiclock_bounded_antecedent_nonoverlap_prefix: Passed.\n                sv_assert_multiclock_bounded_antecedent_nonoverlap_prefix_2023: Passed.\n              sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound: Passed - CE.\n         sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound_2023: Passed - CE.\n                 sv_assert_multiclock_bounded_antecedent_unsupported_unbounded: Passed - CE.\n            sv_assert_multiclock_bounded_antecedent_unsupported_unbounded_2023: Passed - CE.\n                               sv_assert_multiclock_bounded_antecedent_backlog: Passed.\n                          sv_assert_multiclock_bounded_antecedent_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=46, Passed=46, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_overlapping_parents: Passed.\n              sv_assert_multiclock_bounded_antecedent_overlapping_parents_2023: Passed.\n                                sv_assert_multiclock_bounded_antecedent_prefix: Passed.\n                           sv_assert_multiclock_bounded_antecedent_prefix_2023: Passed.\n                 sv_assert_multiclock_bounded_antecedent_source_closure_timing: Passed.\n            sv_assert_multiclock_bounded_antecedent_source_closure_timing_2023: Passed.\n              sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound: Passed - CE.\n         sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound_2023: Passed - CE.\n                 sv_assert_multiclock_bounded_antecedent_unsupported_unbounded: Passed - CE.\n            sv_assert_multiclock_bounded_antecedent_unsupported_unbounded_2023: Passed - CE.\n     sv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock: Passed.\nsv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock_2023: Passed.\n============================================================================\nTest results: Ran 46, Failed 0.\n"
+    }
+  ],
+  "prior44_and_neighbors": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "seconds": 1.6857757568359375,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n                                       sv_assert_multiclock_bounded_antecedent: Passed.\n                                  sv_assert_multiclock_bounded_antecedent_2023: Passed.\n                 sv_assert_multiclock_bounded_antecedent_source_closure_timing: Passed.\n            sv_assert_multiclock_bounded_antecedent_source_closure_timing_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_early_child_failure: Passed.\n              sv_assert_multiclock_bounded_antecedent_early_child_failure_2023: Passed.\n     sv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock: Passed.\nsv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock_2023: Passed.\n                              sv_assert_multiclock_bounded_antecedent_internal: Passed.\n                         sv_assert_multiclock_bounded_antecedent_internal_2023: Passed.\n                                 sv_assert_multiclock_bounded_antecedent_cover: Passed.\n                            sv_assert_multiclock_bounded_antecedent_cover_2023: Passed.\n                               sv_assert_multiclock_bounded_antecedent_disable: Passed.\n                          sv_assert_multiclock_bounded_antecedent_disable_2023: Passed.\n                                sv_assert_multiclock_bounded_antecedent_prefix: Passed.\n                           sv_assert_multiclock_bounded_antecedent_prefix_2023: Passed.\n            sv_assert_multiclock_bounded_antecedent_coincident_overlap_forward: Passed.\n       sv_assert_multiclock_bounded_antecedent_coincident_overlap_forward_2023: Passed.\n            sv_assert_multiclock_bounded_antecedent_coincident_overlap_reverse: Passed.\n       sv_assert_multiclock_bounded_antecedent_coincident_overlap_reverse_2023: Passed.\n         sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_forward: Passed.\n    sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_forward_2023: Passed.\n         sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_reverse: Passed.\n    sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_reverse_2023: Passed.\n               sv_assert_multiclock_bounded_antecedent_kill_paused_destination: Passed.\n          sv_assert_multiclock_bounded_antecedent_kill_paused_destination_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_lifecycle_retention: Passed.\n              sv_assert_multiclock_bounded_antecedent_lifecycle_retention_2023: Passed.\n                      sv_assert_multiclock_bounded_antecedent_lifecycle_resume: Passed.\n                 sv_assert_multiclock_bounded_antecedent_lifecycle_resume_2023: Passed.\n                           sv_assert_multiclock_bounded_antecedent_equal_bound: Passed.\n                      sv_assert_multiclock_bounded_antecedent_equal_bound_2023: Passed.\n                          sv_assert_multiclock_bounded_antecedent_64tick_bound: Passed.\n                     sv_assert_multiclock_bounded_antecedent_64tick_bound_2023: Passed.\n       sv_assert_multiclock_bounded_antecedent_kill_restart_before_source_edge: Passed.\n  sv_assert_multiclock_bounded_antecedent_kill_restart_before_source_edge_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_overlapping_parents: Passed.\n              sv_assert_multiclock_bounded_antecedent_overlapping_parents_2023: Passed.\n                     sv_assert_multiclock_bounded_antecedent_nonoverlap_prefix: Passed.\n                sv_assert_multiclock_bounded_antecedent_nonoverlap_prefix_2023: Passed.\n              sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound: Passed - CE.\n         sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound_2023: Passed - CE.\n                 sv_assert_multiclock_bounded_antecedent_unsupported_unbounded: Passed - CE.\n            sv_assert_multiclock_bounded_antecedent_unsupported_unbounded_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=44, Passed=44, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 1.6221928596496582,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-sv_assert_multiclock_bounded_antecedent-focus-vvp.list\n----------------------------------------------------------------------------\n                                       sv_assert_multiclock_bounded_antecedent: Passed.\n                                  sv_assert_multiclock_bounded_antecedent_2023: Passed.\n                          sv_assert_multiclock_bounded_antecedent_64tick_bound: Passed.\n                     sv_assert_multiclock_bounded_antecedent_64tick_bound_2023: Passed.\n         sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_forward: Passed.\n    sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_forward_2023: Passed.\n         sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_reverse: Passed.\n    sv_assert_multiclock_bounded_antecedent_coincident_nonoverlap_reverse_2023: Passed.\n            sv_assert_multiclock_bounded_antecedent_coincident_overlap_forward: Passed.\n       sv_assert_multiclock_bounded_antecedent_coincident_overlap_forward_2023: Passed.\n            sv_assert_multiclock_bounded_antecedent_coincident_overlap_reverse: Passed.\n       sv_assert_multiclock_bounded_antecedent_coincident_overlap_reverse_2023: Passed.\n                                 sv_assert_multiclock_bounded_antecedent_cover: Passed.\n                            sv_assert_multiclock_bounded_antecedent_cover_2023: Passed.\n                               sv_assert_multiclock_bounded_antecedent_disable: Passed.\n                          sv_assert_multiclock_bounded_antecedent_disable_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_early_child_failure: Passed.\n              sv_assert_multiclock_bounded_antecedent_early_child_failure_2023: Passed.\n                           sv_assert_multiclock_bounded_antecedent_equal_bound: Passed.\n                      sv_assert_multiclock_bounded_antecedent_equal_bound_2023: Passed.\n                              sv_assert_multiclock_bounded_antecedent_internal: Passed.\n                         sv_assert_multiclock_bounded_antecedent_internal_2023: Passed.\n               sv_assert_multiclock_bounded_antecedent_kill_paused_destination: Passed.\n          sv_assert_multiclock_bounded_antecedent_kill_paused_destination_2023: Passed.\n       sv_assert_multiclock_bounded_antecedent_kill_restart_before_source_edge: Passed.\n  sv_assert_multiclock_bounded_antecedent_kill_restart_before_source_edge_2023: Passed.\n                      sv_assert_multiclock_bounded_antecedent_lifecycle_resume: Passed.\n                 sv_assert_multiclock_bounded_antecedent_lifecycle_resume_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_lifecycle_retention: Passed.\n              sv_assert_multiclock_bounded_antecedent_lifecycle_retention_2023: Passed.\n                     sv_assert_multiclock_bounded_antecedent_nonoverlap_prefix: Passed.\n                sv_assert_multiclock_bounded_antecedent_nonoverlap_prefix_2023: Passed.\n                   sv_assert_multiclock_bounded_antecedent_overlapping_parents: Passed.\n              sv_assert_multiclock_bounded_antecedent_overlapping_parents_2023: Passed.\n                                sv_assert_multiclock_bounded_antecedent_prefix: Passed.\n                           sv_assert_multiclock_bounded_antecedent_prefix_2023: Passed.\n                 sv_assert_multiclock_bounded_antecedent_source_closure_timing: Passed.\n            sv_assert_multiclock_bounded_antecedent_source_closure_timing_2023: Passed.\n              sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound: Passed - CE.\n         sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound_2023: Passed - CE.\n                 sv_assert_multiclock_bounded_antecedent_unsupported_unbounded: Passed - CE.\n            sv_assert_multiclock_bounded_antecedent_unsupported_unbounded_2023: Passed - CE.\n     sv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock: Passed.\nsv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock_2023: Passed.\n============================================================================\nTest results: Ran 44, Failed 0.\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-l86-multiclock-neighbors-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 0.08939099311828613,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-l86-multiclock-neighbors-vvp.list\n----------------------------------------------------------------------------\nsv_assertkill_multiclock_active: Passed.\n============================================================================\nTest results: Ran 1, Failed 0.\n"
+    },
+    {
+      "command": [
+        "bash",
+        "tests/sva_nfa/run.sh"
+      ],
+      "returncode": 0,
+      "seconds": 2.3853559494018555,
+      "tail": "  ante_zero_delay                          PASS (verdict parity)\n  attempt_cover_nfa_only                   PASS (nfa-only vs gold)\n  bounded_nexttime                         PASS (verdict parity)\n  composed_range_and_or_nfa_only           PASS (nfa-only vs gold)\n  concurrent_explicit_null                 PASS (verdict parity)\n  cover_counts                             PASS (verdict parity)\n  cover_midchain_nfa_only                  PASS (nfa-only vs gold)\n  disable_sampled                          PASS (verdict parity)\n  endpoint_obligation_fanout_nfa_only      PASS (nfa-only vs gold)\n  endpoint_triggered                       PASS (verdict parity)\n  expect_fixed_chain                       PASS (verdict parity)\n  expect_general_nfa_only                  PASS (nfa-only vs gold)\n  fallback_shapes                          PASS (verdict parity)\n  first_match                              PASS (verdict parity)\n  first_match_composed_nfa_only            PASS (nfa-only vs gold)\n  goto_nonconsec_nfa_only                  PASS (nfa-only vs gold)\n  goto_range_nfa_only                      PASS (nfa-only vs gold)\n  grouped_composite_concat_nfa_only        PASS (nfa-only vs gold)\n  impl_window_goto_nfa_only                PASS (nfa-only vs gold)\n  implication                              PASS (verdict parity)\n  intersect_fixed                          PASS (verdict parity)\n  intersect_window_nfa_only                PASS (nfa-only vs gold)\n  local_var                                PASS (verdict parity)\n  local_var_decl                           PASS (verdict parity)\n  local_var_index_preponed_nfa_only        PASS (nfa-only vs gold)\n  local_var_repeat                         PASS (verdict parity)\n  local_var_window_nfa_only                PASS (nfa-only vs gold)\n  midchain_unbounded_nfa_only              PASS (nfa-only vs gold)\n  midchain_window_nfa_only                 PASS (nfa-only vs gold)\n  multiclock_chain                         PASS (verdict parity)\n  multiclock_chain3                        PASS (verdict parity)\n  multiclock_chain3_multicycle             PASS (verdict parity)\n  multiclock_chain3_overlap                PASS (verdict parity)\n  multiclock_impl                          PASS (verdict parity)\n  named_prop_reuse                         PASS (verdict parity)\n  negation                                 PASS (verdict parity)\n  nesting_nfa_only                         PASS (nfa-only vs gold)\n  or_branches_nfa_only                     PASS (nfa-only vs gold)\n  overlap_implication                      PASS (verdict parity)\n  overlap_midchain_nfa_only                PASS (nfa-only vs gold)\n  param_bounds                             PASS (verdict parity)\n  plain_fixed                              PASS (verdict parity)\n  sampled_preponed                         PASS (verdict parity)\n  scoped_static_function_specialization    PASS (verdict parity)\n  seq_or_and_cover_nfa_only                PASS (nfa-only vs gold)\n  seq_or_and_nfa_only                      PASS (nfa-only vs gold)\n  sequence_match_item_nfa_only             PASS (nfa-only vs gold)\n  strong_weak_nfa_only                     PASS (nfa-only vs gold)\n  throughout_fixed                         PASS (verdict parity)\n  throughout_nfa_only                      PASS (nfa-only vs gold)\n  tree_implication_nfa_only                PASS (nfa-only vs gold)\n  trig_compound                            PASS (verdict parity)\n  window_final                             PASS (verdict parity)\n  window_goto_isolation_nfa_only           PASS (nfa-only vs gold)\n  window_goto_nfa_only                     PASS (nfa-only vs gold)\n  within_fixed                             PASS (verdict parity)\n  within_nfa_only                          PASS (nfa-only vs gold)\n  zero_repeat_antecedent_nfa_only          PASS (nfa-only vs gold)\n\nsva_nfa dual-run: 58 passed, 0 failed\n"
+    }
+  ],
+  "backlog_oracle": [
+    {
+      "edition": 2017,
+      "compile": {
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "runtime": {
+        "returncode": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      }
+    },
+    {
+      "edition": 2023,
+      "compile": {
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "runtime": {
+        "returncode": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "initial_failures": {
+    "compiler": "evidence/batch-20260914-after-l84/l86-first-compiler-build.log",
+    "generator": "evidence/batch-20260914-after-l84/l86-first-direct.json",
+    "kill": "evidence/batch-20260914-after-l84/l86-kill-review/first.json",
+    "first_new_epoch": "evidence/batch-20260914-after-l84/l86-kill-review/restart-source-first.json",
+    "retention": "evidence/batch-20260914-after-l84/l86-lifecycle-review/first.json"
+  },
+  "standards": [
+    "IEEE1800-2017/2023 16.6,16.7,16.12.7,16.13,16.14.1,16.14.3;20.12"
+  ],
+  "scope": "Finite constant delay windows in otherwise fixed single-clock antecedents of two-clock implications, including internal windows and fixed first-clock consequent prefixes. Existing64tick limit retained; dynamic cross-clock backlog is not capped at64.",
+  "remaining": "Consecutive/grouped repetition and empty-match extensions, general operators/locals, unbounded and broader multi-domain shapes; broad batch and application qualification."
+}

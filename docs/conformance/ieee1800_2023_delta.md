@@ -201,3 +201,7 @@ The 2023 array sizing and ordering clauses (18.4, 18.5.7.2, 18.5.8/18.5.9) share
 ## L89 shared queue ordering evidence
 
 The 2023 clauses18.4 and18.5.8/18.5.9 share the bounded implementation in the [2017 matrix L89 entry](matrices/ieee1800_2017_clause_matrix.md#l89--joint-queue-selected-element-ordering), with separate edition regressions. No full queue or randomization conformance is claimed.
+
+## L86 shared multiclock delay-window evidence
+
+The 2023 sequence, implication, clock-flow and assertion-action clauses16.7,16.12.7,16.13 and16.14 share the bounded implementation in the [2017 matrix L86 entry](matrices/ieee1800_2017_clause_matrix.md#l86--multiclock-bounded-delay-window-antecedents). Separate edition regressions retain the shared semantics; repetition and broader multi-domain properties remain separate.

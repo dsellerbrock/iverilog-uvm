@@ -22,7 +22,7 @@ lanes:
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     parent: S01
     agent: /root/constraint_wide
-    status: IMPLEMENTING
+    status: FOCUSED_TESTED
     standards: "IEEE 1800-2017/2023 16.9.2, 16.12, 16.13.1, 16.13.3"
     reproducer: evidence/next-batch-after-l84/multiclock_range_antecedent.sv
     actual: "Both editions reject the bounded variable-length antecedent because the multiclock lowerer accepts only fixed-length boolean chains."
@@ -35,7 +35,7 @@ lanes:
     acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 4
+focused_features_completed_in_batch: 5
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false

@@ -2109,10 +2109,10 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_
 ### L86 — Bounded delay-range antecedents in multiclock implications
 
 - **Parent:** S01 residual scope.
-- **State:** IMPLEMENTING; coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject the finite two-endpoint antecedent.
 - **Scope:** Finite constant delay windows with all matching endpoints, correct clock handoff and preserved attempt/action semantics.
-- **Standards:** IEEE 1800-2017/2023 16.9.2, 16.12 and 16.13.
+- **Standards:** IEEE 1800-2017/2023 16.6/16.7, 16.12.7, 16.13 and 16.14.1/.3.
 
 L86 architecture refinement: scalar cross-clock request counts cannot retain the
 parent of multiple antecedent matches. The coordinator authorized dynamic
@@ -2120,6 +2120,8 @@ parent-tagged transport and per-attempt verdict aggregation in ACTIVE_WORK.
 The paired action-count reducer is preserved at
 `evidence/next-batch-after-l84/parent-actions-baseline.json`; no candidate
 qualification is established by this scope refinement.
+
+L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_antecedents.md) now provide the bounded delay-window foundation. S02 repetition remains separate.
 
 ### L87 — Joint selected integral array-element ordering
 

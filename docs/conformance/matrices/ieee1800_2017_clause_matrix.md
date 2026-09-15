@@ -1414,3 +1414,7 @@ IMPLEMENTED within the [recorded constant integral dynamic-array subset](../sess
 ### L89 — Joint queue selected-element ordering
 
 IMPLEMENTED for the [recorded constant integral/enum queue subset](../session_logs/2026-09-15_joint_queue_element_ordering.md), using proved bounded/unbounded queue sizes and canonical ordering stages. Other ordering families remain PARTIAL; broad qualification is pending.
+
+### L86 — Multiclock bounded delay-window antecedents
+
+IMPLEMENTED for the [recorded finite delay-window subset](../session_logs/2026-09-15_multiclock_bounded_antecedents.md), retaining every endpoint and one verdict per parent across clock handoff, prefix evaluation and cancellation. Repetition and broader SVA remain PARTIAL; broad qualification is pending.

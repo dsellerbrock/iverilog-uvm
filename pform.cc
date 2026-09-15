@@ -18722,6 +18722,101 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
       return true;
 }
 
+/* A ranged multiclock antecedent is kept as an automaton.  Unlike the
+   one-live-bit chain below, an NFA retains every internal ##[m:n] branch and
+   therefore exposes every endpoint of the original parent attempt.  Limit
+   this entry point to L86's finite constant-delay subset; the
+   general same-clock NFA engine owns repetitions, locals, and first_match. */
+static bool sva_mc_bounded_antecedent_nfa_(
+		const std::vector<sva_seq_step_t>&steps, sva_nfa_t&nfa,
+		long&depth)
+{
+      bool ranged = false;
+      for (size_t i = 0; i < steps.size(); ++i) {
+	    const sva_seq_step_t&st = steps[i];
+	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
+		|| st.delay_hi < 0 || st.rep_kind || st.rep_tail
+		|| st.lv_rhs || st.fm || !st.match_calls.empty())
+		  return false;
+	    PExpr*probe = sva_clone_expr_(st.expr);
+	    if (!probe) return false;
+	    delete probe;
+	    ranged |= st.delay_lo != st.delay_hi;
+      }
+      if (!ranged) return false;
+
+      sva_stree_t leaf;
+      leaf.chain = const_cast<std::vector<sva_seq_step_t>*>(&steps);
+      if (!pform_sva_nfa_build_from_tree(nfa, &leaf)
+	  || pform_sva_nfa_has_cycle(nfa))
+	    return false;
+      depth = pform_sva_nfa_depth(nfa);
+      if (depth <= 0 || depth > 64) return false;
+
+      bool terminal = false;
+      for (size_t i = 0; i < nfa.edges.size(); ++i) {
+	    terminal |= nfa.edges[i].to == nfa.accept;
+	    for (size_t g = 0; g < nfa.edges[i].guards.size(); ++g) {
+		  PExpr*probe = sva_clone_expr_(nfa.edges[i].guards[g]);
+		  if (!probe) return false;
+		  delete probe;
+	    }
+      }
+      return terminal;
+}
+
+/* Absolute-key producer storage for L86's cross-clock record stream.
+   Both the element and the associative index are explicit unsigned packed
+   widths.  The producer alone inserts/deletes; the consumer only reads keys
+   below the published record count. */
+static perm_string sva_make_assoc_reg_(const struct vlltype&loc,
+		unsigned inst, const char*what, unsigned idx,
+		unsigned value_width)
+{
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_sva%u_%s%u", inst, what, idx);
+      perm_string name = lex_strings.make(buf);
+      PWire*w = pform_makewire(loc, pform_ident_t(name, loc.lexical_pos),
+			       NetNet::REG, nullptr);
+      ivl_assert(loc, w);
+
+      if (value_width > 1) {
+	    std::list<pform_range_t>range;
+	    range.push_back(pform_range_t(
+		  new PENumber(new verinum((uint64_t)value_width-1, 32)),
+		  new PENumber(new verinum((uint64_t)0, 32))));
+	    w->set_range(range, SR_NET);
+      }
+
+      std::list<pform_range_t>*key_range = new std::list<pform_range_t>;
+      key_range->push_back(pform_range_t(
+	    new PENumber(new verinum((uint64_t)63, 32)),
+	    new PENumber(new verinum((uint64_t)0, 32))));
+      data_type_t*key_type = new vector_type_t(IVL_VT_LOGIC, false,
+					       key_range);
+      std::list<pform_range_t>dims;
+      dims.push_back(pform_range_t(new PEAssocType(key_type), nullptr));
+      w->set_unpacked_idx(dims);
+      return name;
+}
+
+static Statement* sva_assoc_delete_(const struct vlltype&loc,
+				    perm_string name, PExpr*index)
+{
+      std::list<named_pexpr_t>args;
+      if (index) {
+	    named_pexpr_t arg;
+	    arg.parm = index;
+	    args.push_back(arg);
+      }
+      pform_name_t path;
+      path.push_back(name_component_t(name));
+      path.push_back(name_component_t(lex_strings.make("delete")));
+      PCallTask*call = new PCallTask(path, args);
+      FILE_NAME(call, loc);
+      return call;
+}
+
 /* M9-7: multiclocked sequence/property lowering (IEEE 1800-2017 16.13).
    A fixed boolean chain may flow from c1 to c2 through either:
 
@@ -18781,6 +18876,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   its own clock domain. Expand each chain to a per-tick slot
 	   array (null slot = pure delay tick). */
       std::vector<PExpr*> a_slots, p_slots, b_slots;
+      sva_nfa_t a_nfa;
+      long a_depth = 0;
+      bool ranged_antecedent = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
 	    if (prop->antecedent)
@@ -18788,13 +18886,14 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->mc_prefix)
 		  sva_splice_sequences_(loc, *prop->mc_prefix);
 	    sva_splice_sequences_(loc, *prop->seq);
-	    if (prop->antecedent
+	    if (prop->antecedent)
+		  ranged_antecedent = sva_mc_bounded_antecedent_nfa_(
+			*prop->antecedent, a_nfa, a_depth);
+	    if (prop->antecedent && !ranged_antecedent
 		&& !sva_mc_expand_chain_(*prop->antecedent, a_slots))
 		  why = "a multiclocked implication whose ANTECEDENT is not "
-			"a fixed-length boolean chain (constant ##N delays "
-			"only; a variable-length antecedent creates one "
-			"obligation per match, which the request counter "
-			"cannot distinguish)";
+			"a fixed chain containing only finite constant delay "
+			"windows";
 	    else if (prop->mc_prefix
 		     && !sva_mc_expand_chain_(*prop->mc_prefix, p_slots))
 		  why = "a multiclocked sequence whose first-clock prefix is "
@@ -18805,7 +18904,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			"neither a fixed-length boolean chain nor one with a "
 			"single trailing bounded window (`##[m:n] b', "
 			"`b[*m:n]')";
-	    else if (a_slots.size() > 64 || p_slots.size() > 64
+	    else if ((!ranged_antecedent && a_slots.size() > 64)
+		     || p_slots.size() > 64
 		     || b_slots.size() + b_window > 64)
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
@@ -18826,6 +18926,46 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       perm_string req = sva_make_reg_(loc, inst, "mcreq", 0, true);
       perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
       perm_string req_epoch = sva_make_reg_(loc, inst, "mcrep", 0, true);
+      perm_string rec_kind, rec_parent, rec_reclaim, rec_match_reclaim;
+      perm_string parent_next, rec_emit;
+      perm_string life_ack;
+      std::vector< std::vector<perm_string> > ran_state;
+      std::vector< std::vector<perm_string> > ran_next;
+      std::vector<perm_string> ran_parent, ran_age, ran_live;
+      size_t ran_slots = ranged_antecedent ? (size_t)a_depth + 1 : 0;
+      if (ranged_antecedent) {
+	    rec_kind = sva_make_assoc_reg_(loc, inst, "mcrkind", 0, 3);
+	    rec_parent = sva_make_assoc_reg_(loc, inst, "mcrparent", 0, 64);
+	    rec_reclaim = sva_make_reg_(loc, inst, "mcrfree", 0, true);
+	    rec_match_reclaim = sva_make_reg_(loc, inst, "mcrmfree", 0, true);
+	    rec_emit = sva_make_reg_(loc, inst, "mcremit", 0, true);
+	    life_ack = sva_make_reg_(loc, inst, "mclack", 0, true);
+	    parent_next = sva_make_reg_(loc, inst, "mcparent", 0, true);
+	    ran_state.resize(ran_slots);
+	    ran_next.resize(ran_slots);
+	    ran_parent.resize(ran_slots);
+	    ran_age.resize(ran_slots);
+	    ran_live.resize(ran_slots);
+	    for (size_t k = 0; k < ran_slots; ++k) {
+		  char what[32];
+		  snprintf(what, sizeof what, "mcran%lds", k);
+		  ran_state[k].resize(a_nfa.nstates);
+		  ran_next[k].resize(a_nfa.nstates);
+		  for (unsigned j = 0; j < a_nfa.nstates; ++j)
+			{
+			      ran_state[k][j] = sva_make_reg_(loc, inst, what, j);
+			      snprintf(what, sizeof what, "mcran%ldn", (long)k);
+			      ran_next[k][j] = sva_make_reg_(loc, inst, what, j);
+			      snprintf(what, sizeof what, "mcran%lds", (long)k);
+			}
+		  ran_parent[k] = sva_make_reg_(loc, inst, "mcranp",
+					       (unsigned)k, true);
+		  ran_age[k] = sva_make_reg_(loc, inst, "mcrana",
+					    (unsigned)k, true);
+		  ran_live[k] = sva_make_reg_(loc, inst, "mcranl",
+					     (unsigned)k);
+	    }
+      }
 
 	/* A verdict can be reached in either clock domain, but a user action
 	   syntax tree has exactly one owner. Domain-local monotonically
@@ -18862,13 +19002,20 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       prop->disable_iff_expr = nullptr;
       PExpr*dis1 = dis ? sva_clone_expr_(dis) : nullptr;
       PExpr*dis2 = dis ? sva_clone_expr_(dis) : nullptr;
-      if (dis && (!dis1 || !dis2)) {
+      PExpr*dis3 = (dis && ranged_antecedent) ? sva_clone_expr_(dis) : nullptr;
+      PExpr*dis_async1 = (dis && ranged_antecedent)
+	    ? sva_clone_expr_(dis) : nullptr;
+      PExpr*dis_async2 = (dis && ranged_antecedent)
+	    ? sva_clone_expr_(dis) : nullptr;
+      if (dis && (!dis1 || !dis2 || (ranged_antecedent
+		&& (!dis3 || !dis_async1 || !dis_async2)))) {
 	    cerr << loc << ": sorry: this `disable iff' condition has a "
 		 << "shape that cannot be copied into both clock domains "
 		 << "of a multiclocked property (IEEE 1800-2017 16.13.3); "
 		 << "the assertion is dropped." << endl;
 	    error_count += 1;
-	    delete dis; delete dis1; delete dis2;
+	    delete dis; delete dis1; delete dis2; delete dis3;
+	    delete dis_async1; delete dis_async2;
 	    delete fail_stmt; delete pass_stmt;
 	    pform_sva_destroy_property(prop);
 	    return;
@@ -18883,7 +19030,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 
 	/* Steal the slot booleans from their steps (the slot arrays
 	   alias the step expressions). */
-      if (prop->antecedent)
+	    if (prop->antecedent && !ranged_antecedent)
 	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
 		  (*prop->antecedent)[j].expr = nullptr;
       if (prop->mc_prefix)
@@ -18946,6 +19093,39 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       bind_sampled(p_slots, mc_pre1, mc_post1, mc_init1);
       bind_sampled(b_slots, mc_pre2, mc_post2, mc_init2);
 
+      std::map<PExpr*,perm_string> ran_guard;
+      if (ranged_antecedent) {
+	    unsigned ridx = 0;
+	    for (size_t i = 0; i < a_nfa.edges.size(); ++i)
+		  for (size_t g = 0; g < a_nfa.edges[i].guards.size(); ++g) {
+			PExpr*key = a_nfa.edges[i].guards[g];
+			if (ran_guard.count(key)) continue;
+			PExpr*copy = sva_clone_expr_(key);
+			ivl_assert(loc, copy);
+			PExpr*prep = sva_wrap_preponed_(
+			      copy, prep_sampled, prep_live_operands);
+			PExpr*src = copy;
+			if (prep) {
+			      delete copy;
+			      src = prep;
+			}
+			PExpr*bound = sva_rewrite_sampled_(
+			      loc, src, inst, mc_hist_idx, mc_pre1, mc_post1,
+			      mc_init1);
+			perm_string reg = sva_make_reg_(loc, inst, "mcrang", ridx++);
+			/* A sequence item matches only exact logical true.  Assigning a
+			   vector directly to this one-bit register would truncate its
+			   low bit (8'h80 must match), while X/Z must not match. */
+			PEBComp*truth = new PEBComp(
+			      'E', sva_not_(loc, sva_not_(loc, bound)),
+			      sva_bit_(loc, 1));
+			FILE_NAME(truth, loc);
+			mc_pre1.push_back(sva_assign_(loc, reg, truth));
+			ran_guard[key] = reg;
+		  }
+	    ivl_assert(loc, !ran_guard.empty());
+      }
+
 	/* M9-7: antecedent PIPELINE in the c1 domain. pa_k = "an
 	   attempt matched the first k ticks and awaits the tick-k
 	   check now"; a fresh attempt starts every tick (pa_0 == 1).
@@ -18974,11 +19154,101 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       for (size_t k = 1 ; k < Tw ; k += 1)
 	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k, true);
 
+      perm_string par_pending, par_matched, par_closed, par_failed;
+      perm_string par_reported, rec_scan, rec_kind_tmp, rec_parent_tmp;
+      perm_string source_parent_tmp;
+      perm_string life_kind_tmp, life_parent_tmp;
+      perm_string result_kind, result_parent, result_req, result_scan;
+      perm_string agg_epoch;
+      perm_string cover_req, cover_ack, cover_due;
+      std::vector<perm_string> tag_data, tag_head, tag_tail, tag_stop;
+      std::vector<perm_string> ptag_data, ptag_head, ptag_tail, ptag_stop;
+      size_t prefix_offset = (!plain && Tp && prop->op_type == 2) ? 1 : 0;
+      size_t prefix_stages = ranged_antecedent && Tp
+	    ? Tp + prefix_offset : 0;
+      if (ranged_antecedent) {
+	    par_pending = sva_make_assoc_reg_(loc, inst, "mcppend", 0, 64);
+	    par_matched = sva_make_assoc_reg_(loc, inst, "mcpmatch", 0, 64);
+	    par_closed = sva_make_assoc_reg_(loc, inst, "mcpclose", 0, 1);
+	    par_failed = sva_make_assoc_reg_(loc, inst, "mcpfail", 0, 1);
+	    par_reported = sva_make_assoc_reg_(loc, inst, "mcpreport", 0, 1);
+	    rec_scan = sva_make_reg_(loc, inst, "mcrscan", 0, true);
+	    rec_kind_tmp = sva_make_reg_(loc, inst, "mcrktmp", 0, true);
+	    rec_parent_tmp = sva_make_reg_(loc, inst, "mcrptmp", 0, true);
+	    source_parent_tmp = sva_make_reg_(loc, inst, "mcsptmp", 0, true);
+	    life_kind_tmp = sva_make_reg_(loc, inst, "mclktmp", 0, true);
+	    life_parent_tmp = sva_make_reg_(loc, inst, "mclptmp", 0, true);
+	    result_kind = sva_make_assoc_reg_(loc, inst, "mcreskind", 0, 1);
+	    result_parent = sva_make_assoc_reg_(loc, inst, "mcresparent", 0, 64);
+	    result_req = sva_make_reg_(loc, inst, "mcresreq", 0, true);
+	    result_scan = sva_make_reg_(loc, inst, "mcresscan", 0, true);
+	    agg_epoch = sva_make_reg_(loc, inst, "mcagepoch", 0, true);
+	    if (cover) {
+		  cover_req = sva_make_reg_(loc, inst, "mccoverreq", 0, true);
+		  cover_ack = sva_make_reg_(loc, inst, "mccoverack", 0, true);
+		  cover_due = sva_make_reg_(loc, inst, "mccoverdue", 0, true);
+	    }
+	    tag_data.resize(Tw);
+	    tag_head.resize(Tw);
+	    tag_tail.resize(Tw);
+	    tag_stop.resize(Tw);
+	    for (size_t k = 0; k < Tw; ++k) {
+		  tag_data[k] = sva_make_assoc_reg_(loc, inst, "mctag", k, 64);
+		  tag_head[k] = sva_make_reg_(loc, inst, "mctagh", k, true);
+		  tag_tail[k] = sva_make_reg_(loc, inst, "mctagt", k, true);
+		  tag_stop[k] = sva_make_reg_(loc, inst, "mctags", k, true);
+	    }
+	    ptag_data.resize(prefix_stages);
+	    ptag_head.resize(prefix_stages);
+	    ptag_tail.resize(prefix_stages);
+	    ptag_stop.resize(prefix_stages);
+	    for (size_t k = 0; k < prefix_stages; ++k) {
+		  ptag_data[k] = sva_make_assoc_reg_(loc, inst, "mcptag", k, 64);
+		  ptag_head[k] = sva_make_reg_(loc, inst, "mcptagh", k, true);
+		  ptag_tail[k] = sva_make_reg_(loc, inst, "mcptagt", k, true);
+		  ptag_stop[k] = sva_make_reg_(loc, inst, "mcptags", k, true);
+	    }
+      }
+
 	/* initial: zero everything + register the assertion for VPI. */
       std::vector<Statement*> initv;
       initv.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
       initv.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
       initv.push_back(sva_assign_(loc, req_epoch, sva_num32_(loc, 0)));
+      if (ranged_antecedent) {
+	    initv.push_back(sva_assign_(loc, rec_reclaim, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, rec_match_reclaim,
+					   sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, parent_next, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, rec_scan, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, life_ack, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, result_req, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, result_scan, sva_num32_(loc, 0)));
+	    initv.push_back(sva_assign_(loc, agg_epoch, sva_num32_(loc, 0)));
+	    if (cover) {
+		  initv.push_back(sva_assign_(loc, cover_req, sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, cover_ack, sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, cover_due, sva_num32_(loc, 0)));
+	    }
+	    for (size_t k = 0; k < Tw; ++k) {
+		  initv.push_back(sva_assign_(loc, tag_head[k], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, tag_tail[k], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, tag_stop[k], sva_num32_(loc, 0)));
+	    }
+	    for (size_t k = 0; k < prefix_stages; ++k) {
+		  initv.push_back(sva_assign_(loc, ptag_head[k], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, ptag_tail[k], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, ptag_stop[k], sva_num32_(loc, 0)));
+	    }
+	    for (size_t k = 0; k < ran_slots; ++k) {
+		  initv.push_back(sva_assign_(loc, ran_live[k], sva_bit_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, ran_parent[k], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, ran_age[k], sva_num32_(loc, 0)));
+		  for (unsigned j = 0; j < a_nfa.nstates; ++j)
+			initv.push_back(sva_assign_(loc, ran_state[k][j],
+						 sva_bit_(loc, 0)));
+	    }
+      }
       if (!cover) {
 	    initv.push_back(sva_assign_(loc, pv_req, sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, pn_req, sva_num32_(loc, 0)));
@@ -19030,6 +19300,268 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   c1 tick for a plain multiclocked sequence. */
       std::vector<Statement*> body1;
       {
+	    if (ranged_antecedent) {
+		  auto emit_record = [&](unsigned kind, PExpr*parent,
+					 PExpr*condition) -> Statement* {
+			std::vector<Statement*>put;
+			put.push_back(sva_assign_index_(loc, rec_kind,
+			      sva_id_(loc, rec_emit),
+			      new PENumber(new verinum((uint64_t)kind, 3))));
+			put.push_back(sva_assign_index_(loc, rec_parent,
+			      sva_id_(loc, rec_emit), parent));
+			PEBinary*next = new PEBinary('+', sva_id_(loc, rec_emit),
+					       sva_num32_(loc, 1));
+			FILE_NAME(next, loc);
+			put.push_back(sva_assign_(loc, rec_emit, next));
+			return condition ? sva_if_(loc, condition,
+						  sva_block_(loc, put), nullptr)
+					 : sva_block_(loc, put);
+		  };
+
+		  body1.push_back(sva_assign_(loc, rec_emit, sva_id_(loc, req)));
+
+		  /* The lifecycle cursor scans every record consumed by the
+		     aggregator and immediately removes non-MATCH storage.  It may pass
+		     an unacknowledged MATCH: the independent joint cursor removes that
+		     retained record only after both the aggregator and c2 have consumed
+		     it.  Thus one stopped-c2 obligation cannot retain an unbounded tail
+		     of later vacuous START/CLOSE records. */
+		  PEBComp*life_seen = new PEBComp(
+			'<', sva_id_(loc, rec_reclaim), sva_id_(loc, life_ack));
+		  FILE_NAME(life_seen, loc);
+		  PEBComp*is_reclaim_match = new PEBComp(
+			'e', sva_index_(loc, rec_kind, sva_id_(loc, rec_reclaim)),
+			new PENumber(new verinum((uint64_t)1, 3)));
+		  FILE_NAME(is_reclaim_match, loc);
+		  std::vector<Statement*>life_free_one;
+		  std::vector<Statement*>delete_lifecycle;
+		  delete_lifecycle.push_back(sva_assoc_delete_(
+			loc, rec_kind, sva_id_(loc, rec_reclaim)));
+		  delete_lifecycle.push_back(sva_assoc_delete_(
+			loc, rec_parent, sva_id_(loc, rec_reclaim)));
+		  life_free_one.push_back(sva_if_(loc,
+			sva_not_(loc, is_reclaim_match),
+			sva_block_(loc, delete_lifecycle), nullptr));
+		  PEBinary*free_next = new PEBinary(
+			'+', sva_id_(loc, rec_reclaim), sva_num32_(loc, 1));
+		  FILE_NAME(free_next, loc);
+		  life_free_one.push_back(
+			sva_assign_(loc, rec_reclaim, free_next));
+		  PWhile*reclaim = new PWhile(life_seen,
+					       sva_block_(loc, life_free_one));
+		  FILE_NAME(reclaim, loc);
+		  body1.push_back(reclaim);
+
+		  PEBComp*ack_before_life = new PEBComp(
+			'<', sva_id_(loc, ack), sva_id_(loc, life_ack));
+		  FILE_NAME(ack_before_life, loc);
+		  PETernary*joint_limit = new PETernary(
+			ack_before_life, sva_id_(loc, ack), sva_id_(loc, life_ack));
+		  FILE_NAME(joint_limit, loc);
+		  PEBComp*joint_seen = new PEBComp(
+			'<', sva_id_(loc, rec_match_reclaim), joint_limit);
+		  FILE_NAME(joint_seen, loc);
+		  std::vector<Statement*>match_free_one;
+		  match_free_one.push_back(sva_assoc_delete_(
+			loc, rec_kind, sva_id_(loc, rec_match_reclaim)));
+		  match_free_one.push_back(sva_assoc_delete_(
+			loc, rec_parent, sva_id_(loc, rec_match_reclaim)));
+		  PEBinary*match_free_next = new PEBinary(
+			'+', sva_id_(loc, rec_match_reclaim), sva_num32_(loc, 1));
+		  FILE_NAME(match_free_next, loc);
+		  match_free_one.push_back(sva_assign_(
+			loc, rec_match_reclaim, match_free_next));
+		  PWhile*match_reclaim = new PWhile(
+			joint_seen, sva_block_(loc, match_free_one));
+		  FILE_NAME(match_reclaim, loc);
+		  body1.push_back(match_reclaim);
+
+		  auto append_source_tag = [&](std::vector<perm_string>&data,
+			std::vector<perm_string>&tail, size_t stage,
+			PExpr*parent) -> Statement* {
+			std::vector<Statement*>put;
+			put.push_back(sva_assign_index_(loc, data[stage],
+			      sva_id_(loc, tail[stage]), parent));
+			PEBinary*next = new PEBinary(
+			      '+', sva_id_(loc, tail[stage]), sva_num32_(loc, 1));
+			FILE_NAME(next, loc);
+			put.push_back(sva_assign_(loc, tail[stage], next));
+			return sva_block_(loc, put);
+		  };
+
+		  /* One parent begins per enabled source tick.  K is one larger
+		     than the NFA lifetime so allocation never reuses a slot whose
+		     final-edge nonblocking updates are still pending. */
+		  Statement*allocate = nullptr;
+		  for (size_t rk = ran_slots; rk-- > 0;) {
+			long k = (long)rk;
+			std::vector<Statement*>take;
+			take.push_back(sva_assign_(loc, ran_live[k],
+						 sva_bit_(loc, 1)));
+			take.push_back(sva_assign_(loc, ran_parent[k],
+						 sva_id_(loc, parent_next)));
+			take.push_back(sva_assign_(loc, ran_age[k],
+						 sva_num32_(loc, 0)));
+			for (unsigned j = 0; j < a_nfa.nstates; ++j)
+			      take.push_back(sva_assign_(loc, ran_state[k][j],
+						 j == a_nfa.start
+						 ? sva_bit_(loc, 1)
+						 : sva_bit_(loc, 0)));
+			take.push_back(emit_record(
+			      0, sva_id_(loc, parent_next), nullptr));
+			PEBinary*np = new PEBinary(
+			      '+', sva_id_(loc, parent_next), sva_num32_(loc, 1));
+			FILE_NAME(np, loc);
+			take.push_back(sva_assign_(loc, parent_next, np));
+			allocate = sva_if_(loc,
+			      sva_not_(loc, sva_id_(loc, ran_live[k])),
+			      sva_block_(loc, take), allocate);
+		  }
+		  body1.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+					 allocate, nullptr));
+
+		  /* Advance every live parent from the old NFA state.  Each
+		     terminal edge emits its own MATCH record; the restricted
+		     linear-window subset has no same-tick path coalescing. */
+		  for (size_t k = 0; k < ran_slots; ++k) {
+			for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
+			      const sva_nfa_edge_t&ed = a_nfa.edges[i];
+			      if (ed.to != a_nfa.accept) continue;
+			      PExpr*hit = sva_id_(loc, ran_state[k][ed.from]);
+			      for (size_t g = 0; g < ed.guards.size(); ++g) {
+				    std::map<PExpr*,perm_string>::iterator it =
+					  ran_guard.find(ed.guards[g]);
+				    if (it == ran_guard.end()) {
+					  delete hit; hit = sva_bit_(loc, 0); break;
+				    }
+				    hit = sva_logic_(loc, 'a', hit,
+						 sva_id_(loc, it->second));
+			      }
+			      hit = sva_logic_(loc, 'a',
+				    sva_id_(loc, ran_live[k]), hit);
+			      Statement*endpoint;
+			      if (prefix_stages) {
+				    std::vector<Statement*>start_prefix;
+				    start_prefix.push_back(emit_record(
+					  4, sva_id_(loc, ran_parent[k]), nullptr));
+				    start_prefix.push_back(append_source_tag(
+					  ptag_data, ptag_tail, 0,
+					  sva_id_(loc, ran_parent[k])));
+				    endpoint = sva_block_(loc, start_prefix);
+			      } else {
+				    endpoint = emit_record(
+					  1, sva_id_(loc, ran_parent[k]), nullptr);
+			      }
+			      body1.push_back(sva_if_(loc, hit, endpoint, nullptr));
+			}
+			for (unsigned j = 0; j < a_nfa.nstates; ++j) {
+			      PExpr*next = sva_bit_(loc, 0);
+			      for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
+				    const sva_nfa_edge_t&ed = a_nfa.edges[i];
+				    if (ed.to != j) continue;
+				    PExpr*term = sva_id_(loc, ran_state[k][ed.from]);
+				    for (size_t g = 0; g < ed.guards.size(); ++g) {
+					  std::map<PExpr*,perm_string>::iterator it =
+						ran_guard.find(ed.guards[g]);
+					  if (it == ran_guard.end()) {
+						delete term; term = sva_bit_(loc, 0); break;
+					  }
+					  term = sva_logic_(loc, 'a', term,
+						       sva_id_(loc, it->second));
+				    }
+				    next = sva_logic_(loc, 'o', next, term);
+			      }
+			      body1.push_back(sva_assign_(loc, ran_next[k][j], next));
+			      body1.push_back(sva_assign_nb_(loc,
+				    ran_state[k][j], sva_id_(loc, ran_next[k][j])));
+			}
+			PEBinary*age = new PEBinary(
+			      '+', sva_id_(loc, ran_age[k]), sva_num32_(loc, 1));
+			FILE_NAME(age, loc);
+			body1.push_back(sva_if_(loc, sva_id_(loc, ran_live[k]),
+			      sva_assign_nb_(loc, ran_age[k], age), nullptr));
+
+			/* The final possible edge has just been tested.  Endpoint records
+			   precede CLOSE in the stream, so the aggregator sees the complete
+			   sibling set before it decides vacuity or success. */
+			PEBComp*last = new PEBComp(
+			      'e', sva_id_(loc, ran_age[k]),
+			      new PENumber(new verinum((uint64_t)a_depth-1, 64)));
+			FILE_NAME(last, loc);
+			PExpr*next_live = sva_bit_(loc, 0);
+			for (unsigned j = 0; j < a_nfa.nstates; ++j) {
+			      if (j == a_nfa.accept) continue;
+			      next_live = sva_logic_(loc, 'o', next_live,
+						 sva_id_(loc, ran_next[k][j]));
+			}
+			PExpr*done = sva_logic_(loc, 'o', last,
+					 sva_not_(loc, next_live));
+			PExpr*close = sva_logic_(loc, 'a',
+			      sva_id_(loc, ran_live[k]), done);
+			std::vector<Statement*>finish;
+			finish.push_back(emit_record(
+			      2, sva_id_(loc, ran_parent[k]), nullptr));
+			finish.push_back(sva_assign_(loc, ran_live[k],
+						   sva_bit_(loc, 0)));
+			body1.push_back(sva_if_(loc, close,
+					     sva_block_(loc, finish), nullptr));
+		  }
+
+		  /* Every antecedent endpoint owns an independent first-clock
+		     consequent prefix.  Tags, rather than booleans, retain sibling
+		     identity.  The endpoint announcement precedes CLOSE and accounts
+		     for the pending child; its later prefix result either launches the
+		     c2 consequence or fails that child in the source domain. */
+		  for (size_t rk = prefix_stages; rk-- > 0;) {
+			size_t k = rk;
+			body1.push_back(sva_assign_(loc, ptag_stop[k],
+						 sva_id_(loc, ptag_tail[k])));
+			PEBComp*more = new PEBComp(
+			      '<', sva_id_(loc, ptag_head[k]),
+			      sva_id_(loc, ptag_stop[k]));
+			FILE_NAME(more, loc);
+			std::vector<Statement*>one;
+			one.push_back(sva_assign_(loc, source_parent_tmp,
+			      sva_index_(loc, ptag_data[k],
+				    sva_id_(loc, ptag_head[k]))));
+			one.push_back(sva_assoc_delete_(loc, ptag_data[k],
+						 sva_id_(loc, ptag_head[k])));
+			PEBinary*hn = new PEBinary(
+			      '+', sva_id_(loc, ptag_head[k]), sva_num32_(loc, 1));
+			FILE_NAME(hn, loc);
+			one.push_back(sva_assign_(loc, ptag_head[k], hn));
+
+			bool delay_stage = prefix_offset && k == 0;
+			bool final_stage = k + 1 == prefix_stages;
+			Statement*advance = final_stage
+			      ? emit_record(1, sva_id_(loc, source_parent_tmp), nullptr)
+			      : append_source_tag(ptag_data, ptag_tail, k+1,
+					  sva_id_(loc, source_parent_tmp));
+			if (delay_stage) {
+			      one.push_back(advance);
+			} else if (!p_slots[k-prefix_offset]) {
+			      one.push_back(advance);
+			} else {
+			      PExpr*operand = p_slots[k-prefix_offset];
+			      p_slots[k-prefix_offset] = nullptr;
+			      PEBComp*truth = new PEBComp(
+				    'E', sva_not_(loc, sva_not_(loc, operand)),
+				    sva_bit_(loc, 1));
+			      FILE_NAME(truth, loc);
+			      one.push_back(sva_if_(loc, truth, advance,
+				    emit_record(3, sva_id_(loc, source_parent_tmp),
+						nullptr)));
+			}
+			PWhile*loop = new PWhile(more, sva_block_(loc, one));
+			FILE_NAME(loop, loc);
+			body1.push_back(loop);
+		  }
+
+		  PExpr*published = sva_id_(loc, rec_emit);
+		  body1.push_back(overlap_boundary
+			? sva_assign_(loc, req, published)
+			: sva_assign_nb_(loc, req, published));
+	    } else {
 	    auto ante_gate = [&](size_t k) -> PExpr* {
 		  return (k == 0) ? sva_bit_(loc, 1)
 				  : (PExpr*)sva_id_(loc, pa[k]);
@@ -19153,12 +19685,28 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			'+', sva_id_(loc, fp_req), sva_id_(loc, fcount));
 		  FILE_NAME(add, loc);
 		  body1.push_back(sva_if_(loc, sva_id_(loc, fcount),
-				sva_assign_(loc, fp_req, add), nullptr));
+			sva_assign_(loc, fp_req, add), nullptr));
+	    }
 	    }
       }
 
       auto clear_domain1_state = [&]() -> Statement* {
 	    std::vector<Statement*> clear;
+	    if (ranged_antecedent)
+		  for (size_t k = 0; k < ran_slots; ++k) {
+			clear.push_back(sva_assign_(loc, ran_live[k],
+						   sva_bit_(loc, 0)));
+			for (unsigned j = 0; j < a_nfa.nstates; ++j)
+			      clear.push_back(sva_assign_(loc, ran_state[k][j],
+						       sva_bit_(loc, 0)));
+		  }
+	    if (ranged_antecedent)
+		  for (size_t k = 0; k < prefix_stages; ++k) {
+			clear.push_back(sva_assoc_delete_(loc, ptag_data[k], nullptr));
+			clear.push_back(sva_assign_(loc, ptag_head[k], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, ptag_tail[k], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, ptag_stop[k], sva_num32_(loc, 0)));
+		  }
 	    for (size_t k = 1 ; k < Ta ; k += 1)
 		  clear.push_back(sva_assign_(loc, pa[k], sva_bit_(loc, 0)));
 	    for (size_t k = 1 ; k < Tp ; k += 1)
@@ -19173,6 +19721,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*> clear;
 	    clear.push_back(clear_domain1_state());
 	    clear.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
+	    if (ranged_antecedent) {
+		  clear.push_back(sva_assoc_delete_(loc, rec_kind, nullptr));
+		  clear.push_back(sva_assoc_delete_(loc, rec_parent, nullptr));
+		  clear.push_back(sva_assign_(loc, rec_reclaim,
+						   sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, rec_match_reclaim,
+						   sva_num32_(loc, 0)));
+		  clear.push_back(sva_assign_(loc, parent_next,
+						   sva_num32_(loc, 0)));
+	    }
 	    clear.push_back(sva_assign_(
 		  loc, req_epoch, sva_kill_generation_expr_(loc, inst)));
 	    return sva_block_(loc, clear);
@@ -19196,6 +19754,11 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PProcess*p1 = pform_make_behavior(IVL_PR_ALWAYS, c1, nullptr);
       FILE_NAME(p1, loc);
       prop->clk_evt = nullptr;    /* consumed by the always block */
+      if (dis_async1) {
+	    sva_disable_abort_(loc, dis_async1, clear_domain1_state());
+	    delete dis_async1;
+	    dis_async1 = nullptr;
+      }
 
 	/* c2 body: an obligation enters the pipe at the first c2 tick
 	   that sees req != ack (NBA-latched req: strictly after the
@@ -19216,7 +19779,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 
       Statement*coverstmt = nullptr;
       if (cover && pass_stmt) {
-	    coverstmt = sva_cover_action_(loc, pass_stmt);
+	    coverstmt = ranged_antecedent
+		  ? pass_stmt : sva_cover_action_(loc, pass_stmt);
 	    pass_stmt = nullptr;
       }
 
@@ -19233,9 +19797,24 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    loc, inst, "mcrs", 0, true);
       perm_string epoch_snapshot = sva_make_reg_(
 	    loc, inst, "mces", 0, true);
-      auto clear_domain2_state = [&](PExpr*ack_value) -> Statement* {
+      auto clear_domain2_state = [&](PExpr*ack_value,
+				     PExpr*scan_value) -> Statement* {
 	    std::vector<Statement*> clear;
 	    clear.push_back(sva_assign_(loc, ack, ack_value));
+	    if (ranged_antecedent) {
+		  clear.push_back(sva_assign_(loc, rec_scan, scan_value));
+	    } else {
+		  delete scan_value;
+	    }
+	    if (ranged_antecedent) {
+		  for (size_t k = 0; k < Tw; ++k) {
+			clear.push_back(sva_assoc_delete_(loc, tag_data[k], nullptr));
+			clear.push_back(sva_assign_(loc, tag_head[k],
+						   sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, tag_tail[k],
+						   sva_num32_(loc, 0)));
+		  }
+	    }
 	    clear.push_back(sva_assign_(loc, due, sva_num32_(loc, 0)));
 	    clear.push_back(sva_assign_(loc, ffail, sva_num32_(loc, 0)));
 	    for (size_t k = 1 ; k < Tw ; k += 1)
@@ -19258,8 +19837,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       body2.push_back(sva_observed_wait_(loc));
       body2.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill2,
-	    clear_domain2_state(sva_num32_(loc, 0))));
+	    clear_domain2_state(sva_num32_(loc, 0), sva_num32_(loc, 0))));
       std::vector<Statement*> epoch_body;
+      if (!ranged_antecedent) {
       PEBinary*duex = new PEBinary(
 	    '-', sva_id_(loc, req_snapshot), sva_id_(loc, ack));
       FILE_NAME(duex, loc);
@@ -19412,6 +19992,111 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			sva_assign_(loc, fs_req, add), nullptr));
 	    }
       }
+      } else {
+	    auto append_tag = [&](size_t stage, PExpr*parent) -> Statement* {
+		  std::vector<Statement*>put;
+		  put.push_back(sva_assign_index_(loc, tag_data[stage],
+			sva_id_(loc, tag_tail[stage]), parent));
+		  PEBinary*next = new PEBinary(
+			'+', sva_id_(loc, tag_tail[stage]), sva_num32_(loc, 1));
+		  FILE_NAME(next, loc);
+		  put.push_back(sva_assign_(loc, tag_tail[stage], next));
+		  return sva_block_(loc, put);
+	    };
+	    auto emit_result = [&](bool failed, PExpr*parent) -> Statement* {
+		  std::vector<Statement*>put;
+		  put.push_back(sva_assign_index_(loc, result_kind,
+			sva_id_(loc, result_req),
+			failed ? sva_bit_(loc, 1) : sva_bit_(loc, 0)));
+		  put.push_back(sva_assign_index_(loc, result_parent,
+			sva_id_(loc, result_req), parent));
+		  PEBinary*next = new PEBinary(
+			'+', sva_id_(loc, result_req), sva_num32_(loc, 1));
+		  FILE_NAME(next, loc);
+		  put.push_back(sva_assign_(loc, result_req, next));
+		  return sva_block_(loc, put);
+	    };
+
+	    /* Consume only records visible at the boundary snapshot. START and
+	       CLOSE belong to the lifecycle aggregator; each MATCH launches one
+	       independently tagged consequence. */
+	    PEBComp*records = new PEBComp(
+		  '<', sva_id_(loc, rec_scan), sva_id_(loc, req_snapshot));
+	    FILE_NAME(records, loc);
+	    std::vector<Statement*>record_one;
+	    record_one.push_back(sva_assign_(loc, rec_kind_tmp,
+		  sva_index_(loc, rec_kind, sva_id_(loc, rec_scan))));
+	    record_one.push_back(sva_assign_(loc, rec_parent_tmp,
+		  sva_index_(loc, rec_parent, sva_id_(loc, rec_scan))));
+	    PEBComp*match_record = new PEBComp(
+		  'e', sva_id_(loc, rec_kind_tmp),
+		  new PENumber(new verinum((uint64_t)1, 3)));
+	    FILE_NAME(match_record, loc);
+	    record_one.push_back(sva_if_(loc, match_record,
+		  append_tag(0, sva_id_(loc, rec_parent_tmp)), nullptr));
+	    PEBinary*scan_next = new PEBinary(
+		  '+', sva_id_(loc, rec_scan), sva_num32_(loc, 1));
+	    FILE_NAME(scan_next, loc);
+	    record_one.push_back(sva_assign_(loc, rec_scan, scan_next));
+	    PWhile*record_loop = new PWhile(records,
+					       sva_block_(loc, record_one));
+	    FILE_NAME(record_loop, loc);
+	    epoch_body.push_back(record_loop);
+	    epoch_body.push_back(sva_assign_nb_(loc, ack,
+						  sva_id_(loc, rec_scan)));
+
+	    /* Descending stage order gives nonblocking-pipeline timing while the
+	       tag FIFOs themselves have one c2 writer. New stage k+1 entries are
+	       therefore first examined on the following destination edge. */
+	    for (size_t rk = Tw; rk-- > 0;) {
+		  size_t k = rk;
+		  epoch_body.push_back(sva_assign_(loc, tag_stop[k],
+						 sva_id_(loc, tag_tail[k])));
+		  PEBComp*tags = new PEBComp(
+			'<', sva_id_(loc, tag_head[k]), sva_id_(loc, tag_stop[k]));
+		  FILE_NAME(tags, loc);
+		  std::vector<Statement*>tag_one;
+		  tag_one.push_back(sva_assign_(loc, rec_parent_tmp,
+			sva_index_(loc, tag_data[k], sva_id_(loc, tag_head[k]))));
+		  tag_one.push_back(sva_assoc_delete_(loc, tag_data[k],
+						 sva_id_(loc, tag_head[k])));
+		  PEBinary*head_next = new PEBinary(
+			'+', sva_id_(loc, tag_head[k]), sva_num32_(loc, 1));
+		  FILE_NAME(head_next, loc);
+		  tag_one.push_back(sva_assign_(loc, tag_head[k], head_next));
+
+		  bool final_region = k + 1 >= Tb;
+		  bool last_age = k + 1 == Tw;
+		  PExpr*operand = final_region ? b_slots[Tb-1] : b_slots[k];
+		  if (!operand) {
+			if (last_age)
+			      tag_one.push_back(emit_result(
+				    false, sva_id_(loc, rec_parent_tmp)));
+			else
+			      tag_one.push_back(append_tag(
+				    k+1, sva_id_(loc, rec_parent_tmp)));
+		  } else {
+			PExpr*copy = sva_clone_expr_(operand);
+			ivl_assert(loc, copy);
+			PEBComp*truth = new PEBComp(
+			      'E', sva_not_(loc, sva_not_(loc, copy)),
+			      sva_bit_(loc, 1));
+			FILE_NAME(truth, loc);
+			Statement*yes = final_region
+			      ? emit_result(false, sva_id_(loc, rec_parent_tmp))
+			      : append_tag(k+1, sva_id_(loc, rec_parent_tmp));
+			Statement*no;
+			if (final_region && !last_age)
+			      no = append_tag(k+1, sva_id_(loc, rec_parent_tmp));
+			else
+			      no = emit_result(true, sva_id_(loc, rec_parent_tmp));
+			tag_one.push_back(sva_if_(loc, truth, yes, no));
+		  }
+		  PWhile*tag_loop = new PWhile(tags, sva_block_(loc, tag_one));
+		  FILE_NAME(tag_loop, loc);
+		  epoch_body.push_back(tag_loop);
+	    }
+      }
 	/* A handoff from an older kill epoch is an already-killed attempt.
 	   Leave ack at zero until the source publishes the current epoch; this
 	   makes post-kill attempts independent of which clock domain runs first. */
@@ -19428,7 +20113,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       if (dis2) {
 	    std::vector<Statement*> gated2;
 	    gated2.push_back(sva_if_(loc, dis2,
-		  clear_domain2_state(sva_id_(loc, req)),
+		  clear_domain2_state(sva_id_(loc, req), sva_id_(loc, req)),
 				     sva_block_(loc, body2)));
 	    body2.swap(gated2);
       }
@@ -19446,6 +20131,319 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
       FILE_NAME(p2, loc);
       prop->seq_clk_evt = nullptr;
+      if (dis_async2) {
+	    sva_disable_abort_(loc, dis_async2,
+			       clear_domain2_state(
+				     sva_id_(loc, req), sva_id_(loc, req)));
+	    delete dis_async2;
+	    dis_async2 = nullptr;
+      }
+
+      if (ranged_antecedent) {
+	    auto at_parent = [&](perm_string store) -> PExpr* {
+		  return sva_index_(loc, store, sva_id_(loc, life_parent_tmp));
+	    };
+	    auto set_parent = [&](perm_string store, PExpr*value) -> Statement* {
+		  return sva_assign_index_(loc, store,
+					   sva_id_(loc, life_parent_tmp), value);
+	    };
+	    auto bump = [&](perm_string reg) -> Statement* {
+		  PEBinary*add = new PEBinary('+', sva_id_(loc, reg),
+					     sva_num32_(loc, 1));
+		  FILE_NAME(add, loc);
+		  return sva_assign_(loc, reg, add);
+	    };
+	    auto parent_success = [&](bool vacuous) -> Statement* {
+		  if (cover) {
+			std::vector<Statement*>hit;
+			hit.push_back(bump(r_cnt));
+			hit.push_back(bump(cover_req));
+			return sva_block_(loc, hit);
+		  }
+		  return bump(vacuous ? pv_req : pn_req);
+	    };
+	    auto parent_failure = [&]() -> Statement* {
+		  if (cover)
+			return sva_assign_(loc, life_kind_tmp,
+					   sva_id_(loc, life_kind_tmp));
+		  return bump(fs_req);
+	    };
+	    auto retire_parent = [&]() -> Statement* {
+		  std::vector<Statement*>gone;
+		  gone.push_back(sva_assoc_delete_(loc, par_pending,
+					       sva_id_(loc, life_parent_tmp)));
+		  gone.push_back(sva_assoc_delete_(loc, par_matched,
+					       sva_id_(loc, life_parent_tmp)));
+		  gone.push_back(sva_assoc_delete_(loc, par_closed,
+					       sva_id_(loc, life_parent_tmp)));
+		  gone.push_back(sva_assoc_delete_(loc, par_failed,
+					       sva_id_(loc, life_parent_tmp)));
+		  gone.push_back(sva_assoc_delete_(loc, par_reported,
+					       sva_id_(loc, life_parent_tmp)));
+		  return sva_block_(loc, gone);
+	    };
+	    auto finish_success = [&]() -> Statement* {
+		  PEBComp*nonvacuous = new PEBComp(
+			'>', at_parent(par_matched), sva_num32_(loc, 0));
+		  FILE_NAME(nonvacuous, loc);
+		  std::vector<Statement*>done;
+		  done.push_back(sva_if_(loc, nonvacuous,
+			parent_success(false), parent_success(true)));
+		  done.push_back(set_parent(par_reported, sva_bit_(loc, 1)));
+		  done.push_back(retire_parent());
+		  return sva_block_(loc, done);
+	    };
+
+	    std::vector<Statement*>aggregate;
+
+	    /* Drain lifecycle records first.  START initializes all state;
+	       MATCH announces a future child result; CLOSE can settle a
+	       vacuous or already-completed parent on this source tick. */
+	    PEBComp*life_more = new PEBComp(
+		  '<', sva_id_(loc, life_ack), sva_id_(loc, req));
+	    FILE_NAME(life_more, loc);
+	    std::vector<Statement*>life_one;
+	    life_one.push_back(sva_assign_(loc, life_kind_tmp,
+		  sva_index_(loc, rec_kind, sva_id_(loc, life_ack))));
+	    life_one.push_back(sva_assign_(loc, life_parent_tmp,
+		  sva_index_(loc, rec_parent, sva_id_(loc, life_ack))));
+	    PEBComp*is_start = new PEBComp('e', sva_id_(loc, life_kind_tmp),
+					     new PENumber(new verinum((uint64_t)0, 3)));
+	    FILE_NAME(is_start, loc);
+	    std::vector<Statement*>start_parent;
+	    start_parent.push_back(set_parent(par_pending, sva_num32_(loc, 0)));
+	    start_parent.push_back(set_parent(par_matched, sva_num32_(loc, 0)));
+	    start_parent.push_back(set_parent(par_closed, sva_bit_(loc, 0)));
+	    start_parent.push_back(set_parent(par_failed, sva_bit_(loc, 0)));
+	    start_parent.push_back(set_parent(par_reported, sva_bit_(loc, 0)));
+	    life_one.push_back(sva_if_(loc, is_start,
+					 sva_block_(loc, start_parent), nullptr));
+
+	    PEBComp*is_match = new PEBComp('e', sva_id_(loc, life_kind_tmp),
+					     new PENumber(new verinum(
+						   (uint64_t)(prefix_stages ? 4 : 1), 3)));
+	    FILE_NAME(is_match, loc);
+	    PEBinary*pend_add = new PEBinary('+', at_parent(par_pending),
+					       sva_num32_(loc, 1));
+	    FILE_NAME(pend_add, loc);
+	    PEBinary*match_add = new PEBinary('+', at_parent(par_matched),
+						sva_num32_(loc, 1));
+	    FILE_NAME(match_add, loc);
+	    std::vector<Statement*>match_parent;
+	    match_parent.push_back(set_parent(par_pending, pend_add));
+	    match_parent.push_back(set_parent(par_matched, match_add));
+	    life_one.push_back(sva_if_(loc, is_match,
+					 sva_block_(loc, match_parent), nullptr));
+
+	    PEBComp*is_prefix_fail = new PEBComp(
+		  'e', sva_id_(loc, life_kind_tmp),
+		  new PENumber(new verinum((uint64_t)3, 3)));
+	    FILE_NAME(is_prefix_fail, loc);
+	    std::vector<Statement*>prefix_fail_parent;
+	    PEBinary*prefix_pend_sub = new PEBinary(
+		  '-', at_parent(par_pending), sva_num32_(loc, 1));
+	    FILE_NAME(prefix_pend_sub, loc);
+	    prefix_fail_parent.push_back(set_parent(par_pending, prefix_pend_sub));
+	    std::vector<Statement*>report_prefix_failure;
+	    report_prefix_failure.push_back(parent_failure());
+	    report_prefix_failure.push_back(
+		  set_parent(par_failed, sva_bit_(loc, 1)));
+	    report_prefix_failure.push_back(
+		  set_parent(par_reported, sva_bit_(loc, 1)));
+	    prefix_fail_parent.push_back(sva_if_(loc,
+		  sva_not_(loc, at_parent(par_reported)),
+		  sva_block_(loc, report_prefix_failure), nullptr));
+	    PEBComp*prefix_none_pending = new PEBComp(
+		  'e', at_parent(par_pending), sva_num32_(loc, 0));
+	    FILE_NAME(prefix_none_pending, loc);
+	    prefix_fail_parent.push_back(sva_if_(loc,
+		  sva_logic_(loc, 'a', prefix_none_pending,
+			at_parent(par_closed)), retire_parent(), nullptr));
+	    life_one.push_back(sva_if_(loc, is_prefix_fail,
+		  sva_block_(loc, prefix_fail_parent), nullptr));
+
+	    PEBComp*is_close = new PEBComp('e', sva_id_(loc, life_kind_tmp),
+					     new PENumber(new verinum((uint64_t)2, 3)));
+	    FILE_NAME(is_close, loc);
+	    std::vector<Statement*>close_parent;
+	    close_parent.push_back(set_parent(par_closed, sva_bit_(loc, 1)));
+	    PEBComp*none_pending = new PEBComp(
+		  'e', at_parent(par_pending), sva_num32_(loc, 0));
+	    FILE_NAME(none_pending, loc);
+	    close_parent.push_back(sva_if_(loc, none_pending,
+		  sva_if_(loc, at_parent(par_reported), retire_parent(),
+			  finish_success()), nullptr));
+	    life_one.push_back(sva_if_(loc, is_close,
+					 sva_block_(loc, close_parent), nullptr));
+	    PEBinary*life_next = new PEBinary(
+		  '+', sva_id_(loc, life_ack), sva_num32_(loc, 1));
+	    FILE_NAME(life_next, loc);
+	    life_one.push_back(sva_assign_(loc, life_ack, life_next));
+	    PWhile*life_loop = new PWhile(life_more,
+					     sva_block_(loc, life_one));
+	    FILE_NAME(life_loop, loc);
+	    aggregate.push_back(life_loop);
+
+	    /* Child result: zero is success, one is failure.  A first failure
+	       settles the property immediately; success waits for CLOSE and
+	       the final outstanding sibling. */
+	    PEBComp*result_more = new PEBComp(
+		  '<', sva_id_(loc, result_scan), sva_id_(loc, result_req));
+	    FILE_NAME(result_more, loc);
+	    std::vector<Statement*>result_one;
+	    result_one.push_back(sva_assign_(loc, life_kind_tmp,
+		  sva_index_(loc, result_kind, sva_id_(loc, result_scan))));
+	    result_one.push_back(sva_assign_(loc, life_parent_tmp,
+		  sva_index_(loc, result_parent, sva_id_(loc, result_scan))));
+	    PEBinary*pend_sub = new PEBinary('-', at_parent(par_pending),
+					       sva_num32_(loc, 1));
+	    FILE_NAME(pend_sub, loc);
+	    result_one.push_back(set_parent(par_pending, pend_sub));
+	    PExpr*first_failure = sva_logic_(loc, 'a',
+		  sva_id_(loc, life_kind_tmp),
+		  sva_not_(loc, at_parent(par_reported)));
+	    std::vector<Statement*>fail_parent;
+	    fail_parent.push_back(parent_failure());
+	    fail_parent.push_back(set_parent(par_failed, sva_bit_(loc, 1)));
+	    fail_parent.push_back(set_parent(par_reported, sva_bit_(loc, 1)));
+	    result_one.push_back(sva_if_(loc, first_failure,
+					   sva_block_(loc, fail_parent), nullptr));
+	    PEBComp*successful_last_count = new PEBComp(
+		  'e', at_parent(par_pending), sva_num32_(loc, 0));
+	    FILE_NAME(successful_last_count, loc);
+	    PExpr*successful_last = sva_logic_(loc, 'a',
+		  sva_not_(loc, sva_id_(loc, life_kind_tmp)),
+		  sva_logic_(loc, 'a', successful_last_count,
+		    sva_logic_(loc, 'a', at_parent(par_closed),
+		      sva_not_(loc, at_parent(par_reported)))));
+	    result_one.push_back(sva_if_(loc, successful_last,
+					   finish_success(), nullptr));
+	    PEBComp*failed_last_count = new PEBComp(
+		  'e', at_parent(par_pending), sva_num32_(loc, 0));
+	    FILE_NAME(failed_last_count, loc);
+	    PExpr*failed_last = sva_logic_(loc, 'a', failed_last_count,
+		  sva_logic_(loc, 'a', at_parent(par_closed),
+			at_parent(par_reported)));
+	    result_one.push_back(sva_if_(loc, failed_last,
+					   retire_parent(), nullptr));
+	    result_one.push_back(sva_assoc_delete_(loc, result_kind,
+						 sva_id_(loc, result_scan)));
+	    result_one.push_back(sva_assoc_delete_(loc, result_parent,
+						 sva_id_(loc, result_scan)));
+	    PEBinary*result_next = new PEBinary(
+		  '+', sva_id_(loc, result_scan), sva_num32_(loc, 1));
+	    FILE_NAME(result_next, loc);
+	    result_one.push_back(sva_assign_(loc, result_scan, result_next));
+	    PWhile*result_loop = new PWhile(result_more,
+					       sva_block_(loc, result_one));
+	    FILE_NAME(result_loop, loc);
+	    aggregate.push_back(result_loop);
+
+	    std::vector<PEEvent*>aev;
+	    aev.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, req)));
+	    aev.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, result_req)));
+	    aev.push_back(new PEEvent(PEEvent::ANYEDGE,
+				       sva_id_(loc, req_epoch)));
+	    if (dis3) {
+		  PExpr*dc = sva_clone_expr_(dis3);
+		  ivl_assert(loc, dc);
+		  aev.push_back(new PEEvent(PEEvent::POSEDGE,
+			sva_not_(loc, sva_not_(loc, dc))));
+	    }
+	    PEventStatement*await = new PEventStatement(aev);
+	    FILE_NAME(await, loc);
+	    PEBComp*life_idle = new PEBComp(
+		  'e', sva_id_(loc, life_ack), sva_id_(loc, req));
+	    FILE_NAME(life_idle, loc);
+	    PEBComp*result_idle = new PEBComp(
+		  'e', sva_id_(loc, result_scan), sva_id_(loc, result_req));
+	    FILE_NAME(result_idle, loc);
+	    std::vector<Statement*>agg_loop;
+	    agg_loop.push_back(sva_if_(loc,
+		  sva_logic_(loc, 'a', life_idle, result_idle), await, nullptr));
+	    agg_loop.push_back(sva_observed_wait_(loc));
+	    std::vector<Statement*>reset_aggregate;
+	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_pending, nullptr));
+	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_matched, nullptr));
+	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_closed, nullptr));
+	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_failed, nullptr));
+	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_reported, nullptr));
+	    /* A new kill epoch restarts the source record namespace at zero and
+	       may publish its first START on the same c1 edge that observes the
+	       kill.  Drain that new stream from key zero.  A same-epoch
+	       `disable iff' reset instead swallows the current cancelled stream. */
+	    PEBComp*reset_same_epoch = new PEBComp(
+		  'E', sva_id_(loc, agg_epoch), sva_id_(loc, req_epoch));
+	    FILE_NAME(reset_same_epoch, loc);
+	    PETernary*reset_life_cursor = new PETernary(
+		  reset_same_epoch, sva_id_(loc, req), sva_num32_(loc, 0));
+	    FILE_NAME(reset_life_cursor, loc);
+	    reset_aggregate.push_back(
+		  sva_assign_(loc, life_ack, reset_life_cursor));
+	    reset_aggregate.push_back(sva_assign_(loc, result_scan,
+						    sva_id_(loc, result_req)));
+	    reset_aggregate.push_back(sva_assign_(loc, agg_epoch,
+						    sva_id_(loc, req_epoch)));
+	    PEBComp*same_epoch = new PEBComp(
+		  'E', sva_id_(loc, agg_epoch), sva_id_(loc, req_epoch));
+	    FILE_NAME(same_epoch, loc);
+	    PExpr*reset_needed = sva_not_(loc, same_epoch);
+	    if (dis3) {
+		  PEBComp*disable_true = new PEBComp(
+			'E', sva_not_(loc, sva_not_(loc, dis3)), sva_bit_(loc, 1));
+		  FILE_NAME(disable_true, loc);
+		  reset_needed = sva_logic_(loc, 'o', reset_needed, disable_true);
+		  dis3 = nullptr;
+	    }
+	    agg_loop.push_back(sva_if_(loc, reset_needed,
+		  sva_block_(loc, reset_aggregate), sva_block_(loc, aggregate)));
+	    PForever*forever = new PForever(sva_block_(loc, agg_loop));
+	    FILE_NAME(forever, loc);
+	    PDelayStatement*aggregate_start = new PDelayStatement(
+		  sva_num32_(loc, 0), forever);
+	    FILE_NAME(aggregate_start, loc);
+	    PProcess*aggregator = pform_make_behavior(
+		  IVL_PR_INITIAL, aggregate_start, nullptr);
+	    FILE_NAME(aggregator, loc);
+
+	    if (cover) {
+		  std::vector<PEEvent*>cev;
+		  cev.push_back(new PEEvent(PEEvent::ANYEDGE,
+					 sva_id_(loc, cover_req)));
+		  PEventStatement*cwait = new PEventStatement(cev);
+		  FILE_NAME(cwait, loc);
+		  PEBComp*cidle = new PEBComp(
+			'e', sva_id_(loc, cover_req), sva_id_(loc, cover_ack));
+		  FILE_NAME(cidle, loc);
+		  std::vector<Statement*>cloop;
+		  cloop.push_back(sva_if_(loc, cidle, cwait, nullptr));
+		  PEBinary*delta = new PEBinary(
+			'-', sva_id_(loc, cover_req), sva_id_(loc, cover_ack));
+		  FILE_NAME(delta, loc);
+		  cloop.push_back(sva_assign_(loc, cover_due, delta));
+		  cloop.push_back(sva_assign_(loc, cover_ack,
+						 sva_id_(loc, cover_req)));
+		  cloop.push_back(sva_reactive_wait_(loc));
+		  if (coverstmt) {
+			PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+			FILE_NAME(spawn, loc);
+			std::vector<Statement*>one;
+			one.push_back(sva_gate_(loc, coverstmt));
+			spawn->set_statement(one);
+			coverstmt = nullptr;
+			cloop.push_back(sva_repeat_(loc,
+			      sva_id_(loc, cover_due), spawn));
+		  }
+		  PForever*cforever = new PForever(sva_block_(loc, cloop));
+		  FILE_NAME(cforever, loc);
+		  PDelayStatement*cover_start = new PDelayStatement(
+			sva_num32_(loc, 0), cforever);
+		  FILE_NAME(cover_start, loc);
+		  PProcess*cover_dispatch = pform_make_behavior(
+			IVL_PR_INITIAL, cover_start, nullptr);
+		  FILE_NAME(cover_dispatch, loc);
+	    }
+      }
 
 	/* Each single-owner dispatcher snapshots and acknowledges the verdict
 	   counters before entering Reactive. A conditional event wait also
