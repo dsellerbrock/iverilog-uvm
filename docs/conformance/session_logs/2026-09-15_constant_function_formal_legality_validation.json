@@ -1,0 +1,47 @@
+{
+  "scope": "L96 constant-function non-input formal legality; focused validation only",
+  "base_revision": "dcd87370c796e8c24623bd0a6cd7ef4488b8611d",
+  "standards": [
+    "IEEE1800-2017 13.4.3",
+    "IEEE1800-2023 13.4.3"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 10,
+      "failed": 0
+    },
+    "json": {
+      "ran": 10,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 24,
+      "failed": 0
+    },
+    "json": {
+      "ran": 24,
+      "failed": 0
+    }
+  },
+  "source_and_artifacts": {
+    "elab_expr.cc": "61080e37c1b386785b1af275fdbdbfab0b6a066774f180b9640dc6c411b70698",
+    "parse_misc.h": "a517f59a9b8cf428a6031a62c2b3777fe3206f1b93810a04b18cafcf7a9598d7",
+    "pform.cc": "96546e03b7bd33a1509ebf786b51b85b203e885ee0d42ea5de1a5e4d79467b9c",
+    "pform_sva_nfa.cc": "19ba5e6c85f7115d70925a059b7c2e46adf8c0f9757fdd911d3d20e0c561f5be",
+    "local-install/lib/ivl/ivl": "8dab29da0beb68428b9da0ca270578c23b08177c608dbe9d42f91d9f89aadb63",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "concurrent_source": "Installed candidate also includes pending L97 pform/NFA work, fingerprinted above; no broad qualification of either fix is claimed.",
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "logs": [
+    "l96-second-legacy.log",
+    "l96-second-json.log",
+    "l96-neighbors-legacy.log",
+    "l96-neighbors-json.log"
+  ],
+  "build": "first-build.log",
+  "install": "first-install.log",
+  "limitations": "Does not close other constant-function restrictions or full function conformance. Broad gates deferred to coherent batch near ten fixes."
+}

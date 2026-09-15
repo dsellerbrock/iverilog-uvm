@@ -1446,3 +1446,7 @@ IMPLEMENTED within the [recorded flat finite-group subset](../session_logs/2026-
 ### L85–L95 local qualification checkpoint
 
 The [batch record](../session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json) qualifies the eleven recorded subsets at `d45ee87ab`, including the [regression corrections](../session_logs/2026-09-15_batch_l85_l95_regression_repair.md). Broader clause and application scope remains open.
+
+### L96 — Constant-function formal legality
+
+IMPLEMENTED for the [recorded non-input formal checks](../session_logs/2026-09-15_constant_function_formal_legality.md), preserving runtime writable-formal semantics. Other constant-function requirements remain PARTIAL; broad qualification is pending.

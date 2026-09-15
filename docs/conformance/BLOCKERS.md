@@ -2205,3 +2205,23 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 ### L85–L95 local qualification checkpoint
 
 The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json) qualifies the eleven recorded subsets at `d45ee87ab`, including the [regression corrections](session_logs/2026-09-15_batch_l85_l95_regression_repair.md). Broader clause and application scope remains open.
+
+### L96 — Constant-function non-input formals accepted
+
+- **Area / edition:** Function elaboration / IEEE1800-2017 and2023 13.4.3.
+- **State:** FOCUSED_TESTED; broad qualification pending.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-const-formals-assessment/baseline.json`; both editions accept prohibited output/inout/ref constant calls.
+- **Closure:** Reject prohibited formals in constant evaluation, including nested calls, while preserving input-only constant functions and ordinary runtime writable-formal calls. Paired diagnostics and behavioral controls required.
+- **Last verified revision:** `e43ecd536` installed candidate, qualified at `d45ee87ab`.
+
+- **Implementation evidence:** [L96 session](session_logs/2026-09-15_constant_function_formal_legality.md).
+
+### L97 — Nested finite whole-sequence repetition rejected
+
+- **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.9.2.1,16.12.22,16.13.
+- **State:** IN_PROGRESS; coordinator-authorized parallel lane in ACTIVE_WORK.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-nested-group-assessment/baseline.json`; both editions reject the nested exact-count endpoint witness.
+- **Closure:** Preserve inner/outer copies and endpoints, nested empty composition and parent verdicts within the existing finite construction scope. Keep fixed pipeline and same-clock behavior correct; preserve loud unsupported boundaries.
+- **Last verified revision:** `e43ecd536` installed candidate, qualified at `d45ee87ab`.

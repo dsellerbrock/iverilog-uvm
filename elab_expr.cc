@@ -14275,6 +14275,37 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		    trailing_indices, selected_type);
 }
 
+static bool constant_function_formals_are_inputs_(
+	Design*des, const LineInfo&loc, NetScope*dscope, const NetFuncDef*def,
+	bool report)
+{
+      bool valid = true;
+      for (unsigned idx = 0 ; idx < def->port_count() ; idx += 1) {
+	    const NetNet*formal = def->port(idx);
+	    if (formal->port_type() == NetNet::PINPUT)
+		  continue;
+	    if (formal->port_type() != NetNet::POUTPUT
+		&& formal->port_type() != NetNet::PINOUT
+		&& formal->port_type() != NetNet::PREF)
+		  continue;
+
+	    valid = false;
+	    if (!report)
+		  continue;
+
+	    const char*direction = formal->port_type() == NetNet::POUTPUT
+		  ? "output" : formal->port_type() == NetNet::PINOUT
+		  ? "inout" : formal->get_const() ? "const ref" : "ref";
+	    cerr << loc.get_fileline() << ": error: Constant function `"
+		 << dscope->basename() << "' has " << direction << " formal `"
+		 << formal->name()
+		 << "'; constant functions may have only input arguments"
+		 << " (IEEE 1800-2017/2023 13.4.3)." << endl;
+	    des->errors += 1;
+      }
+      return valid;
+}
+
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 					unsigned expr_wid, unsigned flags) const
 {
@@ -15276,6 +15307,17 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       }
       ivl_assert(*this, def->scope() == dscope);
 
+	/* A runtime-elaborated function can be revisited later in a constant
+	 * context.  Classify its formal directions on every call, before using
+	 * the cached constant-function state to classify its caller. */
+      const bool constant_context = need_const || scope->need_const_func();
+      if (!constant_function_formals_are_inputs_(
+		des, *this, dscope, def, constant_context)) {
+	    dscope->is_const_func(false);
+	    if (constant_context)
+		  return nullptr;
+      }
+
 	// From IEEE 1800-2023 section 13.4.3:
 	// A constant function call is a function call of a constant function
 	// wherein the constant function's declaration is local to the calling
@@ -15379,6 +15421,17 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	    const PFunction*pfunc = dscope->func_pform();
 	    ivl_assert(*this, pfunc);
 	    elaborate_function_outside_caller_fork_(des, pfunc, dscope);
+      }
+
+	/* Qualified/static paths can enter elaborate_base_ without the generic
+	 * call classifier above.  Apply the same legality rule here. */
+      const bool constant_context = need_const || scope->need_const_func();
+      if (!constant_function_formals_are_inputs_(
+		des, *this, dscope, def, constant_context)) {
+	    dscope->is_const_func(false);
+	    if (constant_context)
+		  return nullptr;
+	    scope->is_const_func(false);
       }
 
       unsigned parms_count = def->port_count();

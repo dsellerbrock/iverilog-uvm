@@ -19,6 +19,10 @@ support. Earlier [L75–L84](session_logs/2026-09-14_compiler_batch_l75_l84_qual
 and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
 records retain their original revisions and limits.
 
+## Newer focused evidence
+
+[L96 constant-function formal legality](session_logs/2026-09-15_constant_function_formal_legality.md) is focused-tested after the qualified batch. Its broad gates remain pending.
+
 ## Application evidence
 
 The [September 13 OpenTitan/Caliptra census](session_logs/2026-09-13_opentitan_caliptra_rebaseline_after277.md)

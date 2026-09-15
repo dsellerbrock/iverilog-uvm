@@ -225,3 +225,5 @@ L95 applies the same 6.16.2 and 13.4.3 requirements in both editions; [paired ev
 L94 uses the shared repetition, empty-composition and nondegeneracy requirements in 2023; [paired evidence](session_logs/2026-09-15_multiclock_grouped_repetition_validation.json) records separate edition executions.
 
 The L85–L95 subsets share the [local qualification checkpoint](matrices/ieee1800_2017_clause_matrix.md#l85l95-local-qualification-checkpoint). Separate edition-focused results remain above; the full UVM gate used `-g2012`.
+
+L96 shares the 13.4.3 input-only constant-function rule; [paired evidence](session_logs/2026-09-15_constant_function_formal_legality_validation.json) records separate edition checks.

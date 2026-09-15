@@ -309,3 +309,8 @@ latest_checkpoint:
   active_implementation_lanes: [L96-CONSTANT-FUNCTION-NONINPUT-FORMALS, L97-NESTED-FINITE-GROUPED-REPETITION]
   next: reuse constraint_abi and constraint_wide; inspect owned patches, build/install centrally and run focused paired acceptance tests
   prior_checkpoints: historical; latest_checkpoint and top-level fields govern resumption
+
+l96_checkpoint:
+  status: focused tested, integrating first fix after PR285
+  evidence: docs/conformance/session_logs/2026-09-15_constant_function_formal_legality_validation.json
+  broad_validation: pending near ten fixes
