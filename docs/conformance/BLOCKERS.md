@@ -2295,7 +2295,9 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L105 — Fabricated nonlocal constant-function values
 
-- **State:** IN_PROGRESS; coordinator-authorized signal-evaluation lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Standards:** IEEE1800-2017 and2023 13.4.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md`.
 - **Closure:** Reject nonlocal mutable state during constant evaluation; retain actual runtime state and legal constant inputs.
+
+- **Implementation evidence:** [L105 session](session_logs/2026-09-15_nonlocal_constant_function_values.md).

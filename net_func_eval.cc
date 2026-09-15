@@ -1700,21 +1700,29 @@ NetExpr* NetESignal::evaluate_function(const LineInfo&loc,
 			      return res;
 			}
 		  }
-		  const NetScope*sig_scope = net_ ? net_->scope() : nullptr;
-		  if (gn_system_verilog() && sig_scope
-		      && (sig_scope->type() == NetScope::CLASS
-			  || sig_scope->type() == NetScope::PACKAGE)) {
-			// Compile-progress fallback for static class/package variables
-			// referenced from constant-function evaluation (e.g. UVM
-			// singleton/static handles). These are not in the local eval
-			// context map, but returning a typed placeholder preserves
-			// forward progress and exposes later semantic diagnostics.
-			NetExpr*res = make_type_default();
-			if (res) {
-			      res->set_line(*this);
-			      return res;
-			}
+		  cerr << get_fileline() << ": error: Cannot evaluate " << name()
+		       << " in this context." << endl;
+		  return 0;
+	    }
+
+	    /* The evaluation context is keyed by basename, so finding a slot is
+	       not sufficient to prove that this signal is the corresponding
+	       function local.  A qualified package/class variable may have the
+	       same name as a local and must not borrow that local's value in a
+	       constant function (IEEE 1800-2017/2023 13.4.3). */
+	    bool nonlocal_static = false;
+	    for (const NetScope*cur_scope = net_ ? net_->scope() : 0;
+		 cur_scope; cur_scope = cur_scope->parent()) {
+		  if (cur_scope->type() == NetScope::FUNC
+		      || cur_scope->type() == NetScope::MODULE)
+			break;
+		  if (cur_scope->type() == NetScope::PACKAGE
+		      || cur_scope->type() == NetScope::CLASS) {
+			nonlocal_static = true;
+			break;
 		  }
+	    }
+	    if (nonlocal_static) {
 		  cerr << get_fileline() << ": error: Cannot evaluate " << name()
 		       << " in this context." << endl;
 		  return 0;

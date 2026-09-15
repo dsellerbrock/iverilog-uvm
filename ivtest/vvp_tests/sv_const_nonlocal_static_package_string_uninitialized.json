@@ -1,0 +1,8 @@
+{
+  "type": "CE",
+  "source": "sv_const_nonlocal_static_package_string_uninitialized.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_const_nonlocal_static_package_string_uninitialized"
+}

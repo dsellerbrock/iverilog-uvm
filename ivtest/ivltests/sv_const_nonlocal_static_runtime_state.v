@@ -1,0 +1,2 @@
+package p; int state=0; string text=""; function automatic int get_i; return state; endfunction function automatic string get_s; return text; endfunction endpackage
+module test; initial begin p::state=17; p::text="runtime"; if(p::get_i()!=17||p::get_s()!="runtime")$fatal(1); p::state=-4; p::text="changed"; if(p::get_i()!=-4||p::get_s()!="changed")$fatal(1); $display("PASSED"); $finish(0); end endmodule

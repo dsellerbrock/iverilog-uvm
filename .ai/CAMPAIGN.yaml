@@ -7,8 +7,8 @@ selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
 integrated_since_last_broad_batch:
-  count: 9
-  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb]
+  count: 10
+  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29]
 latest_broad_qualification:
   integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
   semantic_revision: e43ecd536

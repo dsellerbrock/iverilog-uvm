@@ -243,3 +243,5 @@ L101 follows the shared 6.16,11.4.2,13.4.3 rules; [paired evidence](session_logs
 L103 follows the shared 16.9.2,16.13.1,16.13.2 rules; [paired evidence](session_logs/2026-09-15_plain_multiclock_ranged_prefix_validation.json) records separate edition executions.
 
 L104 shares the equality sizing rules; [paired evidence](session_logs/2026-09-15_constant_mixed_equality_validation.json) records both editions.
+
+L105 shares the constant-function locality restriction; [paired evidence](session_logs/2026-09-15_nonlocal_constant_function_values_validation.json) records both editions.

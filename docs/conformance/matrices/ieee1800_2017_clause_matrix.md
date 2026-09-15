@@ -1482,3 +1482,7 @@ IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_plain_multicloc
 ### L104 — Constant mixed equality
 
 IMPLEMENTED for the [recorded integral equality subset](../session_logs/2026-09-15_constant_mixed_equality.md). Broader expression coverage remains PARTIAL; broad qualification pending.
+
+### L105 — Nonlocal constant-function values
+
+IMPLEMENTED for the [recorded package/class-state rejection subset](../session_logs/2026-09-15_nonlocal_constant_function_values.md), preserving actual runtime state and legal constant inputs. Broader constant-function coverage remains PARTIAL; broad qualification pending.

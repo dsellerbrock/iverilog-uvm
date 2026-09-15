@@ -69,6 +69,8 @@ Latest L103 focused evidence: [Plain multiclock ranged first-clock prefixes](ses
 
 Latest L104 focused evidence: [constant mixed equality](session_logs/2026-09-15_constant_mixed_equality.md).
 
+Latest L105 focused evidence: [nonlocal constant-function values](session_logs/2026-09-15_nonlocal_constant_function_values.md).
+
 ## History
 
 The former continuation narrative is preserved in the

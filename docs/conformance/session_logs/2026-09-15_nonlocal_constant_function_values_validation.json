@@ -1,0 +1,79 @@
+{
+  "scope": "L105 package/class nonlocal constant evaluation and string rejection; focused only",
+  "base_revision": "c26384d296c14cd4afb99e94bcd24e38abc2ae3b",
+  "standards": [
+    "IEEE1800-2017 13.4.3,6.20.2",
+    "IEEE1800-2023 13.4.3,6.20.2"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 18,
+      "failed": 0
+    },
+    "json": {
+      "ran": 18,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 56,
+      "failed": 0
+    },
+    "json": {
+      "ran": 56,
+      "failed": 0
+    }
+  },
+  "synthesis_neighbors": {
+    "ran": 6,
+    "failed": 0
+  },
+  "source_and_artifacts": {
+    "eval_tree.cc": "cdb030d672c8b9a15b46a3d47843a31b768dc98559fdc0c2816fab10d3118d17",
+    "net_func_eval.cc": "a1f861b88217933c4d2e532b18409890e7d44b3d39474aa9a47d4b5b06cfba40",
+    "net_design.cc": "96d527565bf130af6a7deb64d068b93e6d796e9838acdd69dadadeebe735cc36",
+    "pform.cc": "885acb987fc12061e97be4a145d239358f306a82fb53cd683576ef4d6b29e48c",
+    "local-install/lib/ivl/ivl": "98d5c9d43b087e3bdfd667e5b5fea1895482a22b3e0a37fa7f2df1e61b86be10",
+    "local-install/lib/ivl/vvp.tgt": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1",
+    "local-install/bin/iverilog": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b",
+    "local-install/bin/vvp": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f"
+  },
+  "build": "l105-string-rejection-build.log",
+  "install": "l105-string-rejection-install.log",
+  "logs": [
+    "l105-focused-legacy.log",
+    "l105-focused-vvp.log",
+    "l105-final-neighbors-legacy.log",
+    "l105-final-neighbors-vvp-retry.log",
+    "l105-synthesis-neighbors.log"
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "direct": "l105-string-rejection-direct.json",
+  "failed_evidence": [
+    "l104-l105-direct-retry.json",
+    "l105-neighbors-legacy.log",
+    "l105-final-neighbors-vvp.log"
+  ],
+  "fixture_hashes": {
+    "ivtest/ivltests/sv_const_nonlocal_static_package_string_uninitialized.v": "e4d7491e72430a5b278b2b8ed3296c1b5d5616e80e70d4a572dd9fcabeee5cf3",
+    "ivtest/ivltests/sv_const_nonlocal_static_legal_locals_parameters.v": "c42c3ade357a8517c1eadab7e403601543d0ee94a53cf939369a0751079aac24",
+    "ivtest/ivltests/sv_const_nonlocal_static_class_static_2023.v": "021543a3c426ed3ae3f1f00f9135564be3ffde86958e8bcf27fc7d8126182376",
+    "ivtest/ivltests/sv_const_nonlocal_static_class_static.v": "72749db38f4a7dbb2d7493b64ccfef9f31789b6be23f9ad7c911773a50bd9816",
+    "ivtest/ivltests/sv_const_nonlocal_static_runtime_state.v": "d55edbf0127a6b2ff8f55d87b896882b62edf352f7b50bccd63c07fd84dadf9b",
+    "ivtest/ivltests/sv_const_nonlocal_static_legal_locals_parameters_2023.v": "6a9dda5bed97655b77d466536168b45f4bbc4e1e5f1ef852dfff763c9ced8992",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_string_untyped_initialized_2023.v": "bda30932966e310bbdeab0ddc3cc77f317368ea211fe3bafd597cb192c8bbbd2",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_string_uninitialized_2023.v": "52f00c073c35479d1a6b1c8dd51ddbceebef54ab77423d0b4f76db19f301d386",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_string_initialized.v": "d6bfc619ae75e2eef00b2f3770e90e99aecdbba26b3d61c7cd32fc17d5080b29",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_qualified_shadow_2023.v": "21129593ca01df9846a7bf53cce5d21ac256b55ea769ff4c1a38f23b0aa571d1",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_scalar_initialized.v": "013455ad3455773bbc65204ee7500679fbe125f2332f57af4f7a24664154620d",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_scalar_uninitialized.v": "f83246cffa4cafc9b85a498576276cc3d01c8cc115e01f1644adb6c31a4bf75c",
+    "ivtest/ivltests/sv_const_nonlocal_static_runtime_state_2023.v": "73ac1c8e44dc9930ea68b51f584225146fa478d36dfe9c9335b40f863bf92da1",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_qualified_shadow.v": "455fe71c0bab6d4377529361011a583cc9e74b756b1125ee7c691ab3c8b953aa",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_string_initialized_2023.v": "f8d20f4b1137a8a759960b226d808d63a8b830cbf2c8b3fad0e158b9911c28cc",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_scalar_uninitialized_2023.v": "91e45f817bed054f801a90c6fe7fd210f62a46ed47c4cd2b8504efef873b383c",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_scalar_initialized_2023.v": "9d5cf7ae40a8c28deee4f1322e5dbedefda9f7cf1b71978fa30e0054235163ef",
+    "ivtest/ivltests/sv_const_nonlocal_static_package_string_untyped_initialized.v": "c1f1fabef6e654b22a197568d0548ba5d8f33a803d0d59c4f031cd6358426216"
+  },
+  "qualification": "Current batch broad gates pending."
+}

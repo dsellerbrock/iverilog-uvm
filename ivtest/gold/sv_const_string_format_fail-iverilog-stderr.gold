@@ -1,3 +1,4 @@
 ivltests/sv_const_string_format_fail.v:5: error: A reference to a non-local net or variable (`external_text') is not allowed in a constant function.
 ivltests/sv_const_string_format_fail.v:4: error: Cannot assign external_text in this constant-function context.
-1 error(s) during elaboration.
+ivltests/sv_const_string_format_fail.v:7: error: Unable to evaluate string parameter VALUE value: sv_const_string_format_fail.illegal(32'sd7)
+2 error(s) during elaboration.
