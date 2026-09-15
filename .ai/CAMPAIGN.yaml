@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L115-WIDE-FIXED-RAND-ELEMENT-TRANSPORT + ranged SVA suffix assessment
-phase: wide_element_implementation_and_next_sva_assessment
+current_blocker: L115-WIDE-FIXED-RAND-ELEMENT-TRANSPORT + L116-FIRST-MATCH-RANGED-SOURCE-SUFFIX
+phase: parallel_wide_transport_refinement_and_sva_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -16,13 +16,13 @@ latest_broad_qualification:
   scope: Ten recorded local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   base_revision: 05b0c44e1
-  installed_semantic_revision: d25b1f94d (L113 and corrected L114); uncommitted L115 edits not installed.
-  installed_fingerprints: docs/conformance/session_logs/2026-09-15_first_match_source_suffix_validation.json
-  shared_process: None. L114 build94916, NFA84510 and final27791 terminal0;72/72 both harnesses and58/58 NFA. L113355243ab4 and L114d25b1f94d integrated. L115 source frozen by agent; first build not started, hashes in evidence/application-check-20260915/l115-first-candidate/source-hashes.json.
+  installed_semantic_revision: Diagnostic64706 only; source changed during build. Last integrated/qualified-focused semantic base d25b1f94d. No L115 qualification.
+  installed_fingerprints: evidence/application-check-20260915/l115-first-candidate/diagnostic-direct.json
+  shared_process: None. L115 build64706 terminal0 but concurrent agent source edit invalidates stable source attribution; diagnostic installed candidate only. Fresh source freeze/build required. L116 baseline compile-exit2 both editions.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Build frozen L115 candidate, verify full-vector transport and migration of obsolete L113 wide-negative; wide lane assesses ranged SVA source suffix only. Run seven broad gates near ten integrated fixes plus permanent root-seed checker, then coherent PR.
+  next_action: Finish L115 full-width literal and vector tuple transport, then combined fresh build with frozen L116 source. Test original high-bit reducer before expanded acceptance. Broad gates at coherent approximately-ten-fix checkpoint, not while source refinement remains active.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.

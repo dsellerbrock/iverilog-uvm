@@ -296,3 +296,30 @@ ranged_suffix_assessment_lane:
   scope: Assess finite ranged same-clock suffix after first_match prefix. Earliest wrapper exit commits while suffix retains all endpoints; distinguish plain existential and implication aggregation. No implementation before selection.
   execution: No shared builds/tests/install/source changes/commits/new agents/worktrees.
 L115_migration_authorization: Replace obsolete L113 wide_fail paired compile-negative with checked65-bit nested runtime positive under name sv_constraint_nested_fixed_element_wide. Preserve old artifacts in git/evidence. Agent owns replacement fixture/config/gold/private L113 list; coordinator main manifest mapping and removal at integration. Unsupported wide cyclic/ordered/dist controls remain explicit.
+
+ranged_suffix_implementation_lane:
+  id: L116-FIRST-MATCH-RANGED-SOURCE-SUFFIX
+  status: AUTHORIZED
+  agent: /root/constraint_wide
+  standards: IEEE1800-2017 and2023 16.9.8,16.12.7,16.13
+  reproducer: evidence/application-check-20260915/next-sva-after-l114/first-match-ranged-source-suffix.sv
+  baseline: evidence/application-check-20260915/next-sva-after-l114/baseline.json
+  actual: Both editions reject two legal properties using finite ranged same-clock suffix after first_match prefix.
+  expected: Earliest wrapper end30 commits; suffix ends50/70 remain. Plain sequence passes75 after earlier child failure; implication fails once55 without later rescue.
+  owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
+  fixture_prefix: sv_assert_multiclock_first_match_ranged_suffix
+  dependencies: L114 separate wrapper-boundary guard provenance and existing source NFA/parent aggregation. Independent of L115 frontend constraint/runtime files.
+  scope: Admit finite acyclic Boolean/delay suffix after prefix wrapper. Preserve earliest wrapper cut while emitting all complete suffix endpoints until source mask dies/deadline. Immediate source close at first full match applies only to whole-chain wrappers. No scheduler/runtime change; retain finite depth and unsupported shape diagnostics.
+  acceptance: Paired existential/universal discriminator, all-pass/all-fail/tied exits, zero-inclusive/internal/trailing windows, handoff0/1 and reversed coincidence, overlap/cancel/restart/backlog, depth64/65/unbounded controls; migrate newly legal negative and retain L107/L112/L114 plus NFA compatibility.
+  coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. Agent source/private fixtures only; no commits/new agents/worktrees.
+L115_joint_review:
+  status: REFINEMENT_REQUIRED
+  observation: Nested graph exact_joint tuple columns/model extraction use uint64. Blanket exact_joint=false would bypass established joint semantics, especially independent ordered/distributed/cyclic components.
+  requirement: Preserve required graph probability/order/cycle semantics. Assess extending finite enumerable ordinary columns to full vectors or prove equivalent delegation before implementation; no optimizer fallback solely to obtain PASS.
+  build64706: Completed0 but source changed during build by lane; diagnostic artifact only, fresh frozen-source rebuild required before qualification.
+
+L115_constant_refinement:
+  evidence: evidence/application-check-20260915/l115-first-candidate/diagnostic-direct.json
+  emitted_ir: '(eq e:0:65:0 c:1:65)'
+  observation: Diagnostic candidate still loses high bit; RHS literal65h10000000000000001 is truncated before runtime, so first-loss assessment was incomplete.
+  requirement: Preserve full-width literal serialization and solver parsing in the existing elaborate.cc/vvp_z3.cc scope as well as vector state/model/writeback transport. Rebuild only after a new source freeze; prior freezes withdrawn.

@@ -2401,3 +2401,10 @@ writeback paths, sharing L113 nested identities. Wide cyclic history and
 uint64-based exact enumeration remain separate unsupported mechanisms until
 implemented; no full-width randomization completion is inferred.
 Assessment: `evidence/application-check-20260915/next-wide-element-assessment/`.
+
+### L116 — first_match prefix with ranged source suffix
+
+REPRODUCED and SELECTED in ACTIVE_WORK. Both editions reject finite ranged
+same-clock suffixes after first_match. Preserve earliest wrapper commitment
+while retaining every valid suffix endpoint for plain/implication aggregation.
+Assessment: `evidence/application-check-20260915/next-sva-after-l114/`.
