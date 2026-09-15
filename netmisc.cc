@@ -49,6 +49,24 @@
 
 using namespace std;
 
+int64_t string_method_parse_integer(const string&text, unsigned base)
+{
+      uint32_t value = 0;
+      for (unsigned char ch : text) {
+	    if (ch == '_') continue;
+
+	    unsigned digit;
+	    if (ch >= '0' && ch <= '9') digit = ch - '0';
+	    else if (ch >= 'a' && ch <= 'f') digit = ch - 'a' + 10;
+	    else if (ch >= 'A' && ch <= 'F') digit = ch - 'A' + 10;
+	    else break;
+	    if (digit >= base) break;
+	    value = static_cast<uint32_t>(uint64_t(value) * base + digit);
+      }
+      return value >= UINT32_C(0x80000000)
+	   ? int64_t(value) - INT64_C(0x100000000) : int64_t(value);
+}
+
 ivl_type_t netexpr_type_for_equivalence(const NetExpr*expr)
 {
       if (!expr)

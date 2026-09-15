@@ -17305,32 +17305,6 @@ bool PECallFunction::check_string_method_arity_(Design*des,
  * expression of some sort (it's a parameter value) and most methods are
  * stable in the sense that they generate a constant value for a constant input.
  */
-static int32_t string_method_parse_integer_(const string&text, unsigned base)
-{
-      uint32_t value = 0;
-      bool saw_digit = false;
-      for (unsigned char ch : text) {
-	    if (ch == '_')
-		  continue;
-
-	    unsigned digit;
-	    if (ch >= '0' && ch <= '9')
-		  digit = ch - '0';
-	    else if (ch >= 'a' && ch <= 'f')
-		  digit = ch - 'a' + 10;
-	    else if (ch >= 'A' && ch <= 'F')
-		  digit = ch - 'A' + 10;
-	    else
-		  break;
-
-	    if (digit >= base)
-		  break;
-	    saw_digit = true;
-	    value = value * base + digit;
-      }
-      return saw_digit ? static_cast<int32_t>(value) : 0;
-}
-
 NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 						    const symbol_search_results&search_results)
 						    const
@@ -17422,7 +17396,7 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 
 	    if (method_name == "atoi") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 10));
+			       string_method_parse_integer(par_value, 10));
 	    }
 
 	    if (method_name == "atoreal") {
@@ -17433,17 +17407,17 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 
 	    if (method_name == "atohex") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 16));
+			       string_method_parse_integer(par_value, 16));
 	    }
 
 	    if (method_name == "atooct") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 8));
+			       string_method_parse_integer(par_value, 8));
 	    }
 
 	    if (method_name == "atobin") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 2));
+			       string_method_parse_integer(par_value, 2));
 	    }
 
 	    if (method_name == "toupper" || method_name == "tolower") {

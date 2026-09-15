@@ -1,0 +1,7 @@
+./ivltests/sv_const_string_integer_fail.v:3: error: String method `atoi' requires 0 arguments, got 1.
+./ivltests/sv_const_string_integer_fail.v:11: error: Unable to evaluate parameter ARITY value: sv_const_string_integer_fail.bad_arity("1")
+./ivltests/sv_const_string_integer_fail.v:6: error: String method `atohex' requires 0 arguments, got 1.
+./ivltests/sv_const_string_integer_fail.v:12: error: Unable to evaluate parameter HEX_ARITY value: sv_const_string_integer_fail.bad_hex_arity("f")
+./ivltests/sv_const_string_integer_fail.v:9: error: Object sv_const_string_integer_fail.wrong_receiver.value has no method "atobin(...)".
+./ivltests/sv_const_string_integer_fail.v:13: error: Unable to evaluate parameter TYPE value: sv_const_string_integer_fail.wrong_receiver(32'sd1)
+6 error(s) during elaboration.

@@ -1996,6 +1996,34 @@ NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 	    return res;
       }
 
+      unsigned string_integer_radix = 0;
+      if (strcmp(name_, "$ivl_string_method$atoi") == 0)
+	    string_integer_radix = 10;
+      else if (strcmp(name_, "$ivl_string_method$atohex") == 0)
+	    string_integer_radix = 16;
+      else if (strcmp(name_, "$ivl_string_method$atooct") == 0)
+	    string_integer_radix = 8;
+      else if (strcmp(name_, "$ivl_string_method$atobin") == 0)
+	    string_integer_radix = 2;
+      if (string_integer_radix && parms_.size() == 1) {
+	    NetExpr*arg = parms_[0]->evaluate_function(loc, context_map);
+	    if (arg == 0) return 0;
+	    const NetEConst*arg_const = dynamic_cast<const NetEConst*>(arg);
+	    if (arg_const == 0 || !arg_const->value().is_string()) {
+		  delete arg;
+		  return 0;
+	    }
+
+	    string text = arg_const->value().as_raw_string();
+	    delete arg;
+	    int64_t value = string_method_parse_integer(text, string_integer_radix);
+	    verinum result(static_cast<uint64_t>(value), 32);
+	    result.has_sign(true);
+	    NetEConst*res = new NetEConst(result);
+	    res->set_line(*this);
+	    return res;
+      }
+
       ID id = built_in_id_();
       if (id == NOT_BUILT_IN) {
 	    if (!warned_eval_string_len_fallback || strcmp(name_, "$ivl_string_method$len") != 0) {
