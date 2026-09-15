@@ -1,7 +1,7 @@
 id: CONSTRAINT-FUNCTION-PRESOLVE
 title: Evaluate function-valued class constraints before solving
 status: DONE
-base_revision: cc66db23e
+base_revision: 0c6d5994a
 allowed_scope:
   - Execute active function-valued class constraints against each runtime object after pre_randomize
   - Preserve constraint modes, inheritance, virtual and lexical nonvirtual dispatch, nested objects, and inline constraints
@@ -15,11 +15,11 @@ forbidden_scope:
   - DD030 packed-select increment and DD031 array-return changes
 focused_features_before_this: 0
 validation_batch: 20260914
-last_validated_revision: "Uncommitted nested-handle repair on cc66db23e: focused250/250 stable; permanent206/206 each harness stable; original4/4 and diagnostic2/2 each harness; malformed conditional operands4/4 and stateforeach15/15. Prior integrated5249/0fail preceded runtime repair; current full qualification remains pending."
+last_validated_revision: "4bc02c51b semantic implementation; local main0c6d5994a adds test-only trailing-whitespace cleanup. Seven gates passed the frozen implementation: legacy5253/0fail,JSON2189/0,UVM357/0/0realDPI,NFA58,release15smoke,frontend12,makecheck; focused250 and permanent206 each harness."
 pending_gates: "None for the evidenced L64 subset; seven current-artifact gates passed."
-next_action: "Commit and integrate qualified L64 locally, then return to coordinator blocker selection; remaining function/operand gaps stay explicitly open."
+next_action: "Coordinator selection: activate the next concrete conformance blocker from current evidence. L64 is locally integrated; remaining function/operand gaps remain open. Canonical graph refresh requires retained clean canonical checkout; do not update graph from this feature worktree."
 stop_after_completion: false
 
-local_integration: f57a08a78
+local_integration: 0c6d5994a
 
 l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,frontend12,makecheck pass; legacy5249/2fail and JSON2185/2fail share two diagnostic mismatches. Snapshot735sources/6artifacts/diff stable. Freeze released for minimal diagnostic repairs; golds unchanged, not qualified or integrated. Evidence qualification-corrected/summary.json."

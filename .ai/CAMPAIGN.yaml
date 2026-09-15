@@ -995,3 +995,5 @@ l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,fr
 l64_nested_handle_repair: "Runtime branch-read classification repaired; focused250/250 stable, permanent206/206 each harness, original4/4 and diagnostic2/2 each, malformed4/4, stateforeach15/15. Prior integrated5249/0fail predates runtime repair; current broad qualification pending. No integration. Session2026-09-14_constraint_function_presolve.md."
 
 l64_qualified: "All7 current-artifact gates pass: legacy5253/0fail,JSON2189/0,UVM357/0/0realDPI,NFA58,release15smoke,frontend12,makecheck. Snapshot749files/6artifacts/diff stable; manifest103editionpairs verified. L64 evidenced subset ready localintegration, full standards/application goals remain incomplete."
+
+l64_local_integration: "4bc02c51b semantic implementation plus0c6d5994a test-only whitespace cleanup fastforwardedlocalmain fromcc66db23e. Full7gates passed; no remote publication. Two existing trees retained, no eligible cleanup. Graph refresh pending clean canonical checkout; next phase coordinator blocker selection, full mission active."

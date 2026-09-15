@@ -89,5 +89,8 @@
     "permanent_per_harness": 206,
     "malformed_operands": 4
   },
-  "local_evidence": "evidence/batch-20260914-l64/qualification-nested-handle"
+  "local_evidence": "evidence/batch-20260914-l64/qualification-nested-handle",
+  "semantic_revision": "4bc02c51b",
+  "local_integration_revision": "0c6d5994a",
+  "post_qualification_change": "One trailing space removed from staged-state-size regression; compiler/runtime unchanged."
 }

@@ -1895,7 +1895,7 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 
 ### L64 — Function-valued constraint evaluation and argument ordering
 
-- **State:** QUALIFIED for the evidenced subset; local integration pending.
+- **State:** QUALIFIED for the evidenced subset; integrated locally in4bc02c51b /0c6d5994a.
 - **Active ID:** CONSTRAINT-FUNCTION-PRESOLVE.
 - **Root cause:** legal function-valued constraints were ignored or lacked typed
   per-object result transport and staged active-argument dependencies.
