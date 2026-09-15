@@ -205,3 +205,7 @@ The 2023 clauses18.4 and18.5.8/18.5.9 share the bounded implementation in the [2
 ## L86 shared multiclock delay-window evidence
 
 The 2023 sequence, implication, clock-flow and assertion-action clauses16.7,16.12.7,16.13 and16.14 share the bounded implementation in the [2017 matrix L86 entry](matrices/ieee1800_2017_clause_matrix.md#l86--multiclock-bounded-delay-window-antecedents). Separate edition regressions retain the shared semantics; repetition and broader multi-domain properties remain separate.
+
+## L91 shared finite repetition evidence
+
+The 2023 repetition, implication and nondegeneracy clauses share the bounded implementation in the [2017 matrix L91 entry](matrices/ieee1800_2017_clause_matrix.md#l91--finite-boolean-multiclock-repetition), with separate edition regressions and shared evidence.

@@ -13381,10 +13381,29 @@ pform_sva_repeat(const struct vlltype&loc,
 	    return steps;
       }
 
-	/* A zero lower bound has an empty match, which cannot be encoded by
-	   cloning a concrete first step. Record this boolean consecutive
-	   repetition for the automaton builder instead. */
-      if (lov == 0) {
+      bool grouped_repeat = steps->size() > 1;
+
+	/* Preserve a finite ranged repetition of one Boolean as an explicit
+	   automaton operation.  Besides representing the zero-copy alternative,
+	   this provenance prevents `(a ##1 b)[*m:n]' from being mistaken for a
+	   repetition of only its final term after ordinary chain expansion. */
+	if (!unbounded && hiv != lov) {
+	    bool plain_bool = steps->size() == 1
+		&& !(*steps)[0].lv_rhs && (*steps)[0].match_calls.empty()
+		&& (*steps)[0].rep_kind == 0
+		&& (*steps)[0].rep_tail == 0
+		&& (*steps)[0].delay_lo == 0 && (*steps)[0].delay_hi == 0;
+	    if (plain_bool) {
+		  (*steps)[0].rep_kind = 3;
+		  (*steps)[0].rep_lo = lov;
+		  (*steps)[0].rep_hi = hiv;
+		  return steps;
+	    }
+	}
+
+	/* An exact zero (or existing unbounded zero-lower) repetition is also an
+	   empty Boolean sequence and needs the same explicit representation. */
+	if (lov == 0) {
 	    bool plain_bool = steps->size() == 1
 		&& !(*steps)[0].lv_rhs && (*steps)[0].match_calls.empty()
 		&& (*steps)[0].rep_kind == 0
@@ -13396,9 +13415,9 @@ pform_sva_repeat(const struct vlltype&loc,
 	    }
 	    (*steps)[0].rep_kind = 3;
 	    (*steps)[0].rep_lo = 0;
-	    (*steps)[0].rep_hi = unbounded ? -1 : hiv;
+	    (*steps)[0].rep_hi = unbounded ? -1 : 0;
 	    return steps;
-      }
+	}
 
 	/* Clone the base list lov-1 times, concatenated with ##1. */
       std::vector<sva_seq_step_t> base = *steps;
@@ -13433,6 +13452,9 @@ pform_sva_repeat(const struct vlltype&loc,
 	    }
       }
       steps->back().rep_tail = unbounded ? -1 : (hiv - lov);
+      if (grouped_repeat)
+	    for (size_t k = 0; k < steps->size(); ++k)
+		  (*steps)[k].grouped_repeat = true;
       return steps;
 }
 
@@ -18687,6 +18709,27 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
 {
       long off = 0;
       if (window) *window = 0;
+
+      /* The parser retains a finite ranged Boolean repetition for the
+         antecedent NFA.  A consequent still uses the established earliest-
+         match lowering: materialize its minimum consecutive copies and keep
+         the optional longer alternatives as the trailing rep_tail marker. */
+      if (window && steps.size() == 1 && steps[0].rep_kind == 3
+          && steps[0].rep_lo > 0 && steps[0].rep_hi >= steps[0].rep_lo) {
+            long lo = steps[0].rep_lo;
+            long hi = steps[0].rep_hi;
+            steps[0].rep_kind = 0;
+            steps[0].rep_lo = steps[0].rep_hi = 0;
+            sva_seq_step_t base = steps[0];
+            for (long r = 1; r < lo; ++r) {
+                  sva_seq_step_t copy = base;
+                  copy.expr = sva_clone_expr_(base.expr);
+                  if (!copy.expr) return false;
+                  copy.delay_lo = copy.delay_hi = 1;
+                  steps.push_back(copy);
+            }
+            steps.back().rep_tail = hi - lo;
+      }
       for (size_t j = 0 ; j < steps.size() ; j += 1) {
 	    const sva_seq_step_t&st = steps[j];
 	    bool last = (j + 1 == steps.size());
@@ -18729,19 +18772,23 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
    general same-clock NFA engine owns repetitions, locals, and first_match. */
 static bool sva_mc_bounded_antecedent_nfa_(
 		const std::vector<sva_seq_step_t>&steps, sva_nfa_t&nfa,
-		long&depth)
+		long&depth, bool&accepts_empty)
 {
       bool ranged = false;
+      accepts_empty = false;
       for (size_t i = 0; i < steps.size(); ++i) {
 	    const sva_seq_step_t&st = steps[i];
 	    if (st.delay_lo < 0 || st.delay_hi < st.delay_lo
-		|| st.delay_hi < 0 || st.rep_kind || st.rep_tail
-		|| st.lv_rhs || st.fm || !st.match_calls.empty())
+		|| st.delay_hi < 0 || st.rep_tail
+		|| (st.rep_kind && (st.rep_kind != 3 || st.rep_lo < 0
+			|| st.rep_hi < st.rep_lo || st.rep_hi < 0))
+		|| st.grouped_repeat || st.lv_rhs || st.fm
+		|| !st.match_calls.empty())
 		  return false;
 	    PExpr*probe = sva_clone_expr_(st.expr);
 	    if (!probe) return false;
 	    delete probe;
-	    ranged |= st.delay_lo != st.delay_hi;
+	    ranged |= st.delay_lo != st.delay_hi || st.rep_kind == 3;
       }
       if (!ranged) return false;
 
@@ -18751,7 +18798,8 @@ static bool sva_mc_bounded_antecedent_nfa_(
 	  || pform_sva_nfa_has_cycle(nfa))
 	    return false;
       depth = pform_sva_nfa_depth(nfa);
-      if (depth <= 0 || depth > 64) return false;
+      accepts_empty = nfa.accepts_empty;
+      if ((!accepts_empty && depth <= 0) || depth > 64) return false;
 
       bool terminal = false;
       for (size_t i = 0; i < nfa.edges.size(); ++i) {
@@ -18762,7 +18810,7 @@ static bool sva_mc_bounded_antecedent_nfa_(
 		  delete probe;
 	    }
       }
-      return terminal;
+	return terminal || accepts_empty;
 }
 
 /* Absolute-key producer storage for L86's cross-clock record stream.
@@ -18878,6 +18926,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       std::vector<PExpr*> a_slots, p_slots, b_slots;
       sva_nfa_t a_nfa;
       long a_depth = 0;
+      bool antecedent_accepts_empty = false;
       bool ranged_antecedent = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
@@ -18888,7 +18937,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    sva_splice_sequences_(loc, *prop->seq);
 	    if (prop->antecedent)
 		  ranged_antecedent = sva_mc_bounded_antecedent_nfa_(
-			*prop->antecedent, a_nfa, a_depth);
+			*prop->antecedent, a_nfa, a_depth,
+			antecedent_accepts_empty);
 	    if (prop->antecedent && !ranged_antecedent
 		&& !sva_mc_expand_chain_(*prop->antecedent, a_slots))
 		  why = "a multiclocked implication whose ANTECEDENT is not "
@@ -18910,6 +18960,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
       }
+      if (!why && ranged_antecedent && antecedent_accepts_empty
+          && a_depth == 0 && prop->mc_boundary == 0)
+            why = "an overlapped implication with a degenerate empty "
+                  "antecedent";
       if (why) {
 	    cerr << loc << ": sorry: " << why << " is not supported "
 		 << "(IEEE 1800-2017 16.13); the assertion is dropped."
@@ -18927,7 +18981,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       perm_string ack = sva_make_reg_(loc, inst, "mcack", 0, true);
       perm_string req_epoch = sva_make_reg_(loc, inst, "mcrep", 0, true);
       perm_string rec_kind, rec_parent, rec_reclaim, rec_match_reclaim;
-      perm_string parent_next, rec_emit;
+      perm_string parent_next, rec_emit, empty_req;
       perm_string life_ack;
       std::vector< std::vector<perm_string> > ran_state;
       std::vector< std::vector<perm_string> > ran_next;
@@ -18941,6 +18995,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    rec_emit = sva_make_reg_(loc, inst, "mcremit", 0, true);
 	    life_ack = sva_make_reg_(loc, inst, "mclack", 0, true);
 	    parent_next = sva_make_reg_(loc, inst, "mcparent", 0, true);
+	    if (antecedent_accepts_empty)
+		  empty_req = sva_make_reg_(loc, inst, "mcerq", 0, true);
 	    ran_state.resize(ran_slots);
 	    ran_next.resize(ran_slots);
 	    ran_parent.resize(ran_slots);
@@ -19123,7 +19179,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			mc_pre1.push_back(sva_assign_(loc, reg, truth));
 			ran_guard[key] = reg;
 		  }
-	    ivl_assert(loc, !ran_guard.empty());
+	    /* An exact [*0] antecedent has only an epsilon match and therefore
+	       requires no sampled guard register. */
       }
 
 	/* M9-7: antecedent PIPELINE in the c1 domain. pa_k = "an
@@ -19155,14 +19212,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k, true);
 
       perm_string par_pending, par_matched, par_closed, par_failed;
-      perm_string par_reported, rec_scan, rec_kind_tmp, rec_parent_tmp;
-      perm_string source_parent_tmp;
+      perm_string par_reported, rec_scan, empty_scan;
+      perm_string rec_kind_tmp, rec_parent_tmp;
+      perm_string source_parent_tmp, source_empty_tmp;
       perm_string life_kind_tmp, life_parent_tmp;
       perm_string result_kind, result_parent, result_req, result_scan;
       perm_string agg_epoch;
       perm_string cover_req, cover_ack, cover_due;
       std::vector<perm_string> tag_data, tag_head, tag_tail, tag_stop;
-      std::vector<perm_string> ptag_data, ptag_head, ptag_tail, ptag_stop;
+      std::vector<perm_string> ptag_data, ptag_empty;
+      std::vector<perm_string> ptag_head, ptag_tail, ptag_stop;
       size_t prefix_offset = (!plain && Tp && prop->op_type == 2) ? 1 : 0;
       size_t prefix_stages = ranged_antecedent && Tp
 	    ? Tp + prefix_offset : 0;
@@ -19173,9 +19232,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    par_failed = sva_make_assoc_reg_(loc, inst, "mcpfail", 0, 1);
 	    par_reported = sva_make_assoc_reg_(loc, inst, "mcpreport", 0, 1);
 	    rec_scan = sva_make_reg_(loc, inst, "mcrscan", 0, true);
+	    if (antecedent_accepts_empty)
+		  empty_scan = sva_make_reg_(loc, inst, "mcescan", 0, true);
 	    rec_kind_tmp = sva_make_reg_(loc, inst, "mcrktmp", 0, true);
 	    rec_parent_tmp = sva_make_reg_(loc, inst, "mcrptmp", 0, true);
 	    source_parent_tmp = sva_make_reg_(loc, inst, "mcsptmp", 0, true);
+	    source_empty_tmp = sva_make_reg_(loc, inst, "mcsetmp", 0);
 	    life_kind_tmp = sva_make_reg_(loc, inst, "mclktmp", 0, true);
 	    life_parent_tmp = sva_make_reg_(loc, inst, "mclptmp", 0, true);
 	    result_kind = sva_make_assoc_reg_(loc, inst, "mcreskind", 0, 1);
@@ -19199,11 +19261,13 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  tag_stop[k] = sva_make_reg_(loc, inst, "mctags", k, true);
 	    }
 	    ptag_data.resize(prefix_stages);
+	    ptag_empty.resize(prefix_stages);
 	    ptag_head.resize(prefix_stages);
 	    ptag_tail.resize(prefix_stages);
 	    ptag_stop.resize(prefix_stages);
 	    for (size_t k = 0; k < prefix_stages; ++k) {
 		  ptag_data[k] = sva_make_assoc_reg_(loc, inst, "mcptag", k, 64);
+		  ptag_empty[k] = sva_make_assoc_reg_(loc, inst, "mcpemp", k, 1);
 		  ptag_head[k] = sva_make_reg_(loc, inst, "mcptagh", k, true);
 		  ptag_tail[k] = sva_make_reg_(loc, inst, "mcptagt", k, true);
 		  ptag_stop[k] = sva_make_reg_(loc, inst, "mcptags", k, true);
@@ -19220,7 +19284,11 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    initv.push_back(sva_assign_(loc, rec_match_reclaim,
 					   sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, parent_next, sva_num32_(loc, 0)));
+	    if (antecedent_accepts_empty)
+		  initv.push_back(sva_assign_(loc, empty_req, sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, rec_scan, sva_num32_(loc, 0)));
+	    if (antecedent_accepts_empty)
+		  initv.push_back(sva_assign_(loc, empty_scan, sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, life_ack, sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, result_req, sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, result_scan, sva_num32_(loc, 0)));
@@ -19329,10 +19397,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  PEBComp*life_seen = new PEBComp(
 			'<', sva_id_(loc, rec_reclaim), sva_id_(loc, life_ack));
 		  FILE_NAME(life_seen, loc);
-		  PEBComp*is_reclaim_match = new PEBComp(
+		  PEBComp*is_reclaim_regular = new PEBComp(
 			'e', sva_index_(loc, rec_kind, sva_id_(loc, rec_reclaim)),
 			new PENumber(new verinum((uint64_t)1, 3)));
-		  FILE_NAME(is_reclaim_match, loc);
+		  FILE_NAME(is_reclaim_regular, loc);
+		  PEBComp*is_reclaim_empty = new PEBComp(
+			'e', sva_index_(loc, rec_kind, sva_id_(loc, rec_reclaim)),
+			new PENumber(new verinum((uint64_t)5, 3)));
+		  FILE_NAME(is_reclaim_empty, loc);
+		  PExpr*is_reclaim_match = sva_logic_(loc, 'o',
+			is_reclaim_regular, is_reclaim_empty);
 		  std::vector<Statement*>life_free_one;
 		  std::vector<Statement*>delete_lifecycle;
 		  delete_lifecycle.push_back(sva_assoc_delete_(
@@ -19376,16 +19450,17 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  FILE_NAME(match_reclaim, loc);
 		  body1.push_back(match_reclaim);
 
-		  auto append_source_tag = [&](std::vector<perm_string>&data,
-			std::vector<perm_string>&tail, size_t stage,
-			PExpr*parent) -> Statement* {
+		  auto append_source_tag = [&](size_t stage, PExpr*parent,
+			PExpr*empty) -> Statement* {
 			std::vector<Statement*>put;
-			put.push_back(sva_assign_index_(loc, data[stage],
-			      sva_id_(loc, tail[stage]), parent));
+			put.push_back(sva_assign_index_(loc, ptag_data[stage],
+			      sva_id_(loc, ptag_tail[stage]), parent));
+			put.push_back(sva_assign_index_(loc, ptag_empty[stage],
+			      sva_id_(loc, ptag_tail[stage]), empty));
 			PEBinary*next = new PEBinary(
-			      '+', sva_id_(loc, tail[stage]), sva_num32_(loc, 1));
+			      '+', sva_id_(loc, ptag_tail[stage]), sva_num32_(loc, 1));
 			FILE_NAME(next, loc);
-			put.push_back(sva_assign_(loc, tail[stage], next));
+			put.push_back(sva_assign_(loc, ptag_tail[stage], next));
 			return sva_block_(loc, put);
 		  };
 
@@ -19409,6 +19484,29 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 						 : sva_bit_(loc, 0)));
 			take.push_back(emit_record(
 			      0, sva_id_(loc, parent_next), nullptr));
+			if (antecedent_accepts_empty) {
+			      if (prefix_stages) {
+				    take.push_back(emit_record(
+					  4, sva_id_(loc, parent_next), nullptr));
+				    take.push_back(append_source_tag(
+					  prefix_offset, sva_id_(loc, parent_next),
+					  sva_bit_(loc, 1)));
+			      } else {
+				    /* Kind 5 is a c2 obligation whose nonoverlapped
+				       implication boundary is still the nearest c2 tick:
+				       an empty match does not add a source-clock tick. */
+				    take.push_back(emit_record(
+					  5, sva_id_(loc, parent_next), nullptr));
+			      }
+			      take.push_back(sva_assign_(loc, empty_req,
+						 sva_id_(loc, rec_emit)));
+			      if (a_depth == 0) {
+				    take.push_back(emit_record(
+					  2, sva_id_(loc, parent_next), nullptr));
+				    take.push_back(sva_assign_(loc, ran_live[k],
+							 sva_bit_(loc, 0)));
+			      }
+			}
 			PEBinary*np = new PEBinary(
 			      '+', sva_id_(loc, parent_next), sva_num32_(loc, 1));
 			FILE_NAME(np, loc);
@@ -19445,8 +19543,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 				    start_prefix.push_back(emit_record(
 					  4, sva_id_(loc, ran_parent[k]), nullptr));
 				    start_prefix.push_back(append_source_tag(
-					  ptag_data, ptag_tail, 0,
-					  sva_id_(loc, ran_parent[k])));
+					  0, sva_id_(loc, ran_parent[k]),
+					  sva_bit_(loc, 0)));
 				    endpoint = sva_block_(loc, start_prefix);
 			      } else {
 				    endpoint = emit_record(
@@ -19524,7 +19622,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			one.push_back(sva_assign_(loc, source_parent_tmp,
 			      sva_index_(loc, ptag_data[k],
 				    sva_id_(loc, ptag_head[k]))));
+			one.push_back(sva_assign_(loc, source_empty_tmp,
+			      sva_index_(loc, ptag_empty[k],
+				    sva_id_(loc, ptag_head[k]))));
 			one.push_back(sva_assoc_delete_(loc, ptag_data[k],
+						 sva_id_(loc, ptag_head[k])));
+			one.push_back(sva_assoc_delete_(loc, ptag_empty[k],
 						 sva_id_(loc, ptag_head[k])));
 			PEBinary*hn = new PEBinary(
 			      '+', sva_id_(loc, ptag_head[k]), sva_num32_(loc, 1));
@@ -19533,10 +19636,25 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 
 			bool delay_stage = prefix_offset && k == 0;
 			bool final_stage = k + 1 == prefix_stages;
-			Statement*advance = final_stage
-			      ? emit_record(1, sva_id_(loc, source_parent_tmp), nullptr)
-			      : append_source_tag(ptag_data, ptag_tail, k+1,
-					  sva_id_(loc, source_parent_tmp));
+			Statement*advance;
+			if (final_stage && antecedent_accepts_empty) {
+			      std::vector<Statement*>empty_success;
+			      empty_success.push_back(emit_record(
+				    5, sva_id_(loc, source_parent_tmp), nullptr));
+			      empty_success.push_back(sva_assign_(
+				    loc, empty_req, sva_id_(loc, rec_emit)));
+			      advance = sva_if_(loc, sva_id_(loc, source_empty_tmp),
+				    sva_block_(loc, empty_success),
+				    emit_record(1, sva_id_(loc, source_parent_tmp),
+						nullptr));
+			} else if (final_stage) {
+			      advance = emit_record(
+				    1, sva_id_(loc, source_parent_tmp), nullptr);
+			} else {
+			      advance = append_source_tag(
+				    k+1, sva_id_(loc, source_parent_tmp),
+				    sva_id_(loc, source_empty_tmp));
+			}
 			if (delay_stage) {
 			      one.push_back(advance);
 			} else if (!p_slots[k-prefix_offset]) {
@@ -19703,6 +19821,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (ranged_antecedent)
 		  for (size_t k = 0; k < prefix_stages; ++k) {
 			clear.push_back(sva_assoc_delete_(loc, ptag_data[k], nullptr));
+			clear.push_back(sva_assoc_delete_(loc, ptag_empty[k], nullptr));
 			clear.push_back(sva_assign_(loc, ptag_head[k], sva_num32_(loc, 0)));
 			clear.push_back(sva_assign_(loc, ptag_tail[k], sva_num32_(loc, 0)));
 			clear.push_back(sva_assign_(loc, ptag_stop[k], sva_num32_(loc, 0)));
@@ -19730,6 +19849,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 						   sva_num32_(loc, 0)));
 		  clear.push_back(sva_assign_(loc, parent_next,
 						   sva_num32_(loc, 0)));
+		  if (antecedent_accepts_empty)
+			clear.push_back(sva_assign_(loc, empty_req,
+						     sva_num32_(loc, 0)));
 	    }
 	    clear.push_back(sva_assign_(
 		  loc, req_epoch, sva_kill_generation_expr_(loc, inst)));
@@ -19785,6 +19907,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       }
 
       std::vector<Statement*> body2;
+      std::vector<Statement*> boundary_pre2;
+      bool empty_nonoverlap = ranged_antecedent && antecedent_accepts_empty
+	    && !overlap_boundary;
 	/* Per-tick failure count: every stage (mid-chain or final) that
 	   sees its boolean false adds its obligation multiplicity; the
 	   shared fail action executes that many times at the end of the
@@ -19803,6 +19928,13 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    clear.push_back(sva_assign_(loc, ack, ack_value));
 	    if (ranged_antecedent) {
 		  clear.push_back(sva_assign_(loc, rec_scan, scan_value));
+		  if (antecedent_accepts_empty)
+			/* Source epoch reset restarts the empty stream at key zero.
+			   A fresh source attempt may already have emitted before c2
+			   performs this lazy reset, so catching up to empty_req here
+			   would swallow that new-epoch obligation. */
+			clear.push_back(sva_assign_(loc, empty_scan,
+					sva_num32_(loc, 0)));
 	    } else {
 		  delete scan_value;
 	    }
@@ -19827,9 +19959,13 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   is visible after the enclosing Inactive-region #0. The epoch is
 	   captured with the count so a later lazy kill reset cannot discard a
 	   request that was launched after `$asserton'. */
-      body2.push_back(sva_assign_(loc, req_snapshot, sva_id_(loc, req)));
-      body2.push_back(sva_assign_(loc, epoch_snapshot,
-				 sva_id_(loc, req_epoch)));
+      std::vector<Statement*>&snapshot_body = empty_nonoverlap
+	    ? boundary_pre2 : body2;
+      snapshot_body.push_back(sva_assign_(
+	    loc, req_snapshot, sva_id_(loc, req)));
+      snapshot_body.push_back(sva_assign_(
+	    loc, epoch_snapshot, sva_id_(loc, req_epoch)));
+
 	/* `due' must be captured before this wait: for ##1 it must not see a
 	   coincident c1 NBA, while for ##0 the enclosing #0 has already made
 	   the coincident blocking request visible. The verdict itself is then
@@ -20028,11 +20164,11 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  sva_index_(loc, rec_kind, sva_id_(loc, rec_scan))));
 	    record_one.push_back(sva_assign_(loc, rec_parent_tmp,
 		  sva_index_(loc, rec_parent, sva_id_(loc, rec_scan))));
-	    PEBComp*match_record = new PEBComp(
+	    PEBComp*regular_match_record = new PEBComp(
 		  'e', sva_id_(loc, rec_kind_tmp),
 		  new PENumber(new verinum((uint64_t)1, 3)));
-	    FILE_NAME(match_record, loc);
-	    record_one.push_back(sva_if_(loc, match_record,
+	    FILE_NAME(regular_match_record, loc);
+	    record_one.push_back(sva_if_(loc, regular_match_record,
 		  append_tag(0, sva_id_(loc, rec_parent_tmp)), nullptr));
 	    PEBinary*scan_next = new PEBinary(
 		  '+', sva_id_(loc, rec_scan), sva_num32_(loc, 1));
@@ -20044,6 +20180,34 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    epoch_body.push_back(record_loop);
 	    epoch_body.push_back(sva_assign_nb_(loc, ack,
 						  sva_id_(loc, rec_scan)));
+
+	    /* Empty matches have a blocking high-water mark independent of req.
+	       This lets nonoverlapped |=> observe the nearest coincident c2 tick
+	       without exposing regular c1 endpoints emitted later that timestamp. */
+	    if (antecedent_accepts_empty) {
+		  PEBComp*empty_records = new PEBComp(
+			'<', sva_id_(loc, empty_scan), sva_id_(loc, empty_req));
+		  FILE_NAME(empty_records, loc);
+		  std::vector<Statement*>empty_one;
+		  empty_one.push_back(sva_assign_(loc, rec_kind_tmp,
+			sva_index_(loc, rec_kind, sva_id_(loc, empty_scan))));
+		  empty_one.push_back(sva_assign_(loc, rec_parent_tmp,
+			sva_index_(loc, rec_parent, sva_id_(loc, empty_scan))));
+		  PEBComp*is_empty = new PEBComp(
+			'e', sva_id_(loc, rec_kind_tmp),
+			new PENumber(new verinum((uint64_t)5, 3)));
+		  FILE_NAME(is_empty, loc);
+		  empty_one.push_back(sva_if_(loc, is_empty,
+			append_tag(0, sva_id_(loc, rec_parent_tmp)), nullptr));
+		  PEBinary*empty_next = new PEBinary(
+			'+', sva_id_(loc, empty_scan), sva_num32_(loc, 1));
+		  FILE_NAME(empty_next, loc);
+		  empty_one.push_back(sva_assign_(loc, empty_scan, empty_next));
+		  PWhile*empty_loop = new PWhile(
+			empty_records, sva_block_(loc, empty_one));
+		  FILE_NAME(empty_loop, loc);
+		  epoch_body.push_back(empty_loop);
+	    }
 
 	    /* Descending stage order gives nonblocking-pipeline timing while the
 	       tag FIFOs themselves have one c2 writer. New stage k+1 entries are
@@ -20117,15 +20281,29 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 				     sva_block_(loc, body2)));
 	    body2.swap(gated2);
       }
-      std::vector<Statement*> full2 = mc_pre2;
-      full2.insert(full2.end(), body2.begin(), body2.end());
-      full2.insert(full2.end(), mc_post2.begin(), mc_post2.end());
-      Statement*c2body = sva_block_(loc, full2);
-      if (overlap_boundary) {
+      Statement*c2body;
+      if (empty_nonoverlap) {
+	    std::vector<Statement*>after = body2;
+	    after.insert(after.end(), mc_post2.begin(), mc_post2.end());
 	    PDelayStatement*z = new PDelayStatement(
-		  sva_num32_(loc, 0), c2body);
+		  sva_num32_(loc, 0), sva_block_(loc, after));
 	    FILE_NAME(z, loc);
-	    c2body = z;
+	    std::vector<Statement*>before = mc_pre2;
+	    before.insert(before.end(), boundary_pre2.begin(),
+			  boundary_pre2.end());
+	    before.push_back(z);
+	    c2body = sva_block_(loc, before);
+      } else {
+	    std::vector<Statement*>full2 = mc_pre2;
+	    full2.insert(full2.end(), body2.begin(), body2.end());
+	    full2.insert(full2.end(), mc_post2.begin(), mc_post2.end());
+	    c2body = sva_block_(loc, full2);
+	    if (overlap_boundary) {
+		  PDelayStatement*z = new PDelayStatement(
+			sva_num32_(loc, 0), c2body);
+		  FILE_NAME(z, loc);
+		  c2body = z;
+	    }
       }
       c2->set_statement(c2body);
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
@@ -20219,9 +20397,19 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    life_one.push_back(sva_if_(loc, is_start,
 					 sva_block_(loc, start_parent), nullptr));
 
-	    PEBComp*is_match = new PEBComp('e', sva_id_(loc, life_kind_tmp),
-					     new PENumber(new verinum(
-						   (uint64_t)(prefix_stages ? 4 : 1), 3)));
+	    PEBComp*is_regular_pending = new PEBComp(
+		  'e', sva_id_(loc, life_kind_tmp),
+		  new PENumber(new verinum(
+			(uint64_t)(prefix_stages ? 4 : 1), 3)));
+	    FILE_NAME(is_regular_pending, loc);
+	    PExpr*is_match = is_regular_pending;
+	    if (!prefix_stages) {
+		  PEBComp*is_empty_pending = new PEBComp(
+			'e', sva_id_(loc, life_kind_tmp),
+			new PENumber(new verinum((uint64_t)5, 3)));
+		  FILE_NAME(is_empty_pending, loc);
+		  is_match = sva_logic_(loc, 'o', is_match, is_empty_pending);
+	    }
 	    FILE_NAME(is_match, loc);
 	    PEBinary*pend_add = new PEBinary('+', at_parent(par_pending),
 					       sva_num32_(loc, 1));

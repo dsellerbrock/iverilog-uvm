@@ -216,7 +216,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 		 otherwise `[ *0:$] ##0 tail' skips checking the first copy and
 		 can survive a terminating condition for one cycle too long. */
 	    if (st.rep_kind == 3) {
-		  if (m != 0 || (!ub && n < 0) || st.rep_tail != 0)
+		  if (m < 0 || (!ub && n < m) || st.rep_tail != 0)
 			return ~0u;
 		  /* The generic delay prefix above emitted fixed-1 ticks because
 		     an ordinary nonempty step places its expression on the final
@@ -229,7 +229,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 			cur = arrival;
 		  }
 		  unsigned exit = nfa.new_state();
-		  nfa.eps(cur, exit);
+		  if (m == 0) nfa.eps(cur, exit);
 		  if (!ub && n == 0) return exit;
 		  unsigned prev;
 		  if (first && fixed == 0) {
@@ -239,14 +239,14 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 			prev = nfa_fuse_arrival_(nfa, cur, st.expr);
 			if (prev == ~0u) return ~0u;
 		  }
-		  nfa.eps(prev, exit);
+		  if (m <= 1) nfa.eps(prev, exit);
 		  if (ub) {
 			nfa.tick(prev, prev, st.expr);
 		  } else {
 			for (long i = 2; i <= n; i += 1) {
 			      unsigned nxt = nfa.new_state();
 			      nfa.tick(prev, nxt, st.expr);
-			      nfa.eps(nxt, exit);
+			      if (i >= m) nfa.eps(nxt, exit);
 			      prev = nxt;
 			}
 		  }
@@ -614,6 +614,27 @@ static bool nfa_chain_fragment_(sva_nfa_t&nfa,
       return true;
 }
 
+static bool nfa_accepts_empty_(const sva_nfa_t&nfa)
+{
+      if (nfa.start == nfa.accept) return true;
+      std::vector<bool>seen(nfa.nstates, false);
+      std::vector<unsigned>todo;
+      todo.push_back(nfa.start);
+      seen[nfa.start] = true;
+      while (!todo.empty()) {
+	    unsigned cur = todo.back();
+	    todo.pop_back();
+	    for (size_t i = 0; i < nfa.edges.size(); ++i) {
+		  const sva_nfa_edge_t&edge = nfa.edges[i];
+		  if (!edge.epsilon || edge.from != cur || seen[edge.to]) continue;
+		  if (edge.to == nfa.accept) return true;
+		  seen[edge.to] = true;
+		  todo.push_back(edge.to);
+	    }
+      }
+      return false;
+}
+
 bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 				    const std::vector<sva_seq_step_t>&steps)
 {
@@ -622,6 +643,7 @@ bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 	    return false;
       nfa.start = s;
       nfa.accept = e;
+      nfa.accepts_empty = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return true;
@@ -801,6 +823,7 @@ bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
 	    return false;
       nfa.start = s;
       nfa.accept = e;
+      nfa.accepts_empty = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return true;

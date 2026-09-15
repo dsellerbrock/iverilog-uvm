@@ -24,7 +24,8 @@ records retain their original revisions and limits.
 [L87 selected-element ordering](session_logs/2026-09-14_joint_element_ordering.md),
 [L88 dynamic-array ordering](session_logs/2026-09-15_joint_dynamic_element_ordering.md),
 [L89 queue ordering](session_logs/2026-09-15_joint_queue_element_ordering.md),
-and [L86 multiclock antecedents](session_logs/2026-09-15_multiclock_bounded_antecedents.md)
+[L86 multiclock antecedents](session_logs/2026-09-15_multiclock_bounded_antecedents.md),
+and [L91 finite repetition](session_logs/2026-09-15_multiclock_boolean_repetition.md)
 record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence

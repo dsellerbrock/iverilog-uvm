@@ -1418,3 +1418,7 @@ IMPLEMENTED for the [recorded constant integral/enum queue subset](../session_lo
 ### L86 — Multiclock bounded delay-window antecedents
 
 IMPLEMENTED for the [recorded finite delay-window subset](../session_logs/2026-09-15_multiclock_bounded_antecedents.md), retaining every endpoint and one verdict per parent across clock handoff, prefix evaluation and cancellation. Repetition and broader SVA remain PARTIAL; broad qualification is pending.
+
+### L91 — Finite Boolean multiclock repetition
+
+IMPLEMENTED within the [recorded finite Boolean repetition subset](../session_logs/2026-09-15_multiclock_boolean_repetition.md), including legal empty alternatives and parent-level verdicts. Broader repetition and SVA remain PARTIAL; broad qualification is pending.

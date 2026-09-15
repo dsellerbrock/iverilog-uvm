@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: PARALLEL-BATCH-L90-L91
+current_blocker: L90-ENUM-CONTAINER-PACKED-SELECTS
 phase: parallel_implementation
 source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
@@ -78,9 +78,6 @@ active_lanes:
   - id: L90-ENUM-CONTAINER-PACKED-SELECTS
     agent: /root/constraint_abi
     files: elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc
-  - id: L91-MULTICLOCK-BOOLEAN-CONSECUTIVE-REPETITION
-    agent: /root/constraint_wide
-    files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h, parse_misc.h
 shared_execution_owner: coordinator
 parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
 
@@ -113,13 +110,13 @@ l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
 
 current_batch:
   base_revision: fd500e2b5
-  focused_features: 5
+  focused_features: 6
   integrated_l85: 9f416e09a
   integrated_l87: 831cdeca2
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
   integrated_l86: 13fee7ec9
-  selected_lanes: [L90, L91]
+  selected_lanes: [L90]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -176,3 +173,6 @@ l90_runtime_refinement: "Object-stack partial vector store authorized after targ
 l90_l91_build_checkpoint: "Compiler source frozen; combined build/install running as session50943, log evidence/batch-20260914-after-l84/l90-l91-first-compiler-build.log. L90 target/runtime source work continues; no harness running. Re-poll this process before starting any new build."
 
 l90_l91_latest_checkpoint: "L90 third build failed because NetExpr::set_net_type is protected; ABI lane repairing. L91 initial6perharnesspass, expanded direct positive kill/restart fails; wide lane repairing. DD032 fixed-path assertion enable debt recorded separately. Evidence folders preserve all first/second failures. Both existing agents reused, no new worktrees."
+
+l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolean_repetition_validation.json
+l91_integration_checkpoint: "Six integrated focused fixes after L91; next independent lane selection pending. L90 remains active; target-only object pop repair pending build. No shared process running."

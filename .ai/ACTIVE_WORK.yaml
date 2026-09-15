@@ -1,5 +1,5 @@
-id: PARALLEL-BATCH-L90-L91
-title: Enum container packed selects and finite Boolean multiclock repetition
+id: L90-ENUM-CONTAINER-PACKED-SELECTS
+title: Enum container packed selects; next independent lane selection pending
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
@@ -19,23 +19,9 @@ lanes:
     forbidden_scope: "Whole-enum conversion relaxation, object/real containers, array-return expansion, unrelated parser/runtime changes, pform/SVA/solver sources, fabricated values or ignored indices."
     dependencies: "L89 integrated1ffe476b6; independent of L86. Root owns shared builds/install, harnesses/manifests, documentation/integration."
     acceptance: "Both editions: dynamic/queue element bit/fixed/indexed +/- reads and blocking writes, signed/ascending and2/4-state enum bases, full-width selected vector vs nominal whole-enum typing, side-effectful selectors/RHS exactly once, neighbor preservation, X/OOB defaults and suppressed writes, const/readonly negatives; compound/incdec generic lvalue controls and non-enum neighbors."
-  - id: L91-MULTICLOCK-BOOLEAN-CONSECUTIVE-REPETITION
-    parent: S02
-    agent: /root/constraint_wide
-    status: REPRODUCED
-    standards: "IEEE1800-2017/2023 16.9.2,16.9.2.1,16.12.7,16.13 and16.14. Verify empty-match handoff separately for each implication form."
-    reproducer: evidence/batch-20260914-after-l84/next-repeat-assessment/multiclock_bounded_repeat.sv
-    actual: "Both editions reject a[*1:2] as a multiclock antecedent; expected one parent failure after the second endpoint child fails."
-    expected: "Finite consecutive repetition of Boolean expressions retains every permitted match and one parent verdict through the L86 engine, including standards-correct zero-count/empty composition where legal."
-    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h, parse_misc.h]
-    test_prefix: sv_assert_multiclock_boolean_repeat
-    allowed_scope: "Finite literal-bound Boolean expr[*m:n] in otherwise supported single-clock antecedent chains, including m=0, internal/trailing repetitions, and existing fixed first-clock consequent prefixes. Reuse finite NFA expansion and L86 parent transport. Add minimal repetition provenance if needed to distinguish Boolean operands from unsupported grouped sequences; preserve every empty/nonempty endpoint according to each implication clock rule."
-    forbidden_scope: "Unbounded or goto/nonconsecutive repetition, grouped multi-step repetition silently treated as last-expression repetition, symbolic-bound redesign, general locals/match-action operators, L90 expression/lvalue files, new runtime scheduler architecture. Diagnose remaining forms."
-    dependencies: "L86 integrated13fee7ec9; independent of L90. Root owns all shared builds/install/harnesses/main manifests/docs."
-    acceptance: "Both editions: multiple endpoints and parents, m=0/1/>1 and m=n, internal/zero-delay composition and legal empty-match handoff, |->/|=> and fixed prefixes, sampled vector truth, early failure/vacuity, disable/kill/restart, paused-clock backlog,64tick boundary and unsupported grouped/unbounded controls; L86 and NFA neighbors. Do not reduce this ticket to only positive-lower-bound repetition."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 5
+focused_features_completed_in_batch: 6
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -71,3 +57,5 @@ l86_integration_revision: 13fee7ec9
 l90_scope_refinement: "First focused run exposes nested SELECT-over-PROPERTY incdec rejection in eval_vec4.c. Coordinator authorizes narrow target lowering using existing captured receiver/word/base and partial-property store machinery; no new runtime opcode. Preserve enum BOOL base type in packed selection rather than relying solely on its vector carrier. Evidence l90-first-focused.json; IEEE2017/2023 11.5.1 invalid bit defaults remain required."
 
 l90_runtime_refinement: "Target review proves existing partial dynamic-array opcode requires a signal receiver; class-property container object needs an object-stack partial store. Coordinator authorizes vvp/vthread.cc,codes.h,compile.cc for a narrow object partial-vector store using existing container mutation/notification and clipping helpers. No new storage model. Preserve receiver/index evaluation, invalid-index no-op, packed bounds clipping, result value and two-state conversion. This remains L90 correctness, not a separate counted fix."
+
+l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolean_repetition_validation.json
