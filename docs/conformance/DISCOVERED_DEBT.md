@@ -1698,3 +1698,5 @@ routes return signals through scalar `%ret/real`, so removing the read asserts
 alone would not be sufficient. Reuse the existing array load/store paths for
 array return storage, retaining the scalar return path only for scalar values.
 Evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/compound-baseline.json`.
+
+DD-031 L66: real/string return-array element reads and writes, including real compound updates, are implemented with focused validation. Scalar return handling is now restricted to scalar signals; array paths preserve typed storage. Root28/28 paired outcomes, permanent8/8 per harness, neighbors4/4. See session_logs/2026-09-14_typed_array_return_elements.md. Broad qualification remains at the next batch checkpoint.

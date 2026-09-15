@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_real_uarray_return_compound.v",
+    "iverilog-args": [ "-g2017", "-s", "sv_real_uarray_return_compound" ],
+    "gold": "sv_real_uarray_return_compound"
+}

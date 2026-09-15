@@ -2561,8 +2561,6 @@ static void get_real_from_lval(ivl_lval_t lval, struct real_lval_info*slice)
 
       } else if (ivl_signal_dimensions(sig) > 0 && word_ix == 0) {
 
-	    assert(!signal_is_return_value(sig)); // NOT IMPLEMENTED
-
 	    slice->type = REAL_MEMORY_WORD_STATIC;
 	    slice->u_.memory_word_static.use_word = use_word;
 	    if (use_word < ivl_signal_array_count(sig)) {
@@ -2575,8 +2573,6 @@ static void get_real_from_lval(ivl_lval_t lval, struct real_lval_info*slice)
 	    }
 
       } else if (ivl_signal_dimensions(sig) > 0 && word_ix != 0) {
-
-	    assert(!signal_is_return_value(sig)); // NOT IMPLEMENTED
 	    slice->type = REAL_MEMORY_WORD_DYNAMIC;
 
 	    slice->u_.memory_word_dynamic.word_idx_reg = allocate_word();
@@ -2598,7 +2594,7 @@ static void put_real_to_lval(ivl_lval_t lval, struct real_lval_info*slice)
 	/* Special Case: If the l-value signal is named after its scope,
 	   and the scope is a function, then this is an assign to a return
 	   value and should be handled differently. */
-      if (signal_is_return_value(sig)) {
+      if (signal_is_return_value(sig) && ivl_signal_dimensions(sig) == 0) {
 	    assert(slice->u_.simple_word.use_word == 0);
 	    fprintf(vvp_out, "    %%ret/real 0;\n");
 	    return;
@@ -2650,8 +2646,8 @@ static void store_real_to_lval(ivl_lval_t lval)
 	   value and should be handled differently. */
       ivl_scope_t sig_scope = ivl_signal_scope(var);
       if ((ivl_scope_type(sig_scope) == IVL_SCT_FUNCTION)
-	  && (strcmp(ivl_signal_basename(var), ivl_scope_basename(sig_scope)) == 0)) {
-	    assert(ivl_signal_dimensions(var) == 0);
+	  && (strcmp(ivl_signal_basename(var), ivl_scope_basename(sig_scope)) == 0)
+	  && ivl_signal_dimensions(var) == 0) {
 	    fprintf(vvp_out, "    %%ret/real 0; Assign to %s\n",
 		    ivl_signal_basename(var));
 	    return;
@@ -2769,8 +2765,7 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 	   its scope, and the scope is a function, then this is an
 	   assign to a return value and should be handled
 	   differently. */
-      if (signal_is_return_value(var)) {
-	    assert(ivl_signal_dimensions(var) == 0);
+      if (signal_is_return_value(var) && ivl_signal_dimensions(var) == 0) {
 	    if (part == 0 && aidx == 0) {
 		  draw_eval_string(rval);
 		  fprintf(vvp_out, "    %%ret/str 0; Assign to %s\n",

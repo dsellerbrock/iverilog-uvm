@@ -1931,3 +1931,12 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   Runtime-selected prefixes are a separate solver-expression capability.
 
 L65 validation: root2/2, independent4/4 positive and2 paired negative cases, permanent8/8 each harness, neighbors6/6 each. Stable artifacts. All five reductions preserve exact selected row, width/sign, index(), modes and rollback. User cadence defers full suite to about ten features.
+
+### L66 — Typed array return element storage
+
+- **State:** IMPLEMENTED, focused validation; broad batch pending.
+- **Origin:** DD-031, scalar return paths intercepted real/string array elements.
+- **Authority:** IEEE1800-2017/2023 13.4.1.
+- **Scope:** real/string element reads/writes and real compound updates reuse emitted return-array storage, including automatic recursion, exact index evaluation and result copies.
+- **Validation:** 28 paired focused outcomes, permanent8/8 in each harness, four neighbors; L65 integration8/8 per harness.
+- **Evidence:** session_logs/2026-09-14_typed_array_return_elements.md.

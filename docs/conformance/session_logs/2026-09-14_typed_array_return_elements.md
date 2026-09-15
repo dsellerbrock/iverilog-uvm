@@ -1,0 +1,9 @@
+# Typed array return element reads and writes (L66)
+
+IEEE 1800-2017 and 1800-2023 13.4.1 define the implicit function-name variable with the declared return type. Real and string unpacked return arrays already had emitted array storage and caller-side copying, but typed expression and assignment emitters routed their elements through scalar return opcodes or assertions.
+
+The emitter now reserves scalar return opcodes for signals with zero unpacked dimensions. Array reads, element stores, and both halves of real compound assignment reuse existing array paths, including saved dynamic indices. No opcode or return ABI changes are needed.
+
+Fresh pre-fix evidence reproduces all eight recovered failures. The root replay passes 24/24 paired outcomes: integral/logic neighbors, real/string element loops, real constant/dynamic compound updates, invalid indices, repeated automatic calls, copy independence, scalar-return controls, and rejected illegal assignments. The installed driver/compiler/runtime/target hashes are unchanged through the replay. Evidence: `evidence/dd031-current-assessment/{current-results.json,after/results.json}` and `review/`.
+
+The serial native build/install passes. Permanent regressions pass 8/8 in each harness, existing array-return neighbors pass 4/4, and the integrated L65 set passes 8/8 in each harness. Independent review found no defect; four extra paired outcomes prove single index evaluation and distinct recursive automatic frames. Initial permanent harness failures were missing wrappers/include paths and split gold files; these fixture setup errors were corrected without altering semantic expectations. This is feature two after the L64 broad qualification; the full suite remains deferred to the requested batch checkpoint. Scalar string character-write and compound-string fallback gaps remain separate, unqualified work.

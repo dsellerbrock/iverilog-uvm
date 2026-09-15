@@ -1,26 +1,27 @@
-id: CONSTRAINT-MULTIPREFIX-REDUCTION
-title: Reduce correctly selected multidimensional fixed-array rows in constraints
+id: TYPED-ARRAY-RETURN-ELEMENTS
+title: Preserve real and string array return storage through element reads and writes
 status: DONE
-base_revision: 9ad2905c8
+base_revision: 83d5471e3
 standards:
-  ieee1800_2017: "7.12.3 and18.5.8.2"
-  ieee1800_2023: "7.12.3 and18.5.7.2"
-reproducer: evidence/constraint-multidim-reductions-l65/selected-row.sv
-current_behavior: "Both editions reject a[1][2].sum() as unsupported; baseline.json preserves compiler1, stable installed artifacts."
-expected_behavior: "Select the exact one-dimensional fixed-array row, apply all five integral reductions with normal with-expression sizing, preserve active/state aliases and rollback."
-root_cause: "Reduction matcher excludes more than one prefix; canonicalization processes only the first selected dimension."
+  ieee1800_2017: "13.4.1; 7.4 unpacked arrays; 11.4 assignment operators"
+  ieee1800_2023: "13.4.1; 7.4 unpacked arrays; 11.4 assignment operators"
+reproducer: evidence/dd031-current-assessment/review/
+current_behavior: "Both editions abort compiling real array return compound updates and string array return element writes."
+expected_behavior: "The function-name variable has its declared array return type; element reads/writes and real compound updates use array storage, including automatic calls and independent copied results."
+root_cause: "Scalar return special cases intercept array signals in typed expression and assignment emission despite emitted return-array storage."
 allowed_scope:
-  - Match multiple constant prefix selections leaving exactly one fixed unpacked dimension
-  - Canonicalize every selected dimension with declared bounds and exact row stride
-  - Preserve reduction width/sign, with iterator scope/index, active element identities and transactional rollback
-  - Add focused positive, boundary and negative paired edition tests
+  - Restrict scalar return opcodes to scalar signals in real/string emitters
+  - Reuse existing fixed-array read/write emission for return arrays
+  - Cover real compound read/write siblings, index bounds, repeated automatic calls and copy independence
+  - Paired focused regressions and direct neighboring scalar-return checks
 forbidden_scope:
-  - Runtime-selected prefix solver redesign
-  - DD030 packed-select increment and DD031 fixed-array return changes
-  - Broad unrelated random solver or locator redesign
+  - Unrelated scalar string character-write or compound-string fallback redesign
+  - Array ABI redesign or broad solver work
 validation_batch: 20260914_after_l64
-focused_features_before_this: 0
-focused_features_completed_in_batch: 1
-pending_gates: "Required feature checks passed: root2/2, independent paired positives/negatives, permanent8/8 and neighbors6/6 each. Full suite deferred to batch checkpoint by user cadence."
-next_action: "Local focused L65 checkpoint ready; return to coordinator selection for feature2 of the batch. PR280 publishes only L43-L64; CI pending. Broad qualified baseline remains L64."
+focused_features_completed_in_batch: 2
+pending_gates: "Reproduce, patch, root build, paired focused tests and permanent neighbors; broad suite at approximately ten features."
+prerequisites: "PR281 header fix published and locally validated at4956b2c1c; six CI jobs running in34919528675. Patch preserved separately; CI observation continues. L65 integrated as83d5471e3."
+next_action: "Implementation worker patches typed scalar-return guards; independent worker extends focused boundary evidence."
 stop_after_completion: false
+
+validation: "Root28/28 paired; permanent8/8 both harnesses; neighbors4/4; L65 integration8/8 both. Independent review passed. Full suite deferred to batch checkpoint."
