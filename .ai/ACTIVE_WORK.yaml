@@ -1,26 +1,26 @@
-id: PARALLEL-BATCH-L81-L82
+id: PARALLEL-BATCH-L83-L82
 title: Coordinator-authorized independent array-storage and constant-evaluator lanes
 status: IMPLEMENTING
-base_revision: eb87a2593
+base_revision: 45fcf1546
 authority: "User authorized two existing cheaper implementation agents, disjoint ownership, focused checks per fix and broad qualification near ten integrated fixes."
 coordinator_owns:
   - Shared builds and installation
   - All legacy and JSON harness execution and shared ivtest/log output
   - Main manifests, shared documentation, integration commits and review
 lanes:
-  - id: L81-ARRAY-STRING-CHARACTER-COMPOUND
+  - id: L83-ARRAY-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_abi
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1"
-    reproducer: evidence/batch-20260914-after-l74/l81-array-character-compound.sv
-    actual: "Both editions skip the assignment and all selector/RHS side effects; runtime oracle fails."
-    expected: "Update selected signed byte with each selector evaluated once and preserved array word isolation."
-    owns: [tgt-vvp/stmt_assign.c]
-    test_prefix: sv_array_string_character_compound
-    allowed_scope: "Blocking compound character stores on fixed unpacked-array string elements using existing L79 opcode."
-    forbidden_scope: "Constant evaluator, new runtime opcodes, incdec, class/dynamic receivers, array returns, whole-string arithmetic."
-    dependencies: "Integrated L79 array character store and scalar compound byte semantics; independent of L82."
-    acceptance: "Both editions: arithmetic/bitwise/shift operators, signed high-byte and RHS width/sign, zero suppression, static/automatic arrays, declared bounds, word/char/RHS once, invalid/X/wide word and int character conversion, empty/OOB, readonly rejection and neighbors."
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.2"
+    reproducer: evidence/batch-20260914-after-l74/l83-array-character-incdec.sv
+    actual: "Both editions use vector array load on string storage and fail runtime byte/update oracle."
+    expected: "Pre/post signed byte results and string-array character stores with both selectors captured once."
+    owns: [tgt-vvp/eval_vec4.c]
+    test_prefix: sv_array_string_character_incdec
+    allowed_scope: "Pre/post increment/decrement on fixed unpacked-array string characters using existing L79 opcode."
+    forbidden_scope: "Array returns, dynamic/class receivers, constant evaluator, new runtime opcodes and unrelated selected updates."
+    dependencies: "Integrated L77 scalar character incdec and L79 indexed byte store; independent of L82."
+    acceptance: "Both editions: all four operators, signed widened results and wrap/zero suppression, selector once, word isolation, static/automatic and nonzero declared bounds, invalid/X/wide word and int32 character conversion, empty/negative/OOB, readonly rejection and selected/string neighbors."
   - id: L82-CONSTANT-STRING-INTEGER
     agent: /root/constraint_wide
     status: REPRODUCED
@@ -36,7 +36,7 @@ lanes:
     acceptance: "Both editions: valid radix digits, underscores, empty/invalid-first/stop-at-invalid, no sign/size/base-prefix parsing, case/high bytes, signed 32-bit boundaries/overflow wrap, unchanged local/argument/repeated receivers, runtime bit/sign parity, arity/type rejection and constant neighbors."
 file_conflict_policy: "Do not edit outside ownership; report necessary expansion to coordinator. Never concurrently edit shared files."
 validation_batch: 20260914_after_l74
-focused_features_completed_in_batch: 6
+focused_features_completed_in_batch: 7
 pending_gates: "Focused lane validation then seven broad gates after approximately ten integrated fixes; PR283 cross-platform CI is separate."
 last_broad_qualified_semantic_revision: 374318731
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json

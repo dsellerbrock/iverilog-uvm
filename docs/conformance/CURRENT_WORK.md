@@ -65,3 +65,5 @@ update these pointers when new evidence is committed.
 The same focused batch now also includes [L77](session_logs/2026-09-14_string_character_increment.md) and [L78](session_logs/2026-09-14_constant_string_comparison.md). Broad qualification remains pending.
 
 Focused [L79](session_logs/2026-09-14_array_string_character_store.md) and [L80](session_logs/2026-09-14_constant_string_substr.md) evidence extends the same unqualified batch.
+
+[L81 focused evidence](session_logs/2026-09-14_array_string_character_compound.md) adds array character compound stores; broad batch qualification remains pending.

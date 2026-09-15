@@ -1,8 +1,8 @@
 status: active
 branch: agent/string-return-uppercase-20260914
-current_blocker: PARALLEL-BATCH-L81-L82
+current_blocker: PARALLEL-BATCH-L83-L82
 phase: parallel_implementation
-source_revision: eb87a2593
+source_revision: 45fcf1546
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 374318731
@@ -66,9 +66,9 @@ latest_focused_evidence: docs/conformance/session_logs/2026-09-14_constant_strin
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
-  - id: L81-ARRAY-STRING-CHARACTER-COMPOUND
+  - id: L83-ARRAY-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_abi
-    files: tgt-vvp/stmt_assign.c
+    files: tgt-vvp/eval_vec4.c
   - id: L82-CONSTANT-STRING-INTEGER
     agent: /root/constraint_wide
     files: net_func_eval.cc, netmisc.cc, netmisc.h, elab_expr.cc
@@ -83,14 +83,15 @@ l74_status: Integrated374318731; six cases per harness and two additional runtim
 
 current_batch:
   base_revision: 9f79ff51c
-  focused_features: 6
+  focused_features: 7
   integrated_l75: f95f0bc11
   integrated_l76: 24feb1f28
   integrated_l77: d11c3852c
   integrated_l78: cf34519c0
   integrated_l79: d02896d77
   integrated_l80: eb87a2593
-  selected_lanes: [L81, L82]
+  integrated_l81: 45fcf1546
+  selected_lanes: [L83, L82]
   source_edits: New lanes authorized after current failing reproducers; L75-L80 focused qualification only.
 
 l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.

@@ -1378,3 +1378,7 @@ IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_array_string_
 ### L80 — Constant-function substr
 
 IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_constant_string_substr.md); broad batch qualification remains pending.
+
+### L81 — Fixed-array string-character compound stores
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_compound.md); array function returns and broad qualification remain separate.
