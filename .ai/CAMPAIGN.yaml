@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
 current_blocker: PARALLEL-BATCH-REGRESSION-REPAIR
-phase: locally_qualified_pending_publication
+phase: published_awaiting_ci
 source_revision: e43ecd536
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
@@ -12,6 +12,13 @@ qualification_scope: L85-L95 local batch only; full IEEE, UVM and application go
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
 published_work:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/285
+    state: open
+    branch: agent/compiler-campaign-after-l84-20260914
+    base_branch: agent/string-return-uppercase-20260914
+    published_head: 4c786e90a
+    current_ci_observation: pending; all seven local gates passed
+    evidence: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/284
     state: open
     branch: agent/string-return-uppercase-20260914
@@ -297,6 +304,6 @@ latest_checkpoint:
   status: all seven gates passed; source and installation unchanged
   candidate: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
   session: 36956 terminal success
-  next: publish coherent eleven-fix PR stacked on PR284, then authorize two next independent lanes
+  next: PR285 published; freeze publication branch, continue same worktree on a new branch and authorize L96/L97
   active_implementation_lanes: none during qualification and publication
   prior_checkpoints: historical; latest_checkpoint and top-level fields govern resumption
