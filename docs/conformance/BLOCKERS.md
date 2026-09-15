@@ -2148,3 +2148,9 @@ qualification is established by this scope refinement.
 - **Scope:** Constant selected integral queue elements with one proved size, bounded queue limits, retained-element modes and exact joint ordering. Other queue/order families remain separate.
 
 - **L89 evidence:** [Focused session](session_logs/2026-09-15_joint_queue_element_ordering.md).
+
+### L90 — Packed selects on class-container enum elements
+
+- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json`; paired enum element reads reject, while equivalent bit/signed/logic controls pass.
+- **Scope:** Existing read and lvalue packed-select paths for class dynamic-array/queue enum elements, preserving nominal whole-enum typing and existing partial-write semantics.

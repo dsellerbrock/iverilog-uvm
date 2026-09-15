@@ -1,8 +1,8 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: PARALLEL-BATCH-L86-L89
+current_blocker: PARALLEL-BATCH-L86-L90
 phase: parallel_implementation
-source_revision: d6a15ca2b
+source_revision: 1ffe476b6
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 240dd5f6f
@@ -65,7 +65,7 @@ preserved_local_batch:
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: "L88 runtime/elaborator plus L86 prefix compiler increment; hashes in evidence/batch-20260914-after-l84/l86-prefix-candidate.json. Subsequent lane source edits unbuilt. No broad qualification."
 pending_gates: "Broad current-batch gates near ten integrated fixes; L86/L89 completion and focused validation; PR284 remaining CI and authorized merge. PR283 CI passed."
-next_action: "Implement authorized L89 queue ordering while completing L86 lifecycle and boundary validation. Three focused fixes integrated; broad gates near ten."
+next_action: "Complete L86 final acceptance and implement authorized L90 enum packed selects. Four integrated fixes; broad gates near ten."
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
@@ -75,9 +75,9 @@ latest_focused_evidence: docs/conformance/session_logs/2026-09-14_joint_element_
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
-  - id: L89-JOINT-QUEUE-ELEMENT-ORDERING
+  - id: L90-ENUM-CONTAINER-PACKED-SELECTS
     agent: /root/constraint_abi
-    files: vvp/vvp_z3.cc, elaborate.cc
+    files: elab_expr.cc, elab_lval.cc
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     agent: /root/constraint_wide
     files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
@@ -117,7 +117,8 @@ current_batch:
   integrated_l85: 9f416e09a
   integrated_l87: 831cdeca2
   integrated_l88: d6a15ca2b
-  selected_lanes: [L86, L89]
+  integrated_l89: 1ffe476b6
+  selected_lanes: [L86, L90]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -153,3 +154,9 @@ l88_integration_revision: d6a15ca2b
 l86_remaining_reducers: evidence/batch-20260914-after-l84/l86-kill-review/first.json; evidence/batch-20260914-after-l84/l86-lifecycle-review/first.json
 
 l89_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_queue_element_ordering_validation.json
+
+l89_integration_revision: 1ffe476b6
+l90_baseline: evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json
+latest_combined_candidate: evidence/batch-20260914-after-l84/l86-l89-second-candidate.json
+latest_focused_runs: evidence/batch-20260914-after-l84/l86-l89-second-focused.json
+current_process_state: "All shared builds/harnesses terminal; L86 five extra pairs awaiting registration/final replay."

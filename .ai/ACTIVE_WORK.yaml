@@ -1,24 +1,24 @@
-id: PARALLEL-BATCH-L86-L89
-title: Queue selected-element ordering and bounded multiclock antecedent semantics
+id: PARALLEL-BATCH-L86-L90
+title: Enum container packed selects and bounded multiclock antecedent semantics
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
 lanes:
-  - id: L89-JOINT-QUEUE-ELEMENT-ORDERING
-    parent: Z01
+  - id: L90-ENUM-CONTAINER-PACKED-SELECTS
+    parent: IEEE1800 enum and packed-select elaboration
     agent: /root/constraint_abi
-    status: FOCUSED_TESTED
-    standards: "IEEE 1800-2017 18.4,18.5.9/18.5.10; IEEE 1800-2023 18.4,18.5.8/18.5.9; queue sizing and retained-element semantics in7.10."
-    reproducer: evidence/batch-20260914-after-l84/next-queue-assessment/joint_queue_element_order.sv
-    actual: "Refreshed after L88: both editions drop queue element ordering with a warning and return first-element one685/1024 times instead of uniform512."
-    expected: "Preserve constant selected integral queue ordering and exact stage probabilities after one proved queue size, respecting bounded queue maximum and retained elements."
-    owns: [vvp/vvp_z3.cc, elaborate.cc]
-    test_prefix: sv_randomize_joint_queue_element_order
-    allowed_scope: "Constant selected packed integral or enum elements of bounded/unbounded queues with one proved size before element solving; reuse delem/ElemVar/OrderRef, queue descriptor parsing, resize, L85 distributions and graph transaction rollback. Preserve full selector identity and exact stage fibers."
-    forbidden_scope: "Associative/object/real queues, nonconstant selectors, active randc ordering, arbitrary size-stage redesign, new distribution families, pform/SVA files, ignored order or weakened diagnostics."
-    dependencies: "L88 integrated d6a15ca2b; independent of L86. Coordinator owns shared builds/install, manifests, harnesses, docs and integration."
-    acceptance: "Both editions: distinct same-queue/scalar stages with marginal/fiber oracles, child alias graph, supported dist, bounded/unbounded queues, grow/shrink/retained elements and frozen mode, seeded replay, OOB/negative/wide selectors, size-zero/ambiguous/max/cap rejection with value/RNG/callback rollback, nonrandom controls and dynamic/fixed queue neighbors."
+    status: REPRODUCED
+    standards: "IEEE1800-2017/2023 6.19,6.19.3,11.5.1; preserve enum nominal type for whole-object assignment."
+    reproducer: evidence/batch-20260914-after-l84/next-packed-assessment/enum.sv
+    actual: "Both editions reject b.values[0][1] and b.values[0][3:2] for a dynamic array of enum values; equivalent bit/signed/logic controls run PASSED. See typed-baseline.json."
+    expected: "Recognize the enum packed carrier for selected class-container elements, preserving canonical indices, selected vector type and partial-write behavior."
+    owns: [elab_expr.cc, elab_lval.cc]
+    test_prefix: sv_class_enum_container_packed_select
+    allowed_scope: "Packed bit, fixed-part and indexed-part selects on enum elements of class dynamic arrays and queues, for read and generic lvalue paths; use enum base_type_obj and existing select/word-part lowering. Fix sibling read/write gates once, preserve signedness/four-state/direction, evaluate selectors/RHS once, preserve neighboring words/bits."
+    forbidden_scope: "Whole-enum conversion relaxation, object/real containers, array-return expansion, unrelated parser/runtime changes, pform/SVA/solver sources, fabricated values or ignored indices."
+    dependencies: "L89 integrated1ffe476b6; independent of L86. Root owns shared builds/install, harnesses/manifests, documentation/integration."
+    acceptance: "Both editions: dynamic/queue element bit/fixed/indexed +/- reads and blocking writes, signed/ascending and2/4-state enum bases, full-width selected vector vs nominal whole-enum typing, side-effectful selectors/RHS exactly once, neighbor preservation, X/OOB defaults and suppressed writes, const/readonly negatives; compound/incdec generic lvalue controls and non-enum neighbors."
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     parent: S01
     agent: /root/constraint_wide
@@ -63,3 +63,5 @@ l88_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_dynamic_ele
 l88_integration_revision: d6a15ca2b
 
 l86_latest_failures: "Paused-destination kill/restart drops fresh parent; completed lifecycle records remain behind unacknowledged MATCH. Both paired reducers in CAMPAIGN; fixes remain in owned source scope."
+
+l89_integration_revision: 1ffe476b6
