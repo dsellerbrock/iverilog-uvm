@@ -1908,6 +1908,51 @@ NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 	    return res;
       }
 
+      bool string_compare = strcmp(name_, "$ivl_string_method$compare") == 0;
+      bool string_icompare = strcmp(name_, "$ivl_string_method$icompare") == 0;
+      if ((string_compare || string_icompare) && parms_.size() == 2) {
+	    NetExpr*left_expr = parms_[0]->evaluate_function(loc, context_map);
+	    if (left_expr == 0) return 0;
+	    NetExpr*right_expr = parms_[1]->evaluate_function(loc, context_map);
+	    if (right_expr == 0) {
+		  delete left_expr;
+		  return 0;
+	    }
+	    const NetEConst*left_const = dynamic_cast<const NetEConst*>(left_expr);
+	    const NetEConst*right_const = dynamic_cast<const NetEConst*>(right_expr);
+	    if (left_const == 0 || right_const == 0
+		|| !left_const->value().is_string()
+		|| !right_const->value().is_string()) {
+		  delete left_expr;
+		  delete right_expr;
+		  return 0;
+	    }
+
+	    string left = left_const->value().as_raw_string();
+	    string right = right_const->value().as_raw_string();
+	    delete left_expr;
+	    delete right_expr;
+	    size_t common = left.size() < right.size() ? left.size() : right.size();
+	    int comparison = 0;
+	    for (size_t idx = 0; idx < common && comparison == 0; ++idx) {
+		  unsigned char lhs = static_cast<unsigned char>(left[idx]);
+		  unsigned char rhs = static_cast<unsigned char>(right[idx]);
+		  if (string_icompare) {
+			if (lhs >= 'A' && lhs <= 'Z') lhs = lhs - 'A' + 'a';
+			if (rhs >= 'A' && rhs <= 'Z') rhs = rhs - 'A' + 'a';
+		  }
+		  if (lhs < rhs) comparison = -1;
+		  else if (lhs > rhs) comparison = 1;
+	    }
+	    if (comparison == 0) {
+		  if (left.size() < right.size()) comparison = -1;
+		  else if (left.size() > right.size()) comparison = 1;
+	    }
+	    NetEConst*res = new NetEConst(verinum(verinum(comparison), integer_width));
+	    res->set_line(*this);
+	    return res;
+      }
+
       ID id = built_in_id_();
       if (id == NOT_BUILT_IN) {
 	    if (!warned_eval_string_len_fallback || strcmp(name_, "$ivl_string_method$len") != 0) {
