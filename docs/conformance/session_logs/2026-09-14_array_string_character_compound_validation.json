@@ -1,0 +1,19 @@
+{
+  "scope": "L81 fixed-array string-character compound assignments",
+  "source_base": "fd906a4f690cf5f309c31f9c08983bc800c9c50a",
+  "source_sha256": {
+    "tgt-vvp/stmt_assign.c": "40181ab2fd2c31b72a16e05244f01731d6c3fc775a47be708df9061293b3038c"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "176bea98a532aa3e8e5fb2710d0266f2dbf7bd3aee358828c3b1dc3f047b4f25",
+    "local-install/lib/ivl/ivl": "b8c095e0510e86d5a57b2347869300df4ea50b6a6eb1d2d86a82c44334cb99cc",
+    "local-install/lib/ivl/vvp.tgt": "fa9ac3c2771a581c0b36fcc1c4ed5d23f0ca615156ec0cb631ab81ca801f0003"
+  },
+  "permanent_legacy": 8,
+  "permanent_json": 8,
+  "neighbors_json": 28,
+  "focused_evidence": "evidence/batch-20260914-after-l74/l81-final-focused.json",
+  "broad_qualified": false,
+  "artifact_provenance": "L82 compiler candidate, L81 target, integrated L79 runtime."
+}

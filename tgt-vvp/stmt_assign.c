@@ -2748,6 +2748,35 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 
       assert(ivl_stmt_lvals(net) == 1);
       if (ivl_stmt_opcode(net) != 0) {
+	    if (part && aidx && !signal_is_return_value(var)) {
+		  int word_index = allocate_word();
+		  int word_flag = allocate_flag();
+		  int character_index = allocate_word();
+		  draw_eval_expr_into_integer(aidx, word_index);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string array word selector\n",
+		          word_flag);
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string array character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string array character selector\n",
+		          character_index);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector for read\n",
+		          word_flag);
+		  fprintf(vvp_out, "    %%load/stra v%p, %d; string array character compound read\n",
+		          var, word_index);
+		  fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string array character\n",
+		          character_index);
+		  fprintf(vvp_out, "    %%pop/str 1; discard captured string array word\n");
+		  draw_stmt_assign_vector_rhs(net, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector\n",
+		          word_flag);
+		  fprintf(vvp_out, "    %%putc/stra/vec4 v%p, %d, %d; string array character compound store\n",
+		          var, word_index, character_index);
+		  clr_word(word_index);
+		  clr_flag(word_flag);
+		  clr_word(character_index);
+		  return 0;
+	    }
 	    /* A character selection is an 8-bit integral l-value. Capture its
 	     * selector once, read the old byte with the established string-select
 	     * path, apply the ordinary vector compound operation, and write it

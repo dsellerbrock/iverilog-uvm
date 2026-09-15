@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_array_string_character_compound_fail.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_array_string_character_compound_fail"
+    ],
+    "gold": "sv_array_string_character_compound_fail"
+}
