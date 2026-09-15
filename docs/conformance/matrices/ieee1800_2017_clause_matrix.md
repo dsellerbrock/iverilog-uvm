@@ -1394,3 +1394,7 @@ IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string
 ### L84 — Constant-function string-character increment/decrement
 
 IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_constant_string_character_increment.md); other receiver kinds and broad qualification remain separate.
+
+### L75–L84 qualification refinement — 2026-09-14
+
+The bounded implementations above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate without expanding receiver coverage or declaring full-clause conformance.

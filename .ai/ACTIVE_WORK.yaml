@@ -1,6 +1,6 @@
 id: QUALIFY-BATCH-L75-L84
 title: Frozen ten-fix compiler batch qualification
-status: VALIDATING
+status: QUALIFIED_AWAITING_PUBLICATION
 base_revision: 240dd5f6f
 authority: "User authorized focused fixes followed by required broad suites near ten integrated fixes and coherent PR publication."
 coordinator_owns: [All builds and installation, All seven broad gates, Source freeze and artifact snapshots, Documentation and publication]
@@ -18,8 +18,9 @@ validation_batch: 20260914_l84
 focused_features_completed_in_batch: 10
 focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
 qualification_directory: evidence/batch-20260914-l84/qualification
-pending_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
+pending_gates: []
+qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 gate_order: "Run frontend last and exclusively because it moves installation; legacy and JSON harnesses must not overlap."
-last_broad_qualified_semantic_revision: 374318731
-last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
+last_broad_qualified_semantic_revision: 240dd5f6f
+last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false

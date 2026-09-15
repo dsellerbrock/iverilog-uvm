@@ -1,6 +1,6 @@
 # L75–L84 compiler batch
 
-Ten independently scoped fixes are integrated at semantic revision `240dd5f6f`. Focused validation is complete; the seven broad gates are pending. This is bounded compiler progress, not full IEEE/UVM/application conformance.
+Ten independently scoped fixes are integrated at semantic revision `240dd5f6f`. All seven broad gates passed on frozen candidate `304507aeb`. The [qualification record](2026-09-14_compiler_batch_l75_l84_qualification.json) owns counts, commands, artifact fingerprints and scope. This qualifies the recorded local compiler candidate, not full IEEE/UVM/application conformance. The UVM gate uses its existing 2012 invocation; the new focused cases are paired for 2017 and 2023.
 
 | Fix | Implementation | Revision |
 | --- | --- | --- |

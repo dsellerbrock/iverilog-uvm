@@ -2012,7 +2012,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L76 — Constant-function string case conversion
 
-- **State:** IMPLEMENTED for toupper/tolower; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded toupper/tolower scope; see joint qualification below.
 - **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 6.16.5, 13.4.3.
 - **Evidence:** `evidence/next-constant-assessment/ASSESSMENT.md`: both editions reject the internal method during constant evaluation and then assert; runtime control passes.
 - **Closure:** Correct byte conversion without receiver mutation, empty/high-byte/local/argument cases, runtime parity and focused invalid-call diagnostics.
@@ -2022,7 +2022,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L77 — Runtime string-character increment/decrement expressions
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l77-baseline.json`: both editions abort loading string storage through the vector loader.
 - **Scope:** Scalar string variables and scalar string returns, pre/post byte update/result semantics, bounds and index capture.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
@@ -2031,7 +2031,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L78 — Constant-function string comparisons
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l78-baseline.json`: both editions reject constant compare/icompare evaluation.
 - **Scope:** Case-sensitive and insensitive comparison signs, byte ordering, operand preservation and diagnostics.
 - **Standards:** IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3.
@@ -2040,7 +2040,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L79 — Fixed-array string-character stores
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l79-array-character-baseline.json`: both editions abort in target assignment lowering.
 - **Scope:** Plain blocking byte writes to fixed unpacked-array string words; selector capture and bounds.
 - **Standards:** IEEE 1800-2017/2023 6.16, 6.16.2, 7.4, 10.4.1.
@@ -2049,7 +2049,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L80 — Constant-function substr
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l80-constant-substr-baseline.json`: both editions reject method evaluation then assert.
 - **Scope:** Inclusive substr evaluation with int indices, invalid-range empty results and receiver preservation.
 - **Standards:** IEEE 1800-2017/2023 6.16.8, 13.4.3.
@@ -2058,7 +2058,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L81 — Fixed-array string-character compound stores
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l81-array-character-compound-baseline.json`: both editions skip the byte assignment and its side effects.
 - **Scope:** Legal integral character compound operations on fixed string-array words; whole-string arithmetic is not legal scope.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.1.
@@ -2067,7 +2067,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L82 — Constant string-to-integer conversion family
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l82-constant-string-integer-baseline.json`: both editions reject all four conversion methods in constant functions.
 - **Scope:** atoi/atohex/atooct/atobin with radix digits, underscore scanning, termination and 32-bit integer results.
 - **Standards:** IEEE 1800-2017/2023 6.16.9, 13.4.3.
@@ -2076,7 +2076,7 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L83 — Fixed-array string-character increment/decrement
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l83-array-character-incdec-baseline.json`: both editions route string storage through the vector-array loader and fail runtime semantics.
 - **Scope:** Pre/post signed character update/results on fixed string arrays, excluding array returns.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
@@ -2085,9 +2085,13 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L84 — Constant-function string-character increment/decrement
 
-- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
 - **Evidence:** `evidence/batch-20260914-after-l74/l84-constant-character-incdec-baseline.json`: both editions fail selected-character unary evaluation and assert downstream.
 - **Scope:** Scalar local/argument/return string character pre/post byte updates and results in constant functions.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2, 13.4.3.
 
 - **Focused implementation evidence:** [L84 session](session_logs/2026-09-14_constant_string_character_increment.md).
+
+### L75–L84 local qualification checkpoint
+
+The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json) supersedes pending broad-gate notes for these bounded subsets. Remote CI and complete application/edition support remain separate obligations.

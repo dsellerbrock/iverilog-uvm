@@ -7,15 +7,16 @@ run on every later checkout.
 
 ## Latest recorded compiler qualification
 
-The [L65–L74 qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
-records the passing seven-gate batch at `e25971651`, with semantic source
-`374318731`. The [batch session](session_logs/2026-09-14_compiler_batch_l65_l74.md)
-links each implementation scope and its focused evidence. Counts, commands and
-artifact hashes live in the JSON record.
+The [L75–L84 qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json)
+records the passing seven-gate batch at `304507aeb`, with semantic source
+`240dd5f6f`. The [batch session](session_logs/2026-09-14_compiler_batch_l75_l84.md)
+links each bounded implementation and its focused evidence. Counts, commands and
+artifact fingerprints live in the JSON record.
 
 This qualifies that local candidate, not full IEEE, UVM or whole-application
-support. Earlier [L64 qualification](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
-remains preserved with its original revision and limits.
+support. Earlier [L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json)
+and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
+records retain their original revisions and limits.
 
 ## Application evidence
 
@@ -50,8 +51,6 @@ as `9c8f716b1`, repairs build defects exposed by that publication. Its current r
 command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
 latest record above. Publication status and subsequent work remain in CAMPAIGN.
 No newer whole-application replay is claimed.
-
-The [L75–L84 batch](session_logs/2026-09-14_compiler_batch_l75_l84.md) has completed focused validation and is awaiting broad qualification.
 
 ## History
 

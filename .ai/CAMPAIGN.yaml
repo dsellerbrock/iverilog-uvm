@@ -1,14 +1,14 @@
 status: active
 branch: agent/string-return-uppercase-20260914
 current_blocker: QUALIFY-BATCH-L75-L84
-phase: frozen_batch_qualification
+phase: qualified_awaiting_publication
 source_revision: 240dd5f6f
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
-last_broad_qualified_semantic_revision: 374318731
-last_broad_qualified_integration_revision: e25971651
-qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
-qualification_scope: L65-L74 local batch only; full IEEE, UVM and application goals remain incomplete.
+last_broad_qualified_semantic_revision: 240dd5f6f
+last_broad_qualified_integration_revision: 304507aeb
+qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
+qualification_scope: L75-L84 local batch only; full IEEE, UVM and application goals remain incomplete.
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
 published_work:
@@ -16,7 +16,7 @@ published_work:
     state: open
     published_head: 9f79ff51cefe85194beb954409750e2e741dfcc3
     current_ci_run: 34927916125
-    current_ci_observation: Cross-platform CI started; local seven-gate qualification passed.
+    current_ci_observation: Ubuntu22/24 passed; macOS and three Windows jobs still active at latest check. Local seven-gate qualification passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/280
     state: externally_merged
@@ -55,9 +55,9 @@ preserved_local_batch:
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: Full serial build/install of L75-L84 completed; candidate hashes and broad evidence live in evidence/batch-20260914-l84/qualification.
-pending_gates: Seven broad gates for L75-L84; PR283 cross-platform CI remains separate.
-next_action: Snapshot frozen candidate, run seven broad gates, then publish coherent PR. Keep PR283 branch fixed.
-next_command: Inspect evidence/batch-20260914-l84/qualification and running gate processes.
+pending_gates: New PR publication and remote CI; all local L75-L84 gates passed.
+next_action: Verify documentation-only delta preserves qualified code/artifacts, then publish stacked PR on PR283. Keep both published branches fixed.
+next_command: git diff --stat 304507aeb..HEAD
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
@@ -89,7 +89,7 @@ current_batch:
   integrated_l83: 2d8d1cab6
   integrated_l84: 240dd5f6f
   selected_lanes: []
-  source_edits: Frozen L75-L84 ten-fix batch; focused qualification only until broad gates finish.
+  source_edits: L75-L84 qualified at304507aeb; only documentation changes follow the frozen candidate.
 
 l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.
 
