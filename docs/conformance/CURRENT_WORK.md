@@ -46,8 +46,8 @@ L64 was published in [PR280](https://github.com/dsellerbrock/iverilog-uvm/pull/2
 and externally merged as `5c0f5588e`; this does not turn its local qualification
 into cross-platform qualification.
 
-[PR281](https://github.com/dsellerbrock/iverilog-uvm/pull/281) repairs build defects
-exposed by that publication. Its current revision, CI state, and exact next
+[PR281](https://github.com/dsellerbrock/iverilog-uvm/pull/281), externally merged
+as `9c8f716b1`, repairs build defects exposed by that publication. Its current revision, CI state, and exact next
 command belong to CAMPAIGN. The local post-L64 batch has focused evidence but has not received broad
 batch qualification;
 its [L65](session_logs/2026-09-14_constraint_multiprefix_reductions.md) and
