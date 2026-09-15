@@ -40,7 +40,7 @@ preserved_local_batch:
   l68_revision: 7e44ed0dd
   l69_revision: 9c3f92e9b
   l70_revision: a83b9623c
-  focused_features: 6
+  focused_features: 7
   status: Focused tests passed; full batch qualification pending; not published
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
@@ -64,3 +64,5 @@ active_lanes:
     files: net_func_eval.cc
 shared_execution_owner: coordinator
 parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
+
+l72_status: Focused-tested; integration in progress; L71 target/runtime source remains unbuilt.

@@ -23,7 +23,7 @@ lanes:
     acceptance: "Paired positive pre/post, negative readonly, boundary full/partial invalid inner selects, runtime/unknown/wide indices, exact single evaluation, neighbor preservation; affected selected-update regressions."
   - id: L72-CONSTANT-STRING-CHARACTER
     agent: /root/constraint_wide
-    status: REPRODUCED
+    status: FOCUSED_TESTED
     standards: "IEEE 1800-2017/2023 6.16 and 13.4.3; verify exact signed-byte and index conversion subclauses."
     reproducer: evidence/parallel-batch-l71-l72/constant-string-character.sv
     actual: "Both editions compile localparam first(ABC) but compute character result1 instead of65."
@@ -36,7 +36,7 @@ lanes:
     acceptance: "Paired ASCII/high-bit/empty-string/bounds/index-conversion/argument-local positive checks, focused invalid constant-expression diagnostics, runtime parity and evaluator neighbors."
 file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
 validation_batch: 20260914_after_l64
-focused_features_completed_in_batch: 6
+focused_features_completed_in_batch: 7
 pending_gates: "Focused lane checks, then broad required suites after approximately ten integrated fixes and coherent PR publication."
 last_broad_qualified_semantic_revision: 4bc02c51b
 baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json

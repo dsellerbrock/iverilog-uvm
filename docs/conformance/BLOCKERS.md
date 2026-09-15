@@ -1970,3 +1970,10 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **Scope:** integral fixed-array property words, atomic selected update,
   multidimensional indices, bounds, contexts, and const diagnostics.
 - **Evidence:** [L70 session](session_logs/2026-09-14_class_array_packed_increment.md).
+
+### L72 — Constant-function string character evaluation
+
+- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **Origin:** DD026 re-assessed on L70; string arguments collapsed to one bit.
+- **Scope:** preserve argument/local string values and evaluate typed character reads.
+- **Evidence:** [L72 session](session_logs/2026-09-14_constant_string_character.md).

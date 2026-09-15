@@ -1,0 +1,9 @@
+# L72 — String character selection in constant functions
+
+IEEE 1800-2017/2023 6.16 defines string indexing as byte selection, equivalent to getc(int) in 6.16.3. Clause 13.4.3 governs constant functions. The preserved L70 compiler evaluated a constant function reading the first character of "ABC" as1 instead of65 in both editions.
+
+The evaluator resized string arguments and local assignments to a signal's one-bit placeholder width, losing both content and type. It now preserves typed string constants, including generic constants retaining string provenance, at the shared assignment boundary. Character selects use left-to-right byte indexing, signed byte results and the specified 32-bit two-state index conversion. Base-free resizing selects and numeric assignments retain their existing paths.
+
+The first candidate still lost generic string provenance and failed its positive checks; those failures and the separate legacy path-prefix expectation correction are preserved under evidence/parallel-batch-l71-l72. The corrected candidate passes4/4 permanent cases in each harness,6/6 constant-assignment neighbors,24/24 typed-string neighbors and four paired root outcomes. Coverage includes arguments and locals, ASCII/high-bit bytes, empty strings, boundaries, narrow/wide/X index conversion, runtime parity and nonlocal-variable rejection. The existing string-to-integer constant-function control also passes without a cast-evaluator change.
+
+The coordinator built only the compiler executable and installed it alongside the already validated L70 runtime/target while L71 source work continued independently. The [validation record](2026-09-14_constant_string_character_validation.json) identifies these artifacts. This is focused evidence; broad batch and full language qualification remain pending.

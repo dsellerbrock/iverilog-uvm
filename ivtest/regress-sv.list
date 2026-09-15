@@ -3323,3 +3323,9 @@ sv_class_array_packed_incdec_context normal,-g2017,-s,sv_class_array_packed_incd
 sv_class_array_packed_incdec_context_2023 normal,-g2023,-s,sv_class_array_packed_incdec_context ivltests gold=sv_class_array_packed_incdec_context.gold
 sv_class_array_packed_incdec_fail CE,-g2017,-s,sv_class_array_packed_incdec_fail ivltests gold=sv_class_array_packed_incdec_fail.gold
 sv_class_array_packed_incdec_fail_2023 CE,-g2023,-s,sv_class_array_packed_incdec_fail ivltests gold=sv_class_array_packed_incdec_fail.gold
+
+# L72 constant-function string character evaluation
+sv_const_string_character normal,-g2017,-s,sv_const_string_character ivltests gold=sv_const_string_character.gold
+sv_const_string_character_2023 normal,-g2023,-s,sv_const_string_character ivltests gold=sv_const_string_character.gold
+sv_const_string_character_fail CE,-g2017,-s,sv_const_string_character_fail ivltests gold=sv_const_string_character_fail.gold
+sv_const_string_character_fail_2023 CE,-g2023,-s,sv_const_string_character_fail ivltests gold=sv_const_string_character_fail.gold

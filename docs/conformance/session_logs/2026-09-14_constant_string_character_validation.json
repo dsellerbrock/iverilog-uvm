@@ -1,0 +1,20 @@
+{
+  "scope": "L72 focused constant-function string character evaluation",
+  "source_base": "199aecc95",
+  "source_sha256": {
+    "net_func_eval.cc": "2b1f547f430fa7668999d923f53a1f2245c2cbd75daae921fb12963473f04d2c"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "3743aba55cbf6a24d271bf88ff445faf376646c278718190eb2be4f65ff074ae",
+    "local-install/lib/ivl/ivl": "1eafe0645ec92d59954fb3355635ac6959e67ecb333b9a784603640886f4fe49",
+    "local-install/lib/ivl/vvp.tgt": "d28979c4d70e6ed2a1614334a8aaccb825276f732c3260fec84a7e32bc850793"
+  },
+  "permanent_legacy": 4,
+  "permanent_json": 4,
+  "constant_assignment_neighbors_json": 6,
+  "typed_string_neighbors_json": 24,
+  "root_paired_outcomes": 4,
+  "broad_qualified": false,
+  "evidence": "evidence/parallel-batch-l71-l72/l72-final-validation.json"
+}

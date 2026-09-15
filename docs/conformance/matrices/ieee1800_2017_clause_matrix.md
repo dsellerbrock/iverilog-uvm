@@ -1334,3 +1334,7 @@ evaluated once; the final atomic partial-word store preserves current neighbor
 bits, declared ranges, typed invalid results, and signed/full-width unsigned
 offset semantics. See the [L70 evidence](../session_logs/2026-09-14_class_array_packed_increment.md).
 Broad batch qualification remains pending.
+
+### L72 — Constant-function string character selection (6.16, 13.4.3)
+
+IMPLEMENTED for the evidenced argument/local string character reads, with byte typing, getc(int) index conversion and preserved string values during evaluation. See the paired [L72 evidence](../session_logs/2026-09-14_constant_string_character.md); broad qualification remains pending.
