@@ -1,5 +1,5 @@
 {
-  "type": "CE",
+  "type": "normal",
   "source": "sv_assert_multiclock_first_match_source_suffix_ranged_fail_2023.v",
   "iverilog-args": [
     "-g2023",

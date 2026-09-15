@@ -2404,7 +2404,6 @@ Assessment: `evidence/application-check-20260915/next-wide-element-assessment/`.
 
 ### L116 — first_match prefix with ranged source suffix
 
-REPRODUCED and SELECTED in ACTIVE_WORK. Both editions reject finite ranged
-same-clock suffixes after first_match. Preserve earliest wrapper commitment
-while retaining every valid suffix endpoint for plain/implication aggregation.
-Assessment: `evidence/application-check-20260915/next-sva-after-l114/`.
+FOCUSED_TESTED; broad qualification pending. Earliest wrapper commitment and
+all finite suffix endpoints are retained for plain/implication aggregation.
+[Evidence](session_logs/2026-09-15_first_match_ranged_suffix_validation.json).

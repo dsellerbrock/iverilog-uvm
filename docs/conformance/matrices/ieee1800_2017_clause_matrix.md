@@ -1541,3 +1541,12 @@ boundary guards prevent zero-delay suffix failure from enabling later rescue;
 tied exits continue independently through existing multiclock transport.
 [Focused evidence](../session_logs/2026-09-15_first_match_source_suffix_validation.json).
 Ranged suffixes and other unadmitted shapes remain unsupported; broad pending.
+
+### L116 focused refinement — 16.9.8, 16.12.7, 16.13
+
+The direct finite Boolean first_match source prefix now admits a finite ranged
+suffix outside the wrapper. The earliest wrapper exit commits; suffix endpoints
+remain existential for plain sequences and spawn all required implication
+consequents. This is a bounded PARTIAL increment; unbounded/symbolic delays,
+repetition, locals, and non-prefix wrappers remain outside this path.
+[Paired evidence](../session_logs/2026-09-15_first_match_ranged_suffix_validation.json).

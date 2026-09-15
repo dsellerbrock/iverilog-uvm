@@ -19003,7 +19003,7 @@ static bool sva_mc_bounded_chain_nfa_(
 
 /* The multiclock source transport can implement a direct finite first_match
    prefix. A whole-chain wrapper closes at its first accepting tick. A
-   wrapper followed by a fixed source-clock suffix cuts the still-pending
+   wrapper followed by a finite source-clock suffix cuts the still-pending
    wrapper paths at the earliest exit and lets every tied exit continue. */
 static bool sva_mc_direct_first_match_(
 		const std::vector<sva_seq_step_t>&steps)
@@ -19018,7 +19018,6 @@ static bool sva_mc_direct_first_match_(
 		  return false;
 	    if (!st.fm) left_wrapper = true;
 	    else if (left_wrapper) return false;
-	    if (left_wrapper && st.delay_lo != st.delay_hi) return false;
       }
       return steps[0].fm;
 }
@@ -19141,6 +19140,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       bool ranged_antecedent = false;
       bool source_first_match = false;
       bool source_first_match_suffix = false;
+      bool source_first_match_whole = false;
       bool source_has_first_match = false;
       bool consequence_nfa_mode = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
@@ -19159,6 +19159,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  && sva_mc_direct_first_match_(*source_steps);
 	    source_first_match_suffix = source_first_match
 		  && !source_steps->back().fm;
+	    source_first_match_whole = source_first_match
+		  && !source_first_match_suffix;
 	    if (prop->antecedent)
 		  ranged_antecedent = sva_mc_bounded_chain_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
@@ -19834,7 +19836,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		     terminal edge emits its own MATCH record. For first_match,
 		     publish all tied earliest matches before closing the parent. */
 		  for (size_t k = 0; k < ran_slots; ++k) {
-			PExpr*first_match_hit = source_first_match
+			PExpr*first_match_hit = source_first_match_whole
 			      ? sva_bit_(loc, 0) : nullptr;
 			PExpr*first_match_exit_hit = source_first_match_suffix
 			      ? sva_bit_(loc, 0) : nullptr;
@@ -19874,7 +19876,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      hit = sva_logic_(loc, 'a',
 				    sva_id_(loc, ran_live[k]), hit);
-			      if (source_first_match) {
+			      if (source_first_match_whole) {
 				    PExpr*copy = sva_clone_expr_(hit);
 				    ivl_assert(loc, copy);
 				    first_match_hit = sva_logic_(loc, 'o',
@@ -19895,7 +19897,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      body1.push_back(sva_if_(loc, hit, endpoint, nullptr));
 			}
-			if (source_first_match) {
+			if (source_first_match_whole) {
 			      std::vector<Statement*>cut;
 			      cut.push_back(emit_record(
 				    2, sva_id_(loc, ran_parent[k]), nullptr));

@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_first_match_ranged_suffix_zero.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions"
+  ],
+  "gold": "sv_assert_multiclock_first_match_ranged_suffix_zero"
+}

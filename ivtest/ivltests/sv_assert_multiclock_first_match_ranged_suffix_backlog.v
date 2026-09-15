@@ -1,0 +1,9 @@
+module sv_assert_multiclock_first_match_ranged_suffix_backlog;
+ bit c1=0,c2=0,a=0,b=1,x=1,good=1;int pp=0,pf=0,ip=0,ifail=0,pt=-1,it=-1;
+ always #10 c1=~c1;
+ ps:assert property(@(posedge c1)first_match(a##[1:2]b)##[1:2]x##1@(posedge c2)good)begin pp++;pt=$time;end else pf++;
+ is:assert property(@(posedge c1)first_match(a##[1:2]b)##[1:2]x|->@(posedge c2)good)begin ip++;it=$time;end else ifail++;
+ initial begin #9 a=1;#22 a=0;$assertoff(0,ps);$assertoff(0,is);#84 c2=1;#2;
+   if(pp!=2||pf||pt!=115||ip!=2||ifail||it!=115)$fatal(1,"pp%0d pf%0d pt%0d ip%0d if%0d it%0d",pp,pf,pt,ip,ifail,it);
+   $display("PASSED");$finish(0);end
+endmodule
