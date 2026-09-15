@@ -1,42 +1,42 @@
-id: PARALLEL-BATCH-L77-L78
-title: Coordinator-authorized independent return-storage and constant-evaluator lanes
+id: PARALLEL-BATCH-L79-L80
+title: Coordinator-authorized independent array-storage and constant-evaluator lanes
 status: IMPLEMENTING
-base_revision: 24feb1f28
+base_revision: cf34519c0
 authority: "User authorized two existing cheaper implementation agents, disjoint ownership, focused checks per fix and broad qualification near ten integrated fixes."
 coordinator_owns:
   - Shared builds and installation
   - All legacy and JSON harness execution and shared ivtest/log output
   - Main manifests, shared documentation, integration commits and review
 lanes:
-  - id: L77-STRING-CHARACTER-INCREMENT
+  - id: L79-ARRAY-STRING-CHARACTER-STORE
     agent: /root/constraint_abi
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.2, 13.4.1"
-    reproducer: evidence/batch-20260914-after-l74/string-character-incdec.sv
-    actual: "Both editions compile but abort in of_LOAD_VEC4 when incrementing a scalar string character."
-    expected: "Read/update the selected byte with pre/post results, int index conversion and one selector evaluation."
-    owns: [tgt-vvp/eval_vec4.c, elab_expr.cc]
-    test_prefix: sv_string_character_incdec
-    allowed_scope: "Scalar string variable and scalar string-function-return character increment/decrement expressions, their destination/result typing and focused regressions."
-    forbidden_scope: "Constant evaluator, array/property receivers, unrelated runtime opcodes and parser redesign."
-    dependencies: "Integrated L75 return-character store and L74 scalar string character primitives; no dependency on L78."
-    acceptance: "Paired pre/post increment/decrement, byte signedness/wrap/result contexts, scalar/local/return storage, negative/empty/zero-byte/index conversion, selector once, recursive return isolation and readonly rejection; selected-update/string neighbors."
-  - id: L78-CONSTANT-STRING-COMPARISON
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 7.4, 10.4.1"
+    reproducer: evidence/batch-20260914-after-l74/l79-array-character.sv
+    actual: "Both editions abort at stmt_assign.c part==0 assertion."
+    expected: "Update one byte in the selected fixed-array string word, capturing both selectors once."
+    owns: [tgt-vvp/stmt_assign.c, vvp/codes.h, vvp/compile.cc, vvp/vthread.cc]
+    test_prefix: sv_array_string_character_store
+    allowed_scope: "Plain blocking character stores on fixed unpacked-array string elements and a minimal indexed character-store opcode if existing primitives cannot preserve semantics."
+    forbidden_scope: "Constant evaluator, compound/incdec forms, class properties, dynamic arrays, array function returns and generic fallback redesign."
+    dependencies: "Integrated scalar putc semantics; independent of L80. Reuse existing array access and byte conversion."
+    acceptance: "Both editions: static/automatic storage, selected word isolation, selector side effects once, declared ascending/descending/nonzero bounds, invalid/X word index suppression, int32 character conversion, negative/empty/OOB/zero-byte cases, RHS X/Z conversion, readonly rejection, neighboring array and string stores."
+  - id: L80-CONSTANT-STRING-SUBSTR
     agent: /root/constraint_wide
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3"
-    reproducer: evidence/batch-20260914-after-l74/constant-string-comparison.sv
-    actual: "Both editions fail to evaluate compare/icompare in constant functions."
-    expected: "Lexicographic signed comparison results, with ASCII case-insensitive behavior for icompare and unchanged operands."
+    standards: "IEEE 1800-2017/2023 6.16.8, 13.4.3"
+    reproducer: evidence/batch-20260914-after-l74/l80-constant-substr.sv
+    actual: "Both editions reject constant substr evaluation then assert."
+    expected: "Inclusive substring with signed int indices, empty result for invalid ranges, unchanged receiver."
     owns: [net_func_eval.cc]
-    test_prefix: sv_const_string_comparison
-    allowed_scope: "Shared compare/icompare constant evaluation, parameter typing, byte ordering, operand preservation and focused diagnostics."
-    forbidden_scope: "Runtime/target or elaboration sources owned by L77, other string methods and generic fallback redesign."
-    dependencies: "Integrated L72/L73 string preservation and L76 case conversion; no dependency on L77."
-    acceptance: "Paired equal/less/greater sign checks, prefixes, empty/high bytes, case-sensitive versus insensitive controls, both operands unchanged, runtime sign parity and arity/type rejection; constant/string neighbors."
+    test_prefix: sv_const_string_substr
+    allowed_scope: "Constant-function substr evaluation and focused tests."
+    forbidden_scope: "Other methods, runtime/target changes and generic fallback redesign."
+    dependencies: "Integrated constant string preservation; independent of L79."
+    acceptance: "Both editions: full/single/last byte, empty/negative/reversed/OOB ranges, high bytes, int conversion X/Z/truncation, local/argument receivers, unchanged/repeated calls, runtime parity and arity/type rejection; neighboring constant string tests."
 file_conflict_policy: "Do not edit outside ownership; report necessary expansion to coordinator. Never concurrently edit shared files."
 validation_batch: 20260914_after_l74
-focused_features_completed_in_batch: 2
+focused_features_completed_in_batch: 4
 pending_gates: "Focused lane validation then seven broad gates after approximately ten integrated fixes; PR283 cross-platform CI is separate."
 last_broad_qualified_semantic_revision: 374318731
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json

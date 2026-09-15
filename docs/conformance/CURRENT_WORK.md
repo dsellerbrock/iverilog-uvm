@@ -61,3 +61,5 @@ The former continuation narrative is preserved in the
 Earlier checkpoints and failed attempts remain in the
 [session logs](session_logs/README.md). Keep historical results revision-scoped;
 update these pointers when new evidence is committed.
+
+The same focused batch now also includes [L77](session_logs/2026-09-14_string_character_increment.md) and [L78](session_logs/2026-09-14_constant_string_comparison.md). Broad qualification remains pending.

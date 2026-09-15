@@ -3379,3 +3379,21 @@ sv_const_string_toupper_bounds normal,-g2017,-s,sv_const_string_toupper_bounds i
 sv_const_string_toupper_bounds_2023 normal,-g2023,-s,sv_const_string_toupper_bounds ivltests gold=sv_const_string_toupper_bounds.gold
 sv_const_string_toupper_fail CE,-g2017,-s,sv_const_string_toupper_fail ivltests gold=sv_const_string_toupper_fail.gold
 sv_const_string_toupper_fail_2023 CE,-g2023,-s,sv_const_string_toupper_fail ivltests gold=sv_const_string_toupper_fail.gold
+
+# L77 focused regressions
+sv_string_character_incdec normal,-g2017 ivltests gold=sv_string_character_incdec.gold
+sv_string_character_incdec_2023 normal,-g2023 ivltests gold=sv_string_character_incdec.gold
+sv_string_character_incdec_return normal,-g2017 ivltests gold=sv_string_character_incdec_return.gold
+sv_string_character_incdec_return_2023 normal,-g2023 ivltests gold=sv_string_character_incdec_return.gold
+sv_string_character_incdec_fail CE,-g2017 ivltests gold=sv_string_character_incdec_fail.gold
+sv_string_character_incdec_fail_2023 CE,-g2023 ivltests gold=sv_string_character_incdec_fail.gold
+sv_string_character_incdec_bounds normal,-g2017 ivltests gold=sv_string_character_incdec_bounds.gold
+sv_string_character_incdec_bounds_2023 normal,-g2023 ivltests gold=sv_string_character_incdec_bounds.gold
+
+# L78 focused regressions
+sv_const_string_comparison normal,-g2017,-s,sv_const_string_comparison ivltests gold=sv_const_string_comparison.gold
+sv_const_string_comparison_2023 normal,-g2023,-s,sv_const_string_comparison ivltests gold=sv_const_string_comparison.gold
+sv_const_string_comparison_bounds normal,-g2017,-s,sv_const_string_comparison_bounds ivltests gold=sv_const_string_comparison_bounds.gold
+sv_const_string_comparison_bounds_2023 normal,-g2023,-s,sv_const_string_comparison_bounds ivltests gold=sv_const_string_comparison_bounds.gold
+sv_const_string_comparison_fail CE,-g2017,-s,sv_const_string_comparison_fail ivltests gold=sv_const_string_comparison_fail.gold
+sv_const_string_comparison_fail_2023 CE,-g2023,-s,sv_const_string_comparison_fail ivltests gold=sv_const_string_comparison_fail.gold

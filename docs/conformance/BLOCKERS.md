@@ -2022,14 +2022,32 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L77 — Runtime string-character increment/decrement expressions
 
-- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
 - **Evidence:** `evidence/batch-20260914-after-l74/l77-baseline.json`: both editions abort loading string storage through the vector loader.
 - **Scope:** Scalar string variables and scalar string returns, pre/post byte update/result semantics, bounds and index capture.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
 
+- **Focused implementation evidence:** [L77 session](session_logs/2026-09-14_string_character_increment.md).
+
 ### L78 — Constant-function string comparisons
 
-- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
 - **Evidence:** `evidence/batch-20260914-after-l74/l78-baseline.json`: both editions reject constant compare/icompare evaluation.
 - **Scope:** Case-sensitive and insensitive comparison signs, byte ordering, operand preservation and diagnostics.
 - **Standards:** IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3.
+
+- **Focused implementation evidence:** [L78 session](session_logs/2026-09-14_constant_string_comparison.md).
+
+### L79 — Fixed-array string-character stores
+
+- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l74/l79-array-character-baseline.json`: both editions abort in target assignment lowering.
+- **Scope:** Plain blocking byte writes to fixed unpacked-array string words; selector capture and bounds.
+- **Standards:** IEEE 1800-2017/2023 6.16, 6.16.2, 7.4, 10.4.1.
+
+### L80 — Constant-function substr
+
+- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l74/l80-constant-substr-baseline.json`: both editions reject method evaluation then assert.
+- **Scope:** Inclusive substr evaluation with int indices, invalid-range empty results and receiver preservation.
+- **Standards:** IEEE 1800-2017/2023 6.16.8, 13.4.3.

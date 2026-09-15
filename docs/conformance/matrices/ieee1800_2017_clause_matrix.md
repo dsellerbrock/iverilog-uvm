@@ -1362,3 +1362,11 @@ IMPLEMENTED for plain and compound character assignments to scalar string return
 ### L76 — Constant-function string case conversion (6.16.4, 6.16.5)
 
 IMPLEMENTED for toupper/tolower byte conversion and receiver preservation during constant evaluation. See [L76 evidence](../session_logs/2026-09-14_constant_string_case_conversion.md); other methods and broad qualification remain separate.
+
+### L77 — Runtime scalar string-character increment/decrement
+
+IMPLEMENTED for pre/post scalar and return-character updates. See [L77 evidence](../session_logs/2026-09-14_string_character_increment.md); other receivers and broad qualification remain separate.
+
+### L78 — Constant-function string comparisons
+
+IMPLEMENTED for compare/icompare ordering and operand preservation. See [L78 evidence](../session_logs/2026-09-14_constant_string_comparison.md); broad qualification remains pending.
