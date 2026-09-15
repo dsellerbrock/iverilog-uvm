@@ -1,7 +1,8 @@
 # Current evidence and work
 
 Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
-`5c0f5588e`. This page points to recorded evidence; it does not claim a fresh
+`5c0f5588e`; operational handoff reconciled after documentation merge
+`fdbb8f34a` and local sync `3ab991187`. This page points to recorded evidence; it does not claim a fresh
 run on every later checkout.
 
 ## Latest recorded compiler qualification
@@ -38,11 +39,19 @@ and [2023 survey](ieee1800_2023_delta.md) own standards dispositions.
 - [DISCOVERED_DEBT](DISCOVERED_DEBT.md): observations awaiting triage.
 - [AGENTS](../../AGENTS.md): workflow, toolchain, and validation requirements.
 
-At this documentation checkpoint, the committed campaign handoff still calls
-L64 unqualified, while the later qualification record above marks it qualified.
-Use the final record for L64 evidence; the campaign owner must reconcile its
-handoff before selecting further implementation. This documentation cleanup
-does not select a new blocker or modify active campaign state.
+The campaign owner reconciled the handoff with the final L64 JSON above.
+The earlier operational record is preserved in the
+[handoff archive](session_logs/2026-09-14_campaign_handoff_archive.yaml).
+L64 was published in [PR280](https://github.com/dsellerbrock/iverilog-uvm/pull/280)
+and externally merged as `5c0f5588e`; this does not turn its local qualification
+into cross-platform qualification.
+
+[PR281](https://github.com/dsellerbrock/iverilog-uvm/pull/281) repairs build defects
+exposed by that publication. Its current revision, CI state, and exact next
+command belong to CAMPAIGN. The separately preserved local L65/L66 batch at
+`711e54893` has focused evidence but has not received broad batch qualification;
+its session records remain on the branch identified in CAMPAIGN. No newer
+whole-application replay is claimed.
 
 ## History
 
