@@ -64,7 +64,7 @@ preserved_local_batch:
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: "L90 first compiler candidate with integrated L89 runtime and L86 lowering; hashes in evidence/batch-20260914-after-l84/l90-first-candidate.json. L91 source edits unbuilt. Broad qualification pending."
-pending_gates: "Broad current-batch gates near ten integrated fixes; L86/L89 completion and focused validation; PR284 remaining CI and authorized merge. PR283 CI passed."
+pending_gates: "L90/L91 focused validation and integration; broad current-batch gates near ten integrated fixes. PR283 and PR284 CI passed; both remain open. Remote merge is not authorized."
 next_action: "Repair L90 focused failures and finish independent L91 repetition patch; coordinator builds frozen candidates, runs focused checks, and integrates. Broad gates near ten fixes."
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
@@ -77,7 +77,7 @@ parallel_authorization: User requested two existing cheaper implementation agent
 active_lanes:
   - id: L90-ENUM-CONTAINER-PACKED-SELECTS
     agent: /root/constraint_abi
-    files: elab_expr.cc, elab_lval.cc
+    files: elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c
   - id: L91-MULTICLOCK-BOOLEAN-CONSECUTIVE-REPETITION
     agent: /root/constraint_wide
     files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h, parse_misc.h
@@ -168,3 +168,5 @@ l86_integration_revision: 13fee7ec9
 l91_baseline: evidence/batch-20260914-after-l84/next-repeat-assessment/baseline.json
 l90_build: evidence/batch-20260914-after-l84/l90-first-compiler-build.log
 latest_installed_state: "L90 first compiler candidate plus integrated L89 runtime; no L90 qualification yet. L86 source matches integrated13fee7ec9."
+
+l90_target_refinement: "Nested SELECT-over-PROPERTY incdec admitted in target scope by coordinator; existing store operations only. First focused failures preserved; revised compiler and target build required after freeze."
