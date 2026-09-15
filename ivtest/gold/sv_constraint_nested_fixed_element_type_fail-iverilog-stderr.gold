@@ -1,0 +1,2 @@
+ivltests/sv_constraint_nested_fixed_element_type_fail.v:4: error: nested indexed constraint terminal must be a fixed integral or enum element no wider than 64 bits.
+1 error(s) during elaboration.

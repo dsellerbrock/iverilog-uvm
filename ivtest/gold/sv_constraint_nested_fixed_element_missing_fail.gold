@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_nested_fixed_element_missing_fail.v:5: error: nested constraint property 'missing' was not found on its object receiver.
+1 error(s) during elaboration.

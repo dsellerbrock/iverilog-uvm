@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_nested_fixed_element_access_fail.v:4: error: Protected property value is not accessible in this constraint.
+1 error(s) during elaboration.

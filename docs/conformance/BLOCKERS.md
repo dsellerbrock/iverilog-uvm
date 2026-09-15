@@ -2378,7 +2378,7 @@ Nested indexed class constraints are assessment-only in the independent lane.
 
 ### L113 — nested fixed-element constraints
 
-REPRODUCED and SELECTED in ACTIVE_WORK. Both editions drop the equality on
+FOCUSED_TESTED; broad pending. [L113 evidence](session_logs/2026-09-15_nested_fixed_element_constraints_validation.json). Baseline editions dropped the equality on
 `leaf.cyc[0]` and the strengthened runtime oracle fails. The selected repair
 connects frontend nested element references to canonical solver graph leaves;
 scalar nested properties and direct array elements are control cases.

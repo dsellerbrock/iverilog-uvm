@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_nested_fixed_element_dynamic_fail.v:5: error: nested fixed-array constraint selector must be a constant integral index.
+1 error(s) during elaboration.

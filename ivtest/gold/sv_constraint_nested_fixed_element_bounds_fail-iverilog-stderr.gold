@@ -1,0 +1,2 @@
+ivltests/sv_constraint_nested_fixed_element_bounds_fail.v:4: error: nested fixed-array constraint index is outside its declared range.
+1 error(s) during elaboration.

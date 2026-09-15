@@ -24411,6 +24411,7 @@ static unsigned constraint_dist_ir_leaf_width_(const string&tok)
       if (fields.empty()) return 1;
 	if (fields[0] == "c" || fields[0] == "p" || fields[0] == "pp"
 	  || fields[0] == "r"
+	  || fields[0] == "x"
 	  || fields[0] == "v")
 	    return field_width(2);
       if (fields[0] == "m") return field_width(3);
@@ -24443,6 +24444,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  || tok.compare(0, 3, "pp:") == 0
 		  || tok.compare(0, 2, "m:") == 0
 		  || tok.compare(0, 2, "e:") == 0
+		  || tok.compare(0, 2, "x:") == 0
 		  || tok.compare(0, 2, "r:") == 0
 		  || tok.compare(0, 2, "v:") == 0
 		  || tok.compare(0, 2, "s:") == 0;
@@ -24456,6 +24458,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  || tok.compare(0, 3, "pp:") == 0
 		  || tok.compare(0, 2, "m:") == 0
 		  || tok.compare(0, 2, "e:") == 0
+		  || tok.compare(0, 2, "x:") == 0
 		  || tok.compare(0, 2, "r:") == 0
 		  || tok.compare(0, 2, "v:") == 0;
 	    out.is_signed = tok.size() >= 2
@@ -25230,6 +25233,27 @@ static bool constraint_state_path_is_randc_(const char*path,
       return false;
 }
 
+static bool constraint_nested_element_is_random_(const char*path,
+						   const netclass_t*cls)
+{
+      const netclass_t*owner = cls;
+      const char*cur = path;
+      while (owner && cur && *cur) {
+	    char*end = nullptr;
+	    unsigned long idx = strtoul(cur, &end, 10);
+	    if (end == cur || idx >= owner->get_properties()) return false;
+	    if (*end == ':') {
+		  property_qualifier_t qual = owner->get_prop_qual((size_t)idx);
+		  return qual.test_rand() || qual.test_randc();
+	    }
+	    if (*end != '.') return false;
+	    owner = dynamic_cast<const netclass_t*>(
+		  owner->get_prop_type((size_t)idx));
+	    cur = end + 1;
+      }
+      return false;
+}
+
 static bool constraint_ir_references_randc_(const string&ir,
 					    const netclass_t*cls)
 {
@@ -25267,7 +25291,7 @@ static bool constraint_ir_references_randc_(const string&ir,
 		  continue;
 	    }
 
-	    if (p[0] == 'r' && p[1] == ':'
+	    if ((p[0] == 'r' || p[0] == 'x') && p[1] == ':'
 		&& constraint_state_path_is_randc_(p + 2, cls))
 		  return true;
 
@@ -29306,6 +29330,114 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cls && target_path && id->path().size() > 1) {
 		  pform_name_t::const_iterator comp = target_component;
 		  if (comp != id->path().name.end()) {
+			/* A fixed integral array below a random object member is a
+			 * solver element, not a state-path value.  Retain the complete
+			 * object-property prefix so the runtime can intern the terminal
+			 * property in the same graph as its owning object. */
+			const netclass_t*nested_owner = target_owner;
+			pform_name_t::const_iterator nested = comp;
+			string nested_path;
+			int nested_root_pid = nested_owner
+			      ? nested_owner->property_idx_from_name(nested->name) : -1;
+			ivl_type_t nested_root_type = nested_root_pid >= 0
+			      ? nested_owner->get_prop_type((size_t)nested_root_pid) : nullptr;
+			bool nested_object_path = nested->index.empty()
+			      && dynamic_cast<const netclass_t*>(nested_root_type);
+			if (nested_object_path) {
+			for (; nested_owner && nested != id->path().name.end(); ++nested) {
+			      int nested_pid = nested_owner->property_idx_from_name(
+				    nested->name);
+			      if (nested_pid < 0) {
+				    if (!nested_path.empty()) {
+					  cerr << id->get_fileline() << ": error: nested constraint "
+					       << "property '" << nested->name
+					       << "' was not found on its object receiver." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
+				    break;
+			      }
+			      if (!constraint_state_member_visible_(
+				    nested_owner, (unsigned)nested_pid, scope, expr))
+				    return "";
+			      ivl_type_t nested_type = nested_owner->get_prop_type(
+				    (size_t)nested_pid);
+			      pform_name_t::const_iterator after = nested;
+			      ++after;
+			      nested_path += (nested_path.empty() ? "" : ".")
+				    + to_string(nested_pid);
+			      if (after == id->path().name.end()
+				  && !nested->index.empty()) {
+				    const netuarray_t*array =
+					  dynamic_cast<const netuarray_t*>(nested_type);
+				    const netranges_t*dims = array
+					  ? &array->static_dimensions() : nullptr;
+				    ivl_type_t element = array ? array->element_type() : nullptr;
+				    ivl_variable_type_t base = element
+					  ? element->base_type() : IVL_VT_NO_TYPE;
+				    unsigned width = element ? element->packed_width() : 0;
+				    if (!array || array->packed() || !dims
+					|| nested->index.size() != dims->size()
+					|| !element || !element->packed() || !width || width > 64
+					|| (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
+					    && !dynamic_cast<const netenum_t*>(element))) {
+					  cerr << id->get_fileline() << ": error: nested indexed "
+					       << "constraint terminal must be a fixed integral or "
+					       << "enum element no wider than 64 bits." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
+				    uint64_t word = 0;
+				    size_t dim = 0;
+				    bool valid = true;
+				    for (const index_component_t&select : nested->index) {
+					  if (!select.msb || select.lsb
+					      || select.sel != index_component_t::SEL_BIT) {
+						valid = false;
+						break;
+					  }
+					  string index_ir = pexpr_to_constraint_ir(
+						select.msb, cls, value_slots, scope, loop_env);
+					  constraint_const_ir_t index;
+					  if (!constraint_parse_const_ir_(index_ir, index)
+					      || index.width > 64) {
+						valid = false;
+						break;
+					  }
+					  const netrange_t&range = (*dims)[dim++];
+					  uint64_t digit = constraint_resize_const_bits_(
+						index, 64, index.is_signed);
+					  digit -= (uint64_t)std::min(
+						range.get_msb(), range.get_lsb());
+					  if (digit >= range.width()) {
+						cerr << id->get_fileline() << ": error: nested fixed-array "
+						     << "constraint index is outside its declared range."
+						     << endl;
+						constraint_ir_design_ctx_->errors += 1;
+						return "";
+					  }
+					  word = word * range.width() + digit;
+				    }
+				    if (valid)
+					  return "x:" + nested_path + ":"
+						+ to_string(width) + ":" + to_string(word)
+						+ (element->get_signed() ? ":s" : "");
+				    cerr << id->get_fileline() << ": error: nested fixed-array "
+					 << "constraint selector must be a constant integral index."
+					 << endl;
+				    constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      if (!nested->index.empty()) {
+				    cerr << id->get_fileline() << ": error: indexed object "
+					 << "prefix in a nested fixed-element constraint is "
+					 << "not supported." << endl;
+				    constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      nested_owner = dynamic_cast<const netclass_t*>(nested_type);
+			}
+			}
 			int pidx = target_owner
 			      ? target_owner->property_idx_from_name(comp->name) : -1;
 			ivl_type_t ptype = pidx >= 0 && target_owner
@@ -30859,6 +30991,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (s.compare(0, 2, "p:") != 0
 			    && s.compare(0, 2, "m:") != 0
 			    && s.compare(0, 2, "e:") != 0
+			    && s.compare(0, 2, "x:") != 0
 			    && s.compare(0, 2, "s:") != 0
 			    && s.compare(0, 7, "(delem ") != 0)
 			      return "";
@@ -30894,6 +31027,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  constraint_order_nonrandom_error_(item);
 			      }
 			}
+			if (s.compare(0, 2, "x:") == 0 && cls
+			    && !constraint_nested_element_is_random_(
+				  s.c_str() + 2, cls))
+			      constraint_order_nonrandom_error_(item);
 			acc += acc.empty() ? s : (" " + s);
 		  }
 		  return acc;

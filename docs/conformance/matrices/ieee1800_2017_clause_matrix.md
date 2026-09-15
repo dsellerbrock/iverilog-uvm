@@ -1523,3 +1523,12 @@ All tied earliest MATCH records precede source CLOSE; later endpoints cannot
 rescue an earlier failure. Existing unsupported shapes and depth ceiling remain.
 [Focused evidence](../session_logs/2026-09-15_multi_window_first_match_validation.json);
 broad qualification pending.
+
+### 2026-09-15 L113 — nested fixed-element constraint identities
+
+18.3/18.4/18.5/18.8 PARTIAL refinement: constant-index fixed integral/enum
+members up to64bits below class-object prefixes now use canonical graph element
+identity, including aliases, activity, cyclic history and transactional writeback.
+Missing/inaccessible members and unsupported selectors/types fail explicitly.
+[Focused evidence](../session_logs/2026-09-15_nested_fixed_element_constraints_validation.json);
+broad qualification and arbitrary-width element transport remain pending.

@@ -1763,3 +1763,17 @@ evidence. Preserve `evidence/application-check-20260915/l111-focused/boundary-di
 and the agent-preserved original source; assess frontend lowering separately.
 The L111 acceptance case uses supported local indexing to exercise runtime
 cyclic element semantics without dropping constraints.
+
+### 2026-09-15 L113 discovery — wide fixed-array solver writeback
+
+REPRODUCED; not repaired by L113. Both IEEE modes compile a direct65-bit
+fixed-array element constraint without warning and randomize returns success,
+but required bit64 is lost on writeback. The exact runtime oracle fails with
+`00000000000000001` instead of `10000000000000001`. Existing element readback,
+model extraction and writeback use64-bit payloads in `vvp/vvp_z3.cc`.
+L113 nested elements wider than64bits remain explicitly rejected; removing
+that boundary requires shared arbitrary-width transport correctness.
+Local source, commands and captures:
+`evidence/application-check-20260915/nested-indexed-constraint-assessment/direct-wide-baseline.json`
+and `DIRECT_WIDE_DEBT.md` alongside it. Applicable integral constraint semantics
+remain incomplete; coordinator selection is required before implementation.

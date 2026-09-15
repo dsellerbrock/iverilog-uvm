@@ -261,3 +261,5 @@ L110 pairs 2023 19.5.2/19.11.3 with [shared constructor-transition evidence](ses
 L111 pairs 2023 18.4.2/18.5.9 with [shared coupled-cyclic evidence](session_logs/2026-09-15_coupled_randc_ordered_solving.md); broad qualification pending.
 
 L112 applies the corresponding2023 16.9.8/16.13 semantics with paired evidence: [finite multi-window first_match](session_logs/2026-09-15_multi_window_first_match_validation.json). No edition difference or whole-clause completion is claimed.
+
+L113 uses corresponding2023 18.3/18.4/18.5/18.8 semantics with [paired nested-element evidence](session_logs/2026-09-15_nested_fixed_element_constraints_validation.json). Shared limits remain; no whole-clause completion is claimed.

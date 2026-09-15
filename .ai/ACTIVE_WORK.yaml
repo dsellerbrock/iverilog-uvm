@@ -198,7 +198,7 @@ L112_oracle_review: Original assessed c2 generator produces posedges25/65, not55
 
 nested_constraint_implementation_lane:
   id: L113-NESTED-FIXED-ELEMENT-CONSTRAINT
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_abi
   standards: IEEE1800-2017 and2023 18.3,18.4,18.5,18.8
   reproducer: evidence/application-check-20260915/nested-indexed-constraint-assessment/nested_indexed_leaf.sv
@@ -249,3 +249,9 @@ L113_lookup_review:
   reproducer: evidence/application-check-20260915/l113-focused/missing-terminal.sv
   actual: Both editions silently compile leaf.missing[0] by falling through when leaf lacks missing and outer class declares missing array.
   requirement: Once a class-object prefix resolves, terminal lookup must diagnose missing property and never rebind to an outer property. Same selected nested identity scope; fix before integration.
+
+L114_zero_delay_review:
+  evidence: evidence/application-check-20260915/next-sva-after-l112/zero-delay-candidate.json
+  actual: Initial candidate falsely accepts later wrapper endpoint when earliest endpoint has false same-clock zero-delay suffix; both modes report passes1 instead of required0.
+  root_cause: NFA fusion adds suffix guard to the edge used to detect earliest wrapper exit.
+  required_refinement: Preserve wrapper-boundary guard conjunction separately through fusion/folding so earliest exit commits regardless of suffix truth. Retain complete transition guards for suffix evaluation; no later rescue.

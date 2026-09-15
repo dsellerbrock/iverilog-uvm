@@ -86,3 +86,5 @@ Earlier checkpoints and failed attempts remain in the
 update these pointers when new evidence is committed.
 
 Latest focused SVA increment: [L112 multi-window first_match](session_logs/2026-09-15_multi_window_first_match.md); broad qualification pending.
+
+Latest focused nested-constraint increment: [L113](session_logs/2026-09-15_nested_fixed_element_constraints.md); broad qualification pending.
