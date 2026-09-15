@@ -22,7 +22,7 @@ current_candidate:
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Implement authorized L108 lookup fix in elab_expr.cc while second existing agent verifies Caliptra provider closure. Preserve frozen L106/L107; coordinator builds after source freeze, runs focused tests, then retries original OpenTitan smoke.
+  next_action: Implement authorized L108 lookup fix in elab_expr.cc while second existing agent verifies Caliptra provider closure and assesses the exposed caliptra_axi_sram netlist.cc602 abort. Preserve frozen L106/L107; coordinator builds after source freeze, runs focused tests, then retries original OpenTitan smoke.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.

@@ -37,6 +37,16 @@ the 32-row result and must not be counted twice. These are build configuration
 results, not compiler feature implementations or simulation passes. No updated
 whole-census total is claimed; the September 13 105-row record stays historical.
 
+The remaining eight Caliptra-header rows were subsequently replayed with the
+single matching include directory. Four compile cleanly (`pcrvault`,
+`datavault`, `axi_sub`, `aes`); four fail. Across the selected 40 rows the
+result is **23 clean compilations, two exit-zero warning cases, 15 failures**.
+`caliptra_axi_sram` exposes an Icarus assertion abort in `netlist.cc:602`
+for array dimensions `[0:536870911][7:0]`. This is a concrete compiler failure
+to assess, not proof that the source's default-top configuration is useful.
+The other new failures concern another missing assertion header and package
+ordering. No upstream files were changed and no runtime result is claimed.
+
 ## Resumption
 
 The coordinator preserved exact pending compiler source patches and hashes at

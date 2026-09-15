@@ -869,6 +869,178 @@
           "compile_only": true
         }
       ]
+    },
+    "caliptra_header_cluster": {
+      "source_revision": {
+        "adams_bridge_commit": "e59eba955eac2a1adcb059f250641ede78e304be",
+        "commit": "bd31614182fb56e55578f48086a10ded650434fd",
+        "dirty": false,
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl"
+      },
+      "compiler_engine_sha256": "98d5c9d43b087e3bdfd667e5b5fea1895482a22b3e0a37fa7f2df1e61b86be10",
+      "results": [
+        {
+          "job": "pcrvault",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "pv",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/pcrvault/config/pcrvault.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.12,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "datavault",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "dv",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/datavault/config/datavault.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.055,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "axi_sub",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "axi_sub",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/axi/config/axi_sub.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.016,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "caliptra_axi_sram",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "caliptra_axi_sram",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/axi/config/caliptra_axi_sram.vf"
+          ],
+          "exit": 134,
+          "elapsed": 0.025,
+          "clean_compile": false,
+          "diagnostics": "Invalid array dimensions: [0:536870911][7:0]\n:0: assert: netlist.cc:602: failed assertion 0\nsh: line 1: 32475 Done                    /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivlpp -L -F\"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg22087d88f\" -f\"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlg2087d88f\" -p\"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrli2087d88f\"\n     32476 Abort trap: 6           | /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivl -C\"/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ivrlh2087d88f\" -C\"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/null.conf\" -- -\n",
+          "compile_only": true
+        },
+        {
+          "job": "caliptra_prim_generic",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "__caliptra_census_fileset",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/config/caliptra_prim_generic.vf",
+            "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-rebaseline-after277-20260913/fileset_top.sv"
+          ],
+          "exit": 1,
+          "elapsed": 0.009,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl/caliptra_prim_assert.sv:17: Include file caliptra_sva.svh not found\nPreprocessor failed with 1 errors.\n",
+          "compile_only": true
+        },
+        {
+          "job": "aes",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/rtl/caliptra_reg",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "aes_cipher_core",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/aes/config/aes.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.189,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "csrng",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/rtl/caliptra_reg",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "csrng",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/csrng/config/csrng.vf"
+          ],
+          "exit": 3,
+          "elapsed": 0.083,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/rtl/caliptra_prim_generic_ram_1p.sv:9: error: Unknown package `caliptra_prim_ram_1p_pkg' in import. Is its source in the compile list?\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/rtl/caliptra_prim_generic_ram_1p.sv:25: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/rtl/caliptra_prim_generic_ram_1p.sv:17: Errors in port declarations.\n",
+          "compile_only": true
+        },
+        {
+          "job": "csrng_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/rtl/caliptra_reg",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "csrng_tb",
+            "-DCLP_ASSERT_ON",
+            "-DSIMULATION",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/csrng/config/csrng_tb.vf"
+          ],
+          "exit": 3,
+          "elapsed": 0.106,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/rtl/caliptra_prim_generic_ram_1p.sv:9: error: Unknown package `caliptra_prim_ram_1p_pkg' in import. Is its source in the compile list?\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/rtl/caliptra_prim_generic_ram_1p.sv:25: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic/rtl/caliptra_prim_generic_ram_1p.sv:17: Errors in port declarations.\n",
+          "compile_only": true
+        }
+      ]
+    },
+    "selected_40_totals": {
+      "clean_compile": 23,
+      "exit_zero_with_warnings": 2,
+      "failed": 15,
+      "runtime_tested": false
     }
   }
 }
