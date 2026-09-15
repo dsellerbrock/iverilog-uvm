@@ -1406,3 +1406,7 @@ IMPLEMENTED for the [recorded canonical scalar subset](../session_logs/2026-09-1
 ### L87 — Joint selected-element ordering
 
 IMPLEMENTED within the [recorded fixed-array integral subset](../session_logs/2026-09-14_joint_element_ordering.md), including exact staged element identity and focused out-of-range diagnostics. Dynamic containers and other ordering families remain separate; broad batch qualification is pending.
+
+### L88 — Joint dynamic-array selected-element ordering
+
+IMPLEMENTED within the [recorded constant integral dynamic-array subset](../session_logs/2026-09-15_joint_dynamic_element_ordering.md), with one proved size, canonical ordering, resize and index-identity checks. Other container/ordering families remain PARTIAL; broad qualification is pending.

@@ -193,3 +193,7 @@ difference implemented. Shared scope and paired evidence belong to the
 The paired fixed integral-element tests exercise the common ordering semantics
 of 2017 18.5.10 and 2023 18.5.9. Shared scope/evidence belong to the
 [2017 matrix L87 entry](matrices/ieee1800_2017_clause_matrix.md#l87--joint-selected-element-ordering); this does not add real or dynamic-container ordering support.
+
+## L88 shared dynamic-array ordering evidence
+
+The 2023 array sizing and ordering clauses (18.4, 18.5.7.2, 18.5.8/18.5.9) share the bounded implementation recorded in the [2017 matrix L88 entry](matrices/ieee1800_2017_clause_matrix.md#l88--joint-dynamic-array-selected-element-ordering). Separate edition regressions are linked there; no queue or associative-array ordering extension is implied.

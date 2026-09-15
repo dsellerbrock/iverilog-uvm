@@ -30726,6 +30726,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
 			if (s.empty()) diagnose_fixed_oob(item);
+			if (s.compare(0, 7, "(delem ") == 0) {
+			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+			      if (!id || !cls || id->path().package
+			          || id->has_scoped_type_prefix()
+			          || id->path().name.size() != 1)
+				    return "";
+			      const name_component_t&component = id->path().name.front();
+			      int prop = cls->property_idx_from_name(component.name);
+			      const netdarray_t*array = prop < 0 ? nullptr
+				    : dynamic_cast<const netdarray_t*>(
+				          cls->get_prop_type((size_t)prop));
+			      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(array);
+			      if (!array || queue || component.local_scope
+			          || component.index.size() != 1)
+				    return "";
+			      property_qualifier_t qual =
+				    cls->get_prop_qual((size_t)prop);
+			      if (!qual.test_rand() && !qual.test_randc())
+				    constraint_order_nonrandom_error_(item);
+			      const index_component_t&select = component.index.front();
+			      string index_ir = select.msb && !select.lsb
+				    && select.sel == index_component_t::SEL_BIT
+				    ? pexpr_to_constraint_ir(select.msb, cls,
+				          value_slots, scope, loop_env) : "";
+			      constraint_const_ir_t index;
+			      ivl_type_t element = array->element_type();
+			      ivl_variable_type_t base = element
+				    ? element->base_type() : IVL_VT_NO_TYPE;
+			      if (!constraint_parse_const_ir_(index_ir, index)
+			          || index.width > 64 || !element || !element->packed()
+			          || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
+			              && !dynamic_cast<const netenum_t*>(element)))
+				    return "";
+			}
 			  // Ordering may name a scalar rand property, a dynamic
 			  // container size, or a statically selected rand-array
 			  // element. The runtime retains the complete identity so
@@ -30733,7 +30767,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (s.compare(0, 2, "p:") != 0
 			    && s.compare(0, 2, "m:") != 0
 			    && s.compare(0, 2, "e:") != 0
-			    && s.compare(0, 2, "s:") != 0)
+			    && s.compare(0, 2, "s:") != 0
+			    && s.compare(0, 7, "(delem ") != 0)
 			      return "";
 			if (s.compare(0, 2, "m:") == 0 && cls) {
 			      const char*p = s.c_str() + 2;

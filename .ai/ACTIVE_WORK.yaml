@@ -8,7 +8,7 @@ lanes:
   - id: L88-JOINT-DYNAMIC-ELEMENT-ORDERING
     parent: Z01
     agent: /root/constraint_abi
-    status: FOCUSED_VALIDATION_PENDING
+    status: FOCUSED_TESTED
     standards: "IEEE 1800-2017 18.5.8.2/18.5.9/18.5.10; IEEE 1800-2023 18.5.7.2/18.5.8/18.5.9. Verify exact array-order clauses before coding."
     reproducer: evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv
     actual: "Both editions warn and drop solve-before over dynamic-array elements; the seeded 1024-call test produces first-element one685 times instead of the required uniform marginal (expected512)."
@@ -35,7 +35,7 @@ lanes:
     acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 2
+focused_features_completed_in_batch: 3
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -57,3 +57,5 @@ integrated_focused_fixes:
 l86_increment_status: "Compiler builds and SV reducer compiles after generated indexed-assignment and associative delete-call corrections. Runtime blocked by test use of unimplemented $assertvacuousoff; lane correcting test setup. First-clock consequent prefix and no-MATCH paused-destination storage remain pending. No implementation completion claim."
 
 l88_index_identity_refinement: "Coordinator confirmed both editions silently accept ordering at64'h100000000 by narrowing it to element0; evidence l88-wide-index.json. Authorize a narrow shared delem bounds guard before unsigned VarRef/ElemVar conversion in vvp/vvp_z3.cc, preserving exact index identity and rejecting unsupported indices before sampling. Add wide-index and negative-index rollback controls. This is necessary L88 boundary correctness, not a separate counted fix."
+
+l88_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json

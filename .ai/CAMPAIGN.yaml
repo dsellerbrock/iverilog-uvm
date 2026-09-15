@@ -113,7 +113,7 @@ l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
 
 current_batch:
   base_revision: fd500e2b5
-  focused_features: 2
+  focused_features: 3
   integrated_l85: 9f416e09a
   integrated_l87: 831cdeca2
   selected_lanes: [L86, L88]
@@ -136,7 +136,7 @@ l87_frontend_refinement: l87-direct.json exposed invalid constant fixed-array or
 l87_status: Integrated831cdeca2;10 cases per harness and31 neighbors passed.
 l88_baseline: evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json
 l86_status: "Third compiler build succeeds; corrected controls yield12 of14 direct cases passing. Internal fixture changed good on coincident edge and needs timeline correction. First-clock prefix and paused-destination reclamation remain in implementation. Evidence l86-control-direct.json."
-l88_status: "Baseline reducer passes both editions; first focused harnesses6/10 pass each. Signed/enum boundary fixture has compile/lowering issue; mixed case lacks expected size-zero diagnostic gold. Agent correcting without weakening oracle. Evidence l88-first-focused.json."
+l88_status: "Focused tested; ten cases per harness, fourteen final dynamic neighbors and41 preceding ordering neighbors. Evidence docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json."
 installed_candidate_latest: See installed_tools and l86-l88-first-combined-candidate.json.
 shared_process_latest: "Build session37708, direct session53130 and focused session2587 are terminal; no shared build or harness active. L86 source edits authorized to resume."
 

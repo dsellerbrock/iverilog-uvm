@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_randomize_joint_dynamic_element_order_nonrandom_fail.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_randomize_joint_dynamic_element_order_nonrandom_fail"
+}

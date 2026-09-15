@@ -2048,6 +2048,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    uint64_t idx64 = 0;
 	    bool ok = eval_const_ir(par, idx64);
 	    par.skip_ws(); par.expect(')');
+	    /* Element identities are represented by an unsigned leaf index.  Do
+	     * not truncate a wider constant into a different live element.  Keep
+	     * the full value in the parse error so every caller rejects the form
+	     * before planning or sampling. */
+	    if (ok && idx64 > UINT_MAX) {
+		  ostringstream msg;
+		  msg << "dynamic array constraint element index " << idx64
+		      << " exceeds the supported index representation";
+		  b.state_errors.push_back(msg.str());
+		  return Z3_mk_unsigned_int64(
+			b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
+	    }
 	    /* Planning precedes the size solve. An active dynamic element may be
 	     * created by that solve, so retain its typed dependency without
 	     * comparing it with the old container bound. The normal/second pass
@@ -5683,29 +5695,35 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, sa.a);
       }
 
+      map<unsigned, uint64_t> proved_joint_sizes;
       if (exact_joint) {
             // Ordered randc/dist and non-scalar stages need separate proofs.
             // Reject before any sampling; a cap failure after a randc draw
             // could otherwise condition successful calls on that draw.
             if (!builder.order_pairs.empty()) {
-                  auto fixed_element_order_ref = [&](const Z3Builder::OrderRef&ref) {
+                  auto supported_element_order_ref = [&](const Z3Builder::OrderRef&ref) {
                         if (ref.kind != Z3Builder::OrderRef::ELEM) return false;
                         const class_type*type = builder.type(ref.idx);
                         unsigned pid = builder.local_index(ref.idx);
                         const string&base = type->property_base_type(pid);
-                        return type->property_array_size(pid) >= 1
+                        bool fixed = type->property_array_size(pid) >= 1
                               && !base.empty() && base != "o"
                               && base.compare(0, 3, "oc:") != 0
                               && base != "r" && base != "S"
                               && base[0] != 'D' && base[0] != 'Q'
                               && base[0] != 'M';
+                        bool dynamic_integral = base.size() > 1 && base[0] == 'D'
+                              && (base[1] == 'b' || base[1] == 'v'
+                                  || (base[1] == 's' && base.size() > 2
+                                      && (base[2] == 'b' || base[2] == 'v')));
+                        return fixed || dynamic_integral;
                   };
                   for (const auto&pair : builder.order_pairs)
                         if ((pair.first.kind != Z3Builder::OrderRef::PROP
-                             && !fixed_element_order_ref(pair.first))
+                             && !supported_element_order_ref(pair.first))
                             || (pair.second.kind != Z3Builder::OrderRef::PROP
-                                && !fixed_element_order_ref(pair.second)))
-                              return fail_joint("joint solve-before requires canonical scalar or fixed-element ordering variables");
+                                && !supported_element_order_ref(pair.second)))
+                              return fail_joint("joint solve-before requires canonical scalar or supported element ordering variables");
                   for (const auto&pv : builder.prop_vars)
                         if (rand_scalar_active_(builder, prop_active, pv.idx)
                             && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)))
@@ -5726,6 +5744,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         return fail_joint("global array sizes must have one proven value before element solving");
                   for (size_t i = 0; i < sizes.size(); ++i) {
                         const auto&sv = builder.size_vars[i];
+                        proved_joint_sizes[sv.idx] = values[0][i];
                         if (values[0][i] > random_container_size_cap_(sv.container_type))
                               return fail_joint("a fixed array size exceeds the supported allocation limit");
                         if (!rand_size_active_(builder, prop_active, sv.idx)
@@ -5734,6 +5753,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         for (uint64_t elem = 0; elem < values[0][i]; ++elem)
                               if (rand_elem_active_(builder, prop_active, sv.idx, (unsigned)elem))
                                     return fail_joint("a randc leaf exceeds the supported history representation");
+                  }
+            }
+            for (const auto&pair : builder.order_pairs) {
+                  for (const auto&ref : {pair.first, pair.second}) {
+                        if (ref.kind != Z3Builder::OrderRef::ELEM) continue;
+                        const string&base = builder.type(ref.idx)
+                              ->property_base_type(builder.local_index(ref.idx));
+                        if (base.empty() || base[0] != 'D') continue;
+                        auto size = proved_joint_sizes.find(ref.idx);
+                        if (size == proved_joint_sizes.end())
+                              return fail_joint("dynamic element ordering requires one proved array size");
+                        if (ref.elem >= size->second)
+                              return fail_joint("dynamic element ordering index is outside the proved array size");
                   }
             }
       }
