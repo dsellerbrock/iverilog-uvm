@@ -2863,7 +2863,30 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 	   expression so we are assigning to an array word. */
       if (aidx != 0) {
 	    unsigned ix;
-	    assert(part == 0);
+	    if (part != 0) {
+		  int word_index = allocate_word();
+		  int word_flag = allocate_flag();
+		  int character_index = allocate_word();
+		  draw_eval_expr_into_integer(aidx, word_index);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string array word selector\n",
+		          word_flag);
+		  /* A string CHARACTER selector is a signed two-state int. */
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string array character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string array character selector\n",
+		          character_index);
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector\n",
+		          word_flag);
+		  fprintf(vvp_out, "    %%putc/stra/vec4 v%p, %d, %d; assign string array character\n",
+		          var, word_index, character_index);
+		  clr_word(word_index);
+		  clr_flag(word_flag);
+		  clr_word(character_index);
+		  return 0;
+	    }
 	    draw_eval_string(rval);
 	    draw_eval_expr_into_integer(aidx, (ix = allocate_word()));
 	    fprintf(vvp_out, "    %%store/stra v%p, %u;\n", var, ix);
