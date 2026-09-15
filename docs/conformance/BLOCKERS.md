@@ -2272,3 +2272,10 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 - **Closure:** Fixed first-clock sequence prefix followed by finite second-clock alternatives yields a correctly timed single verdict per attempt, preserving clock boundaries, controls and pending backlogs.
 
 - **Implementation evidence:** [L102 session](session_logs/2026-09-15_plain_multiclock_consequences.md).
+
+### L103 — Plain multiclock ranged first-clock prefix
+
+- **State:** IN_PROGRESS; coordinator-authorized independent SVA lane.
+- **Standards:** IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-plain-ranged-prefix-assessment/assessment.md`; both editions reject the legal finite ranged prefix.
+- **Closure:** Existential complete-path aggregation for each plain sequence attempt, with exact times, all-fail/early-success behavior, controls, backlogs and preserved implication universality.

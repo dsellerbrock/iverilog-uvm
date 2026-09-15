@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
-current_blocker: PARALLEL-L101-L102
+current_blocker: PARALLEL-L101-L103
 phase: focused_validation_and_repair
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
@@ -8,7 +8,7 @@ current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
 integrated_since_last_broad_batch:
   count: 6
-  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00]
+  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5]
 latest_broad_qualification:
   integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
   semantic_revision: e43ecd536
@@ -25,11 +25,12 @@ current_candidate:
   direct_evidence: evidence/batch-20260915-after-l95/l101-l102-retry-direct.json
   shared_process: none
   l101: Recursive runtime control passes; selected-character ordering parameter still aborts and bounds parameter fails evaluation. Agent investigating without weakening tests; readonly/external diagnostics captured.
-  l102: Integrated with focused evidence in docs/conformance/session_logs/2026-09-15_plain_multiclock_consequences_validation.json; ranged-prefix follow-up under bounded assessment.
+  l102: Integrated at0efbf81c5; focused evidence in docs/conformance/session_logs/2026-09-15_plain_multiclock_consequences_validation.json.
+  l103: Ranged-prefix plain existential aggregation authorized after paired rejection evidence.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
-  next_action: Finish L101 reducer/root-cause repair and L102 test packaging; coordinator runs focused harnesses on frozen candidate and integrates passing lanes individually.
+  next_action: Finish L101 reducer/root-cause repair and L103 implementation; coordinator runs focused harnesses on frozen candidate and integrates passing lanes individually.
   next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
   broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
 publication:
