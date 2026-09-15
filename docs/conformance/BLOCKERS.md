@@ -1940,3 +1940,11 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **Scope:** real/string element reads/writes and real compound updates reuse emitted return-array storage, including automatic recursion, exact index evaluation and result copies.
 - **Validation:** Focused checks pass; results and revision scope are owned by the evidence record below.
 - **Evidence:** session_logs/2026-09-14_typed_array_return_elements.md.
+
+### L67 — Packed-select expression increment/decrement
+
+- **State:** IMPLEMENTED for the evidenced subset; broad batch pending.
+- **Origin:** DD-030 selected-width runtime aborts and context-width rejection.
+- **Scope:** scalar packed-signal selections and scalar function-return storage; selected array/property receivers and bounded inner-carrier cases remain open.
+- **Evidence:** [L67 session](session_logs/2026-09-14_packed_select_increment.md).
+- **Standards disposition:** [Clause11 refinement](matrices/ieee1800_2017_clause_matrix.md#l67--packed-select-incrementdecrement-expressions-1136-1142).

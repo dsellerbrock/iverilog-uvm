@@ -1,0 +1,22 @@
+{
+  "scope": "L67 focused scalar packed-select and context/return-storage behavior; broad batch pending",
+  "source_base": "ecaeb7a80",
+  "source_sha256": {
+    "elab_expr.cc": "6eda04c65bb92c6c6583a333bdba2c837995bb13e88634b7a704c82db09dd6c5",
+    "tgt-vvp/eval_vec4.c": "d664cb6229a8a9bde23e6e4078cfba1f8265ec60b7519761004fcc1c10a60616"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "5916fdcc543cd4c6cc0c6e7269828f8aa6566460dbade4d30e6f0eb0523bd6ed",
+    "local-install/lib/ivl/ivl": "f8bc0ce2f7a380f5584c697d80efa8a3b985e8f8c1e2163eb3f0003464a8553a",
+    "local-install/lib/ivl/vvp.tgt": "6e6c5d20b8f16635428b7de8bcdf4ed586b75267d730a39691c01919cf5dc06c"
+  },
+  "paired_outcomes": 54,
+  "permanent_legacy": 8,
+  "permanent_json": 8,
+  "neighbors_legacy": 5,
+  "neighbors_json": 10,
+  "l66_json": 8,
+  "review": "Independent selected-store review plus root return-store repair review",
+  "broad_qualified": false
+}

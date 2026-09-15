@@ -1292,3 +1292,14 @@ recursive frames and single index evaluation. Full Clause13 remains PARTIAL.
 Focused evidence and pending broad qualification are recorded in the
 [L66 session](../session_logs/2026-09-14_typed_array_return_elements.md); this
 refinement does not extend the L64 broad qualification to the newer compiler.
+
+### L67 — Packed-select increment/decrement expressions (11.3.6, 11.4.2)
+
+IMPLEMENTED for the evidenced scalar packed-signal bit/part selections and
+function-return storage. The update uses the selected type width, preserves
+neighboring bits and selector identity, and sizes the yielded result afterward.
+Both editions have focused evidence. Selected array/property receivers and
+nested selections requiring an inner carrier boundary remain unsupported.
+See the [L67 evidence](../session_logs/2026-09-14_packed_select_increment.md)
+for exact scope and validation; full Clause11 and broad batch qualification
+remain incomplete.

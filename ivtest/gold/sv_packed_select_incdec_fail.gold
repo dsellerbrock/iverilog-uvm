@@ -1,0 +1,4 @@
+./ivltests/sv_packed_select_incdec_fail.v:5: error: Assignment to const signal `constant_value` is not allowed.
+./ivltests/sv_packed_select_incdec_fail.v:6: error: 'net_value['sd1]' is not a valid l-value for a procedural assignment.
+./ivltests/sv_packed_select_incdec_fail.v:3:      : 'net_value['sd1]' is declared here as a wire.
+2 error(s) during elaboration.

@@ -1700,3 +1700,5 @@ array return storage, retaining the scalar return path only for scalar values.
 Evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/compound-baseline.json`.
 
 DD-031 L66: real/string return-array element reads and writes, including real compound updates, are implemented with focused validation. Scalar return handling is now restricted to scalar signals; array paths preserve typed storage. Root28/28 paired outcomes, permanent8/8 per harness, neighbors4/4. See session_logs/2026-09-14_typed_array_return_elements.md. Broad qualification remains at the next batch checkpoint.
+
+DD-030 update: L67 implements the scalar packed-signal and return-slot subset with focused evidence. Broader selected receivers remain open. Current operational scope is in BLOCKERS L67; measured outcomes are in session_logs/2026-09-14_packed_select_increment.md. Earlier reproductions and oracle corrections remain preserved.

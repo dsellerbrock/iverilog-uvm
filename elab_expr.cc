@@ -27670,6 +27670,16 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 
       unsigned sub_width = expr_wid;
       switch (op_) {
+	  case 'i':
+	  case 'I':
+	  case 'd':
+	  case 'D':
+	    /* Increment/decrement updates the l-value in its own data type;
+	     * any enclosing context sizes only the value yielded by the
+	     * expression (IEEE 1800-2017/2023 11.3.6, 11.4.2). */
+	    sub_width = expr_->expr_width();
+	    break;
+
             // Reduction operators and ! always have a self determined width.
 	  case '!':
 	  case '&': // Reduction AND
@@ -27725,6 +27735,21 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		      ip->set_line(*this);
 		      ip->cast_signed(signed_flag_);
 		}
+		/* Constant folding may replace a statically invalid packed select
+		 * with its read value. Increment/decrement still has a legal
+		 * writable l-value: retain the canonical base so the target returns
+		 * the typed invalid value and suppresses only the store. */
+		if (dynamic_cast<NetEConst*>(ip) && inc_lval->sig()
+		    && inc_lval->sig()->unpacked_dimensions() == 0
+		    && inc_lval->get_base() && !inc_lval->word()
+		    && !inc_lval->nest()) {
+		      delete ip;
+		      NetExpr*carrier = new NetESignal(inc_lval->sig());
+		      ip = new NetESelect(carrier,
+			    inc_lval->get_base()->dup_expr(), inc_lval->lwidth());
+		      ip->set_line(*this);
+		      ip->cast_signed(signed_flag_);
+		}
 		delete inc_lval;
 		inc_lval = 0;
 		if (ip->enumeration()) {
@@ -27741,18 +27766,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		      return 0;
 		}
 		t = ip->expr_type();
-		if (expr_wid != expr_->expr_width()) {
-			/*
-			 * TODO: Need to modify draw_unary_expr() to support
-			 * increment/decrement operations on slice of vector.
-			 */
-			cerr << get_fileline() << ": sorry: "
-				<< human_readable_op(op_, true)
-				<< " operation is not yet supported on "
-				<< "vector slice." << endl;
-			des->errors += 1;
-			return 0;
-		} else if (t == IVL_VT_LOGIC || t == IVL_VT_BOOL ||
+		if (t == IVL_VT_LOGIC || t == IVL_VT_BOOL ||
 				t == IVL_VT_REAL) {
 
 			if (dynamic_cast<NetEConst *> (ip) ||

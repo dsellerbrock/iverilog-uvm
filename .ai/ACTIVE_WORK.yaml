@@ -1,20 +1,27 @@
-id: CI-TARGET-API-EXPORTS
-title: Export the public target API additions from PR280 on Windows
-status: REVIEWED
-base_revision: 4956b2c1c
-reproducer: evidence/ci-strcmp-header/mingw64.log
-current_behavior: "PR281 Windows target link fails on ivl_lval_part_carrier_width and ivl_lval_dynamic_part_carrier; Ubuntu builds passed the header fix."
-expected_behavior: "Public target API functions used by targets are present in the Windows import library."
+id: PACKED-SELECT-INCREMENT
+title: Preserve selected lvalue identity and width through expression increment/decrement
+status: FOCUSED_TESTED
+base_revision: ecaeb7a80
+standards:
+  ieee1800_2017: "11.4.2, 11.5.1, expression sizing rules"
+  ieee1800_2023: "11.4.2, 11.5.1, expression sizing rules"
+reproducer: evidence/dd030-current-assessment/review
+current_behavior: "Matching-width bit/part prefix/postfix expressions compile and abort in vector add/sub. Widened result contexts can reject legal operands as vector slices."
+expected_behavior: "Update the selected lvalue with its own width; return old/new value for postfix/prefix, evaluate selectors once, preserve other storage, and apply normal bounds and result-context sizing."
+root_cause: "The unary elaborator discards validated lvalue identity and confuses context width with slice support; target SELECT handling uses carrier width and whole-signal stores."
 allowed_scope:
-  - Add all PR280 public target API declarations missing from ivl.def: carrier, signal const, and constraint state-call families
-  - Check declarations, definitions and consumer names for exact consistency
-  - Update existing PR281 and observe platform CI
+  - Preserve selected destination metadata needed by integral ++/-- expression lowering
+  - Correct selected arithmetic/store widths and result-context sizing
+  - Reuse existing selected lvalue load/store or capture machinery for selectors and bounds
+  - Paired positive, negative, boundary, and side-effect reproducers plus permanent regressions
 forbidden_scope:
-  - Fold preserved L65/L66 features into this repair
-  - Change carrier semantics or target ABI signatures
-standards: "Build linkage repair for existing target API, no language semantic change"
-prerequisites: "L65/L66 tested local branch agent/typed-array-return-20260914 at711e54893. Two focused features in next batch."
-pending_gates: "Independent export review and Windows CI"
+  - Suppress crashes by dropping writes or fabricating values
+  - Unrelated assignment-expression, solver, or scheduler redesign
+validation_batch: 20260914_after_l64
+focused_features_completed_in_batch: 3
+pending_gates: "Broad suite at user batch checkpoint; focused implementation evidence is linked in L67 session."
+prerequisites: "L65/L66 focused checkpoint preserved. PR281 current-head run34920408447 remains live; published repair stable, CI observation continues separately."
+next_action: "Preserve local tested checkpoint; coordinator selects the next bounded requirement while observing published CI."
 stop_after_completion: false
 
-validation: "Complete14-function declaration/export/C-linkage audit passed and independent review agreed. Current Windows CI remains pending updated PR head."
+evidence: docs/conformance/session_logs/2026-09-14_packed_select_increment.md

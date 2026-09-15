@@ -3279,3 +3279,13 @@ sv_real_uarray_return_boundary normal,-g2017 ivltests gold=sv_real_uarray_return
 sv_real_uarray_return_boundary_2023 normal,-g2023 ivltests gold=sv_real_uarray_return_boundary.gold
 sv_string_uarray_return_boundary normal,-g2017 ivltests gold=sv_string_uarray_return_boundary.gold
 sv_string_uarray_return_boundary_2023 normal,-g2023 ivltests gold=sv_string_uarray_return_boundary.gold
+
+# Packed bit/part-select increment and decrement.
+sv_packed_select_incdec normal,-g2017,-s,sv_packed_select_incdec ivltests gold=sv_packed_select_incdec.gold
+sv_packed_select_incdec_2023 normal,-g2023,-s,sv_packed_select_incdec ivltests gold=sv_packed_select_incdec.gold
+sv_packed_select_incdec_bounds normal,-g2017,-s,sv_packed_select_incdec_bounds ivltests gold=sv_packed_select_incdec_bounds.gold
+sv_packed_select_incdec_bounds_2023 normal,-g2023,-s,sv_packed_select_incdec_bounds ivltests gold=sv_packed_select_incdec_bounds.gold
+sv_packed_select_incdec_context normal,-g2017,-s,sv_packed_select_incdec_context ivltests gold=sv_packed_select_incdec_context.gold
+sv_packed_select_incdec_context_2023 normal,-g2023,-s,sv_packed_select_incdec_context ivltests gold=sv_packed_select_incdec_context.gold
+sv_packed_select_incdec_fail CE,-g2017,-s,sv_packed_select_incdec_fail ivltests gold=sv_packed_select_incdec_fail.gold
+sv_packed_select_incdec_fail_2023 CE,-g2023,-s,sv_packed_select_incdec_fail ivltests gold=sv_packed_select_incdec_fail.gold

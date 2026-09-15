@@ -2342,6 +2342,10 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       ivl_type_t prop_type = 0;
       bool is_property = false;
       bool is_array_word = false;
+      bool is_signal_select = false;
+      ivl_expr_t select_base = 0;
+      int select_index = -1;
+      int select_flag = -1;
       int array_index = -1;
       int array_flag = -1;
       int prop_index = 0;
@@ -2357,8 +2361,21 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	      switch (ivl_expr_type(sub)) {
 	  case IVL_EX_SELECT: {
 		ivl_expr_t e1 = ivl_expr_oper1(sub);
+		select_base = ivl_expr_oper2(sub);
+		if (!e1 || ivl_expr_type(e1) != IVL_EX_SIGNAL
+		    || !ivl_expr_signal(e1)
+		    || ivl_signal_dimensions(ivl_expr_signal(e1)) != 0
+		    || !select_base) {
+		      fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
+		              "++/-- destination.\n",
+		              ivl_expr_file(sub), ivl_expr_lineno(sub));
+		      vvp_errors += 1;
+		      draw_eval_vec4(sub);
+		      return;
+		}
 		sig = ivl_expr_signal(e1);
-		wid = ivl_expr_width(e1);
+		wid = ivl_expr_width(sub);
+		is_signal_select = true;
 		break;
 	  }
 
@@ -2440,6 +2457,24 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	            array_flag);
 	    note_array_signal_use(sig);
 	    fprintf(vvp_out, "    %%load/vec4a v%p, %d;\n", sig, array_index);
+	  } else if (is_signal_select) {
+	    select_index = allocate_word();
+	    select_flag = allocate_flag();
+	    if (signal_is_return_value(sig))
+	          fprintf(vvp_out, "    %%retload/vec4 0; increment packed return carrier\n");
+	    else
+	          fprintf(vvp_out, "    %%load/vec4 v%p_0; increment packed carrier\n",
+	                  sig);
+	    draw_eval_vec4(select_base);
+	    fprintf(vvp_out, "    %%dup/vec4; preserve packed select base\n");
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	            ? "    %%ix/vec4/s %d; packed select base\n"
+	            : "    %%ix/vec4 %d; packed select base\n", select_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve packed select validity\n",
+	            select_flag);
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	            ? "    %%part/s %u; increment selected value\n"
+	            : "    %%part/u %u; increment selected value\n", wid);
 	  } else {
 	    draw_eval_vec4(sub);
       }
@@ -2478,8 +2513,19 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
 		          array_flag);
 		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, array_index);
+	    } else if (is_signal_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
+		          select_flag);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
+		  else
+			fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig,
+			        select_index);
 	    } else {
-		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
+		  else
+			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
 	    }
 
       } else {
@@ -2511,8 +2557,19 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
 		          array_flag);
 		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, 0;\n", sig, array_index);
+	    } else if (is_signal_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
+		          select_flag);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
+		  else
+			fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig,
+			        select_index);
 	    } else {
-		  fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
+		  else
+			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", sig, wid);
 	    }
       }
 
@@ -2529,6 +2586,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       } else if (is_array_word) {
 	    clr_word(array_index);
 	    clr_flag(array_flag);
+      } else if (is_signal_select) {
+	    clr_word(select_index);
+	    clr_flag(select_flag);
       }
 }
 
@@ -2588,18 +2648,22 @@ static void draw_unary_vec4(ivl_expr_t expr)
 
 	  case 'D': /* pre-decrement (--x) */
 	    draw_unary_inc_dec(sub, false, true);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'd': /* post_decrement (x--) */
 	    draw_unary_inc_dec(sub, false, false);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'I': /* pre-increment (++x) */
 	    draw_unary_inc_dec(sub, true, true);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'i': /* post-increment (x++) */
 	    draw_unary_inc_dec(sub, true, false);
+	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'N': /* nor (~|) */

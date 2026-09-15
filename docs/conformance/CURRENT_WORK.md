@@ -48,10 +48,11 @@ into cross-platform qualification.
 
 [PR281](https://github.com/dsellerbrock/iverilog-uvm/pull/281) repairs build defects
 exposed by that publication. Its current revision, CI state, and exact next
-command belong to CAMPAIGN. The separately preserved local L65/L66 batch at
-`711e54893` has focused evidence but has not received broad batch qualification;
+command belong to CAMPAIGN. The local post-L64 batch has focused evidence but has not received broad
+batch qualification;
 its [L65](session_logs/2026-09-14_constraint_multiprefix_reductions.md) and
-[L66](session_logs/2026-09-14_typed_array_return_elements.md) session records
+[L66](session_logs/2026-09-14_typed_array_return_elements.md), and
+[L67](session_logs/2026-09-14_packed_select_increment.md) session records
 contain the focused evidence. No newer whole-application replay is claimed.
 
 ## History
