@@ -13,10 +13,10 @@ lanes:
     reproducer: evidence/batch-20260914-after-l84/next-selection/joint_element_order.sv
     actual: "Both editions compile, then reject legal selected integral array-element ordering because the joint stage map accepts only scalar property references."
     expected: "Distinct selected integral elements have distinct canonical ordering identities; sample complete legal stage projections and conditional fibers."
-    owns: [vvp/vvp_z3.cc]
+    owns: [vvp/vvp_z3.cc, elaborate.cc]
     test_prefix: sv_randomize_joint_element_order
-    allowed_scope: "Bounded joint solve-before over statically selected fixed-array integral elements, including scalar/element mixtures. Reuse OrderRef identities and existing element ASTs, exact stage projection, L85 distribution preflight and transaction rollback."
-    forbidden_scope: "Dynamic selection/size ordering, real ordering, randc ordering, new distribution families, parser/target changes, SVA files and weakened diagnostics."
+    allowed_scope: "Bounded joint solve-before over statically selected fixed-array integral elements, including scalar/element mixtures. Reuse OrderRef identities and existing element ASTs, exact stage projection, L85 distribution preflight and transaction rollback. Also diagnose constant out-of-range direct fixed-array operands in the PEConstraintOrder vars_to_ir lowering in elaborate.cc; invalid ordering must not reach the ignored-constraint warning fallback."
+    forbidden_scope: "Dynamic selection/size ordering, real ordering, randc ordering, new distribution families, parser/target redesign, unrelated constraint diagnostics, SVA files and weakened diagnostics."
     dependencies: "L85 integrated at9f416e09a with focused validation; independent of L86. Root owns old global_ordered_fail fixture/golds."
     acceptance: "Both editions: hand-derived marginal/fiber probabilities, distinct elements of same array, scalar/element mixtures, aliases, nonzero declared bounds, transitive/partial ordering, frozen rand_mode, L85 supported dist interaction, seeded replay, unsat/cap/RNG rollback, cyclic and out-of-range/unsupported references; focused solver neighbors."
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT

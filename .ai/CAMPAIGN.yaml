@@ -77,7 +77,7 @@ parallel_authorization: User requested two existing cheaper implementation agent
 active_lanes:
   - id: L87-JOINT-SELECTED-ELEMENT-ORDERING
     agent: /root/constraint_abi
-    files: vvp/vvp_z3.cc
+    files: vvp/vvp_z3.cc, elaborate.cc
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     agent: /root/constraint_wide
     files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
@@ -129,3 +129,5 @@ l85_status: Integrated9f416e09a; eight cases each harness and23 neighbors passed
 latest_runtime_install: L85 including graph RNG rollback; candidate hashes in evidence/batch-20260914-after-l84/l85-candidate.json.
 shared_process_observation_latest: All L85 builds and focused harnesses terminal; no shared process active.
 l87_baseline: evidence/batch-20260914-after-l84/next-selection/baseline.json
+
+l87_frontend_refinement: l87-direct.json exposed invalid constant fixed-array ordering silently dropped after a warning. Coordinator authorizes a narrow PEConstraintOrder vars_to_ir diagnostic in elaborate.cc for direct rank-matched fixed-array constant selectors; unrelated unsupported lowering remains outside this ticket. Runtime candidate built; positive harnesses running, frontend not rebuilt yet.
