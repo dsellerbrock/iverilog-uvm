@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_const_string_comparison_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_const_string_comparison_fail"
+    ],
+    "gold": "sv_const_string_comparison_fail"
+}

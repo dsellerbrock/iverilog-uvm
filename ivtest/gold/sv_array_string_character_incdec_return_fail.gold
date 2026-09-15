@@ -1,0 +1,2 @@
+./ivltests/sv_array_string_character_incdec_return_fail.v:6: vvp.tgt error: unsupported string array return CHARACTER ++/-- destination.
+error: Code generation had 1 error(s).

@@ -26483,6 +26483,37 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %putc/stra/vec4 <array>, <word-index>, <character-index> */
+bool of_PUTC_STRA_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned word_reg = cp->bit_idx[0];
+      unsigned char_reg = cp->bit_idx[1];
+      int64_t word = thr->words[word_reg].w_int;
+      int64_t character = thr->words[char_reg].w_int;
+      vvp_vector4_t val = thr->pop_vec4();
+      assert(val.size() == 8);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%putc/stra/vec4");
+      if (thr->flags[4] != BIT4_0 || !array || word < 0
+	  || uint64_t(word) >= array->get_size() || character < 0)
+	    return true;
+
+      string tmp = array->get_word_str(static_cast<unsigned>(word));
+      if (uint64_t(character) >= tmp.size())
+	    return true;
+
+      unsigned char byte = 0;
+      for (size_t bit = 0; bit < 8; bit += 1)
+	    if (val.value(bit) == BIT4_1)
+		  byte |= 1U << bit;
+      if (byte == 0)
+	    return true;
+
+      tmp[character] = byte;
+      array->set_word(static_cast<unsigned>(word), tmp);
+      return true;
+}
+
 template <typename ELEM, class QTYPE>
 static bool qinsert(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
@@ -27688,6 +27719,38 @@ bool of_RETLOAD_REAL(vthread_t thr, vvp_code_t cp)
 bool of_RETLOAD_STR(vthread_t thr, vvp_code_t cp)
 {
       return retload<string>(thr, cp);
+}
+
+/* %putc/ret/vec4 <return-index>, <mux>
+ * Update one byte of the string return slot owned by the active function. */
+bool of_PUTC_RET_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned muxr = cp->bit_idx[0];
+      int64_t mux = muxr ? thr->words[muxr].w_int : 0;
+      vvp_vector4_t val = thr->pop_vec4();
+      assert(val.size() == 8);
+      if ((muxr && thr->flags[4] != BIT4_0) || mux < 0)
+	    return true;
+
+      string type;
+      vthread_t fun_thr = get_func(thr);
+      size_t index = cp->number;
+      assert(index < get_max(fun_thr, type));
+      unsigned depth = get_depth(fun_thr, index, type);
+      string tmp = fun_thr->parent->peek_str(depth);
+      if ((uint64_t)mux >= (uint64_t)tmp.size())
+	    return true;
+
+      unsigned char byte = 0;
+      for (size_t bit = 0; bit < 8; bit += 1)
+	    if (val.value(bit) == BIT4_1)
+		  byte |= 1U << bit;
+      if (byte == 0)
+	    return true;
+
+      tmp[mux] = byte;
+      fun_thr->parent->poke_str(depth, tmp);
+      return true;
 }
 
 /*

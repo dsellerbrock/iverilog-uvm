@@ -2357,8 +2357,10 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       bool is_property_select = false;
       bool is_array_word = false;
       bool is_signal_select = false;
+      bool is_string_character = false;
       bool is_nested_signal_select = false;
       bool is_array_word_select = false;
+      bool is_array_string_character = false;
       ivl_expr_t array_word = 0;
       ivl_expr_t select_base = 0;
       int select_index = -1;
@@ -2492,7 +2494,26 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			    draw_eval_vec4(sub);
 			    return;
 		      }
+		      if (ivl_signal_data_type(sig) == IVL_VT_STRING) {
+			    if (signal_is_return_value(sig)) {
+			          fprintf(stderr, "%s:%u: vvp.tgt error: unsupported string "
+			                  "array return CHARACTER ++/-- destination.\n",
+			                  ivl_expr_file(sub), ivl_expr_lineno(sub));
+			          vvp_errors += 1;
+			          draw_eval_vec4(sub);
+			          return;
+			    }
+			    is_array_string_character = true;
+			    wid = 8;
+			    break;
+		      }
 		      is_array_word_select = true;
+		}
+		if (ivl_signal_dimensions(sig) == 0
+		    && ivl_signal_data_type(sig) == IVL_VT_STRING) {
+		      is_string_character = true;
+		      wid = 8;
+		      break;
 		}
 		wid = ivl_expr_width(sub);
 		is_signal_select = true;
@@ -2623,6 +2644,42 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    fprintf(vvp_out, ivl_expr_signed(select_base)
 	          ? "    %%part/s %u; nested selected value\n"
 	          : "    %%part/u %u; nested selected value\n", wid);
+	  } else if (is_string_character) {
+	    select_index = allocate_word();
+	    select_flag = allocate_flag();
+	    draw_eval_vec4(select_base);
+	    resize_vec4_wid(select_base, 32);
+	    fprintf(vvp_out, "    %%cast2; string character selector to int\n");
+	    fprintf(vvp_out, "    %%ix/vec4/s %d; capture string character selector\n",
+	            select_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string character selector\n",
+	            select_flag);
+	    if (signal_is_return_value(sig))
+	          fprintf(vvp_out, "    %%retload/str 0; increment string return character\n");
+	    else
+	          fprintf(vvp_out, "    %%load/str v%p_0; increment string character\n", sig);
+	    fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string character\n",
+	            select_index);
+	    fprintf(vvp_out, "    %%pop/str 1; discard captured string\n");
+	  } else if (is_array_string_character) {
+	    array_index = allocate_word();
+	    array_flag = allocate_flag();
+	    select_index = allocate_word();
+	    draw_eval_expr_into_integer(array_word, array_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string array word selector\n",
+	            array_flag);
+	    draw_eval_vec4(select_base);
+	    resize_vec4_wid(select_base, 32);
+	    fprintf(vvp_out, "    %%cast2; string array character selector to int\n");
+	    fprintf(vvp_out, "    %%ix/vec4/s %d; capture string array character selector\n",
+	            select_index);
+	    fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector for read\n",
+	            array_flag);
+	    fprintf(vvp_out, "    %%load/stra v%p, %d; increment string array character\n",
+	            sig, array_index);
+	    fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string array character\n",
+	            select_index);
+	    fprintf(vvp_out, "    %%pop/str 1; discard captured string array word\n");
 	  } else if (is_array_word_select) {
 	    array_index = allocate_word();
 	    array_flag = allocate_flag();
@@ -2730,6 +2787,20 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  }
 		  if (signal_is_return_value(sig)) fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
 		  else fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
+	    } else if (is_string_character) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
+		          select_flag);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%putc/ret/vec4 0, %d; increment string return character\n",
+			        select_index);
+		  else
+			fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d; increment string character\n",
+			        sig, select_index);
+	    } else if (is_array_string_character) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector\n",
+		          array_flag);
+		  fprintf(vvp_out, "    %%putc/stra/vec4 v%p, %d, %d; increment string array character\n",
+		          sig, array_index, select_index);
 	    } else if (is_array_word_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
 		          select_flag);
@@ -2807,6 +2878,20 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  }
 		  if (signal_is_return_value(sig)) fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
 		  else fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
+	    } else if (is_string_character) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
+		          select_flag);
+		  if (signal_is_return_value(sig))
+			fprintf(vvp_out, "    %%putc/ret/vec4 0, %d; decrement string return character\n",
+			        select_index);
+		  else
+			fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d; decrement string character\n",
+			        sig, select_index);
+	    } else if (is_array_string_character) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector\n",
+		          array_flag);
+		  fprintf(vvp_out, "    %%putc/stra/vec4 v%p, %d, %d; decrement string array character\n",
+		          sig, array_index, select_index);
 	    } else if (is_array_word_select) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
 		          select_flag);
@@ -2855,6 +2940,11 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    free(carrier_index); free(carrier_flag);
 	    free(carrier_width); free(carrier_base);
 	    clr_word(select_index); clr_flag(select_flag);
+	  } else if (is_string_character) {
+	    clr_word(select_index); clr_flag(select_flag);
+	  } else if (is_array_string_character) {
+	    clr_word(array_index); clr_flag(array_flag);
+	    clr_word(select_index);
 	  } else if (is_array_word_select) {
 	    clr_word(array_index);
 	    clr_flag(array_flag);

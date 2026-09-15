@@ -175,3 +175,7 @@ paired evidence are linked from the [2017 matrix L68 refinement](matrices/ieee18
 ## 2026-09-14 shared L65–L74 evidence
 
 The selected compiler fixes exercise common rules in paired 2017/2023 regressions. Shared scope and evidence belong to the [2017 matrix refinement](matrices/ieee1800_2017_clause_matrix.md#l65l74-qualification-refinement--2026-09-14); this adds no edition-specific language claim.
+
+## 2026-09-14 shared L75–L84 evidence
+
+The string-storage and constant-evaluation fixes exercise common rules in paired 2017/2023 tests. Shared scope and qualification belong to the [2017 matrix refinement](matrices/ieee1800_2017_clause_matrix.md#l75l84-qualification-refinement--2026-09-14). No edition-specific change or separate full-2023 UVM qualification is claimed.

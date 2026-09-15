@@ -1,0 +1,20 @@
+{
+  "scope": "L80 Constant-function substr",
+  "source_base": "865345a8bc65c01884f7305bdcf893658f27eca7",
+  "source_sha256": {
+    "net_func_eval.cc": "3342e20d935e144cb34341199769bc179ded156fedfce0cc0ac096107e17807d"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "176bea98a532aa3e8e5fb2710d0266f2dbf7bd3aee358828c3b1dc3f047b4f25",
+    "local-install/lib/ivl/ivl": "5afb22ff177d8acb097a20bf452ca12c2364933e87c6a67fbfb6ff580950e13e",
+    "local-install/lib/ivl/vvp.tgt": "887205352153cd8db77d452d24d5b713accf2420fee01403da6c23b662081cc6"
+  },
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "neighbors_json": 28,
+  "focused_evidence": "evidence/batch-20260914-after-l74/l80-focused.json",
+  "neighbor_evidence": "evidence/batch-20260914-after-l74/l79-l80-neighbors.json",
+  "broad_qualified": false,
+  "artifact_provenance": "L80 compiler and L79 target/runtime; focused combined candidate."
+}

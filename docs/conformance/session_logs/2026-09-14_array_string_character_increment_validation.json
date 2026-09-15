@@ -1,0 +1,20 @@
+{
+  "scope": "L83 Fixed-array string-character increment/decrement",
+  "source_base": "213208b2f3dc2f584c77d73760699d0019f7c734",
+  "source_sha256": {
+    "tgt-vvp/eval_vec4.c": "b8e5e3e89e375bd166e22ef7e6685714d06de79548b483327bca003e19217be1"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "176bea98a532aa3e8e5fb2710d0266f2dbf7bd3aee358828c3b1dc3f047b4f25",
+    "local-install/lib/ivl/ivl": "14580f85d0290e22791efabbc996dd7c77a31465dea1ba16ecdf0fa40d4f24db",
+    "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad"
+  },
+  "permanent_legacy": 8,
+  "permanent_json": 8,
+  "neighbors_json": 36,
+  "focused_evidence": "evidence/batch-20260914-after-l74/l83-l84-final-focused.json",
+  "additional_evidence": "evidence/batch-20260914-after-l74/l83-focused.json",
+  "broad_qualified": false,
+  "artifact_provenance": "L84 compiler, L83 target, integrated L79 runtime."
+}

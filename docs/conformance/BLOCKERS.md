@@ -2002,16 +2002,96 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L75 — String-function-return character stores
 
-- **State:** REPRODUCED; prepared for a later selected batch.
+- **State:** IMPLEMENTED for scalar return characters; focused checks pass, broad batch pending.
 - **Area / edition:** Runtime return storage; IEEE 1800-2017/2023 6.16, 11.4.1, 13.4.1.
 - **Evidence:** `evidence/parallel-batch-l71-l72/l75-assessment/`: both editions leave ABC unchanged for plain/compound character writes to a function return. Plain selectors execute once; compound selectors are skipped.
 - **Closure:** Plain and compound byte stores, signed arithmetic, index/RHS capture, bounds/defaults/zero-byte behavior and automatic/recursive return-slot isolation.
 - **Last verified revision:** `e25971651` frozen candidate.
 
-### L76 — Constant-function string.toupper()
+- **Focused implementation evidence:** [L75 session](session_logs/2026-09-14_string_return_character.md).
 
-- **State:** REPRODUCED; prepared for a later selected batch.
-- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 13.4.3.
+### L76 — Constant-function string case conversion
+
+- **State:** LOCALLY QUALIFIED for the recorded toupper/tolower scope; see joint qualification below.
+- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 6.16.5, 13.4.3.
 - **Evidence:** `evidence/next-constant-assessment/ASSESSMENT.md`: both editions reject the internal method during constant evaluation and then assert; runtime control passes.
 - **Closure:** Correct byte conversion without receiver mutation, empty/high-byte/local/argument cases, runtime parity and focused invalid-call diagnostics.
 - **Last verified revision:** `e25971651` frozen candidate.
+
+- **Focused implementation evidence:** [L76 session](session_logs/2026-09-14_constant_string_case_conversion.md).
+
+### L77 — Runtime string-character increment/decrement expressions
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l77-baseline.json`: both editions abort loading string storage through the vector loader.
+- **Scope:** Scalar string variables and scalar string returns, pre/post byte update/result semantics, bounds and index capture.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
+
+- **Focused implementation evidence:** [L77 session](session_logs/2026-09-14_string_character_increment.md).
+
+### L78 — Constant-function string comparisons
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l78-baseline.json`: both editions reject constant compare/icompare evaluation.
+- **Scope:** Case-sensitive and insensitive comparison signs, byte ordering, operand preservation and diagnostics.
+- **Standards:** IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3.
+
+- **Focused implementation evidence:** [L78 session](session_logs/2026-09-14_constant_string_comparison.md).
+
+### L79 — Fixed-array string-character stores
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l79-array-character-baseline.json`: both editions abort in target assignment lowering.
+- **Scope:** Plain blocking byte writes to fixed unpacked-array string words; selector capture and bounds.
+- **Standards:** IEEE 1800-2017/2023 6.16, 6.16.2, 7.4, 10.4.1.
+
+- **Focused implementation evidence:** [L79 session](session_logs/2026-09-14_array_string_character_store.md).
+
+### L80 — Constant-function substr
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l80-constant-substr-baseline.json`: both editions reject method evaluation then assert.
+- **Scope:** Inclusive substr evaluation with int indices, invalid-range empty results and receiver preservation.
+- **Standards:** IEEE 1800-2017/2023 6.16.8, 13.4.3.
+
+- **Focused implementation evidence:** [L80 session](session_logs/2026-09-14_constant_string_substr.md).
+
+### L81 — Fixed-array string-character compound stores
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l81-array-character-compound-baseline.json`: both editions skip the byte assignment and its side effects.
+- **Scope:** Legal integral character compound operations on fixed string-array words; whole-string arithmetic is not legal scope.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.1.
+
+- **Focused implementation evidence:** [L81 session](session_logs/2026-09-14_array_string_character_compound.md).
+
+### L82 — Constant string-to-integer conversion family
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l82-constant-string-integer-baseline.json`: both editions reject all four conversion methods in constant functions.
+- **Scope:** atoi/atohex/atooct/atobin with radix digits, underscore scanning, termination and 32-bit integer results.
+- **Standards:** IEEE 1800-2017/2023 6.16.9, 13.4.3.
+
+- **Focused implementation evidence:** [L82 session](session_logs/2026-09-14_constant_string_integer.md).
+
+### L83 — Fixed-array string-character increment/decrement
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l83-array-character-incdec-baseline.json`: both editions route string storage through the vector-array loader and fail runtime semantics.
+- **Scope:** Pre/post signed character update/results on fixed string arrays, excluding array returns.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
+
+- **Focused implementation evidence:** [L83 session](session_logs/2026-09-14_array_string_character_increment.md).
+
+### L84 — Constant-function string-character increment/decrement
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l84-constant-character-incdec-baseline.json`: both editions fail selected-character unary evaluation and assert downstream.
+- **Scope:** Scalar local/argument/return string character pre/post byte updates and results in constant functions.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2, 13.4.3.
+
+- **Focused implementation evidence:** [L84 session](session_logs/2026-09-14_constant_string_character_increment.md).
+
+### L75–L84 local qualification checkpoint
+
+The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json) supersedes pending broad-gate notes for these bounded subsets. Remote CI and complete application/edition support remain separate obligations.

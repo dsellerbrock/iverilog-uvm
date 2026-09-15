@@ -1354,3 +1354,47 @@ IMPLEMENTED for scalar string character compound arithmetic, with byte typing, c
 ### L65–L74 qualification refinement — 2026-09-14
 
 The bounded scopes above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate only; it does not expand receiver coverage or establish full-clause conformance.
+
+### L75 — Scalar string-function-return character stores
+
+IMPLEMENTED for plain and compound character assignments to scalar string return variables, with return-frame isolation and byte/index semantics. See [L75 evidence](../session_logs/2026-09-14_string_return_character.md); broader receiver forms and batch qualification remain pending.
+
+### L76 — Constant-function string case conversion (6.16.4, 6.16.5)
+
+IMPLEMENTED for toupper/tolower byte conversion and receiver preservation during constant evaluation. See [L76 evidence](../session_logs/2026-09-14_constant_string_case_conversion.md); other methods and broad qualification remain separate.
+
+### L77 — Runtime scalar string-character increment/decrement
+
+IMPLEMENTED for pre/post scalar and return-character updates. See [L77 evidence](../session_logs/2026-09-14_string_character_increment.md); other receivers and broad qualification remain separate.
+
+### L78 — Constant-function string comparisons
+
+IMPLEMENTED for compare/icompare ordering and operand preservation. See [L78 evidence](../session_logs/2026-09-14_constant_string_comparison.md); broad qualification remains pending.
+
+### L79 — Fixed-array string-character stores
+
+IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_array_string_character_store.md); broad batch qualification remains pending.
+
+### L80 — Constant-function substr
+
+IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_constant_string_substr.md); broad batch qualification remains pending.
+
+### L81 — Fixed-array string-character compound stores
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_compound.md); array function returns and broad qualification remain separate.
+
+### L82 — Constant string-to-integer conversions
+
+IMPLEMENTED for the four methods using the [shared parser](../session_logs/2026-09-14_constant_string_integer.md); broad batch qualification remains pending.
+
+### L83 — Fixed-array string-character increment/decrement
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_increment.md); other receiver kinds and broad qualification remain separate.
+
+### L84 — Constant-function string-character increment/decrement
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_constant_string_character_increment.md); other receiver kinds and broad qualification remain separate.
+
+### L75–L84 qualification refinement — 2026-09-14
+
+The bounded implementations above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate without expanding receiver coverage or declaring full-clause conformance.

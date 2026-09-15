@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_array_string_character_compound_bounds_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_array_string_character_compound_bounds"
+    ],
+    "gold": "sv_array_string_character_compound_bounds"
+}

@@ -28,6 +28,11 @@ class Statement;
 class PExpr;
 class netclass_t;
 
+/* Parse the leading digits accepted by the SystemVerilog string-to-integer
+ * methods and return their signed 32-bit result without signed host overflow. */
+extern int64_t string_method_parse_integer(const std::string&text,
+					   unsigned base);
+
 // A referenced integral function-name variable needs addressable storage.
 inline void materialize_ref_return(NetNet*sig)
 {

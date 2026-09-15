@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_array_string_character_store_2023.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_array_string_character_store"
+    ],
+    "gold": "sv_array_string_character_store"
+}
