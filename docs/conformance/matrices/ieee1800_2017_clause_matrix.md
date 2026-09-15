@@ -1398,3 +1398,7 @@ IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_constant_str
 ### L75–L84 qualification refinement — 2026-09-14
 
 The bounded implementations above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate without expanding receiver coverage or declaring full-clause conformance.
+
+### L85 — Joint ordered distributions
+
+IMPLEMENTED for the [recorded canonical scalar subset](../session_logs/2026-09-14_joint_ordered_distribution.md), with exact staged distributions and atomic graph rollback. Broader joint distribution families remain PARTIAL; broad batch qualification is pending.

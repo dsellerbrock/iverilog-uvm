@@ -4738,6 +4738,7 @@ struct randomize_static_value_s {
 struct randomize_graph_entry_s {
       vvp_object_t hold;
       vvp_cobject*cobj;
+      std::string rng_state;
       std::vector<rand_saved_prop_s> values;
       vvp_cobject::randc_history_state_t instance_history;
       std::vector<randomize_static_history_s> static_history;
@@ -4785,6 +4786,7 @@ class randomize_graph_session_t {
 	    randomize_graph_entry_s&entry = entries_.back();
 	    entry.hold = vvp_object_t(cobj);
 	    entry.cobj = cobj;
+	    entry.rng_state = cobj->rng_get_state();
 	    const class_type*defn = cobj->get_defn();
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!rand_call_active_(defn, cobj, sel, pid)
@@ -4848,6 +4850,7 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
+		  (void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =

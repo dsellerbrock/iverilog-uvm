@@ -2099,15 +2099,24 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_
 ### L85 — Ordered distributions in joint canonical scalar solves
 
 - **Parent:** Z01.
-- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; integrated implementation awaits broad batch qualification.
 - **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject a legal ordered weighted joint graph at runtime.
 - **Scope:** Existing supported hard distribution family combined with bounded canonical scalar solve-before stages; correct stage marginals and conditional fibers.
-- **Standards:** 2017 18.5.4/18.5.9/18.5.10; 2023 18.5.4/18.5.8/18.5.9.
+- **Standards:** 2017 18.5.4/18.5.9/18.5.10; 2023 18.5.3/18.5.8/18.5.9.
+
+- **Implementation evidence:** [L85 session](session_logs/2026-09-14_joint_ordered_distribution.md).
 
 ### L86 — Bounded delay-range antecedents in multiclock implications
 
 - **Parent:** S01 residual scope.
-- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **State:** IMPLEMENTING; coordinator-authorized in ACTIVE_WORK.
 - **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject the finite two-endpoint antecedent.
 - **Scope:** Finite constant delay windows with all matching endpoints, correct clock handoff and preserved attempt/action semantics.
 - **Standards:** IEEE 1800-2017/2023 16.9.2, 16.12 and 16.13.
+
+L86 architecture refinement: scalar cross-clock request counts cannot retain the
+parent of multiple antecedent matches. The coordinator authorized dynamic
+parent-tagged transport and per-attempt verdict aggregation in ACTIVE_WORK.
+The paired action-count reducer is preserved at
+`evidence/next-batch-after-l84/parent-actions-baseline.json`; no candidate
+qualification is established by this scope refinement.

@@ -179,3 +179,11 @@ The selected compiler fixes exercise common rules in paired 2017/2023 regression
 ## 2026-09-14 shared L75–L84 evidence
 
 The string-storage and constant-evaluation fixes exercise common rules in paired 2017/2023 tests. Shared scope and qualification belong to the [2017 matrix refinement](matrices/ieee1800_2017_clause_matrix.md#l75l84-qualification-refinement--2026-09-14). No edition-specific change or separate full-2023 UVM qualification is claimed.
+
+## L85 shared ordered-distribution evidence
+
+2023 distribution is clause 18.5.3; its excluded-range mass clarification differs
+from 2017 18.5.4 wording. L85 supports the common fully feasible-range subset
+and rejects unsupported fibers before drawing, without claiming that edition
+difference implemented. Shared scope and paired evidence belong to the
+[2017 matrix L85 entry](matrices/ieee1800_2017_clause_matrix.md#l85--joint-ordered-distributions).

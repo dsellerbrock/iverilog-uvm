@@ -18,6 +18,11 @@ support. Earlier [L65–L74](session_logs/2026-09-14_compiler_batch_l65_l74_qual
 and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
 records retain their original revisions and limits.
 
+## Newer focused implementation evidence
+
+[L85 ordered distributions](session_logs/2026-09-14_joint_ordered_distribution.md) records the next
+focused implementation. It does not replace the broad qualification above.
+
 ## Application evidence
 
 The [September 13 OpenTitan/Caliptra census](session_logs/2026-09-13_opentitan_caliptra_rebaseline_after277.md)

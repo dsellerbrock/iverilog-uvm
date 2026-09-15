@@ -4294,8 +4294,10 @@ enum z3_pass_status { Z3PASS_FAILED = 0, Z3PASS_SAT_APPLIED = 1,
  * requires a speculative size pass followed by the authoritative element
  * pass. Rewind replays pass-1 words from this tape without rewinding the
  * object's generator; only a pass that needs a longer prefix advances the
- * object further. Thus the two internal passes consume one external stream,
- * while a failed solve still leaves every word it requested consumed.
+ * object further. Thus the two internal passes consume one external stream.
+ * This local tape does not itself rewind the object after failure; the
+ * enclosing randomize graph transaction journals and restores every visited
+ * object's RNG as part of the campaign's atomic-call contract.
  *
  * uniform_index uses rejection against the largest multiple of `bound' in
  * [0,2^32), eliminating the low-index bias of `rng_next() % bound'. Exact
@@ -4881,7 +4883,8 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    const Z3Builder::DistSpec& spec,
 				   z3_rng_stream_t& rng,
                                    uint64_t& chosen,
-                                   bool require_complete_ranges = false)
+                                   bool require_complete_ranges = false,
+                                   bool validate_only = false)
 {
       static const uint64_t RANGE_EXPAND_CAP = 256;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
@@ -4992,6 +4995,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 	    total += item.aggregate_weight;
 	}
 	if (total == 0) return false;
+      if (validate_only) return true;
       uint64_t ticket = rng.uniform_u64(total);
       size_t item_idx = items.size() - 1;
       for (size_t i = 0 ; i < items.size() ; i += 1) {
@@ -5684,8 +5688,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Reject before any sampling; a cap failure after a randc draw
             // could otherwise condition successful calls on that draw.
             if (!builder.order_pairs.empty()) {
-                  if (!builder.dist_specs.empty())
-                        return fail_joint("joint solve-before with dist is not yet supported");
                   for (const auto&pair : builder.order_pairs)
                         if (pair.first.kind != Z3Builder::OrderRef::PROP
                             || pair.second.kind != Z3Builder::OrderRef::PROP)
@@ -6067,23 +6069,92 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
                         return fail_joint(reason);
             }
+            // Prove every ordered prefix can resolve its due distribution
+            // before consuming any random draw. The common 2017/2023 subset
+            // keeps the existing complete-range requirement: 2023 18.5.3
+            // specifies retained source-range mass after exclusions, while
+            // 2017 18.5.4 has different per-value wording. Validation moves
+            // prefix-dependent exclusions, range/weight caps, and any solver
+            // UNKNOWN ahead of all component/stage sampling.
+            if (!builder.order_pairs.empty()) {
+                  for (size_t ci = 0; ci < components.size(); ++ci) {
+                        const auto*spec = distributions[ci];
+                        if (!spec) continue;
+                        const auto&component = components[ci];
+                        unsigned dist_stage = final_stage;
+                        auto subject_stage = stages.find(spec->subject);
+                        if (subject_stage != stages.end())
+                              dist_stage = subject_stage->second;
+                        vector<size_t> prefix_columns;
+                        for (size_t i = 0; i < component.size(); ++i) {
+                              auto found = stages.find(component[i]);
+                              if (found != stages.end() && found->second < dist_stage)
+                                    prefix_columns.push_back(i);
+                        }
+                        set<vector<uint64_t> > prefixes;
+                        for (const auto&tuple : tables[ci]) {
+                              vector<uint64_t> prefix;
+                              for (size_t column : prefix_columns)
+                                    prefix.push_back(tuple[column]);
+                              prefixes.insert(std::move(prefix));
+                        }
+                        for (const auto&prefix : prefixes) {
+                              Z3_solver_push(ctx, base);
+                              for (size_t i = 0; i < prefix_columns.size(); ++i) {
+                                    size_t column = prefix_columns[i];
+                                    Z3_ast value = Z3_mk_unsigned_int64(ctx,
+                                          prefix[i], Z3_get_sort(ctx, component[column]));
+                                    Z3_solver_assert(ctx, base,
+                                          Z3_mk_eq(ctx, component[column], value));
+                              }
+                              uint64_t ignored = 0;
+                              bool valid = z3_resolve_dist_exact(ctx, base, opt,
+                                    *spec, owner_rng(spec->rng_owner), ignored,
+                                    true, true);
+                              Z3_solver_pop(ctx, base, 1);
+                              if (!valid)
+                                    return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
+                        }
+                  }
+            }
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   const auto&component = components[ci];
                   auto&tuples = tables[ci];
-                  if (const auto*spec = distributions[ci]) {
-                        uint64_t subject = 0;
-                        if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
-                              owner_rng(spec->rng_owner), subject, true))
-                              return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
-                        unsigned width = bv_width(ctx, spec->subject);
-                        if (width < 64) subject &= (uint64_t(1) << width) - 1;
-                        size_t column = subject_columns[ci];
-                        tuples.erase(remove_if(tuples.begin(), tuples.end(),
-                              [&](const vector<uint64_t>&tuple) { return tuple[column] != subject; }), tuples.end());
-                        if (tuples.empty())
-                              return fail_joint("the sampled distribution value has no proved joint tuple");
+                  const auto*spec = distributions[ci];
+                  size_t subject_column = spec ? subject_columns[ci] : 0;
+                  unsigned dist_stage = final_stage;
+                  if (spec) {
+                        auto found = stages.find(spec->subject);
+                        if (found != stages.end()) dist_stage = found->second;
                   }
-                  for (unsigned stage = 0; stage < final_stage; ++stage) {
+                  auto pin_column = [&](size_t column, uint64_t bits) {
+                        Z3_ast value = Z3_mk_unsigned_int64(ctx, bits,
+                              Z3_get_sort(ctx, component[column]));
+                        Z3_ast pin = Z3_mk_eq(ctx, component[column], value);
+                        Z3_solver_assert(ctx, base, pin);
+                        Z3_optimize_assert(ctx, opt, pin);
+                  };
+                  // Resolve stages in order. Prefix pins are installed in the
+                  // hard solver immediately, so a distribution on a later
+                  // subject is sampled from its actual conditional fiber.
+                  for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                        if (spec && stage == dist_stage) {
+                              uint64_t subject = 0;
+                              if (!z3_resolve_dist_exact(ctx, base, opt, *spec,
+                                    owner_rng(spec->rng_owner), subject,
+                                    true))
+                                    return fail_joint("a joint distribution has an excluded range member or could not be sampled exactly");
+                              unsigned width = bv_width(ctx, spec->subject);
+                              if (width < 64) subject &= (uint64_t(1) << width) - 1;
+                              tuples.erase(remove_if(tuples.begin(), tuples.end(),
+                                    [&](const vector<uint64_t>&tuple) {
+                                          return tuple[subject_column] != subject;
+                                    }), tuples.end());
+                              if (tuples.empty())
+                                    return fail_joint("the sampled distribution value has no proved joint tuple");
+                              pin_column(subject_column, subject);
+                        }
+                        if (stage == final_stage) break;
                         vector<size_t> columns;
                         for (size_t i = 0; i < component.size(); ++i) {
                               auto found = stages.find(component[i]);
@@ -6109,6 +6180,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           if (tuple[columns[i]] != (*selected)[i]) return true;
                                     return false;
                               }), tuples.end());
+                        for (size_t i = 0; i < columns.size(); ++i)
+                              pin_column(columns[i], (*selected)[i]);
                   }
                   // A distribution/stage sets its marginal; the remaining
                   // complete fiber is uniform. Independent factors multiply.

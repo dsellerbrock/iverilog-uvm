@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_joint_ordered_dist_ranges.v",
+    "iverilog-args": ["-g2017", "-s", "sv_randomize_joint_ordered_dist_ranges"],
+    "gold": "sv_randomize_joint_ordered_dist_ranges"
+}

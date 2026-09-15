@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: multiple distributions in a coupled component are not yet supported.
+PASSED
