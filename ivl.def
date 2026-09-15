@@ -161,12 +161,15 @@ ivl_lpm_trigger
 ivl_lpm_type
 ivl_lpm_width
 
+ivl_lval_dynamic_part_carrier
 ivl_lval_idx
 ivl_lval_is_array_slice
 ivl_lval_is_queue_slice
 ivl_lval_mux
 ivl_lval_nest
 ivl_lval_net_type
+ivl_lval_part_carrier_off
+ivl_lval_part_carrier_width
 ivl_lval_part_off
 ivl_lval_property_idx
 ivl_lval_sel_type
@@ -288,6 +291,7 @@ ivl_signal_attr
 ivl_signal_attr_cnt
 ivl_signal_attr_val
 ivl_signal_basename
+ivl_signal_const
 ivl_signal_data_type
 ivl_signal_dimensions
 ivl_signal_discipline
@@ -409,6 +413,16 @@ ivl_type_queue_max_size
 ivl_type_constraints
 ivl_type_constraint_name
 ivl_type_constraint_ir
+ivl_type_constraint_state_call_constraint
+ivl_type_constraint_state_call_dep
+ivl_type_constraint_state_call_dep_kind
+ivl_type_constraint_state_call_dep_leaf
+ivl_type_constraint_state_call_deps
+ivl_type_constraint_state_call_scope_name
+ivl_type_constraint_state_call_signed
+ivl_type_constraint_state_call_virtual
+ivl_type_constraint_state_call_width
+ivl_type_constraint_state_calls
 ivl_type_covgrp_ncoverpoints
 ivl_type_covgrp_bins
 ivl_type_covgrp_bin_prop
