@@ -2369,7 +2369,7 @@ Root-seed implementation evidence: [runtime seed control](session_logs/2026-09-1
 
 ### L112 — finite two-window first_match source prefix
 
-SELECTED for coordinator-authorized parallel implementation in ACTIVE_WORK.
+FOCUSED_TESTED; broad pending. [L112 evidence](session_logs/2026-09-15_multi_window_first_match_validation.json).
 Both editions reject the legal finite Boolean prefix at a one-window admission
 cap. The existing NFA and earliest-endpoint mechanism are the proposed repair;
 acceptance includes tied endpoints, cancellation, clock handoff and depth limits.

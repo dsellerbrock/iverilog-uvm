@@ -259,3 +259,5 @@ L109 pairs 2023 18.4.2/18.5.9 with the [shared independent-randc evidence](sessi
 L110 pairs 2023 19.5.2/19.11.3 with [shared constructor-transition evidence](session_logs/2026-09-15_constructor_transition_bins.md), including the corrected nonzero-weight oracle.
 
 L111 pairs 2023 18.4.2/18.5.9 with [shared coupled-cyclic evidence](session_logs/2026-09-15_coupled_randc_ordered_solving.md); broad qualification pending.
+
+L112 applies the corresponding2023 16.9.8/16.13 semantics with paired evidence: [finite multi-window first_match](session_logs/2026-09-15_multi_window_first_match_validation.json). No edition difference or whole-clause completion is claimed.

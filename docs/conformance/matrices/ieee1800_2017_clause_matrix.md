@@ -1514,3 +1514,12 @@ IMPLEMENTED for the [recorded constructor-endpoint subset](../session_logs/2026-
 ### L111 — Coupled randc-first ordered solving
 
 IMPLEMENTED for the [recorded enumerable one-cyclic subset](../session_logs/2026-09-15_coupled_randc_ordered_solving.md); supersedes L109 coupled rejection for this subset. Broad qualification pending; broader randomization remains PARTIAL.
+
+### 2026-09-15 L112 — finite multi-window first_match prefix
+
+16.9.8/16.13 PARTIAL refinement: direct finite Boolean multiclock source
+prefixes now admit multiple delay windows through the existing bounded NFA.
+All tied earliest MATCH records precede source CLOSE; later endpoints cannot
+rescue an earlier failure. Existing unsupported shapes and depth ceiling remain.
+[Focused evidence](../session_logs/2026-09-15_multi_window_first_match_validation.json);
+broad qualification pending.

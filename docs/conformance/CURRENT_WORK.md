@@ -84,3 +84,5 @@ The former continuation narrative is preserved in the
 Earlier checkpoints and failed attempts remain in the
 [session logs](session_logs/README.md). Keep historical results revision-scoped;
 update these pointers when new evidence is committed.
+
+Latest focused SVA increment: [L112 multi-window first_match](session_logs/2026-09-15_multi_window_first_match.md); broad qualification pending.

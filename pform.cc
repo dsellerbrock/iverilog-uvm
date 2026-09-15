@@ -19003,22 +19003,20 @@ static bool sva_mc_bounded_chain_nfa_(
 
 /* The multiclock source transport can implement a direct finite
    first_match chain by closing its parent at the first accepting source
-   tick. Keep this admission deliberately narrow: one Boolean chain, every
-   step inside the same wrapper, and at most one finite delay window. */
+   tick. Keep this admission deliberately narrow: one finite Boolean chain
+   with every step inside the same wrapper. */
 static bool sva_mc_direct_first_match_(
 		const std::vector<sva_seq_step_t>&steps)
 {
       if (steps.empty()) return false;
-      unsigned windows = 0;
       for (size_t i = 0; i < steps.size(); ++i) {
 	    const sva_seq_step_t&st = steps[i];
 	    if (!st.fm || st.delay_lo < 0 || st.delay_hi < st.delay_lo
 		|| st.rep_kind || st.rep_tail || st.grouped_repeat
 		|| st.lv_rhs || !st.match_calls.empty())
 		  return false;
-	    if (i && st.delay_lo != st.delay_hi) ++windows;
       }
-      return windows <= 1;
+      return true;
 }
 
 /* Absolute-key producer storage for L86's cross-clock record stream.
@@ -19826,9 +19824,11 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					 allocate, nullptr));
 
 		  /* Advance every live parent from the old NFA state.  Each
-		     terminal edge emits its own MATCH record; the restricted
-		     linear-window subset has no same-tick path coalescing. */
+		     terminal edge emits its own MATCH record. For first_match,
+		     publish all tied earliest matches before closing the parent. */
 		  for (size_t k = 0; k < ran_slots; ++k) {
+			PExpr*first_match_hit = source_first_match
+			      ? sva_bit_(loc, 0) : nullptr;
 			for (size_t i = 0; i < a_nfa.edges.size(); ++i) {
 			      const sva_nfa_edge_t&ed = a_nfa.edges[i];
 			      if (ed.to != a_nfa.accept) continue;
@@ -19844,6 +19844,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      hit = sva_logic_(loc, 'a',
 				    sva_id_(loc, ran_live[k]), hit);
+			      if (source_first_match) {
+				    PExpr*copy = sva_clone_expr_(hit);
+				    ivl_assert(loc, copy);
+				    first_match_hit = sva_logic_(loc, 'o',
+					  first_match_hit, copy);
+			      }
 			      Statement*endpoint;
 			      if (prefix_stages) {
 				    std::vector<Statement*>start_prefix;
@@ -19857,20 +19863,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 				    endpoint = emit_record(
 					  1, sva_id_(loc, ran_parent[k]), nullptr);
 			      }
-			      if (source_first_match) {
-				    /* This admitted direct chain has at most one match at
-				       an ending tick. Publish that earliest endpoint, then
-				       close the parent in the same source-clock evaluation so
-				       no later endpoint can launch a destination child. */
-				    std::vector<Statement*>cut;
-				    cut.push_back(endpoint);
-				    cut.push_back(emit_record(
-					  2, sva_id_(loc, ran_parent[k]), nullptr));
-				    cut.push_back(sva_assign_(loc, ran_live[k],
-						       sva_bit_(loc, 0)));
-				    endpoint = sva_block_(loc, cut);
-			      }
 			      body1.push_back(sva_if_(loc, hit, endpoint, nullptr));
+			}
+			if (source_first_match) {
+			      std::vector<Statement*>cut;
+			      cut.push_back(emit_record(
+				    2, sva_id_(loc, ran_parent[k]), nullptr));
+			      cut.push_back(sva_assign_(loc, ran_live[k],
+					 sva_bit_(loc, 0)));
+			      body1.push_back(sva_if_(loc, first_match_hit,
+				    sva_block_(loc, cut), nullptr));
 			}
 			for (unsigned j = 0; j < a_nfa.nstates; ++j) {
 			      PExpr*next = sva_bit_(loc, 0);

@@ -173,7 +173,7 @@ current_checkpoint:
 
 sva_implementation_lane:
   id: L112-TWO-WINDOW-FIRST-MATCH
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_wide
   standards: IEEE1800-2017 and2023 16.9.8,16.13
   reproducer: evidence/batch-20260915-after-l95/next-first-match-two-window-assessment/two_window_earliest_failure.sv

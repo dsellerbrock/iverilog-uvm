@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_assert_multiclock_first_match_two_window.v","iverilog-args":["-g2017","-gassertions","-s","sv_assert_multiclock_first_match_two_window"],"gold":"sv_assert_multiclock_first_match_two_window"}
