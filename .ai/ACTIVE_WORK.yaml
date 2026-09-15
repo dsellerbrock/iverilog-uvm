@@ -1,24 +1,24 @@
-id: PARALLEL-BATCH-L86-L87
-title: Selected-element ordering and bounded multiclock antecedent semantics
+id: PARALLEL-BATCH-L86-L88
+title: Dynamic selected-element ordering and bounded multiclock antecedent semantics
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
 lanes:
-  - id: L87-JOINT-SELECTED-ELEMENT-ORDERING
+  - id: L88-JOINT-DYNAMIC-ELEMENT-ORDERING
     parent: Z01
     agent: /root/constraint_abi
     status: REPRODUCED
-    standards: "IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9; distribution interaction uses L85 shared subset."
-    reproducer: evidence/batch-20260914-after-l84/next-selection/joint_element_order.sv
-    actual: "Both editions compile, then reject legal selected integral array-element ordering because the joint stage map accepts only scalar property references."
-    expected: "Distinct selected integral elements have distinct canonical ordering identities; sample complete legal stage projections and conditional fibers."
+    standards: "IEEE 1800-2017 18.5.8.2/18.5.9/18.5.10; IEEE 1800-2023 18.5.7.2/18.5.8/18.5.9. Verify exact array-order clauses before coding."
+    reproducer: evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv
+    actual: "Both editions warn and drop solve-before over dynamic-array elements; the seeded 1024-call test produces first-element one685 times instead of the required uniform marginal (expected512)."
+    expected: "Preserve selected dynamic-array ordering in IR and sample distinct canonical elements by exact stages after the array size is proved and established."
     owns: [vvp/vvp_z3.cc, elaborate.cc]
-    test_prefix: sv_randomize_joint_element_order
-    allowed_scope: "Bounded joint solve-before over statically selected fixed-array integral elements, including scalar/element mixtures. Reuse OrderRef identities and existing element ASTs, exact stage projection, L85 distribution preflight and transaction rollback. Also diagnose constant out-of-range direct fixed-array operands in the PEConstraintOrder vars_to_ir lowering in elaborate.cc; invalid ordering must not reach the ignored-constraint warning fallback."
-    forbidden_scope: "Dynamic selection/size ordering, real ordering, randc ordering, new distribution families, parser/target redesign, unrelated constraint diagnostics, SVA files and weakened diagnostics."
-    dependencies: "L85 integrated at9f416e09a with focused validation; independent of L86. Root owns old global_ordered_fail fixture/golds."
-    acceptance: "Both editions: hand-derived marginal/fiber probabilities, distinct elements of same array, scalar/element mixtures, aliases, nonzero declared bounds, transitive/partial ordering, frozen rand_mode, L85 supported dist interaction, seeded replay, unsat/cap/RNG rollback, cyclic and out-of-range/unsupported references; focused solver neighbors."
+    test_prefix: sv_randomize_joint_dynamic_element_order
+    allowed_scope: "Constant selected integral elements of dynamic arrays with one proved size before element solving, including growth/shrink and scalar/element ordering mixtures. Preserve ordering in IR; reuse canonical OrderRef and existing graph sizing/staged allocation rather than old-size state pins. Preserve existing table limits, supported distributions and transaction rollback."
+    forbidden_scope: "Queue/associative ordering, nonconstant random selector support, arbitrary size-stage redesign, real/randc ordering, new distribution families, pform/SVA files, dropping ordering or weakening diagnostics."
+    dependencies: "L87 integrated831cdeca2; independent of L86. Coordinator owns shared builds, installs, manifests and documentation."
+    acceptance: "Both editions: exact small-domain marginal/fiber oracle, constant selected element identity, size-one/zero and growth/shrink boundaries, scalar mixtures, alias and rand_mode behavior, supported distribution interaction, seeded replay, unsat/cap/value/history/RNG rollback, OOB/nonrandom/unsupported ordering controls; neighboring fixed/dynamic solver cases."
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     parent: S01
     agent: /root/constraint_wide
@@ -35,7 +35,7 @@ lanes:
     acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 1
+focused_features_completed_in_batch: 2
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -49,3 +49,9 @@ integrated_focused_fixes:
     revision: 9f416e09a
     evidence: docs/conformance/session_logs/2026-09-14_joint_ordered_distribution_validation.json
     broad_qualification: pending near ten integrated fixes
+  - id: L87
+    revision: 831cdeca2
+    evidence: docs/conformance/session_logs/2026-09-14_joint_element_ordering_validation.json
+    broad_qualification: pending near ten integrated fixes
+
+l86_increment_status: "First candidate compile failed on missing expression-lvalue assignment helper usage; source/evidence preserved. Agent correcting compile errors. First-clock consequent prefix and no-MATCH paused-destination storage remain pending; no L86 implementation completion or qualification claim."

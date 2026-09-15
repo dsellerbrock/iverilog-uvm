@@ -2130,3 +2130,10 @@ qualification is established by this scope refinement.
 - **Standards:** 2017 18.5.9/18.5.10; 2023 18.5.8/18.5.9.
 
 - **L87 implementation evidence:** [Focused session](session_logs/2026-09-14_joint_element_ordering.md).
+
+### L88 — Joint dynamic-array selected-element ordering
+
+- **Parent:** Z01.
+- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json`; both editions drop the ordering and produce685 first-element ones in1024 calls, violating the uniform first-stage oracle.
+- **Scope:** Constant selected integral dynamic-array elements with one proved size before element solving; preserve resize, exact ordering, bounds and transaction invariants. Other container/order families remain separate.
