@@ -1,32 +1,36 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
 current_blocker: PARALLEL-L104-L105
-phase: focused_validation_and_repair
+phase: broad_qualification
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
 integrated_since_last_broad_batch:
   count: 10
-  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29]
+  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
 latest_broad_qualification:
   integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
   semantic_revision: e43ecd536
   record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
   scope: Eleven recorded subsets only; not qualification of current candidate or full IEEE/UVM/application mission.
 current_candidate:
-  compiler_sources: L101 and L103 integrated; focused checks passed on exact final source fingerprints. L104 direct checks pass; L105 scalar rejection and legal/runtime controls pass, but string rejection exposed a missing constant-node check in net_design.cc, now authorized.
-  build: Serial rebuild/install passed using Command Line Tools and Homebrew Bison.
+  semantic_revision: 366ef2bf1
+  compiler_sources: All ten L96-L105 fixes integrated; sources and fixtures frozen for broad qualification.
+  build: Final serial build/install passed; FPGA target installation refreshed before broad JSON gate.
   toolchain: DEVELOPER_DIR=/Library/Developer/CommandLineTools; Apple clang21.0.0; Homebrew Bison3.8.2; /usr/bin/flex.
-  fingerprints: evidence/batch-20260915-after-l95/l101-l103-final-fingerprints.json
-  build_log: evidence/batch-20260915-after-l95/l101-result-width-build.log
-  install_log: evidence/batch-20260915-after-l95/l101-result-width-install.log
-  shared_process: none; frozen build4909 and direct retry completed.
-  focused_records: [docs/conformance/session_logs/2026-09-15_constant_array_character_increment_validation.json, docs/conformance/session_logs/2026-09-15_plain_multiclock_ranged_prefix_validation.json]
+  fingerprints: evidence/batch-20260915-after-l95/l105-final-fingerprints.json
+  build_log: evidence/batch-20260915-after-l95/l105-string-rejection-build.log
+  install_log: evidence/batch-20260915-after-l95/l105-string-rejection-install.log
+  focused_records: [docs/conformance/session_logs/2026-09-15_constant_mixed_equality_validation.json, docs/conformance/session_logs/2026-09-15_nonlocal_constant_function_values_validation.json]
+  broad_evidence: evidence/batch-20260915-after-l95/qualification
+  broad_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
+  shared_process: Coordinator will start integrated gate after candidate snapshot; inspect run.json/status files and live process before resuming.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
-  next_action: Implement L104 and L105 with disjoint ownership, freeze sources, then coordinator rebuilds and runs focused validation. After integration run seven broad gates before publishing.
+  next_action: Run seven broad gates serially, stop escalation on any failure, preserve exact candidate and raw logs. Publish coherent main PR only after qualification.
+  exact_next_command: python3 evidence/batch-20260915-after-l95/qualification/run_gate.py integrated
   next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
   broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
 publication:

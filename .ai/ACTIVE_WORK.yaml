@@ -31,7 +31,7 @@ lanes:
     acceptance: Both editions initialized/uninitialized mutable package scalar and string values reject, class-static controls reject, legal parameter/local/automatic-frame constants pass, runtime package and static reads observe actual state. Check constant string/array neighbors; no compilation-only success claim.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
 focused_features_completed_in_batch: 10
-integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29]
+integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml
 stop_after_completion: false
