@@ -53,7 +53,8 @@ batch qualification;
 its [L65](session_logs/2026-09-14_constraint_multiprefix_reductions.md) and
 [L66](session_logs/2026-09-14_typed_array_return_elements.md),
 [L67](session_logs/2026-09-14_packed_select_increment.md), [L68](session_logs/2026-09-14_array_packed_increment.md), and
-[L69](session_logs/2026-09-14_class_packed_increment.md) session records
+[L69](session_logs/2026-09-14_class_packed_increment.md), and
+[L70](session_logs/2026-09-14_class_array_packed_increment.md) session records
 contain the focused evidence. No newer whole-application replay is claimed.
 
 ## History

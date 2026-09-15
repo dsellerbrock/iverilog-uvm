@@ -29138,6 +29138,8 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
 /*
  * %store/prop/v/bits/x  <pid>, <off_reg>, <wid>
  * %store/prop/v/bits/ux <pid>, <off_reg>, <wid>
+ * %store/prop/v/i/bits/x  <pid>, <idx_reg>, <off_reg>
+ * %store/prop/v/i/bits/ux <pid>, <idx_reg>, <off_reg>
  *
  * As %store/prop/v/bits, but the destination bit offset is taken at run
  * time from index register <off_reg> (thr->words[off_reg]) rather than
@@ -29146,27 +29148,42 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
  * `obj.m_bits[i +: 4] = ...`. The /x spelling interprets the register as
  * signed; /ux interprets all 64 bits as an unsigned offset. Bits that fall
  * outside the property vector are dropped, matching the no-op semantics of
- * an out-of-bounds part-select.
+ * an out-of-bounds part-select. The indexed forms update an unpacked property
+ * word and take the selected width from the replacement on the vec4 stack.
  */
 static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
-                                bool signed_offset)
+                                bool signed_offset, bool indexed)
 {
-      const char*opcode = signed_offset ? "%store/prop/v/bits/x"
-                                         : "%store/prop/v/bits/ux";
+      const char*opcode = indexed
+            ? (signed_offset ? "%store/prop/v/i/bits/x"
+                             : "%store/prop/v/i/bits/ux")
+            : (signed_offset ? "%store/prop/v/bits/x"
+                             : "%store/prop/v/bits/ux");
       uint64_t pid_raw = cp->number;
-      unsigned off_reg = cp->bit_idx[0];
-      unsigned wid     = cp->bit_idx[1];
+      unsigned idx_reg = indexed ? cp->bit_idx[0] : 0;
+      unsigned off_reg = indexed ? cp->bit_idx[1] : cp->bit_idx[0];
 
       const vvp_vector4_t*top = thr->safe_peek_vec4(0);
-      if (off_reg >= vthread_s::WORDS_COUNT || wid == 0 || !top
+      unsigned wid = indexed && top ? top->size() : cp->bit_idx[1];
+      if ((indexed && idx_reg >= vthread_s::WORDS_COUNT)
+          || off_reg >= vthread_s::WORDS_COUNT || wid == 0 || !top
           || top->size() < wid || thr->object_stack_size() < 1) {
-            fprintf(stderr,
-                    "%sVVP error: malformed %s operands or stacks "
-                    "(off_reg=%u, wid=%u, vec4=%zu, object=%zu); "
-                    "operands not consumed.\n",
-                    thr->get_fileline().c_str(), opcode, off_reg, wid,
-                    top ? (size_t)top->size() : 0,
-                    thr->object_stack_size());
+            if (indexed)
+                  fprintf(stderr,
+                          "%sVVP error: malformed %s operands or stacks "
+                          "(idx_reg=%u, off_reg=%u, wid=%u, vec4=%zu, object=%zu); "
+                          "operands not consumed.\n",
+                          thr->get_fileline().c_str(), opcode, idx_reg, off_reg, wid,
+                          top ? (size_t)top->size() : 0,
+                          thr->object_stack_size());
+            else
+                  fprintf(stderr,
+                          "%sVVP error: malformed %s operands or stacks "
+                          "(off_reg=%u, wid=%u, vec4=%zu, object=%zu); "
+                          "operands not consumed.\n",
+                          thr->get_fileline().c_str(), opcode, off_reg, wid,
+                          top ? (size_t)top->size() : 0,
+                          thr->object_stack_size());
             return false;
       }
 
@@ -29197,8 +29214,11 @@ static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
 	    return true;
 
       size_t pid = (size_t)pid_raw;
+      size_t idx = indexed ? thr->words[idx_reg].w_uint : 0;
+      if (indexed && idx >= defn->property_array_size(pid))
+	    return true;
       vvp_vector4_t current;
-      recv.get_vec4(pid, current, 0);
+      recv.get_vec4(pid, current, idx);
 
 	/* Compute overlap without signed addition: extreme dynamic offsets are
 	 * legal no-op writes and must not trigger signed-overflow UB. */
@@ -29230,7 +29250,7 @@ static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
       if (!have_overlap)
 	    return true;
 
-      recv.set_vec4(pid, current, 0);
+      recv.set_vec4(pid, current, idx);
       notify_mutated_object_root_(thr, obj, thr->peek_object_source_net(0),
                                   thr->peek_object_root(0), "store-prop-bits-x");
       return true;
@@ -29238,12 +29258,22 @@ static bool store_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
 
 bool of_STORE_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
 {
-      return store_prop_v_bitsx_(thr, cp, true);
+      return store_prop_v_bitsx_(thr, cp, true, false);
 }
 
 bool of_STORE_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
 {
-      return store_prop_v_bitsx_(thr, cp, false);
+      return store_prop_v_bitsx_(thr, cp, false, false);
+}
+
+bool of_STORE_PROP_V_I_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_v_bitsx_(thr, cp, true, true);
+}
+
+bool of_STORE_PROP_V_I_BITSUX(vthread_t thr, vvp_code_t cp)
+{
+      return store_prop_v_bitsx_(thr, cp, false, true);
 }
 
 template <typename ELEM, class QTYPE>

@@ -1,0 +1,2 @@
+./ivltests/sv_class_array_packed_incdec_fail.v:11: error: Property values is constant in this method. (scope=sv_class_array_packed_incdec_fail)
+1 error(s) during elaboration.

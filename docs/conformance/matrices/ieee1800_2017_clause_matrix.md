@@ -1325,3 +1325,12 @@ preserve neighboring bits and typed invalid-selection behavior. Selected
 unpacked-array properties remain unsupported. See the
 [L69 evidence](../session_logs/2026-09-14_class_packed_increment.md); broad batch
 qualification remains pending.
+
+### L70 — Packed-select updates within fixed-array class-property words
+
+IMPLEMENTED for fixed unpacked-array properties whose selected element is an
+integral packed word. Receiver, canonical word index, and packed base are
+evaluated once; the final atomic partial-word store preserves current neighbor
+bits, declared ranges, typed invalid results, and signed/full-width unsigned
+offset semantics. See the [L70 evidence](../session_logs/2026-09-14_class_array_packed_increment.md).
+Broad batch qualification remains pending.

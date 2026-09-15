@@ -1,28 +1,27 @@
-id: CLASS-PACKED-SELECT-INCREMENT
-title: Preserve scalar class-property identity through packed-select expression updates
+id: CLASS-ARRAY-PACKED-SELECT-INCREMENT
+title: Preserve fixed-array class-property word identity through packed updates
 status: FOCUSED_TESTED
-base_revision: 9aa3b3816
+base_revision: 813fafadf
 standards:
-  ieee1800_2017: "11.4.1, 11.4.2, 11.5.1; 8.4 null access is illegal"
-  ieee1800_2023: "11.4.1, 11.4.2, 11.5.1; 8.4 null access is illegal"
-reproducer: evidence/class-packed-incdec-l69/review
-current_behavior: "Legal packed bit/part ++/-- over scalar integral class properties reach target generation and are rejected in both editions."
-expected_behavior: "Capture receiver and packed index once; preserve selected width, expression result context, adjacent bits, and invalid-index write suppression."
-root_cause: "draw_unary_inc_dec accepts SELECT over SIGNAL only, while existing captured-object partial-property opcodes already provide required writeback."
+  ieee1800_2017: "7.4.6, 11.4.1, 11.4.2, 11.5.1"
+  ieee1800_2023: "7.4.5, 11.4.1, 11.4.2, 11.5.1"
+reproducer: evidence/class-array-packed-incdec-l70/abi/receiver-word-base.sv
+current_behavior: "Packed ++/-- over fixed-array class-property elements is rejected at target generation in both editions."
+expected_behavior: "Capture receiver, word and base once; preserve current neighbors, selected width, result context and independent invalid word/base suppression."
+root_cause: "Selected-property lowering rejects all words; scalar partial-property stores address slot zero and stack merge is signed-only."
 allowed_scope:
-  - Extend selected integral expression lowering to scalar class properties
-  - Reuse existing object capture, property loads and signed or unsigned partial-property stores
-  - Preserve property identity during folding only where failing evidence requires it
-  - Paired focused positive, boundary, negative and permanent regressions
+  - Extend packed-property expression lowering to canonical fixed-array words
+  - Reuse fixed-slot index capture, typed full-element invalid reads and selected arithmetic
+  - Add indexed signed/unsigned partial-property stores sharing existing runtime RMW implementation
+  - Paired focused positive, boundary, negative, permanent and affected-neighbor tests
 forbidden_scope:
-  - Array-valued property elements, nested inner-carrier bounds or dynamic storage redesign
-  - New runtime opcodes without evidence existing mechanisms cannot satisfy this scope
-  - Treat an illegal null access as defined conformance behavior
-  - Drop writes or ignore invalid-index rules
+  - Dynamic-array, queue, associative or nested inner-carrier redesign
+  - Stale whole-word writeback, repeated selectors or unsigned-offset truncation
+  - Null-default conformance claims
 validation_batch: 20260914_after_l64
-focused_features_completed_in_batch: 5
-pending_gates: "L69 focused and neighboring validation passed; broad batch gate at requested approximately ten-feature cadence."
-prerequisites: "L65-L68 focused checkpoints preserved; L64 remains latest broad qualification."
+focused_features_completed_in_batch: 6
+pending_gates: "L70 focused and neighboring validation passed; broad batch gate at approximately ten-feature cadence."
+prerequisites: "L69 focused checkpoint preserved; L64 latest broad qualification."
 next_action: "Preserve focused checkpoint and return to coordinator selection; broad batch qualification remains pending."
 stop_after_completion: false
-evidence: docs/conformance/session_logs/2026-09-14_class_packed_increment.md
+evidence: docs/conformance/session_logs/2026-09-14_class_array_packed_increment.md

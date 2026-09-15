@@ -1945,7 +1945,7 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 - **State:** IMPLEMENTED for the evidenced subset; broad batch pending.
 - **Origin:** DD-030 selected-width runtime aborts and context-width rejection.
-- **Scope:** scalar packed-signal selections and scalar function-return storage; fixed-array receivers are addressed by L68; scalar property receivers are addressed by L69; property-array and bounded inner-carrier cases remain open.
+- **Scope:** scalar packed-signal selections and scalar function-return storage; fixed-array receivers are addressed by L68; scalar property receivers are addressed by L69; fixed-array property receivers are addressed by L70; bounded inner-carrier cases remain open.
 - **Evidence:** [L67 session](session_logs/2026-09-14_packed_select_increment.md).
 - **Standards disposition:** [Clause11 refinement](matrices/ieee1800_2017_clause_matrix.md#l67--packed-select-incrementdecrement-expressions-1136-1142).
 
@@ -1953,7 +1953,7 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 - **State:** IMPLEMENTED for the focused subset; broad batch pending.
 - **Origin:** L67 retained a focused rejection for selected fixed-array words.
-- **Scope:** fixed-array word and packed-index capture, bounds, result widths, automatic/return storage. Scalar class-property receivers are addressed by L69; property-array and bounded inner-carrier work remain open.
+- **Scope:** fixed-array word and packed-index capture, bounds, result widths, automatic/return storage. Scalar class-property receivers are addressed by L69; fixed-array property receivers are addressed by L70; bounded inner-carrier work remains open.
 - **Evidence:** [L68 session](session_logs/2026-09-14_array_packed_increment.md).
 
 ### L69 — Scalar class-property packed-select increment/decrement
@@ -1961,5 +1961,12 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **State:** IMPLEMENTED for the focused subset; broad batch pending.
 - **Scope:** scalar integral property bit/part pre/post updates, captured receiver,
   bounds, contexts, inheritance/nesting, and readonly diagnostics.
-- **Limit:** selected unpacked-array properties remain unsupported.
+- **Follow-up:** selected fixed unpacked-array properties are addressed by L70; dynamic container and inner-carrier work remains separate.
 - **Evidence:** [L69 session](session_logs/2026-09-14_class_packed_increment.md).
+
+### L70 — Fixed-array class-property word packed-select updates
+
+- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **Scope:** integral fixed-array property words, atomic selected update,
+  multidimensional indices, bounds, contexts, and const diagnostics.
+- **Evidence:** [L70 session](session_logs/2026-09-14_class_array_packed_increment.md).

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_class_array_packed_incdec_bounds.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_class_array_packed_incdec_bounds"
+    ],
+    "gold": "sv_class_array_packed_incdec_bounds"
+}
