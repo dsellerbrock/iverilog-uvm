@@ -18,7 +18,7 @@ current_candidate:
   base_revision: 05b0c44e1
   installed_semantic_revision: d25b1f94d (L113 and corrected L114); uncommitted L115 edits not installed.
   installed_fingerprints: docs/conformance/session_logs/2026-09-15_first_match_source_suffix_validation.json
-  shared_process: None. L114 build94916, NFA84510 and final27791 terminal0;72/72 both harnesses and58/58 NFA. L113355243ab4 and L114d25b1f94d integrated. L115 nearing source freeze for first build.
+  shared_process: None. L114 build94916, NFA84510 and final27791 terminal0;72/72 both harnesses and58/58 NFA. L113355243ab4 and L114d25b1f94d integrated. L115 source frozen by agent; first build not started, hashes in evidence/application-check-20260915/l115-first-candidate/source-hashes.json.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
