@@ -1,397 +1,50 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
 current_blocker: PARALLEL-L101-L102
-phase: parallel_implementation
-source_revision: 450c63f00
-documentation_sync_revision: 1decd88ef
-main_documentation_revision: fdbb8f34a
-last_broad_qualified_semantic_revision: e43ecd536
-last_broad_qualified_integration_revision: d45ee87ab
-qualification_record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
-qualification_scope: L85-L95 local batch only; full IEEE, UVM and application goals remain incomplete.
+phase: focused_validation_and_repair
+mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
+selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
-historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
-published_work:
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/285
-    state: externally_merged_to_stack_parent
-    branch: agent/compiler-campaign-after-l84-20260914
-    base_branch: agent/string-return-uppercase-20260914
-    published_head: 5726ab0eb84acdad78d3d3f1ced1b6afe15fb13d
-    current_ci_observation: Run34973595268 Linux22/24 passed; macOS and three Windows jobs running. All seven local gates passed.
-    evidence: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/284
-    state: externally_merged_to_stack_parent
-    branch: agent/string-return-uppercase-20260914
-    base_branch: agent/typed-array-return-20260914
-    stacked_on: https://github.com/dsellerbrock/iverilog-uvm/pull/283
-    published_head: 67be888271584400bf387305420a383cce64b8c5
-    current_ci_run: 34931769313
-    current_ci_observation: All six platform jobs passed in run34931769313. All seven local gates passed.
-    evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
-    state: externally_merged_to_main
-    published_head: 9f79ff51cefe85194beb954409750e2e741dfcc3
-    current_ci_run: 34927916125
-    current_ci_observation: All six platform jobs passed in run34927916125. Local seven-gate qualification passed.
-    evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/280
-    state: externally_merged
-    merge_revision: 5c0f5588e
-    evidence: docs/conformance/session_logs/2026-09-14_constraint_function_presolve_qualification.json
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/281
-    state: externally_merged
-    merge_revision: 9c8f716b1
-    scope: Direct strcmp declaration and complete PR280 Windows target API exports
-    header_revision: 4956b2c1c
-    export_revision: 1b41c8e4c
-    published_head: 34dc9e16a
-    current_ci_run: 34920408447
-    current_ci_observation: Run34920408447 completed successfully on Ubuntu22/24, macOS, UCRT64, MINGW64 and CLANG64.
-    prior_ci_run: 34919528675
-    prior_ci_observation: Linux/macOS builds passed; Windows failed missing exports; Linux/macOS regressions were still running.
-    pending: none for PR281 run34920408447
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/282
-    state: merged_and_synced
-    merge_revision: fdbb8f34a
-preserved_local_batch:
-  branch: agent/typed-array-return-20260914
-  head: 374318731
-  l65_revision: 83d5471e3
-  l66_revision: 711e54893
-  l67_revision: 57ccfa80d
-  l68_revision: 7e44ed0dd
-  l69_revision: 9c3f92e9b
-  l70_revision: a83b9623c
-  l72_revision: 1f2441a23
-  l71_revision: 5a04f1e9d
-  l73_revision: 352a15164
-  l74_revision: 374318731
-  focused_features: 10
-  status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
-  evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
-  next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: "L92 compiler with integrated L90 target/runtime. Exact installed hashes in evidence/batch-20260914-after-l84/l90-final-installed.json. L93 source unbuilt; L94 implementation pending. Eight focused fixes integrated, broad gates pending."
-pending_gates: "L93/L94 focused implementation, then broad batch gates near ten fixes. PR283/284 CI passed; remote merge not authorized."
-next_action: "Validate L93 constant formatting source including formal argument conversions; continue L94 grouped repetition independently. Coordinator builds only frozen sources."
-next_command: git status --short
-next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
-worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
-merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
-
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_joint_element_ordering_validation.json
-
-parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
-active_lanes:
-  - id: L93-CONSTANT-STRING-FORMATTING
-    agent: /root/constraint_abi
-    files: net_func_eval.cc, elaborate.cc
-  - id: L94-FINITE-GROUPED-CONSECUTIVE-REPETITION
-    agent: /root/constraint_wide
-    files: pform.cc, parse_misc.h, pform_sva_nfa.cc, pform_sva_nfa.h
-shared_execution_owner: coordinator
-parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
-
-l72_status: Integrated1f2441a23 with focused validation.
-l71_status: Integrated5a04f1e9d; six cases per harness and 36 neighbors passed.
-
-l73_status: Integrated352a15164; 12 cases per harness, two constant generate oracles and 34 neighbors passed.
-l74_status: Integrated374318731; six cases per harness and two additional runtime neighbors passed.
-
-published_l75_l84_batch:
-  base_revision: 9f79ff51c
-  focused_features: 10
-  integrated_l75: f95f0bc11
-  integrated_l76: 24feb1f28
-  integrated_l77: d11c3852c
-  integrated_l78: cf34519c0
-  integrated_l79: d02896d77
-  integrated_l80: eb87a2593
-  integrated_l81: 45fcf1546
-  integrated_l82: f517397bf
-  integrated_l83: 2d8d1cab6
-  integrated_l84: 240dd5f6f
-  selected_lanes: []
-  source_edits: L75-L84 qualified at304507aeb and published at67be88827 in PR284. Subsequent selection is in current_batch and ACTIVE_WORK.
-
-l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.
-
-l77_status: Integrated d11c3852c; eight cases per harness and 50 neighbors passed.
-l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
-
-current_batch:
-  base_revision: fd500e2b5
-  focused_features: 8
-  integrated_l85: 9f416e09a
-  integrated_l87: 831cdeca2
-  integrated_l88: d6a15ca2b
-  integrated_l89: 1ffe476b6
-  integrated_l86: 13fee7ec9
-  integrated_l91: fec7a4b9a
-  integrated_l90: 6cf8d70de
-  integrated_l92: 9f34faa98
-  selected_lanes: [L93, L94]
-  baseline: evidence/next-batch-after-l84/baseline.json
-
-active_scope_refinement:
-  L85: Completed; see integrated focused evidence in ACTIVE_WORK.
-  L86: Authorized dynamic parent-tagged handoff and single-verdict aggregation within owned lowering files; preserve event regions, cancellation, and unbounded clock skew.
-shared_process_observation: Historical scope-refinement checkpoint; see shared_process_latest.
-
-l85_transaction_refinement: Exact range rollback test exposed prefill RNG advancement before Z3. Coordinator authorizes snapshot/restore of each visited object RNG in existing graph transaction; preserves successful-call consumption and existing object visitation/alias policy. Evidence l85-ranges-direct.json; source baseline remains installed until rebuilt.
-
-l85_status: Integrated9f416e09a; eight cases each harness and23 neighbors passed. Broad qualification pending.
-latest_runtime_install: See installed_tools for current combined candidate.
-shared_process_observation_latest: See shared_process_latest.
-l87_baseline: evidence/batch-20260914-after-l84/next-selection/baseline.json
-
-l87_frontend_refinement: l87-direct.json exposed invalid constant fixed-array ordering silently dropped after a warning. Coordinator authorizes a narrow PEConstraintOrder vars_to_ir diagnostic in elaborate.cc for direct rank-matched fixed-array constant selectors; unrelated unsupported lowering remains outside this ticket. Completed in L87; see focused evidence.
-
-l87_status: Integrated831cdeca2;10 cases per harness and31 neighbors passed.
-l88_baseline: evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json
-l86_status: "Integrated13fee7ec9; current evidence is l86_focused_evidence. Earlier failures retained in evidence directories and resolved by the integrated patch."
-l88_status: "Focused tested; ten cases per harness, fourteen final dynamic neighbors and41 preceding ordering neighbors. Evidence docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json."
-installed_candidate_latest: evidence/batch-20260914-after-l84/l90-first-candidate.json
-shared_process_latest: "All shared builds/tests terminal. L90focused10andneighbors26perharnesspass; L92focused20plusL86/L91neighborsand58NFApass."
-
-l88_index_boundary: "Fresh l88-wide-index.json proves64-bit index silently narrows to element0. Shared delem pre-conversion guard authorized in ACTIVE_WORK; preserve current candidate until rebuild."
-
-l89_baseline: evidence/batch-20260914-after-l84/next-queue-assessment/after-l88-baseline.json
-l86_prefix_evidence: evidence/batch-20260914-after-l84/l86-prefix-first.json
-l86_prefix_candidate: evidence/batch-20260914-after-l84/l86-prefix-candidate.json
-current_installed_state: See installed_tools.
-coordinator_checkpoint: "Eight integrated fixes. Existing two agents assigned L93/L94 independently. No new worktrees or agents."
-
-l88_integration_revision: d6a15ca2b
-l86_remaining_reducers: evidence/batch-20260914-after-l84/l86-kill-review/first.json; evidence/batch-20260914-after-l84/l86-lifecycle-review/first.json
-
-l89_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_queue_element_ordering_validation.json
-
-l89_integration_revision: 1ffe476b6
-l90_baseline: evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json
-latest_combined_candidate: evidence/batch-20260914-after-l84/l86-l89-second-candidate.json
-latest_focused_runs: "l90-final-focused.json and l92-final-focused.json; owning committed session evidence linked below."
-current_process_state: See shared_process_latest.
-
-l86_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_bounded_antecedents_validation.json
-
-l86_integration_revision: 13fee7ec9
-l91_baseline: evidence/batch-20260914-after-l84/next-repeat-assessment/baseline.json
-l90_build: evidence/batch-20260914-after-l84/l90-first-compiler-build.log
-latest_installed_state: "L90 first compiler candidate plus integrated L89 runtime; no L90 qualification yet. L86 source matches integrated13fee7ec9."
-
-l90_target_refinement: "Nested SELECT-over-PROPERTY incdec admitted in target scope by coordinator; existing store operations only. First focused failures preserved; revised compiler and target build required after freeze."
-
-l90_runtime_refinement: "Object-stack partial vector store authorized after target trace; compiler,target,runtime rebuild required after source freeze. Existing signal-only store cannot address captured class-property container."
-
-l90_l91_build_checkpoint: "Compiler source frozen; combined build/install running as session50943, log evidence/batch-20260914-after-l84/l90-l91-first-compiler-build.log. L90 target/runtime source work continues; no harness running. Re-poll this process before starting any new build."
-
-l90_l91_latest_checkpoint: "L90 third build failed because NetExpr::set_net_type is protected; ABI lane repairing. L91 initial6perharnesspass, expanded direct positive kill/restart fails; wide lane repairing. DD032 fixed-path assertion enable debt recorded separately. Evidence folders preserve all first/second failures. Both existing agents reused, no new worktrees."
-
-l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolean_repetition_validation.json
-l91_integration_checkpoint: "Six integrated focused fixes after L91; next independent lane selection pending. L90 remains active; target-only object pop repair pending build. No shared process running."
-
-l91_integration_revision: fec7a4b9a
-l92_selection: "Four paired current-candidate failures reconfirmed; evidence l92-baseline/baseline.json. Fixed source gate is unconditionally true. L92 independent pform lane authorized, paired focused validation required. Six integrated fixes; broad gates near ten."
-
-l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_packed_selects_validation.json
-l90_integration_checkpoint: "Seven focused fixes integrated after L90. L92focused20passed both; neighbor/NFA session69306 still needs terminal verification. Next independent lane selection pending."
-
-l90_integration_revision: 6cf8d70de
-l92_final_evidence: evidence/batch-20260914-after-l84/l92-final-focused.json
-l93_selection: "RuntimepairedPASS versus constantpairedwrongemptystring confirmed; internal string methods become NetSTask, whose constant evaluator ignores every task. L93authorized five formatting methods within evaluator/elaborate ownership. Method-to-method chaining control passed; no blocker selected from property-chain fixture."
-shared_execution_checkpoint: "All processes terminal:69306 passedL92focus20perharness,L91/L86neighborsand58NFA. InstalledcompilerL92first; targetL90fourth and runtimeL90corrected replacement-pop. Hashes l90-final-installed.json. Seven integrated fixes; L92documentation/integration next, L93implementation active."
-
-l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_assertion_control_validation.json
-l92_integration_checkpoint: "Eight focused fixes integrated. All shared processes terminal. L93 implementation active; coordinator selecting next independent SVA blocker. Broad gates near ten."
-
-l92_integration_revision: 9f34faa98
-l94_selection: "Paired grouped finite repetition rejection confirmed against installed L92compiler; next-group-repeat/baseline.json. Entire finite group fragment semantics authorized, not last-expression repetition. Eight integrated fixes; L93/L94 active, broad gates after approximately ten."
-
-l93_focused_checkpoint:
-  status: integrated locally; broad qualification pending
-  evidence: docs/conformance/session_logs/2026-09-15_constant_string_formatting_validation.json
-  batch_integrated_fixes: 9
-  installed_fingerprint_record: evidence/batch-20260914-after-l84/l93-l94-third-installed.json
-  remaining_lane: L94 bounded leading-window rejection under repair
-
-parallel_l94_l95_checkpoint:
-  integrated_l93_revision: 701e116bd
-  integrated_batch_count: 9
-  lanes: [L94 grouped finite repetition, L95 constant string putc]
-  source_ownership: L94 pform.cc/parse_misc.h/pform_sva_nfa.cc; L95 net_func_eval.cc/elaborate.cc
-  shared_execution_owner: coordinator
-  l95_baseline: evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json
-  broad_validation: pending coherent ten-fix checkpoint
-
-latest_l94_l95_execution:
-  build: evidence/batch-20260914-after-l84/l94-l95-first-build.log
-  build_state: terminal success; installed candidate predates subsequent L94 empty-branch repair
-  direct_results: evidence/batch-20260914-after-l84/l94-l95-first-direct.json
-  fingerprints: evidence/batch-20260914-after-l84/l94-l95-first-installed.json
-  l94: Finite leading windows now pass; zero-copy concatenation requires branch-specific suffix repair.
-  l95: Initial paired positive and six diagnostic cases pass; expanded focused tests pending.
-  shared_processes: none at this checkpoint
-  source_state: L94 released for empty-branch repair; L95 compiler frozen with fixtures expanding
-
-l95_integration_checkpoint:
-  status: focused tested, integrating tenth local fix
-  evidence: docs/conformance/session_logs/2026-09-15_constant_string_putc_validation.json
-  broad_validation: pending; finish active L94 correction before freezing coherent batch
-  integrated_fix_count: 10
-
-l94_review_checkpoint:
-  l95_revision: 5366be16a
-  l95_main_registration_revision: 75cc57fde
-  integrated_fix_count: 10
-  latest_nfa: evidence/batch-20260914-after-l84/l94-empty-context-nfa.log
-  nfa_result: 58 passed
-  latest_direct: evidence/batch-20260914-after-l84/l94-empty-context-direct.json
-  blocking_regression: retained grouped metadata enters fixed consequent fallback and uses one copy instead of two
-  regression_reproducer: evidence/batch-20260914-after-l84/l94-fixed-fallback-review/baseline.json
-  source_lane: L94 repairing fixed consequent and prefix materialization; source not frozen
-  shared_processes: none
-  next_batch_assessment: evidence/batch-20260914-after-l84/next-const-formals-assessment/baseline.json
-  next_batch_assessment_status: invalid ref/output/inout constant calls accepted in both editions; implementation not yet selected
-
-l94_integration_checkpoint:
-  status: focused tested, integrating eleventh local fix
-  evidence: docs/conformance/session_logs/2026-09-15_multiclock_grouped_repetition_validation.json
-  integrated_fix_count: 11
-  next: freeze full source, rebuild/install once, run seven required gates and publish coherent PR
-  shared_processes: none
-  active_implementation_lanes: none; both completed patches frozen for batch qualification
-
-batch_l85_l95_qualification:
-  status: rebuilding frozen eleven-fix candidate
-  semantic_revision: 1db987101
-  build_session: 9095
-  evidence_directory: evidence/batch-20260914-after-l84/qualification
-  required_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
-  execution_policy: Coordinator only; legacy and JSON serial; frontend last; no source changes or installation during gates.
-  latest_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_grouped_repetition_validation.json
-  next: poll build9095, capture candidate hashes, run seven gates and inspect exact results before PR publication
-
-failed_broad_candidate:
-  revision: 5898ea050119ece0d014fce015303a26293a8b3f
-  semantic_revision: 1db987101
-  session: 47157 terminal exit1
-  evidence: evidence/batch-20260914-after-l84/qualification/integrated.run.json
-  legacy: 5625 total,5606 passed,14 failed,2 not implemented,3 expected failures
-  vpi: 108 passed
-  negative: 148 passed,1 failed; targeted identification running
-  remaining_six_gates: not run; driver stopped on integrated failure
-  lanes: packed-select compatibility and constrained randc cycle identity
-  next: repair disjoint mechanisms, focused validate, freeze new candidate and rerun all seven gates
-
-regression_audit_resolution:
-  packed_select_repair: e8cf2ac5b; all13 original failures and10 enum cases per harness pass
-  negative_expectation_migration: 7913bd871; runtime parent-verdict test passes in2012/2017/2023 both harnesses
-  randc_trace: evidence/batch-20260914-after-l84/randc-reset-audit/trace.json
-  randc_finding: Both histories contained1,5; remaining3,3 cannot satisfy inequality, so18.4.2 permits recomputation. Original three-call coupled-cycle oracle is too strict.
-  rejected_runtime_patch: evidence/batch-20260914-after-l84/randc-fixed-array-audit/rejected-joint-history.patch
-  active_test_repair: separate guaranteed independent cycles from constrained reset checking, retaining mode/static/rollback coverage
-
-qualification_retry1:
-  source_revision: e43ecd536
-  source_state: frozen; all14 legacy failures resolved or standards-correctly reclassified with preserved behavioral coverage
-  negative_result: 148 passed; formerly supported-form negative migrated to three runtime cases
-  evidence: evidence/batch-20260914-after-l84/qualification-retry1
-  previous_failure: evidence/batch-20260914-after-l84/qualification
-  required_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
-  next: complete rebuild/install, capture exact hashes, execute all seven gates serially, publish only after qualification
-
-latest_checkpoint:
-  status: PR285 published; two independent next items authorized
-  previous_batch: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
-  published_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/285
-  published_head: 5726ab0eb
-  shared_processes: none; session36956 completed all seven gates successfully
-  active_implementation_lanes: [L99-FIXED-STRING-ARRAY-METHODS, L100-FINITE-MULTICLOCK-CONSEQUENT-NFA]
-  next: reuse constraint_abi and constraint_wide; inspect owned patches, build/install centrally and run focused paired acceptance tests
-  prior_checkpoints: historical; latest_checkpoint and top-level fields govern resumption
-
-l96_checkpoint:
-  status: focused tested, integrating first fix after PR285
-  evidence: docs/conformance/session_logs/2026-09-15_constant_function_formal_legality_validation.json
-  broad_validation: pending near ten fixes
-
-l98_authorization:
-  status: reproduced and coordinator-authorized after L96 integration
-  evidence: evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json
-  nonblocker: constant default-argument legality already passes; no change needed
-
-l98_checkpoint:
-  status: focused tested, integrating second fix after PR285
-  evidence: docs/conformance/session_logs/2026-09-15_generated_constant_function_legality_validation.json
-  broad_validation: pending near ten fixes
-
-l97_checkpoint:
-  status: focused tested, integrating third fix after PR285
-  evidence: docs/conformance/session_logs/2026-09-15_nested_finite_grouped_repetition_validation.json
-  broad_validation: pending near ten fixes
-  shared_processes: none
-
-l99_authorization:
-  status: reproduced and coordinator-authorized
-  evidence: evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json
-  scope: constant selected fixed-string-array mutation plus matching VPI word write
-
-l100_authorization:
-  status: reproduced and coordinator-authorized
-  evidence: evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md
-  architecture: per-child finite consequence mask in existing tagged destination queues; unchanged parent result protocol and scheduler
-  nonblocker: nested one-step Boolean repetition already passes paired probes; no change counted
-
-l99_first_build_checkpoint:
-  session: 40533 terminal success
-  evidence: evidence/batch-20260915-after-l95/l99-first-direct.json
-  outcome: basic constant methods pass; OOB constant receivers and dynamic runtime receiver identity still require repair
-  authorized_expansion: narrow frontend method receiver and VPI target argument capture; disjoint from L100 pform source
-
-parallel_l99_l100_repair_checkpoint:
-  integrated_fixes: 3
-  integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e]
-  source_state: L99 and L100 pending patches preserved; combined repair build/install passed.
-  direct_evidence: evidence/batch-20260915-after-l95/l99-l100-repair-direct.json
-  fingerprint_evidence: evidence/batch-20260915-after-l95/l99-l100-repair-fingerprints.json
-  l99: Six positive runtime checks passed in paired editions; four expected diagnostic checks. Focused harness and neighbor validation pending.
-  l100: Fourteen positive checks passed; backlog pair failed because d changed in Active with its sampling edge. Corrected stimulus must be rerun, with expanded boundaries and migration of newly supported CE tests.
-  running_shared_process: none
-  next_action: Complete focused harnesses before either integration; keep two existing sol implementation lanes and coordinator-owned build/install/tests.
-  broad_validation: Deferred until approximately ten integrated fixes; prior qualification does not cover these changes.
-  remote_observation:
-    pr285: Squashed to agent/string-return-uppercase-20260914 at abe72cd12.
-    pr284: Squashed to agent/typed-array-return-20260914 at 93b763204.
-    pr283: Squashed to main at 874e00680.
-    tree_comparison: Each squash tree equals its original PR head; origin/main currently contains only L65-L74, and parent squashes do not propagate the later batches to main.
-    sync_policy: Preserve L75-L100 work. Reconcile main ancestry at a clean integration checkpoint; next publication must carry L75 onward to main if no subsequent external merge does so.
-
-l99_integration_checkpoint:
-  status: FOCUSED_TESTED; integration commit contains this record.
-  focused_fixes_in_batch: 4
-  evidence: docs/conformance/session_logs/2026-09-15_fixed_string_array_methods_validation.json
-  active_implementation: L100 asynchronous disable acceptance under investigation.
-  next_action: Select next independent evaluator blocker after bounded assessment; broad gates near ten integrated fixes.
-
-l100_integration_checkpoint:
-  status: FOCUSED_TESTED; integration commit contains this record.
-  focused_fixes_in_batch: 5
-  evidence: docs/conformance/session_logs/2026-09-15_finite_multiclock_consequences_validation.json
-  next_action: Authorize assessed constant array-character incdec and plain finite multiclock consequence lanes; broad gates near ten fixes.
-
-l101_l102_authorization:
-  status: Both independent lanes authorized after five integrated fixes.
-  selection: .ai/ACTIVE_WORK.yaml
-  source_state: L99 and L100 committed; only evidence directory untracked before selection.
-  main_sync: Refreshed origin/main874e00680 has exactly the tree of ancestor9f79ff51c; ancestry-only merge preserves all integrated source and tests.
-  next_action: Agents implement authorized mechanisms; coordinator combines build only after source freezes, then runs focused validation. No broad gates until approximately ten fixes.
-  publish: Later stack batches remain absent from main; next coherent PR must include preserved L75 onward unless externally advanced first.
-
-l101_l102_toolchain_recovery:
-  source_state: L101 net_func_eval.cc and L102 pform.cc frozen; fixture development continues independently.
-  original_build: Failed before compilation because active Xcode required license acceptance. No license was accepted.
-  clt_recovery: DEVELOPER_DIR=/Library/Developer/CommandLineTools selects installed Apple clang21.0.0. Old dependency files referenced removed Xcode SDK headers, requiring make clean.
-  parser_recovery: Clean regeneration found system Bison too old; use existing Homebrew Bison3.8.2 and /usr/bin/flex as specified in AGENTS.md.
-  build_logs: evidence/batch-20260915-after-l95/l101-l102-clt-bison-build.log
-  installation_logs: evidence/batch-20260915-after-l95/l101-l102-clt-bison-install.log
-  validation: New candidate has not yet been tested; full clean build changes toolchain provenance and must be included in later batch qualification.
+history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
+integrated_since_last_broad_batch:
+  count: 5
+  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00]
+latest_broad_qualification:
+  integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
+  semantic_revision: e43ecd536
+  record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
+  scope: Eleven recorded subsets only; not qualification of current candidate or full IEEE/UVM/application mission.
+current_candidate:
+  compiler_sources: Pending L101 net_func_eval.cc and L102 pform.cc; source ownership remains disjoint.
+  build: Clean build/install passed using installed Command Line Tools and Homebrew Bison.
+  toolchain: DEVELOPER_DIR=/Library/Developer/CommandLineTools; Apple clang21.0.0; Homebrew Bison3.8.2; /usr/bin/flex.
+  environment_change: Active Xcode required license acceptance and stale dependencies referenced removed SDK headers. No license accepted. Clean recovery and correct Bison path are preserved in logs.
+  fingerprints: evidence/batch-20260915-after-l95/l101-l102-first-fingerprints.json
+  build_log: evidence/batch-20260915-after-l95/l101-l102-clt-bison-build.log
+  install_log: evidence/batch-20260915-after-l95/l101-l102-clt-bison-install.log
+  direct_evidence: evidence/batch-20260915-after-l95/l101-l102-retry-direct.json
+  shared_process: none
+  l101: Recursive runtime control passes; selected-character ordering parameter still aborts and bounds parameter fails evaluation. Agent investigating without weakening tests; readonly/external diagnostics captured.
+  l102: All current direct positive and depth-rejection controls pass; focused harnesses and neighbor checks pending. Empty-prefix-match verdict corrected to failure for plain sequences, preserving implication vacuity.
+coordination:
+  agents: [/root/constraint_abi, /root/constraint_wide]
+  coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
+  next_action: Finish L101 reducer/root-cause repair and L102 test packaging; coordinator runs focused harnesses on frozen candidate and integrates passing lanes individually.
+  next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
+  broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
+publication:
+  pr285: https://github.com/dsellerbrock/iverilog-uvm/pull/285
+  pr285_status: Externally squashed to agent/string-return-uppercase-20260914 at abe72cd12; published head5726ab0eb.
+  pr284_status: Externally squashed to agent/typed-array-return-20260914 at93b763204.
+  pr283_status: Externally squashed to main at874e00680.
+  ancestry_verification: Refreshed origin/main tree equals ancestor9f79ff51c exactly. Local ancestry-only merge preserves every later integrated change.
+  main_content: Only L65-L74 batch propagated to main in the observed stack merges; L75 onward remains preserved here.
+  next_pr: Publish coherent qualified changes against main, including preserved later batches unless main advances first; remote merge remains unrequested.
+  ci_run: 34973595268
+  ci_observation: Linux22/24 passed; macOS and three Windows jobs were still running at last check. Local prior batch seven gates passed.
+worktrees:
+  created_this_batch: none
+  cleanup: No eligible campaign-created completed tree; active/other-owner trees retained under established safeguards.
+completion:
+  full_mission: incomplete
+  remaining_feature_total: Not reliably enumerated; batch IDs and test counts are not a whole-standard feature inventory.
