@@ -1761,6 +1761,70 @@ NetExpr* NetEUnary::evaluate_function(const LineInfo&loc,
 				map<perm_string,LocalVar>&context_map) const
 {
       if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
+            const NetESelect*select = dynamic_cast<const NetESelect*>(expr_);
+            const NetESignal*string_sig = select
+                  ? dynamic_cast<const NetESignal*>(select->sub_expr()) : 0;
+            if (select && string_sig && select->select()
+                && select->expr_width() == 8
+                && string_sig->sig()->data_type() == IVL_VT_STRING
+                && string_sig->sig()->unpacked_dimensions() == 0
+                && string_sig->word_index() == 0) {
+                  unique_ptr<NetExpr>index_expr(
+                        select->select()->evaluate_function(loc, context_map));
+                  const NetEConst*index_const = index_expr
+                        ? dynamic_cast<const NetEConst*>(index_expr.get()) : 0;
+                  if (!index_const) return 0;
+                  int64_t index = const_string_index_(index_const->value());
+
+                  NetExpr*invalid_slot = 0;
+                  bool discard_store = false;
+                  NetExpr**slot = eval_func_signal_slot_(loc, string_sig,
+                        context_map, invalid_slot, discard_store);
+                  if (!slot) return 0;
+                  if (!*slot) {
+                        *slot = new NetECString(string());
+                        (*slot)->set_line(*this);
+                  }
+                  const NetEConst*old_string =
+                        dynamic_cast<const NetEConst*>(*slot);
+                  if (!old_string || !old_string->value().is_string()) {
+                        delete invalid_slot;
+                        return 0;
+                  }
+
+                  string text = old_string->value().as_raw_string();
+                  bool in_range = index >= 0
+                        && static_cast<uint64_t>(index) < text.size();
+                  uint64_t character = in_range
+                        ? static_cast<unsigned char>(text[index]) : 0;
+                  verinum old_value(character, 8);
+                  old_value.has_sign(true);
+                  verinum new_value = old_value;
+                  verinum one(uint64_t(1), 8);
+                  one.has_sign(true);
+                  eval_func_lval_op_vec_(loc,
+                        (op_ == 'i' || op_ == 'I') ? '+' : '-',
+                        new_value, one);
+                  new_value = cast_to_width(new_value, 8);
+                  new_value.cast_to_int2();
+                  new_value.has_sign(true);
+
+                  unsigned char byte = static_cast<unsigned char>(
+                        new_value.as_ulong64());
+                  if (in_range && byte != 0) {
+                        text[index] = static_cast<char>(byte);
+                        NetECString*updated = new NetECString(
+                              verinum::from_raw_string(text));
+                        updated->set_line(*this);
+                        delete *slot;
+                        *slot = updated;
+                  }
+                  delete invalid_slot;
+                  NetEConst*result = new NetEConst(
+                        (op_ == 'i' || op_ == 'd') ? old_value : new_value);
+                  result->set_line(*this);
+                  return result;
+            }
             const NetESignal*sig = dynamic_cast<const NetESignal*>(expr_);
             if (!sig) return 0;
             NetExpr*invalid_slot = 0;
