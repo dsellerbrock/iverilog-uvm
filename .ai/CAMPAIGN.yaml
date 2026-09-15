@@ -1,8 +1,8 @@
 status: active
 branch: agent/typed-array-return-20260914
 current_blocker: PARALLEL-BATCH-L74-L73
-phase: parallel_implementation
-source_revision: 5a04f1e9d
+phase: batch_qualification
+source_revision: 374318731
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 4bc02c51b
@@ -24,16 +24,16 @@ published_work:
     export_revision: 1b41c8e4c
     published_head: 34dc9e16a
     current_ci_run: 34920408447
-    current_ci_observation: All platform builds and Linux/Windows regression jobs passed; macOS remains running. No full CI pass claimed.
+    current_ci_observation: Run34920408447 completed successfully on Ubuntu22/24, macOS, UCRT64, MINGW64 and CLANG64.
     prior_ci_run: 34919528675
     prior_ci_observation: Linux/macOS builds passed; Windows failed missing exports; Linux/macOS regressions were still running.
-    pending: Windows linkage and full required CI on the updated head
+    pending: none for PR281 run34920408447
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/282
     state: merged_and_synced
     merge_revision: fdbb8f34a
 preserved_local_batch:
   branch: agent/typed-array-return-20260914
-  head: 5a04f1e9d
+  head: 374318731
   l65_revision: 83d5471e3
   l66_revision: 711e54893
   l67_revision: 57ccfa80d
@@ -42,19 +42,21 @@ preserved_local_batch:
   l70_revision: a83b9623c
   l72_revision: 1f2441a23
   l71_revision: 5a04f1e9d
-  focused_features: 8
+  l73_revision: 352a15164
+  l74_revision: 374318731
+  focused_features: 10
   status: Focused tests passed; full batch qualification pending; not published
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: Mixed unqualified L71/L73 candidates installed during focused validation; latest source repairs require rebuild. L72 qualified fingerprints remain in evidence/parallel-batch-l71-l72/l72-final-validation.json.
-pending_gates: Updated PR281 cross-platform CI; next feature batch broad gates at the user-requested approximately ten-feature checkpoint.
-next_action: Validate L73 constant-function writes while L74 implements runtime character compound assignment; coordinator owns shared execution and integration.
-next_command: git diff --stat
+installed_tools: Full serial build/install of L73/L74 final candidate; focused fingerprints in latest session validation records. Seven broad gates pending.
+pending_gates: Integrated legacy/VPI/negative/runtime gates, JSON suite, real-DPI UVM, SVA NFA, release smoke, make check and frontend scenarios for ten-fix batch.
+next_action: Coordinator runs seven broad gates against frozen374318731 compiler sources, then publishes a coherent PR. Existing agents may assess next independent reproducers in private evidence without source/build/harness mutations.
+next_command: python3 evidence/batch-20260914-l74/qualification/run_gate.py integrated
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
 
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_class_array_packed_increment.md
+latest_focused_evidence: docs/conformance/session_logs/2026-09-14_runtime_string_character_compound.md
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
@@ -69,3 +71,6 @@ parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
 
 l72_status: Integrated1f2441a23 with focused validation.
 l71_status: Integrated5a04f1e9d; six cases per harness and 36 neighbors passed.
+
+l73_status: Integrated352a15164; 12 cases per harness, two constant generate oracles and 34 neighbors passed.
+l74_status: Integrated374318731; six cases per harness and two additional runtime neighbors passed.

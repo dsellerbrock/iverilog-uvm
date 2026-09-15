@@ -1,6 +1,6 @@
 id: PARALLEL-BATCH-L74-L73
 title: Coordinator-authorized independent compiler implementation lanes
-status: IMPLEMENTING
+status: QUALIFYING
 base_revision: a83b9623c
 authority: "User explicitly authorized two parallel implementation lanes with disjoint file ownership; this supersedes the prior single-blocker workflow."
 coordinator_owns:
@@ -10,7 +10,7 @@ coordinator_owns:
 lanes:
   - id: L74-RUNTIME-STRING-CHARACTER-COMPOUND
     agent: /root/constraint_abi
-    status: REPRODUCED
+    status: INTEGRATED
     standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1, 10.4"
     reproducer: evidence/parallel-batch-l71-l72/runtime-string-character-compound.sv
     actual: "Both editions warn and skip text[index_once()] += 1; text remains ABC and selector call count stays zero."
@@ -19,11 +19,11 @@ lanes:
     test_prefix: sv_string_character_compound
     allowed_scope: "Runtime compound arithmetic on characters of scalar string variables; reuse existing integral operations and getc/putc machinery."
     forbidden_scope: "Constant evaluator, lvalue elaboration, parser, whole-string concatenation or unrelated container updates."
-    dependencies: "Existing runtime string character operations; independent of L73 constant evaluator."
+    dependencies: "Existing runtime string character operations plus integrated L73 signed-character lvalue metadata at352a15164."
     acceptance: "Paired arithmetic/bitwise/shift controls, selector-once, signed byte and int index conversion, empty/invalid/zero bytes, readonly negative, ordinary locals and argument storage; focused runtime neighbors."
   - id: L73-CONSTANT-STRING-CHARACTER-WRITE
     agent: /root/constraint_wide
-    status: REPRODUCED
+    status: INTEGRATED
     standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 13.4.3"
     reproducer: evidence/parallel-batch-l71-l72/constant-string-character-write.sv
     actual: "Both editions evaluate text[0]=Z on ABC as ABB instead of ZBC in a constant function."
@@ -36,8 +36,8 @@ lanes:
     acceptance: "Paired first/last byte, local/argument/return, bounds/empty/zero-byte, two-state index conversion, signed-byte conversion, selector-once and compound controls; exact nonlocal-write rejection and L72/evaluator neighbors."
 file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
 validation_batch: 20260914_after_l64
-focused_features_completed_in_batch: 8
-pending_gates: "Focused lane checks, then broad required suites after approximately ten integrated fixes and coherent PR publication."
+focused_features_completed_in_batch: 10
+pending_gates: "Ten fixes integrated; compiler source frozen for seven required broad gates, then coherent PR publication."
 last_broad_qualified_semantic_revision: 4bc02c51b
 baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json
 stop_after_completion: false
