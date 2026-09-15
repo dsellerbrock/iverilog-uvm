@@ -8,28 +8,28 @@ lanes:
   - id: L85-JOINT-ORDERED-DISTRIBUTION
     parent: Z01
     agent: /root/constraint_abi
-    status: REPRODUCED
+    status: IMPLEMENTING
     standards: "IEEE 1800-2017 18.5.4, 18.5.9, 18.5.10; IEEE 1800-2023 18.5.4, 18.5.8, 18.5.9"
     reproducer: evidence/next-batch-after-l84/joint_ordered_dist.sv
     actual: "Both editions compile, but legal randomize returns failure: joint solve-before with dist is not yet supported."
     expected: "Sample each solve-before stage with its prescribed distribution, preserving conditional fibers and joint hard relations."
     owns: [vvp/vvp_z3.cc]
     test_prefix: sv_randomize_joint_ordered_dist
-    allowed_scope: "Joint canonical scalar solve-before stages with the existing supported unconditional hard distribution family and state-only weights, preserving exact stage projection and existing enumeration limits. Reuse existing distribution and ordered-stage machinery."
+    allowed_scope: "Joint canonical scalar solve-before stages with the existing supported unconditional hard distribution family and state-only weights, preserving exact stage projection and existing enumeration limits. Reuse existing distribution and ordered-stage machinery. Include exact conditional-fiber validation in the distribution helper where needed; prove any retained unsupported range boundary before RNG draws, preserving unordered semantics and edition differences."
     forbidden_scope: "New randc ordering, arbitrary coupled distribution algebra, non-scalar ordering variables, parser/target redesign, SVA sources and weakening unsupported guards."
     dependencies: "Existing Z01A ordered stages and exact joint distribution sampling; independent of L86."
     acceptance: "Both editions: first/later stage weights, hand-derived marginal/conditional probabilities, unequal fiber sizes, := and :/ range weights within supported family, root/child alias identity, mode/callbacks, seeded replay, unsatisfiable/cap/zero-weight rollback, unsupported coupled shapes rejected; solver neighbors. Update the old ordered-dist rejection fixture only for newly supported semantics, retaining other rejection coverage."
   - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
     parent: S01
     agent: /root/constraint_wide
-    status: REPRODUCED
+    status: IMPLEMENTING
     standards: "IEEE 1800-2017/2023 16.9.2, 16.12, 16.13.1, 16.13.3"
     reproducer: evidence/next-batch-after-l84/multiclock_range_antecedent.sv
     actual: "Both editions reject the bounded variable-length antecedent because the multiclock lowerer accepts only fixed-length boolean chains."
     expected: "Every matching antecedent endpoint creates its standards-correct consequent obligation; the two-endpoint witness yields exactly one failure."
     owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
     test_prefix: sv_assert_multiclock_bounded_antecedent
-    allowed_scope: "Finite constant ##[m:n] delay windows in otherwise fixed single-clock antecedents of multiclock implications, preserving every match, clock handoff, attempt identity and action semantics. Reuse existing multiclock lowering/NFA infrastructure."
+    allowed_scope: "Finite constant ##[m:n] delay windows in otherwise fixed single-clock antecedents of multiclock implications, preserving every match, clock handoff, attempt identity and action semantics. Reuse existing multiclock lowering/NFA infrastructure. Coordinator authorizes the necessary parent-tagged dynamic handoff and per-parent pending/failure aggregation within the owned lowering files; reuse existing queue lowering where possible. No fixed backlog cap or truncated attempt identity."
     forbidden_scope: "Unbounded sequences, general repetition/operator expansion, solver sources, parser grammar changes, dropping alternative matches or weakening assertion semantics."
     dependencies: "Existing fixed-chain multiclock lowering and clock-flow semantics; independent of L85."
     acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
@@ -39,3 +39,7 @@ focused_features_completed_in_batch: 0
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
+
+coordinator_scope_refinement:
+  l85: "A retained complete-range guard evaluated after a prefix draw can cause seed-dependent unsupported rejection. Prove every reachable prefix before sampling or implement exact conditional range behavior; no success-conditioned sampling."
+  l86: "IEEE 16.12.7 and 16.14.1 require a single property-attempt verdict across sibling antecedent endpoints. Scalar request counts lose parent identity. A parent with two matches and one failed child must dispatch pass=0/fail=1. Dynamic parent-tagged transport and retirement are necessary because a paused destination clock leaves an unbounded backlog even with a finite antecedent. Architecture expansion is coordinator-authorized; fixed-path cloning is incorrect."

@@ -116,3 +116,8 @@ next_batch:
   focused_features: 0
   selected_lanes: [L85, L86]
   baseline: evidence/next-batch-after-l84/baseline.json
+
+active_scope_refinement:
+  L85: Conditional range validation must not reject only after random prefix selection; source patch under review, no candidate build yet.
+  L86: Authorized dynamic parent-tagged handoff and single-verdict aggregation within owned lowering files; preserve event regions, cancellation, and unbounded clock skew.
+shared_process_observation: No shared build or harness running at scope-refinement checkpoint.
