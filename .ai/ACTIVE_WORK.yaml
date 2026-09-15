@@ -85,3 +85,18 @@ caliptra_adapter_lane:
   counting: Application build configuration only; never counted as compiler semantic feature or runtime pass.
 
 caliptra_runtime_assessment: Unmodified power2round_tb fails checked verdict with zero public-key writes versus256 after successful vector generation. Non-driving observer confirms upstream disconnected mem_rd_data_valid input (256 TB pulses, DUT remainsZ, zero writes). Retain failure; no compiler workaround or upstream modification.
+
+next_parallel_runtime_lane:
+  id: L109-JOINT-ORDERED-INDEPENDENT-RANDC
+  status: AUTHORIZED
+  agent: /root/constraint_wide
+  standards: IEEE1800-2017 18.4.2,18.5.10; IEEE1800-2023 18.4.2,18.5.9
+  reproducer: evidence/batch-20260915-after-l95/next-z01-assessment/assessment.md
+  actual: Both editions compile then reject a joint ordered-dist graph with an independent constrained randc leaf.
+  expected: Solve independent enumerable randc components first and preserve cyclic progression, then existing ordered stages; randc is not itself an ordering operand.
+  owns: [vvp/vvp_z3.cc]
+  fixture_prefix: sv_joint_ordered_independent_randc
+  dependencies: Existing graph-wide randc presampling and ordered scalar stages; independent of L108 parsing/lookup files.
+  scope: Allow demonstrably independent enumerable randc components disjoint from order/dist references through existing randc-first sampling. Retain focused rejection of direct randc ordering and unsupported coupled components. No frontend changes, weakened constraints, false successes or altered rollback.
+  acceptance: Paired deterministic dist and randc-cycle outcomes, independent scalar/element components where admitted, graph and object constraint preservation, unsatisfiable rollback and randc progression, disabled modes, direct illegal randc order and unsupported coupled negatives; existing Z01A/randc neighbors.
+  coordinator: Owns shared builds/install/harnesses/manifests/docs/review/integration. No agent builds or commits.
