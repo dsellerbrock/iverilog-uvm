@@ -2,7 +2,7 @@ status: active
 branch: agent/typed-array-return-20260914
 current_blocker: CLASS-PACKED-SELECT-INCREMENT
 phase: focused_feature_checkpoint
-source_revision: 7e44ed0dd
+source_revision: 9c3f92e9b
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 4bc02c51b
@@ -33,11 +33,12 @@ published_work:
     merge_revision: fdbb8f34a
 preserved_local_batch:
   branch: agent/typed-array-return-20260914
-  head: 7e44ed0dd
+  head: 9c3f92e9b
   l65_revision: 83d5471e3
   l66_revision: 711e54893
   l67_revision: 57ccfa80d
   l68_revision: 7e44ed0dd
+  l69_revision: 9c3f92e9b
   focused_features: 5
   status: Focused tests passed; full batch qualification pending; not published
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
