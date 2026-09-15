@@ -2386,8 +2386,18 @@ Assessment and baseline: `evidence/application-check-20260915/nested-indexed-con
 
 ### L114 — first_match subsequence with a source-clock suffix
 
-REPRODUCED and SELECTED in ACTIVE_WORK. Both editions reject a finite
+FOCUSED_TESTED; broad pending. [L114 evidence](session_logs/2026-09-15_first_match_source_suffix_validation.json). Baseline editions rejected a finite
 first_match wrapper followed by a fixed same-clock suffix before a multiclock
 handoff. The selected NFA repair preserves the wrapper boundary so earliest
 exit commits without prematurely closing the complete source sequence.
 Assessment: `evidence/application-check-20260915/next-sva-after-l112/`.
+
+### L115 — arbitrary-width fixed rand element transport
+
+REPRODUCED and SELECTED in ACTIVE_WORK. A legal65-bit direct fixed-element
+constraint currently reports successful randomization and truncates bit64.
+The selected repair carries full vectors through ordinary rand state/solve/
+writeback paths, sharing L113 nested identities. Wide cyclic history and
+uint64-based exact enumeration remain separate unsupported mechanisms until
+implemented; no full-width randomization completion is inferred.
+Assessment: `evidence/application-check-20260915/next-wide-element-assessment/`.

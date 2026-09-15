@@ -75,7 +75,8 @@ bool pform_sva_nfa_dump_enabled()
  * else uses them they die in accept-reachability pruning. Returns ~0u
  * when cur has no incoming tick edges to fuse onto.
  */
-static unsigned nfa_fuse_arrival_(sva_nfa_t&nfa, unsigned cur, PExpr*guard)
+static unsigned nfa_fuse_arrival_(sva_nfa_t&nfa, unsigned cur, PExpr*guard,
+                                  bool fm_exit = false)
 {
       std::vector<bool> incl (nfa.nstates, false);
       incl[cur] = true;
@@ -98,6 +99,10 @@ static unsigned nfa_fuse_arrival_(sva_nfa_t&nfa, unsigned cur, PExpr*guard)
 	    if (e.epsilon || !incl[e.to]) continue;
 	    e.to = join;
 	    e.guards.push_back(guard);
+	    if (fm_exit) {
+		  e.first_match_exit = true;
+		  e.first_match_guards = e.guards;
+	    }
 	    nfa.edges.push_back(e);
 	    any = true;
       }
@@ -113,7 +118,8 @@ static unsigned nfa_fuse_arrival_(sva_nfa_t&nfa, unsigned cur, PExpr*guard)
  * caller falls back. Returns the fragment's exit state or ~0u.
  */
 static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
-			      const sva_seq_step_t&st, bool first)
+			      const sva_seq_step_t&st, bool first,
+                              bool fm_exit = false)
 {
       long lo = st.delay_lo;
       long hi = st.delay_hi;
@@ -170,7 +176,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 		  sva_seq_step_t one = st;
 		  one.delay_lo = d;
 		  one.delay_hi = d;
-		  unsigned sub = nfa_add_step_(nfa, cur, one, first);
+		  unsigned sub = nfa_add_step_(nfa, cur, one, first, fm_exit);
 		  if (sub == ~0u) return ~0u;
 		  nfa.eps(sub, exit);
 	    }
@@ -183,13 +189,13 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	    sva_seq_step_t z = st;
 	    z.delay_lo = 0;
 	    z.delay_hi = 0;
-	    unsigned s0 = nfa_add_step_(nfa, cur, z, false);
+	    unsigned s0 = nfa_add_step_(nfa, cur, z, false, fm_exit);
 	    if (s0 == ~0u) return ~0u;
 	    nfa.eps(s0, exit);
 	    sva_seq_step_t r = st;
 	    r.delay_lo = 1;
 	    r.delay_hi = -1;
-	    unsigned s1 = nfa_add_step_(nfa, cur, r, false);
+	    unsigned s1 = nfa_add_step_(nfa, cur, r, false, fm_exit);
 	    if (s1 == ~0u) return ~0u;
 	    nfa.eps(s1, exit);
 	    return exit;
@@ -363,7 +369,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       if (fixed == 0 && !first) {
 	      // ##0 fusion: the step's boolean shares the arrival
 	      // tick of the previous step (see nfa_fuse_arrival_).
-	    unsigned join = nfa_fuse_arrival_(nfa, cur, st.expr);
+	    unsigned join = nfa_fuse_arrival_(nfa, cur, st.expr, fm_exit);
 	    if (join == ~0u) return ~0u;
 
 	      // ##[0:n] / ##[0:$]: arrivals >= 1 are an ordinary
@@ -374,7 +380,8 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 		  rest.delay_lo = 1;
 		  rest.delay_hi = unbounded ? -1 : hi;
 		  rest.rep_tail = 0;
-		  unsigned sub = nfa_add_step_(nfa, before_expr, rest, false);
+		  unsigned sub = nfa_add_step_(nfa, before_expr, rest, false,
+                                             fm_exit);
 		  if (sub == ~0u) return ~0u;
 		  unsigned j2 = nfa.new_state();
 		  nfa.eps(join, j2);
@@ -390,11 +397,11 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
       } else if (fixed == 0) {
 	      // Anchor tick: one guarded edge out of the start.
 	    unsigned nxt = nfa.new_state();
-	    nfa.tick(cur, nxt, st.expr);
+	    nfa.tick(cur, nxt, st.expr, fm_exit);
 	    cur = nxt;
       } else {
 	    unsigned nxt = nfa.new_state();
-	    nfa.tick(cur, nxt, st.expr);
+	    nfa.tick(cur, nxt, st.expr, fm_exit);
 	    cur = nxt;
       }
 
@@ -408,7 +415,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 		  unsigned w2 = nfa.new_state();
 		  nfa.tick(wait, w2, nullptr);
 		  unsigned hit = nfa.new_state();
-		  nfa.tick(w2, hit, st.expr);
+		  nfa.tick(w2, hit, st.expr, fm_exit);
 		  nfa.eps(hit, join);
 		  wait = w2;
 	    }
@@ -501,10 +508,13 @@ static void fold_epsilons_(sva_nfa_t&nfa)
       std::vector<sva_nfa_edge_t> out;
       auto push_uniq = [&](const sva_nfa_edge_t&ne) {
 	    for (size_t k = 0; k < out.size(); k += 1) {
-		  const sva_nfa_edge_t&o = out[k];
+		  sva_nfa_edge_t&o = out[k];
 		  if (o.from == ne.from && o.to == ne.to
-		      && o.guards == ne.guards)
+		      && o.guards == ne.guards
+		      && o.first_match_exit == ne.first_match_exit
+		      && o.first_match_guards == ne.first_match_guards) {
 			return;
+		  }
 	    }
 	    out.push_back(ne);
       };
@@ -609,7 +619,10 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
       bool tagged = !steps[k].group_repeat_opens.empty();
       if (!tagged && !steps[k].group_repeat_start) {
             if (steps[k].grouped_repeat) return false;
-            unsigned next = nfa_add_step_(nfa, cur, steps[k], first);
+            bool fm_exit = steps[k].fm
+                          && (k + 1 == steps.size() || !steps[k+1].fm);
+            unsigned next = nfa_add_step_(nfa, cur, steps[k], first,
+                                          fm_exit);
             if (next == ~0u) return false;
             return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
       }

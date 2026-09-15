@@ -1532,3 +1532,12 @@ identity, including aliases, activity, cyclic history and transactional writebac
 Missing/inaccessible members and unsupported selectors/types fail explicitly.
 [Focused evidence](../session_logs/2026-09-15_nested_fixed_element_constraints_validation.json);
 broad qualification and arbitrary-width element transport remain pending.
+
+### 2026-09-15 L114 — first_match source suffix
+
+16.9.8/16.13 PARTIAL refinement: direct finite Boolean first_match prefixes
+retain earliest wrapper exits through a fixed same-clock suffix. Separate
+boundary guards prevent zero-delay suffix failure from enabling later rescue;
+tied exits continue independently through existing multiclock transport.
+[Focused evidence](../session_logs/2026-09-15_first_match_source_suffix_validation.json).
+Ranged suffixes and other unadmitted shapes remain unsupported; broad pending.

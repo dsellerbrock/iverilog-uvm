@@ -163,7 +163,7 @@ application_seed_lane:
 L111_failure_refinement: Touching cyclic/distribution representation is preflighted with typed results. Other existing late unsupported rejections may remain because all exact-joint streams draw only from snapshotted graph owners; failed calls restore root/child RNG, values and cyclic histories. Deterministic failed-call-versus-control regression proves no draw is committed or skipped. Diagnostic timing alone is not a correctness requirement; semantic EMPTY is distinct from unsupported representation.
 
 current_checkpoint:
-  semantic_integrations: [L106, L107, L108, L109, L110, L111, L112]
+  semantic_integrations: [L106, L107, L108, L109, L110, L111, L112, L113]
   application_capability_revision: a8b831496
   installed_revision: L112 executable source plus uncommitted L113; fingerprints in evidence/application-check-20260915/l113-focused/initial-direct.json
   processes: None live at coordinator audit.
@@ -230,7 +230,7 @@ L113_progress:
 
 first_match_suffix_implementation_lane:
   id: L114-FIRST-MATCH-SOURCE-SUFFIX
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_wide
   standards: IEEE1800-2017 and2023 16.9.8,16.13
   reproducer: evidence/application-check-20260915/next-sva-after-l112/first-match-with-source-suffix.sv
@@ -255,3 +255,32 @@ L114_zero_delay_review:
   actual: Initial candidate falsely accepts later wrapper endpoint when earliest endpoint has false same-clock zero-delay suffix; both modes report passes1 instead of required0.
   root_cause: NFA fusion adds suffix guard to the edge used to detect earliest wrapper exit.
   required_refinement: Preserve wrapper-boundary guard conjunction separately through fusion/folding so earliest exit commits regardless of suffix truth. Retain complete transition guards for suffix evaluation; no later rescue.
+
+L113_integration:
+  revision: 355243ab4
+  evidence: docs/conformance/session_logs/2026-09-15_nested_fixed_element_constraints_validation.json
+  status: FOCUSED_TESTED_BROAD_PENDING
+wide_element_assessment_lane:
+  agent: /root/constraint_abi
+  status: ASSESSMENT_ONLY
+  owns: [evidence/application-check-20260915/next-wide-element-assessment]
+  scope: Trace confirmed direct65-bit element truncation through all readback/model-extraction/writeback callers. Assess reuse of existing arbitrary-width scalar transport and complete element activity/transaction/cyclic semantics; prepare concrete independent implementation scope before authorization.
+  baseline: evidence/application-check-20260915/nested-indexed-constraint-assessment/direct-wide-baseline.json
+  execution: No agent shared builds/tests/install/commits/new agents or worktrees.
+
+wide_element_implementation_lane:
+  id: L115-WIDE-FIXED-RAND-ELEMENT-TRANSPORT
+  status: AUTHORIZED
+  agent: /root/constraint_abi
+  standards: IEEE1800-2017 and2023 18.3,18.4,18.5,18.8,18.13
+  reproducer: evidence/application-check-20260915/nested-indexed-constraint-assessment/direct_wide_element_debt.sv
+  baseline: evidence/application-check-20260915/nested-indexed-constraint-assessment/direct-wide-baseline.json
+  actual: Both editions report successful randomization but lose required bit64 of a65-bit fixed-array rand element.
+  expected: Preserve every declared bit through state reads, constraints, ordinary solving and writeback with full-vector transactional rollback.
+  owns: [vvp/vvp_z3.cc, elaborate.cc]
+  fixture_prefix: sv_constraint_wide_fixed_element
+  dependencies: Existing scalar arbitrary-width vector/Z3 conversions and L113 graph identities; independent of L114 pform/NFA.
+  scope: Complete arbitrary-width ordinary rand fixed-element value transport across state pins, accept-current, diversity, guards, model extraction and writeback. Reuse vvp_vector4_t and existing binary Z3 conversions. Lift L113 nested element width admission only when shared transport correct. Keep <=64 behavior and RNG consumption unchanged. Audit every shared-helper caller; no new representation/cap or silently truncated path.
+  boundaries: Wide randc history and exact enumerated ordered/dist domains remain separately unimplemented where uint64 representation is required; reject atomically before writes/draws rather than truncate. Do not claim these implemented or waive eventual support. Preserve already-supported <=64 cases; no arbitrary restriction of unrelated ordinary wide fields without demonstrated mechanism limit.
+  acceptance: Paired65/96/128-bit direct+nested, high/low-bit constraints and arithmetic, signed/unsigned and 2/4-state values, multiple words/nonzero bounds, state pinning and X/Z diagnostic, high-bit randomness with deterministic replay, alias/activity, full-vector value and RNG rollback, explicit unconverted boundaries; existing element/scalar/member/container/randc/order/transaction neighbors unchanged.
+  coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. Agent source/private fixtures only; no commits/new agents/worktrees.

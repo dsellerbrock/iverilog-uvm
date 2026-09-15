@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_first_match_source_suffix_kill_restart_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions"
+  ],
+  "gold": "sv_assert_multiclock_first_match_source_suffix_kill_restart_2023"
+}

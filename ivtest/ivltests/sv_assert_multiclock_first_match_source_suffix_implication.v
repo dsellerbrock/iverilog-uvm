@@ -1,0 +1,16 @@
+module sv_assert_multiclock_first_match_source_suffix_implication;
+ bit c1=0,c2=0,a=0,b=1,x=0,good=0; int passes=0,fails=0,last=-1,covers=0;
+ always #10 c1=~c1; initial begin #5; forever #10 c2=~c2; end
+ ap: assert property(@(posedge c1)
+       first_match(a##[1:2]b)##1 x|->@(posedge c2)good)
+     begin passes++;last=$time;end else begin fails++;last=$time;end
+ cp: cover property(@(posedge c1)
+       first_match(a##[1:2]b)##1 x|->@(posedge c2)good) covers++;
+ initial begin
+   #9 a=1;#2 a=0;$assertoff(0,ap);$assertoff(0,cp);
+   #38 x=1; #2 x=0; #9 good=1; #20;
+   if(passes!=0||fails!=1||last!=55||covers!=0)
+     $fatal(1,"passes=%0d fails=%0d last=%0d covers=%0d",passes,fails,last,covers);
+   $display("PASSED");$finish(0);
+ end
+endmodule
