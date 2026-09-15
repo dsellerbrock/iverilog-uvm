@@ -120,9 +120,9 @@ coordinator_authorized_regression_lanes:
   - id: ORDERED-RANDC-REGRESSION
     agent: /root/constraint_wide
     status: REPRODUCED
-    owns: [vvp/vvp_z3.cc]
+    owns: [ivtest/ivltests/sv_randc_fixed_array_modes.v, ivtest/ivltests/sv_randc_fixed_array_modes_2023.v]
     baseline: evidence/batch-20260914-after-l84/qualification/legacy-test-logs/sv_randc_fixed_array_modes.log
-    scope: Repair attributable constrained randc feasible-cycle repetition regression while preserving exact joint-order distributions, RNG rollback and container modes.
+    scope: Correct an overstrong coupled randc test oracle under18.4.2; preserve independent exact cycles, coupled constraint checking, permitted-reset justification, rollback and modes. No runtime change is warranted by the captured trace.
     acceptance: Existing sv_randc_fixed_array_modes seed/cycle oracle, focused fixed/dynamic/queue ordering and rollback neighbors; do not weaken expectations.
     dependencies: Independent of compiler target lane; coordinator owns build, install and harnesses.
 regression_policy: These are corrections within the eleven-fix batch, not additional counted features. Full seven-gate qualification must restart from a corrected frozen candidate.

@@ -275,3 +275,11 @@ failed_broad_candidate:
   remaining_six_gates: not run; driver stopped on integrated failure
   lanes: packed-select compatibility and constrained randc cycle identity
   next: repair disjoint mechanisms, focused validate, freeze new candidate and rerun all seven gates
+
+regression_audit_resolution:
+  packed_select_repair: e8cf2ac5b; all13 original failures and10 enum cases per harness pass
+  negative_expectation_migration: 7913bd871; runtime parent-verdict test passes in2012/2017/2023 both harnesses
+  randc_trace: evidence/batch-20260914-after-l84/randc-reset-audit/trace.json
+  randc_finding: Both histories contained1,5; remaining3,3 cannot satisfy inequality, so18.4.2 permits recomputation. Original three-call coupled-cycle oracle is too strict.
+  rejected_runtime_patch: evidence/batch-20260914-after-l84/randc-fixed-array-audit/rejected-joint-history.patch
+  active_test_repair: separate guaranteed independent cycles from constrained reset checking, retaining mode/static/rollback coverage
