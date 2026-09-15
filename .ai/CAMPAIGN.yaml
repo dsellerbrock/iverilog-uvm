@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L110-CONSTRUCTOR-TRANSITION-BINS
+current_blocker: L110-CONSTRUCTOR-TRANSITION-BINS + L111-COUPLED-RANDC-ORDERED-DIST
 phase: parallel_constraint_validation_and_coverage_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
@@ -22,7 +22,7 @@ current_candidate:
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: constraint_abi implements L110 complete constructor transition path; constraint_wide assesses next independent constraint runtime blocker with private reducers. Coordinator reviews/validates frozen sources and records selection before further implementation.
+  next_action: constraint_abi implements L110 complete constructor transition path; constraint_wide implements authorized L111 coupled cyclic ordered solving. Coordinator reviews/validates frozen sources and records selection before further implementation.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.

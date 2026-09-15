@@ -126,3 +126,19 @@ coverage_implementation_lane:
   scope: Extend existing metadata and evaluator end to end for constructor-dependent integral transition endpoints, including exact instance/type union identity and existing constant repetition modes. Preserve constant transition/value paths. No fabricated hits, flattened transitions, dropped terms or partial programs. Unsupported dynamic repetition and unrepresentable forms retain explicit diagnostics.
   acceptance: Both editions disjoint50percent and overlapping unions, named versus unsized bins, mixed constant/constructor ranges, signedness/defaults, consecutive/goto/nonconsecutive repetition, construction-time evaluation, instance/type queries, at_least/iff/reset/lifecycle, caps and atomic failure; invalid endpoints and unsupported forms; existing transition/value/cross neighbors and VVP metadata validation.
   coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration only. Agent owns disjoint source and fixture files; no commits or new agents.
+
+constraint_implementation_lane:
+  id: L111-COUPLED-RANDC-ORDERED-DIST
+  status: AUTHORIZED
+  agent: /root/constraint_wide
+  standards: IEEE1800-2017 18.4.2,18.5.10; IEEE1800-2023 18.4.2,18.5.9
+  reproducer: evidence/batch-20260915-after-l95/next-z01-coupled-assessment/coupled_randc_ordered_dist.sv
+  assessment: evidence/batch-20260915-after-l95/next-z01-coupled-assessment/assessment.md
+  actual: Legal coupled cyclic/ordinary ordered component is rejected by L109 admission.
+  expected: Solve randc first, pin the selected cyclic value, then sample ordered ordinary variables in its feasible fiber; preserve cycles, constraints and transactional failure semantics.
+  owns: [vvp/vvp_z3.cc]
+  fixture_prefix: sv_joint_coupled_randc_ordered
+  dependencies: L109 component classifier and existing cyclic sampling, joint enumeration and ordered stages; independent of L110 metadata/coverage files.
+  scope: Complete enumerable scalar/fixed-element component support with one coupled cyclic leaf using existing stage/table mechanisms. Prove representation/support before draws without conditioning cyclic selection on later implementation failures. No dist fallback, weakened constraints or fake cycles. Larger/non-enumerable, multiple cyclic leaves and direct cyclic dist subjects remain explicit unsupported boundaries unless separately proved.
+  acceptance: Paired multiple-cycle runtime oracle, scalar/fixed element paths claimed, multiple ordinary completions per cyclic value, UNSAT rollback/history/RNG, disabled modes, zero-weight/zero-total/cap behavior, direct illegal order negatives, L109 independence and Z01 neighbors. Distinguish standards-permitted randomization failure from implementation limits.
+  coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. No agent builds or commits.
