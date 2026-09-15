@@ -19,13 +19,13 @@ published_work:
     stacked_on: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     published_head: 67be888271584400bf387305420a383cce64b8c5
     current_ci_run: 34931769313
-    current_ci_observation: Ubuntu24 passed; other five jobs in progress at latest check. All seven local gates passed.
+    current_ci_observation: Ubuntu22/24 passed; macOS and three Windows jobs in progress at latest check. All seven local gates passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     state: open
     published_head: 9f79ff51cefe85194beb954409750e2e741dfcc3
     current_ci_run: 34927916125
-    current_ci_observation: Ubuntu22/24 and all three Windows jobs passed; macOS remains active. Local seven-gate qualification passed.
+    current_ci_observation: All six platform jobs passed in run34927916125. Local seven-gate qualification passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/280
     state: externally_merged
@@ -63,9 +63,9 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: L75-L84 compiler/target plus rebuilt L85 runtime including graph RNG rollback; exact focused candidate hashes in evidence/batch-20260914-after-l84/l85-candidate.json.
+installed_tools: "Combined frozen unintegrated L86/L88 compiler and runtime candidate built successfully; hashes in evidence/batch-20260914-after-l84/l86-l88-first-combined-candidate.json. L75-L84 target retained. No qualification claim for L86/L88."
 pending_gates: Broad gates for the current post-L84 batch near ten fixes; PR284/283 cross-platform CI and authorized merge. L85/L87 focused gates passed; L86/L88 unvalidated.
-next_action: Correct/build/test L86 increment and implement authorized L88 dynamic selected-element ordering. L85/L87 integrated with focused validation; coordinator owns all builds/harnesses.
+next_action: "Validate frozen L88 and corrected L86 tests on combined candidate; complete remaining L86 semantics before integration. L85/L87 are integrated and focused tested. Coordinator owns all builds/harnesses."
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.

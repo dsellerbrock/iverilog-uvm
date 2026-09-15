@@ -8,7 +8,7 @@ lanes:
   - id: L88-JOINT-DYNAMIC-ELEMENT-ORDERING
     parent: Z01
     agent: /root/constraint_abi
-    status: REPRODUCED
+    status: FOCUSED_VALIDATION_PENDING
     standards: "IEEE 1800-2017 18.5.8.2/18.5.9/18.5.10; IEEE 1800-2023 18.5.7.2/18.5.8/18.5.9. Verify exact array-order clauses before coding."
     reproducer: evidence/batch-20260914-after-l84/next-dynamic-assessment/joint_dynamic_element_order.sv
     actual: "Both editions warn and drop solve-before over dynamic-array elements; the seeded 1024-call test produces first-element one685 times instead of the required uniform marginal (expected512)."
@@ -54,4 +54,4 @@ integrated_focused_fixes:
     evidence: docs/conformance/session_logs/2026-09-14_joint_element_ordering_validation.json
     broad_qualification: pending near ten integrated fixes
 
-l86_increment_status: "First candidate compile failed on missing expression-lvalue assignment helper usage; source/evidence preserved. Agent correcting compile errors. First-clock consequent prefix and no-MATCH paused-destination storage remain pending; no L86 implementation completion or qualification claim."
+l86_increment_status: "Compiler builds and SV reducer compiles after generated indexed-assignment and associative delete-call corrections. Runtime blocked by test use of unimplemented $assertvacuousoff; lane correcting test setup. First-clock consequent prefix and no-MATCH paused-destination storage remain pending. No implementation completion claim."
