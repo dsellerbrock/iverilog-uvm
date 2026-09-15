@@ -2383,3 +2383,11 @@ REPRODUCED and SELECTED in ACTIVE_WORK. Both editions drop the equality on
 connects frontend nested element references to canonical solver graph leaves;
 scalar nested properties and direct array elements are control cases.
 Assessment and baseline: `evidence/application-check-20260915/nested-indexed-constraint-assessment/`.
+
+### L114 — first_match subsequence with a source-clock suffix
+
+REPRODUCED and SELECTED in ACTIVE_WORK. Both editions reject a finite
+first_match wrapper followed by a fixed same-clock suffix before a multiclock
+handoff. The selected NFA repair preserves the wrapper boundary so earliest
+exit commits without prematurely closing the complete source sequence.
+Assessment: `evidence/application-check-20260915/next-sva-after-l112/`.

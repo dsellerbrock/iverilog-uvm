@@ -227,3 +227,25 @@ L113_progress:
   evidence: evidence/application-check-20260915/l113-focused/expanded-direct.json
   acceptance: Original silent-drop reproducer and expanded positive/negative direct cases match expected outcomes. Final harness packaging, focused nonintegral oracle and neighbors pending. No integration or broad qualification yet.
   scope_boundary: Existing element readback/writeback is limited to64bits; L113 wider nested elements reject explicitly. Direct wider-element path requires separately recorded debt, no claim of complete integral support.
+
+first_match_suffix_implementation_lane:
+  id: L114-FIRST-MATCH-SOURCE-SUFFIX
+  status: AUTHORIZED
+  agent: /root/constraint_wide
+  standards: IEEE1800-2017 and2023 16.9.8,16.13
+  reproducer: evidence/application-check-20260915/next-sva-after-l112/first-match-with-source-suffix.sv
+  baseline: evidence/application-check-20260915/next-sva-after-l112/baseline.json
+  actual: Both editions reject legal first_match subsequence followed by a fixed source-clock suffix before multiclock handoff.
+  expected: Commit earliest wrapped endpoint, retain all tied exits, continue retained paths through remaining source suffix, and discard later wrapper endpoints even if they could rescue the full sequence.
+  owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
+  fixture_prefix: sv_assert_multiclock_first_match_source_suffix
+  dependencies: Existing finite NFA and L112 tied-exit transport; independent of L113 elaborate.cc/vvp_z3.cc.
+  scope: Direct finite Boolean first_match prefix followed by fixed finite same-clock Boolean suffix, then existing multiclock handoff. Retain wrapper boundary provenance in NFA, cut inside-wrapper alternatives at earliest exit while continuing tied exits. No scheduler/runtime edits or false prefix closure. Report scope expansion before broader changes.
+  acceptance: Paired nonvacuous earliest failure versus later potential success, source-suffix failure after wrapper success, tied exits, overlap/cancel/restart, handoff0/1 coincident orders, depth boundaries, explicit unsupported nested/nonprefix/repetition/unbounded shapes; migrate now-legal existing negative to runtime positive and run L107/L112 neighbors.
+  oracle_review: Initial baseline x goes low before later suffix tick70, so it establishes legality but not later-rescue discrimination. Permanent fixture must keep a later alternative successful while committed earliest path fails.
+  coordinator: Shared build/install/harnesses/main manifests/docs/review/integration. Agent owns source/private fixtures only; no commits/new agents/worktrees.
+
+L113_lookup_review:
+  reproducer: evidence/application-check-20260915/l113-focused/missing-terminal.sv
+  actual: Both editions silently compile leaf.missing[0] by falling through when leaf lacks missing and outer class declares missing array.
+  requirement: Once a class-object prefix resolves, terminal lookup must diagnose missing property and never rebind to an outer property. Same selected nested identity scope; fix before integration.

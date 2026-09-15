@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L113-NESTED-FIXED-ELEMENT-CONSTRAINT + independent SVA assessment
-phase: constraint_acceptance_and_next_sva_assessment
+current_blocker: L113-NESTED-FIXED-ELEMENT-CONSTRAINT + L114-FIRST-MATCH-SOURCE-SUFFIX
+phase: parallel_constraint_acceptance_and_sva_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
