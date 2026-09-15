@@ -19,7 +19,7 @@ lanes:
     acceptance: Both editions all four operators, ascending/descending/nonzero arrays, automatic recursive frames, once-only word and character selectors, signed byte and widened results, ff wrap with zero-write suppression, empty/negative/X/wide/OOB selectors, untouched neighbors, runtime parity and external/readonly diagnostics. Preserve scalar and plain/compound array neighbors.
   - id: L102-PLAIN-MULTICLOCK-CONSEQUENCE-NFA
     agent: /root/constraint_wide
-    status: AUTHORIZED
+    status: FOCUSED_TESTED
     standards: IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2
     reproducer: evidence/batch-20260915-after-l95/next-plain-consequence-nfa-assessment/ASSESSMENT.md
     actual: Both editions reject a fixed first-clock sequence prefix followed by a finite ranged second-clock sequence, with a focused missing plain transport diagnostic.
@@ -30,7 +30,7 @@ lanes:
     scope: Reuse finite per-entry consequence masks and existing plain attempt verdict transport for fixed first-clock prefixes. No ranged first-clock prefix, new scheduler, unbounded operators or local-action merge.
     acceptance: Both editions late/early/no-match verdicts and exact times, ##0/##1 clock cutoff with reversed coincident process order, multi-tick prefixes, overlapping starts, cover action counts, Off/Kill/async disable/restart, paused destination backlog, finite depth and unsupported controls; preserve L100 implication quantifiers and fixed plain neighbors.
 file_conflict_policy: No overlapping source or fixture edits; no agent commits or shared builds. Coordinator integrates each patch before selecting the next lane item.
-focused_features_completed_in_batch: 5
+focused_features_completed_in_batch: 6
 integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00]
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l99_l100_active_work_archive.yaml

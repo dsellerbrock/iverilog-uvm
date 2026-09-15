@@ -19150,23 +19150,30 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
                               "neither a fixed-length boolean chain nor a finite "
                               "acyclic Boolean/delay sequence";
             }
-            if (!why && consequence_nfa_mode && plain)
-                  why = "a plain multiclocked sequence whose second-clock "
-                        "finite NFA needs implication parent transport";
             if (!why && consequence_nfa_mode && !ranged_antecedent) {
-                  /* The parent/result protocol is also required for a fixed
-                     antecedent when its child is an NFA. */
-                  ranged_antecedent = sva_mc_bounded_chain_nfa_(
-                        *prop->antecedent, a_nfa, a_depth,
+                  /* The finite child-mask path consumes START/MATCH/CLOSE
+                     records.  A plain multiclock sequence supplies those
+                     records from its fixed first-clock prefix; an implication
+                     supplies them from its antecedent. */
+                  const std::vector<sva_seq_step_t>*source = plain
+                        ? prop->mc_prefix : prop->antecedent;
+                  ranged_antecedent = source && sva_mc_bounded_chain_nfa_(
+                        *source, a_nfa, a_depth,
                         antecedent_accepts_empty, false);
-                  if (ranged_antecedent)
-                        /* `a_slots' borrows expressions still owned by the
-                           antecedent.  The promoted NFA samples those guards;
-                           retaining this alias would sample/delete them twice. */
-                        a_slots.clear();
+                  if (ranged_antecedent) {
+                        /* The earlier fixed expansion left borrowed aliases.
+                           The promoted source NFA is their sole evaluator. */
+                        if (plain) p_slots.clear();
+                        else a_slots.clear();
+                  }
                   if (!ranged_antecedent)
-                        why = "a multiclocked implication whose fixed antecedent "
-                              "cannot enter the finite child-NFA transport";
+                        why = plain
+                              ? "a plain multiclocked sequence whose fixed "
+                                "first-clock prefix cannot enter the finite "
+                                "child-NFA transport"
+                              : "a multiclocked implication whose fixed "
+                                "antecedent cannot enter the finite child-NFA "
+                                "transport";
             }
             if (!why && ((!ranged_antecedent && a_slots.size() > 64)
 		     || p_slots.size() > 64
@@ -19303,7 +19310,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->antecedent && !ranged_antecedent)
 	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1)
 		  (*prop->antecedent)[j].expr = nullptr;
-      if (prop->mc_prefix)
+      if (prop->mc_prefix && !(consequence_nfa_mode && plain))
 	    for (size_t j = 0 ; j < prop->mc_prefix->size() ; j += 1)
 		  (*prop->mc_prefix)[j].expr = nullptr;
       if (!consequence_nfa_mode)
@@ -20766,7 +20773,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  FILE_NAME(nonvacuous, loc);
 		  std::vector<Statement*>done;
 		  done.push_back(sva_if_(loc, nonvacuous,
-			parent_success(false), parent_success(true)));
+			parent_success(false),
+                        plain ? parent_failure() : parent_success(true)));
 		  done.push_back(set_parent(par_reported, sva_bit_(loc, 1)));
 		  done.push_back(retire_parent());
 		  return sva_block_(loc, done);

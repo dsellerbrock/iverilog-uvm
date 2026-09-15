@@ -7,7 +7,7 @@ selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
 integrated_since_last_broad_batch:
-  count: 5
+  count: 6
   revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00]
 latest_broad_qualification:
   integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
@@ -25,7 +25,7 @@ current_candidate:
   direct_evidence: evidence/batch-20260915-after-l95/l101-l102-retry-direct.json
   shared_process: none
   l101: Recursive runtime control passes; selected-character ordering parameter still aborts and bounds parameter fails evaluation. Agent investigating without weakening tests; readonly/external diagnostics captured.
-  l102: All current direct positive and depth-rejection controls pass; focused harnesses and neighbor checks pending. Empty-prefix-match verdict corrected to failure for plain sequences, preserving implication vacuity.
+  l102: Integrated with focused evidence in docs/conformance/session_logs/2026-09-15_plain_multiclock_consequences_validation.json; ranged-prefix follow-up under bounded assessment.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
