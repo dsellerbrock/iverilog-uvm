@@ -2229,7 +2229,8 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L98 — Generated function accepted in constant evaluation
 
 - **Area / edition:** Function elaboration / IEEE1800-2017 and2023 13.4.3.
-- **State:** IN_PROGRESS; coordinator-authorized independent lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json` at the L96/L97 focused install.
 - **Closure:** Reject constant calls to functions declared in generate blocks, including nested/cached paths; preserve ordinary runtime generated functions and module/package constant functions. Paired edition tests required.
+- **Implementation evidence:** [L98 session](session_logs/2026-09-15_generated_constant_function_legality.md).

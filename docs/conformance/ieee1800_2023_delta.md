@@ -227,3 +227,5 @@ L94 uses the shared repetition, empty-composition and nondegeneracy requirements
 The L85–L95 subsets share the [local qualification checkpoint](matrices/ieee1800_2017_clause_matrix.md#l85l95-local-qualification-checkpoint). Separate edition-focused results remain above; the full UVM gate used `-g2012`.
 
 L96 shares the 13.4.3 input-only constant-function rule; [paired evidence](session_logs/2026-09-15_constant_function_formal_legality_validation.json) records separate edition checks.
+
+L98 shares the 13.4.3 generated-declaration restriction; [paired evidence](session_logs/2026-09-15_generated_constant_function_legality_validation.json) records both editions.

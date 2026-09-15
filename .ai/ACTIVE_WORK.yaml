@@ -7,7 +7,7 @@ coordinator_owns: [Shared builds, Installation, Shared harnesses and test output
 lanes:
   - id: L98-GENERATED-CONSTANT-FUNCTION
     agent: /root/constraint_abi
-    status: AUTHORIZED
+    status: FOCUSED_TESTED
     standards: IEEE1800-2017 and2023 13.4.3
     reproducer: evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json
     actual: A function declared inside a generate block incorrectly folds a localparam in both editions.
@@ -30,7 +30,7 @@ lanes:
     scope: Retain nested group boundaries in existing finite chain/NFA representation; reuse parent transport and fixed-path checks. No scheduler change or unbounded operator expansion.
     acceptance: Paired exact/ranged/zero inner and outer bounds, distinct interior samples and endpoint oracles, nested empty composition with zero/positive delays, prefix/consequent and both implications, Off/Kill and multiple parents, same-clock neighbors, existing construction bound and unsupported diagnostics.
 file_conflict_policy: Disjoint source and test-prefix ownership; coordinator alone edits shared manifests and runs builds/install/harnesses. Agents submit patches without committing.
-focused_features_completed_in_batch: 1
+focused_features_completed_in_batch: 2
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l85_l95_active_work_archive.yaml
 stop_after_completion: false

@@ -14275,11 +14275,32 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		    trailing_indices, selected_type);
 }
 
-static bool constant_function_formals_are_inputs_(
+static bool constant_function_declaration_is_legal_(
 	Design*des, const LineInfo&loc, NetScope*dscope, const NetFuncDef*def,
 	bool report)
 {
       bool valid = true;
+
+	/* IEEE 1800-2017/2023 13.4.3 excludes a function declared anywhere
+	 * beneath a generate block from the constant-function subset. */
+      for (NetScope*cur = dscope->parent(); cur; cur = cur->parent()) {
+	    if (cur->type() == NetScope::GENBLOCK) {
+		  valid = false;
+		  if (report) {
+			cerr << loc.get_fileline() << ": error: Function `"
+			     << dscope->basename() << "' is declared inside generate "
+				"block `" << scope_path(cur)
+			     << "' and may not be used as a constant function"
+				" (IEEE 1800-2017/2023 13.4.3)." << endl;
+			des->errors += 1;
+		  }
+		  break;
+	    }
+	    if (cur->type() == NetScope::MODULE
+		|| cur->type() == NetScope::PACKAGE)
+		  break;
+      }
+
       for (unsigned idx = 0 ; idx < def->port_count() ; idx += 1) {
 	    const NetNet*formal = def->port(idx);
 	    if (formal->port_type() == NetNet::PINPUT)
@@ -15311,7 +15332,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	 * context.  Classify its formal directions on every call, before using
 	 * the cached constant-function state to classify its caller. */
       const bool constant_context = need_const || scope->need_const_func();
-      if (!constant_function_formals_are_inputs_(
+      if (!constant_function_declaration_is_legal_(
 		des, *this, dscope, def, constant_context)) {
 	    dscope->is_const_func(false);
 	    if (constant_context)
@@ -15426,7 +15447,7 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	/* Qualified/static paths can enter elaborate_base_ without the generic
 	 * call classifier above.  Apply the same legality rule here. */
       const bool constant_context = need_const || scope->need_const_func();
-      if (!constant_function_formals_are_inputs_(
+      if (!constant_function_declaration_is_legal_(
 		des, *this, dscope, def, constant_context)) {
 	    dscope->is_const_func(false);
 	    if (constant_context)

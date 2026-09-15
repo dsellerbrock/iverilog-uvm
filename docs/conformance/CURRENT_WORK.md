@@ -21,7 +21,7 @@ records retain their original revisions and limits.
 
 ## Newer focused evidence
 
-[L96 constant-function formal legality](session_logs/2026-09-15_constant_function_formal_legality.md) is focused-tested after the qualified batch. Its broad gates remain pending.
+[L96 constant-function formal legality](session_logs/2026-09-15_constant_function_formal_legality.md) is focused-tested after the qualified batch. Its broad gates remain pending. [L98 generated-function legality](session_logs/2026-09-15_generated_constant_function_legality.md) is also focused-tested.
 
 ## Application evidence
 

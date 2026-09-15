@@ -319,3 +319,8 @@ l98_authorization:
   status: reproduced and coordinator-authorized after L96 integration
   evidence: evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json
   nonblocker: constant default-argument legality already passes; no change needed
+
+l98_checkpoint:
+  status: focused tested, integrating second fix after PR285
+  evidence: docs/conformance/session_logs/2026-09-15_generated_constant_function_legality_validation.json
+  broad_validation: pending near ten fixes

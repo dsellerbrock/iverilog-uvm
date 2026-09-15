@@ -1450,3 +1450,7 @@ The [batch record](../session_logs/2026-09-15_compiler_batch_l85_l95_qualificati
 ### L96 — Constant-function formal legality
 
 IMPLEMENTED for the [recorded non-input formal checks](../session_logs/2026-09-15_constant_function_formal_legality.md), preserving runtime writable-formal semantics. Other constant-function requirements remain PARTIAL; broad qualification is pending.
+
+### L98 — Generated constant-function legality
+
+IMPLEMENTED for the [recorded declaration-scope checks](../session_logs/2026-09-15_generated_constant_function_legality.md). Runtime generated functions remain legal; broad qualification is pending.
