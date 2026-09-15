@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
 current_blocker: PARALLEL-L104-L105
-phase: parallel_implementation
+phase: focused_validation_and_repair
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -15,13 +15,13 @@ latest_broad_qualification:
   record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
   scope: Eleven recorded subsets only; not qualification of current candidate or full IEEE/UVM/application mission.
 current_candidate:
-  compiler_sources: L101 and L103 integrated; focused checks passed on exact final source fingerprints. L104/L105 now authorized.
+  compiler_sources: L101 and L103 integrated; focused checks passed on exact final source fingerprints. L104 direct checks pass; L105 scalar rejection and legal/runtime controls pass, but string rejection exposed a missing constant-node check in net_design.cc, now authorized.
   build: Serial rebuild/install passed using Command Line Tools and Homebrew Bison.
   toolchain: DEVELOPER_DIR=/Library/Developer/CommandLineTools; Apple clang21.0.0; Homebrew Bison3.8.2; /usr/bin/flex.
   fingerprints: evidence/batch-20260915-after-l95/l101-l103-final-fingerprints.json
   build_log: evidence/batch-20260915-after-l95/l101-result-width-build.log
   install_log: evidence/batch-20260915-after-l95/l101-result-width-install.log
-  shared_process: none; final neighbor harness session69057 exited0.
+  shared_process: none; frozen build4909 and direct retry completed.
   focused_records: [docs/conformance/session_logs/2026-09-15_constant_array_character_increment_validation.json, docs/conformance/session_logs/2026-09-15_plain_multiclock_ranged_prefix_validation.json]
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
@@ -38,7 +38,7 @@ publication:
   main_content: Only L65-L74 batch propagated to main in the observed stack merges; L75 onward remains preserved here.
   next_pr: Publish coherent qualified changes against main, including preserved later batches unless main advances first; remote merge remains unrequested.
   ci_run: 34973595268
-  ci_observation: Linux22/24 passed; macOS and three Windows jobs were still running at last check. Local prior batch seven gates passed.
+  ci_observation: All six platform jobs completed successfully in run34973595268; prior batch evidence only. Current batch seven gates still pending.
 worktrees:
   created_this_batch: none
   cleanup: No eligible campaign-created completed tree; active/other-owner trees retained under established safeguards.
