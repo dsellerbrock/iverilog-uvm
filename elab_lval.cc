@@ -871,6 +871,36 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       ivl_assert(*this, reg);
 
+	/* Match the constant-function read-side rule for a string character
+	   l-value. A declaration in the function or one of its nested lexical
+	   blocks is local; module, package, and class storage is not. Ordinary
+	   functions may perform the latter write, but cannot subsequently be
+	   treated as constant functions. */
+      if (gn_system_verilog() && reg->data_type() == IVL_VT_STRING
+	  && !sr.path_head.empty() && !sr.path_head.back().index.empty()) {
+	    NetScope*function_scope = scope;
+	    while (function_scope && function_scope->type() != NetScope::FUNC)
+		  function_scope = function_scope->parent();
+	    bool local_to_function = false;
+	    for (const NetScope*owner = reg->scope(); owner;
+		 owner = owner->parent()) {
+		  if (owner == function_scope) {
+			local_to_function = true;
+			break;
+		  }
+	    }
+	    if (function_scope && !local_to_function) {
+		  if (function_scope->need_const_func()) {
+			cerr << get_fileline() << ": error: A reference to a non-local net "
+			     << "or variable (`" << path_
+			     << "') is not allowed in a constant function." << endl;
+			des->errors += 1;
+			return nullptr;
+		  }
+		  function_scope->is_const_func(false);
+	    }
+      }
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": " << __func__ << ": "
 		 << "Found l-value path_=" << path_
@@ -2199,6 +2229,11 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 	    if (!mux)
 		  mux = new NetEConst(verinum(lsb));
 	    lv->set_part(mux, &netvector_t::atom2s8);
+	      /* IEEE 1800-2017/2023 6.16: a selected string character has
+	       * signed byte type. NetAssign_ keeps compressed-assignment
+	       * signedness separately from the selected net type, so carry it
+	       * explicitly to preserve >>>= and signed arithmetic semantics. */
+	    lv->set_signed(true);
 
       } else if (mux) {
 	      // Non-constant bit mux. Correct the mux for the range

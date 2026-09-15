@@ -1983,3 +1983,9 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **Status:** IMPLEMENTED for the focused scalar packed-signal and function-return scope; broad qualification pending.
 - **Remaining:** Nested array/property roots and the earlier-aborting intermediate-part-select probe require independent assessment.
 - **Evidence:** [L71 session](session_logs/2026-09-14_nested_packed_increment.md).
+
+### L73 — Constant-function string character writes
+
+- **Status:** IMPLEMENTED for focused local character writes and constant-function locality diagnostics; broad qualification pending.
+- **Remaining:** Qualified package lvalue syntax is separate; runtime compound lowering is L74.
+- **Evidence:** [L73 session](session_logs/2026-09-14_constant_string_character_write.md).

@@ -56,7 +56,8 @@ its [L65](session_logs/2026-09-14_constraint_multiprefix_reductions.md) and
 [L69](session_logs/2026-09-14_class_packed_increment.md), and
 [L70](session_logs/2026-09-14_class_array_packed_increment.md), and
 [L72](session_logs/2026-09-14_constant_string_character.md), and
-[L71](session_logs/2026-09-14_nested_packed_increment.md) session records
+[L71](session_logs/2026-09-14_nested_packed_increment.md), and
+[L73](session_logs/2026-09-14_constant_string_character_write.md) session records
 contain the focused evidence. No newer whole-application replay is claimed.
 
 ## History
