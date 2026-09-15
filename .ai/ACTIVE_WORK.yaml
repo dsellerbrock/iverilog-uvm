@@ -99,3 +99,5 @@ l95_coordinator_authorization:
   scope: Local scalar and function-result putc constant evaluation; numeric argument typing only if reducer proves defect. No array receiver, unrelated string methods or runtime policy changes.
   acceptance: Both editions positive mutation, overwrite, function result, bounds including negative and wide index, zero character, argument once, purity and invalid actual diagnostics, runtime controls and neighboring constant string tests.
   integration_policy: Coordinator owns all shared builds, tests, main manifests and integration. Finish coherent batch near ten fixes, with any unintegrated next-batch patch explicitly excluded from qualification.
+
+l94_empty_composition_refinement: "Coordinator authorizes a recursive suffix fragment builder because a shared exit cannot preserve differing zero/nonzero group suffix delays under16.9.2.1. Pure no-match antecedents must be rejected under16.12.22; runtime suppression tests must retain a legal nonempty alternative. Preserve flat-group scope, exact branch endpoints and existing finite bound."

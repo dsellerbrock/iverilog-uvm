@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: PARALLEL-BATCH-L93-L94
+current_blocker: PARALLEL-BATCH-L94-L95
 phase: parallel_implementation
 source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
@@ -19,7 +19,7 @@ published_work:
     stacked_on: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     published_head: 67be888271584400bf387305420a383cce64b8c5
     current_ci_run: 34931769313
-    current_ci_observation: Five platform jobs passed; CLANG64 remains in progress. All seven local gates passed.
+    current_ci_observation: All six platform jobs passed in run34931769313. All seven local gates passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     state: open
@@ -215,3 +215,13 @@ parallel_l94_l95_checkpoint:
   shared_execution_owner: coordinator
   l95_baseline: evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json
   broad_validation: pending coherent ten-fix checkpoint
+
+latest_l94_l95_execution:
+  build: evidence/batch-20260914-after-l84/l94-l95-first-build.log
+  build_state: terminal success; installed candidate predates subsequent L94 empty-branch repair
+  direct_results: evidence/batch-20260914-after-l84/l94-l95-first-direct.json
+  fingerprints: evidence/batch-20260914-after-l84/l94-l95-first-installed.json
+  l94: Finite leading windows now pass; zero-copy concatenation requires branch-specific suffix repair.
+  l95: Initial paired positive and six diagnostic cases pass; expanded focused tests pending.
+  shared_processes: none at this checkpoint
+  source_state: L94 released for empty-branch repair; L95 compiler frozen with fixtures expanding
