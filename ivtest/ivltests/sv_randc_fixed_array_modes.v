@@ -6,6 +6,8 @@ class fixed_array_item;
 
   constraint constrained_domain {
     foreach (constrained[i]) constrained[i] inside {1, 3, 5};
+  }
+  constraint constrained_relation {
     constrained[0] != constrained[1];
   }
   constraint deliberate_failure {
@@ -17,6 +19,9 @@ module test;
   initial begin
     fixed_array_item item;
     fixed_array_item alias_item;
+    fixed_array_item coupled_item;
+    fixed_array_item peer_one_item;
+    fixed_array_item peer_three_item;
     bit [3:0] seen[3];
     bit [7:0] constrained_seen[2];
     bit [1:0] frozen;
@@ -26,12 +31,19 @@ module test;
 
     item = new;
     alias_item = new;
+    coupled_item = new;
+    peer_one_item = new;
+    peer_three_item = new;
     item.srandom(32'h5566_7788);
     alias_item.srandom(32'h5566_7788);
+    coupled_item.srandom(32'h5566_7788);
+    peer_one_item.srandom(32'h5566_7788);
+    peer_three_item.srandom(32'h5566_7788);
 
     // Keep the later cycle-completeness oracles aligned to the beginning of
     // their own cycles while the instance-mode checks exercise values[].
     item.constrained_domain.constraint_mode(0);
+    item.constrained_relation.constraint_mode(0);
     item.constrained.rand_mode(0);
     item.shared.rand_mode(0);
     item.shared[1].rand_mode(1);
@@ -117,6 +129,8 @@ module test;
     item.values.rand_mode(1);
 
     // Each constrained leaf cycles independently over its exact feasible set.
+    // Keep the cross-leaf relation disabled here: 18.4.2 permits a new
+    // permutation whenever no remaining value can satisfy the constraints.
     item.constrained_domain.constraint_mode(1);
     for (int leaf = 0; leaf < 2; leaf++)
       constrained_seen[leaf] = '0;
@@ -149,6 +163,57 @@ module test;
     if (constrained_seen[0] !== 8'b0010_1010
         || constrained_seen[1] !== 8'b0010_1010)
       $fatal(1, "constrained leaves did not cover exact feasible set");
+
+    // Exercise the coupled constraint separately without inferring either
+    // leaf's hidden permutation state. Section 18.4.2 permits recomputing a
+    // permutation when its remaining values cannot satisfy the constraint.
+    coupled_item.values.rand_mode(0);
+    coupled_item.shared.rand_mode(0);
+    coupled_item.constrained_domain.constraint_mode(1);
+    coupled_item.constrained_relation.constraint_mode(1);
+    for (int sample = 0; sample < 12; sample++) begin
+      if (coupled_item.randomize() !== 1)
+        $fatal(1, "coupled constrained fixed-array randomize failed");
+      if (!(coupled_item.constrained[0] inside {1, 3, 5})
+          || !(coupled_item.constrained[1] inside {1, 3, 5})
+          || coupled_item.constrained[0] == coupled_item.constrained[1])
+        $fatal(1, "coupled constrained leaves violated their domain or relation");
+    end
+
+    // Make the feasible permutation directly observable by freezing the peer
+    // on fresh objects. The active leaf must cycle over the two remaining
+    // domain values without a repeat; no prior constraint history is involved.
+    peer_one_item.values.rand_mode(0);
+    peer_one_item.shared.rand_mode(0);
+    peer_one_item.constrained.rand_mode(0);
+    peer_one_item.constrained[0].rand_mode(1);
+    peer_one_item.constrained[1] = 1;
+    constrained_seen[0] = '0;
+    repeat (2) begin
+      if (peer_one_item.randomize() !== 1)
+        $fatal(1, "fixed-peer-one constrained randomize failed");
+      if (constrained_seen[0][peer_one_item.constrained[0]])
+        $fatal(1, "fixed-peer-one feasible randc value repeated");
+      constrained_seen[0][peer_one_item.constrained[0]] = 1'b1;
+    end
+    if (constrained_seen[0] !== 8'b0010_1000)
+      $fatal(1, "fixed-peer-one leaf did not cover its exact feasible cycle");
+
+    peer_three_item.values.rand_mode(0);
+    peer_three_item.shared.rand_mode(0);
+    peer_three_item.constrained.rand_mode(0);
+    peer_three_item.constrained[0].rand_mode(1);
+    peer_three_item.constrained[1] = 3;
+    constrained_seen[0] = '0;
+    repeat (2) begin
+      if (peer_three_item.randomize() !== 1)
+        $fatal(1, "fixed-peer-three constrained randomize failed");
+      if (constrained_seen[0][peer_three_item.constrained[0]])
+        $fatal(1, "fixed-peer-three feasible randc value repeated");
+      constrained_seen[0][peer_three_item.constrained[0]] = 1'b1;
+    end
+    if (constrained_seen[0] !== 8'b0010_0010)
+      $fatal(1, "fixed-peer-three leaf did not cover its exact feasible cycle");
 
     // Static fixed-array history is shared through every receiver.
     item.shared.rand_mode(1);

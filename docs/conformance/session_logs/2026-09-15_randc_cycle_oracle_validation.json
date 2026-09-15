@@ -1,0 +1,61 @@
+{
+  "status": "Standards-correct oracle; runtime unchanged",
+  "standard": {
+    "2017": "18.4.2",
+    "2023": "18.4.2"
+  },
+  "original_trace": [
+    {
+      "edition": "2017",
+      "compile": 0,
+      "diagnostics": "",
+      "run": 1,
+      "output": "FIRST 5 1\nNEXT 1 5 histories 00100000 00000010\nNEXT 3 5 histories 00100010 00100010\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/randc-reset-audit/trace.sv:147: constrained randc leaf repeated within feasible cycle\n       Time: 0  Scope: test.$unm_blk_1.$unm_blk_18.$unm_blk_20\n"
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "diagnostics": "",
+      "run": 1,
+      "output": "FIRST 5 1\nNEXT 1 5 histories 00100000 00000010\nNEXT 3 5 histories 00100010 00100010\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/randc-reset-audit/trace.sv:147: constrained randc leaf repeated within feasible cycle\n       Time: 0  Scope: test.$unm_blk_1.$unm_blk_18.$unm_blk_20\n"
+    }
+  ],
+  "corrected_checks": [
+    {
+      "edition": "2012",
+      "compile": 0,
+      "diagnostics": "",
+      "run": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "edition": "2017",
+      "compile": 0,
+      "diagnostics": "",
+      "run": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "diagnostics": "",
+      "run": 0,
+      "output": "PASSED\n"
+    }
+  ],
+  "harnesses": {
+    "legacy": "1 passed,0 failed",
+    "json": "1 passed,0 failed"
+  },
+  "source_hash": "d2a9561dc4982c1927b3d83559aeb6d16632e62b6f7bed6e76ef807181220dd3",
+  "runtime_source_unchanged": true,
+  "retained_coverage": [
+    "Independent exact constrained cycles",
+    "Frozen-peer exact constrained cycles",
+    "Coupled domain and inequality",
+    "Explicit selection and rand_mode",
+    "Failed randomization rollback",
+    "Static shared history"
+  ],
+  "qualification": "pending new seven-gate run"
+}
