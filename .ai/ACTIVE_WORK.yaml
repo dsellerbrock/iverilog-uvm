@@ -34,7 +34,7 @@ lanes:
     acceptance: "Both editions: whole-group endpoints with distinguishing interior values, m=0/1/>1 and m=n, internal/trailing group repetition, finite delay body and empty composition, both implications and prefixes, multiple parents/early failure/vacuity, coincident and paused clocks, Off/Kill/restart,64tick boundary/unsupported controls. Preserve L86/L91/L92 and same-clock NFA neighbors; replace newly supported CE expectations with exact runtime witnesses."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 9
+focused_features_completed_in_batch: 10
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -88,7 +88,7 @@ l93_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_f
 l95_coordinator_authorization:
   id: L95-CONSTANT-STRING-PUTC
   agent: /root/constraint_abi
-  status: REPRODUCED
+  status: FOCUSED_TESTED
   standards: IEEE1800-2017/2023 6.16.2 and13.4.3
   reproducer: evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json
   actual: Both editions compile but skip putc mutation and argument side effects in constant evaluation.
@@ -101,3 +101,5 @@ l95_coordinator_authorization:
   integration_policy: Coordinator owns all shared builds, tests, main manifests and integration. Finish coherent batch near ten fixes, with any unintegrated next-batch patch explicitly excluded from qualification.
 
 l94_empty_composition_refinement: "Coordinator authorizes a recursive suffix fragment builder because a shared exit cannot preserve differing zero/nonzero group suffix delays under16.9.2.1. Pure no-match antecedents must be rejected under16.12.22; runtime suppression tests must retain a legal nonempty alternative. Preserve flat-group scope, exact branch endpoints and existing finite bound."
+
+l95_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_putc_validation.json

@@ -225,3 +225,9 @@ latest_l94_l95_execution:
   l95: Initial paired positive and six diagnostic cases pass; expanded focused tests pending.
   shared_processes: none at this checkpoint
   source_state: L94 released for empty-branch repair; L95 compiler frozen with fixtures expanding
+
+l95_integration_checkpoint:
+  status: focused tested, integrating tenth local fix
+  evidence: docs/conformance/session_logs/2026-09-15_constant_string_putc_validation.json
+  broad_validation: pending; finish active L94 correction before freezing coherent batch
+  integrated_fix_count: 10

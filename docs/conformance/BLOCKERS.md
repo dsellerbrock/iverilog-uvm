@@ -2194,6 +2194,8 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 
 ### L95 — Constant-function putc silently skips mutation and arguments
 
-- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad batch qualification pending.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json`.
 - **Scope:** Scalar local string and function-result character updates, IEEE1800-2017/2023 6.16.2 and13.4.3. Other receiver families remain separate.
+
+- **L95 evidence:** [Focused session](session_logs/2026-09-15_constant_string_putc.md).

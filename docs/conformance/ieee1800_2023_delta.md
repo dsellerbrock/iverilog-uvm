@@ -219,3 +219,5 @@ The 2023 enum, increment/decrement and packed-select clauses share the implement
 The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions.
 
 L93 uses the same 6.16.11–6.16.15 and 13.4.3 requirements in 2023; [paired evidence](session_logs/2026-09-15_constant_string_formatting_validation.json) records edition-specific tests.
+
+L95 applies the same 6.16.2 and 13.4.3 requirements in both editions; [paired evidence](session_logs/2026-09-15_constant_string_putc_validation.json) records the scoped implementation.

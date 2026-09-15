@@ -1,0 +1,2 @@
+./ivltests/sv_const_string_putc_argument_fail.v:2: error: String formatting method `putc' requires an integer index argument; this expression is not implicitly numeric.
+1 error(s) during elaboration.
