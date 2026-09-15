@@ -2165,3 +2165,10 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 - **Scope:** Finite Boolean repetition with legal empty-match composition, endpoint/parent semantics, existing clock handoff and cancellation. Grouped and unbounded repetition remain distinct obligations.
 
 - **L91 evidence:** [Focused session](session_logs/2026-09-15_multiclock_boolean_repetition.md).
+
+### L92 — Fixed multiclock assertion control
+
+- **Parent:** DD-032.
+- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/l92-baseline/baseline.json`.
+- **Scope:** Gate fresh fixed multiclock attempts under Off/Kill while preserving pending completion, restart and selected-instance behavior; reuse existing control helpers.

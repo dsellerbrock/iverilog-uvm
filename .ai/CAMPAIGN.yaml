@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: L90-ENUM-CONTAINER-PACKED-SELECTS
+current_blocker: PARALLEL-BATCH-L90-L92
 phase: parallel_implementation
 source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
@@ -78,6 +78,9 @@ active_lanes:
   - id: L90-ENUM-CONTAINER-PACKED-SELECTS
     agent: /root/constraint_abi
     files: elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc
+  - id: L92-FIXED-MULTICLOCK-ASSERTION-CONTROL
+    agent: /root/constraint_wide
+    files: pform.cc
 shared_execution_owner: coordinator
 parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
 
@@ -116,7 +119,7 @@ current_batch:
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
   integrated_l86: 13fee7ec9
-  selected_lanes: [L90]
+  selected_lanes: [L90, L92]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -176,3 +179,6 @@ l90_l91_latest_checkpoint: "L90 third build failed because NetExpr::set_net_type
 
 l91_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_boolean_repetition_validation.json
 l91_integration_checkpoint: "Six integrated focused fixes after L91; next independent lane selection pending. L90 remains active; target-only object pop repair pending build. No shared process running."
+
+l91_integration_revision: fec7a4b9a
+l92_selection: "Four paired current-candidate failures reconfirmed; evidence l92-baseline/baseline.json. Fixed source gate is unconditionally true. L92 independent pform lane authorized, paired focused validation required. Six integrated fixes; broad gates near ten."
