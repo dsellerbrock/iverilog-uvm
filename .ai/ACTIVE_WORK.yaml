@@ -107,6 +107,6 @@ current_application_evidence:
 parallel_selection_lane:
   agent: /root/constraint_abi
   status: ASSESSMENT_ONLY
-  scope: Select a concrete standards-grounded Caliptra compiler defect from remaining overlay replay failures, with a cheap reducer and file ownership independent of vvp/vvp_z3.cc. No implementation until coordinator authorization.
-  owns: [evidence/application-check-20260915/next-caliptra-assessment]
+  scope: Caliptra assessment found only a 2^32-element capacity abort, not a thin semantic fix. Assess existing constructor-dependent transition-bin reducer and independent frontend ownership next. No implementation until coordinator authorization.
+  owns: [evidence/application-check-20260915/caliptra/next-caliptra-assessment, evidence/batch-20260915-after-l95/next-v01-assessment]
   build_policy: Coordinator owns all shared builds and tests; request a stable installed-tool window before reducer execution.

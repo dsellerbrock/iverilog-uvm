@@ -18,11 +18,11 @@ current_candidate:
   base_revision: 05b0c44e1
   installed_semantic_revision: 3823bd356
   installed_fingerprints: docs/conformance/session_logs/2026-09-15_implicit_property_method_lookup_validation.json
-  shared_process: None. L109 first build failed before installation (dist helpers declared later); agent repairing. Installed L108 passed focused tests and original OpenTitan smoke.
+  shared_process: None. L109 retry build passed but is not installed; agent is adding an in-scope pre-draw MEMBER rejection found during review. Installed L108 passed focused tests and original OpenTitan smoke.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Coordinator validates L109 after corrected source freeze; constraint_abi assesses a concrete Caliptra compiler blocker in private evidence before selection. Preserve three focused-tested fixes awaiting broad qualification.
+  next_action: Coordinator validates L109 after corrected source freeze; constraint_abi assesses constructor-dependent transition bins before selection; remaining Caliptra compiler capacity failure needs broader storage work. Preserve three focused-tested fixes awaiting broad qualification.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
