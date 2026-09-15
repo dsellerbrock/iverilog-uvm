@@ -1,0 +1,3 @@
+./ivltests/sv_implicit_property_method_collision_missing_fail.v:6: error: Can't find task no_such_method in class missing_helper
+./ivltests/sv_implicit_property_method_collision_missing_fail.v:6: error: Unable to elaborate statement in function run.
+2 error(s) during elaboration.

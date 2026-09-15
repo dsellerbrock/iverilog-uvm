@@ -7557,6 +7557,8 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 		  if (!args) { delete copy; goto unsupported; }
 		  copy->set_leading_type_args(args);
 	    }
+	    if (call->has_scoped_type_prefix())
+		  copy->set_scoped_type_prefix();
 	    std::vector<PExpr*> with;
 	    for (PExpr*src : call->with_constraints()) {
 		  PExpr*dst = sva_clone_subst_(src, subst);
@@ -9565,6 +9567,8 @@ static PCallTask* sva_clone_match_call_(
 	    parms.push_back(arg);
       }
       PCallTask*out = new PCallTask(source->path(), parms);
+      if (source->has_scoped_type_prefix())
+	    out->set_scoped_type_prefix();
       out->set_lineno(source->get_lineno());
       out->set_file(source->get_file());
       return out;
@@ -10862,6 +10866,8 @@ static Statement* sva_clone_stmt_(Statement*st)
 	    PCallTask*out = ct->package()
 		  ? new PCallTask(ct->package(), ct->path(), parms)
 		  : new PCallTask(ct->path(), parms);
+	    if (ct->has_scoped_type_prefix())
+		  out->set_scoped_type_prefix();
 	    out->set_lineno(ct->get_lineno());
 	    out->set_file(ct->get_file());
 	    return out;
@@ -17093,6 +17099,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			args.push_back(arg);
 		  }
 		  PCallTask*call = new PCallTask((*match_calls)[c]->path(), args);
+		  if ((*match_calls)[c]->has_scoped_type_prefix())
+			call->set_scoped_type_prefix();
 		  call->set_lineno((*match_calls)[c]->get_lineno());
 		  call->set_file((*match_calls)[c]->get_file());
 		  actions.push_back(call);

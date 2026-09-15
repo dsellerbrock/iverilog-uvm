@@ -383,6 +383,8 @@ static PCallTask* pform_receiver_method_task(const struct vlltype&loc,
                   tmp = new PCallTask(path, actual_args);
             }
             tmp->set_leading_type_args(type_args);
+            if (id->has_scoped_type_prefix())
+                  tmp->set_scoped_type_prefix();
             delete receiver;
       } else {
             tmp = new PCallTask(receiver, method, actual_args);
@@ -16748,6 +16750,7 @@ subroutine_call
 	   context so symbol_search resolves into the package, not into
 	   `this.func` (which would mis-dispatch as a virtual method). */
 	PCallTask*tmp = new PCallTask($1, *$2, *$4);
+	tmp->set_scoped_type_prefix();
 	FILE_NAME(tmp, @2);
 	delete $2;
 	delete $4;
@@ -16783,6 +16786,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete $4;
@@ -16793,6 +16797,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$5, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4;
 	delete $5;
@@ -16803,6 +16808,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($4.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$5, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete $5;
@@ -16813,6 +16819,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete $4;
@@ -16823,6 +16830,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete $4;
@@ -16834,6 +16842,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1;
 	delete[]$3;
 	delete[]$5;
@@ -16846,6 +16855,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3;
 	delete[]$5;
@@ -16858,6 +16868,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($4.text)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$7, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6;
@@ -16870,6 +16881,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($4.text)));
 	hident.push_back(name_component_t(lex_strings.make($6.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$7, $2);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6.text;
@@ -16882,6 +16894,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5;
@@ -16894,6 +16907,7 @@ subroutine_call
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$6);
+	tmp->set_scoped_type_prefix();
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5.text;
@@ -16929,6 +16943,8 @@ subroutine_call
 	} else {
 	      tmp = new PCallTask($1, lex_strings.make($3), *$4);
 	}
+	if (pid && pid->has_scoped_type_prefix())
+	      tmp->set_scoped_type_prefix();
 	FILE_NAME(tmp, @2);
 	if (pid)
 	      delete pid;
@@ -16938,6 +16954,7 @@ subroutine_call
       }
   | package_scope hierarchy_identifier argument_list_parens_opt
       { PCallTask*tmp = new PCallTask($1, *$2, *$3);
+	tmp->set_scoped_type_prefix();
 	FILE_NAME(tmp, @2);
 	lex_in_package_scope(0);
 	delete $2;
@@ -18253,6 +18270,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@1, hident, *$7);
+	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	delete[]$4;
 	delete[]$6;
@@ -18276,6 +18294,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@4, hident, *$7);
+	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	std::vector<perm_string> names($11->begin(), $11->end());
 	const PEIdent*first = dynamic_cast<const PEIdent*>($10);
@@ -18310,6 +18329,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
 	PCallTask*tmp = pform_make_call_task(@4, hident, *$7);
+	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	tmp->set_randomize_with_identifiers(std::vector<perm_string>());
 	if ($12) {
@@ -18463,6 +18483,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	pform_name_t hident = scoped.name;
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*tmp = new PCallTask(scoped.package, hident, *$4);
+	tmp->set_scoped_type_prefix();
 	tmp->set_leading_type_args(prefix->take_leading_type_args());
 	FILE_NAME(tmp, @1);
 	delete[]$3;
@@ -18484,6 +18505,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	call->set_scoped_type_prefix();
 	stmt = call;
 	if (is_std_rand && $7) {
 	      std::vector<PExpr*> wc;
@@ -18522,6 +18544,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	call->set_scoped_type_prefix();
 	std::vector<perm_string> names($8->begin(), $8->end());
 	const PEIdent*first = dynamic_cast<const PEIdent*>($7);
 	if (!first || first->path().package
@@ -18555,6 +18578,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
+	call->set_scoped_type_prefix();
 	call->set_randomize_with_identifiers(std::vector<perm_string>());
 	if ($9) {
 	      std::vector<PExpr*> wc($9->begin(), $9->end());

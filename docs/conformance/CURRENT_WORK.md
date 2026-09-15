@@ -22,6 +22,11 @@ records retain their original revisions and limits.
 
 ## Application evidence
 
+The [L108 OpenTitan smoke replay](session_logs/2026-09-15_implicit_property_method_lookup.md)
+records a fresh passing original-UVM-1.2 debug-crossbar workload after the
+lookup repair. It is scoped to one core/default run; broader qualification
+remains pending.
+
 The [Caliptra include adapter and runtime replay](session_logs/2026-09-15_caliptra_include_overlay.md)
 records the selected paired compile replay and a failed unmodified checked
 `power2round_tb` run. Compilation gains do not imply runtime correctness.

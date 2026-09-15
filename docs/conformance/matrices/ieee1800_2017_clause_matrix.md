@@ -1498,3 +1498,7 @@ FOCUSED_TESTED for the [recorded subset](../session_logs/2026-09-15_constant_loc
 ### L107 — Finite first_match multiclock prefix
 
 FOCUSED_TESTED for the [recorded direct finite Boolean subset](../session_logs/2026-09-15_first_match_multiclock_prefix.md); broad batch qualification pending. Broader first_match and multiclock semantics remain PARTIAL.
+
+### L108 — Object-method statements versus class scope
+
+FOCUSED_TESTED for the [recorded receiver/provenance and access subset](../session_logs/2026-09-15_implicit_property_method_lookup.md); broad batch qualification pending. One OpenTitan smoke passes separately in g2012 with original UVM1.2. Broader class/UVM coverage remains PARTIAL.

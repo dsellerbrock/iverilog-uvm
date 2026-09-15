@@ -1,0 +1,3 @@
+ivltests/sv_implicit_property_method_collision_static_fail.v:6: error: Instance property `static_collision' requires an object receiver in a static context.
+ivltests/sv_implicit_property_method_collision_static_fail.v:6: error: Unable to elaborate statement in function run.
+2 error(s) during elaboration.

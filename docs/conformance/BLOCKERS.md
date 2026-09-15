@@ -2324,7 +2324,7 @@ L107 focused evidence: [finite first_match prefixes](session_logs/2026-09-15_fir
 
 ### L108 — OpenTitan implicit object-method lookup
 
-- **State:** IN_PROGRESS; actual void-call dispatch traced to PCallTask, expression-only candidates failed.
+- **State:** FOCUSED_TESTED; original OpenTitan smoke replay passes; broad batch qualification pending.
 - **Standards:** IEEE1800-2017/2023 8.2,8.4,8.11,8.25.1.
 - **Evidence:** [application assessment](session_logs/2026-09-15_application_priority_assessment.md).
 - **Closure:** Correct void/value receiver lookup and lexical shadowing without weakening genuine class-scope diagnostics; replay real OpenTitan smoke.
@@ -2335,3 +2335,5 @@ L107 focused evidence: [finite first_match prefixes](session_logs/2026-09-15_fir
 - **Standards:** 2017 18.4.2/18.5.10;2023 18.4.2/18.5.9.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-z01-assessment/assessment.md`.
 - **Closure:** Preserve randc-first sampling and cycle/rollback semantics for independent enumerable components alongside ordered stages; unsupported coupled forms remain explicit.
+
+L108 implementation and application evidence: [object-method lookup](session_logs/2026-09-15_implicit_property_method_lookup.md).

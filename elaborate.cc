@@ -1679,7 +1679,12 @@ static NetExpr* elaborate_nested_method_target_property_task_(const LineInfo*li,
       }
 
       property_qualifier_t qual = class_type->get_prop_qual(pidx);
-      if (qual.test_local() && !class_type->test_scope_is_method(scope)) {
+      const netclass_t*property_owner = class_type;
+      while (property_owner->get_super()
+	     && static_cast<size_t>(pidx)
+		  < property_owner->get_super()->get_properties())
+	    property_owner = property_owner->get_super();
+      if (qual.test_local() && !property_owner->test_scope_is_method(scope)) {
 	    cerr << li->get_fileline() << ": error: "
 		 << "Local property " << class_type->get_prop_name(pidx)
 		 << " is not accessible in this context."
@@ -13913,7 +13918,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    }
       }
       if (gn_system_verilog() && path_.size() > 1
-	  && !has_indexed_path_component) {
+	  && !has_indexed_path_component
+	  && (has_scoped_type_prefix() || leading_type_args())) {
 	    pform_name_t type_path = path_;
 	    perm_string method_name = peek_tail_name(type_path);
 	    type_path.pop_back();
@@ -14952,6 +14958,30 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       }
 
       NetNet*net = sr.net;
+      NetScope*method_scope = find_method_containing_scope(*this, scope);
+      const PTaskFunc*method_definition = method_scope
+	    ? method_scope->func_pform() : 0;
+      if (!method_definition && method_scope)
+	    method_definition = method_scope->task_pform();
+      bool static_method_context = method_definition
+	    && method_definition->method_qualifiers().test_static();
+      const NetScope*class_scope = scope->get_class_scope();
+      const netclass_t*enclosing_class = class_scope
+	    ? class_scope->class_def() : 0;
+      int implicit_property = enclosing_class && !use_path.empty()
+	    ? const_cast<netclass_t*>(enclosing_class)->ensure_property_decl(
+		  des, use_path.front().name) : -1;
+      if (implicit_property >= 0
+	  && !enclosing_class->get_prop_qual(implicit_property).test_static()
+	  && static_method_context
+	  && (!net || net->name() == perm_string::literal(THIS_TOKEN))) {
+		  cerr << get_fileline() << ": error: Instance property `"
+		       << use_path.front().name
+		       << "' requires an object receiver in a static context."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+      }
       if (net == 0) {
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
@@ -15152,6 +15182,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    PECallFunction*call = package_
 		  ? new PECallFunction(package_, path_, parms_)
 		  : new PECallFunction(path_, parms_);
+	    call->set_scoped_type_prefix(has_scoped_type_prefix());
 	    call->set_with_constraints(with_constraints());
 	    if (has_randomize_with_identifier_list())
 		  call->set_randomize_with_identifiers(
@@ -16371,6 +16402,7 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
 	 an expression here.  Preserve the specialization arguments during that
 	 synchronous elaboration; the PCallTask remains their owner. */
       call->set_leading_type_args(leading_type_args_);
+      call->set_scoped_type_prefix(has_scoped_type_prefix());
       PExpr*rval = call;
       rval->set_file(get_file());
       rval->set_lineno(get_lineno());

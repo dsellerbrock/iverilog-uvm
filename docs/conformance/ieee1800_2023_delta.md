@@ -251,3 +251,5 @@ L96–L105 share the [local qualification checkpoint](matrices/ieee1800_2017_cla
 L106 local fixed-array pattern evaluation has paired 2017/2023 [focused evidence](session_logs/2026-09-15_constant_local_array_patterns.md). No edition difference is claimed; broad qualification remains pending.
 
 L107 finite first_match prefixes have paired [2017/2023 focused evidence](session_logs/2026-09-15_first_match_multiclock_prefix.md); no edition difference is claimed. Broader semantics and qualification remain unfinished.
+
+L108 object-method statement lookup has paired [2017/2023 focused evidence](session_logs/2026-09-15_implicit_property_method_lookup.md). The separately recorded OpenTitan workload uses g2012; do not infer2023 UVM qualification from it.

@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_implicit_property_method_collision_missing_fail_2023.v","iverilog-args":["-g2023","-s","sv_implicit_property_method_collision_missing_fail"],"gold":"sv_implicit_property_method_collision_missing_fail_2023"}

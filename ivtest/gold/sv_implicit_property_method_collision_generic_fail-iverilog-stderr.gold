@@ -1,0 +1,3 @@
+ivltests/sv_implicit_property_method_collision_generic_fail.v:10: error: Parameterized class `generic_collision' requires an explicit #(...) specialization before ::.
+ivltests/sv_implicit_property_method_collision_generic_fail.v:10: error: Unable to elaborate statement in function run.
+2 error(s) during elaboration.

@@ -33,7 +33,7 @@ lanes:
     scope: Direct Boolean first_match first-clock chains with one finite delay window, including exact-window boundary; reuse earliest-endpoint source closure without new scheduler/destination machinery. Do not accept broader nested/wrapper/match-item forms without proving preserved cut scope; diagnose unsupported forms explicitly.
     acceptance: Both editions earliest failure versus later would-pass endpoint, earliest success, no endpoint, exact/ranged windows, plain and implication use, ##0/##1 and reversed event order, overlapping attempts, cover once, Off/Kill/async disable/restart, destination backlog, construction/unsupported negatives and preserved ordinary L100/L102/L103 aggregation. Honor all earliest same-tick matches; do not claim Boolean-only merged paths are observably different without proof.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared build/install or shared harnesses. Report source freeze and do not edit again until coordinator releases it.
-focused_features_completed_in_batch: 2
+focused_features_completed_in_batch: 3
 integrated_revisions: []
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml
@@ -55,7 +55,7 @@ application_priority_assessment:
 
 application_implementation:
   id: L108-IMPLICIT-OBJECT-METHOD-LOOKUP
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_abi
   standards: IEEE1800-2017 and2023 8.2,8.4,8.11,8.25.1
   reproducer: evidence/application-check-20260915/opentitan/lookup-reducer/ASSESSMENT.md

@@ -1,0 +1,1 @@
+`include "ivltests/sv_implicit_property_method_collision_shadow_fail.v"
