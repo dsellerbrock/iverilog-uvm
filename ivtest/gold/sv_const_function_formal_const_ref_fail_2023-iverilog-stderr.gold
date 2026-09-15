@@ -1,0 +1,3 @@
+./ivltests/sv_const_function_formal_const_ref_fail.v:7: error: Constant function `prohibited' has const ref formal `value'; constant functions may have only input arguments (IEEE 1800-2017/2023 13.4.3).
+./ivltests/sv_const_function_formal_const_ref_fail.v:9: error: Unable to evaluate parameter VALUE value: sv_const_function_formal_const_ref_fail.folded()
+2 error(s) during elaboration.

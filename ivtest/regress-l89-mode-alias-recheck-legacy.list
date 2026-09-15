@@ -1,0 +1,2 @@
+sv_randomize_joint_queue_element_order_mixed normal,-g2017 ivltests gold=sv_randomize_joint_queue_element_order_mixed.gold
+sv_randomize_joint_queue_element_order_mixed_2023 normal,-g2023 ivltests gold=sv_randomize_joint_queue_element_order_mixed.gold

@@ -1,0 +1,1 @@
+ivltests/sv_assert_multiclock_group_repeat_zero_then_concat0.v:2: sorry: a multiclocked implication whose ANTECEDENT is not a fixed chain containing only finite constant delay windows is not supported (IEEE 1800-2017 16.13); the assertion is dropped.

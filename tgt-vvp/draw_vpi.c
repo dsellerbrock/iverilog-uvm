@@ -39,6 +39,10 @@ struct args_info {
       unsigned stack;
 	/* Expression width: Only used of vec_flag is true. */
       unsigned vec_wid;
+      /* A fixed-array word used as the receiver of an in-place string
+       * method. The word address is captured on the vec4 stack before the
+       * explicit method arguments are evaluated. */
+      ivl_signal_t array_word_sig;
       struct args_info *child; /* Arguments can be nested. */
 };
 
@@ -67,6 +71,16 @@ static int is_live_sample_task_(const char*name)
 		  return 1;
       }
       return 0;
+}
+
+static int is_mutating_string_method_(const char*name)
+{
+      return name && (!strcmp(name, "$ivl_string_method$itoa")
+                   || !strcmp(name, "$ivl_string_method$hextoa")
+                   || !strcmp(name, "$ivl_string_method$octtoa")
+                   || !strcmp(name, "$ivl_string_method$bintoa")
+                   || !strcmp(name, "$ivl_string_method$realtoa")
+                   || !strcmp(name, "$ivl_string_method$putc"));
 }
 
 static const char* magic_sfuncs[] = {
@@ -1026,6 +1040,23 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	case IVL_EX_PROPERTY:
 	case IVL_EX_SELECT:
 	  {
+	  /* These internal methods mutate their first argument. A general array
+	   * word expression would normally be passed as a temporary string value,
+	   * losing the update. Capture its address now and pass a writable array
+	   * word handle. This also fixes receiver-before-argument evaluation. */
+	  if (!force_value_capture && idx == 0
+	      && is_mutating_string_method_(tf_name)
+	      && ivl_expr_type(expr) == IVL_EX_SIGNAL
+	      && ivl_signal_dimensions(ivl_expr_signal(expr)) != 0
+	      && ivl_signal_data_type(ivl_expr_signal(expr)) == IVL_VT_STRING
+	      && ivl_expr_oper1(expr)) {
+		draw_eval_vec4(ivl_expr_oper1(expr));
+		args[idx].vec_flag = ivl_expr_signed(ivl_expr_oper1(expr)) ? 's' : 'u';
+		args[idx].vec_wid = ivl_expr_width(ivl_expr_oper1(expr));
+		args[idx].stack = vec4_stack_need++;
+		args[idx].array_word_sig = ivl_expr_signal(expr);
+		continue;
+	  }
 	  int live_sample = !force_value_capture
 		&& is_live_sample_task_(tf_name);
 	  if (!force_value_capture) {
@@ -1214,7 +1245,12 @@ static void draw_vpi_taskfunc_args(const char*call_string,
       for (idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    struct args_info*ptr;
 
-	    if (args[idx].str_flag) {
+	    if (args[idx].array_word_sig) {
+		  unsigned pos = vec4_stack_need - args[idx].stack - 1;
+		  fprintf(vvp_out, ", &A<v%p, S<%u,vec4,%c%u> >",
+		          args[idx].array_word_sig, pos,
+		          args[idx].vec_flag, args[idx].vec_wid);
+	    } else if (args[idx].str_flag) {
 		    /* If this is a stack reference, then
 		       calculate the stack depth and use that to
 		       generate the completed string. */

@@ -1,0 +1,7 @@
+ivltests/sv_const_string_comparison_fail.v:6: error: String method `icompare' requires 1 argument, got 2.
+ivltests/sv_const_string_comparison_fail.v:12: error: Unable to evaluate parameter EXTRA value: sv_const_string_comparison_fail.extra("a")
+ivltests/sv_const_string_comparison_fail.v:3: error: String method `compare' requires 1 argument, got 0.
+ivltests/sv_const_string_comparison_fail.v:11: error: Unable to evaluate parameter MISSING value: sv_const_string_comparison_fail.missing("a")
+ivltests/sv_const_string_comparison_fail.v:9: error: Object sv_const_string_comparison_fail.wrong_receiver.value has no method "compare(...)".
+ivltests/sv_const_string_comparison_fail.v:13: error: Unable to evaluate parameter TYPE value: sv_const_string_comparison_fail.wrong_receiver(32'sd1)
+6 error(s) during elaboration.

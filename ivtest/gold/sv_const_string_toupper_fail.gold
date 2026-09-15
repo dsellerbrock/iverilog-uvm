@@ -1,0 +1,7 @@
+./ivltests/sv_const_string_toupper_fail.v:3: error: String method `toupper' requires 0 arguments, got 1.
+./ivltests/sv_const_string_toupper_fail.v:11: error: Unable to evaluate string parameter ARITY value: sv_const_string_toupper_fail.bad_arity("abc")
+./ivltests/sv_const_string_toupper_fail.v:6: error: String method `tolower' requires 0 arguments, got 1.
+./ivltests/sv_const_string_toupper_fail.v:12: error: Unable to evaluate string parameter LOWER_ARITY value: sv_const_string_toupper_fail.bad_lower_arity("ABC")
+./ivltests/sv_const_string_toupper_fail.v:9: error: Object sv_const_string_toupper_fail.bad_type.value has no method "toupper(...)".
+./ivltests/sv_const_string_toupper_fail.v:13: error: Unable to evaluate string parameter TYPE value: sv_const_string_toupper_fail.bad_type(32'sd1)
+6 error(s) during elaboration.

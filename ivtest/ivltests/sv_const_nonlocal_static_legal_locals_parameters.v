@@ -1,0 +1,2 @@
+package p; parameter int P=11; parameter string S="ok"; function automatic int fi(input int a); int b=3; begin : nested int c=4; return P+a+b+c; end endfunction function automatic string fs(input string a); string b=S; return {a,b}; endfunction endpackage
+module test; localparam int X=p::fi(2); localparam string T=p::fs("A"); localparam U=p::fs("B"); initial begin if(X!=20||T!="Aok"||U!="Bok")$fatal(1,"X%0d T%s",X,T); $display("PASSED"); $finish(0); end endmodule

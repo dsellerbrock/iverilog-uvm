@@ -1,0 +1,8 @@
+{
+  "type": "CE",
+  "source": "sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_assert_multiclock_bounded_antecedent_unsupported_65tick_bound"
+}

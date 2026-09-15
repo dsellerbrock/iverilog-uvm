@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_group_repeat_consequent_internal_range_fail_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions"
+  ],
+  "gold": "sv_assert_multiclock_group_repeat_consequent_internal_range_fail_2023"
+}

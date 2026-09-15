@@ -2002,16 +2002,304 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L75 — String-function-return character stores
 
-- **State:** REPRODUCED; prepared for a later selected batch.
+- **State:** IMPLEMENTED for scalar return characters; focused checks pass, broad batch pending.
 - **Area / edition:** Runtime return storage; IEEE 1800-2017/2023 6.16, 11.4.1, 13.4.1.
 - **Evidence:** `evidence/parallel-batch-l71-l72/l75-assessment/`: both editions leave ABC unchanged for plain/compound character writes to a function return. Plain selectors execute once; compound selectors are skipped.
 - **Closure:** Plain and compound byte stores, signed arithmetic, index/RHS capture, bounds/defaults/zero-byte behavior and automatic/recursive return-slot isolation.
 - **Last verified revision:** `e25971651` frozen candidate.
 
-### L76 — Constant-function string.toupper()
+- **Focused implementation evidence:** [L75 session](session_logs/2026-09-14_string_return_character.md).
 
-- **State:** REPRODUCED; prepared for a later selected batch.
-- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 13.4.3.
+### L76 — Constant-function string case conversion
+
+- **State:** LOCALLY QUALIFIED for the recorded toupper/tolower scope; see joint qualification below.
+- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 6.16.5, 13.4.3.
 - **Evidence:** `evidence/next-constant-assessment/ASSESSMENT.md`: both editions reject the internal method during constant evaluation and then assert; runtime control passes.
 - **Closure:** Correct byte conversion without receiver mutation, empty/high-byte/local/argument cases, runtime parity and focused invalid-call diagnostics.
 - **Last verified revision:** `e25971651` frozen candidate.
+
+- **Focused implementation evidence:** [L76 session](session_logs/2026-09-14_constant_string_case_conversion.md).
+
+### L77 — Runtime string-character increment/decrement expressions
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l77-baseline.json`: both editions abort loading string storage through the vector loader.
+- **Scope:** Scalar string variables and scalar string returns, pre/post byte update/result semantics, bounds and index capture.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
+
+- **Focused implementation evidence:** [L77 session](session_logs/2026-09-14_string_character_increment.md).
+
+### L78 — Constant-function string comparisons
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l78-baseline.json`: both editions reject constant compare/icompare evaluation.
+- **Scope:** Case-sensitive and insensitive comparison signs, byte ordering, operand preservation and diagnostics.
+- **Standards:** IEEE 1800-2017/2023 6.16.6, 6.16.7, 13.4.3.
+
+- **Focused implementation evidence:** [L78 session](session_logs/2026-09-14_constant_string_comparison.md).
+
+### L79 — Fixed-array string-character stores
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l79-array-character-baseline.json`: both editions abort in target assignment lowering.
+- **Scope:** Plain blocking byte writes to fixed unpacked-array string words; selector capture and bounds.
+- **Standards:** IEEE 1800-2017/2023 6.16, 6.16.2, 7.4, 10.4.1.
+
+- **Focused implementation evidence:** [L79 session](session_logs/2026-09-14_array_string_character_store.md).
+
+### L80 — Constant-function substr
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l80-constant-substr-baseline.json`: both editions reject method evaluation then assert.
+- **Scope:** Inclusive substr evaluation with int indices, invalid-range empty results and receiver preservation.
+- **Standards:** IEEE 1800-2017/2023 6.16.8, 13.4.3.
+
+- **Focused implementation evidence:** [L80 session](session_logs/2026-09-14_constant_string_substr.md).
+
+### L81 — Fixed-array string-character compound stores
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l81-array-character-compound-baseline.json`: both editions skip the byte assignment and its side effects.
+- **Scope:** Legal integral character compound operations on fixed string-array words; whole-string arithmetic is not legal scope.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.1.
+
+- **Focused implementation evidence:** [L81 session](session_logs/2026-09-14_array_string_character_compound.md).
+
+### L82 — Constant string-to-integer conversion family
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l82-constant-string-integer-baseline.json`: both editions reject all four conversion methods in constant functions.
+- **Scope:** atoi/atohex/atooct/atobin with radix digits, underscore scanning, termination and 32-bit integer results.
+- **Standards:** IEEE 1800-2017/2023 6.16.9, 13.4.3.
+
+- **Focused implementation evidence:** [L82 session](session_logs/2026-09-14_constant_string_integer.md).
+
+### L83 — Fixed-array string-character increment/decrement
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l83-array-character-incdec-baseline.json`: both editions route string storage through the vector-array loader and fail runtime semantics.
+- **Scope:** Pre/post signed character update/results on fixed string arrays, excluding array returns.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
+
+- **Focused implementation evidence:** [L83 session](session_logs/2026-09-14_array_string_character_increment.md).
+
+### L84 — Constant-function string-character increment/decrement
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see joint qualification below.
+- **Evidence:** `evidence/batch-20260914-after-l74/l84-constant-character-incdec-baseline.json`: both editions fail selected-character unary evaluation and assert downstream.
+- **Scope:** Scalar local/argument/return string character pre/post byte updates and results in constant functions.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2, 13.4.3.
+
+- **Focused implementation evidence:** [L84 session](session_logs/2026-09-14_constant_string_character_increment.md).
+
+### L75–L84 local qualification checkpoint
+
+The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json) supersedes pending broad-gate notes for these bounded subsets. Remote CI and complete application/edition support remain separate obligations.
+
+### L85 — Ordered distributions in joint canonical scalar solves
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject a legal ordered weighted joint graph at runtime.
+- **Scope:** Existing supported hard distribution family combined with bounded canonical scalar solve-before stages; correct stage marginals and conditional fibers.
+- **Standards:** 2017 18.5.4/18.5.9/18.5.10; 2023 18.5.3/18.5.8/18.5.9.
+
+- **Implementation evidence:** [L85 session](session_logs/2026-09-14_joint_ordered_distribution.md).
+
+### L86 — Bounded delay-range antecedents in multiclock implications
+
+- **Parent:** S01 residual scope.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject the finite two-endpoint antecedent.
+- **Scope:** Finite constant delay windows with all matching endpoints, correct clock handoff and preserved attempt/action semantics.
+- **Standards:** IEEE 1800-2017/2023 16.6/16.7, 16.12.7, 16.13 and 16.14.1/.3.
+
+L86 architecture refinement: scalar cross-clock request counts cannot retain the
+parent of multiple antecedent matches. The coordinator authorized dynamic
+parent-tagged transport and per-attempt verdict aggregation in ACTIVE_WORK.
+The paired action-count reducer is preserved at
+`evidence/next-batch-after-l84/parent-actions-baseline.json`; no candidate
+qualification is established by this scope refinement.
+
+L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_antecedents.md) now provide the bounded delay-window foundation. S02 repetition remains separate.
+
+### L87 — Joint selected integral array-element ordering
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-selection/baseline.json` at L85; both editions reject selected-element ordering.
+- **Scope:** Statically selected fixed-array integral elements with exact ordered stage identity/projection; dynamic ordering and other unsupported families remain separate.
+- **Standards:** 2017 18.5.9/18.5.10; 2023 18.5.8/18.5.9.
+
+- **L87 implementation evidence:** [Focused session](session_logs/2026-09-14_joint_element_ordering.md).
+
+### L88 — Joint dynamic-array selected-element ordering
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json`; both editions drop the ordering and produce685 first-element ones in1024 calls, violating the uniform first-stage oracle.
+- **Scope:** Constant selected integral dynamic-array elements with one proved size before element solving; preserve resize, exact ordering, bounds and transaction invariants. Other container/order families remain separate.
+
+- **L88 implementation evidence:** [Focused session](session_logs/2026-09-15_joint_dynamic_element_ordering.md).
+
+### L89 — Joint queue selected-element ordering
+
+- **Parent:** Z01.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-queue-assessment/after-l88-baseline.json`; paired queue ordering is dropped and violates the first-stage probability oracle.
+- **Scope:** Constant selected integral queue elements with one proved size, bounded queue limits, retained-element modes and exact joint ordering. Other queue/order families remain separate.
+
+- **L89 evidence:** [Focused session](session_logs/2026-09-15_joint_queue_element_ordering.md).
+
+### L90 — Packed selects on class-container enum elements
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json`; paired enum element reads reject, while equivalent bit/signed/logic controls pass.
+- **Scope:** Existing read and lvalue packed-select paths for class dynamic-array/queue enum elements, preserving nominal whole-enum typing and existing partial-write semantics.
+
+- **L90 evidence:** [Focused session](session_logs/2026-09-15_enum_container_packed_selects.md).
+
+### L91 — Finite Boolean consecutive repetition in multiclock antecedents
+
+- **Parent:** S02.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-repeat-assessment/baseline.json`; paired rejection of `a[*1:2]` despite the L86 delay-window foundation.
+- **Scope:** Finite Boolean repetition with legal empty-match composition, endpoint/parent semantics, existing clock handoff and cancellation. Grouped and unbounded repetition remain distinct obligations.
+
+- **L91 evidence:** [Focused session](session_logs/2026-09-15_multiclock_boolean_repetition.md).
+
+### L92 — Fixed multiclock assertion control
+
+- **Parent:** DD-032.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/l92-baseline/baseline.json`.
+- **Scope:** Gate fresh fixed multiclock attempts under Off/Kill while preserving pending completion, restart and selected-instance behavior; reuse existing control helpers.
+
+- **L92 evidence:** [Focused session](session_logs/2026-09-15_fixed_multiclock_assertion_control.md).
+
+### L93 — Constant-function string formatting silently leaves the receiver unchanged
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-string-format/baseline.json`; runtime paired control succeeds, constant paired invocation returns the empty string after clean compilation.
+- **Scope:** Constant evaluation of the five string numeric-formatting methods; internal task lowering must retain the required function mutation. IEEE 1800-2017/2023 6.16.11–6.16.15 and 13.4.3.
+
+- **L93 evidence:** [Focused session](session_logs/2026-09-15_constant_string_formatting.md).
+
+### L94 — Finite grouped consecutive repetition in multiclock antecedents
+
+- **Parent:** S02.
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-group-repeat/baseline.json`.
+- **Scope:** Preserve and repeat the entire finite grouped Boolean/delay fragment, including legal empty alternatives and parent-level verdicts. Unbounded and general match-action groups remain separate.
+
+- **L94 evidence:** [Focused session](session_logs/2026-09-15_multiclock_grouped_repetition.md).
+
+### L95 — Constant-function putc silently skips mutation and arguments
+
+- **State:** LOCALLY QUALIFIED for the recorded subset; see L85–L95 checkpoint below.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-putc-assessment/baseline.json`.
+- **Scope:** Scalar local string and function-result character updates, IEEE1800-2017/2023 6.16.2 and13.4.3. Other receiver families remain separate.
+
+- **L95 evidence:** [Focused session](session_logs/2026-09-15_constant_string_putc.md).
+
+### L85–L95 local qualification checkpoint
+
+The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json) qualifies the eleven recorded subsets at `d45ee87ab`, including the [regression corrections](session_logs/2026-09-15_batch_l85_l95_regression_repair.md). Broader clause and application scope remains open.
+
+### L96 — Constant-function non-input formals accepted
+
+- **Area / edition:** Function elaboration / IEEE1800-2017 and2023 13.4.3.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-const-formals-assessment/baseline.json`; both editions accept prohibited output/inout/ref constant calls.
+- **Closure:** Reject prohibited formals in constant evaluation, including nested calls, while preserving input-only constant functions and ordinary runtime writable-formal calls. Paired diagnostics and behavioral controls required.
+- **Last verified revision:** `e43ecd536` installed candidate, qualified at `d45ee87ab`.
+
+- **Implementation evidence:** [L96 session](session_logs/2026-09-15_constant_function_formal_legality.md).
+
+### L97 — Nested finite whole-sequence repetition rejected
+
+- **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.9.2.1,16.12.22,16.13.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-nested-group-assessment/baseline.json`; both editions reject the nested exact-count endpoint witness.
+- **Closure:** Preserve inner/outer copies and endpoints, nested empty composition and parent verdicts within the existing finite construction scope. Keep fixed pipeline and same-clock behavior correct; preserve loud unsupported boundaries.
+- **Last verified revision:** `e43ecd536` installed candidate, qualified at `d45ee87ab`.
+
+- **Implementation evidence:** [L97 session](session_logs/2026-09-15_nested_finite_grouped_repetition.md).
+
+### L98 — Generated function accepted in constant evaluation
+
+- **Area / edition:** Function elaboration / IEEE1800-2017 and2023 13.4.3.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json` at the L96/L97 focused install.
+- **Closure:** Reject constant calls to functions declared in generate blocks, including nested/cached paths; preserve ordinary runtime generated functions and module/package constant functions. Paired edition tests required.
+- **Implementation evidence:** [L98 session](session_logs/2026-09-15_generated_constant_function_legality.md).
+
+### L99 — String methods lose fixed-array word mutations
+
+- **Area / edition:** Constant evaluation and VPI array words / IEEE1800-2017 and2023 6.16,7.4,13.4.3.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json`; constant putc/itoa abort, runtime controls leave words unchanged in both editions.
+- **Closure:** Correct selected fixed-array string mutation for all six mutating methods in constant and runtime paths, including locality, bounds, once-only evaluation and neighboring word preservation.
+
+- **Implementation evidence:** [L99 session](session_logs/2026-09-15_fixed_string_array_methods.md).
+
+### L100 — Finite multiclock consequence alternatives rejected
+
+- **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.12.7,16.12.22,16.13.2.
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Confidence:** REPRODUCED.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md`; internal one-copy consequence fails at50 while two-copy branch should succeed at90, but both editions reject the source.
+- **Closure:** Distinct finite consequence NFA per child; one existential child result feeds universal parent aggregation. Preserve synchronization, controls, pending backlogs and unsupported construction boundaries with paired behavioral tests.
+
+- **Implementation evidence:** [L100 session](session_logs/2026-09-15_finite_multiclock_consequences.md).
+
+### L101 — Constant fixed-array string-character increment
+
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Standards:** IEEE1800-2017 and2023 6.16,11.4.2,13.4.3.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-const-array-character-assessment/isolated-baseline.json`.
+- **Closure:** Correct pre/post byte updates through the selected local fixed-array word, with runtime parity, once-only selectors, bounds and locality controls.
+
+- **Implementation evidence:** [L101 session](session_logs/2026-09-15_constant_array_character_increment.md).
+
+### L102 — Plain finite multiclock consequence alternatives
+
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Standards:** IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-plain-consequence-nfa-assessment/ASSESSMENT.md`.
+- **Closure:** Fixed first-clock sequence prefix followed by finite second-clock alternatives yields a correctly timed single verdict per attempt, preserving clock boundaries, controls and pending backlogs.
+
+- **Implementation evidence:** [L102 session](session_logs/2026-09-15_plain_multiclock_consequences.md).
+
+### L103 — Plain multiclock ranged first-clock prefix
+
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Standards:** IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-plain-ranged-prefix-assessment/assessment.md`; both editions reject the legal finite ranged prefix.
+- **Closure:** Existential complete-path aggregation for each plain sequence attempt, with exact times, all-fail/early-success behavior, controls, backlogs and preserved implication universality.
+
+- **Implementation evidence:** [L103 session](session_logs/2026-09-15_plain_multiclock_ranged_prefix.md).
+
+### L104 — Constant mixed integral/literal equality
+
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Standards:** IEEE1800-2017 and2023 5.9, Table11-21,11.8.2.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md`.
+- **Closure:** Common integral operand sizing, signedness and four-state equality with constant/runtime parity.
+
+- **Implementation evidence:** [L104 session](session_logs/2026-09-15_constant_mixed_equality.md).
+
+### L105 — Fabricated nonlocal constant-function values
+
+- **State:** REGRESSION_TESTED; local seven-gate batch passed, publication CI pending.
+- **Standards:** IEEE1800-2017 and2023 13.4.3.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md`.
+- **Closure:** Reject nonlocal mutable state during constant evaluation; retain actual runtime state and legal constant inputs.
+
+- **Implementation evidence:** [L105 session](session_logs/2026-09-15_nonlocal_constant_function_values.md).
+
+L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json).

@@ -1,0 +1,4 @@
+./ivltests/sv_const_function_generate_nested_fail.v:3: warning: Anachronistic use of named begin/end to surround generate schemes.
+./ivltests/sv_const_function_generate_nested_fail.v:8: error: Function `inner' is declared inside generate block `sv_const_function_generate_nested_fail.generated.nested_scope' and may not be used as a constant function (IEEE 1800-2017/2023 13.4.3).
+./ivltests/sv_const_function_generate_nested_fail.v:10: error: Function `outer' is declared inside generate block `sv_const_function_generate_nested_fail.generated.nested_scope' and may not be used as a constant function (IEEE 1800-2017/2023 13.4.3).
+2 error(s) during elaboration.

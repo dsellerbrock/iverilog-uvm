@@ -583,6 +583,18 @@ NetEConst* NetEBComp::eval_eqeq_real_(bool ne_flag, const NetExpr*le, const NetE
       return res;
 }
 
+static void size_integral_equality_operands_(verinum&lv, verinum&rv)
+{
+      if (lv.len() == rv.len()) return;
+
+      const bool signed_operands = lv.has_sign() && rv.has_sign();
+      lv.has_sign(signed_operands);
+      rv.has_sign(signed_operands);
+      const unsigned width = max(lv.len(), rv.len());
+      lv = pad_to_width(lv, width);
+      rv = pad_to_width(rv, width);
+}
+
 NetEConst* NetEBComp::eval_eqeq_(bool ne_flag, const NetExpr*le, const NetExpr*re) const
 {
       if (le->expr_type() == IVL_VT_REAL ||
@@ -593,14 +605,17 @@ NetEConst* NetEBComp::eval_eqeq_(bool ne_flag, const NetExpr*le, const NetExpr*r
       const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
       if (lc == 0 || rc == 0) return 0;
 
-      const verinum&lv = lc->value();
-      const verinum&rv = rc->value();
+      verinum lv = lc->value();
+      verinum rv = rc->value();
 
       const verinum::V eq_res = ne_flag? verinum::V0 : verinum::V1;
       const verinum::V ne_res = ne_flag? verinum::V1 : verinum::V0;
 
-	// String equality: compare as strings (lengths may differ for different-length strings).
-      if (lv.is_string() && rv.is_string()) {
+	// True string operands compare as strings. Packed string literals retain
+	// their string marker in NetEConst, but use integral equality sizing.
+      if (lv.is_string() && rv.is_string()
+	  && (left_->expr_type() == IVL_VT_STRING
+	      || right_->expr_type() == IVL_VT_STRING)) {
 	    bool strings_equal = (lv.as_raw_string() == rv.as_raw_string());
 	    verinum::V res = (strings_equal ? eq_res : ne_res);
 	    return new NetEConst(verinum(res, 1));
@@ -608,13 +623,7 @@ NetEConst* NetEBComp::eval_eqeq_(bool ne_flag, const NetExpr*le, const NetExpr*r
 
       verinum::V res = eq_res;
 
-	// The two expressions should already be padded to the same size.
-      if (lv.len() != rv.len()) {
-	      // Some SV elaboration paths (notably string-heavy UVM code) can
-	      // reach constant equality folding before width padding is normalized.
-	      // Defer folding instead of aborting.
-	    return 0;
-      }
+      size_integral_equality_operands_(lv, rv);
 
       for (unsigned idx = 0 ;  idx < lv.len() ;  idx += 1) {
 
@@ -664,13 +673,12 @@ NetEConst* NetEBComp::eval_eqeqeq_(bool ne_flag, const NetExpr*le, const NetExpr
       const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
       if (lc == 0 || rc == 0) return 0;
 
-      const verinum&lv = lc->value();
-      const verinum&rv = rc->value();
+      verinum lv = lc->value();
+      verinum rv = rc->value();
 
       verinum::V res = verinum::V1;
 
-	// The two expressions should already be padded to the same size.
-      ivl_assert(*this, lv.len() == rv.len());
+      size_integral_equality_operands_(lv, rv);
 
       for (unsigned idx = 0 ;  idx < lv.len() ;  idx += 1)
 	    if (lv.get(idx) != rv.get(idx)) {
@@ -694,16 +702,15 @@ NetEConst* NetEBComp::eval_weqeq_(bool ne_flag, const NetExpr*le, const NetExpr*
       const NetEConst*rc = dynamic_cast<const NetEConst*>(re);
       if (lc == 0 || rc == 0) return 0;
 
-      const verinum&lv = lc->value();
-      const verinum&rv = rc->value();
+      verinum lv = lc->value();
+      verinum rv = rc->value();
 
       const verinum::V eq_res = ne_flag ? verinum::V0 : verinum::V1;
       const verinum::V ne_res = ne_flag ? verinum::V1 : verinum::V0;
 
       verinum::V res = eq_res;
 
-	// The two expressions should already be padded to the same size.
-      ivl_assert(*this, lv.len() == rv.len());
+      size_integral_equality_operands_(lv, rv);
 
       for (unsigned idx = 0 ;  idx < lv.len() ;  idx += 1) {
 	      // An X or Z in the R-value matches any L-value.

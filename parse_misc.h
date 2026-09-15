@@ -88,6 +88,14 @@ struct rs_production_t {
  * step's delay is relative to the sequence start (0 for a plain leading
  * boolean).
  */
+struct sva_group_repeat_t {
+      unsigned id = 0;
+      long lo = 0;
+      long hi = 0;
+      long first_delay_lo = 0;
+      long first_delay_hi = 0;
+};
+
 struct sva_seq_step_t {
       long delay_lo = 0;    // -1: ##[m:$]; -2: non-constant; -3: an
 			    // unsupported repetition shape (diagnosed)
@@ -102,6 +110,18 @@ struct sva_seq_step_t {
 			    // expanded step carries n-m here. Valid
 			    // only in the last chain position
 			    // (match-existence equivalence).
+      bool grouped_repeat = false; // member of a finite repeated group
+      bool group_repeat_start = false;
+      bool group_repeat_end = false;
+      long group_repeat_lo = 0;
+      long group_repeat_hi = 0;
+      long group_repeat_first_delay_lo = 0; // intrinsic, before outer concat
+      long group_repeat_first_delay_hi = 0;
+      // Nested finite whole-sequence repetition. Opens are ordered inner to
+      // outer; membership lets an outer expansion remove only its own layer.
+      std::vector<sva_group_repeat_t> group_repeat_opens;
+      std::vector<unsigned> group_repeat_closes;
+      std::vector<unsigned> group_repeat_members;
       PExpr* expr = nullptr;
       perm_string lv_name;  // M9-NFA LV-1: local-var assignment on this
       PExpr* lv_rhs = nullptr; //   step ((expr, lv_name = lv_rhs)); nil = none

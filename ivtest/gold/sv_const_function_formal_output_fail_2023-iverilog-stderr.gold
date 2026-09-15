@@ -1,0 +1,2 @@
+./ivltests/sv_const_function_formal_output_fail.v:7: error: Constant function `prohibited' has output formal `value'; constant functions may have only input arguments (IEEE 1800-2017/2023 13.4.3).
+1 error(s) during elaboration.

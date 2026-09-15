@@ -1,0 +1,5 @@
+./ivltests/sv_const_string_character_incdec_fail.v:4: error: A reference to a non-local net or variable (`state['sd0]') is not allowed in a constant function.
+./ivltests/sv_const_string_character_incdec_fail.v:9: error: Unable to evaluate parameter NONLOCAL value: sv_const_string_character_incdec_fail.nonlocal_write()
+./ivltests/sv_const_string_character_incdec_fail.v:7: error: Assignment to const signal `text` is not allowed.
+./ivltests/sv_const_string_character_incdec_fail.v:10: error: Constant function `readonly_write' has const ref formal `text'; constant functions may have only input arguments (IEEE 1800-2017/2023 13.4.3).
+4 error(s) during elaboration.

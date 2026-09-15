@@ -2141,7 +2141,7 @@ static NetExpr* make_last_array_index_expr_(const LineInfo&loc,
 static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const LineInfo*li,
 					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
+					     ivl_type_t pvec,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type);
 
@@ -2513,8 +2513,10 @@ static NetExpr* apply_trailing_container_indices_(
 	       * container word. Keep the exact selected vector type and consume all
 	       * residual components through the established packed-property
 	       * canonicalizer. */
-	    if (const netvector_t*vector_type =
-		  dynamic_cast<const netvector_t*>(cur_type)) {
+	    ivl_type_t vector_type =
+		  dynamic_cast<const netvector_t*>(cur_type)
+		  || dynamic_cast<const netenum_t*>(cur_type) ? cur_type : nullptr;
+	    if (vector_type) {
 		  list<index_component_t>packed_indices(idx_it, indices.end());
 		  ivl_type_t selected_type = nullptr;
 		  NetExpr*selected = make_vector_property_select_(
@@ -12467,11 +12469,11 @@ static void set_scoped_class_parameter_result_(
 static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 					     const LineInfo*li,
 					     NetExpr*prop_expr,
-					     const netvector_t*pvec,
+					     ivl_type_t pvec,
 					     const std::list<index_component_t>&indices,
 					     ivl_type_t&out_type)
 {
-      const netranges_t&dims = pvec->packed_dims();
+      const netranges_t dims = pvec->slice_dimensions();
       if (indices.empty() || dims.empty())
 	    return nullptr;
       for (size_t di = 0; di < dims.size(); di += 1)
@@ -12616,11 +12618,25 @@ static NetExpr* make_vector_property_select_(Design*des, NetScope*scope,
 		         : off_expr)
 	    : c32(const_off);
 
+      const bool enum_bool = dynamic_cast<const netenum_t*>(pvec)
+	    && pvec->base_type() == IVL_VT_BOOL;
       netvector_t*res_type = new netvector_t(pvec->base_type(),
 					     (long)wid - 1, 0);
-      NetESelect*sel = new NetESelect(prop_expr, base, wid, res_type);
+	/* A two-state enum still needs the packed select evaluated with 4-state
+	 * address semantics before converting its result to the enum base type
+	 * (11.5.1). Keep that conversion local to this exact enum carrier; a broad
+	 * target-side BOOL cast also changes 4-state parameter selects. */
+      ivl_type_t select_type = enum_bool
+	    ? ivl_type_t(new netvector_t(IVL_VT_LOGIC, (long)wid - 1, 0))
+	    : ivl_type_t(res_type);
+      NetESelect*sel = new NetESelect(prop_expr, base, wid, select_type);
       sel->set_line(*li);
       out_type = res_type;
+      if (enum_bool) {
+	    NetECast*cast = new NetECast('2', sel, wid, false);
+	    cast->set_line(*li);
+	    return cast;
+      }
       return sel;
 }
 
@@ -14259,6 +14275,58 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		    trailing_indices, selected_type);
 }
 
+static bool constant_function_declaration_is_legal_(
+	Design*des, const LineInfo&loc, NetScope*dscope, const NetFuncDef*def,
+	bool report)
+{
+      bool valid = true;
+
+	/* IEEE 1800-2017/2023 13.4.3 excludes a function declared anywhere
+	 * beneath a generate block from the constant-function subset. */
+      for (NetScope*cur = dscope->parent(); cur; cur = cur->parent()) {
+	    if (cur->type() == NetScope::GENBLOCK) {
+		  valid = false;
+		  if (report) {
+			cerr << loc.get_fileline() << ": error: Function `"
+			     << dscope->basename() << "' is declared inside generate "
+				"block `" << scope_path(cur)
+			     << "' and may not be used as a constant function"
+				" (IEEE 1800-2017/2023 13.4.3)." << endl;
+			des->errors += 1;
+		  }
+		  break;
+	    }
+	    if (cur->type() == NetScope::MODULE
+		|| cur->type() == NetScope::PACKAGE)
+		  break;
+      }
+
+      for (unsigned idx = 0 ; idx < def->port_count() ; idx += 1) {
+	    const NetNet*formal = def->port(idx);
+	    if (formal->port_type() == NetNet::PINPUT)
+		  continue;
+	    if (formal->port_type() != NetNet::POUTPUT
+		&& formal->port_type() != NetNet::PINOUT
+		&& formal->port_type() != NetNet::PREF)
+		  continue;
+
+	    valid = false;
+	    if (!report)
+		  continue;
+
+	    const char*direction = formal->port_type() == NetNet::POUTPUT
+		  ? "output" : formal->port_type() == NetNet::PINOUT
+		  ? "inout" : formal->get_const() ? "const ref" : "ref";
+	    cerr << loc.get_fileline() << ": error: Constant function `"
+		 << dscope->basename() << "' has " << direction << " formal `"
+		 << formal->name()
+		 << "'; constant functions may have only input arguments"
+		 << " (IEEE 1800-2017/2023 13.4.3)." << endl;
+	    des->errors += 1;
+      }
+      return valid;
+}
+
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 					unsigned expr_wid, unsigned flags) const
 {
@@ -15260,6 +15328,17 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       }
       ivl_assert(*this, def->scope() == dscope);
 
+	/* A runtime-elaborated function can be revisited later in a constant
+	 * context.  Classify its formal directions on every call, before using
+	 * the cached constant-function state to classify its caller. */
+      const bool constant_context = need_const || scope->need_const_func();
+      if (!constant_function_declaration_is_legal_(
+		des, *this, dscope, def, constant_context)) {
+	    dscope->is_const_func(false);
+	    if (constant_context)
+		  return nullptr;
+      }
+
 	// From IEEE 1800-2023 section 13.4.3:
 	// A constant function call is a function call of a constant function
 	// wherein the constant function's declaration is local to the calling
@@ -15363,6 +15442,17 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	    const PFunction*pfunc = dscope->func_pform();
 	    ivl_assert(*this, pfunc);
 	    elaborate_function_outside_caller_fork_(des, pfunc, dscope);
+      }
+
+	/* Qualified/static paths can enter elaborate_base_ without the generic
+	 * call classifier above.  Apply the same legality rule here. */
+      const bool constant_context = need_const || scope->need_const_func();
+      if (!constant_function_declaration_is_legal_(
+		des, *this, dscope, def, constant_context)) {
+	    dscope->is_const_func(false);
+	    if (constant_context)
+		  return nullptr;
+	    scope->is_const_func(false);
       }
 
       unsigned parms_count = def->port_count();
@@ -17305,32 +17395,6 @@ bool PECallFunction::check_string_method_arity_(Design*des,
  * expression of some sort (it's a parameter value) and most methods are
  * stable in the sense that they generate a constant value for a constant input.
  */
-static int32_t string_method_parse_integer_(const string&text, unsigned base)
-{
-      uint32_t value = 0;
-      bool saw_digit = false;
-      for (unsigned char ch : text) {
-	    if (ch == '_')
-		  continue;
-
-	    unsigned digit;
-	    if (ch >= '0' && ch <= '9')
-		  digit = ch - '0';
-	    else if (ch >= 'a' && ch <= 'f')
-		  digit = ch - 'a' + 10;
-	    else if (ch >= 'A' && ch <= 'F')
-		  digit = ch - 'A' + 10;
-	    else
-		  break;
-
-	    if (digit >= base)
-		  break;
-	    saw_digit = true;
-	    value = value * base + digit;
-      }
-      return saw_digit ? static_cast<int32_t>(value) : 0;
-}
-
 NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 						    const symbol_search_results&search_results)
 						    const
@@ -17422,7 +17486,7 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 
 	    if (method_name == "atoi") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 10));
+			       string_method_parse_integer(par_value, 10));
 	    }
 
 	    if (method_name == "atoreal") {
@@ -17433,17 +17497,17 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 
 	    if (method_name == "atohex") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 16));
+			       string_method_parse_integer(par_value, 16));
 	    }
 
 	    if (method_name == "atooct") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 8));
+			       string_method_parse_integer(par_value, 8));
 	    }
 
 	    if (method_name == "atobin") {
 		  return make_integral(netvector_t::integer_type(),
-				       string_method_parse_integer_(par_value, 2));
+			       string_method_parse_integer(par_value, 2));
 	    }
 
 	    if (method_name == "toupper" || method_name == "tolower") {

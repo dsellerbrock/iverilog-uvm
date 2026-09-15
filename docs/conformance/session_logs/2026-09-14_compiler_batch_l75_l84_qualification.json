@@ -1,0 +1,204 @@
+{
+  "scope": "L75-L84 ten-fix local compiler batch; not full IEEE, UVM or application conformance",
+  "completed_at": 1789448976.689238,
+  "qualified": true,
+  "revision": "304507aeb34d5ad645f8d74af674854ce5a5a2e4",
+  "semantic_revision": "240dd5f6f",
+  "source_files": 15344,
+  "source_snapshot_sha256": "857547dd8c2ece60dcfcd840ea8c2ae73bd11c4900ef911c3bdfe2e843c80ee6",
+  "source_mismatches": [],
+  "artifact_mismatches": [],
+  "tracked_diff_stable": true,
+  "gates": {
+    "integrated": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "bash",
+        ".github/ivtest_gate.sh"
+      ],
+      "start": 1789448245.254844,
+      "end": 1789448484.374779
+    },
+    "json": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-vvp.list"
+      ],
+      "start": 1789448503.204134,
+      "end": 1789448610.6431448
+    },
+    "uvm": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "bash",
+        ".github/uvm_test.sh"
+      ],
+      "start": 1789448245.256663,
+      "end": 1789448882.4546409
+    },
+    "nfa": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "bash",
+        "tests/sva_nfa/run.sh"
+      ],
+      "start": 1789448245.2763462,
+      "end": 1789448250.248523
+    },
+    "releases": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "python3",
+        "scripts/uvm_release_matrix.py",
+        "--prefix",
+        "local-install"
+      ],
+      "start": 1789448245.256667,
+      "end": 1789448274.170568
+    },
+    "makecheck": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "make",
+        "check"
+      ],
+      "start": 1789448245.275889,
+      "end": 1789448246.605313
+    },
+    "frontend": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true,
+      "command": [
+        "bash",
+        ".github/uvm_frontend_test.sh"
+      ],
+      "start": 1789448928.715779,
+      "end": 1789448950.4833448
+    }
+  },
+  "counts": {
+    "legacy": {
+      "total": 5403,
+      "passed": 5398,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "ran": 2337,
+      "failed": 0
+    },
+    "uvm": {
+      "passed": 357,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi": true,
+      "edition": "2012 (existing suite invocation); no separate 2017/2023 full-UVM qualification inferred"
+    },
+    "nfa": {
+      "passed": 58,
+      "failed": 0
+    },
+    "release_smoke": 15,
+    "frontend_scenarios": 12
+  },
+  "candidate_artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "176bea98a532aa3e8e5fb2710d0266f2dbf7bd3aee358828c3b1dc3f047b4f25",
+    "local-install/lib/ivl/ivl": "14580f85d0290e22791efabbc996dd7c77a31465dea1ba16ecdf0fa40d4f24db",
+    "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad",
+    "local-install/lib/ivl/uvm_dpi.vpi": "c7715ba14d9614c0bd42628e039fe1143d79821ff4bc1352bd187fb5e000f098",
+    "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+  },
+  "features": [
+    [
+      "L75",
+      "f95f0bc11",
+      "string_return_character",
+      "Scalar string-return character stores"
+    ],
+    [
+      "L76",
+      "24feb1f28",
+      "constant_string_case_conversion",
+      "Constant string case conversion"
+    ],
+    [
+      "L77",
+      "d11c3852c",
+      "string_character_increment",
+      "Scalar string-character pre/post updates"
+    ],
+    [
+      "L78",
+      "cf34519c0",
+      "constant_string_comparison",
+      "Constant string comparisons"
+    ],
+    [
+      "L79",
+      "d02896d77",
+      "array_string_character_store",
+      "Fixed-array string-character stores"
+    ],
+    [
+      "L80",
+      "eb87a2593",
+      "constant_string_substr",
+      "Constant substr"
+    ],
+    [
+      "L81",
+      "45fcf1546",
+      "array_string_character_compound",
+      "Fixed-array string-character compound updates"
+    ],
+    [
+      "L82",
+      "f517397bf",
+      "constant_string_integer",
+      "Constant string integer conversion family"
+    ],
+    [
+      "L83",
+      "2d8d1cab6",
+      "array_string_character_increment",
+      "Fixed-array string-character pre/post updates"
+    ],
+    [
+      "L84",
+      "240dd5f6f",
+      "constant_string_character_increment",
+      "Constant string-character pre/post updates"
+    ]
+  ],
+  "raw_evidence": "evidence/batch-20260914-l84/qualification",
+  "new_registrations": {
+    "legacy": 68,
+    "json": 68,
+    "edition_pairs": 34
+  },
+  "integrated_subgates": {
+    "vpi_passed": 108,
+    "negative_passed": 149,
+    "state_foreach_passed": 15,
+    "copyout_malformed_passed": 6,
+    "coverage_api_exports": 66
+  },
+  "application_scope": "No new OpenTitan/Caliptra application replay; full mission remains incomplete."
+}

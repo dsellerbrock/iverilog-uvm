@@ -1,0 +1,20 @@
+{
+  "scope": "L78 constant-function compare/icompare",
+  "source_base": "216d02e3a2b6af3a154ffd888ae3b70d052fc8e6",
+  "source_sha256": {
+    "net_func_eval.cc": "21cad4b71ffc26cd0ccbd65c28a50b7f2557bb6e8cd0efa31f1cbbf1b373832b"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "dd2c1181611f87ebdef9503969f9ba9ae6bffdd3e2aa60512ea1a05d3f01e33d",
+    "local-install/lib/ivl/ivl": "08eef23b6d5ef3c4195f38de3b5e953539b8e4b42f324979ea4db363e5f8c13a",
+    "local-install/lib/ivl/vvp.tgt": "f95dc86dfd7819a8d38812e9ada4d48b2e3a2651ae32eb18b88080ece7455f19"
+  },
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "neighbors_json": 22,
+  "focused_evidence": "evidence/batch-20260914-after-l74/l78-focused.json",
+  "neighbor_evidence": "evidence/batch-20260914-after-l74/l77-l78-neighbors.json",
+  "broad_qualified": false,
+  "artifact_provenance": "L78 compiler, L77 target, integrated L75 runtime; focused combined candidate."
+}

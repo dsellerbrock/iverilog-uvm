@@ -1,0 +1,3 @@
+./ivltests/sv_const_nonlocal_static_package_scalar_initialized.v:1: error: Cannot evaluate state in this context.
+./ivltests/sv_const_nonlocal_static_package_scalar_initialized.v:2: error: Unable to evaluate parameter X value: p.f()
+1 error(s) during elaboration.

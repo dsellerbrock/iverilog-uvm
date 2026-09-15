@@ -175,3 +175,75 @@ paired evidence are linked from the [2017 matrix L68 refinement](matrices/ieee18
 ## 2026-09-14 shared L65–L74 evidence
 
 The selected compiler fixes exercise common rules in paired 2017/2023 regressions. Shared scope and evidence belong to the [2017 matrix refinement](matrices/ieee1800_2017_clause_matrix.md#l65l74-qualification-refinement--2026-09-14); this adds no edition-specific language claim.
+
+## 2026-09-14 shared L75–L84 evidence
+
+The string-storage and constant-evaluation fixes exercise common rules in paired 2017/2023 tests. Shared scope and qualification belong to the [2017 matrix refinement](matrices/ieee1800_2017_clause_matrix.md#l75l84-qualification-refinement--2026-09-14). No edition-specific change or separate full-2023 UVM qualification is claimed.
+
+## L85 shared ordered-distribution evidence
+
+2023 distribution is clause 18.5.3; its excluded-range mass clarification differs
+from 2017 18.5.4 wording. L85 supports the common fully feasible-range subset
+and rejects unsupported fibers before drawing, without claiming that edition
+difference implemented. Shared scope and paired evidence belong to the
+[2017 matrix L85 entry](matrices/ieee1800_2017_clause_matrix.md#l85--joint-ordered-distributions).
+
+## L87 shared selected-element ordering evidence
+
+The paired fixed integral-element tests exercise the common ordering semantics
+of 2017 18.5.10 and 2023 18.5.9. Shared scope/evidence belong to the
+[2017 matrix L87 entry](matrices/ieee1800_2017_clause_matrix.md#l87--joint-selected-element-ordering); this does not add real or dynamic-container ordering support.
+
+## L88 shared dynamic-array ordering evidence
+
+The 2023 array sizing and ordering clauses (18.4, 18.5.7.2, 18.5.8/18.5.9) share the bounded implementation recorded in the [2017 matrix L88 entry](matrices/ieee1800_2017_clause_matrix.md#l88--joint-dynamic-array-selected-element-ordering). Separate edition regressions are linked there; no queue or associative-array ordering extension is implied.
+
+## L89 shared queue ordering evidence
+
+The 2023 clauses18.4 and18.5.8/18.5.9 share the bounded implementation in the [2017 matrix L89 entry](matrices/ieee1800_2017_clause_matrix.md#l89--joint-queue-selected-element-ordering), with separate edition regressions. No full queue or randomization conformance is claimed.
+
+## L86 shared multiclock delay-window evidence
+
+The 2023 sequence, implication, clock-flow and assertion-action clauses16.7,16.12.7,16.13 and16.14 share the bounded implementation in the [2017 matrix L86 entry](matrices/ieee1800_2017_clause_matrix.md#l86--multiclock-bounded-delay-window-antecedents). Separate edition regressions retain the shared semantics; repetition and broader multi-domain properties remain separate.
+
+## L91 shared finite repetition evidence
+
+The 2023 repetition, implication and nondegeneracy clauses share the bounded implementation in the [2017 matrix L91 entry](matrices/ieee1800_2017_clause_matrix.md#l91--finite-boolean-multiclock-repetition), with separate edition regressions and shared evidence.
+
+## L90 shared enum selection evidence
+
+The 2023 enum, increment/decrement and packed-select clauses share the implementation in the [2017 matrix L90 entry](matrices/ieee1800_2017_clause_matrix.md#l90--enum-container-packed-selects), with separate edition regressions.
+
+## L92 shared assertion-control evidence
+
+The 2023 assertion-control semantics share the implementation in the [2017 matrix L92 entry](matrices/ieee1800_2017_clause_matrix.md#l92--fixed-multiclock-assertion-control), with separate edition regressions.
+
+L93 uses the same 6.16.11–6.16.15 and 13.4.3 requirements in 2023; [paired evidence](session_logs/2026-09-15_constant_string_formatting_validation.json) records edition-specific tests.
+
+L95 applies the same 6.16.2 and 13.4.3 requirements in both editions; [paired evidence](session_logs/2026-09-15_constant_string_putc_validation.json) records the scoped implementation.
+
+L94 uses the shared repetition, empty-composition and nondegeneracy requirements in 2023; [paired evidence](session_logs/2026-09-15_multiclock_grouped_repetition_validation.json) records separate edition executions.
+
+The L85–L95 subsets share the [local qualification checkpoint](matrices/ieee1800_2017_clause_matrix.md#l85l95-local-qualification-checkpoint). Separate edition-focused results remain above; the full UVM gate used `-g2012`.
+
+L96 shares the 13.4.3 input-only constant-function rule; [paired evidence](session_logs/2026-09-15_constant_function_formal_legality_validation.json) records separate edition checks.
+
+L98 shares the 13.4.3 generated-declaration restriction; [paired evidence](session_logs/2026-09-15_generated_constant_function_legality_validation.json) records both editions.
+
+L97 applies the shared repetition and empty-composition requirements; [paired evidence](session_logs/2026-09-15_nested_finite_grouped_repetition_validation.json) records edition-specific validation.
+
+L99 uses the shared string-variable and constant-function requirements; [paired evidence](session_logs/2026-09-15_fixed_string_array_methods_validation.json) records separate edition executions.
+
+L100 shares the multiclock sequence/implication requirements; [paired evidence](session_logs/2026-09-15_finite_multiclock_consequences_validation.json) records separate edition executions.
+
+L102 shares the sequence-property and clock-flow rules; [paired evidence](session_logs/2026-09-15_plain_multiclock_consequences_validation.json) records separate edition execution.
+
+L101 follows the shared 6.16,11.4.2,13.4.3 rules; [paired evidence](session_logs/2026-09-15_constant_array_character_increment_validation.json) records separate edition executions.
+
+L103 follows the shared 16.9.2,16.13.1,16.13.2 rules; [paired evidence](session_logs/2026-09-15_plain_multiclock_ranged_prefix_validation.json) records separate edition executions.
+
+L104 shares the equality sizing rules; [paired evidence](session_logs/2026-09-15_constant_mixed_equality_validation.json) records both editions.
+
+L105 shares the constant-function locality restriction; [paired evidence](session_logs/2026-09-15_nonlocal_constant_function_values_validation.json) records both editions.
+
+L96–L105 share the [local qualification checkpoint](matrices/ieee1800_2017_clause_matrix.md#l96l105-local-qualification-checkpoint). Paired focused evidence remains edition-specific; the full UVM gate used its existing2012 mode.

@@ -1545,10 +1545,46 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 			  // `arr[0].method()`.
 			NetExpr*canon = 0;
 			if (const NetEConst*cmux = dynamic_cast<const NetEConst*>(mux)) {
-			      list<long> idx_consts;
-			      idx_consts.push_back(cmux->value().as_long());
-			      canon = normalize_variable_unpacked(base_sig->sig(), idx_consts);
-			      delete mux;
+			      bool negative = false;
+			      uint64_t magnitude = cmux->value().is_defined()
+				    ? verinum_signed_magnitude(cmux->value(), negative)
+				    : UINT64_MAX;
+			      const uint64_t long_max = static_cast<uint64_t>(LONG_MAX);
+			      bool fits_long = cmux->value().is_defined()
+				    && ((!negative && magnitude <= long_max)
+				        || (negative && magnitude <= long_max + 1));
+			      if (fits_long) {
+				    long value = negative
+					  ? (magnitude == long_max + 1 ? LONG_MIN
+					     : -static_cast<long>(magnitude))
+					  : static_cast<long>(magnitude);
+				    list<long> idx_consts;
+				    idx_consts.push_back(value);
+				    canon = normalize_variable_unpacked(
+				          base_sig->sig(), idx_consts);
+			      }
+			      if (canon) {
+				    delete mux;
+			      } else if (dynamic_cast<const netstring_t*>(base_type)
+				         && (method_name == "itoa" || method_name == "hextoa"
+				             || method_name == "octtoa" || method_name == "bintoa"
+				             || method_name == "realtoa" || method_name == "putc")) {
+				    /* Mutating string methods still evaluate their arguments
+				     * when the selected fixed-array word is out of range, and
+				     * then discard the update. Preserve that selected receiver
+				     * instead of falling back to the whole array. The expression
+				     * normalizer retains the full invalid canonical address for
+				     * the evaluator/runtime bounds check. */
+				    list<NetExpr*> idx_exprs;
+				    idx_exprs.push_back(mux);
+				    const netsarray_t*stype = dynamic_cast<const netsarray_t*>(
+				          base_sig->sig()->array_type());
+				    if (stype)
+					  canon = normalize_variable_unpacked(
+					        *li, stype, idx_exprs);
+			      } else {
+				    delete mux;
+			      }
 			} else {
 			      list<NetExpr*> idx1;
 			      idx1.push_back(mux);
@@ -14262,6 +14298,14 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 
       vector<NetExpr*>argv (1 + nparms);
       argv[0] = obj;
+      const bool string_integer_format_method =
+	    method_name == perm_string::literal("itoa")
+	    || method_name == perm_string::literal("hextoa")
+	    || method_name == perm_string::literal("octtoa")
+	    || method_name == perm_string::literal("bintoa");
+      const bool string_numeric_format_method = string_integer_format_method
+	    || method_name == perm_string::literal("realtoa");
+      const bool string_putc_method = method_name == perm_string::literal("putc");
       NetAssign_*mailbox_ref_output = 0;
       const netclass_t*class_type =
 	    dynamic_cast<const netclass_t*>(obj_type);
@@ -14325,6 +14369,23 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
 							idx, args[idx]);
+	    if ((string_numeric_format_method || string_putc_method) && argv[idx + 1]
+		&& argv[idx + 1]->expr_type() != IVL_VT_BOOL
+		&& argv[idx + 1]->expr_type() != IVL_VT_LOGIC
+		&& argv[idx + 1]->expr_type() != IVL_VT_REAL) {
+		  cerr << args[idx]->get_fileline() << ": error: String formatting method `"
+		       << method_name << "' requires "
+		       << (string_putc_method
+			     ? (idx == 0 ? "an integer index" : "an integral byte")
+			     : string_integer_format_method ? "an integer" : "a real")
+		       << " argument; this expression is not implicitly numeric."
+		       << endl;
+		  des->errors += 1;
+		  for (NetExpr*expr : argv) delete expr;
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+		  noop->set_line(*this);
+		  return noop;
+	    }
       }
 
       const bool mailbox_message_method =
@@ -30678,12 +30739,87 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_randc_capture_t capture(co, "solve before");
 	    capture.seen = constraint_source_references_randc_(
 		  co, cls, value_slots, scope, loop_env);
+	    auto diagnose_fixed_oob = [&](const PExpr*item) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+		  if (!id || !cls || id->path().package
+		      || id->has_scoped_type_prefix()
+		      || id->path().name.size() != 1)
+			return;
+		  const name_component_t&component = id->path().name.front();
+		  if (component.local_scope || component.index.empty()) return;
+		  int prop = cls->property_idx_from_name(component.name);
+		  const netuarray_t*array = prop < 0 ? nullptr
+			: dynamic_cast<const netuarray_t*>(
+			      cls->get_prop_type((size_t)prop));
+		  if (!array || array->static_dimensions().size()
+			!= component.index.size()) return;
+
+		  size_t dim = 0;
+		  for (const index_component_t&select : component.index) {
+			if (!select.msb || select.lsb
+			    || select.sel != index_component_t::SEL_BIT) return;
+			string index_ir = pexpr_to_constraint_ir(select.msb, cls,
+			      value_slots, scope, loop_env);
+			constraint_const_ir_t value;
+			if (!constraint_parse_const_ir_(index_ir, value)
+			    || value.width > 64) return;
+			uint64_t digit = constraint_resize_const_bits_(
+			      value, 64, value.is_signed);
+			const netrange_t&range = array->static_dimensions()[dim++];
+			digit -= (uint64_t)std::min(
+			      range.get_msb(), range.get_lsb());
+			if (digit < range.width()) continue;
+			if (constraint_ir_design_ctx_
+			    && constraint_ir_design_ctx_
+			         ->mark_constraint_order_diagnostic(item)) {
+			      cerr << item->get_fileline()
+			           << ": error: selected fixed-array target of 'solve before' "
+			           << "is outside its declared range." << endl;
+			      constraint_ir_design_ctx_->errors += 1;
+			}
+			return;
+		  }
+	    };
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
+			if (s.empty()) diagnose_fixed_oob(item);
+			if (s.compare(0, 7, "(delem ") == 0) {
+			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+			      if (!id || !cls || id->path().package
+			          || id->has_scoped_type_prefix()
+			          || id->path().name.size() != 1)
+				    return "";
+			      const name_component_t&component = id->path().name.front();
+			      int prop = cls->property_idx_from_name(component.name);
+			      const netdarray_t*array = prop < 0 ? nullptr
+				    : dynamic_cast<const netdarray_t*>(
+				          cls->get_prop_type((size_t)prop));
+			      if (!array || component.local_scope
+			          || component.index.size() != 1)
+				    return "";
+			      property_qualifier_t qual =
+				    cls->get_prop_qual((size_t)prop);
+			      if (!qual.test_rand() && !qual.test_randc())
+				    constraint_order_nonrandom_error_(item);
+			      const index_component_t&select = component.index.front();
+			      string index_ir = select.msb && !select.lsb
+				    && select.sel == index_component_t::SEL_BIT
+				    ? pexpr_to_constraint_ir(select.msb, cls,
+				          value_slots, scope, loop_env) : "";
+			      constraint_const_ir_t index;
+			      ivl_type_t element = array->element_type();
+			      ivl_variable_type_t base = element
+				    ? element->base_type() : IVL_VT_NO_TYPE;
+			      if (!constraint_parse_const_ir_(index_ir, index)
+			          || index.width > 64 || !element || !element->packed()
+			          || (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
+			              && !dynamic_cast<const netenum_t*>(element)))
+				    return "";
+			}
 			  // Ordering may name a scalar rand property, a dynamic
 			  // container size, or a statically selected rand-array
 			  // element. The runtime retains the complete identity so
@@ -30691,7 +30827,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (s.compare(0, 2, "p:") != 0
 			    && s.compare(0, 2, "m:") != 0
 			    && s.compare(0, 2, "e:") != 0
-			    && s.compare(0, 2, "s:") != 0)
+			    && s.compare(0, 2, "s:") != 0
+			    && s.compare(0, 7, "(delem ") != 0)
 			      return "";
 			if (s.compare(0, 2, "m:") == 0 && cls) {
 			      const char*p = s.c_str() + 2;

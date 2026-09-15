@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_group_repeat_2023.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_assert_multiclock_group_repeat_2023"
+}

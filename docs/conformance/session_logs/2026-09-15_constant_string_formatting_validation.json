@@ -1,0 +1,62 @@
+{
+  "blocker": "L93",
+  "status": "FOCUSED_TESTED; broad batch qualification pending",
+  "standards": {
+    "2017": [
+      "6.16.11\u20136.16.15",
+      "13.4.3"
+    ],
+    "2023": [
+      "6.16.11\u20136.16.15",
+      "13.4.3"
+    ]
+  },
+  "source_hashes": {
+    "elaborate.cc": "8bda7a9944c74dfef61e9c5fcbf7c24ee6db84c528e440d5acd61d4af25e3e0c",
+    "net_func_eval.cc": "9aee646c34d96722f9b6e6aa29dc00ce1a6c09cd9ea4e69acb25893774a13c6e"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "bc4c0dd00afeab4a3c101eabea12d57e8bd82ce66e3a78967506bf63ef8c3e89",
+    "local-install/lib/ivl/vvp.tgt": "4dbd47f4b419cbac76e63d1b36fa738415c641964bbfe5ba70911daf20f082c4",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-const-string-format-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "sed - CE.\n     sv_const_string_format_argument_fail_2023: Passed - CE.\n     sv_const_string_real_format_argument_fail: Passed - CE.\nsv_const_string_real_format_argument_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-const-string-format-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "                 sv_const_string_format_fail: Passed - CE.\n              sv_const_string_format_fail_2023: Passed - CE.\n     sv_const_string_real_format_argument_fail: Passed - CE.\nsv_const_string_real_format_argument_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 8, Failed 0.\n"
+    }
+  ],
+  "neighbors": [
+    {
+      "harness": "legacy",
+      "passed": 48,
+      "log": "evidence/batch-20260914-after-l84/l93-neighbors-legacy.log"
+    },
+    {
+      "harness": "JSON",
+      "passed": 46,
+      "log": "evidence/batch-20260914-after-l84/l93-neighbors-json.log"
+    }
+  ],
+  "baseline": "evidence/batch-20260914-after-l84/next-string-format/baseline.json",
+  "limits": [
+    "Local scalar string and function-result receivers only.",
+    "Other mutating methods and array receivers remain separate.",
+    "Installed compiler includes the unintegrated L94 candidate; focused evidence is not broad qualification.",
+    "No new application or UVM qualification."
+  ]
+}

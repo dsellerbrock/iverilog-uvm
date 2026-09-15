@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_string_return_character_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "sv_string_return_character_fail"
+    ],
+    "gold": "sv_string_return_character_fail"
+}

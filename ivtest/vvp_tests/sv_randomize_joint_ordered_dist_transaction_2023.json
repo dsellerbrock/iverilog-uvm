@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_randomize_joint_ordered_dist_transaction_2023.v",
+    "iverilog-args": ["-g2023", "-s", "sv_randomize_joint_ordered_dist_transaction"],
+    "gold": "sv_randomize_joint_ordered_dist_transaction"
+}

@@ -1354,3 +1354,139 @@ IMPLEMENTED for scalar string character compound arithmetic, with byte typing, c
 ### L65–L74 qualification refinement — 2026-09-14
 
 The bounded scopes above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate only; it does not expand receiver coverage or establish full-clause conformance.
+
+### L75 — Scalar string-function-return character stores
+
+IMPLEMENTED for plain and compound character assignments to scalar string return variables, with return-frame isolation and byte/index semantics. See [L75 evidence](../session_logs/2026-09-14_string_return_character.md); broader receiver forms and batch qualification remain pending.
+
+### L76 — Constant-function string case conversion (6.16.4, 6.16.5)
+
+IMPLEMENTED for toupper/tolower byte conversion and receiver preservation during constant evaluation. See [L76 evidence](../session_logs/2026-09-14_constant_string_case_conversion.md); other methods and broad qualification remain separate.
+
+### L77 — Runtime scalar string-character increment/decrement
+
+IMPLEMENTED for pre/post scalar and return-character updates. See [L77 evidence](../session_logs/2026-09-14_string_character_increment.md); other receivers and broad qualification remain separate.
+
+### L78 — Constant-function string comparisons
+
+IMPLEMENTED for compare/icompare ordering and operand preservation. See [L78 evidence](../session_logs/2026-09-14_constant_string_comparison.md); broad qualification remains pending.
+
+### L79 — Fixed-array string-character stores
+
+IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_array_string_character_store.md); broad batch qualification remains pending.
+
+### L80 — Constant-function substr
+
+IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_constant_string_substr.md); broad batch qualification remains pending.
+
+### L81 — Fixed-array string-character compound stores
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_compound.md); array function returns and broad qualification remain separate.
+
+### L82 — Constant string-to-integer conversions
+
+IMPLEMENTED for the four methods using the [shared parser](../session_logs/2026-09-14_constant_string_integer.md); broad batch qualification remains pending.
+
+### L83 — Fixed-array string-character increment/decrement
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_increment.md); other receiver kinds and broad qualification remain separate.
+
+### L84 — Constant-function string-character increment/decrement
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_constant_string_character_increment.md); other receiver kinds and broad qualification remain separate.
+
+### L75–L84 qualification refinement — 2026-09-14
+
+The bounded implementations above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate without expanding receiver coverage or declaring full-clause conformance.
+
+### L85 — Joint ordered distributions
+
+IMPLEMENTED for the [recorded canonical scalar subset](../session_logs/2026-09-14_joint_ordered_distribution.md), with exact staged distributions and atomic graph rollback. Broader joint distribution families remain PARTIAL; local batch qualification is recorded below.
+
+### L87 — Joint selected-element ordering
+
+IMPLEMENTED within the [recorded fixed-array integral subset](../session_logs/2026-09-14_joint_element_ordering.md), including exact staged element identity and focused out-of-range diagnostics. Dynamic containers and other ordering families remain separate; local batch qualification is recorded below.
+
+### L88 — Joint dynamic-array selected-element ordering
+
+IMPLEMENTED within the [recorded constant integral dynamic-array subset](../session_logs/2026-09-15_joint_dynamic_element_ordering.md), with one proved size, canonical ordering, resize and index-identity checks. Other container/ordering families remain PARTIAL; local batch qualification is recorded below.
+
+### L89 — Joint queue selected-element ordering
+
+IMPLEMENTED for the [recorded constant integral/enum queue subset](../session_logs/2026-09-15_joint_queue_element_ordering.md), using proved bounded/unbounded queue sizes and canonical ordering stages. Other ordering families remain PARTIAL; local batch qualification is recorded below.
+
+### L86 — Multiclock bounded delay-window antecedents
+
+IMPLEMENTED for the [recorded finite delay-window subset](../session_logs/2026-09-15_multiclock_bounded_antecedents.md), retaining every endpoint and one verdict per parent across clock handoff, prefix evaluation and cancellation. Repetition and broader SVA remain PARTIAL; local batch qualification is recorded below.
+
+### L91 — Finite Boolean multiclock repetition
+
+IMPLEMENTED within the [recorded finite Boolean repetition subset](../session_logs/2026-09-15_multiclock_boolean_repetition.md), including legal empty alternatives and parent-level verdicts. Broader repetition and SVA remain PARTIAL; local batch qualification is recorded below.
+
+### L90 — Enum container packed selects
+
+IMPLEMENTED within the [recorded class-container selection subset](../session_logs/2026-09-15_enum_container_packed_selects.md), preserving enum nominal typing, selected vector state and captured partial updates. Broader receiver syntax remains PARTIAL; local batch qualification is recorded below.
+
+### L92 — Fixed multiclock assertion control
+
+IMPLEMENTED for the [recorded fixed-pipeline control subset](../session_logs/2026-09-15_fixed_multiclock_assertion_control.md), preserving pending attempts under Off and aborting them under Kill. Broader assertion control remains PARTIAL; local batch qualification is recorded below.
+
+### L93 — Constant-function numeric string formatting
+
+IMPLEMENTED within the [recorded scalar receiver subset](../session_logs/2026-09-15_constant_string_formatting.md). Other constant-function methods remain PARTIAL; local batch qualification is recorded below.
+
+### L95 — Constant-function putc
+
+IMPLEMENTED within the [recorded scalar local receiver subset](../session_logs/2026-09-15_constant_string_putc.md). Other method/receiver combinations remain PARTIAL; local batch qualification is recorded below.
+
+### L94 — Finite grouped multiclock repetition
+
+IMPLEMENTED within the [recorded flat finite-group subset](../session_logs/2026-09-15_multiclock_grouped_repetition.md), including empty composition and fixed-pipeline compatibility. Nested/unbounded groups and broader SVA remain PARTIAL; local batch qualification is recorded below.
+
+### L85–L95 local qualification checkpoint
+
+The [batch record](../session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json) qualifies the eleven recorded subsets at `d45ee87ab`, including the [regression corrections](../session_logs/2026-09-15_batch_l85_l95_regression_repair.md). Broader clause and application scope remains open.
+
+### L96 — Constant-function formal legality
+
+IMPLEMENTED for the [recorded non-input formal checks](../session_logs/2026-09-15_constant_function_formal_legality.md), preserving runtime writable-formal semantics. Other constant-function requirements remain PARTIAL; broad qualification is pending.
+
+### L98 — Generated constant-function legality
+
+IMPLEMENTED for the [recorded declaration-scope checks](../session_logs/2026-09-15_generated_constant_function_legality.md). Runtime generated functions remain legal; broad qualification is pending.
+
+### L97 — Nested finite grouped repetition
+
+IMPLEMENTED for the [recorded nested multi-term group subset](../session_logs/2026-09-15_nested_finite_grouped_repetition.md). Nested ranged fixed consequents, unbounded groups and broader sequence operands remain PARTIAL; broad qualification is pending.
+
+### L99 — Fixed string-array methods
+
+IMPLEMENTED for the [recorded fixed-array receiver subset](../session_logs/2026-09-15_fixed_string_array_methods.md), including constant and runtime mutation. General container/VPI behavior remains PARTIAL; broad qualification is pending.
+
+### L100 — Finite multiclock consequence alternatives
+
+IMPLEMENTED for the [recorded acyclic consequence subset](../session_logs/2026-09-15_finite_multiclock_consequences.md), preserving existential consequence paths and universal antecedent children. Broader SVA remains PARTIAL; broad qualification is pending. This extends the L97 nested ranged consequence boundary.
+
+### L102 — Plain multiclock finite consequences
+
+IMPLEMENTED for the [fixed first-clock prefix subset](../session_logs/2026-09-15_plain_multiclock_consequences.md), extending L100 to sequence properties without implication vacuity. Ranged prefixes and broader SVA remain PARTIAL; broad qualification pending.
+
+### L101 — Constant fixed-array string-character increment
+
+IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_constant_array_character_increment.md). Broader clause coverage remains PARTIAL; broad qualification pending.
+
+### L103 — Plain multiclock ranged first-clock prefixes
+
+IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_plain_multiclock_ranged_prefix.md). Broader clause coverage remains PARTIAL; broad qualification pending.
+
+### L104 — Constant mixed equality
+
+IMPLEMENTED for the [recorded integral equality subset](../session_logs/2026-09-15_constant_mixed_equality.md). Broader expression coverage remains PARTIAL; broad qualification pending.
+
+### L105 — Nonlocal constant-function values
+
+IMPLEMENTED for the [recorded package/class-state rejection subset](../session_logs/2026-09-15_nonlocal_constant_function_values.md), preserving actual runtime state and legal constant inputs. Broader constant-function coverage remains PARTIAL; broad qualification pending.
+
+### L96–L105 local qualification checkpoint
+
+The ten recorded subsets have passed the [revision-scoped seven-gate checkpoint](../session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json). This supersedes the pending broad-gate notes for those subsets above. Broader clause coverage and full IEEE1800/UVM/application qualification remain incomplete; remote CI for the new publication is separate.

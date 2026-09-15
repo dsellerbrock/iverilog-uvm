@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_const_mixed_equality_strings.v","iverilog-args":["-g2017","-s","sv_const_mixed_equality_strings"],"gold":"sv_const_mixed_equality_strings"}

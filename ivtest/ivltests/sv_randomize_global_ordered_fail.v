@@ -28,8 +28,8 @@ module main;
   initial begin
     if (c.randomize() || c.a != 0 || c.b != 0 || c.child.value != 0)
       $fatal(1, "cyclic order passed or changed values");
-    if (a.randomize() || a.value[0] != 0 || a.value[1] != 0 || a.child.value != 0)
-      $fatal(1, "non-scalar order silently sampled or changed values");
+    if (!a.randomize() || a.child.value != a.value[1])
+      $fatal(1, "selected-element order failed or violated child relation");
     if (r.randomize() || r.a != 0 || r.b != 0 || r.cycle != 0 || r.child.value != 0)
       $fatal(1, "ordered randc silently sampled or changed values");
     $display("PASSED");

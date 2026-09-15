@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_boolean_repeat_mixed_coincident.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_assert_multiclock_boolean_repeat_mixed_coincident"
+}

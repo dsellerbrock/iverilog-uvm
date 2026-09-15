@@ -1,0 +1,2 @@
+./ivltests/sv_randomize_joint_queue_element_order_nonrandom_fail.v:5: error: target of 'solve before' constraint must be a random variable.
+1 error(s) during elaboration.

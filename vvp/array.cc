@@ -234,7 +234,13 @@ struct __vpiArrayVthrA : public __vpiHandle {
 			  /* Return UINT_MAX to indicate an X base. */
 			if (vp.value.vector[idx].bval != 0) return UINT_MAX;
 		  }
-		    /* The value is defined so get and return it. */
+		    /* Preserve the full selector identity until it has been
+		     * range-checked. Converting a defined wide selector through
+		     * vpiIntVal first aliases bit 32 and above onto word zero. */
+		  for (int idx = 1; idx < words; idx += 1)
+			if (vp.value.vector[idx].aval != 0) return UINT_MAX;
+		    /* Retain vpiIntVal's existing signed/short-width conversion for
+		     * the low word after proving that narrowing cannot discard bits. */
 		  vp.format = vpiIntVal;
 		  address_handle->vpi_get_value(&vp);
 		  return vp.value.integer;
@@ -726,11 +732,18 @@ vpiHandle __vpiArrayVthrA::vpi_put_value(p_vpi_value vp, int)
       unsigned index = get_address();
 
       assert(array);
-      assert(index < array->get_size());
+	/* An X/Z, negative or out-of-range selected word is not writable. This
+	 * dynamic word handle is shared by integral, real and string arrays, so
+	 * apply the ordinary invalid-array-write no-op before dispatching its
+	 * element type. */
+      if (index >= array->get_size()) return this;
 
       if (vpi_array_is_real(array)) {
 	    double val = real_from_vpi_value(vp);
 	    array->set_word(index, val);
+	} else if (vpi_array_is_string(array)) {
+	    if (vp->format == vpiStringVal && vp->value.str)
+		  array->set_word(index, std::string(vp->value.str));
       } else {
 	    unsigned width = array->get_word_size();
 	    vvp_vector4_t val = vec4_from_vpi_value(vp, width);

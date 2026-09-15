@@ -1,0 +1,2 @@
+./ivltests/sv_const_string_format_argument_fail.v:2: error: String formatting method `itoa' requires an integer argument; this expression is not implicitly numeric.
+1 error(s) during elaboration.

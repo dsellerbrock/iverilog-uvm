@@ -1,0 +1,37 @@
+id: PARALLEL-L101-L103
+title: Constant array-character increment and plain multiclock consequence alternatives
+status: IMPLEMENTING
+base_revision: 450c63f00
+authority: User authorizes two existing cheaper implementation agents, disjoint mechanisms and focused validation before broad gates near ten fixes.
+coordinator_owns: [Shared builds, Installation, Shared test harnesses and outputs, Main manifests, Documentation, Integration and review]
+lanes:
+  - id: L101-CONSTANT-ARRAY-CHARACTER-INCDEC
+    agent: /root/constraint_abi
+    status: FOCUSED_TESTED
+    standards: IEEE1800-2017 and2023 6.16,11.4.2,13.4.3
+    reproducer: evidence/batch-20260915-after-l95/next-const-array-character-assessment/isolated-baseline.json
+    actual: Both editions abort when evaluating pre/post increment or decrement of a local fixed string-array character; plain and compound assignments and runtime controls pass.
+    expected: Apply byte update to the exact selected local array word and return the correct pre/post value with each selector evaluated once.
+    owns: [net_func_eval.cc]
+    test_prefix: sv_const_array_string_character_incdec
+    dependencies: L99 word-slot resolver and scalar string-character incdec; independent of pform lane.
+    scope: Reuse selected LocalVar slot resolution in existing NetEUnary string-character path; no runtime/target/parser or generic assertion suppression.
+    acceptance: Both editions all four operators, ascending/descending/nonzero arrays, automatic recursive frames, once-only word and character selectors, signed byte and widened results, ff wrap with zero-write suppression, empty/negative/X/wide/OOB selectors, untouched neighbors, runtime parity and external/readonly diagnostics. Preserve scalar and plain/compound array neighbors.
+  - id: L103-PLAIN-RANGED-MULTICLOCK-PREFIX
+    agent: /root/constraint_wide
+    status: FOCUSED_TESTED
+    standards: IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2
+    reproducer: evidence/batch-20260915-after-l95/next-plain-ranged-prefix-assessment/assessment.md
+    actual: Both editions reject finite ranged first-clock plain sequence prefixes before second-clock alternatives.
+    expected: One plain sequence attempt succeeds when any complete prefix/suffix path matches, even if another prefix child fails; failure waits for all paths to exhaust.
+    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
+    test_prefix: sv_assert_plain_multiclock_ranged_prefix
+    dependencies: L102 fixed plain transport integrated at0efbf81c5; independent of L101 evaluator repair.
+    scope: Reuse source/destination finite NFAs and existing par_pending/par_closed/par_reported stores with existential plain aggregation. Preserve universal implication aggregation. No new scheduler, unbounded forms or local-action merges.
+    acceptance: Paired early-child-failure/later-success, first-success while prefix open, all-fail timing after CLOSE, no prefix match, ##0/##1 cutoff and reversed process order, cover once, overlapping parents, Off/Kill/async disable/restart, paused destination backlog and reclamation, finite depth and unsupported controls; preserve L100/L102 neighbors.
+file_conflict_policy: No overlapping source or fixture edits; no agent commits or shared builds. Coordinator integrates each patch before selecting the next lane item.
+focused_features_completed_in_batch: 8
+integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5]
+last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
+prior_work: docs/conformance/session_logs/2026-09-15_l99_l100_active_work_archive.yaml
+stop_after_completion: false

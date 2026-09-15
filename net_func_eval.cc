@@ -21,7 +21,9 @@
 # include  "netmisc.h"
 # include  "compiler.h"
 # include  <typeinfo>
+# include  <algorithm>
 # include  <cstring>
+# include  <cstdio>
 # include  <functional>
 # include  "ivl_assert.h"
 
@@ -1220,9 +1222,149 @@ bool NetRepeat::evaluate_function(const LineInfo&loc,
       return flag;
 }
 
-bool NetSTask::evaluate_function(const LineInfo&,
-				 map<perm_string,LocalVar>&) const
+static string const_string_format_int_(int32_t value, unsigned radix)
 {
+      static const char digits[] = "0123456789abcdef";
+      bool negative = value < 0;
+      uint64_t magnitude = negative ? uint64_t(-int64_t(value))
+	    : uint64_t(value);
+      string text;
+      do {
+	    text.push_back(digits[magnitude % radix]);
+	    magnitude /= radix;
+      } while (magnitude);
+      if (negative) text.push_back('-');
+      reverse(text.begin(), text.end());
+      return text;
+}
+
+static NetExpr** eval_func_signal_slot_(const LineInfo&loc,
+	const NetESignal*sig, map<perm_string,LocalVar>&context_map,
+	NetExpr*&invalid_slot, bool&discard_store);
+
+bool NetSTask::evaluate_function(const LineInfo&loc,
+				 map<perm_string,LocalVar>&context_map) const
+{
+	/* Elaboration lowers these receiver-updating language methods to internal
+	 * system tasks. During constant-function evaluation, apply that update to
+	 * the receiver's LocalVar slot. */
+      unsigned radix = 0;
+      if (strcmp(name_, "$ivl_string_method$itoa") == 0) radix = 10;
+      else if (strcmp(name_, "$ivl_string_method$hextoa") == 0) radix = 16;
+      else if (strcmp(name_, "$ivl_string_method$octtoa") == 0) radix = 8;
+      else if (strcmp(name_, "$ivl_string_method$bintoa") == 0) radix = 2;
+      bool realtoa = strcmp(name_, "$ivl_string_method$realtoa") == 0;
+      if ((radix || realtoa) && parms_.size() == 2) {
+	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
+	    if (!receiver) return false;
+	    NetExpr*invalid_slot = 0;
+	    bool discard_store = false;
+	    NetExpr**value_slot = eval_func_signal_slot_(
+		  loc, receiver, context_map, invalid_slot, discard_store);
+	    if (!value_slot) return false;
+
+	    NetExpr*arg = parms_[1]->evaluate_function(loc, context_map);
+	    if (!arg) { delete invalid_slot; return false; }
+	    string text;
+	    if (radix) {
+		  int32_t converted;
+		  if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg)) {
+			verinum converted_value = cast_to_width(value->value(), 32);
+			/* Match the existing VPI vpiIntVal conversion used at runtime. */
+			converted_value.cast_to_int2();
+			converted = static_cast<int32_t>(
+			      static_cast<uint32_t>(converted_value.as_long()));
+		  } else if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg)) {
+			converted = static_cast<int32_t>(value->value().as_long());
+		  } else { delete arg; delete invalid_slot; return false; }
+		  text = const_string_format_int_(converted, radix);
+	    } else {
+		  double converted;
+		  if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg))
+			converted = value->value().as_double();
+		  else if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg))
+			converted = value->value().as_double();
+		  else { delete arg; delete invalid_slot; return false; }
+		  char buffer[64];
+		  snprintf(buffer, sizeof buffer, "%g", converted);
+		  text = buffer;
+	    }
+	    delete arg;
+	    if (discard_store) { delete invalid_slot; return true; }
+	    delete *value_slot;
+	    *value_slot = new NetECString(text);
+	    (*value_slot)->set_line(*this);
+	    delete invalid_slot;
+	    return true;
+      }
+
+      if (strcmp(name_, "$ivl_string_method$putc") == 0
+	  && parms_.size() == 3) {
+	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
+	    if (!receiver) return false;
+	    NetExpr*invalid_slot = 0;
+	    bool discard_store = false;
+	    NetExpr**value_slot = eval_func_signal_slot_(
+		  loc, receiver, context_map, invalid_slot, discard_store);
+	    if (!value_slot) return false;
+
+	    auto numeric_arg = [&](const NetExpr*expr, unsigned width,
+				   int64_t&value) -> bool {
+		  NetExpr*evaluated = expr->evaluate_function(loc, context_map);
+		  if (!evaluated) return false;
+		  if (const NetEConst*number = dynamic_cast<const NetEConst*>(evaluated)) {
+			verinum converted = cast_to_width(number->value(), width);
+			converted.cast_to_int2();
+			value = width == 32
+			      ? int64_t(static_cast<int32_t>(
+				    static_cast<uint32_t>(converted.as_long())))
+			      : int64_t(static_cast<uint8_t>(converted.as_long()));
+		  } else if (const NetECReal*number =
+			       dynamic_cast<const NetECReal*>(evaluated)) {
+			int64_t rounded = number->value().as_long();
+			value = width == 32
+			      ? int64_t(static_cast<int32_t>(rounded))
+			      : int64_t(static_cast<uint8_t>(rounded));
+		  } else {
+			delete evaluated;
+			return false;
+		  }
+		  delete evaluated;
+		  return true;
+	    };
+
+	    int64_t index = 0;
+	    int64_t character = 0;
+	    if (!numeric_arg(parms_[1], 32, index)) {
+		  delete invalid_slot;
+		  return false;
+	    }
+	    if (!numeric_arg(parms_[2], 8, character)) {
+		  delete invalid_slot;
+		  return false;
+	    }
+	    if (discard_store) { delete invalid_slot; return true; }
+	    string text;
+	    if (const NetEConst*old = dynamic_cast<const NetEConst*>(*value_slot)) {
+		  if (!old->value().is_string()) {
+			delete invalid_slot;
+			return false;
+		  }
+		  text = old->value().as_raw_string();
+	    } else if (*value_slot) {
+		  delete invalid_slot;
+		  return false;
+	    }
+	    if (index >= 0 && static_cast<uint64_t>(index) < text.size()
+		&& character != 0)
+		  text[static_cast<size_t>(index)] = static_cast<char>(character);
+	    delete *value_slot;
+	    *value_slot = new NetECString(text);
+	    (*value_slot)->set_line(*this);
+	    delete invalid_slot;
+	    return true;
+      }
+
 	// system tasks within a constant function are ignored
       return true;
 }
@@ -1558,21 +1700,29 @@ NetExpr* NetESignal::evaluate_function(const LineInfo&loc,
 			      return res;
 			}
 		  }
-		  const NetScope*sig_scope = net_ ? net_->scope() : nullptr;
-		  if (gn_system_verilog() && sig_scope
-		      && (sig_scope->type() == NetScope::CLASS
-			  || sig_scope->type() == NetScope::PACKAGE)) {
-			// Compile-progress fallback for static class/package variables
-			// referenced from constant-function evaluation (e.g. UVM
-			// singleton/static handles). These are not in the local eval
-			// context map, but returning a typed placeholder preserves
-			// forward progress and exposes later semantic diagnostics.
-			NetExpr*res = make_type_default();
-			if (res) {
-			      res->set_line(*this);
-			      return res;
-			}
+		  cerr << get_fileline() << ": error: Cannot evaluate " << name()
+		       << " in this context." << endl;
+		  return 0;
+	    }
+
+	    /* The evaluation context is keyed by basename, so finding a slot is
+	       not sufficient to prove that this signal is the corresponding
+	       function local.  A qualified package/class variable may have the
+	       same name as a local and must not borrow that local's value in a
+	       constant function (IEEE 1800-2017/2023 13.4.3). */
+	    bool nonlocal_static = false;
+	    for (const NetScope*cur_scope = net_ ? net_->scope() : 0;
+		 cur_scope; cur_scope = cur_scope->parent()) {
+		  if (cur_scope->type() == NetScope::FUNC
+		      || cur_scope->type() == NetScope::MODULE)
+			break;
+		  if (cur_scope->type() == NetScope::PACKAGE
+		      || cur_scope->type() == NetScope::CLASS) {
+			nonlocal_static = true;
+			break;
 		  }
+	    }
+	    if (nonlocal_static) {
 		  cerr << get_fileline() << ": error: Cannot evaluate " << name()
 		       << " in this context." << endl;
 		  return 0;
@@ -1761,6 +1911,79 @@ NetExpr* NetEUnary::evaluate_function(const LineInfo&loc,
 				map<perm_string,LocalVar>&context_map) const
 {
       if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
+            const NetESelect*select = dynamic_cast<const NetESelect*>(expr_);
+            const NetESignal*string_sig = select
+                  ? dynamic_cast<const NetESignal*>(select->sub_expr()) : 0;
+            if (select && string_sig && select->select()
+                && select->expr_width() == 8
+                && string_sig->sig()->data_type() == IVL_VT_STRING) {
+                  /* Resolve the selected array word before evaluating the
+                   * character index. Both are l-value selectors and each is
+                   * evaluated exactly once. The shared slot helper also
+                   * supplies the invalid-word discard behavior. */
+                  NetExpr*invalid_slot = 0;
+                  bool discard_store = false;
+                  NetExpr**slot = eval_func_signal_slot_(loc, string_sig,
+                        context_map, invalid_slot, discard_store);
+                  if (!slot) return 0;
+
+                  unique_ptr<NetExpr>index_expr(
+                        select->select()->evaluate_function(loc, context_map));
+                  const NetEConst*index_const = index_expr
+                        ? dynamic_cast<const NetEConst*>(index_expr.get()) : 0;
+                  if (!index_const) {
+                        delete invalid_slot;
+                        return 0;
+                  }
+                  int64_t index = const_string_index_(index_const->value());
+
+                  if (!*slot) {
+                        *slot = new NetECString(string());
+                        (*slot)->set_line(*this);
+                  }
+                  const NetEConst*old_string =
+                        dynamic_cast<const NetEConst*>(*slot);
+                  if (!old_string || !old_string->value().is_string()) {
+                        delete invalid_slot;
+                        return 0;
+                  }
+
+                  string text = old_string->value().as_raw_string();
+                  bool in_range = index >= 0
+                        && static_cast<uint64_t>(index) < text.size();
+                  uint64_t character = in_range
+                        ? static_cast<unsigned char>(text[index]) : 0;
+                  verinum old_value(character, 8);
+                  old_value.has_sign(true);
+                  verinum new_value = old_value;
+                  verinum one(uint64_t(1), 8);
+                  one.has_sign(true);
+                  eval_func_lval_op_vec_(loc,
+                        (op_ == 'i' || op_ == 'I') ? '+' : '-',
+                        new_value, one);
+                  new_value = cast_to_width(new_value, 8);
+                  new_value.cast_to_int2();
+                  new_value.has_sign(true);
+
+                  unsigned char byte = static_cast<unsigned char>(
+                        new_value.as_ulong64());
+                  if (in_range && byte != 0) {
+                        text[index] = static_cast<char>(byte);
+                        NetECString*updated = new NetECString(
+                              verinum::from_raw_string(text));
+                        updated->set_line(*this);
+                        delete *slot;
+                        *slot = updated;
+                  }
+                  delete invalid_slot;
+                  verinum result_value =
+                        (op_ == 'i' || op_ == 'd') ? old_value : new_value;
+                  result_value = pad_to_width(result_value, expr_width());
+                  result_value.has_sign(has_sign());
+                  NetEConst*result = new NetEConst(result_value);
+                  result->set_line(*this);
+                  return result;
+            }
             const NetESignal*sig = dynamic_cast<const NetESignal*>(expr_);
             if (!sig) return 0;
             NetExpr*invalid_slot = 0;
@@ -1876,6 +2099,150 @@ NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 	    }
 	    delete arg;
 	    NetEConst*res = new NetEConst(verinum(verinum(len), integer_width));
+	    res->set_line(*this);
+	    return res;
+      }
+
+      bool string_toupper = strcmp(name_, "$ivl_string_method$toupper") == 0;
+      bool string_tolower = strcmp(name_, "$ivl_string_method$tolower") == 0;
+      if ((string_toupper || string_tolower) && parms_.size() == 1) {
+	    NetExpr*arg = parms_[0]->evaluate_function(loc, context_map);
+	    if (arg == 0) return 0;
+	    const NetEConst*arg_const = dynamic_cast<const NetEConst*>(arg);
+	    if (arg_const == 0 || !arg_const->value().is_string()) {
+		  delete arg;
+		  return 0;
+	    }
+
+	    string text = arg_const->value().as_raw_string();
+	    delete arg;
+	    /* SystemVerilog strings are byte sequences. Restrict conversion to
+	       ASCII letters so the folded value does not depend on the host
+	       locale, and preserve every other byte. */
+	    for (size_t idx = 0; idx < text.size(); ++idx) {
+		  unsigned char ch = static_cast<unsigned char>(text[idx]);
+		  if (string_toupper && ch >= 'a' && ch <= 'z')
+			text[idx] = static_cast<char>(ch - 'a' + 'A');
+		  else if (string_tolower && ch >= 'A' && ch <= 'Z')
+			text[idx] = static_cast<char>(ch - 'A' + 'a');
+	    }
+	    NetECString*res = new NetECString(text);
+	    res->set_line(*this);
+	    return res;
+      }
+
+      if (strcmp(name_, "$ivl_string_method$substr") == 0
+	  && parms_.size() == 3) {
+	    NetExpr*text_expr = parms_[0]->evaluate_function(loc, context_map);
+	    if (text_expr == 0) return 0;
+	    NetExpr*first_expr = parms_[1]->evaluate_function(loc, context_map);
+	    if (first_expr == 0) {
+		  delete text_expr;
+		  return 0;
+	    }
+	    NetExpr*last_expr = parms_[2]->evaluate_function(loc, context_map);
+	    if (last_expr == 0) {
+		  delete text_expr;
+		  delete first_expr;
+		  return 0;
+	    }
+
+	    const NetEConst*text_const = dynamic_cast<const NetEConst*>(text_expr);
+	    const NetEConst*first_const = dynamic_cast<const NetEConst*>(first_expr);
+	    const NetEConst*last_const = dynamic_cast<const NetEConst*>(last_expr);
+	    if (text_const == 0 || first_const == 0 || last_const == 0
+		|| !text_const->value().is_string()) {
+		  delete text_expr;
+		  delete first_expr;
+		  delete last_expr;
+		  return 0;
+	    }
+
+	    string text = text_const->value().as_raw_string();
+	    int64_t first = const_string_index_(first_const->value());
+	    int64_t last = const_string_index_(last_const->value());
+	    delete text_expr;
+	    delete first_expr;
+	    delete last_expr;
+	    string result;
+	    if (first >= 0 && last >= first
+		&& static_cast<uint64_t>(last) < text.size())
+		  result = text.substr(static_cast<size_t>(first),
+				       static_cast<size_t>(last-first+1));
+	    NetECString*res = new NetECString(result);
+	    res->set_line(*this);
+	    return res;
+      }
+
+      bool string_compare = strcmp(name_, "$ivl_string_method$compare") == 0;
+      bool string_icompare = strcmp(name_, "$ivl_string_method$icompare") == 0;
+      if ((string_compare || string_icompare) && parms_.size() == 2) {
+	    NetExpr*left_expr = parms_[0]->evaluate_function(loc, context_map);
+	    if (left_expr == 0) return 0;
+	    NetExpr*right_expr = parms_[1]->evaluate_function(loc, context_map);
+	    if (right_expr == 0) {
+		  delete left_expr;
+		  return 0;
+	    }
+	    const NetEConst*left_const = dynamic_cast<const NetEConst*>(left_expr);
+	    const NetEConst*right_const = dynamic_cast<const NetEConst*>(right_expr);
+	    if (left_const == 0 || right_const == 0
+		|| !left_const->value().is_string()
+		|| !right_const->value().is_string()) {
+		  delete left_expr;
+		  delete right_expr;
+		  return 0;
+	    }
+
+	    string left = left_const->value().as_raw_string();
+	    string right = right_const->value().as_raw_string();
+	    delete left_expr;
+	    delete right_expr;
+	    size_t common = left.size() < right.size() ? left.size() : right.size();
+	    int comparison = 0;
+	    for (size_t idx = 0; idx < common && comparison == 0; ++idx) {
+		  unsigned char lhs = static_cast<unsigned char>(left[idx]);
+		  unsigned char rhs = static_cast<unsigned char>(right[idx]);
+		  if (string_icompare) {
+			if (lhs >= 'A' && lhs <= 'Z') lhs = lhs - 'A' + 'a';
+			if (rhs >= 'A' && rhs <= 'Z') rhs = rhs - 'A' + 'a';
+		  }
+		  if (lhs < rhs) comparison = -1;
+		  else if (lhs > rhs) comparison = 1;
+	    }
+	    if (comparison == 0) {
+		  if (left.size() < right.size()) comparison = -1;
+		  else if (left.size() > right.size()) comparison = 1;
+	    }
+	    NetEConst*res = new NetEConst(verinum(verinum(comparison), integer_width));
+	    res->set_line(*this);
+	    return res;
+      }
+
+      unsigned string_integer_radix = 0;
+      if (strcmp(name_, "$ivl_string_method$atoi") == 0)
+	    string_integer_radix = 10;
+      else if (strcmp(name_, "$ivl_string_method$atohex") == 0)
+	    string_integer_radix = 16;
+      else if (strcmp(name_, "$ivl_string_method$atooct") == 0)
+	    string_integer_radix = 8;
+      else if (strcmp(name_, "$ivl_string_method$atobin") == 0)
+	    string_integer_radix = 2;
+      if (string_integer_radix && parms_.size() == 1) {
+	    NetExpr*arg = parms_[0]->evaluate_function(loc, context_map);
+	    if (arg == 0) return 0;
+	    const NetEConst*arg_const = dynamic_cast<const NetEConst*>(arg);
+	    if (arg_const == 0 || !arg_const->value().is_string()) {
+		  delete arg;
+		  return 0;
+	    }
+
+	    string text = arg_const->value().as_raw_string();
+	    delete arg;
+	    int64_t value = string_method_parse_integer(text, string_integer_radix);
+	    verinum result(static_cast<uint64_t>(value), 32);
+	    result.has_sign(true);
+	    NetEConst*res = new NetEConst(result);
 	    res->set_line(*this);
 	    return res;
       }

@@ -2748,12 +2748,43 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 
       assert(ivl_stmt_lvals(net) == 1);
       if (ivl_stmt_opcode(net) != 0) {
+	    if (part && aidx && !signal_is_return_value(var)) {
+		  int word_index = allocate_word();
+		  int word_flag = allocate_flag();
+		  int character_index = allocate_word();
+		  draw_eval_expr_into_integer(aidx, word_index);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string array word selector\n",
+		          word_flag);
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string array character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string array character selector\n",
+		          character_index);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector for read\n",
+		          word_flag);
+		  fprintf(vvp_out, "    %%load/stra v%p, %d; string array character compound read\n",
+		          var, word_index);
+		  fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string array character\n",
+		          character_index);
+		  fprintf(vvp_out, "    %%pop/str 1; discard captured string array word\n");
+		  draw_stmt_assign_vector_rhs(net, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector\n",
+		          word_flag);
+		  fprintf(vvp_out, "    %%putc/stra/vec4 v%p, %d, %d; string array character compound store\n",
+		          var, word_index, character_index);
+		  clr_word(word_index);
+		  clr_flag(word_flag);
+		  clr_word(character_index);
+		  return 0;
+	    }
 	    /* A character selection is an 8-bit integral l-value. Capture its
 	     * selector once, read the old byte with the established string-select
 	     * path, apply the ordinary vector compound operation, and write it
 	     * through putc. putc retains the standard invalid-index, empty-string,
 	     * and zero-byte behavior. */
-	    if (part && !aidx && !signal_is_return_value(var)) {
+	    if (part && !aidx
+	        && (!signal_is_return_value(var)
+	            || ivl_signal_dimensions(var) == 0)) {
 		  int mux_word = allocate_word();
 		  int mux_flag = allocate_flag();
 		  /* string.getc/putc take a two-state signed int index. Perform
@@ -2766,16 +2797,23 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 		          mux_word);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string character selector\n",
 		          mux_flag);
-		  fprintf(vvp_out, "    %%load/str v%p_0; string character compound read\n",
-		          var);
+		  if (signal_is_return_value(var))
+			fprintf(vvp_out, "    %%retload/str 0; string return character compound read\n");
+		  else
+			fprintf(vvp_out, "    %%load/str v%p_0; string character compound read\n",
+			        var);
 		  fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string character\n",
 		          mux_word);
 		  fprintf(vvp_out, "    %%pop/str 1; discard captured string\n");
 		  draw_stmt_assign_vector_rhs(net, 8);
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
 		          mux_flag);
-		  fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d; string character compound store\n",
-		          var, mux_word);
+		  if (signal_is_return_value(var))
+			fprintf(vvp_out, "    %%putc/ret/vec4 0, %d; string return character compound store\n",
+			        mux_word);
+		  else
+			fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d; string character compound store\n",
+			        var, mux_word);
 		  clr_word(mux_word);
 		  clr_flag(mux_flag);
 		  return 0;
@@ -2804,7 +2842,27 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 			  ivl_signal_basename(var));
 		  return 0;
 	    }
-	    /* Compile-progress fallback: slice/index assignment to string return
+	    if (part && !aidx) {
+		  int mux_word = allocate_word();
+		  int mux_flag = allocate_flag();
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string return character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string return character selector\n",
+		          mux_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string return character selector\n",
+		          mux_flag);
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string return character selector\n",
+		          mux_flag);
+		  fprintf(vvp_out, "    %%putc/ret/vec4 0, %d; assign string return character\n",
+		          mux_word);
+		  clr_word(mux_word);
+		  clr_flag(mux_flag);
+		  return 0;
+	    }
+	    /* Compile-progress fallback: unsupported indexed string return
 	       value is not materialized. Preserve side effects, then discard. */
 	    draw_eval_string(rval);
 	    fprintf(vvp_out, "    %%pop/str 1;\n");
@@ -2834,7 +2892,30 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 	   expression so we are assigning to an array word. */
       if (aidx != 0) {
 	    unsigned ix;
-	    assert(part == 0);
+	    if (part != 0) {
+		  int word_index = allocate_word();
+		  int word_flag = allocate_flag();
+		  int character_index = allocate_word();
+		  draw_eval_expr_into_integer(aidx, word_index);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string array word selector\n",
+		          word_flag);
+		  /* A string CHARACTER selector is a signed two-state int. */
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string array character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string array character selector\n",
+		          character_index);
+		  draw_eval_vec4(rval);
+		  resize_vec4_wid(rval, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string array word selector\n",
+		          word_flag);
+		  fprintf(vvp_out, "    %%putc/stra/vec4 v%p, %d, %d; assign string array character\n",
+		          var, word_index, character_index);
+		  clr_word(word_index);
+		  clr_flag(word_flag);
+		  clr_word(character_index);
+		  return 0;
+	    }
 	    draw_eval_string(rval);
 	    draw_eval_expr_into_integer(aidx, (ix = allocate_word()));
 	    fprintf(vvp_out, "    %%store/stra v%p, %u;\n", var, ix);

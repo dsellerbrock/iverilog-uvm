@@ -1,0 +1,45 @@
+{
+  "status": "Focused packed-select repair; broad qualification pending",
+  "checks": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/batch-20260914-after-l84/l90-regression-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n      br_gh1223a: Passed.\n      br_gh1223b: Passed.\n      br_gh1223c: Passed.\n      pr2835632b: Passed.\n       pr2913927: Passed.\n      pr3054101a: Passed.\n      pr3054101b: Passed.\n      pr3054101c: Passed.\n      pr3054101d: Passed.\n      pr3054101e: Passed.\n      pr3054101f: Passed.\n sel_rval_bit_ob: Passed.\nsel_rval_part_ob: Passed.\n============================================================================\nTest results:\n  Total=13, Passed=13, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-class-enum-container-packed-select-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "tainer_packed_select_2023: Passed.\n        sv_class_enum_container_packed_select_bounds: Passed.\n   sv_class_enum_container_packed_select_bounds_2023: Passed.\n          sv_class_enum_container_packed_select_fail: Passed - CE.\n     sv_class_enum_container_packed_select_fail_2023: Passed - CE.\n          sv_class_enum_container_packed_select_once: Passed.\n     sv_class_enum_container_packed_select_once_2023: Passed.\n     sv_class_enum_container_packed_select_ascending: Passed.\nsv_class_enum_container_packed_select_ascending_2023: Passed.\n============================================================================\nTest results:\n  Total=10, Passed=10, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-class-enum-container-packed-select-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "packed_select: Passed.\n          sv_class_enum_container_packed_select_2023: Passed.\n     sv_class_enum_container_packed_select_ascending: Passed.\nsv_class_enum_container_packed_select_ascending_2023: Passed.\n        sv_class_enum_container_packed_select_bounds: Passed.\n   sv_class_enum_container_packed_select_bounds_2023: Passed.\n          sv_class_enum_container_packed_select_fail: Passed - CE.\n     sv_class_enum_container_packed_select_fail_2023: Passed - CE.\n          sv_class_enum_container_packed_select_once: Passed.\n     sv_class_enum_container_packed_select_once_2023: Passed.\n============================================================================\nTest results: Ran 10, Failed 0.\n"
+    }
+  ],
+  "source_hashes": {
+    "elab_expr.cc": "eb68bb461a648e889d5c194cae0730d58076f18d0abab6595f663dd2db6a5581",
+    "tgt-vvp/eval_vec4.c": "f442505a7bd603164403c8d92145bb27d1f684bda49078e0ac8e9d785ed71cac"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "6e9f1d993d5f95a6b9096933efab9f54c3ec9dc997bbcc952dab8a796b2c4533",
+    "local-install/lib/ivl/vvp.tgt": "cf9ccc9aad453d15136c1a783846fa1cf28d9fade19a111aa56f82490c2bab2c",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "failed_candidate": "5898ea050",
+  "standards": [
+    "IEEE1800-2017/2023 11.5.1; preserve legacy Verilog parameter selection semantics"
+  ]
+}

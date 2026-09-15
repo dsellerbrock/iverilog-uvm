@@ -1702,3 +1702,34 @@ Evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/compound-b
 DD-031 L66: real/string return-array element reads and writes, including real compound updates, are implemented with focused validation. Scalar return handling is now restricted to scalar signals; array paths preserve typed storage. Root28/28 paired outcomes, permanent8/8 per harness, neighbors4/4. See session_logs/2026-09-14_typed_array_return_elements.md. Broad qualification remains at the next batch checkpoint.
 
 DD-030 update: L67 implements the scalar packed-signal and return-slot subset with focused evidence. Broader selected receivers remain open. Current operational scope is in BLOCKERS L67; measured outcomes are in session_logs/2026-09-14_packed_select_increment.md. Earlier reproductions and oracle corrections remain preserved.
+
+
+### DD-032 — Fixed multiclock assertions start attempts while disabled
+
+- **Discovered during:** L91 consequent compatibility review, 2026-09-15.
+- **State:** REPRODUCED; record-only, not part of the active L91 patch.
+- **Evidence:** `evidence/batch-20260914-after-l84/l91-review/fixed-control-baseline.json`
+  records eight paired runtime failures and the installed compiler hash.
+  Both a fixed Boolean consequent and `good[*1:2]` start another attempt
+  after `$assertoff(0)` or `$assertkill(0)` at time 11. The source clock ticks
+  at 10 and 30; the destination ticks at 15 and 35. Off should allow only
+  the pending first attempt to finish; kill should allow neither.
+- **Observed:** Off produces two passes, and kill produces one pass at 35,
+  in both editions. These failures predate the unbuilt L91 source patch.
+- **Authority:** IEEE 1800-2017/2023 assertion control semantics: Off prevents
+  new attempts; Kill also discards pending attempts. Verify the appropriate
+  control-task and VPI assertion-control clauses when selecting this fix.
+- **Source hypothesis:** The fixed multiclock source pipeline starts with an
+  unconditional gate; the L86 ranged pipeline has an enabled-state gate.
+  A fix must gate new starts while preserving pending attempts for Off,
+  and retain kill/restart, coincident clocks, and action scheduling.
+
+DD032 is resolved for the fixed-pipeline control subset by [L92](session_logs/2026-09-15_fixed_multiclock_assertion_control.md); original failing records remain preserved. Broad qualification is pending.
+
+## L99 adjacent VPI output observations — 2026-09-15
+
+During L99 boundary testing, selected real fixed-array `$sscanf` outputs arrived as nonassignable constants, and selected integral outputs with negative/nonzero declared bounds appeared to use an unnormalized word index. These observations are unqualified, require baseline reproduction and IEEE21.3/VPI address review, and are not part of L99 completion. Evidence: `evidence/batch-20260915-after-l95/next-string-array-method-assessment/L99-IMPLEMENTATION.md`. No new implementation is authorized by this record.
+
+### L101 discovery — const local fixed-string-array initializer
+
+During L101, a constant local fixed-string-array aggregate initializer crashed before the character update. This is a separate unqualified initializer defect, not evidence against selected-character reads or the implemented update path. Evidence: `evidence/batch-20260915-after-l95/l101-l102-first-direct.json` and the L101 assessment reducers. Possible scope: declaration/aggregate initialization under clauses6.16 and10.9; standards and minimal root cause require triage. Status: recorded, not selected. L101 readonly regression uses a module const receiver and pins its write rejection.

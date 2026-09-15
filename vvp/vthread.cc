@@ -4738,6 +4738,7 @@ struct randomize_static_value_s {
 struct randomize_graph_entry_s {
       vvp_object_t hold;
       vvp_cobject*cobj;
+      std::string rng_state;
       std::vector<rand_saved_prop_s> values;
       vvp_cobject::randc_history_state_t instance_history;
       std::vector<randomize_static_history_s> static_history;
@@ -4785,6 +4786,7 @@ class randomize_graph_session_t {
 	    randomize_graph_entry_s&entry = entries_.back();
 	    entry.hold = vvp_object_t(cobj);
 	    entry.cobj = cobj;
+	    entry.rng_state = cobj->rng_get_state();
 	    const class_type*defn = cobj->get_defn();
 	    for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
 		  if (!rand_call_active_(defn, cobj, sel, pid)
@@ -4848,6 +4850,7 @@ class randomize_graph_session_t {
 	    for (std::vector<randomize_graph_entry_s>::reverse_iterator it =
 		       entries_.rbegin(); it != entries_.rend(); ++it) {
 		  randomize_restore_(it->cobj, it->values);
+		  (void)it->cobj->rng_set_state(it->rng_state);
 		  it->cobj->randc_history_restore(it->instance_history);
 		  for (const randomize_static_history_s&saved : it->static_history)
 			saved.defn->static_randc_history(saved.pid, saved.leaf) =
@@ -26483,6 +26486,37 @@ bool of_PUTC_STR_VEC4(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %putc/stra/vec4 <array>, <word-index>, <character-index> */
+bool of_PUTC_STRA_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned word_reg = cp->bit_idx[0];
+      unsigned char_reg = cp->bit_idx[1];
+      int64_t word = thr->words[word_reg].w_int;
+      int64_t character = thr->words[char_reg].w_int;
+      vvp_vector4_t val = thr->pop_vec4();
+      assert(val.size() == 8);
+
+      vvp_array_t array = resolve_runtime_array_(cp, "%putc/stra/vec4");
+      if (thr->flags[4] != BIT4_0 || !array || word < 0
+	  || uint64_t(word) >= array->get_size() || character < 0)
+	    return true;
+
+      string tmp = array->get_word_str(static_cast<unsigned>(word));
+      if (uint64_t(character) >= tmp.size())
+	    return true;
+
+      unsigned char byte = 0;
+      for (size_t bit = 0; bit < 8; bit += 1)
+	    if (val.value(bit) == BIT4_1)
+		  byte |= 1U << bit;
+      if (byte == 0)
+	    return true;
+
+      tmp[character] = byte;
+      array->set_word(static_cast<unsigned>(word), tmp);
+      return true;
+}
+
 template <typename ELEM, class QTYPE>
 static bool qinsert(vthread_t thr, vvp_code_t cp, unsigned wid=0)
 {
@@ -27690,6 +27724,38 @@ bool of_RETLOAD_STR(vthread_t thr, vvp_code_t cp)
       return retload<string>(thr, cp);
 }
 
+/* %putc/ret/vec4 <return-index>, <mux>
+ * Update one byte of the string return slot owned by the active function. */
+bool of_PUTC_RET_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      unsigned muxr = cp->bit_idx[0];
+      int64_t mux = muxr ? thr->words[muxr].w_int : 0;
+      vvp_vector4_t val = thr->pop_vec4();
+      assert(val.size() == 8);
+      if ((muxr && thr->flags[4] != BIT4_0) || mux < 0)
+	    return true;
+
+      string type;
+      vthread_t fun_thr = get_func(thr);
+      size_t index = cp->number;
+      assert(index < get_max(fun_thr, type));
+      unsigned depth = get_depth(fun_thr, index, type);
+      string tmp = fun_thr->parent->peek_str(depth);
+      if ((uint64_t)mux >= (uint64_t)tmp.size())
+	    return true;
+
+      unsigned char byte = 0;
+      for (size_t bit = 0; bit < 8; bit += 1)
+	    if (val.value(bit) == BIT4_1)
+		  byte |= 1U << bit;
+      if (byte == 0)
+	    return true;
+
+      tmp[mux] = byte;
+      fun_thr->parent->poke_str(depth, tmp);
+      return true;
+}
+
 /*
  * Phase 63b/B6: %ret/obj <index>
  *
@@ -28046,6 +28112,41 @@ bool of_SET_DAR_OBJ_STR(vthread_t thr, vvp_code_t cp)
 bool of_SET_DAR_OBJ_VEC4(vthread_t thr, vvp_code_t cp)
 {
       return set_dar_obj<vvp_vector4_t>(thr, cp);
+}
+
+/*
+ * %set/dar/obj/vec4/off <index_reg>, <off_reg>, <wid>
+ *
+ * Merge the vec4 value on top of the stack into one packed queue/darray
+ * element. The receiver remains on the object stack. The replacement is
+ * consumed, leaving the duplicate expression result below it.
+ */
+bool of_SET_DAR_OBJ_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      int64_t adr = thr->words[cp->bit_idx[0]].w_int;
+      int64_t off = thr->words[cp->bit_idx[1]].w_int;
+      vvp_vector4_t replacement = thr->pop_vec4();
+      vvp_object_t&top = thr->peek_object();
+      vvp_darray*dar = top.peek<vvp_darray>();
+      if (!dar || thr->flags[4] != BIT4_0)
+	    return true;
+
+      adr = darray_canonical_index_(dar, adr);
+      if (adr < 0 || container_index_exceeds_runtime_range_(thr, adr)
+	  || (uint64_t)adr >= dar->get_size())
+	    return true;
+
+      vvp_vector4_t word;
+      dar->get_word((unsigned)adr, word);
+      if (replacement.size() > cp->number)
+	    replacement = replacement.subvalue(0, cp->number);
+      if (!resize_rval_vec(replacement, off, word.size()))
+	    return true;
+      word.set_vec((unsigned)off, replacement);
+      dar->set_word((unsigned)adr, word);
+      notify_mutated_object_root_(thr, top, thr->peek_object_source_net(0),
+                                  thr->peek_object_root(0), "set-dar-obj-vec4-off");
+      return true;
 }
 
 /*

@@ -1,0 +1,23 @@
+{
+  "scope": "L79 Fixed-array string-character stores",
+  "source_base": "865345a8bc65c01884f7305bdcf893658f27eca7",
+  "source_sha256": {
+    "tgt-vvp/stmt_assign.c": "acd6bff6a5b4336cd44f94b47730688411d02aced102d1be0ac72fb07a5302a5",
+    "vvp/codes.h": "1f71268440c1a0d0b9e0c959057cace5a6383eabb13b406d8d8395db2b34f922",
+    "vvp/compile.cc": "04e6bbd9023870f6642cd064ff3d560d6b253183d85681d729984dbe0ca2866b",
+    "vvp/vthread.cc": "06344cdd26e759b8e7fb8caa127dedab95fe075990f746f6b6679c93598c2aea"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "176bea98a532aa3e8e5fb2710d0266f2dbf7bd3aee358828c3b1dc3f047b4f25",
+    "local-install/lib/ivl/ivl": "5afb22ff177d8acb097a20bf452ca12c2364933e87c6a67fbfb6ff580950e13e",
+    "local-install/lib/ivl/vvp.tgt": "887205352153cd8db77d452d24d5b713accf2420fee01403da6c23b662081cc6"
+  },
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "neighbors_json": 32,
+  "focused_evidence": "evidence/batch-20260914-after-l74/l79-focused.json",
+  "neighbor_evidence": "evidence/batch-20260914-after-l74/l79-l80-neighbors.json",
+  "broad_qualified": false,
+  "artifact_provenance": "L80 compiler and L79 target/runtime; focused combined candidate."
+}

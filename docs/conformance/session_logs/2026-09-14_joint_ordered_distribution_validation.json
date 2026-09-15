@@ -1,0 +1,76 @@
+{
+  "blocker": "L85",
+  "status": "FOCUSED_TESTED; broad batch qualification pending",
+  "candidate": {
+    "head": "2da64110be10576544f37785fb777638da4c2f1f",
+    "hashes": {
+      "vvp/vvp_z3.cc": "4df5d2f4de2c649c1680a295cbb4a818595ad26566ec8019a7d7acf50329ee5e",
+      "vvp/vthread.cc": "20a033300eda8038a415df547ebc211b939b493e6c792b30947511d462a6abc5",
+      "local-install/lib/ivl/ivl": "14580f85d0290e22791efabbc996dd7c77a31465dea1ba16ecdf0fa40d4f24db",
+      "local-install/lib/ivl/vvp.tgt": "eecd0952205b9fc7bb4b1094f81e1f0689d040e2ca29251788ebe2d13458caad",
+      "local-install/bin/vvp": "28235f67d0d1a35973d05e61c53ef375fb4e2a0b3283015f4b7df68c5c01da56"
+    }
+  },
+  "standards": {
+    "2017": [
+      "18.5.4",
+      "18.5.9",
+      "18.5.10"
+    ],
+    "2023": [
+      "18.5.3",
+      "18.5.8",
+      "18.5.9"
+    ]
+  },
+  "validation": [
+    {
+      "tag": "l85-final-legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-randomize-joint-ordered-dist-legacy.list"
+      ],
+      "returncode": 0,
+      "seconds": 29.185023069381714,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13.\n----------------------------------------------------------------------------\n                 sv_randomize_joint_ordered_dist: Passed.\n            sv_randomize_joint_ordered_dist_2023: Passed.\n     sv_randomize_joint_ordered_dist_transaction: Passed.\nsv_randomize_joint_ordered_dist_transaction_2023: Passed.\n          sv_randomize_joint_ordered_dist_ranges: Passed.\n     sv_randomize_joint_ordered_dist_ranges_2023: Passed.\n            sv_randomize_joint_ordered_dist_fail: Passed.\n       sv_randomize_joint_ordered_dist_fail_2023: Passed.\n============================================================================\nTest results:\n  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "tag": "l85-final-json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-randomize-joint-ordered-dist-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 29.28878092765808,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-randomize-joint-ordered-dist-vvp.list\n----------------------------------------------------------------------------\n                 sv_randomize_joint_ordered_dist: Passed.\n            sv_randomize_joint_ordered_dist_2023: Passed.\n            sv_randomize_joint_ordered_dist_fail: Passed.\n       sv_randomize_joint_ordered_dist_fail_2023: Passed.\n          sv_randomize_joint_ordered_dist_ranges: Passed.\n     sv_randomize_joint_ordered_dist_ranges_2023: Passed.\n     sv_randomize_joint_ordered_dist_transaction: Passed.\nsv_randomize_joint_ordered_dist_transaction_2023: Passed.\n============================================================================\nTest results: Ran 8, Failed 0.\n"
+    },
+    {
+      "tag": "l85-final-neighbors",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-l85-neighbors-vvp.list"
+      ],
+      "returncode": 0,
+      "seconds": 48.227097034454346,
+      "tail": "Running compiler/VVP tests for Icarus Verilog version: 13\nUsing list(s): regress-l85-neighbors-vvp.list\n----------------------------------------------------------------------------\n                 sv_randc_txn_object_rng: Passed.\n      sv_randc_txn_recursive_alias_cycle: Passed.\n         sv_randc_txn_recursive_rollback: Passed.\n            sv_randc_txn_reentrant_hooks: Passed.\n            sv_randc_txn_two_pass_commit: Passed.\n         sv_randc_txn_two_pass_rng_order: Passed.\n              sv_randc_txn_unsat_history: Passed.\n          sv_randomize_global_alias_soft: Passed.\n     sv_randomize_global_alias_soft_2023: Passed.\n          sv_randomize_global_components: Passed.\n     sv_randomize_global_components_2023: Passed.\n     sv_randomize_global_components_fail: Passed.\nsv_randomize_global_components_fail_2023: Passed.\n     sv_randomize_global_dist_components: Passed.\nsv_randomize_global_dist_components_2023: Passed.\n             sv_randomize_global_ordered: Passed.\n        sv_randomize_global_ordered_2023: Passed.\n        sv_randomize_global_ordered_fail: Passed.\n   sv_randomize_global_ordered_fail_2023: Passed.\n       sv_randomize_global_ordered_limit: Passed.\n  sv_randomize_global_ordered_limit_2023: Passed.\n       sv_randomize_global_sampling_fail: Passed.\n  sv_randomize_global_sampling_fail_2023: Passed.\n============================================================================\nTest results: Ran 23, Failed 0.\n"
+    }
+  ],
+  "registrations": {
+    "regress-sv.list": 8,
+    "regress-vvp.list": 8
+  },
+  "baseline": "evidence/next-batch-after-l84/baseline.json",
+  "preserved_failures": [
+    "evidence/batch-20260914-after-l84/l85-first-focused.json",
+    "evidence/batch-20260914-after-l84/l85-ranges-direct.json"
+  ],
+  "scope": "Canonical scalar ordered stages with one supported hard state-weight distribution per coupled component; exact marginals and conditional fibers. Fully feasible positive-weight ranges only; every reachable prefix preflighted before stage sampling. Graph rollback includes object RNG state as campaign contract.",
+  "pending": [
+    "Seven broad gates near ten integrated fixes",
+    "Cross-platform CI for future batch publication",
+    "Full IEEE/UVM/application qualification remains separate"
+  ]
+}

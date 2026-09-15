@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_array_string_character_incdec_bounds.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "sv_array_string_character_incdec_bounds"
+    ],
+    "gold": "sv_array_string_character_incdec_bounds"
+}

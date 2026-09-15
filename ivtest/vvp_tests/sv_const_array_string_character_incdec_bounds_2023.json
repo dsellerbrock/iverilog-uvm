@@ -1,0 +1,1 @@
+{"type":"normal","source":"sv_const_array_string_character_incdec_bounds_2023.v","iverilog-args":["-g2023","-s","sv_const_array_string_character_incdec_bounds"],"gold":"sv_const_array_string_character_incdec_bounds"}

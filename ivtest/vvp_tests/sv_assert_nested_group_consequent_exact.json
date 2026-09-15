@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_assert_nested_group_consequent_exact.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_assert_nested_group_consequent_exact"
+}

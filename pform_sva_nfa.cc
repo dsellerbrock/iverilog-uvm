@@ -216,7 +216,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 		 otherwise `[ *0:$] ##0 tail' skips checking the first copy and
 		 can survive a terminating condition for one cycle too long. */
 	    if (st.rep_kind == 3) {
-		  if (m != 0 || (!ub && n < 0) || st.rep_tail != 0)
+		  if (m < 0 || (!ub && n < m) || st.rep_tail != 0)
 			return ~0u;
 		  /* The generic delay prefix above emitted fixed-1 ticks because
 		     an ordinary nonempty step places its expression on the final
@@ -229,7 +229,7 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 			cur = arrival;
 		  }
 		  unsigned exit = nfa.new_state();
-		  nfa.eps(cur, exit);
+		  if (m == 0) nfa.eps(cur, exit);
 		  if (!ub && n == 0) return exit;
 		  unsigned prev;
 		  if (first && fixed == 0) {
@@ -239,14 +239,14 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 			prev = nfa_fuse_arrival_(nfa, cur, st.expr);
 			if (prev == ~0u) return ~0u;
 		  }
-		  nfa.eps(prev, exit);
+		  if (m <= 1) nfa.eps(prev, exit);
 		  if (ub) {
 			nfa.tick(prev, prev, st.expr);
 		  } else {
 			for (long i = 2; i <= n; i += 1) {
 			      unsigned nxt = nfa.new_state();
 			      nfa.tick(prev, nxt, st.expr);
-			      nfa.eps(nxt, exit);
+			      if (i >= m) nfa.eps(nxt, exit);
 			      prev = nxt;
 			}
 		  }
@@ -600,18 +600,169 @@ static void prune_dead_states_(sva_nfa_t&nfa,
       if (old_to_new) old_to_new->swap(remap);
 }
 
+static bool nfa_chain_suffix_(sva_nfa_t&nfa,
+                              const std::vector<sva_seq_step_t>&steps,
+                              size_t k, unsigned cur, bool first,
+                              unsigned&exit)
+{
+      if (k == steps.size()) { exit = cur; return true; }
+      bool tagged = !steps[k].group_repeat_opens.empty();
+      if (!tagged && !steps[k].group_repeat_start) {
+            if (steps[k].grouped_repeat) return false;
+            unsigned next = nfa_add_step_(nfa, cur, steps[k], first);
+            if (next == ~0u) return false;
+            return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
+      }
+
+      sva_group_repeat_t group;
+      if (tagged) group = steps[k].group_repeat_opens.back();
+      else {
+            group.lo = steps[k].group_repeat_lo;
+            group.hi = steps[k].group_repeat_hi;
+            group.first_delay_lo = steps[k].group_repeat_first_delay_lo;
+            group.first_delay_hi = steps[k].group_repeat_first_delay_hi;
+      }
+      size_t last = k;
+      if (tagged) {
+            while (last < steps.size()
+                   && find(steps[last].group_repeat_closes.begin(),
+                           steps[last].group_repeat_closes.end(), group.id)
+                        == steps[last].group_repeat_closes.end()) ++last;
+      } else {
+            while (last < steps.size() && !steps[last].group_repeat_end) ++last;
+      }
+      if (last == steps.size()) return false;
+      long lo = group.lo, hi = group.hi;
+      if (lo < 0 || hi < lo) return false;
+      unsigned join = nfa.new_state();
+      bool any = false;
+
+      /* Every nonempty copy count owns its own suffix. This is necessary
+         because the zero-copy alternative obeys different concatenation
+         delay algebra and cannot share one pre-suffix group exit. */
+      unsigned copy_cur = cur;
+      for (long r = 1; r <= hi; ++r) {
+            std::vector<sva_seq_step_t>body;
+            for (size_t j = k; j <= last; ++j) {
+                  sva_seq_step_t st = steps[j];
+                  if (tagged) {
+                        st.group_repeat_members.erase(remove(
+                              st.group_repeat_members.begin(),
+                              st.group_repeat_members.end(), group.id),
+                              st.group_repeat_members.end());
+                        st.group_repeat_opens.erase(remove_if(
+                              st.group_repeat_opens.begin(),
+                              st.group_repeat_opens.end(),
+                              [&](const sva_group_repeat_t&item) {
+                                    return item.id == group.id;
+                              }), st.group_repeat_opens.end());
+                        st.group_repeat_closes.erase(remove(
+                              st.group_repeat_closes.begin(),
+                              st.group_repeat_closes.end(), group.id),
+                              st.group_repeat_closes.end());
+                        st.grouped_repeat = !st.group_repeat_members.empty();
+                  } else st.grouped_repeat = false;
+                  st.group_repeat_start = st.group_repeat_end = false;
+                  if (r > 1 && j == k) {
+                        long il = group.first_delay_lo;
+                        long ih = group.first_delay_hi;
+                        if (il < 0 || ih < il) return false;
+                        st.delay_lo = il + 1;
+                        st.delay_hi = ih + 1;
+                  }
+                  body.push_back(st);
+            }
+            unsigned body_exit = 0;
+            if (!nfa_chain_suffix_(nfa, body, 0, copy_cur,
+                                   first && r == 1, body_exit)) return false;
+            copy_cur = body_exit;
+            // A nested body can denote the empty language even though the
+            // enclosing repetition has a legal zero-copy alternative.
+            if (copy_cur == ~0u) break;
+            if (r >= lo) {
+                  unsigned tail = 0;
+                  if (!nfa_chain_suffix_(nfa, steps, last+1, copy_cur,
+                                         false, tail)) return false;
+                  if (tail != ~0u) {
+                        nfa.eps(tail, join);
+                        any = true;
+                  }
+            }
+      }
+
+      if (lo == 0) {
+            long outer_lo = steps[k].delay_lo
+                          - group.first_delay_lo;
+            long outer_hi = steps[k].delay_hi
+                          - group.first_delay_hi;
+            if (outer_lo < 0 || outer_hi < outer_lo) return false;
+            if (last + 1 == steps.size()) {
+                  /* `prefix ##d empty' has no match for d==0. For d>0
+                     its empty endpoint is one tick earlier than d. A group
+                     at the chain start is the canonical empty sequence. */
+                  if (first && outer_lo == 0) {
+                        nfa.eps(cur, join); any = true;
+                  }
+                  for (long d = std::max(outer_lo, 1L); d <= outer_hi; ++d) {
+                        unsigned z = cur;
+                        for (long tick = 1; tick < d; ++tick) {
+                              unsigned zn = nfa.new_state();
+                              nfa.tick(z, zn, nullptr); z = zn;
+                        }
+                        nfa.eps(z, join); any = true;
+                  }
+            } else {
+                  /* Both concatenations around the empty fragment must use
+                     positive delays. Their composed delay is d1+d2-1. */
+                  const sva_seq_step_t&next = steps[last+1];
+                  long ol = std::max(outer_lo, first ? 0L : 1L);
+                  long nl = std::max(next.delay_lo, 1L);
+                  if (next.delay_hi >= nl && outer_hi >= ol) {
+                        std::vector<sva_seq_step_t>tail(
+                              steps.begin()+last+1, steps.end());
+                        tail[0].delay_lo = ol + nl - 1;
+                        tail[0].delay_hi = outer_hi + next.delay_hi - 1;
+                        unsigned ze = 0;
+                        if (!nfa_chain_suffix_(nfa, tail, 0, cur, first, ze))
+                              return false;
+                        if (ze != ~0u) {
+                              nfa.eps(ze, join); any = true;
+                        }
+                  }
+            }
+      }
+      exit = any ? join : ~0u;
+      return true;
+}
+
 static bool nfa_chain_fragment_(sva_nfa_t&nfa,
-				const std::vector<sva_seq_step_t>&steps,
-				unsigned&start, unsigned&exit)
+                                const std::vector<sva_seq_step_t>&steps,
+                                unsigned&start, unsigned&exit)
 {
       start = nfa.new_state();
-      unsigned cur = start;
-      for (size_t k = 0; k < steps.size(); k += 1) {
-	    cur = nfa_add_step_(nfa, cur, steps[k], k == 0);
-	    if (cur == ~0u) return false;
+      return nfa_chain_suffix_(nfa, steps, 0, start, true, exit)
+          && exit != ~0u;
+}
+
+static bool nfa_accepts_empty_(const sva_nfa_t&nfa)
+{
+      if (nfa.start == nfa.accept) return true;
+      std::vector<bool>seen(nfa.nstates, false);
+      std::vector<unsigned>todo;
+      todo.push_back(nfa.start);
+      seen[nfa.start] = true;
+      while (!todo.empty()) {
+	    unsigned cur = todo.back();
+	    todo.pop_back();
+	    for (size_t i = 0; i < nfa.edges.size(); ++i) {
+		  const sva_nfa_edge_t&edge = nfa.edges[i];
+		  if (!edge.epsilon || edge.from != cur || seen[edge.to]) continue;
+		  if (edge.to == nfa.accept) return true;
+		  seen[edge.to] = true;
+		  todo.push_back(edge.to);
+	    }
       }
-      exit = cur;
-      return true;
+      return false;
 }
 
 bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
@@ -622,6 +773,7 @@ bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 	    return false;
       nfa.start = s;
       nfa.accept = e;
+      nfa.accepts_empty = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return true;
@@ -801,6 +953,7 @@ bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
 	    return false;
       nfa.start = s;
       nfa.accept = e;
+      nfa.accepts_empty = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return true;

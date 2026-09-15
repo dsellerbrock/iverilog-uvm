@@ -1,0 +1,2 @@
+ivltests/sv_array_string_character_compound_fail.v:3: error: Assignment to const signal `values` is not allowed.
+Elaboration failed

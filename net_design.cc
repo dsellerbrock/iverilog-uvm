@@ -1691,6 +1691,15 @@ void NetScope::evaluate_parameter_string_(Design*des, param_ref_t cur)
       if (! expr)
 	    return;
 
+      if (!dynamic_cast<const NetECString*>(expr)) {
+	    cerr << expr->get_fileline()
+		 << ": error: Unable to evaluate string parameter "
+		 << cur->first << " value: " << *expr << endl;
+	    des->errors += 1;
+	    delete expr;
+	    return;
+      }
+
       cur->second.val = expr;
 
       if (debug_elaborate) {

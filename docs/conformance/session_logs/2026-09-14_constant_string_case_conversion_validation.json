@@ -1,0 +1,19 @@
+{
+  "scope": "L76 constant-function string toupper/tolower case conversion",
+  "source_base": "f95f0bc11bc7a20208ebdd69c9635c3d32c28277",
+  "source_sha256": {
+    "net_func_eval.cc": "8442d8bcc8fd5527d4c1d755794ec3a2ca830d7708e7ea513630434d826f9d8f"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "dd2c1181611f87ebdef9503969f9ba9ae6bffdd3e2aa60512ea1a05d3f01e33d",
+    "local-install/lib/ivl/ivl": "63c122b336692f02661983eced3bbdc6ccb0a2fb47e95ff1cb9eb681547c207d",
+    "local-install/lib/ivl/vvp.tgt": "3402452f0ed6cfe91151d489d7567dc7a63cccb39baaceb83d328b3f14fa99a5"
+  },
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "string_evaluator_neighbors_json": 40,
+  "broad_qualified": false,
+  "legacy_and_neighbors": "evidence/batch-20260914-after-l74/l75-l76-final-harness.json",
+  "json_evidence": "evidence/batch-20260914-after-l74/l76-final-json-v2.json"
+}

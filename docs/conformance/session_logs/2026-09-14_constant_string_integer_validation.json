@@ -1,0 +1,22 @@
+{
+  "scope": "L82 constant string-to-integer conversion family",
+  "source_base": "38f6675baff7e8c94f91306e163ba46cf2aee7eb",
+  "source_sha256": {
+    "net_func_eval.cc": "d406fcc8b6b91d0084a9298744f224151e04f3bb0c0ade0b5f3bdca13ecb3d13",
+    "netmisc.cc": "7d7d1513aa250c62edd9ccbb73c4c014876218e151896f02edaa7e9e513b416f",
+    "netmisc.h": "68e6a0498ab7eaceee17cde24ed1d5bb39b679329260d6e74ddae10bd039f589",
+    "elab_expr.cc": "4c692139f284550eef9388e27bc9231f0256a6fac47f65381e75434132a6462f"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "176bea98a532aa3e8e5fb2710d0266f2dbf7bd3aee358828c3b1dc3f047b4f25",
+    "local-install/lib/ivl/ivl": "b8c095e0510e86d5a57b2347869300df4ea50b6a6eb1d2d86a82c44334cb99cc",
+    "local-install/lib/ivl/vvp.tgt": "fa9ac3c2771a581c0b36fcc1c4ed5d23f0ca615156ec0cb631ab81ca801f0003"
+  },
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "neighbors_json": 34,
+  "focused_evidence": "evidence/batch-20260914-after-l74/l82-focused.json",
+  "broad_qualified": false,
+  "artifact_provenance": "L82 compiler, integrated L81 target and L79 runtime."
+}

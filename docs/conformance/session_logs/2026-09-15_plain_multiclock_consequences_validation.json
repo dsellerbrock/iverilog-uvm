@@ -1,0 +1,91 @@
+{
+  "scope": "L102 fixed-prefix plain multiclock finite consequence alternatives; focused only",
+  "base_revision": "9505f142e",
+  "standards": [
+    "IEEE1800-2017 16.9.2,16.13.1,16.13.2",
+    "IEEE1800-2023 16.9.2,16.13.1,16.13.2"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 30,
+      "failed": 0
+    },
+    "json": {
+      "ran": 30,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 50,
+      "failed": 0
+    },
+    "json": {
+      "ran": 50,
+      "failed": 0
+    }
+  },
+  "nfa": {
+    "passed": 58,
+    "failed": 0
+  },
+  "source_and_artifacts": {
+    "net_func_eval.cc": "1d78032a326f064228a52c2841a19e4feb637f22b0afb379aa1ef2625b5513b2",
+    "pform.cc": "602c03a9d890eda133acabc9925f729bde9bbf26b86750842251eb790c2d2d82",
+    "local-install/lib/ivl/ivl": "8a954476e6dc90ef711c643ac9cb989435086140614454bfcd85af60dc54418c",
+    "local-install/lib/ivl/vvp.tgt": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1",
+    "local-install/bin/iverilog": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b",
+    "local-install/bin/vvp": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f"
+  },
+  "concurrent_source": "Installed candidate includes pending L101 evaluator source; L102 checks do not qualify L101.",
+  "toolchain": "Clean build using DEVELOPER_DIR=/Library/Developer/CommandLineTools, Apple clang21.0.0, Homebrew Bison3.8.2 and /usr/bin/flex. Active Xcode license was not accepted.",
+  "build": "l101-l102-clt-bison-build.log",
+  "install": "l101-l102-clt-bison-install.log",
+  "logs": [
+    "l102-focused-legacy.log",
+    "l102-focused-json.log",
+    "l102-neighbors-legacy.log",
+    "l102-neighbors-vvp.log",
+    "l102-nfa.log"
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "failed_evidence": [
+    "l101-l102-first-direct.json",
+    "l101-l102-build.log",
+    "l101-l102-clt-build.log",
+    "l101-l102-clt-clean-build.log"
+  ],
+  "fixture_hashes": {
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_backlog.v": "f29a0a6896ebbaf640bc7a932c0fe23961f7ab625511207fb84114ddd4a19e59",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_backlog_2023.v": "f23e139603638eb7f3832d0ba00fdd146731fcb7ccd4f42e690f86d86fde38ae",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_cover.v": "823bb9942f96bf8052162b79fb0f75de2e921e7990d28a7657592b3087accebf",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_cover_2023.v": "0ebd2a7b38eb7590906ef654bd5d4c4c39c26edf25de77ae43bc39024ecac0c3",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_dead.v": "accdc099f338b92625fc3526659a716ea1f606f9bd69fc2d0ab374189d51a8ea",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_dead_2023.v": "16ba2cf0baa62c86d24624a5296cb56663f6dfd5d6ed4bd081ea4f33145a024b",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_depth64.v": "01d11f1e57973efea7a7511f6b5005f16796577ea54ade0c062bcc0c2a88568d",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_depth64_2023.v": "cb0d4f9d8227f3346d4bb064eece432418e1ce5f321a43ba8f92cef6d9aa6e34",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_depth65_fail.v": "2f2fc454d4172c38b0e4fddef276c32160d47d20e5f8814e67791904a1a802b6",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_depth65_fail_2023.v": "6ed719d53bf5cabc404268140e52d000cec1598b39eac6a3bb356dde2f4f38b1",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_disable.v": "ac43744d31d98ce6e3f69dae2d738136df2f0bee7da0914dfcaaca90448e16dd",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_disable_2023.v": "b0e4103aab1cf6a2a7edb0e963590d02b3e1807ce58967f855d0dbdc0af42a7f",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_early.v": "b638e3db303a3ecfc13965a8cde9f25832a68ea2cf2ff67b27a77e65b5cbe639",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_early_2023.v": "0dce14c619b7ab8887df938ee177d8c79a01cf6a465813b8e769b787c6b6ec3a",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_false_start.v": "ffb675e80949aaf85736ae32dce9dd294f945bde663a35e74c08d154a740bea9",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_false_start_2023.v": "5df79242a02bb628c827f029b203a4aa6f22382bd0f93a01042550ba613112eb",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_kill_restart.v": "ebb13b448e559c7bcf5d7e54e4b62ee91ce0573b62798f61275c8120513ab11f",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_kill_restart_2023.v": "66dc8ad79d1f50d9d837c960ba914615860c3ba344a5aa2b4339b6c22845c77c",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_late.v": "585c2d6bc279f8b15e21d05d5cf89ea2e75e8725377545659ea484e6a5dd5bbc",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_late_2023.v": "17aa485180e267b2d8f57f0b81044b12e0edc2d4bb9408967ce3900b65adbfb9",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_multitick_prefix.v": "040e37fb75957154c1e93b38f43b1dadd34557df158f02635eeadac8406e5042",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_multitick_prefix_2023.v": "108931e018fd58a35e4d3d3103bee29ccc0e1451606f888a85d6eca321de39fe",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_overlap_boundary_reverse.v": "ef2be1d3cd39cbed03a7f47205d5935c44c6f97a5bdc027964292773dc2b7621",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_overlap_boundary_reverse_2023.v": "4ef0842bbf2accf57702f40b1f13555f4b90b621545956d1b6973e97a414c53a",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_overlapping_starts.v": "594e2154603e970fe37e4e1203166e8ec05d83077921041de345f624103cb612",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_overlapping_starts_2023.v": "b93f2ce13e200cb3446556ce8923119e5e870d91418a502fb68790a16715485a",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_prefix_fail.v": "3703d404acfbcbab4d9ba2c88567557de893f9257fb20afa4c540cccb9006ca9",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_prefix_fail_2023.v": "8455d7ed6e4d1f87a54eb2495620f23f849b4a4f45e402ec2f5bee6077f706ff",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_unbounded_fail.v": "fff35acf2001426d01ba56fefe7dd389759c0dcd2b6a8c58be6ee8edfc60b6c9",
+    "ivtest/ivltests/sv_assert_plain_multiclock_consequence_nfa_unbounded_fail_2023.v": "f4a154fa40d877d9413c7241f90bbfb3806a13813c4ca7b46d31266532646b56"
+  },
+  "limitations": "Fixed first-clock prefixes only; existing64-tick finite construction bound. Ranged first-clock prefixes and unbounded/local-action forms remain unsupported. Broad current-batch qualification pending."
+}

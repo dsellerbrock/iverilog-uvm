@@ -1,0 +1,39 @@
+{
+  "candidate": "a0609dff3e9ba95c9721fc5a90a58ed9a0528420",
+  "semantic_revision": "366ef2bf1",
+  "gate": "integrated",
+  "exit": 1,
+  "installed_stable": true,
+  "legacy": {
+    "total": 5810,
+    "passed": 5800,
+    "failed": 5,
+    "not_implemented": 2,
+    "expected_fail": 3
+  },
+  "vpi": {
+    "passed": 108,
+    "failed": 0
+  },
+  "negative": {
+    "passed": 148,
+    "failed": 0
+  },
+  "failures": [
+    "sv_constant_assignment_expression_restrictions_fail",
+    "sv_const_string_substr_fail",
+    "sv_const_string_substr_fail_2023",
+    "sv_const_string_putc_fail",
+    "sv_const_string_putc_fail_2023"
+  ],
+  "classification": "Exact diagnostic golds stale after L96 formal legality and L105 typed-string parameter error propagation. Compiler source unchanged by correction.",
+  "focused_retry": {
+    "formal_legacy": 11,
+    "formal_json": 12,
+    "nonlocal_legacy": 22,
+    "nonlocal_json": 22,
+    "failed": 0
+  },
+  "raw_evidence": "evidence/batch-20260915-after-l95/qualification",
+  "qualification": "First integrated gate failed; later gates not started. Broad retry required."
+}

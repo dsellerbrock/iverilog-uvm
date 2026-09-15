@@ -1,0 +1,2 @@
+./ivltests/sv_const_function_generate_direct_fail.v:6: error: Function `helper' is declared inside generate block `sv_const_function_generate_direct_fail.generated' and may not be used as a constant function (IEEE 1800-2017/2023 13.4.3).
+1 error(s) during elaboration.

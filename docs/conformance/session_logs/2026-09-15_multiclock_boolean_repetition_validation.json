@@ -1,0 +1,89 @@
+{
+  "blocker": "L91",
+  "status": "FOCUSED_TESTED; broad qualification pending",
+  "standards": {
+    "2017": [
+      "16.9.2",
+      "16.9.2.1",
+      "16.12.7",
+      "16.12.22",
+      "16.13",
+      "16.14"
+    ],
+    "2023": [
+      "16.9.2",
+      "16.9.2.1",
+      "16.12.7",
+      "16.12.22",
+      "16.13",
+      "16.14"
+    ]
+  },
+  "source_hashes": {
+    "pform.cc": "d2e8d3ce12edd211d658ce8b8a02862d4c5c4f79a546b906131df26c2e715abc",
+    "parse_misc.h": "ce7e9c6695ee6a788fb251905f3ccc5d0b1f6055d7d3aa648cc35d2e0186af3f",
+    "pform_sva_nfa.cc": "2c479c54f8a7c8171fa3f0ee799b03515ba2cd590e5763c6678dce93323ba8a4",
+    "pform_sva_nfa.h": "2b47ca214b055d68f4a5bcd18fefeb3a07f5f2813e6a74327d1c164f083493d5"
+  },
+  "installed_hashes": {
+    "local-install/lib/ivl/ivl": "5c0c4efa4489eba6935dba4fbadf5fc4defb7d65c6367f4377dc3602b21f2f3c",
+    "local-install/lib/ivl/vvp.tgt": "ae6f07477bcc1a2554761641283397aecbf00660e9a9fb8d57851a1e485e12df",
+    "local-install/bin/vvp": "7030b1409f5694bfcc48836b6b6077dd19773d4bde9a80b103a69ff8edb771fc"
+  },
+  "focused": [
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_boolean_repeat-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "at_paused_backlog: Passed.\n         sv_assert_multiclock_boolean_repeat_paused_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=34, Passed=34, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_boolean_repeat-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "E.\n                sv_assert_multiclock_boolean_repeat_vector_truth: Passed.\n           sv_assert_multiclock_boolean_repeat_vector_truth_2023: Passed.\n============================================================================\nTest results: Ran 34, Failed 0.\n"
+    },
+    {
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-legacy.list"
+      ],
+      "returncode": 0,
+      "tail": "log: Passed.\n                          sv_assert_multiclock_bounded_antecedent_backlog_2023: Passed.\n============================================================================\nTest results:\n  Total=46, Passed=46, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-sv_assert_multiclock_bounded_antecedent-focus-vvp.list"
+      ],
+      "returncode": 0,
+      "tail": "_bounded_antecedent_vacuity_without_destination_clock: Passed.\nsv_assert_multiclock_bounded_antecedent_vacuity_without_destination_clock_2023: Passed.\n============================================================================\nTest results: Ran 46, Failed 0.\n"
+    }
+  ],
+  "nfa": {
+    "command": "PATH=local-install/bin:$PATH bash tests/sva_nfa/run.sh",
+    "returncode": 0,
+    "result": "58 passed, 0 failed",
+    "raw_log": "evidence/batch-20260914-after-l84/l91-nfa.log"
+  },
+  "limits": [
+    "Finite literal Boolean consecutive repetition and existing finite prefix/clock handoff only.",
+    "Grouped ranged, unbounded, goto/nonconsecutive repetition and general match actions remain separate.",
+    "DD032 fixed-path assertion control remains a reproduced independent defect.",
+    "Installed candidate also contains an unintegrated L90 enum update path with a known object-stack abort; no whole-candidate qualification claimed."
+  ],
+  "failed_evidence": [
+    "l91-first-focused.json",
+    "l91-direct/first.json",
+    "l90-l91-third-focused.json"
+  ],
+  "broad_gates": "Pending near ten integrated fixes; no new UVM/application qualification."
+}
