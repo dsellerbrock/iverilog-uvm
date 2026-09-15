@@ -1,22 +1,22 @@
-id: PARALLEL-L98-L97
+id: PARALLEL-L99-L97
 title: Constant-function formal legality and nested finite SVA repetition
 status: IMPLEMENTING
 base_revision: 5726ab0eb
 authority: User authorizes two existing cheaper agents, independent mechanisms, focused validation and broad gates near ten integrated fixes.
 coordinator_owns: [Shared builds, Installation, Shared harnesses and test output, Main manifests, Documentation, Integration and review]
 lanes:
-  - id: L98-GENERATED-CONSTANT-FUNCTION
+  - id: L99-FIXED-STRING-ARRAY-METHODS
     agent: /root/constraint_abi
-    status: FOCUSED_TESTED
-    standards: IEEE1800-2017 and2023 13.4.3
-    reproducer: evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json
-    actual: A function declared inside a generate block incorrectly folds a localparam in both editions.
-    expected: Reject generated-function constant evaluation while preserving legal runtime calls.
-    owns: [elab_expr.cc]
-    test_prefix: sv_const_function_generate
-    dependencies: L96c681f81a5 integrated; independent of L97 pform/NFA ownership.
-    scope: Extend shared constant-call classification with generated-declaration ancestry; no parser/runtime or unrelated constant-function changes.
-    acceptance: Paired direct and nested generated constant-call negatives, gen-if/gen-for/named-nested boundaries, runtime generated-call positive, module/package constant and default controls, cached classification ordering, preserve L96.
+    status: AUTHORIZED
+    standards: IEEE1800-2017 and2023 6.16,7.4 and13.4.3
+    reproducer: evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json
+    actual: Constant putc/itoa on local fixed string-array words abort compilation; runtime calls silently leave words unchanged.
+    expected: Mutate the exact selected string word in constant and runtime evaluation, once per receiver/index/argument evaluation.
+    owns: [net_func_eval.cc, vvp/array.cc]
+    test_prefix: sv_const_string_array_method
+    dependencies: L93/L95 scalar methods and L96/L98 locality checks integrated; independent of pform/NFA lane.
+    scope: Selected LocalVar fixed-string-array slots and existing VPI dynamic word-handle string writes; all six receiver-mutating methods; no new opcode or storage model.
+    acceptance: Both editions constant/runtime putc and five formatting methods, nonzero/ascending/descending bounds, once-only selector and arguments, zero byte/OOB/X/wide index, untouched neighbors, repeated overwrite/automatic frames, local-only constants and invalid actual controls; preserve scalar method and VPI array neighbors.
   - id: L97-NESTED-FINITE-GROUPED-REPETITION
     agent: /root/constraint_wide
     status: FOCUSED_TESTED
@@ -36,3 +36,6 @@ prior_work: docs/conformance/session_logs/2026-09-15_l85_l95_active_work_archive
 stop_after_completion: false
 
 l96_integration_revision: c681f81a5
+
+l98_integration_revision: fc296ee07
+l97_integration_revision: a49ee5d3e
