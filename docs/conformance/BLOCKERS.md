@@ -2040,14 +2040,32 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L79 — Fixed-array string-character stores
 
-- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
 - **Evidence:** `evidence/batch-20260914-after-l74/l79-array-character-baseline.json`: both editions abort in target assignment lowering.
 - **Scope:** Plain blocking byte writes to fixed unpacked-array string words; selector capture and bounds.
 - **Standards:** IEEE 1800-2017/2023 6.16, 6.16.2, 7.4, 10.4.1.
 
+- **Focused implementation evidence:** [L79 session](session_logs/2026-09-14_array_string_character_store.md).
+
 ### L80 — Constant-function substr
 
-- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
 - **Evidence:** `evidence/batch-20260914-after-l74/l80-constant-substr-baseline.json`: both editions reject method evaluation then assert.
 - **Scope:** Inclusive substr evaluation with int indices, invalid-range empty results and receiver preservation.
 - **Standards:** IEEE 1800-2017/2023 6.16.8, 13.4.3.
+
+- **Focused implementation evidence:** [L80 session](session_logs/2026-09-14_constant_string_substr.md).
+
+### L81 — Fixed-array string-character compound stores
+
+- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l74/l81-array-character-compound-baseline.json`: both editions skip the byte assignment and its side effects.
+- **Scope:** Legal integral character compound operations on fixed string-array words; whole-string arithmetic is not legal scope.
+- **Standards:** IEEE 1800-2017/2023 6.16, 11.4.1.
+
+### L82 — Constant string-to-integer conversion family
+
+- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l74/l82-constant-string-integer-baseline.json`: both editions reject all four conversion methods in constant functions.
+- **Scope:** atoi/atohex/atooct/atobin with radix digits, underscore scanning, termination and 32-bit integer results.
+- **Standards:** IEEE 1800-2017/2023 6.16.9, 13.4.3.

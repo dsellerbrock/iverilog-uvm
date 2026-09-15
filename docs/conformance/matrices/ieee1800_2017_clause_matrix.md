@@ -1370,3 +1370,11 @@ IMPLEMENTED for pre/post scalar and return-character updates. See [L77 evidence]
 ### L78 — Constant-function string comparisons
 
 IMPLEMENTED for compare/icompare ordering and operand preservation. See [L78 evidence](../session_logs/2026-09-14_constant_string_comparison.md); broad qualification remains pending.
+
+### L79 — Fixed-array string-character stores
+
+IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_array_string_character_store.md); broad batch qualification remains pending.
+
+### L80 — Constant-function substr
+
+IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_constant_string_substr.md); broad batch qualification remains pending.
