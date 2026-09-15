@@ -1,14 +1,14 @@
 status: active
 branch: agent/typed-array-return-20260914
 current_blocker: PARALLEL-BATCH-L74-L73
-phase: batch_qualification
+phase: publishing_qualified_batch
 source_revision: 374318731
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
-last_broad_qualified_semantic_revision: 4bc02c51b
-last_broad_qualified_integration_revision: 0c6d5994a
-qualification_record: docs/conformance/session_logs/2026-09-14_constraint_function_presolve_qualification.json
-qualification_scope: L64 repaired candidate only; full IEEE, UVM and application goals remain incomplete.
+last_broad_qualified_semantic_revision: 374318731
+last_broad_qualified_integration_revision: e25971651
+qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
+qualification_scope: L65-L74 local batch only; full IEEE, UVM and application goals remain incomplete.
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
 published_work:
@@ -45,13 +45,13 @@ preserved_local_batch:
   l73_revision: 352a15164
   l74_revision: 374318731
   focused_features: 10
-  status: Focused tests passed; full batch qualification pending; not published
+  status: All seven broad gates passed at e25971651; publication pending
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: Full serial build/install of L73/L74 final candidate; focused fingerprints in latest session validation records. Seven broad gates pending.
-pending_gates: Integrated legacy/VPI/negative/runtime gates, JSON suite, real-DPI UVM, SVA NFA, release smoke, make check and frontend scenarios for ten-fix batch.
-next_action: Coordinator runs seven broad gates against frozen374318731 compiler sources, then publishes a coherent PR. Existing agents may assess next independent reproducers in private evidence without source/build/harness mutations.
-next_command: python3 evidence/batch-20260914-l74/qualification/run_gate.py integrated
+installed_tools: Full serial build/install of L73/L74 final candidate; focused fingerprints in latest session validation records. Seven broad gates passed; final artifacts stable.
+pending_gates: PR publication and its required CI; no remaining local broad gate for this candidate.
+next_action: Publish the qualified ten-fix batch. Prepared L75 and L76 are reproduced but not yet authorized for implementation; use a separate local branch before new edits to preserve the published PR.
+next_command: git push -u origin agent/typed-array-return-20260914
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
@@ -74,3 +74,5 @@ l71_status: Integrated5a04f1e9d; six cases per harness and 36 neighbors passed.
 
 l73_status: Integrated352a15164; 12 cases per harness, two constant generate oracles and 34 neighbors passed.
 l74_status: Integrated374318731; six cases per harness and two additional runtime neighbors passed.
+
+prepared_next_lanes: [L75, L76]

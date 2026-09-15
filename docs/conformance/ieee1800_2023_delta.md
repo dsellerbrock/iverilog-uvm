@@ -171,3 +171,7 @@ here; keep common fix narratives and exact test counts in their owning records.
 The indexing/default rules consulted for this fix are 2023 7.4.5 and
 2017 7.4.6; no behavior difference is claimed. Shared implementation scope and
 paired evidence are linked from the [2017 matrix L68 refinement](matrices/ieee1800_2017_clause_matrix.md#l68--packed-select-updates-within-fixed-array-words).
+
+## 2026-09-14 shared L65–L74 evidence
+
+The selected compiler fixes exercise common rules in paired 2017/2023 regressions. Shared scope and evidence belong to the [2017 matrix refinement](matrices/ieee1800_2017_clause_matrix.md#l65l74-qualification-refinement--2026-09-14); this adds no edition-specific language claim.

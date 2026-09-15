@@ -1350,3 +1350,7 @@ IMPLEMENTED for the evidenced local character writes, putc conversions, compound
 ### L74 — Runtime string character compound assignments (6.16, 11.4.1)
 
 IMPLEMENTED for scalar string character compound arithmetic, with byte typing, captured int index conversion and existing putc bounds/zero-byte behavior. See [L74 evidence](../session_logs/2026-09-14_runtime_string_character_compound.md); broader receivers and batch qualification remain pending.
+
+### L65–L74 qualification refinement — 2026-09-14
+
+The bounded scopes above now have [joint local batch qualification](../session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json). This supersedes their earlier pending-batch notes for the recorded candidate only; it does not expand receiver coverage or establish full-clause conformance.

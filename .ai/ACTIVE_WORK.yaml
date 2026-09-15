@@ -1,6 +1,6 @@
 id: PARALLEL-BATCH-L74-L73
 title: Coordinator-authorized independent compiler implementation lanes
-status: QUALIFYING
+status: QUALIFIED
 base_revision: a83b9623c
 authority: "User explicitly authorized two parallel implementation lanes with disjoint file ownership; this supersedes the prior single-blocker workflow."
 coordinator_owns:
@@ -37,7 +37,7 @@ lanes:
 file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
 validation_batch: 20260914_after_l64
 focused_features_completed_in_batch: 10
-pending_gates: "Ten fixes integrated; compiler source frozen for seven required broad gates, then coherent PR publication."
-last_broad_qualified_semantic_revision: 4bc02c51b
+pending_gates: "Seven required broad gates passed; publish coherent PR, then select prepared L75/L76 lanes."
+last_broad_qualified_semantic_revision: 374318731
 baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json
 stop_after_completion: false

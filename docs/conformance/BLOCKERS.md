@@ -1918,7 +1918,7 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 
 ### L65 — Multiple prefix indices on constrained fixed-array reductions
 
-- **State:** IMPLEMENTED; focused tests pass; batch regression deferred.
+- **State:** IMPLEMENTED; focused tests pass; local batch qualified (see L65–L74 record).
 - **Active ID:** CONSTRAINT-MULTIPREFIX-REDUCTION.
 - **Authority:** IEEE1800-2017 7.12.3/18.5.8.2; IEEE1800-2023 7.12.3/18.5.7.2.
 - **Reproducer:** evidence/constraint-multidim-reductions-l65/selected-row.sv
@@ -1934,7 +1934,7 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 ### L66 — Typed array return element storage
 
-- **State:** IMPLEMENTED, focused validation; broad batch pending.
+- **State:** IMPLEMENTED, focused validation; local batch qualified (see L65–L74 record).
 - **Origin:** DD-031, scalar return paths intercepted real/string array elements.
 - **Authority:** IEEE1800-2017/2023 13.4.1.
 - **Scope:** real/string element reads/writes and real compound updates reuse emitted return-array storage, including automatic recursion, exact index evaluation and result copies.
@@ -1943,22 +1943,22 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 ### L67 — Packed-select expression increment/decrement
 
-- **State:** IMPLEMENTED for the evidenced subset; broad batch pending.
+- **State:** IMPLEMENTED for the evidenced subset; local batch qualified (see L65–L74 record).
 - **Origin:** DD-030 selected-width runtime aborts and context-width rejection.
-- **Scope:** scalar packed-signal selections and scalar function-return storage; fixed-array receivers are addressed by L68; scalar property receivers are addressed by L69; fixed-array property receivers are addressed by L70; bounded inner-carrier cases remain open.
+- **Scope:** scalar packed-signal selections and scalar function-return storage; fixed-array receivers are addressed by L68; scalar property receivers are addressed by L69; fixed-array property receivers are addressed by L70; scalar nested packed carriers are addressed by L71; nested array/property carriers remain open.
 - **Evidence:** [L67 session](session_logs/2026-09-14_packed_select_increment.md).
 - **Standards disposition:** [Clause11 refinement](matrices/ieee1800_2017_clause_matrix.md#l67--packed-select-incrementdecrement-expressions-1136-1142).
 
 ### L68 — Packed-select expression updates within fixed-array words
 
-- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **State:** IMPLEMENTED for the focused subset; local batch qualified (see L65–L74 record).
 - **Origin:** L67 retained a focused rejection for selected fixed-array words.
 - **Scope:** fixed-array word and packed-index capture, bounds, result widths, automatic/return storage. Scalar class-property receivers are addressed by L69; fixed-array property receivers are addressed by L70; bounded inner-carrier work remains open.
 - **Evidence:** [L68 session](session_logs/2026-09-14_array_packed_increment.md).
 
 ### L69 — Scalar class-property packed-select increment/decrement
 
-- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **State:** IMPLEMENTED for the focused subset; local batch qualified (see L65–L74 record).
 - **Scope:** scalar integral property bit/part pre/post updates, captured receiver,
   bounds, contexts, inheritance/nesting, and readonly diagnostics.
 - **Follow-up:** selected fixed unpacked-array properties are addressed by L70; dynamic container and inner-carrier work remains separate.
@@ -1966,32 +1966,52 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 ### L70 — Fixed-array class-property word packed-select updates
 
-- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **State:** IMPLEMENTED for the focused subset; local batch qualified (see L65–L74 record).
 - **Scope:** integral fixed-array property words, atomic selected update,
   multidimensional indices, bounds, contexts, and const diagnostics.
 - **Evidence:** [L70 session](session_logs/2026-09-14_class_array_packed_increment.md).
 
 ### L72 — Constant-function string character evaluation
 
-- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **State:** IMPLEMENTED for the focused subset; local batch qualified (see L65–L74 record).
 - **Origin:** DD026 re-assessed on L70; string arguments collapsed to one bit.
 - **Scope:** preserve argument/local string values and evaluate typed character reads.
 - **Evidence:** [L72 session](session_logs/2026-09-14_constant_string_character.md).
 
 ### L71 — Nested scalar packed increment/decrement
 
-- **Status:** IMPLEMENTED for the focused scalar packed-signal and function-return scope; broad qualification pending.
+- **State:** IMPLEMENTED for the focused scalar packed-signal and function-return scope; local batch qualified (see L65–L74 record).
 - **Remaining:** Nested array/property roots and the earlier-aborting intermediate-part-select probe require independent assessment.
 - **Evidence:** [L71 session](session_logs/2026-09-14_nested_packed_increment.md).
 
 ### L73 — Constant-function string character writes
 
-- **Status:** IMPLEMENTED for focused local character writes and constant-function locality diagnostics; broad qualification pending.
-- **Remaining:** Qualified package lvalue syntax is separate; runtime compound lowering is L74.
+- **State:** IMPLEMENTED for focused local character writes and constant-function locality diagnostics; local batch qualified (see L65–L74 record).
+- **Remaining:** Explicit package qualification in character lvalues is separate; runtime compound lowering is L74.
 - **Evidence:** [L73 session](session_logs/2026-09-14_constant_string_character_write.md).
 
 ### L74 — Runtime scalar string character compound assignments
 
-- **Status:** IMPLEMENTED for focused scalar/local/ref character updates; broad qualification pending.
+- **State:** IMPLEMENTED for focused scalar/local/ref character updates; local batch qualified (see L65–L74 record).
 - **Remaining:** Whole-string compound operations, array receivers and function-return character storage are separate gaps.
 - **Evidence:** [L74 session](session_logs/2026-09-14_runtime_string_character_compound.md).
+
+### L65–L74 local qualification checkpoint
+
+The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json) supersedes pending broad-test notes for the recorded candidate. The individual scope boundaries remain in force.
+
+### L75 — String-function-return character stores
+
+- **State:** REPRODUCED; prepared for a later selected batch.
+- **Area / edition:** Runtime return storage; IEEE 1800-2017/2023 6.16, 11.4.1, 13.4.1.
+- **Evidence:** `evidence/parallel-batch-l71-l72/l75-assessment/`: both editions leave ABC unchanged for plain/compound character writes to a function return. Plain selectors execute once; compound selectors are skipped.
+- **Closure:** Plain and compound byte stores, signed arithmetic, index/RHS capture, bounds/defaults/zero-byte behavior and automatic/recursive return-slot isolation.
+- **Last verified revision:** `e25971651` frozen candidate.
+
+### L76 — Constant-function string.toupper()
+
+- **State:** REPRODUCED; prepared for a later selected batch.
+- **Area / edition:** Constant evaluator; IEEE 1800-2017/2023 6.16.4, 13.4.3.
+- **Evidence:** `evidence/next-constant-assessment/ASSESSMENT.md`: both editions reject the internal method during constant evaluation and then assert; runtime control passes.
+- **Closure:** Correct byte conversion without receiver mutation, empty/high-byte/local/argument cases, runtime parity and focused invalid-call diagnostics.
+- **Last verified revision:** `e25971651` frozen candidate.
