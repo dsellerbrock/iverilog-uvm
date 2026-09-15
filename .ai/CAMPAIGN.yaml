@@ -1,14 +1,14 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L113-NESTED-FIXED-ELEMENT-CONSTRAINT + L114-FIRST-MATCH-SOURCE-SUFFIX
-phase: parallel_constraint_acceptance_and_sva_implementation
+current_blocker: L115-WIDE-FIXED-RAND-ELEMENT-TRANSPORT + ranged SVA suffix assessment
+phase: wide_element_implementation_and_next_sva_assessment
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l105_archive.yaml
 integrated_since_last_broad_batch:
-  count: 7
-  revisions: [415823320, 0a5293059, 3823bd356, 6d346269f, 9027c1938, 836ec3b19, 8be562e9e]
+  count: 9
+  revisions: [415823320, 0a5293059, 3823bd356, 6d346269f, 9027c1938, 836ec3b19, 8be562e9e, 355243ab4, d25b1f94d]
 latest_broad_qualification:
   integration_revision: 053e07d373c0fbd94f16eddae63b7ccc0327000c
   semantic_revision: 366ef2bf1
@@ -16,13 +16,13 @@ latest_broad_qualification:
   scope: Ten recorded local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   base_revision: 05b0c44e1
-  installed_semantic_revision: L112 executable source plus uncommitted L113 elaborate.cc c4bc74ce and vvp_z3.cc7c1af5a1; L1128be562e9e includes explanatory comment-only change after build.
-  installed_fingerprints: evidence/application-check-20260915/l113-focused/initial-direct.json
-  shared_process: None. Combined build98514 and direct87885 terminal0; L112 final63656 terminal0 with52/52 both harnesses, priorNFA58/58. L113 expanded direct14 cases match expected outcomes; nonintegral fixture refinement and final harness/neighbors pending.
+  installed_semantic_revision: d25b1f94d (L113 and corrected L114); uncommitted L115 edits not installed.
+  installed_fingerprints: docs/conformance/session_logs/2026-09-15_first_match_source_suffix_validation.json
+  shared_process: None. L114 build94916, NFA84510 and final27791 terminal0;72/72 both harnesses and58/58 NFA. L113355243ab4 and L114d25b1f94d integrated. L115 nearing source freeze for first build.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Finalize L113 focused fixtures and neighbors before integration; wide lane assesses next independent SVA blocker after integrated L112. Preserve seven semantic fixes; broad seven gates near ten plus root-seed checker.
+  next_action: Build frozen L115 candidate, verify full-vector transport and migration of obsolete L113 wide-negative; wide lane assesses ranged SVA source suffix only. Run seven broad gates near ten integrated fixes plus permanent root-seed checker, then coherent PR.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
