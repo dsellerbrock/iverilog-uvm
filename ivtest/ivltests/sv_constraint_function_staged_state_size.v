@@ -6,7 +6,7 @@ class C;
 endclass
 module test;
  C c; int ok;
- initial begin c=new; 
+ initial begin c=new;
  ok=c.randomize(); if(ok!=1 || c.x!==10 || c.y!==9) $fatal(1,"state constraint with staged call");
  c.q.push_back(7);
  c.x=37; c.y=42; ok=c.randomize(); if(ok!=0 || c.x!==37 || c.y!==42) $fatal(1,"state check dropped or failed rollback");
