@@ -22,6 +22,10 @@ records retain their original revisions and limits.
 
 ## Application evidence
 
+The [Caliptra include adapter and runtime replay](session_logs/2026-09-15_caliptra_include_overlay.md)
+records the selected paired compile replay and a failed unmodified checked
+`power2round_tb` run. Compilation gains do not imply runtime correctness.
+
 The [September 15 focused application assessment](session_logs/2026-09-15_application_priority_assessment.md)
 records a fresh OpenTitan UVM compile failure and selected Caliptra include-path
 probes on semantic revision `366ef2bf1`. It does not replace the whole census.

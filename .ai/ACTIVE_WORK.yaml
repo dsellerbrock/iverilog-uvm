@@ -74,7 +74,7 @@ L108_provenance_refinement: PCallTask drops dot-versus-scope syntax provenance. 
 
 caliptra_adapter_lane:
   id: APP-CALIPTRA-INCLUDE-OVERLAY
-  status: AUTHORIZED
+  status: CONFIGURATION_TESTED
   agent: /root/constraint_wide
   evidence: evidence/application-check-20260915/caliptra/provider-overlay-40.md
   root_cause: Generated file lists omit dependency include directories and seven source-demonstrated supplemental provider edges.
@@ -83,3 +83,5 @@ caliptra_adapter_lane:
   dependencies: Existing native Python3.13 venv with PyYAML6.0.3; no new dependency installation. Independent of L108 compiler source.
   acceptance: Deterministic dependency-first paths, strict duplicate/missing-provider and cycle diagnostics, environment/COMPILE_ROOT expansion and existing directories, exactly40 known roots covered, normal reg headers exclude reg_ss. Coordinator replays both assertion modes and retains all later failures.
   counting: Application build configuration only; never counted as compiler semantic feature or runtime pass.
+
+caliptra_runtime_assessment: Unmodified power2round_tb fails checked verdict with zero public-key writes versus256 after successful vector generation. Non-driving observer confirms upstream disconnected mem_rd_data_valid input (256 TB pulses, DUT remainsZ, zero writes). Retain failure; no compiler workaround or upstream modification.
