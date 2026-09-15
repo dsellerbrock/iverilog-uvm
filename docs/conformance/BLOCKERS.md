@@ -2182,3 +2182,10 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 - **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-string-format/baseline.json`; runtime paired control succeeds, constant paired invocation returns the empty string after clean compilation.
 - **Scope:** Constant evaluation of the five string numeric-formatting methods; internal task lowering must retain the required function mutation. IEEE 1800-2017/2023 6.16.11–6.16.15 and 13.4.3.
+
+### L94 — Finite grouped consecutive repetition in multiclock antecedents
+
+- **Parent:** S02.
+- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-group-repeat/baseline.json`.
+- **Scope:** Preserve and repeat the entire finite grouped Boolean/delay fragment, including legal empty alternatives and parent-level verdicts. Unbounded and general match-action groups remain separate.

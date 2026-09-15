@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: L93-CONSTANT-STRING-FORMATTING
+current_blocker: PARALLEL-BATCH-L93-L94
 phase: parallel_implementation
 source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
@@ -78,6 +78,9 @@ active_lanes:
   - id: L93-CONSTANT-STRING-FORMATTING
     agent: /root/constraint_abi
     files: net_func_eval.cc, elaborate.cc
+  - id: L94-FINITE-GROUPED-CONSECUTIVE-REPETITION
+    agent: /root/constraint_wide
+    files: pform.cc, parse_misc.h, pform_sva_nfa.cc, pform_sva_nfa.h
 shared_execution_owner: coordinator
 parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
 
@@ -116,7 +119,7 @@ current_batch:
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
   integrated_l86: 13fee7ec9
-  selected_lanes: [L93]
+  selected_lanes: [L93, L94]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -190,3 +193,6 @@ shared_execution_checkpoint: "All processes terminal:69306 passedL92focus20perha
 
 l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_assertion_control_validation.json
 l92_integration_checkpoint: "Eight focused fixes integrated. All shared processes terminal. L93 implementation active; coordinator selecting next independent SVA blocker. Broad gates near ten."
+
+l92_integration_revision: 9f34faa98
+l94_selection: "Paired grouped finite repetition rejection confirmed against installed L92compiler; next-group-repeat/baseline.json. Entire finite group fragment semantics authorized, not last-expression repetition. Eight integrated fixes; L93/L94 active, broad gates after approximately ten."

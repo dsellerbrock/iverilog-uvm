@@ -1,5 +1,5 @@
-id: L93-CONSTANT-STRING-FORMATTING
-title: Constant-function string formatting; next independent selection pending
+id: PARALLEL-BATCH-L93-L94
+title: Constant-function string formatting and grouped finite repetition
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
@@ -18,6 +18,20 @@ lanes:
     forbidden_scope: "Unrelated system-task semantics, pform/SVA sources, new runtime formatting policy, general putc or array-receiver expansion without coordinator assessment."
     dependencies: "L90 integrated6cf8d70de; independent of L92pform lane. Coordinator owns builds/install/harnesses/main manifests/docs."
     acceptance: "Both editions runtime and constant controls: all five conversions, zero/negative/extrema, narrow/wide signed input conversion to integer, real zero/fraction/negative with standards-justified string checks, overwrite/loops/nested calls, argument and receiver locality, invalid/nonconstant calls and function purity controls; preserve existing constant evaluator neighbors."
+  - id: L94-FINITE-GROUPED-CONSECUTIVE-REPETITION
+    parent: S02
+    agent: /root/constraint_wide
+    status: REPRODUCED
+    standards: "IEEE1800-2017/2023 16.9.2,16.9.2.1,16.12.7,16.12.22,16.13,16.14."
+    reproducer: evidence/batch-20260914-after-l84/next-group-repeat/baseline.json
+    actual: "Both editions reject (a ##1 b)[*1:2] as a multiclock antecedent. Expected one parent failure at75 after second endpoint child fails."
+    expected: "Repeat the entire grouped finite sequence body, preserving every legal endpoint, empty alternative and parent verdict rather than repeating only the last expression."
+    owns: [pform.cc, parse_misc.h, pform_sva_nfa.cc, pform_sva_nfa.h]
+    test_prefix: sv_assert_multiclock_group_repeat
+    allowed_scope: "Finite literal consecutive repetition of grouped single-clock Boolean/delay chains using existing finite NFA support. Preserve group structure and repeat its whole finite fragment; include zero/exact/ranged counts and legal concatenation/empty semantics. Reuse L86/L91 parent transport and L92 controls. Correct shared same-clock group lowering when necessary to retain semantics."
+    forbidden_scope: "L93 evaluator/elaborate files, unbounded/goto/nonconsecutive operators, general match actions/locals or new runtime scheduler. Keep unsupported forms diagnosed."
+    dependencies: "L91fec7a4b9a and L929f34faa98 integrated; independent L93 lane. Coordinator owns shared execution, main manifests/docs and integration."
+    acceptance: "Both editions: whole-group endpoints with distinguishing interior values, m=0/1/>1 and m=n, internal/trailing group repetition, finite delay body and empty composition, both implications and prefixes, multiple parents/early failure/vacuity, coincident and paused clocks, Off/Kill/restart,64tick boundary/unsupported controls. Preserve L86/L91/L92 and same-clock NFA neighbors; replace newly supported CE expectations with exact runtime witnesses."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
 focused_features_completed_in_batch: 8
@@ -66,3 +80,5 @@ l90_focused_evidence: docs/conformance/session_logs/2026-09-15_enum_container_pa
 l90_integration_revision: 6cf8d70de
 
 l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_assertion_control_validation.json
+
+l92_integration_revision: 9f34faa98
