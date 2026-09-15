@@ -341,3 +341,9 @@ l100_authorization:
   evidence: evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md
   architecture: per-child finite consequence mask in existing tagged destination queues; unchanged parent result protocol and scheduler
   nonblocker: nested one-step Boolean repetition already passes paired probes; no change counted
+
+l99_first_build_checkpoint:
+  session: 40533 terminal success
+  evidence: evidence/batch-20260915-after-l95/l99-first-direct.json
+  outcome: basic constant methods pass; OOB constant receivers and dynamic runtime receiver identity still require repair
+  authorized_expansion: narrow frontend method receiver and VPI target argument capture; disjoint from L100 pform source

@@ -12,7 +12,7 @@ lanes:
     reproducer: evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json
     actual: Constant putc/itoa on local fixed string-array words abort compilation; runtime calls silently leave words unchanged.
     expected: Mutate the exact selected string word in constant and runtime evaluation, once per receiver/index/argument evaluation.
-    owns: [net_func_eval.cc, vvp/array.cc]
+    owns: [net_func_eval.cc, vvp/array.cc, elaborate.cc, elab_expr.cc, tgt-vvp/draw_vpi.c]
     test_prefix: sv_const_string_array_method
     dependencies: L93/L95 scalar methods and L96/L98 locality checks integrated; independent of pform/NFA lane.
     scope: Selected LocalVar fixed-string-array slots and existing VPI dynamic word-handle string writes; all six receiver-mutating methods; no new opcode or storage model.
@@ -39,3 +39,10 @@ l96_integration_revision: c681f81a5
 
 l98_integration_revision: fc296ee07
 l97_integration_revision: a49ee5d3e
+
+l99_scope_refinement:
+  evidence: evidence/batch-20260915-after-l95/l99-first-direct.json
+  runtime: Dynamic selected receivers lower to S<string> temporaries instead of writable array-word handles; authorize narrow tgt-vvp/draw_vpi.c capture of exact once-evaluated receiver index.
+  constant: Constant OOB receiver folds away its NetESignal identity before method evaluation; authorize narrow elaborate.cc/elab_expr.cc method-receiver preservation so invalid write remains a no-op with evaluated arguments.
+  boundary: Preserve original low-width signed vpiIntVal conversion after rejecting nonzero high selector words.
+  count: Required completion of L99, not separate fixes.
