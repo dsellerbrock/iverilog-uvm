@@ -2343,6 +2343,8 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       bool is_property = false;
       bool is_array_word = false;
       bool is_signal_select = false;
+      bool is_array_word_select = false;
+      ivl_expr_t array_word = 0;
       ivl_expr_t select_base = 0;
       int select_index = -1;
       int select_flag = -1;
@@ -2363,9 +2365,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		ivl_expr_t e1 = ivl_expr_oper1(sub);
 		select_base = ivl_expr_oper2(sub);
 		if (!e1 || ivl_expr_type(e1) != IVL_EX_SIGNAL
-		    || !ivl_expr_signal(e1)
-		    || ivl_signal_dimensions(ivl_expr_signal(e1)) != 0
-		    || !select_base) {
+		    || !ivl_expr_signal(e1) || !select_base) {
 		      fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
 		              "++/-- destination.\n",
 		              ivl_expr_file(sub), ivl_expr_lineno(sub));
@@ -2374,6 +2374,18 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		      return;
 		}
 		sig = ivl_expr_signal(e1);
+		if (ivl_signal_dimensions(sig) > 0) {
+		      array_word = ivl_expr_oper1(e1);
+		      if (!array_word) {
+			    fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
+			            "++/-- array destination.\n",
+			            ivl_expr_file(sub), ivl_expr_lineno(sub));
+			    vvp_errors += 1;
+			    draw_eval_vec4(sub);
+			    return;
+		      }
+		      is_array_word_select = true;
+		}
 		wid = ivl_expr_width(sub);
 		is_signal_select = true;
 		break;
@@ -2449,6 +2461,27 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    } else {
 		  fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
 	    }
+	  } else if (is_array_word_select) {
+	    array_index = allocate_word();
+	    array_flag = allocate_flag();
+	    select_index = allocate_word();
+	    select_flag = allocate_flag();
+	    draw_eval_expr_into_integer(array_word, array_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve array index validity\n",
+	            array_flag);
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/vec4a v%p, %d; increment packed array word\n",
+	            sig, array_index);
+	    draw_eval_vec4(select_base);
+	    fprintf(vvp_out, "    %%dup/vec4; preserve packed select base\n");
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	            ? "    %%ix/vec4/s %d; packed select base\n"
+	            : "    %%ix/vec4 %d; packed select base\n", select_index);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; preserve packed select validity\n",
+	            select_flag);
+	    fprintf(vvp_out, ivl_expr_signed(select_base)
+	            ? "    %%part/s %u; increment selected value\n"
+	            : "    %%part/u %u; increment selected value\n", wid);
 	  } else if (is_array_word) {
 	    array_index = allocate_word();
 	    array_flag = allocate_flag();
@@ -2509,6 +2542,13 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 		  }
+	    } else if (is_array_word_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
+		          select_flag);
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine array index validity\n",
+		          array_flag);
+		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
+		          sig, array_index, select_index);
 	    } else if (is_array_word) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
 		          array_flag);
@@ -2553,6 +2593,13 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pop/vec4 1; discard invalid property update\n");
 			fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
 		  }
+	    } else if (is_array_word_select) {
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed select validity\n",
+		          select_flag);
+		  fprintf(vvp_out, "    %%flag_or 4, %d; combine array index validity\n",
+		          array_flag);
+		  fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
+		          sig, array_index, select_index);
 	    } else if (is_array_word) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
 		          array_flag);
@@ -2583,7 +2630,12 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    if (prop_index) clr_word(prop_index);
 	    if (prop_x_flag >= 0) clr_flag(prop_x_flag);
 	    if (prop_range_flag >= 0) clr_flag(prop_range_flag);
-      } else if (is_array_word) {
+	  } else if (is_array_word_select) {
+	    clr_word(array_index);
+	    clr_flag(array_flag);
+	    clr_word(select_index);
+	    clr_flag(select_flag);
+	  } else if (is_array_word) {
 	    clr_word(array_index);
 	    clr_flag(array_flag);
       } else if (is_signal_select) {

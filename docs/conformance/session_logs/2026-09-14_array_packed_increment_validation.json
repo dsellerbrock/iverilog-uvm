@@ -1,0 +1,22 @@
+{
+  "scope": "L68 focused fixed-array packed-select updates; broad qualification pending",
+  "source_base": "d5c44575e",
+  "source_sha256": {
+    "elab_expr.cc": "61dad2d1d1a2f72fc7f08abcfeba26937ca2a68684ae425fad492c490d8a45f4",
+    "tgt-vvp/eval_vec4.c": "aeff4b2ca57bc5eb9cea70646287880690afc00fe4aa5824c44a51d2c79b0538"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "5916fdcc543cd4c6cc0c6e7269828f8aa6566460dbade4d30e6f0eb0523bd6ed",
+    "local-install/lib/ivl/ivl": "15db8eece1488084f00dcebf3773cd900347c18b8f15f54b8ef3f70d3e0283f6",
+    "local-install/lib/ivl/vvp.tgt": "e881596a86132b378b43fdff281dba64fc4bbd944ae9338cbc70c57efff48533"
+  },
+  "root_paired_outcomes": 26,
+  "independent_twostate_paired_outcomes": 2,
+  "permanent_legacy": 8,
+  "permanent_json": 8,
+  "l67_legacy": 8,
+  "l67_json": 8,
+  "array_property_neighbors_json": 10,
+  "broad_qualified": false
+}

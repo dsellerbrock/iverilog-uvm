@@ -1,0 +1,2 @@
+ivltests/sv_array_packed_select_incdec_bounds.v:16: warning: ignoring out of bounds l-value array access values[99].
+ivltests/sv_array_packed_select_incdec_bounds.v:16: warning: returning 'bx for out of bounds array access values[99].

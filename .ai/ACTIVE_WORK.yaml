@@ -1,27 +1,27 @@
-id: PACKED-SELECT-INCREMENT
-title: Preserve selected lvalue identity and width through expression increment/decrement
+id: ARRAY-PACKED-SELECT-INCREMENT
+title: Preserve fixed-array word identity through packed-select expression updates
 status: FOCUSED_TESTED
-base_revision: ecaeb7a80
+base_revision: d5c44575e
 standards:
-  ieee1800_2017: "11.4.2, 11.5.1, expression sizing rules"
-  ieee1800_2023: "11.4.2, 11.5.1, expression sizing rules"
-reproducer: evidence/dd030-current-assessment/review
-current_behavior: "Matching-width bit/part prefix/postfix expressions compile and abort in vector add/sub. Widened result contexts can reject legal operands as vector slices."
-expected_behavior: "Update the selected lvalue with its own width; return old/new value for postfix/prefix, evaluate selectors once, preserve other storage, and apply normal bounds and result-context sizing."
-root_cause: "The unary elaborator discards validated lvalue identity and confuses context width with slice support; target SELECT handling uses carrier width and whole-signal stores."
+  ieee1800_2017: "7.4.6, 11.4.2, 11.5.1"
+  ieee1800_2023: "7.4.5, 11.4.2, 11.5.1"
+reproducer: evidence/array-packed-incdec-l68/review
+current_behavior: "Legal packed bit/part ++/-- inside fixed-array words reach target generation and are rejected."
+expected_behavior: "Capture the array word and packed index once; preserve word and bit neighbors, selected width and result context, typed invalid reads and suppressed invalid writes."
+root_cause: "The SELECT target rejects array signal carriers despite retained word metadata; folded selected lvalues also need their array word preserved."
 allowed_scope:
-  - Preserve selected destination metadata needed by integral ++/-- expression lowering
-  - Correct selected arithmetic/store widths and result-context sizing
-  - Reuse existing selected lvalue load/store or capture machinery for selectors and bounds
-  - Paired positive, negative, boundary, and side-effect reproducers plus permanent regressions
+  - Extend selected integral expression load/store to fixed unpacked-array words
+  - Preserve independent word/base registers and combine validity for existing partial array stores
+  - Retain selected word identity during constant-fold reconstruction
+  - Paired focused positive, boundary, negative and permanent regressions
 forbidden_scope:
-  - Suppress crashes by dropping writes or fabricating values
-  - Unrelated assignment-expression, solver, or scheduler redesign
+  - Class-property, dynamic-array or queue storage redesign
+  - Drop writes or ignore invalid-index rules
 validation_batch: 20260914_after_l64
-focused_features_completed_in_batch: 3
-pending_gates: "Broad suite at user batch checkpoint; focused implementation evidence is linked in L67 session."
-prerequisites: "L65/L66 focused checkpoint preserved. PR281 current-head run34920408447 remains live; published repair stable, CI observation continues separately."
-next_action: "Preserve local tested checkpoint; coordinator selects the next bounded requirement while observing published CI."
+focused_features_completed_in_batch: 4
+pending_gates: "Broad batch gate at requested cadence; focused implementation and permanent checks passed."
+prerequisites: "L67 focused revision57ccfa80d and main repair merged ind5c44575e. PR281 regressions remain live after successful platform builds."
+next_action: "Preserve focused checkpoint and return to coordinator selection; continue observing published CI."
 stop_after_completion: false
 
-evidence: docs/conformance/session_logs/2026-09-14_packed_select_increment.md
+evidence: docs/conformance/session_logs/2026-09-14_array_packed_increment.md

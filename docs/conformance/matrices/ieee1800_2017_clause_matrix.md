@@ -1303,3 +1303,15 @@ nested selections requiring an inner carrier boundary remain unsupported.
 See the [L67 evidence](../session_logs/2026-09-14_packed_select_increment.md)
 for exact scope and validation; full Clause11 and broad batch qualification
 remain incomplete.
+
+### L68 — Packed-select updates within fixed-array words
+
+IMPLEMENTED for the evidenced fixed unpacked-array word bit/part increment
+and decrement expressions. Array word and packed index identities survive
+constant folding and are evaluated once; either invalid selector suppresses
+the selected store. This supersedes L67's fixed-array receiver limitation.
+Class-property and bounded inner-carrier cases remain open.
+Array indexing references are 2017 7.4.6 and 2023 7.4.5; both editions use
+11.4.2 and 11.5.1 for the update and packed select. See the
+[L68 evidence](../session_logs/2026-09-14_array_packed_increment.md) for scope,
+results and pending broad qualification.

@@ -27740,11 +27740,18 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		 * writable l-value: retain the canonical base so the target returns
 		 * the typed invalid value and suppresses only the store. */
 		if (dynamic_cast<NetEConst*>(ip) && inc_lval->sig()
-		    && inc_lval->sig()->unpacked_dimensions() == 0
-		    && inc_lval->get_base() && !inc_lval->word()
-		    && !inc_lval->nest()) {
+		    && inc_lval->get_base() && !inc_lval->nest()
+		    && !inc_lval->has_part_carrier()
+		    && !inc_lval->has_dynamic_part_carrier()
+		    && ((inc_lval->sig()->unpacked_dimensions() == 0
+			 && !inc_lval->word())
+		        || (inc_lval->sig()->unpacked_dimensions() > 0
+			 && inc_lval->word()))) {
 		      delete ip;
-		      NetExpr*carrier = new NetESignal(inc_lval->sig());
+		      NetExpr*carrier = inc_lval->word()
+			? new NetESignal(inc_lval->sig(),
+			      inc_lval->word()->dup_expr())
+			: new NetESignal(inc_lval->sig());
 		      ip = new NetESelect(carrier,
 			    inc_lval->get_base()->dup_expr(), inc_lval->lwidth());
 		      ip->set_line(*this);
