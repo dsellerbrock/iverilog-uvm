@@ -120,7 +120,7 @@ coverage_implementation_lane:
   assessment: evidence/batch-20260915-after-l95/next-v01-assessment/frontend-mechanism.md
   actual: Baseline drops constructor-dependent transition endpoints. Original zero-weight oracle was invalid; corrected default-weight two-instance oracle expects50percent and passes initial candidate. Remaining review and acceptance pending.
   expected: Resolve transition endpoint expressions at construction, retain the complete transition recognizer, and merge unsized bins by resolved transition identity.
-  owns: [elaborate.cc, netclass.h, ivl_target.h, t-dll-api.cc, ivl.def, tgt-vvp/draw_class.c, vvp/parse.y, vvp/compile.h, vvp/class_type.h, vvp/class_type.cc, vvp/vthread.cc, vvp/vvp_cobject.h]
+  owns: [elaborate.cc, netclass.h, ivl_target.h, t-dll-api.cc, ivl.def, tgt-vvp/draw_class.c, vvp/parse.y, vvp/compile.h, vvp/class_type.h, vvp/class_type.cc, vvp/vthread.cc, vvp/vvp_cobject.h, vvp/lexor.lex]
   fixture_prefix: sv_cov_ctor_transition
   dependencies: Existing constructor range IR, dynamic coverage metadata and transition NFA; independent of L109 vvp_z3 runtime changes. L108 elaborate.cc changes integrated and frozen.
   scope: Extend existing metadata and evaluator end to end for constructor-dependent integral transition endpoints, including exact instance/type union identity and existing constant repetition modes. Preserve constant transition/value paths. No fabricated hits, flattened transitions, dropped terms or partial programs. Unsupported dynamic repetition and unrepresentable forms retain explicit diagnostics.

@@ -18,11 +18,11 @@ current_candidate:
   base_revision: 05b0c44e1
   installed_semantic_revision: 6d346269f
   installed_fingerprints: docs/conformance/session_logs/2026-09-15_joint_ordered_independent_randc_validation.json
-  shared_process: L110 corrected rebuild/install74399 is active; initial95636 completed0. L111 intermediate saved in evidence/application-check-20260915/l111-preserved, temporarily restored to integrated L109 during build. Restore saved source after terminal and restart runtime agent with followup_task (currently idle).
+  shared_process: L110 metadata-grammar rebuild/install3242 active. Earlier74399 completed0. Latest L111 typed-result intermediate preserved in evidence/application-check-20260915/l111-preserved-retry2; runtime agent acknowledged pause. Restore this latest file after terminal before release (not older l111-preserved snapshot).
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Poll74399. Restore L111 exact saved source after terminal, restart runtime agent for authorized typed-result/shared-plan implementation. Validate expanded L110 fixtures; corrected nonzero-weight union passes initial candidate but broad acceptance remains pending.
+  next_action: Poll3242 without restart; restore latest L111 preserved-retry2 source, then release runtime agent. Run finalized L110 paired fixtures and coverage neighbors; verify VVP grammar conflict count returns to baseline. L110 not integrated, four batch fixes remain.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
