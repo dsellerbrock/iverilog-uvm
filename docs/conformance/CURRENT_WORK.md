@@ -50,8 +50,9 @@ into cross-platform qualification.
 exposed by that publication. Its current revision, CI state, and exact next
 command belong to CAMPAIGN. The separately preserved local L65/L66 batch at
 `711e54893` has focused evidence but has not received broad batch qualification;
-its session records remain on the branch identified in CAMPAIGN. No newer
-whole-application replay is claimed.
+its [L65](session_logs/2026-09-14_constraint_multiprefix_reductions.md) and
+[L66](session_logs/2026-09-14_typed_array_return_elements.md) session records
+contain the focused evidence. No newer whole-application replay is claimed.
 
 ## History
 

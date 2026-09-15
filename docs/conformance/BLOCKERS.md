@@ -1938,5 +1938,5 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **Origin:** DD-031, scalar return paths intercepted real/string array elements.
 - **Authority:** IEEE1800-2017/2023 13.4.1.
 - **Scope:** real/string element reads/writes and real compound updates reuse emitted return-array storage, including automatic recursion, exact index evaluation and result copies.
-- **Validation:** 28 paired focused outcomes, permanent8/8 in each harness, four neighbors; L65 integration8/8 per harness.
+- **Validation:** Focused checks pass; results and revision scope are owned by the evidence record below.
 - **Evidence:** session_logs/2026-09-14_typed_array_return_elements.md.

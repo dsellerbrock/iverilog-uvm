@@ -1281,3 +1281,14 @@ bases no longer alias low bits through VPI handles; partial reads retain X
 padding, partial VPI writes preserve other bits, and monitor/callback behavior
 on parent-value changes is checked. Legacy 3/3, JSON 6/6 and direct VPI tests
 pass. Full VPI metadata and broad batch regression remain pending.
+
+### L66 — Typed return-array element storage (13.4.1)
+
+IMPLEMENTED for real/string fixed-array result element reads and writes and
+real compound assignments. Scalar return opcodes are restricted to scalar
+function-name variables; array results use emitted array storage. The paired
+2017/2023 evidence includes automatic calls, invalid indices, result copies,
+recursive frames and single index evaluation. Full Clause13 remains PARTIAL.
+Focused evidence and pending broad qualification are recorded in the
+[L66 session](../session_logs/2026-09-14_typed_array_return_elements.md); this
+refinement does not extend the L64 broad qualification to the newer compiler.
