@@ -2256,3 +2256,17 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 - **Closure:** Distinct finite consequence NFA per child; one existential child result feeds universal parent aggregation. Preserve synchronization, controls, pending backlogs and unsupported construction boundaries with paired behavioral tests.
 
 - **Implementation evidence:** [L100 session](session_logs/2026-09-15_finite_multiclock_consequences.md).
+
+### L101 — Constant fixed-array string-character increment
+
+- **State:** IN_PROGRESS; coordinator-authorized independent evaluator lane.
+- **Standards:** IEEE1800-2017 and2023 6.16,11.4.2,13.4.3.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-const-array-character-assessment/isolated-baseline.json`.
+- **Closure:** Correct pre/post byte updates through the selected local fixed-array word, with runtime parity, once-only selectors, bounds and locality controls.
+
+### L102 — Plain finite multiclock consequence alternatives
+
+- **State:** IN_PROGRESS; coordinator-authorized independent SVA lane.
+- **Standards:** IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-plain-consequence-nfa-assessment/ASSESSMENT.md`.
+- **Closure:** Fixed first-clock sequence prefix followed by finite second-clock alternatives yields a correctly timed single verdict per attempt, preserving clock boundaries, controls and pending backlogs.
