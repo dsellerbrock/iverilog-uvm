@@ -13,7 +13,7 @@ lanes:
     reproducer: evidence/batch-20260914-after-l84/next-packed-assessment/enum.sv
     actual: "Both editions reject b.values[0][1] and b.values[0][3:2] for a dynamic array of enum values; equivalent bit/signed/logic controls run PASSED. See typed-baseline.json."
     expected: "Recognize the enum packed carrier for selected class-container elements, preserving canonical indices, selected vector type and partial-write behavior."
-    owns: [elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c]
+    owns: [elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
     test_prefix: sv_class_enum_container_packed_select
     allowed_scope: "Packed bit, fixed-part and indexed-part selects on enum elements of class dynamic arrays and queues, for read and generic lvalue paths; use enum base_type_obj and existing select/word-part lowering. Fix sibling read/write gates once, preserve signedness/four-state/direction, evaluate selectors/RHS once, preserve neighboring words/bits."
     forbidden_scope: "Whole-enum conversion relaxation, object/real containers, array-return expansion, unrelated parser/runtime changes, pform/SVA/solver sources, fabricated values or ignored indices."
@@ -69,3 +69,5 @@ l89_integration_revision: 1ffe476b6
 l86_integration_revision: 13fee7ec9
 
 l90_scope_refinement: "First focused run exposes nested SELECT-over-PROPERTY incdec rejection in eval_vec4.c. Coordinator authorizes narrow target lowering using existing captured receiver/word/base and partial-property store machinery; no new runtime opcode. Preserve enum BOOL base type in packed selection rather than relying solely on its vector carrier. Evidence l90-first-focused.json; IEEE2017/2023 11.5.1 invalid bit defaults remain required."
+
+l90_runtime_refinement: "Target review proves existing partial dynamic-array opcode requires a signal receiver; class-property container object needs an object-stack partial store. Coordinator authorizes vvp/vthread.cc,codes.h,compile.cc for a narrow object partial-vector store using existing container mutation/notification and clipping helpers. No new storage model. Preserve receiver/index evaluation, invalid-index no-op, packed bounds clipping, result value and two-state conversion. This remains L90 correctness, not a separate counted fix."
