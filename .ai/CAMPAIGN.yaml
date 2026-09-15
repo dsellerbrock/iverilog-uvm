@@ -1,14 +1,14 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L108-IMPLICIT-OBJECT-METHOD-LOOKUP
-phase: parallel_opentitan_lookup_and_caliptra_adapter_implementation
+current_blocker: L109-JOINT-ORDERED-INDEPENDENT-RANDC
+phase: parallel_runtime_implementation_and_caliptra_blocker_selection
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l105_archive.yaml
 integrated_since_last_broad_batch:
-  count: 2
-  revisions: [415823320, 0a5293059]
+  count: 3
+  revisions: [415823320, 0a5293059, 3823bd356]
 latest_broad_qualification:
   integration_revision: 053e07d373c0fbd94f16eddae63b7ccc0327000c
   semantic_revision: 366ef2bf1
@@ -16,19 +16,19 @@ latest_broad_qualification:
   scope: Ten recorded local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   base_revision: 05b0c44e1
-  installed_semantic_revision: 366ef2bf1
-  installed_fingerprints: evidence/batch-20260915-after-l95/l105-final-fingerprints.json
-  shared_process: None. L108 void build92553 failed before installation; installed candidate retains earlier L108 expression attempt. Focused L106/L107 checks passed; real OpenTitan replay pending repair.
+  installed_semantic_revision: 3823bd356
+  installed_fingerprints: docs/conformance/session_logs/2026-09-15_implicit_property_method_lookup_validation.json
+  shared_process: None. L109 first build failed before installation (dist helpers declared later); agent repairing. Installed L108 passed focused tests and original OpenTitan smoke.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Implement authorized L108 lookup fix in elab_expr.cc while second existing agent selects the next viable Caliptra checked runtime after confirming power2round testbench leaves a required DUT input disconnected (adapter validated). L106/L107 are integrated and focused-tested; coordinator builds L108 after source freeze, runs focused tests, then retries original OpenTitan smoke.
+  next_action: Coordinator validates L109 after corrected source freeze; constraint_abi assesses a concrete Caliptra compiler blocker in private evidence before selection. Preserve three focused-tested fixes awaiting broad qualification.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
 publication:
   latest_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/286
-  state: MERGED externally at2026-09-15T16:02:04Z; six platform CI jobs still IN_PROGRESS at fresh observation.
+  state: MERGED externally at2026-09-15T16:02:04Z; Ubuntu22.04/24.04 SUCCESS, macOS and threeWindows jobs IN_PROGRESS at latest observation.
   published_head: 05b0c44e1bfff3b431287599d43e507856028e9f
   content: Thirty-one recorded fixes L75-L105; twenty-one previously published but unpropagated fixes plus ten new L96-L105 fixes.
   current_main: c45760199; fetched tree is identical to published05b0c44e1.

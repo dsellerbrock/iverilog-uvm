@@ -1,5 +1,5 @@
-id: PARALLEL-L106-L107
-title: Local fixed-array pattern evaluation and finite first_match multiclock prefixes
+id: PARALLEL-AFTER-L108
+title: Independent ordered randc implementation and Caliptra blocker selection
 status: IMPLEMENTING
 base_revision: 05b0c44e1
 qualified_semantic_base: 366ef2bf1
@@ -34,16 +34,16 @@ lanes:
     acceptance: Both editions earliest failure versus later would-pass endpoint, earliest success, no endpoint, exact/ranged windows, plain and implication use, ##0/##1 and reversed event order, overlapping attempts, cover once, Off/Kill/async disable/restart, destination backlog, construction/unsupported negatives and preserved ordinary L100/L102/L103 aggregation. Honor all earliest same-tick matches; do not claim Boolean-only merged paths are observably different without proof.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared build/install or shared harnesses. Report source freeze and do not edit again until coordinator releases it.
 focused_features_completed_in_batch: 3
-integrated_revisions: []
+integrated_revisions: [415823320, 0a5293059, 3823bd356]
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml
 stop_after_completion: false
 
 application_priority_assessment:
   authority: User requests Caliptra SV progress and one real OpenTitan UVM pass; preserve pending compiler work.
-  installed_baseline: L105 semantic366ef2bf1; L106/L107 remain frozen and unbuilt.
+  installed_baseline: L108 semantic3823bd356; L106-L108 integrated and focused-tested, broad qualification pending.
   preservation: evidence/application-check-20260915/preserved-l106-l107/provenance.json
-  shared_process: None at process audit; fresh OpenTitan replay terminated with compile failure.
+  shared_process: None; fresh L108 OpenTitan replay passed. See current application evidence below.
   lanes:
     - agent: /root/constraint_abi
       scope: Assess object-property versus parameterized-class name collision; private cheap reducer and IEEE lookup evidence only, no implementation edits yet.
@@ -100,3 +100,13 @@ next_parallel_runtime_lane:
   scope: Allow demonstrably independent enumerable randc components disjoint from order/dist references through existing randc-first sampling. Retain focused rejection of direct randc ordering and unsupported coupled components. No frontend changes, weakened constraints, false successes or altered rollback.
   acceptance: Paired deterministic dist and randc-cycle outcomes, independent scalar/element components where admitted, graph and object constraint preservation, unsatisfiable rollback and randc progression, disabled modes, direct illegal randc order and unsupported coupled negatives; existing Z01A/randc neighbors.
   coordinator: Owns shared builds/install/harnesses/manifests/docs/review/integration. No agent builds or commits.
+
+current_application_evidence:
+  opentitan: docs/conformance/session_logs/2026-09-15_implicit_property_method_lookup_validation.json
+  caliptra: docs/conformance/session_logs/2026-09-15_caliptra_include_overlay_validation.json
+parallel_selection_lane:
+  agent: /root/constraint_abi
+  status: ASSESSMENT_ONLY
+  scope: Select a concrete standards-grounded Caliptra compiler defect from remaining overlay replay failures, with a cheap reducer and file ownership independent of vvp/vvp_z3.cc. No implementation until coordinator authorization.
+  owns: [evidence/application-check-20260915/next-caliptra-assessment]
+  build_policy: Coordinator owns all shared builds and tests; request a stable installed-tool window before reducer execution.
