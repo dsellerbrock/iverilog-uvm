@@ -2156,3 +2156,10 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 - **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-packed-assessment/typed-baseline.json`; paired enum element reads reject, while equivalent bit/signed/logic controls pass.
 - **Scope:** Existing read and lvalue packed-select paths for class dynamic-array/queue enum elements, preserving nominal whole-enum typing and existing partial-write semantics.
+
+### L91 — Finite Boolean consecutive repetition in multiclock antecedents
+
+- **Parent:** S02.
+- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/batch-20260914-after-l84/next-repeat-assessment/baseline.json`; paired rejection of `a[*1:2]` despite the L86 delay-window foundation.
+- **Scope:** Finite Boolean repetition with legal empty-match composition, endpoint/parent semantics, existing clock handoff and cancellation. Grouped and unbounded repetition remain distinct obligations.

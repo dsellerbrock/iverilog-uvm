@@ -1,5 +1,5 @@
-id: PARALLEL-BATCH-L86-L90
-title: Enum container packed selects and bounded multiclock antecedent semantics
+id: PARALLEL-BATCH-L90-L91
+title: Enum container packed selects and finite Boolean multiclock repetition
 status: IMPLEMENTING
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
@@ -19,20 +19,20 @@ lanes:
     forbidden_scope: "Whole-enum conversion relaxation, object/real containers, array-return expansion, unrelated parser/runtime changes, pform/SVA/solver sources, fabricated values or ignored indices."
     dependencies: "L89 integrated1ffe476b6; independent of L86. Root owns shared builds/install, harnesses/manifests, documentation/integration."
     acceptance: "Both editions: dynamic/queue element bit/fixed/indexed +/- reads and blocking writes, signed/ascending and2/4-state enum bases, full-width selected vector vs nominal whole-enum typing, side-effectful selectors/RHS exactly once, neighbor preservation, X/OOB defaults and suppressed writes, const/readonly negatives; compound/incdec generic lvalue controls and non-enum neighbors."
-  - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
-    parent: S01
+  - id: L91-MULTICLOCK-BOOLEAN-CONSECUTIVE-REPETITION
+    parent: S02
     agent: /root/constraint_wide
-    status: FOCUSED_TESTED
-    standards: "IEEE 1800-2017/2023 16.9.2, 16.12, 16.13.1, 16.13.3"
-    reproducer: evidence/next-batch-after-l84/multiclock_range_antecedent.sv
-    actual: "Both editions reject the bounded variable-length antecedent because the multiclock lowerer accepts only fixed-length boolean chains."
-    expected: "Every matching antecedent endpoint creates its standards-correct consequent obligation; the two-endpoint witness yields exactly one failure."
-    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
-    test_prefix: sv_assert_multiclock_bounded_antecedent
-    allowed_scope: "Finite constant ##[m:n] delay windows in otherwise fixed single-clock antecedents of multiclock implications, preserving every match, clock handoff, attempt identity and action semantics. Reuse existing multiclock lowering/NFA infrastructure. Coordinator authorizes the necessary parent-tagged dynamic handoff and per-parent pending/failure aggregation within the owned lowering files; reuse existing queue lowering where possible. No fixed backlog cap or truncated attempt identity."
-    forbidden_scope: "Unbounded sequences, general repetition/operator expansion, solver sources, parser grammar changes, dropping alternative matches or weakening assertion semantics."
-    dependencies: "Existing fixed-chain multiclock lowering and clock-flow semantics; independent of L85."
-    acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
+    status: REPRODUCED
+    standards: "IEEE1800-2017/2023 16.9.2,16.9.2.1,16.12.7,16.13 and16.14. Verify empty-match handoff separately for each implication form."
+    reproducer: evidence/batch-20260914-after-l84/next-repeat-assessment/multiclock_bounded_repeat.sv
+    actual: "Both editions reject a[*1:2] as a multiclock antecedent; expected one parent failure after the second endpoint child fails."
+    expected: "Finite consecutive repetition of Boolean expressions retains every permitted match and one parent verdict through the L86 engine, including standards-correct zero-count/empty composition where legal."
+    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h, parse_misc.h]
+    test_prefix: sv_assert_multiclock_boolean_repeat
+    allowed_scope: "Finite literal-bound Boolean expr[*m:n] in otherwise supported single-clock antecedent chains, including m=0, internal/trailing repetitions, and existing fixed first-clock consequent prefixes. Reuse finite NFA expansion and L86 parent transport. Add minimal repetition provenance if needed to distinguish Boolean operands from unsupported grouped sequences; preserve every empty/nonempty endpoint according to each implication clock rule."
+    forbidden_scope: "Unbounded or goto/nonconsecutive repetition, grouped multi-step repetition silently treated as last-expression repetition, symbolic-bound redesign, general locals/match-action operators, L90 expression/lvalue files, new runtime scheduler architecture. Diagnose remaining forms."
+    dependencies: "L86 integrated13fee7ec9; independent of L90. Root owns all shared builds/install/harnesses/main manifests/docs."
+    acceptance: "Both editions: multiple endpoints and parents, m=0/1/>1 and m=n, internal/zero-delay composition and legal empty-match handoff, |->/|=> and fixed prefixes, sampled vector truth, early failure/vacuity, disable/kill/restart, paused-clock backlog,64tick boundary and unsupported grouped/unbounded controls; L86 and NFA neighbors. Do not reduce this ticket to only positive-lower-bound repetition."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
 focused_features_completed_in_batch: 5
@@ -65,3 +65,5 @@ l88_integration_revision: d6a15ca2b
 l86_latest_failures: "Paused-destination kill/restart drops fresh parent; completed lifecycle records remain behind unacknowledged MATCH. Both paired reducers in CAMPAIGN; fixes remain in owned source scope."
 
 l89_integration_revision: 1ffe476b6
+
+l86_integration_revision: 13fee7ec9

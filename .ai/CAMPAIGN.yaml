@@ -1,8 +1,8 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: PARALLEL-BATCH-L86-L90
+current_blocker: PARALLEL-BATCH-L90-L91
 phase: parallel_implementation
-source_revision: 1ffe476b6
+source_revision: 13fee7ec9
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 240dd5f6f
@@ -65,7 +65,7 @@ preserved_local_batch:
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: "L88 runtime/elaborator plus L86 prefix compiler increment; hashes in evidence/batch-20260914-after-l84/l86-prefix-candidate.json. Subsequent lane source edits unbuilt. No broad qualification."
 pending_gates: "Broad current-batch gates near ten integrated fixes; L86/L89 completion and focused validation; PR284 remaining CI and authorized merge. PR283 CI passed."
-next_action: "Complete L86 final acceptance and implement authorized L90 enum packed selects. Four integrated fixes; broad gates near ten."
+next_action: "Validate L90 frozen compiler candidate and implement authorized L91 finite Boolean repetition including empty-match cases. Five integrated fixes; broad gates near ten."
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
@@ -78,9 +78,9 @@ active_lanes:
   - id: L90-ENUM-CONTAINER-PACKED-SELECTS
     agent: /root/constraint_abi
     files: elab_expr.cc, elab_lval.cc
-  - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
+  - id: L91-MULTICLOCK-BOOLEAN-CONSECUTIVE-REPETITION
     agent: /root/constraint_wide
-    files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
+    files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h, parse_misc.h
 shared_execution_owner: coordinator
 parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
 
@@ -118,7 +118,8 @@ current_batch:
   integrated_l87: 831cdeca2
   integrated_l88: d6a15ca2b
   integrated_l89: 1ffe476b6
-  selected_lanes: [L86, L90]
+  integrated_l86: 13fee7ec9
+  selected_lanes: [L90, L91]
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
@@ -162,3 +163,8 @@ latest_focused_runs: evidence/batch-20260914-after-l84/l86-l89-second-focused.js
 current_process_state: "All shared builds/harnesses terminal; L86 five extra pairs awaiting registration/final replay."
 
 l86_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_bounded_antecedents_validation.json
+
+l86_integration_revision: 13fee7ec9
+l91_baseline: evidence/batch-20260914-after-l84/next-repeat-assessment/baseline.json
+l90_build: evidence/batch-20260914-after-l84/l90-first-compiler-build.log
+latest_installed_state: "L90 first compiler candidate plus integrated L89 runtime; no L90 qualification yet. L86 source matches integrated13fee7ec9."
