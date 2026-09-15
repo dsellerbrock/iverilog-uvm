@@ -7,7 +7,7 @@ coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Ma
 lanes:
   - id: L104-CONSTANT-MIXED-EQUALITY
     agent: /root/constraint_abi
-    status: AUTHORIZED
+    status: FOCUSED_TESTED
     standards: IEEE1800-2017 and2023 5.9, Table11-21,11.8.2
     reproducer: evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md
     actual: Constant function comparing integer97 with packed literal a fails evaluation in both editions; runtime equivalent returns true.
@@ -30,7 +30,7 @@ lanes:
     scope: Remove fabricated default fallback for nonlocal package/class static reads, preserve legal local evaluation and focused diagnostics. The string parameter branch in net_design.cc must reject an unreduced expression before target lowering, matching existing real/integral checks; direct L105 string reducers otherwise abort in t-dll.cc. No elab_expr.cc or eval_tree.cc edits.
     acceptance: Both editions initialized/uninitialized mutable package scalar and string values reject, class-static controls reject, legal parameter/local/automatic-frame constants pass, runtime package and static reads observe actual state. Check constant string/array neighbors; no compilation-only success claim.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
-focused_features_completed_in_batch: 8
+focused_features_completed_in_batch: 9
 integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb]
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml

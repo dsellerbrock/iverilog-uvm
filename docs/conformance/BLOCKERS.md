@@ -2286,10 +2286,12 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L104 — Constant mixed integral/literal equality
 
-- **State:** IN_PROGRESS; coordinator-authorized comparison lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Standards:** IEEE1800-2017 and2023 5.9, Table11-21,11.8.2.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md`.
 - **Closure:** Common integral operand sizing, signedness and four-state equality with constant/runtime parity.
+
+- **Implementation evidence:** [L104 session](session_logs/2026-09-15_constant_mixed_equality.md).
 
 ### L105 — Fabricated nonlocal constant-function values
 

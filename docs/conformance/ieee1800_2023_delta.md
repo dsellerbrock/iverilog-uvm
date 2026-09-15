@@ -241,3 +241,5 @@ L102 shares the sequence-property and clock-flow rules; [paired evidence](sessio
 L101 follows the shared 6.16,11.4.2,13.4.3 rules; [paired evidence](session_logs/2026-09-15_constant_array_character_increment_validation.json) records separate edition executions.
 
 L103 follows the shared 16.9.2,16.13.1,16.13.2 rules; [paired evidence](session_logs/2026-09-15_plain_multiclock_ranged_prefix_validation.json) records separate edition executions.
+
+L104 shares the equality sizing rules; [paired evidence](session_logs/2026-09-15_constant_mixed_equality_validation.json) records both editions.

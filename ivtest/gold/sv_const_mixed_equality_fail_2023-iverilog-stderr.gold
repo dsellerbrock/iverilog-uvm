@@ -1,0 +1,2 @@
+./ivltests/sv_const_mixed_equality_fail.v:6: error: Unable to evaluate parameter VALUE value: sv_const_mixed_equality_fail.illegal(<null>)
+1 error(s) during elaboration.

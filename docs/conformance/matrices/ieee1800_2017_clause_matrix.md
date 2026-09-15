@@ -1478,3 +1478,7 @@ IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_constant_array_
 ### L103 — Plain multiclock ranged first-clock prefixes
 
 IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_plain_multiclock_ranged_prefix.md). Broader clause coverage remains PARTIAL; broad qualification pending.
+
+### L104 — Constant mixed equality
+
+IMPLEMENTED for the [recorded integral equality subset](../session_logs/2026-09-15_constant_mixed_equality.md). Broader expression coverage remains PARTIAL; broad qualification pending.

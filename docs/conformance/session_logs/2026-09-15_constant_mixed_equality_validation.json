@@ -1,0 +1,58 @@
+{
+  "scope": "L104 integral constant equality common sizing; focused only",
+  "base_revision": "b3d0e217ad1f1c85aea4731c109c85877bceec15",
+  "standards": [
+    "IEEE1800-2017 5.9,11.4.5,11.4.6,Table11-21,11.8.2",
+    "IEEE1800-2023 5.9,11.4.5,11.4.6,Table11-21,11.8.2"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 6,
+      "failed": 0
+    },
+    "json": {
+      "ran": 6,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 37,
+      "failed": 0
+    },
+    "json": {
+      "ran": 37,
+      "failed": 0
+    }
+  },
+  "source_and_artifacts": {
+    "eval_tree.cc": "cdb030d672c8b9a15b46a3d47843a31b768dc98559fdc0c2816fab10d3118d17",
+    "net_func_eval.cc": "a1f861b88217933c4d2e532b18409890e7d44b3d39474aa9a47d4b5b06cfba40",
+    "pform.cc": "885acb987fc12061e97be4a145d239358f306a82fb53cd683576ef4d6b29e48c",
+    "local-install/lib/ivl/ivl": "1bf4c7e02080f9b1cce4ae619ef77d458c917df4e1fafce0cc403a1b25b6af1d",
+    "local-install/lib/ivl/vvp.tgt": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1",
+    "local-install/bin/iverilog": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b",
+    "local-install/bin/vvp": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f"
+  },
+  "concurrent_source": "Installed L105 net_func_eval candidate included; subsequent net_design repair is not installed in this record. L104 evidence does not qualify L105.",
+  "build": "l104-l105-frozen-build.log",
+  "install": "l104-l105-frozen-install.log",
+  "logs": [
+    "l104-focused-legacy.log",
+    "l104-focused-vvp.log",
+    "l104-neighbors-legacy.log",
+    "l104-neighbors-vvp.log"
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "direct": "l104-l105-direct-retry.json",
+  "failed_evidence": "Initial direct2023 checks lacked the ivtest include root; preserved separately in l104-l105-direct.json. Initial source-freeze race was corrected by forced affected-object rebuild before all cited validation.",
+  "fixture_hashes": {
+    "ivtest/ivltests/sv_const_mixed_equality_fail.v": "92573098934e8a0f27860c948753739c337bdeabd47daacd232a2008a246a0e5",
+    "ivtest/ivltests/sv_const_mixed_equality_2023.v": "c40c3087e711d016b142e02074057d271f0d02e73deef25885b1ae12140b982b",
+    "ivtest/ivltests/sv_const_mixed_equality.v": "38dc49170005bb660f1a82ca2dccff2196b068d8d73ddb97bcd8f335bd8ec201",
+    "ivtest/ivltests/sv_const_mixed_equality_fail_2023.v": "17902092e7429722245640c9e196d1cb822b06c458b9432b830d23759f080b4f",
+    "ivtest/ivltests/sv_const_mixed_equality_strings.v": "0e944e1071703896921de41227c6a45f35620f718f4ba58ecea2b113d9cbea0b",
+    "ivtest/ivltests/sv_const_mixed_equality_strings_2023.v": "9581e4f94f418039374e81d2e1fb27da27c04ea4be742b40f7b10be39e0b0529"
+  },
+  "qualification": "Current batch broad gates pending."
+}

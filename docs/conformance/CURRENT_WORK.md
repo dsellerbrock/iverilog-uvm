@@ -67,6 +67,8 @@ Latest L101 focused evidence: [Constant fixed-array string-character increment](
 
 Latest L103 focused evidence: [Plain multiclock ranged first-clock prefixes](session_logs/2026-09-15_plain_multiclock_ranged_prefix.md).
 
+Latest L104 focused evidence: [constant mixed equality](session_logs/2026-09-15_constant_mixed_equality.md).
+
 ## History
 
 The former continuation narrative is preserved in the
