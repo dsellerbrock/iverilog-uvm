@@ -2,7 +2,7 @@ status: active
 branch: agent/compiler-campaign-after-l95-20260915
 current_blocker: PARALLEL-L99-L100
 phase: parallel_implementation
-source_revision: e43ecd536
+source_revision: a49ee5d3e
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: e43ecd536
@@ -13,14 +13,14 @@ current_evidence_index: docs/conformance/CURRENT_WORK.md
 historical_handoff: docs/conformance/session_logs/2026-09-14_campaign_handoff_archive.yaml
 published_work:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/285
-    state: open
+    state: externally_merged_to_stack_parent
     branch: agent/compiler-campaign-after-l84-20260914
     base_branch: agent/string-return-uppercase-20260914
-    published_head: 4c786e90a
-    current_ci_observation: pending; all seven local gates passed
+    published_head: 5726ab0eb84acdad78d3d3f1ced1b6afe15fb13d
+    current_ci_observation: Run34973595268 Linux22/24 passed; macOS and three Windows jobs running. All seven local gates passed.
     evidence: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/284
-    state: open
+    state: externally_merged_to_stack_parent
     branch: agent/string-return-uppercase-20260914
     base_branch: agent/typed-array-return-20260914
     stacked_on: https://github.com/dsellerbrock/iverilog-uvm/pull/283
@@ -29,7 +29,7 @@ published_work:
     current_ci_observation: All six platform jobs passed in run34931769313. All seven local gates passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
-    state: open
+    state: externally_merged_to_main
     published_head: 9f79ff51cefe85194beb954409750e2e741dfcc3
     current_ci_run: 34927916125
     current_ci_observation: All six platform jobs passed in run34927916125. Local seven-gate qualification passed.
@@ -347,3 +347,21 @@ l99_first_build_checkpoint:
   evidence: evidence/batch-20260915-after-l95/l99-first-direct.json
   outcome: basic constant methods pass; OOB constant receivers and dynamic runtime receiver identity still require repair
   authorized_expansion: narrow frontend method receiver and VPI target argument capture; disjoint from L100 pform source
+
+parallel_l99_l100_repair_checkpoint:
+  integrated_fixes: 3
+  integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e]
+  source_state: L99 and L100 pending patches preserved; combined repair build/install passed.
+  direct_evidence: evidence/batch-20260915-after-l95/l99-l100-repair-direct.json
+  fingerprint_evidence: evidence/batch-20260915-after-l95/l99-l100-repair-fingerprints.json
+  l99: Six positive runtime checks passed in paired editions; four expected diagnostic checks. Focused harness and neighbor validation pending.
+  l100: Fourteen positive checks passed; backlog pair failed because d changed in Active with its sampling edge. Corrected stimulus must be rerun, with expanded boundaries and migration of newly supported CE tests.
+  running_shared_process: none
+  next_action: Complete focused harnesses before either integration; keep two existing sol implementation lanes and coordinator-owned build/install/tests.
+  broad_validation: Deferred until approximately ten integrated fixes; prior qualification does not cover these changes.
+  remote_observation:
+    pr285: Squashed to agent/string-return-uppercase-20260914 at abe72cd12.
+    pr284: Squashed to agent/typed-array-return-20260914 at 93b763204.
+    pr283: Squashed to main at 874e00680.
+    tree_comparison: Each squash tree equals its original PR head; origin/main currently contains only L65-L74, and parent squashes do not propagate the later batches to main.
+    sync_policy: Preserve L75-L100 work. Reconcile main ancestry at a clean integration checkpoint; next publication must carry L75 onward to main if no subsequent external merge does so.
