@@ -2076,14 +2076,18 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 
 ### L83 — Fixed-array string-character increment/decrement
 
-- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
 - **Evidence:** `evidence/batch-20260914-after-l74/l83-array-character-incdec-baseline.json`: both editions route string storage through the vector-array loader and fail runtime semantics.
 - **Scope:** Pre/post signed character update/results on fixed string arrays, excluding array returns.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2.
 
+- **Focused implementation evidence:** [L83 session](session_logs/2026-09-14_array_string_character_increment.md).
+
 ### L84 — Constant-function string-character increment/decrement
 
-- **State:** REPRODUCED; selected in ACTIVE_WORK.
+- **State:** IMPLEMENTED; focused checks pass, broad batch pending.
 - **Evidence:** `evidence/batch-20260914-after-l74/l84-constant-character-incdec-baseline.json`: both editions fail selected-character unary evaluation and assert downstream.
 - **Scope:** Scalar local/argument/return string character pre/post byte updates and results in constant functions.
 - **Standards:** IEEE 1800-2017/2023 6.16, 11.4.2, 13.4.3.
+
+- **Focused implementation evidence:** [L84 session](session_logs/2026-09-14_constant_string_character_increment.md).

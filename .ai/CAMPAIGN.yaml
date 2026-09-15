@@ -1,8 +1,8 @@
 status: active
 branch: agent/string-return-uppercase-20260914
-current_blocker: PARALLEL-BATCH-L83-L84
-phase: parallel_implementation
-source_revision: f517397bf
+current_blocker: QUALIFY-BATCH-L75-L84
+phase: frozen_batch_qualification
+source_revision: 240dd5f6f
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 374318731
@@ -54,24 +54,18 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: L82 compiler, L81 target and L79 runtime; focused hashes recorded in L81/L82 validation. Last broad qualification remains the separate L65-L74 candidate.
-pending_gates: PR283 required cross-platform CI; focused checks and later broad qualification for the next independent batch.
-next_action: Implement authorized independent L83/L84 lanes then freeze the approximately ten-fix batch for seven broad gates; coordinator owns builds, harnesses and review. Keep PR283 branch fixed.
-next_command: git diff --stat
+installed_tools: L84 compiler, L83 target and L79 runtime passed focused checks; serial full batch build/install underway before qualification snapshot.
+pending_gates: Seven broad gates for L75-L84; PR283 cross-platform CI remains separate.
+next_action: Finish serial full build/install, snapshot candidate, run seven broad gates, then publish coherent PR. Keep PR283 branch fixed.
+next_command: Inspect evidence/batch-20260914-l84/qualification and running gate processes.
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
 
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_constant_string_integer.md
+latest_focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
-active_lanes:
-  - id: L83-ARRAY-STRING-CHARACTER-INCREMENT
-    agent: /root/constraint_abi
-    files: tgt-vvp/eval_vec4.c
-  - id: L84-CONSTANT-STRING-CHARACTER-INCREMENT
-    agent: /root/constraint_wide
-    files: net_func_eval.cc
+active_lanes: []
 shared_execution_owner: coordinator
 parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
 
@@ -83,7 +77,7 @@ l74_status: Integrated374318731; six cases per harness and two additional runtim
 
 current_batch:
   base_revision: 9f79ff51c
-  focused_features: 8
+  focused_features: 10
   integrated_l75: f95f0bc11
   integrated_l76: 24feb1f28
   integrated_l77: d11c3852c
@@ -92,8 +86,10 @@ current_batch:
   integrated_l80: eb87a2593
   integrated_l81: 45fcf1546
   integrated_l82: f517397bf
-  selected_lanes: [L83, L84]
-  source_edits: New lanes authorized after current failing reproducers; L75-L82 focused qualification only.
+  integrated_l83: 2d8d1cab6
+  integrated_l84: 240dd5f6f
+  selected_lanes: []
+  source_edits: Frozen L75-L84 ten-fix batch; focused qualification only until broad gates finish.
 
 l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.
 

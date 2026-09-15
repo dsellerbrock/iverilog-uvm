@@ -1386,3 +1386,11 @@ IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string
 ### L82 — Constant string-to-integer conversions
 
 IMPLEMENTED for the four methods using the [shared parser](../session_logs/2026-09-14_constant_string_integer.md); broad batch qualification remains pending.
+
+### L83 — Fixed-array string-character increment/decrement
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_increment.md); other receiver kinds and broad qualification remain separate.
+
+### L84 — Constant-function string-character increment/decrement
+
+IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_constant_string_character_increment.md); other receiver kinds and broad qualification remain separate.

@@ -51,8 +51,7 @@ command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
 latest record above. Publication status and subsequent work remain in CAMPAIGN.
 No newer whole-application replay is claimed.
 
-The next local batch has focused [L75](session_logs/2026-09-14_string_return_character.md)
-and [L76](session_logs/2026-09-14_constant_string_case_conversion.md) evidence but has not received broad qualification.
+The [L75–L84 batch](session_logs/2026-09-14_compiler_batch_l75_l84.md) has completed focused validation and is awaiting broad qualification.
 
 ## History
 
@@ -62,10 +61,3 @@ Earlier checkpoints and failed attempts remain in the
 [session logs](session_logs/README.md). Keep historical results revision-scoped;
 update these pointers when new evidence is committed.
 
-The same focused batch now also includes [L77](session_logs/2026-09-14_string_character_increment.md) and [L78](session_logs/2026-09-14_constant_string_comparison.md). Broad qualification remains pending.
-
-Focused [L79](session_logs/2026-09-14_array_string_character_store.md) and [L80](session_logs/2026-09-14_constant_string_substr.md) evidence extends the same unqualified batch.
-
-[L81 focused evidence](session_logs/2026-09-14_array_string_character_compound.md) adds array character compound stores; broad batch qualification remains pending.
-
-[L82 focused evidence](session_logs/2026-09-14_constant_string_integer.md) adds the integer conversion family; broad qualification remains pending.
