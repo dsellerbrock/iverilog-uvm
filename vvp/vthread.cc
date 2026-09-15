@@ -56,6 +56,7 @@
 #endif
 # include  <set>
 # include  <map>
+# include  <memory>
 # include  <deque>
 # include  <unordered_map>
 # include  <unordered_set>
@@ -318,6 +319,8 @@ struct active_call_context_s {
 /* IEEE 1800-2017/2023 18.6.2: one callback context spans pre callbacks,
  * inline captures, solving and post callbacks. Inline captures can themselves
  * randomize, so the caller owns a stack rather than one pending receiver. */
+struct randomize_staged_state_s;
+
 struct randomize_call_context_s {
       enum phase_t { PRE, READY, SOLVED, POST } phase = PRE;
       vvp_object_t root;
@@ -327,6 +330,14 @@ struct randomize_call_context_s {
       std::vector<vvp_object_t> post_objects;
       size_t post_index = 0;
       __vpiScope*frame_scope = nullptr;
+      std::vector<std::pair<vvp_object_t,size_t> > state_calls;
+      size_t state_call_index = 0;
+      bool state_call_pending = false;
+      bool state_calls_collected = false;
+      bool state_calls_ok = true;
+      bool needs_function_stages = false;
+      std::shared_ptr<randomize_staged_state_s> staged;
+      std::map<vvp_cobject*,std::vector<vvp_vector4_t> > state_values;
 };
 
 /* Static VIF-function input formals live in shared storage. Stage one private
@@ -737,6 +748,12 @@ struct vthread_s {
       void static_call_setup_save_object(vvp_net_t*net);
       bool static_call_overlay_load_vec4(vvp_net_t*net,
                                          vvp_vector4_t&value);
+      bool staged_static_overlay_load_vec4(vvp_net_t*net,
+                                           vvp_vector4_t&value);
+      bool staged_static_overlay_load_word(vvp_array_t array, size_t leaf,
+                                           vvp_vector4_t&value);
+      bool staged_static_overlay_load_object(vvp_net_t*net,
+                                             vvp_object_t&value);
       bool static_call_overlay_store_vec4(vvp_net_t*net,
                                           const vvp_vector4_t&value,
                                           int64_t offset);
@@ -2964,8 +2981,11 @@ bool of_QSIZE(vthread_t thr, vvp_code_t cp)
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (cp->net->fun);
       assert(obj);
 
+      vvp_object_t collection;
+      if (!thr->staged_static_overlay_load_object(cp->net, collection))
+            collection = obj->get_object();
       vvp_vector4_t val;
-      size_to_vec4_(dynamic_collection_size_(obj->get_object()), val);
+      size_to_vec4_(dynamic_collection_size_(collection), val);
       thr->push_vec4(val);
       return true;
 }
@@ -5172,6 +5192,7 @@ struct randomize_solve_options_s {
       const std::vector<vvp_vector4_t>*slot_words = nullptr;
       const std::vector<vvp_object_t>*object_vals = nullptr;
       const std::function<unsigned()>*next_random = nullptr;
+      const std::map<vvp_cobject*,std::vector<vvp_vector4_t> >*class_state_values = nullptr;
       bool include_class_constraints = true;
 };
 
@@ -5317,6 +5338,11 @@ static bool randomize_collect_graph_(randomize_graph_session_t&session,
                               if (options->object_vals) scope.object_vals = *options->object_vals;
                         }
                   }
+		  if (options && options->class_state_values) {
+			auto values = options->class_state_values->find(object);
+			if (values != options->class_state_values->end())
+			      scope.class_slot_vals = values->second;
+		  }
                   if (scope.include_class_constraints)
                         collect_unmerged_base_constraints_(object->get_defn(), scope.inherited_ir);
                   if (object == root && options && options->extra_ir)
@@ -5630,10 +5656,17 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 	    const vector<uint64_t>&slot_vals =
 		  options && options->slot_vals ? *options->slot_vals
 					 : empty_slots;
+	    const vector<vvp_vector4_t>*class_slots = nullptr;
+	    if (options && options->class_state_values) {
+		  auto found = options->class_state_values->find(cobj);
+		  if (found != options->class_state_values->end())
+			class_slots = &found->second;
+	    }
 	    if (solve_ok && !vvp_z3_randomize(defn, cobj, extra_ir,
 					       slot_vals, sel,
 					       include_class_constraints,
-                                               options ? options->object_vals : nullptr))
+                                               options ? options->object_vals : nullptr,
+					       class_slots))
 		  solve_ok = false;
       }
       if (session.joint()) return solve_ok;
@@ -5663,12 +5696,10 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
       return solve_ok;
 }
 
-static bool randomize_solve_(randomize_graph_session_t&session,
+static bool randomize_prepare_graph_(randomize_graph_session_t&session,
       vvp_cobject*cobj, const std::vector<bool>*sel,
-      const randomize_solve_options_s*options = nullptr)
+      const randomize_solve_options_s*options)
 {
-      if (!cobj) return true;
-      if (!session.joint()) return randomize_cobject_(session, cobj, sel, options);
       if (!randomize_collect_graph_(session, cobj, sel, options)) return false;
       if (!vvp_z3_graph_history_supported(session.solve_objects)) return false;
       // Prefill in collection order so the first active static owner stages
@@ -5680,7 +5711,17 @@ static bool randomize_solve_(randomize_graph_session_t&session,
                   return false;
             }
       }
-      return vvp_z3_randomize_graph(session.solve_objects);
+      return true;
+}
+
+static bool randomize_solve_(randomize_graph_session_t&session,
+      vvp_cobject*cobj, const std::vector<bool>*sel,
+      const randomize_solve_options_s*options = nullptr)
+{
+      if (!cobj) return true;
+      if (!session.joint()) return randomize_cobject_(session, cobj, sel, options);
+      return randomize_prepare_graph_(session, cobj, sel, options)
+            && vvp_z3_randomize_graph(session.solve_objects);
 }
 
 /* Retain the actual successful participants before the transaction journal
@@ -5697,6 +5738,137 @@ static void randomize_callbacks_solved_(vthread_t thr, vvp_cobject*cobj,
       if (success) session.callback_objects(call.post_objects);
 }
 
+/* A function-argument priority solve suspends at ordinary function frames.
+ * Keep the graph journal and immutable inline captures until every partition
+ * succeeds; a later partition must not constrain an earlier solution. */
+struct randomize_staged_state_s {
+      randomize_graph_session_t session{true};
+      vvp_z3_function_plan_s plan;
+      size_t stage = 0;
+      size_t next_call = 0;
+};
+
+static bool randomize_free_hook_(vthread_t thr, __vpiScope*&scope);
+static bool randomize_invoke_state_call_(vthread_t thr,
+                                        randomize_call_context_s&call);
+
+static bool randomize_staged_finish_(vthread_t thr, bool success)
+{
+      randomize_call_context_s&call = thr->randomize_calls.back();
+      auto state = call.staged;
+      if (success) success = state->session.commit();
+      if (!success) state->session.rollback();
+      randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
+                                 state->session, success);
+      call.staged.reset();
+      vvp_object_t receiver;
+      thr->pop_object(receiver);
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, success ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+static bool randomize_staged_resume_(vthread_t thr)
+{
+      randomize_call_context_s&call = thr->randomize_calls.back();
+      auto state = call.staged;
+      if (call.state_call_pending) {
+            if (!randomize_free_hook_(thr, call.frame_scope)) return false;
+            const auto&done = call.state_calls[call.state_call_index];
+            call.state_values[done.first.peek<vvp_cobject>()][done.second]
+                  = thr->pop_vec4();
+            call.state_call_pending = false;
+      }
+      if (!call.state_calls_ok) return randomize_staged_finish_(thr, false);
+      while (state->stage < state->plan.stages.size()) {
+            auto&stage = state->plan.stages[state->stage];
+            for (const auto&deferred : state->plan.deferred_elements) {
+                  if (deferred.stage != state->stage) continue;
+                  vvp_cobject*object = state->session.solve_objects
+                        .at(deferred.object).object;
+                  vvp_object_t container;
+                  object->get_object(deferred.property, container, 0);
+                  vvp_darray*array = container.peek<vvp_darray>();
+                  if (!array) {
+                        cerr << "runtime error: constraint function priority: "
+                             << "dynamic container is missing after its size stage"
+                             << endl;
+                        return randomize_staged_finish_(thr, false);
+                  }
+                  for (size_t leaf = 0; leaf < array->get_size(); ++leaf) {
+                        bool assigned = false;
+                        for (const auto&candidate : state->plan.stages) {
+                              for (const auto&ref :
+                                   candidate.active.at(deferred.object))
+                                    if (ref.kind == vvp_z3_ref_s::ELEM
+                                        && ref.property == deferred.property
+                                        && ref.leaf == leaf) {
+                                          assigned = true;
+                                          break;
+                                    }
+                              if (assigned) break;
+                        }
+                        if (!assigned)
+                              stage.active.at(deferred.object).push_back(
+                                    {vvp_z3_ref_s::ELEM,
+                                     deferred.property, (unsigned)leaf});
+                  }
+            }
+            while (state->next_call < stage.before_calls.size()) {
+                  const auto&next = stage.before_calls[state->next_call++];
+                  vvp_cobject*object = state->session.solve_objects.at(next.object).object;
+                  auto&values = call.state_values[object];
+                  values.resize(object->get_defn()->constraint_state_calls().size());
+                  if (values.at(next.slot).size()) continue;
+                  call.state_calls.assign(1, std::make_pair(vvp_object_t(object), next.slot));
+                  call.state_call_index = 0;
+                  bool running = randomize_invoke_state_call_(thr, call);
+                  if (call.state_call_pending || !running) return running;
+                  if (!call.state_calls_ok) return randomize_staged_finish_(thr, false);
+            }
+            auto objects = state->session.solve_objects;
+            for (size_t idx = 0; idx < objects.size(); ++idx) {
+                  auto&object = objects[idx];
+                  object.staged_selection = true;
+                  object.staged_active = stage.active.at(idx);
+                  object.include_class_constraints = false;
+                  object.inherited_ir.clear();
+                  object.extra_ir.clear();
+                  object.planned_class_ir.clear();
+                  object.class_slot_vals = call.state_values[object.object];
+            }
+            for (const auto&item : stage.items) {
+                  auto&object = objects.at(item.object);
+                  if (item.class_ir) object.planned_class_ir.push_back(item.ir);
+                  else object.extra_ir.push_back(item.ir);
+            }
+            if (!vvp_z3_randomize_graph(objects))
+                  return randomize_staged_finish_(thr, false);
+            state->stage += 1;
+            state->next_call = 0;
+      }
+      return randomize_staged_finish_(thr, true);
+}
+
+static bool randomize_staged_begin_(vthread_t thr, vvp_cobject*object,
+      const std::vector<bool>*selection, const randomize_solve_options_s*options,
+      bool inputs_ok = true)
+{
+      randomize_call_context_s&call = thr->randomize_calls.back();
+      call.staged = std::make_shared<randomize_staged_state_s>();
+      auto state = call.staged;
+      if (!inputs_ok || !call.state_calls_ok
+          || !randomize_prepare_graph_(state->session, object, selection, options))
+            return randomize_staged_finish_(thr, false);
+      if (!vvp_z3_plan_function_stages(state->session.solve_objects, state->plan)) {
+            cerr << "runtime error: constraint function priority: "
+                 << state->plan.error << endl;
+            return randomize_staged_finish_(thr, false);
+      }
+      return randomize_staged_resume_(thr);
+}
+
 /*
  * %randomize
  *
@@ -5707,6 +5879,8 @@ static void randomize_callbacks_solved_(vthread_t thr, vvp_cobject*cobj,
  */
 bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 {
+      if (!thr->randomize_calls.empty() && thr->randomize_calls.back().staged)
+            return randomize_staged_resume_(thr);
       vvp_object_t&obj = thr->peek_object();
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
 
@@ -5721,8 +5895,20 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 	    thr->rand_sel.clear();
       }
 
+      randomize_solve_options_s options;
+      randomize_solve_options_s*use_options = nullptr;
+      if (!thr->randomize_calls.empty()) {
+	    randomize_call_context_s&call = thr->randomize_calls.back();
+	    options.class_state_values = &call.state_values;
+	    use_options = &options;
+      }
+      if (!thr->randomize_calls.empty()
+          && thr->randomize_calls.back().needs_function_stages)
+            return randomize_staged_begin_(thr, cobj, sel, use_options);
       randomize_graph_session_t session(true);
-      bool solve_ok = randomize_solve_(session, cobj, sel);
+      bool solve_ok = thr->randomize_calls.empty()
+	    || thr->randomize_calls.back().state_calls_ok;
+      if (solve_ok) solve_ok = randomize_solve_(session, cobj, sel, use_options);
       if (solve_ok) solve_ok = session.commit();
       if (!solve_ok)
 	    session.rollback();
@@ -5747,6 +5933,9 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 	// bit 31 marks std::randomize(this_property), which uses this object's
 	// storage but excludes class constraints and randomize hooks (18.12).
       bool scope_form = (code->bit_idx[0] & 0x80000000u) != 0;
+      if (!scope_form && !thr->randomize_calls.empty()
+          && thr->randomize_calls.back().staged)
+            return randomize_staged_resume_(thr);
       unsigned n_vals = code->bit_idx[0] & 0x7fffffffu;
       const char* ir_text = code->text ? code->text : "";
       unsigned n_objects = object_form ? code->bit_idx[1] : 0;
@@ -5808,11 +5997,19 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
       options.slot_words = &slot_words;
       options.object_vals = &objects;
       options.include_class_constraints = !scope_form;
+	if (!scope_form && !thr->randomize_calls.empty())
+	      options.class_state_values = &thr->randomize_calls.back().state_values;
       if (scope_form)
 	    options.next_random = &scope_random;
 
+      if (!scope_form && !thr->randomize_calls.empty()
+          && thr->randomize_calls.back().needs_function_stages)
+            return randomize_staged_begin_(thr, cobj, sel, &options, expansion_ok);
       randomize_graph_session_t session(!scope_form);
-      bool solve_ok = expansion_ok && randomize_solve_(session, cobj, sel, &options);
+      bool solve_ok = expansion_ok;
+      if (!scope_form && !thr->randomize_calls.empty())
+	    solve_ok = solve_ok && thr->randomize_calls.back().state_calls_ok;
+      if (solve_ok) solve_ok = randomize_solve_(session, cobj, sel, &options);
       if (solve_ok) solve_ok = session.commit();
       if (!solve_ok)
 	    session.rollback();
@@ -13616,6 +13813,108 @@ static bool randomize_find_pre_(const vvp_object_t&obj,
       return false;
 }
 
+static void randomize_collect_state_calls_(const vvp_object_t&obj,
+		const std::vector<bool>*sel, randomize_call_context_s&call,
+		std::set<vvp_cobject*>&seen)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || cobj->get_defn()->is_struct_type()
+	  || !seen.insert(cobj).second) return;
+      const auto&descs = cobj->get_defn()->constraint_state_calls();
+      call.state_values[cobj].resize(descs.size());
+      for (size_t idx = 0; idx < descs.size(); ++idx) {
+            if (descs[idx].constraint >= cobj->get_defn()->constraint_count()
+                || !cobj->constraint_mode(descs[idx].constraint)) continue;
+            bool random_arguments = false;
+            for (const auto&dependency : descs[idx].argument_dependencies) {
+                  bool active = false;
+                  if (dependency.kind
+                        == class_type::constraint_dependency_t::ELEM)
+                        active = rand_leaf_active_(cobj->get_defn(), cobj, sel,
+                              dependency.property, dependency.leaf);
+                  else if (dependency.kind
+                           == class_type::constraint_dependency_t::MEMBER) {
+                        vvp_object_t record;
+                        cobj->get_object(dependency.property, record, 0);
+                        if (rand_call_active_(cobj->get_defn(), cobj, sel,
+                                             dependency.property))
+                              if (vvp_cobject*member_owner =
+                                        record.peek<vvp_cobject>())
+                              active = rand_leaf_active_(
+                                    member_owner->get_defn(), member_owner,
+                                    nullptr, dependency.leaf, 0);
+                  } else
+                        active = rand_call_active_(cobj->get_defn(), cobj, sel,
+                                                   dependency.property);
+                  if (active) random_arguments = true;
+            }
+            if (random_arguments) call.needs_function_stages = true;
+            else call.state_calls.push_back(std::make_pair(obj, idx));
+      }
+      for (size_t pid = 0; pid < cobj->get_defn()->property_count(); ++pid)
+	    randomize_visit_property_objects_(cobj, sel, pid,
+		  [&](const vvp_object_t&value, size_t) {
+			return randomize_visit_object_value_(value,
+			      [&](const vvp_object_t&leaf) {
+				    randomize_collect_state_calls_(leaf, nullptr,
+							 call, seen);
+				    return true;
+			      });
+		  });
+}
+
+static bool randomize_invoke_state_call_(vthread_t thr,
+		randomize_call_context_s&call)
+{
+      const auto&pending = call.state_calls[call.state_call_index];
+      vvp_cobject*cobj = pending.first.peek<vvp_cobject>();
+      const auto&desc = cobj->get_defn()->constraint_state_calls()[pending.second];
+      auto fail = [&](const string&reason) {
+	    cerr << "runtime error: constraint function " << desc.method
+		 << ": " << reason << endl;
+	    call.state_calls_ok = false;
+	    call.state_call_index = call.state_calls.size();
+	    call.phase = randomize_call_context_s::READY;
+	    return true;
+      };
+      string label;
+      vvp_code_t target = nullptr;
+      __vpiScope*scope = nullptr;
+      if (desc.is_virtual) {
+	    for (const class_type*type = cobj->get_defn(); type;
+		 type = type->runtime_super()) {
+		  if (build_dynamic_method_label_(type, desc.method.c_str(), label)
+		      && compile_lookup_code_scope(label.c_str(), &target, &scope, true))
+			break;
+	    }
+      } else {
+	    label = "TD_" + desc.label;
+	    compile_lookup_code_scope(label.c_str(), &target, &scope, true);
+      }
+      if (!target || !scope)
+	    return fail("cannot resolve its runtime target");
+      vpiScopeFunction*function = dynamic_cast<vpiScopeFunction*>(scope);
+      vpiHandle this_item = lookup_scope_item_(scope, "@");
+      if (!function || !this_item || !scope->is_automatic())
+	    return fail("has no valid automatic function frame");
+      vvp_code_s frame = {};
+      frame.scope = scope;
+      of_ALLOC(thr, &frame);
+      if (!write_handle_object_to_context_(this_item, pending.first,
+		thr->wt_context)) {
+	    of_FREE(thr, &frame);
+	    return fail("cannot bind its receiver");
+      }
+      call.frame_scope = scope;
+      call.state_call_pending = true;
+      thr->push_vec4(vvp_vector4_t(function->get_func_width(),
+		function->get_func_init_val()));
+      vthread_t child = vthread_new(target, scope);
+      child->args_vec4.push_back(0);
+      thr->pc -= 1;
+      return do_callf_void(thr, child);
+}
+
 bool of_RANDOMIZE_PRE(vthread_t thr, vvp_code_t cp)
 {
       if (thr->randomize_calls.empty()
@@ -13629,11 +13928,20 @@ bool of_RANDOMIZE_PRE(vthread_t thr, vvp_code_t cp)
                   randomize_parse_selection_(sel, call.selection);
       }
       randomize_call_context_s&call = thr->randomize_calls.back();
+      if (call.state_call_pending) {
+	    if (!randomize_free_hook_(thr, call.frame_scope)) return false;
+	    vvp_vector4_t value = thr->pop_vec4();
+	    const auto&done = call.state_calls[call.state_call_index];
+	    call.state_values[done.first.peek<vvp_cobject>()][done.second] = value;
+	    call.state_call_index += 1;
+	    call.state_call_pending = false;
+      }
       if (!randomize_free_hook_(thr, call.frame_scope)) return false;
-      // ponytail: O(V*(V+E)) repeated scans; keep this until measured graph
-      // sizes justify an incremental reachability index. A pre callback can
-      // attach beneath an already visited object or detach a pending object.
-      while (true) {
+      if (!call.state_calls_collected) {
+	    // ponytail: O(V*(V+E)) repeated scans; keep this until measured graph
+	    // sizes justify an incremental reachability index. A pre callback can
+	    // attach beneath an already visited object or detach a pending object.
+	    while (true) {
             std::set<vvp_cobject*> seen;
             vvp_object_t next;
             const std::vector<bool>*sel = call.explicit_selection
@@ -13642,8 +13950,16 @@ bool of_RANDOMIZE_PRE(vthread_t thr, vvp_code_t cp)
             call.pre_called.emplace(next.peek<vvp_cobject>(), next);
             bool ok = randomize_invoke_hook_(thr, next, false, call.frame_scope);
             if (!ok || call.frame_scope) return ok;
+	    }
+	    call.pre_called.clear();
+	    std::set<vvp_cobject*>seen;
+	    const std::vector<bool>*sel = call.explicit_selection
+		  ? &call.selection : nullptr;
+	    randomize_collect_state_calls_(call.root, sel, call, seen);
+	    call.state_calls_collected = true;
       }
-      call.pre_called.clear();
+      if (call.state_call_index < call.state_calls.size())
+	    return randomize_invoke_state_call_(thr, call);
       call.phase = randomize_call_context_s::READY;
       return true;
 }
@@ -18944,7 +19260,10 @@ static bool load_dar(vthread_t thr, vvp_code_t cp)
       vvp_fun_signal_object*obj = dynamic_cast<vvp_fun_signal_object*> (net->fun);
       assert(obj);
 
-      vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      vvp_object_t collection;
+      if (!thr->staged_static_overlay_load_object(net, collection))
+            collection = obj->get_object();
+      vvp_darray*darray = collection.peek<vvp_darray>();
       adr = darray_canonical_index_(darray, adr);
 
       ELEM word;
@@ -19171,6 +19490,84 @@ bool vthread_s::static_call_overlay_load_vec4(vvp_net_t*net,
             return false;
       value = save->vec4;
       return true;
+}
+
+bool vthread_s::staged_static_overlay_load_vec4(
+      vvp_net_t*net, vvp_vector4_t&value)
+{
+      /* A static constraint-function actual is evaluated by a synchronous
+       * callf child while its randomize owner is suspended.  Limit access to
+       * that call chain: the transaction cell is process-global static
+       * storage, but unrelated threads must continue to see the committed
+       * declaring-scope signal until commit. */
+      vthread_t owner = this;
+      while (owner) {
+            if (!owner->randomize_calls.empty()) {
+                  const randomize_call_context_s&call =
+                        owner->randomize_calls.back();
+                  if (call.staged && call.state_call_pending)
+                        break;
+            }
+            if (!owner->is_callf_child) return false;
+            owner = owner->parent;
+      }
+      if (!owner) return false;
+
+      /* A const-ref/input-ref formal is an automatic proxy. Resolve its live
+       * frame binding before consulting the canonical static-storage map. */
+      vvp_net_t*actual = net;
+      set<vvp_net_t*> seen;
+      while (actual && seen.insert(actual).second) {
+            vvp_ref_signal_aa*ref =
+                  dynamic_cast<vvp_ref_signal_aa*>(actual->fil);
+            if (!ref)
+                  ref = dynamic_cast<vvp_ref_signal_aa*>(actual->fun);
+            if (!ref) break;
+            vvp_ref_signal_aa::binding_t binding;
+            if (ref->read_binding(binding) && binding.arr
+                && binding.index >= 0)
+                  return class_static_randomize_overlay_word(
+                        binding.arr, (size_t)binding.index, value);
+            vvp_net_t*target = ref->target();
+            if (!target || target == actual) break;
+            actual = target;
+      }
+      return class_static_randomize_overlay_vec4(actual, value);
+}
+
+bool vthread_s::staged_static_overlay_load_word(
+      vvp_array_t array, size_t leaf, vvp_vector4_t&value)
+{
+      vthread_t owner = this;
+      while (owner) {
+            if (!owner->randomize_calls.empty()) {
+                  const randomize_call_context_s&call =
+                        owner->randomize_calls.back();
+                  if (call.staged && call.state_call_pending)
+                        return class_static_randomize_overlay_word(
+                              array, leaf, value);
+            }
+            if (!owner->is_callf_child) return false;
+            owner = owner->parent;
+      }
+      return false;
+}
+
+bool vthread_s::staged_static_overlay_load_object(
+      vvp_net_t*net, vvp_object_t&value)
+{
+      vthread_t owner = this;
+      while (owner) {
+            if (!owner->randomize_calls.empty()) {
+                  const randomize_call_context_s&call =
+                        owner->randomize_calls.back();
+                  if (call.staged && call.state_call_pending)
+                        return class_static_randomize_overlay_object(net, value);
+            }
+            if (!owner->is_callf_child) return false;
+            owner = owner->parent;
+      }
+      return false;
 }
 
 bool vthread_s::static_call_overlay_store_vec4(
@@ -21272,6 +21669,11 @@ bool of_AA_LOAD_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
 bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*net = cp->net;
+      vvp_object_t staged;
+      if (thr->staged_static_overlay_load_object(net, staged)) {
+            thr->push_object(staged, net, staged);
+            return true;
+      }
       vvp_fun_signal_object*fun = signal_object_fun_(net);
       if (!fun) {
 	    static bool warned_missing_fun = false;
@@ -22144,6 +22546,10 @@ bool of_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
 	      thr->push_vec4(staged);
 	      return true;
 	}
+	if (thr->staged_static_overlay_load_vec4(cp->net, staged)) {
+	      thr->push_vec4(staged);
+	      return true;
+	}
 
 	// Push a placeholder onto the stack in order to reserve the
 	// stack space. Use a reference for the stack top as a target
@@ -22339,6 +22745,13 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
 	    vvp_vector4_t tmp (array->get_word_size(), BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
+      }
+
+      vvp_vector4_t staged;
+      if (thr->staged_static_overlay_load_word(
+            array, static_cast<size_t>(adr), staged)) {
+            thr->push_vec4(staged);
+            return true;
       }
 
       vvp_vector4_t tmp (array->get_word(static_cast<unsigned>(adr)));

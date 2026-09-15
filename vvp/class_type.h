@@ -30,6 +30,15 @@
 
 class class_property_t;
 class vvp_vector4_t;
+class vvp_net_t;
+
+/* Return a staged scalar static-property value for an ordinary signal load.
+ * Static constraint-function actuals read their declaring-scope signal, while
+ * randomize transactions retain new values off-signal until commit. */
+bool class_static_randomize_overlay_vec4(vvp_net_t*, vvp_vector4_t&);
+bool class_static_randomize_overlay_word(struct __vpiArray*, size_t,
+                                         vvp_vector4_t&);
+bool class_static_randomize_overlay_object(vvp_net_t*, vvp_object_t&);
 
 /*
  * This represents the TYPE information for a class. A %new operator
@@ -128,6 +137,10 @@ class class_type : public __vpiHandle {
 						    size_t leaf) const;
       void static_randomize_transaction_commit(size_t idx) const;
       void static_randomize_transaction_rollback(size_t idx) const;
+      bool static_randomize_transaction_vec4(size_t idx, size_t leaf,
+                                             vvp_vector4_t&value) const;
+      bool static_randomize_transaction_object(size_t idx, size_t leaf,
+                                               vvp_object_t&value) const;
 
 	// Base type text (rand prefix stripped, e.g. "sb32", "o") and
 	// static array element count (1 for scalars) as recorded from
@@ -145,6 +158,32 @@ class class_type : public __vpiHandle {
             property_dimensions(size_t idx) const;
 
       void add_constraint(const std::string&name, const std::string&ir);
+      struct constraint_dependency_t {
+	    enum kind_t { PROP = 0, MEMBER = 1, ELEM = 2, SIZE = 3 };
+	    unsigned kind;
+	    unsigned property;
+	    unsigned leaf;
+	    bool operator<(const constraint_dependency_t&that) const
+	    {
+		  if (kind != that.kind) return kind < that.kind;
+		  if (property != that.property) return property < that.property;
+		  return leaf < that.leaf;
+	    }
+      };
+      void add_constraint_state_dependency(unsigned kind, unsigned property,
+		unsigned leaf);
+      struct constraint_state_call_t {
+	    unsigned constraint;
+	    std::string label;
+	    std::string method;
+	    unsigned width;
+	    bool is_virtual;
+            std::vector<constraint_dependency_t> argument_dependencies;
+      };
+      void add_constraint_state_call(unsigned constraint, const std::string&label,
+		const std::string&method, unsigned width, bool is_virtual);
+      const std::vector<constraint_state_call_t>&constraint_state_calls() const
+	    { return constraint_state_calls_; }
       size_t constraint_count() const { return constraints_.size(); }
       const std::string& constraint_name(size_t idx) const;
       const std::string& constraint_ir(size_t idx) const;
@@ -226,6 +265,7 @@ class class_type : public __vpiHandle {
 	    std::string ir;
       };
       std::vector<constraint_t> constraints_;
+      std::vector<constraint_state_call_t> constraint_state_calls_;
 
     public:
 	// M11: one predicate record of a coverage bin.  Records with

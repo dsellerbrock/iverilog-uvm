@@ -49,6 +49,7 @@
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
 # include  "netlist.h"
+# include  "target.h"
 # include  "netenum.h"
 # include  "netvector.h"
 # include  "netdarray.h"
@@ -17048,7 +17049,11 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ref_bound[idx] = (via == 0);
 		  if (via == 0)
 			continue;
-		  warn_ref_companion_fork_hazard_(this, port, def);
+		    // A const ref companion is only an addressable snapshot used
+		    // for copy-in. The callee cannot write it, so there is no
+		    // deferred-write/copy-out hazard to diagnose.
+		  if (!port->get_const())
+			warn_ref_companion_fork_hazard_(this, port, def);
 	    }
 
 	    if (port->port_type() == NetNet::POUTPUT
@@ -17226,6 +17231,12 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		 the same name since the call. */
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
 	    if (port->port_type() == NetNet::PINPUT)
+		  continue;
+	      // A selected const-ref actual may need a companion because the
+	      // current reference ABI cannot bind every addressable subobject
+	      // directly. It is copied into that companion above, but const ref
+	      // is input-only and must never schedule a write back to the actual.
+	    if (port->port_type() == NetNet::PREF && port->get_const())
 		  continue;
 	    if (ref_bound[idx])
 		  continue;
@@ -23953,6 +23964,7 @@ struct dynforeach_emit_ctx_t {
       int prop_idx;
       unsigned elem_wid;
       bool elem_signed;
+      const netclass_t*assoc_key_type = nullptr;
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
@@ -23991,6 +24003,13 @@ struct constraint_reduction_iter_ctx_t {
       size_t value_unpacked_dimensions = 0;
       vector<ivl_type_t> value_unpacked_index_types;
       ivl_type_t index_type = nullptr;
+      int fixed_object_property = -1;
+      unsigned fixed_object_word = 0;
+      ivl_type_t fixed_object_type = nullptr;
+      vector<netrange_t> fixed_remaining_dimensions;
+      perm_string fixed_source_property;
+      vector<long> fixed_source_indices;
+      map<perm_string,string> fixed_state_members;
       const constraint_reduction_iter_ctx_t*parent = nullptr;
 };
 static const constraint_reduction_iter_ctx_t*
@@ -24188,6 +24207,7 @@ static bool constraint_flatten_member_path_(const PExpr*expr,
  * alongside the recursive translation so those names can use the same
  * elaborated scope/import tables as normal expressions. */
 static Design*constraint_ir_design_ctx_ = nullptr;
+static vector<netclass_t::constraint_state_call_t>*constraint_ir_state_calls_ctx_ = nullptr;
 
 /* A class-embedded covergroup has two property roots while its immutable
  * expressions are lowered: constructor formals live on the synthesized
@@ -25008,10 +25028,12 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
       if (indexed) {
 	    const netuarray_t*ua = dynamic_cast<const netuarray_t*>(ptype);
 	    const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
-	    if (const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype))
+	    const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype);
+	    if (qq)
 		  indexed_assoc = qq->assoc_compat();
 	    if (ua) ptype = ua->element_type();
 	    else if (da) ptype = da->element_type();
+	    else if (qq) ptype = qq->element_type();
 	    else return false;
 	    if (!ptype) return false;
       }
@@ -25024,7 +25046,8 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 	   that is what the body reads. The member is validated at the
 	   reference site.
 
-	   ASSOCIATIVE arrays are deliberately excluded. There the foreach
+	   ASSOCIATIVE arrays of class handles are deliberately excluded. There
+	   the foreach
 	   loop variable is a KEY, which may itself be class-typed and which
 	   SHADOWS a same-named class property (sv_randc_constraint_provenance
 	   pins exactly that: `foreach (q[i]) soft (i.cyc == 0)' with a
@@ -26453,6 +26476,29 @@ static bool constraint_source_references_randc_(
 	    if (loop_env && name.size() == 1 && !name.front().local_scope
 		&& loop_env->find(name.front().name) != loop_env->end())
 		  return false;
+	    /* During dynamic associative foreach IR emission the general source
+	     * diagnostic iterator stack has already been restored. Resolve the
+	     * typed class-key iterator here before a same-named target property:
+	     * the key member's own qualifier, not the target's, controls the
+	     * randc-in-soft restriction. Unsupported paths still shadow target
+	     * names and therefore return false rather than falling through. */
+	    if (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->assoc_key_type
+		&& !name.empty() && !name.front().local_scope
+		&& name.front().name == dynforeach_emit_ctx_->loop_var) {
+		  if (!name.front().index.empty()) return false;
+		  const netclass_t*owner = dynforeach_emit_ctx_->assoc_key_type;
+		  for (auto component = std::next(name.begin());
+		       component != name.end(); ++component) {
+			if (!owner || !component->index.empty()) return false;
+			int member = owner->property_idx_from_name(component->name);
+			if (member < 0) return false;
+			if (owner->get_prop_qual((size_t)member).test_randc())
+			      return true;
+			owner = dynamic_cast<const netclass_t*>(
+			      owner->get_prop_type((size_t)member));
+		  }
+		  return false;
+	    }
 	    if (dynforeach_emit_ctx_ && name.size() == 1
 		&& !name.front().local_scope
 		&& name.front().name == dynforeach_emit_ctx_->loop_var)
@@ -27638,6 +27684,843 @@ static bool constraint_handle_comparison_ir_(
       return true;
 }
 
+namespace {
+
+class constraint_function_purity_t;
+
+static bool constraint_pure_expr_(const NetExpr*,
+				  constraint_function_purity_t&);
+
+/* A nonautomatic function is legal in a constraint only when it preserves no
+ * state information. Keep the initial proof deliberately narrow: accept the
+ * ordinary lowering of one unconditional assignment to the return variable,
+ * optionally followed by its internal return-disable. More complex definite-
+ * assignment control flow can be added without ever accepting a fallthrough
+ * that reuses the return variable's value from an earlier invocation. */
+static bool constraint_static_return_definite_(const NetProc*proc,
+					       const NetNet*result)
+{
+      if (!proc || !result) return false;
+      if (const NetAssign*assign = dynamic_cast<const NetAssign*>(proc)) {
+	    if (assign->l_val_count() != 1) return false;
+	    const NetAssign_*lval = assign->l_val(0);
+	    return lval && !lval->more && lval->sig() == result
+		&& !lval->nest() && lval->get_property_idx() < 0
+		&& !lval->word() && !lval->get_base()
+		&& !lval->is_array_slice() && !lval->has_part_carrier()
+		&& !lval->has_dynamic_part_carrier()
+		&& lval->stream_range() == IVL_STREAM_RANGE_NONE
+		&& lval->lwidth() == result->vector_width();
+      }
+      const NetBlock*block = dynamic_cast<const NetBlock*>(proc);
+      if (!block || block->type() != NetBlock::SEQU) return false;
+      bool assigned = false;
+      for (const NetProc*item = block->proc_first(); item;
+	   item = block->proc_next(item)) {
+	    if (!assigned && constraint_static_return_definite_(item, result)) {
+		  assigned = true;
+		  continue;
+	    }
+	    const NetDisable*disable = dynamic_cast<const NetDisable*>(item);
+	    if (!assigned || !disable || !disable->flow_control()) return false;
+      }
+      return assigned;
+}
+
+class constraint_function_purity_t : public target_t {
+    public:
+      explicit constraint_function_purity_t(Design*des) : des_(des) { }
+
+      bool check(const NetScope*scope)
+      {
+	    if (!scope) return fail_("has no resolved function scope");
+	    auto old = status_.find(scope);
+	    if (old != status_.end()) {
+		  /* Purity is a coinductive property of the call graph. A back edge
+		   * is provisionally clean; every statement in every member of the
+		   * cycle is still scanned before its outer check completes. */
+		  if (old->second == 1) return true;
+		  return old->second == 2;
+	    }
+	    status_[scope] = 1;
+	    const PFunction*pfunc = scope->func_pform();
+	    if (pfunc && (!scope->func_def() || !scope->func_def()->proc()))
+		  elaborate_function_outside_caller_fork_(des_, pfunc,
+			const_cast<NetScope*>(scope));
+	    const NetFuncDef*def = scope->func_def();
+	    if (!def || !def->proc()) {
+		  status_[scope] = 3;
+		  return fail_("is not an elaborated function");
+	    }
+	    if (!scope->is_auto()
+		&& !constraint_static_return_definite_(
+		      def->proc(), def->return_sig())) {
+		  status_[scope] = 3;
+		  return fail_("is nonautomatic and does not unconditionally assign its return value");
+	    }
+	    const NetScope*save = function_;
+	    const NetNet*save_return = return_;
+	    bool save_automatic = automatic_;
+	    function_ = scope;
+	    return_ = def->return_sig();
+	    automatic_ = scope->is_auto();
+	    bool save_ok = ok_;
+	    ok_ = true;
+	    walk_(def->proc());
+	    bool pure = ok_;
+	    ok_ = save_ok && pure;
+	    function_ = save;
+	    return_ = save_return;
+	    automatic_ = save_automatic;
+	    status_[scope] = pure ? 2 : 3;
+	    if (pure && scope->is_virtual_method()) {
+		  const NetScope*owner_scope = scope->parent();
+		  const netclass_t*owner = owner_scope ? owner_scope->class_def() : nullptr;
+		  pure = check_overrides_(owner, scope->basename());
+		  status_[scope] = pure ? 2 : 3;
+	    }
+	    return pure;
+      }
+
+      const string&reason() const { return reason_; }
+      bool expression(const NetExpr*expr)
+      {
+	    if (constraint_pure_expr_(expr, *this)) return true;
+	    return fail_("evaluates an expression with side effects or an unsupported call");
+      }
+      bool signal_read(const NetNet*sig)
+      {
+	    if (!automatic_ && sig == return_)
+		  return fail_("reads retained state from a nonautomatic function return variable");
+	    return true;
+      }
+
+      bool start_design(const Design*) override { return true; }
+      void signal(const NetNet*) override { }
+      bool proc_forloop(const NetForLoop*loop) override
+      {
+	    loop->emit_recurse_condition(&expr_scan_);
+	    if (!loop->emit_recurse_init(this) && ok_) fail_("contains an unsupported for-loop initializer");
+	    if (!loop->emit_recurse_stmt(this) && ok_) fail_("contains an unsupported for-loop body");
+	    if (!loop->emit_recurse_step(this) && ok_) fail_("contains an unsupported for-loop step");
+	    return ok_;
+      }
+      bool proc_assign(const NetAssign*net) override
+      {
+	    if (net->get_delay()) return fail_("contains a delayed assignment");
+	    for (unsigned idx = 0; idx < net->l_val_count(); ++idx) {
+		  const NetAssign_*lv = net->l_val(idx);
+		  for (const NetAssign_*part = lv; part; part = part->more) {
+			if (!part->sig() || part->nest() || part->get_property_idx() >= 0)
+			      return fail_("writes class, container, or indirect state");
+			const NetNet*sig = part->sig();
+			const NetScope*decl = sig->scope();
+			bool local = false;
+			for (const NetScope*cur = decl; cur; cur = cur->parent())
+			      if (cur == function_) { local = true; break; }
+			if (!local || (!automatic_ && sig != return_)
+			    || (automatic_
+				&& sig->lifetime_override() == IVL_VLT_STATIC))
+			      return fail_("writes static or external state");
+			if (!expression(part->word()) || !expression(part->get_base())
+			    || !expression(part->dynamic_part_carrier())
+			    || !expression(part->stream_range_first())
+			    || !expression(part->stream_range_second())) return false;
+		  }
+	    }
+	    return expression(net->rval());
+      }
+      void proc_assign_nb(const NetAssignNB*) override
+	    { fail_("contains a nonblocking assignment"); }
+      bool proc_block(const NetBlock*block) override
+      {
+	    if (block->type() != NetBlock::SEQU)
+		  return fail_("contains a parallel block");
+	    block->emit_recurse(this); return ok_;
+      }
+      bool proc_condit(const NetCondit*node) override
+      {
+	    if (!expression(node->expr())) return false;
+	    if (!node->emit_recurse_if(this) && ok_) fail_("contains an unsupported conditional branch");
+	    if (!node->emit_recurse_else(this) && ok_) fail_("contains an unsupported conditional branch");
+	    return ok_;
+      }
+      void proc_case(const NetCase*node) override
+      {
+	    if (!expression(node->expr())) return;
+	    for (unsigned idx = 0; idx < node->nitems() && ok_; ++idx) {
+		  if (!expression(node->expr(idx))) return;
+		  if (node->stat(idx)) walk_(node->stat(idx));
+	    }
+      }
+      void proc_do_while(const NetDoWhile*node) override
+	    { if (expression(node->expr())) node->emit_proc_recurse(this); }
+      void proc_while(const NetWhile*node) override
+	    { if (expression(node->expr())) node->emit_proc_recurse(this); }
+      void proc_repeat(const NetRepeat*node) override
+	    { if (expression(node->expr())) node->emit_recurse(this); }
+      void proc_forever(const NetForever*) override
+	    { fail_("contains a forever loop whose purity cannot be proven"); }
+      void proc_alloc(const NetAlloc*) override { }
+      void proc_free(const NetFree*) override { }
+      bool proc_break(const NetBreak*) override { return ok_; }
+      bool proc_continue(const NetContinue*) override { return ok_; }
+      void proc_stask(const NetSTask*node) override
+      {
+	    string name = node->name();
+	    if (name.find("rand_mode") != string::npos
+		|| name.find("constraint_mode") != string::npos)
+		  fail_("modifies rand_mode or constraint_mode");
+	    else fail_("calls a system task");
+      }
+      void proc_utask(const NetUTask*) override { fail_("calls a task"); }
+      bool proc_cassign(const NetCAssign*) override { return fail_("contains a procedural continuous assignment"); }
+      bool proc_deassign(const NetDeassign*) override { return fail_("contains deassign"); }
+      bool proc_force(const NetForce*) override { return fail_("contains force"); }
+      bool proc_release(const NetRelease*) override { return fail_("contains release"); }
+      bool proc_delay(const NetPDelay*) override { return fail_("contains timing control"); }
+      bool proc_wait(const NetEvWait*) override { return fail_("contains event control"); }
+      bool proc_trigger(const NetEvTrig*) override { return fail_("triggers an event"); }
+      bool proc_nb_trigger(const NetEvNBTrig*) override { return fail_("triggers an event"); }
+      bool proc_trigger_obj(const NetEvTrigObj*) override { return fail_("triggers an event"); }
+      bool proc_wait_obj(const NetEvWaitObj*) override { return fail_("contains event control"); }
+      bool proc_trigger_arr(const NetEvTrigArr*) override { return fail_("triggers an event"); }
+      bool proc_wait_arr(const NetEvWaitArr*) override { return fail_("contains event control"); }
+      bool proc_disable(const NetDisable*node) override
+      {
+	    const NetScope*target = node->target();
+	    for (const NetScope*cur = target; cur; cur = cur->parent())
+		  if (cur == function_) return ok_;
+	    return fail_("disables control outside the automatic function");
+      }
+      bool proc_contribution(const NetContribution*) override { return fail_("contains an analog contribution"); }
+
+    private:
+      class purity_expr_scan_t : public expr_scan_t {
+          public:
+	    explicit purity_expr_scan_t(constraint_function_purity_t*owner)
+	    : owner_(owner) { }
+	    void expr_const(const NetEConst*) override { }
+	    void expr_creal(const NetECReal*) override { }
+	    void expr_param(const NetEConstParam*) override { }
+	    void expr_rparam(const NetECRealParam*) override { }
+	    void expr_null(const NetENull*) override { }
+	    void expr_signal(const NetESignal*e) override { owner_->expression(e); }
+	    void expr_binary(const NetEBinary*e) override { owner_->expression(e); }
+	    void expr_unary(const NetEUnary*e) override { owner_->expression(e); }
+	    void expr_select(const NetESelect*e) override { owner_->expression(e); }
+	    void expr_concat(const NetEConcat*e) override { owner_->expression(e); }
+	    void expr_ternary(const NetETernary*e) override { owner_->expression(e); }
+	    void expr_property(const NetEProperty*e) override { owner_->expression(e); }
+	    void expr_sfunc(const NetESFunc*e) override { owner_->expression(e); }
+	    void expr_ufunc(const NetEUFunc*e) override { owner_->expression(e); }
+          private: constraint_function_purity_t*owner_;
+      } expr_scan_{this};
+
+      bool fail_(const string&why)
+      {
+	    if (reason_.empty()) reason_ = why;
+	    ok_ = false;
+	    return false;
+      }
+      bool walk_(const NetProc*proc)
+      {
+	    if (!proc) return true;
+	    bool emitted = proc->emit_proc(this);
+	    if (!emitted && ok_)
+		  return fail_("contains an unsupported procedural construct");
+	    return ok_;
+      }
+      bool check_overrides_(const netclass_t*type, perm_string name)
+      {
+	    if (!type) return fail_("has unresolved virtual dispatch");
+	    for (const netclass_t*derived : type->derived_types()) {
+		  const NetScope*cs = derived ? derived->class_scope() : nullptr;
+		  const NetScope*method = cs ? cs->child(hname_t(name)) : nullptr;
+		  if (method && method->type() == NetScope::FUNC && !check(method))
+			return false;
+		  if (!check_overrides_(derived, name)) return false;
+	    }
+	    return true;
+      }
+      Design*des_;
+      const NetScope*function_ = nullptr;
+      const NetNet*return_ = nullptr;
+      bool automatic_ = true;
+      map<const NetScope*,unsigned>status_;
+      string reason_;
+      bool ok_ = true;
+};
+
+static bool constraint_pure_expr_(const NetExpr*expr,
+				  constraint_function_purity_t&check)
+{
+      if (!expr || dynamic_cast<const NetEConst*>(expr)
+	  || dynamic_cast<const NetECReal*>(expr)
+	  || dynamic_cast<const NetENetenum*>(expr)
+	  || dynamic_cast<const NetENull*>(expr)) return true;
+      if (const NetESignal*e = dynamic_cast<const NetESignal*>(expr))
+	    return check.signal_read(e->sig())
+		&& constraint_pure_expr_(e->word_index(), check);
+      if (const NetEProperty*e = dynamic_cast<const NetEProperty*>(expr))
+	    return constraint_pure_expr_(e->get_base(), check)
+		&& constraint_pure_expr_(e->get_index(), check);
+      if (const NetEBinary*e = dynamic_cast<const NetEBinary*>(expr))
+	    return constraint_pure_expr_(e->left(), check)
+		&& constraint_pure_expr_(e->right(), check);
+      if (const NetEUnary*e = dynamic_cast<const NetEUnary*>(expr))
+	    return e->op() != 'i' && e->op() != 'I' && e->op() != 'd' && e->op() != 'D'
+		&& constraint_pure_expr_(e->expr(), check);
+      if (const NetESelect*e = dynamic_cast<const NetESelect*>(expr))
+	    return constraint_pure_expr_(e->sub_expr(), check)
+		&& constraint_pure_expr_(e->select(), check);
+      if (const NetEConcat*e = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < e->nparms(); ++idx)
+		  if (!constraint_pure_expr_(e->parm(idx), check)) return false;
+	    return true;
+      }
+      if (const NetETernary*e = dynamic_cast<const NetETernary*>(expr))
+	    return constraint_pure_expr_(e->cond_expr(), check)
+		&& constraint_pure_expr_(e->true_expr(), check)
+		&& constraint_pure_expr_(e->false_expr(), check);
+      if (const NetEUFunc*e = dynamic_cast<const NetEUFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < e->parm_count(); ++idx)
+		  if (!constraint_pure_expr_(e->parm(idx), check)) return false;
+	    return check.check(e->func());
+      }
+      if (const NetESFunc*e = dynamic_cast<const NetESFunc*>(expr)) {
+	    string name = e->name();
+	    static const set<string> pure_system_functions = {
+		  "$acos", "$acosh", "$asin", "$asinh", "$atan", "$atan2",
+		  "$atanh", "$bitstoreal", "$bits", "$ceil", "$clog2", "$cos",
+		  "$cosh", "$countbits", "$countones", "$dimensions", "$exp",
+		  "$floor", "$high", "$hypot", "$increment", "$isunknown",
+		  "$itor", "$left", "$ln", "$log10", "$low", "$onehot",
+		  "$onehot0", "$pow", "$realtobits", "$right", "$rtoi",
+		  "$shortrealtobits", "$signed", "$sin", "$sinh", "$size",
+		  "$sqrt", "$tan", "$tanh", "$typename", "$unsigned",
+		  "$ivl_array_query$size", "$ivl_assoc_method$exists",
+		  "$ivl_assoc_method$num", "$ivl_class_method$constraint_mode_get",
+		  "$ivl_class_method$get_randstate", "$ivl_class_method$rand_mode_get",
+		  "$ivl_class_method$rand_mode_get_assoc",
+		  "$ivl_class_method$rand_mode_get_last", "$ivl_enum_method$name",
+		  "$ivl_enum_method$next", "$ivl_enum_method$prev",
+		  "$ivl_queue_method$size", "$ivl_string_method$atoi",
+		  "$ivl_string_method$atobin", "$ivl_string_method$atohex",
+		  "$ivl_string_method$atooct", "$ivl_string_method$atoreal",
+		  "$ivl_string_method$getc", "$ivl_string_method$len",
+		  "$ivl_string_method$substr", "$ivl_string_method$tolower",
+		  "$ivl_string_method$toupper"
+	    };
+	    if (!pure_system_functions.count(name)) return false;
+	    for (unsigned idx = 0; idx < e->nparms(); ++idx)
+		  if (!constraint_pure_expr_(e->parm(idx), check)) return false;
+	    return true;
+      }
+      return false;
+}
+
+static bool constraint_call_dependencies_(const NetExpr*expr,
+		const netclass_t*cls, const NetNet*receiver,
+		set<netclass_t::constraint_dependency_t>&dependencies)
+{
+      typedef netclass_t::constraint_dependency_t dependency_t;
+      auto add = [&](unsigned kind, size_t property, size_t leaf = 0) {
+	    dependency_t dep = {kind, (unsigned)property, (unsigned)leaf};
+	    dependencies.insert(dep);
+      };
+      auto constant_index = [](const NetExpr*index, unsigned&value) -> bool {
+	    const NetEConst*num = dynamic_cast<const NetEConst*>(index);
+	    if (!num || !num->value().is_defined()
+		|| num->value().len() > 64) return false;
+	    uint64_t raw = num->value().as_ulong64();
+	    if (raw > UINT_MAX) return false;
+	    value = (unsigned)raw;
+	    return true;
+      };
+      auto static_property = [&](const NetNet*sig) -> int {
+	    if (!cls || !sig || sig == receiver) return -1;
+	    for (size_t pid = 0; pid < cls->get_properties(); ++pid)
+		  if (cls->get_prop_static_signal(pid) == sig) return (int)pid;
+	    return -1;
+      };
+      if (!expr || dynamic_cast<const NetEConst*>(expr)
+	  || dynamic_cast<const NetECReal*>(expr)
+	  || dynamic_cast<const NetENetenum*>(expr)
+	  || dynamic_cast<const NetENull*>(expr)) return true;
+      if (const NetEProperty*property = dynamic_cast<const NetEProperty*>(expr)) {
+	    const NetESignal*base = dynamic_cast<const NetESignal*>(property->get_base());
+	    bool receiver_property = property->get_sig() == receiver
+		  || (base && base->sig() == receiver);
+	    int static_pid = static_property(property->get_sig());
+	    if (static_pid < 0 && base) static_pid = static_property(base->sig());
+	    if (receiver_property || static_pid >= 0) {
+		  size_t pid = receiver_property ? property->property_idx()
+			: (size_t)static_pid;
+		  ivl_type_t ptype = cls->get_prop_type(pid);
+		  if (!receiver_property && static_pid >= 0) {
+			const netstruct_t*record =
+			      dynamic_cast<const netstruct_t*>(ptype);
+			if (!record || record->packed() || property->get_index()
+			    || property->property_idx() >= record->members().size())
+			      return false;
+			add(dependency_t::MEMBER, pid, property->property_idx());
+			return true;
+		  }
+		  if (property->get_index()) {
+			unsigned leaf = 0;
+			if (!dynamic_cast<const netarray_t*>(ptype)
+			    || !constant_index(property->get_index(), leaf)) return false;
+			add(dependency_t::ELEM, pid, leaf);
+			return constraint_call_dependencies_(property->get_index(), cls,
+			      receiver, dependencies);
+		  }
+		  if (dynamic_cast<const netarray_t*>(ptype)) return false;
+		  add(dependency_t::PROP, pid);
+		  return true;
+	    }
+	    if (const NetEProperty*outer =
+		  dynamic_cast<const NetEProperty*>(property->get_base())) {
+		  const NetESignal*outer_base =
+			dynamic_cast<const NetESignal*>(outer->get_base());
+		  bool outer_receiver = outer->get_sig() == receiver
+			|| (outer_base && outer_base->sig() == receiver);
+		  int outer_static = outer_base ? static_property(outer_base->sig()) : -1;
+		  if (outer_receiver || outer_static >= 0) {
+			size_t pid = outer_receiver ? outer->property_idx()
+			      : (size_t)outer_static;
+			const netstruct_t*record = dynamic_cast<const netstruct_t*>(
+			      cls->get_prop_type(pid));
+			if (!record || record->packed() || outer->get_index()
+			    || property->get_index()) return false;
+			add(dependency_t::MEMBER, pid, property->property_idx());
+			return true;
+		  }
+	    }
+	    return constraint_call_dependencies_(property->get_base(), cls,
+		  receiver, dependencies)
+		&& constraint_call_dependencies_(property->get_index(), cls,
+		  receiver, dependencies);
+      }
+      if (const NetESignal*signal = dynamic_cast<const NetESignal*>(expr)) {
+	    int pid = static_property(signal->sig());
+	    if (pid >= 0) {
+		  ivl_type_t ptype = cls->get_prop_type((size_t)pid);
+		  if (signal->word_index()) {
+			unsigned leaf = 0;
+			if (!dynamic_cast<const netarray_t*>(ptype)
+			    || !constant_index(signal->word_index(), leaf)) return false;
+			add(dependency_t::ELEM, pid, leaf);
+		  } else {
+			if (dynamic_cast<const netarray_t*>(ptype)) return false;
+			add(dependency_t::PROP, pid);
+		  }
+	    }
+	    return constraint_call_dependencies_(signal->word_index(), cls,
+		  receiver, dependencies);
+      }
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr)) {
+	    return constraint_call_dependencies_(binary->left(), cls, receiver,
+		  dependencies)
+		&& constraint_call_dependencies_(binary->right(), cls, receiver,
+		  dependencies);
+      }
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr)) {
+	    return constraint_call_dependencies_(unary->expr(), cls, receiver,
+		  dependencies);
+      }
+      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr)) {
+	    /* A selected static dynamic-array/queue element lowers through the
+	     * declaring-scope signal plus NetESelect, unlike an instance property,
+	     * which lowers through NetEProperty. Classify the element before the
+	     * generic signal walk can reject the owning aggregate. The elaborated
+	     * selector is already the canonical dynamic-container index. */
+	    const NetESignal*signal =
+		  dynamic_cast<const NetESignal*>(select->sub_expr());
+	    int pid = signal ? static_property(signal->sig()) : -1;
+	    if (pid >= 0 && dynamic_cast<const netdarray_t*>(
+		  cls->get_prop_type((size_t)pid))) {
+		  unsigned leaf = 0;
+		  if (!constant_index(select->select(), leaf)) return false;
+		  add(dependency_t::ELEM, pid, leaf);
+		  return constraint_call_dependencies_(select->select(), cls,
+			receiver, dependencies);
+	    }
+	    return constraint_call_dependencies_(select->sub_expr(), cls, receiver,
+		  dependencies)
+		&& constraint_call_dependencies_(select->select(), cls, receiver,
+		  dependencies);
+      }
+      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < concat->nparms(); ++idx)
+		  if (!constraint_call_dependencies_(concat->parm(idx), cls,
+			receiver, dependencies)) return false;
+	    return true;
+      }
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr)) {
+	    return constraint_call_dependencies_(ternary->cond_expr(), cls,
+		  receiver, dependencies)
+		&& constraint_call_dependencies_(ternary->true_expr(), cls,
+		  receiver, dependencies)
+		&& constraint_call_dependencies_(ternary->false_expr(), cls,
+		  receiver, dependencies);
+      }
+      /* Traverse actual/default argument expressions, never the called body:
+	 * only source arguments establish the implicit priority. */
+      if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < call->parm_count(); ++idx)
+		  if (!constraint_call_dependencies_(call->parm(idx), cls,
+			receiver, dependencies)) return false;
+	    return true;
+      }
+      if (const NetESFunc*call = dynamic_cast<const NetESFunc*>(expr)) {
+	    string name = call->name();
+	    if ((name == "$ivl_queue_method$size"
+		 || name == "$ivl_array_query$size") && call->nparms() > 0) {
+		  const NetEProperty*property =
+			dynamic_cast<const NetEProperty*>(call->parm(0));
+		  const NetESignal*signal =
+			dynamic_cast<const NetESignal*>(call->parm(0));
+		  int pid = -1;
+		  if (property) {
+			const NetESignal*base =
+			      dynamic_cast<const NetESignal*>(property->get_base());
+			if (property->get_sig() == receiver
+			    || (base && base->sig() == receiver))
+			      pid = (int)property->property_idx();
+			else {
+			      pid = static_property(property->get_sig());
+			      if (pid < 0 && base) pid = static_property(base->sig());
+			}
+		  } else if (signal) pid = static_property(signal->sig());
+		  if (pid >= 0) {
+			add(dependency_t::SIZE, pid);
+			for (unsigned idx = 1; idx < call->nparms(); ++idx)
+			      if (!constraint_call_dependencies_(call->parm(idx), cls,
+				    receiver, dependencies)) return false;
+			return true;
+		  }
+	    }
+	    for (unsigned idx = 0; idx < call->nparms(); ++idx)
+		  if (!constraint_call_dependencies_(call->parm(idx), cls,
+			receiver, dependencies)) return false;
+	    return true;
+      }
+      return false;
+}
+
+}
+
+static string constraint_state_expression_slot_(
+      const PExpr*site, PExpr*expression, ivl_type_t result_type,
+      const netclass_t*cls, bool collect_dependencies)
+{
+      if (!site || !expression || !result_type || !cls
+	  || !constraint_ir_state_calls_ctx_ || !constraint_ir_design_ctx_)
+	    return "";
+      NetScope*class_scope = const_cast<NetScope*>(cls->class_scope());
+      NetScope*wrapper = new NetScope(class_scope,
+	    hname_t(class_scope->local_symbol()), NetScope::FUNC);
+      wrapper->is_auto(true);
+      wrapper->set_line(site);
+      wrapper->set_elab_stage(3);
+      NetNet*receiver = new NetNet(wrapper,
+	    perm_string::literal(THIS_TOKEN), NetNet::REG, cls);
+      receiver->port_type(NetNet::PINPUT);
+      NetNet*result = new NetNet(wrapper, wrapper->basename(), NetNet::REG,
+	    result_type);
+      vector<NetNet*>ports(1, receiver);
+      vector<NetExpr*>defaults(1, nullptr);
+      NetFuncDef*def = new NetFuncDef(wrapper, result, ports, defaults);
+      wrapper->set_func_def(def);
+      NetExpr*value = elaborate_rval_expr(
+	    constraint_ir_design_ctx_, wrapper, result_type, expression, false);
+      delete expression;
+      if (!value) return "";
+      NetAssign*assignment = new NetAssign(new NetAssign_(result), value);
+      assignment->set_line(*site);
+      NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+      body->set_line(*site);
+      body->append(assignment);
+      def->set_proc(body);
+      constraint_function_purity_t purity(constraint_ir_design_ctx_);
+      if (!purity.check(wrapper)) return "";
+      set<netclass_t::constraint_dependency_t>dependencies;
+      if (collect_dependencies
+	  && !constraint_call_dependencies_(value, cls, receiver, dependencies))
+	    return "";
+      netclass_t::constraint_state_call_t desc;
+      desc.method = wrapper->basename();
+      desc.method_scope = wrapper;
+      ostringstream path;
+      path << scope_path(wrapper);
+      desc.method_scope_name = path.str();
+      desc.is_virtual = false;
+      desc.argument_dependencies.assign(dependencies.begin(), dependencies.end());
+      desc.width = result_type->packed_width();
+      desc.is_signed = result_type->get_signed();
+      size_t slot = constraint_ir_state_calls_ctx_->size();
+      constraint_ir_state_calls_ctx_->push_back(desc);
+      return "v:" + to_string(slot) + ":" + to_string(desc.width)
+	    + (desc.is_signed ? ":s" : "");
+}
+
+/* Solver-native terminal count for a fixed integral locator:
+ *   (a.find(i) with (predicate)).size()
+ * Each fixed element remains an `e:' leaf, so an active rand array is solved
+ * with the predicate instead of being sampled before the solve. */
+static string constraint_fixed_locator_count_ir_(
+      const PECallFunction*size_call, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (!size_call || !cls || !size_call->receiver_expr()
+	  || !size_call->get_parms().empty()
+	  || !size_call->with_constraints().empty()) return "";
+      const pform_name_t&size_path = size_call->path().name;
+      if (size_path.size() != 1
+	  || size_path.back().name != perm_string::literal("size")
+	  || !size_path.back().index.empty()) return "";
+      const PECallFunction*locator = dynamic_cast<const PECallFunction*>(
+	    size_call->receiver_expr());
+      if (!locator || locator->receiver_expr() || locator->path().package
+	  || locator->has_scoped_type_prefix()) return "";
+      const pform_name_t&path = locator->path().name;
+      if (path.size() != 2
+	  || path.back().name != perm_string::literal("find")
+	  || !path.back().index.empty()) return "";
+	/* Explicit caller-local names and roots omitted from an inline
+	 * randomize identifier list cannot fall through to a same-named target
+	 * property. An active iterator carrier is resolved separately below. */
+      const constraint_reduction_iter_ctx_t*carrier =
+	    constraint_array_iter_ctx_find_(path.front().name);
+      if (!carrier && (path.front().local_scope
+	  || (constraint_inline_member_names_ && value_slots
+	      && !constraint_inline_target_name_(path.front().name)))) return "";
+      int pid = cls->property_idx_from_name(path.front().name);
+      const netuarray_t*array = pid < 0 ? nullptr
+	    : dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)pid));
+      ivl_type_t element_type = nullptr;
+      vector<netrange_t>dimensions;
+      unsigned long canonical_base = 0;
+      perm_string source_property;
+      vector<long>source_indices;
+	/* A with-clause iterator is a lexical declaration and shadows a
+	 * same-named class array. Resolve its fixed object carrier before target
+	 * property lookup so nested `row.find(...)' stays on the current row. */
+      if (carrier) {
+	    if (carrier->fixed_object_property < 0
+		|| !path.front().index.empty()) return "";
+	    pid = carrier->fixed_object_property;
+	    element_type = carrier->fixed_object_type;
+	    dimensions = carrier->fixed_remaining_dimensions;
+	    canonical_base = carrier->fixed_object_word;
+	    source_property = carrier->fixed_source_property;
+	    source_indices = carrier->fixed_source_indices;
+      } else if (array) {
+	    source_property = path.front().name;
+	    element_type = array->element_type();
+	    dimensions.assign(array->static_dimensions().begin(),
+		  array->static_dimensions().end());
+	    for (const index_component_t&select : path.front().index) {
+		  if (dimensions.empty() || !select.msb || select.lsb
+		      || select.sel != index_component_t::SEL_BIT) return "";
+		  string index_ir = pexpr_to_constraint_ir(
+			select.msb, cls, value_slots, scope, loop_env);
+		  constraint_const_ir_t index;
+		  if (!constraint_parse_const_ir_(index_ir, index)
+		      || index.width > 64) return "";
+		  uint64_t selected = constraint_resize_const_bits_(
+			index, 64, index.is_signed);
+		  uint64_t word = selected;
+		  const netrange_t&range = dimensions.front();
+		  word -= (uint64_t)std::min(range.get_msb(), range.get_lsb());
+		  if (word >= range.width()) return "";
+		  unsigned long stride = 1;
+		  for (size_t dim = 1; dim < dimensions.size(); ++dim)
+			stride *= dimensions[dim].width();
+		  canonical_base += (unsigned long)word * stride;
+		  source_indices.push_back((long)selected);
+		  dimensions.erase(dimensions.begin());
+	    }
+      } else return "";
+      if (dimensions.empty()) return "";
+      const vector<PExpr*>&with = locator->with_constraints();
+      if (with.size() != 1 || !with.front()) return "";
+      const vector<named_pexpr_t>&parms = locator->get_parms();
+      if (parms.size() > 1) return "";
+      perm_string iterator = perm_string::literal("item");
+      if (!parms.empty()) {
+	    const PEIdent*decl = dynamic_cast<const PEIdent*>(parms.front().parm);
+	    if (!parms.front().name.nil() || !decl || decl->path().package
+		|| decl->has_scoped_type_prefix() || decl->path().size() != 1
+		|| !decl->path().back().index.empty()) return "";
+	    iterator = decl->path().back().name;
+      }
+      unsigned width = element_type ? element_type->packed_width() : 0;
+      const netclass_t*object_type = dynamic_cast<const netclass_t*>(element_type);
+      if (!object_type && (!element_type
+	  || (element_type->base_type() != IVL_VT_BOOL
+	      && element_type->base_type() != IVL_VT_LOGIC) || !width)) return "";
+      string suffix = element_type->get_signed() ? ":s" : "";
+      const netrange_t&range = dimensions.front();
+      long low = std::min(range.get_msb(), range.get_lsb());
+      unsigned long stride = 1;
+      for (size_t dim = 1; dim < dimensions.size(); ++dim)
+	    stride *= dimensions[dim].width();
+      string count;
+      for (unsigned long word = 0; word < range.width(); ++word) {
+	    constraint_reduction_iter_ctx_t ctx;
+	    ctx.name = iterator;
+	    if (!object_type && dimensions.size() == 1)
+		  ctx.value_ir = "e:" + to_string(pid) + ":" + to_string(width)
+			+ ":" + to_string(canonical_base + word * stride) + suffix;
+	    ctx.index_ir = "c:" + to_string(low + (long)word) + ":32:s";
+	    ctx.value_type = element_type;
+	    if (object_type || dimensions.size() > 1) {
+		  ctx.fixed_object_property = pid;
+		  ctx.fixed_object_word = canonical_base + word * stride;
+		  ctx.fixed_object_type = element_type;
+		  ctx.fixed_remaining_dimensions.assign(
+			dimensions.begin() + 1, dimensions.end());
+		  ctx.fixed_source_property = source_property;
+		  ctx.fixed_source_indices = source_indices;
+		  ctx.fixed_source_indices.push_back(low + (long)word);
+	    }
+	    ctx.parent = constraint_reduction_iter_ctx_;
+	    const constraint_reduction_iter_ctx_t*saved =
+		  constraint_reduction_iter_ctx_;
+	    constraint_reduction_iter_ctx_ = &ctx;
+	    string predicate = pexpr_to_constraint_ir(
+		  with.front(), cls, value_slots, scope, loop_env);
+	    constraint_reduction_iter_ctx_ = saved;
+	    if (predicate.empty()) return "";
+	    /* IEEE 1800-2017/2023 7.12.1 evaluates the with expression as a
+	     * Boolean: zero is false and every nonzero value selects the element.
+	     * Truncating the raw predicate to 32 bits would instead add values such
+	     * as 2 and 7 to the count. */
+	    string term = "(ite " + predicate
+		  + " c:1:32:s c:0:32:s)";
+	    count = count.empty() ? term : "(add " + count + " " + term + ")";
+      }
+      return count.empty() ? "c:0:32:s" : "(trunc:32:s " + count + ")";
+}
+
+/* Terminal count of two chained value locators over one fixed class array.
+ * A value-returning find preserves one result occurrence per matching source
+ * element, so the second find is the conjunction of the two predicates over
+ * that same exact element identity. */
+static string constraint_fixed_chained_locator_count_ir_(
+      const PECallFunction*size_call, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (!size_call || !cls || !size_call->receiver_expr()
+	  || !size_call->get_parms().empty()
+	  || !size_call->with_constraints().empty()) return "";
+      const pform_name_t&size_path = size_call->path().name;
+      if (size_path.size() != 1
+	  || size_path.back().name != perm_string::literal("size")) return "";
+      const PECallFunction*outer = dynamic_cast<const PECallFunction*>(
+	    size_call->receiver_expr());
+      if (!outer || !outer->receiver_expr() || outer->path().package
+	  || outer->has_scoped_type_prefix()
+	  || outer->path().name.size() != 1
+	  || outer->path().name.back().name != perm_string::literal("find"))
+	    return "";
+      const PECallFunction*inner = dynamic_cast<const PECallFunction*>(
+	    outer->receiver_expr());
+      if (!inner || inner->receiver_expr() || inner->path().package
+	  || inner->has_scoped_type_prefix()
+	  || inner->path().name.size() != 2
+	  || inner->path().name.back().name != perm_string::literal("find"))
+	    return "";
+      const name_component_t&root = inner->path().name.front();
+      /* An enclosing iterator is lexically authoritative. This bounded
+	 * chained form currently starts at a target property, so do not fall
+	 * through an unsupported carrier to a same-named class array. */
+      if (constraint_array_iter_ctx_find_(root.name)) return "";
+      if (root.local_scope || !root.index.empty()
+	  || (constraint_inline_member_names_ && value_slots
+	      && !constraint_inline_target_name_(root.name))) return "";
+      int pid = cls->property_idx_from_name(root.name);
+      const netuarray_t*array = pid < 0 ? nullptr
+	    : dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)pid));
+      if (!array || array->static_dimensions().size() != 1) return "";
+      const netclass_t*element = dynamic_cast<const netclass_t*>(
+	    array->element_type());
+      if (!element) return "";
+      auto iterator = [](const PECallFunction*call,
+			 perm_string&name) -> bool {
+	    if (call->with_constraints().size() != 1
+		|| !call->with_constraints().front()
+		|| call->get_parms().size() > 1) return false;
+	    name = perm_string::literal("item");
+	    if (call->get_parms().empty()) return true;
+	    const named_pexpr_t&parm = call->get_parms().front();
+	    const PEIdent*decl = dynamic_cast<const PEIdent*>(parm.parm);
+	    if (!parm.name.nil() || !decl || decl->path().package
+		|| decl->has_scoped_type_prefix() || decl->path().size() != 1
+		|| !decl->path().back().index.empty()) return false;
+	    name = decl->path().back().name;
+	    return true;
+      };
+      perm_string inner_name, outer_name;
+      if (!iterator(inner, inner_name) || !iterator(outer, outer_name))
+	    return "";
+      const netrange_t&range = array->static_dimensions().front();
+      long low = std::min(range.get_msb(), range.get_lsb());
+      const constraint_reduction_iter_ctx_t*saved =
+	    constraint_reduction_iter_ctx_;
+      vector<string>first_predicates;
+      first_predicates.reserve(range.width());
+      for (unsigned long word = 0; word < range.width(); ++word) {
+	    constraint_reduction_iter_ctx_t first;
+	    first.name = inner_name;
+	    first.index_ir = "c:" + to_string(low + (long)word) + ":32:s";
+	    first.value_type = element;
+	    first.fixed_object_property = pid;
+	    first.fixed_object_word = word;
+	    first.fixed_object_type = element;
+	    first.parent = saved;
+	    constraint_reduction_iter_ctx_ = &first;
+	    string predicate = pexpr_to_constraint_ir(
+		  inner->with_constraints().front(), cls, value_slots,
+		  scope, loop_env);
+	    constraint_reduction_iter_ctx_ = saved;
+	    if (predicate.empty()) return "";
+	    first_predicates.push_back(predicate);
+      }
+      string count;
+      string dense_index = "c:0:32:s";
+      for (unsigned long word = 0; word < range.width(); ++word) {
+	    constraint_reduction_iter_ctx_t second;
+	    second.name = outer_name;
+	    second.index_ir = dense_index;
+	    second.value_type = element;
+	    second.fixed_object_property = pid;
+	    second.fixed_object_word = word;
+	    second.fixed_object_type = element;
+	    /* The two with clauses are sibling lexical scopes. */
+	    second.parent = saved;
+	    constraint_reduction_iter_ctx_ = &second;
+	    string second_predicate = pexpr_to_constraint_ir(
+		  outer->with_constraints().front(), cls, value_slots,
+		  scope, loop_env);
+	    constraint_reduction_iter_ctx_ = saved;
+	    if (second_predicate.empty()) return "";
+	    string selected = "(and " + first_predicates[word] + " "
+		  + second_predicate + ")";
+	    string term = "(ite " + selected
+		  + " c:1:32:s c:0:32:s)";
+	    count = count.empty() ? term : "(add " + count + " " + term + ")";
+	    string matched = "(ite " + first_predicates[word]
+		  + " c:1:32:s c:0:32:s)";
+	    dense_index = "(add " + dense_index + " " + matched + ")";
+      }
+      return count.empty() ? "c:0:32:s" : "(trunc:32:s " + count + ")";
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -27673,6 +28556,260 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (const PEMemberAccess*member =
 	  dynamic_cast<const PEMemberAccess*>(expr)) {
+	    /* A member selected through a conditional class handle keeps the
+	     * conditional's common (static) class type. Keep the condition and
+	     * both handle identities in solver IR; the runtime guards an invalid
+	     * branch by the condition that selects it. This also avoids resolving
+	     * a hidden derived member when the common base declares the source
+	     * member. */
+	    if (const PETernary*conditional =
+		dynamic_cast<const PETernary*>(member->base())) {
+		  constraint_source_type_t source = constraint_source_expr_type_(
+			conditional, cls, value_slots, scope);
+		  const netclass_t*owner = !source.unpacked_dimensions
+			? dynamic_cast<const netclass_t*>(source.type) : nullptr;
+		  int property = owner
+			? owner->property_idx_from_name(member->member_name()) : -1;
+		  ivl_type_t result_type = property >= 0
+			? owner->get_prop_type((size_t)property) : nullptr;
+		  constraint_handle_operand_t yes = constraint_handle_operand_(
+			conditional->get_true(), cls, value_slots, scope, loop_env);
+		  constraint_handle_operand_t no = constraint_handle_operand_(
+			conditional->get_false(), cls, value_slots, scope, loop_env);
+		  string condition = pexpr_to_constraint_ir(
+			conditional->get_cond(), cls, value_slots, scope, loop_env);
+		  if (owner && property >= 0
+		      && constraint_state_member_visible_(
+			    owner, property, scope, expr)
+		      && result_type && result_type->packed()
+		      && result_type->packed_width()
+		      && result_type->packed_width() <= 64
+		      && (result_type->base_type() == IVL_VT_BOOL
+			  || result_type->base_type() == IVL_VT_LOGIC)
+		      && yes.type && no.type && !yes.ir.empty() && !no.ir.empty()
+		      && !condition.empty()
+		      && owner->type_compatible(yes.type)
+		      && owner->type_compatible(no.type)) {
+			return "(hselectfield " + to_string(property) + ":"
+			      + to_string(result_type->packed_width())
+			      + (result_type->get_signed() ? ":s" : "") + " "
+			      + condition + " " + yes.ir + " " + no.ir + ")";
+		  }
+		  cerr << expr->get_fileline() << ": error: Conditional class-handle "
+		       << "member expression used in a constraint is unresolved, impure, "
+		       << "or has an unsupported result." << endl;
+		  constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
+	    const PECallFunction*method = dynamic_cast<const PECallFunction*>(
+		  member->base());
+	    const PEIdent*selected = method
+		  ? dynamic_cast<const PEIdent*>(method->receiver_expr()) : nullptr;
+	    /* A method invoked through a parser-marked specialized static
+	     * property is ordinary state at randomize time. Preserve the exact
+	     * Type#(...) carrier when synthesizing the capture wrapper; rebuilding
+	     * only the unparameterized class name can select the default
+	     * specialization and therefore the wrong static object. */
+	    bool flattened_scoped_method = method && !method->receiver_expr()
+		&& method->has_scoped_type_prefix()
+		&& method->path().name.size() >= 3;
+	    bool receiver_scoped_method = method && selected
+		&& selected->has_scoped_type_prefix()
+		&& selected->path().name.size() >= 2
+		&& method->path().name.size() == 1;
+	    if ((flattened_scoped_method || receiver_scoped_method)
+		&& method->get_parms().empty()
+		&& method->with_constraints().empty()) {
+		  pform_name_t receiver_path = receiver_scoped_method
+			? selected->path().name : method->path().name;
+		  if (flattened_scoped_method) receiver_path.pop_back();
+		  PPackage*receiver_package = receiver_scoped_method
+			? selected->path().package : method->path().package;
+		  const parmvalue_t*type_args = receiver_scoped_method
+			? selected->leading_type_args() : method->leading_type_args();
+		  unique_ptr<PEIdent>receiver(receiver_package
+			? new PEIdent(receiver_package, receiver_path, UINT_MAX)
+			: new PEIdent(receiver_path, UINT_MAX));
+		  receiver->set_scoped_type_prefix();
+		  if (type_args)
+			receiver->set_borrowed_leading_type_args(
+			      type_args);
+		  const netclass_t*owner = constraint_scoped_path_owner_(
+			receiver.get(), scope);
+		  const name_component_t&property = receiver_path.back();
+		  int pid = owner && property.index.empty()
+			? owner->property_idx_from_name(property.name) : -1;
+		  constraint_source_type_t call_type =
+			constraint_source_expr_type_(method, cls, value_slots, scope);
+		  const netclass_t*return_type = !call_type.unpacked_dimensions
+			? dynamic_cast<const netclass_t*>(call_type.type) : nullptr;
+		  int final_member = return_type
+			? return_type->property_idx_from_name(member->member_name()) : -1;
+		  ivl_type_t result_type = final_member >= 0
+			? return_type->get_prop_type((size_t)final_member) : nullptr;
+		  if (pid >= 0
+		      && owner->get_prop_qual((size_t)pid).test_static()
+		      && dynamic_cast<const netclass_t*>(
+			    owner->get_prop_type((size_t)pid))
+		      && final_member >= 0
+		      && constraint_state_member_visible_(
+			    return_type, final_member, scope, expr)
+		      && result_type && result_type->packed()
+		      && result_type->packed_width()
+		      && (result_type->base_type() == IVL_VT_BOOL
+			  || result_type->base_type() == IVL_VT_LOGIC)
+		      && !return_type->get_prop_qual(
+			    (size_t)final_member).test_rand()
+		      && !return_type->get_prop_qual(
+			    (size_t)final_member).test_randc()) {
+			list<named_pexpr_t>no_args;
+			PECallFunction*concrete = nullptr;
+			if (receiver_scoped_method) {
+			      PEIdent*receiver_copy = receiver_package
+				    ? new PEIdent(receiver_package, receiver_path, UINT_MAX)
+				    : new PEIdent(receiver_path, UINT_MAX);
+			      receiver_copy->set_scoped_type_prefix();
+			      if (type_args)
+				    receiver_copy->set_borrowed_leading_type_args(type_args);
+			      concrete = new PECallFunction(receiver_copy,
+				    method->path().name.back().name, no_args);
+			} else {
+			      concrete = method->path().package
+				    ? new PECallFunction(method->path().package,
+					  method->path().name, no_args)
+				    : new PECallFunction(method->path().name, no_args);
+			      concrete->set_scoped_type_prefix();
+			      if (type_args)
+				    concrete->set_borrowed_leading_type_args(type_args);
+			}
+			concrete->set_line(*expr);
+			PEMemberAccess*value = new PEMemberAccess(
+			      concrete, member->member_name());
+			value->set_line(*expr);
+			string slot = constraint_state_expression_slot_(
+			      expr, value, result_type, cls, false);
+			if (!slot.empty()) return slot;
+		  }
+		  if (return_type && final_member >= 0
+		      && return_type->get_prop_qual(
+			    (size_t)final_member).test_randc()
+		      && constraint_randc_capture_
+		      && constraint_randc_capture_->seen)
+			return "";
+		  cerr << expr->get_fileline() << ": error: Specialized static "
+		       << "method/member expression used in a constraint is unresolved, "
+		       << "impure, or has an unsupported result." << endl;
+		  constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
+	    unique_ptr<PEIdent>flattened_selected;
+	    if (method && !selected && !method->receiver_expr()
+		&& !method->path().package
+		&& !method->has_scoped_type_prefix()
+		&& method->path().name.size() == 2) {
+		  pform_name_t receiver_path;
+		  receiver_path.push_back(method->path().name.front());
+		  flattened_selected.reset(new PEIdent(receiver_path, UINT_MAX));
+		  selected = flattened_selected.get();
+	    }
+	    const constraint_reduction_iter_ctx_t*iter = selected
+		  && !selected->path().package
+		  && !selected->has_scoped_type_prefix()
+		  && !selected->path().name.empty()
+		  && !selected->path().name.front().local_scope
+		  ? constraint_array_iter_ctx_find_(
+			selected->path().name.front().name) : nullptr;
+	    if (method && selected && iter && iter->fixed_object_property >= 0
+		&& !iter->fixed_source_property.nil()
+		&& iter->fixed_remaining_dimensions.size() == 1
+		&& method->path().name.size()
+		      == (method->receiver_expr() ? 1U : 2U)
+		&& method->get_parms().empty()
+		&& method->with_constraints().empty()
+		&& selected->path().size() == 1
+		&& selected->path().name.front().name == iter->name
+		&& selected->path().name.front().index.size() == 1) {
+		  const index_component_t&select =
+			selected->path().name.front().index.front();
+		  string index_ir = select.msb && !select.lsb
+			&& select.sel == index_component_t::SEL_BIT
+			? pexpr_to_constraint_ir(
+			      select.msb, cls, value_slots, scope, loop_env) : "";
+		  constraint_const_ir_t index;
+		  const netclass_t*receiver_type = dynamic_cast<const netclass_t*>(
+			iter->fixed_object_type);
+		  NetScope*callee = receiver_type
+			? receiver_type->resolve_method_call_scope(
+			      constraint_ir_design_ctx_, method->path().name.back().name)
+			: nullptr;
+		  const PFunction*callee_pform = callee ? callee->func_pform() : nullptr;
+		  if (callee_pform
+		      && (!callee->func_def() || !callee->func_def()->proc()))
+			elaborate_function_outside_caller_fork_(
+			      constraint_ir_design_ctx_, callee_pform, callee);
+		  const NetFuncDef*callee_def = callee ? callee->func_def() : nullptr;
+		  const netclass_t*return_type = callee_def
+			&& callee_def->return_sig()
+			? dynamic_cast<const netclass_t*>(
+			      callee_def->return_sig()->net_type()) : nullptr;
+		  int final_member = return_type
+			? return_type->property_idx_from_name(member->member_name()) : -1;
+		  ivl_type_t result_type = final_member >= 0
+			? return_type->get_prop_type((size_t)final_member) : nullptr;
+		  if (!index_ir.empty() && constraint_parse_const_ir_(index_ir, index)
+		      && index.width <= 64 && receiver_type && callee_def
+		      && callee_def->port_count()
+			    == (scope_method_uses_implicit_this(
+				  constraint_ir_design_ctx_, callee) ? 1U : 0U)
+		      && final_member >= 0
+		      && constraint_state_member_visible_(
+			    return_type, final_member, scope, expr)
+		      && result_type && result_type->packed()
+		      && result_type->packed_width()
+		      && (result_type->base_type() == IVL_VT_BOOL
+			  || result_type->base_type() == IVL_VT_LOGIC)
+		      && !return_type->get_prop_qual((size_t)final_member).test_rand()
+		      && !return_type->get_prop_qual((size_t)final_member).test_randc()) {
+			uint64_t raw = constraint_resize_const_bits_(
+			      index, 64, index.is_signed);
+			const netrange_t&range =
+			      iter->fixed_remaining_dimensions.front();
+			uint64_t digit = raw - (uint64_t)std::min(
+			      range.get_msb(), range.get_lsb());
+			if (digit < range.width()) {
+			      pform_name_t receiver_path;
+			      name_component_t root(iter->fixed_source_property);
+			      vector<long>indices = iter->fixed_source_indices;
+			      indices.push_back((long)raw);
+			      for (long declared : indices) {
+				    index_component_t part;
+				    part.sel = index_component_t::SEL_BIT;
+				    part.msb = new PENumber(new verinum((int64_t)declared));
+				    part.lsb = nullptr;
+				    root.index.push_back(part);
+			      }
+			      receiver_path.push_back(root);
+			      PEIdent*concrete_receiver = new PEIdent(receiver_path, UINT_MAX);
+			      concrete_receiver->set_line(*expr);
+			      list<named_pexpr_t>no_args;
+			      PECallFunction*concrete_call = new PECallFunction(
+				    concrete_receiver, method->path().name.back().name,
+				    no_args);
+			      concrete_call->set_line(*expr);
+			      PEMemberAccess*concrete = new PEMemberAccess(
+				    concrete_call, member->member_name());
+			      concrete->set_line(*expr);
+			      string slot = constraint_state_expression_slot_(
+				    expr, concrete, result_type, cls, false);
+			      if (!slot.empty()) return slot;
+			}
+		  }
+		  cerr << expr->get_fileline() << ": error: Selected fixed-array "
+		       << "iterator method expression used in a constraint is unresolved, "
+		       << "impure, or has an unsupported result." << endl;
+		  constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
 	    pform_name_t flat_path;
 	    if (constraint_flatten_member_path_(member, flat_path)) {
 		  pform_scoped_name_t scoped(flat_path);
@@ -27875,6 +29012,90 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		      && id->path().back().name == perm_string::literal("index")
 		      && id->path().back().index.empty())
 			return ctx->index_ir;
+		  if (id->path().size() == 2
+		      && id->path().name.front().index.empty()
+		      && id->path().name.back().index.empty()) {
+			auto state = ctx->fixed_state_members.find(
+			      id->path().name.back().name);
+			if (state != ctx->fixed_state_members.end())
+			      return state->second;
+		  }
+		  if (id->path().size() == 2
+		      && ctx->fixed_object_property >= 0
+		      && ctx->fixed_remaining_dimensions.empty()
+		      && id->path().name.front().index.empty()
+		      && id->path().name.back().index.empty()
+		      && ctx->fixed_object_type) {
+			const netclass_t*object_type =
+			      dynamic_cast<const netclass_t*>(ctx->fixed_object_type);
+			if (!object_type) return "";
+			int member = object_type->property_idx_from_name(
+			      id->path().name.back().name);
+			if (member < 0 || !constraint_state_member_visible_(
+			      object_type, member, scope, expr)) return "";
+			ivl_type_t type = object_type->get_prop_type(member);
+			unsigned width = type ? type->packed_width() : 0;
+			if (!type || !type->packed() || !width) return "";
+			return "(qmelem " + to_string(ctx->fixed_object_property)
+			      + ":" + to_string(member) + ":" + to_string(width)
+			      + (type->get_signed() ? ":s" : "") + " c:"
+			      + to_string(ctx->fixed_object_word) + ":32)";
+		  }
+	    }
+
+	      /* A scalar member of one fixed class-handle array element keeps
+	       * the element identity in the solver graph. This is the fixed-array
+	       * counterpart of the dynamic qmelem path above; all unpacked indices
+	       * must be constants after foreach loop substitution. */
+	    if (cls && !ctx && !id->path().package
+		&& !id->has_scoped_type_prefix() && id->path().size() == 2
+		&& (!constraint_inline_member_names_ || !value_slots
+		    || constraint_inline_target_name_(
+			  id->path().name.front().name))) {
+		  const name_component_t&root = id->path().name.front();
+		  const name_component_t&field = id->path().name.back();
+		  int property = root.local_scope ? -1
+			: cls->property_idx_from_name(root.name);
+		  const netuarray_t*array = property < 0 ? nullptr
+			: dynamic_cast<const netuarray_t*>(
+			      cls->get_prop_type((size_t)property));
+		  const netclass_t*element = array
+			? dynamic_cast<const netclass_t*>(array->element_type()) : nullptr;
+		  const netranges_t*dims = array ? &array->static_dimensions() : nullptr;
+		  if (element && dims && root.index.size() == dims->size()
+		      && !field.local_scope && field.index.empty()) {
+			int member = element->property_idx_from_name(field.name);
+			if (member < 0 || !constraint_state_member_visible_(
+			      element, member, scope, expr)) return "";
+			ivl_type_t type = element->get_prop_type((size_t)member);
+			unsigned width = type ? type->packed_width() : 0;
+			if (!type || !type->packed() || !width
+			    || (type->base_type() != IVL_VT_BOOL
+				&& type->base_type() != IVL_VT_LOGIC)) return "";
+			uint64_t word = 0;
+			size_t dim = 0;
+			for (const index_component_t&select : root.index) {
+			      if (!select.msb || select.lsb
+				  || select.sel != index_component_t::SEL_BIT) return "";
+			      string index_ir = pexpr_to_constraint_ir(
+				    select.msb, cls, value_slots, scope, loop_env);
+			      constraint_const_ir_t index;
+			      if (!constraint_parse_const_ir_(index_ir, index)
+				  || index.width > 64) return "";
+			      uint64_t digit = constraint_resize_const_bits_(
+				    index, 64, index.is_signed);
+			      long low = std::min((*dims)[dim].get_msb(),
+				    (*dims)[dim].get_lsb());
+			      digit -= (uint64_t)low;
+			      if (digit >= (*dims)[dim].width()) return "";
+			      word = word * (*dims)[dim].width() + digit;
+			      ++dim;
+			}
+			return "(qmelem " + to_string(property) + ":"
+			      + to_string(member) + ":" + to_string(width)
+			      + (type->get_signed() ? ":s" : "") + " c:"
+			      + to_string(word) + ":32)";
+		  }
 	    }
 
 	      // No-argument method calls may omit parentheses (13.4.2).
@@ -27954,9 +29175,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 	      // Dynamic foreach loop variable: symbolic token for the
 	      // runtime expansion (18.5.8.2).
+	    if (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->assoc_key_type
+		&& id->path().size() == 2 && !id->path().package
+		&& !id->path().name.front().local_scope
+		&& id->path().name.front().name == dynforeach_emit_ctx_->loop_var
+		&& id->path().name.front().index.empty()
+		&& id->path().name.back().index.empty()) {
+		  const netclass_t*key = dynforeach_emit_ctx_->assoc_key_type;
+		  int member = key->property_idx_from_name(
+			id->path().name.back().name);
+		  if (member < 0 || !constraint_state_member_visible_(
+			key, member, scope, expr)) return "";
+		  ivl_type_t type = key->get_prop_type(member);
+		  unsigned width = type && type->packed() ? type->packed_width() : 0;
+		  if (!width || width > 64) return "";
+		  return "(qkeymember " + to_string(member) + ":"
+			+ to_string(width) + (type->get_signed() ? ":s" : "") + ")";
+	    }
 	    if (dynforeach_emit_ctx_ && id->path().size() == 1
 		&& !id->path().name.front().local_scope
 		&& name == dynforeach_emit_ctx_->loop_var) {
+		  if (dynforeach_emit_ctx_->assoc_key_type) return "";
 		  const list<index_component_t>&indices =
 			id->path().name.front().index;
 		  if (indices.empty()) return "L";
@@ -28381,42 +29620,50 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + (c->elem_signed ? ":s" : "")
 				    + " " + idx_ir + ")";
 			}
+			const netdarray_t*da = dynamic_cast<const netdarray_t*>(ptype);
+			const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype);
+			if (da && (!qq || !qq->assoc_compat())
+			    && id->path().back().index.size() == 1) {
+			      const index_component_t&dic = id->path().back().index.front();
+			      if (!dic.msb || dic.lsb || dic.sel != index_component_t::SEL_BIT)
+				    return "";
+			      string idx_ir = pexpr_to_constraint_ir(dic.msb, cls,
+				    value_slots, scope, loop_env);
+			      if (idx_ir.empty()) return "";
+			      ivl_type_t etype = da ? da->element_type() : qq->element_type();
+			      unsigned ewid = etype ? etype->packed_width() : 0;
+			      if (ewid == 0) return "";
+			      return "(delem " + to_string(idx) + ":" + to_string(ewid)
+				    + (etype->get_signed() ? ":s" : "") + " " + idx_ir + ")";
+			}
 			const netuarray_t*ua =
 			      dynamic_cast<const netuarray_t*>(ptype);
-			if (!ua || id->path().back().index.size() != 1)
+			if (!ua || id->path().back().index.empty())
 			      return "";
-			const index_component_t&ic = id->path().back().index.front();
-			if (!ic.msb || ic.lsb
-			    || ic.sel != index_component_t::SEL_BIT)
-			      return "";
-			string idx_ir = pexpr_to_constraint_ir(ic.msb, cls,
-						value_slots, scope, loop_env);
-			constraint_const_ir_t index_const;
-			if (!constraint_parse_const_ir_(idx_ir, index_const)
-			    || index_const.width > 64)
-			      return "";
-			uint64_t elem = constraint_resize_const_bits_(
-			      index_const, 64, index_const.is_signed);
 			const netranges_t&dims = ua->static_dimensions();
-			if (dims.size() != 1)
+			if (dims.size() != id->path().back().index.size())
 			      return "";
-			  // The source index is a DECLARED index (18.5.8.1
-			  // loop variables range over the declared indices);
-			  // the element solver variable e:N:W:I addresses
-			  // the canonical (0-based) slot used by the
-			  // write-back, so map declared -> canonical here.
-			  // Decode the typed constant before this subtraction. A
-			  // signed narrow negative index such as c:4294967294:32:s
-			  // must sign-extend to the same uint64 two's-complement
-			  // representation as a negative declared bound.
-			{
-			      long range_lo =
-				    dims[0].get_msb() < dims[0].get_lsb()
-					  ? dims[0].get_msb()
-					  : dims[0].get_lsb();
-			      elem -= (uint64_t)range_lo;
-			      if (elem >= dims[0].width())
+			uint64_t elem = 0;
+			size_t dim = 0;
+			for (const index_component_t&ic :
+			     id->path().back().index) {
+			      if (!ic.msb || ic.lsb
+				  || ic.sel != index_component_t::SEL_BIT)
 				    return "";
+			      string idx_ir = pexpr_to_constraint_ir(
+				    ic.msb, cls, value_slots, scope, loop_env);
+			      constraint_const_ir_t index_const;
+			      if (!constraint_parse_const_ir_(idx_ir, index_const)
+				  || index_const.width > 64)
+				    return "";
+			      uint64_t digit = constraint_resize_const_bits_(
+				    index_const, 64, index_const.is_signed);
+			      long range_lo = std::min(
+				    dims[dim].get_msb(), dims[dim].get_lsb());
+			      digit -= (uint64_t)range_lo;
+			      if (digit >= dims[dim].width()) return "";
+			      elem = elem * dims[dim].width() + digit;
+			      ++dim;
 			}
 			ivl_type_t etype = ua->element_type();
 			unsigned ewid = etype ? etype->packed_width() : 32;
@@ -28571,8 +29818,191 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       // the darray type text used to construct the array at write-back.
       if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr)) {
 	    const pform_name_t&cpath = call->path().name;
+	    unsigned call_errors_before = constraint_ir_design_ctx_
+		  ? constraint_ir_design_ctx_->errors : 0;
 	    bool call_local_qualified = !cpath.empty()
 		  && cpath.front().local_scope;
+	    bool scoped_static_locator = false;
+	    if (call->receiver_expr() && cpath.size() == 1
+		&& cpath.back().name == perm_string::literal("size")
+		&& call->get_parms().empty()
+		&& call->with_constraints().empty()) {
+		  const PECallFunction*locator = dynamic_cast<const PECallFunction*>(
+			call->receiver_expr());
+		  const PEIdent*scoped_receiver = locator
+			? dynamic_cast<const PEIdent*>(locator->receiver_expr()) : nullptr;
+		  bool flattened_scoped = locator && !locator->receiver_expr()
+			&& locator->has_scoped_type_prefix()
+			&& locator->path().name.size() >= 3;
+		  bool expression_scoped = scoped_receiver
+			&& scoped_receiver->has_scoped_type_prefix()
+			&& locator->path().name.size() == 1;
+		  if (locator && (flattened_scoped || expression_scoped)
+		      && locator->path().name.back().name
+			    == perm_string::literal("find")
+		      && locator->with_constraints().size() == 1
+		      && locator->with_constraints().front()
+		      && locator->get_parms().size() <= 1) {
+			pform_name_t receiver_path = expression_scoped
+			      ? scoped_receiver->path().name : locator->path().name;
+			if (flattened_scoped) receiver_path.pop_back();
+			PEIdent receiver(receiver_path, UINT_MAX);
+			receiver.set_scoped_type_prefix();
+			const parmvalue_t*receiver_type_args = expression_scoped
+			      ? scoped_receiver->leading_type_args()
+			      : locator->leading_type_args();
+			if (receiver_type_args)
+			      receiver.set_borrowed_leading_type_args(
+				    receiver_type_args);
+			const netclass_t*owner = constraint_scoped_path_owner_(
+			      &receiver, scope);
+			const name_component_t&property = receiver_path.back();
+			int pid = owner ? owner->property_idx_from_name(property.name) : -1;
+			const netuarray_t*array = pid < 0 ? nullptr
+			      : dynamic_cast<const netuarray_t*>(
+				    owner->get_prop_type((size_t)pid));
+			bool constant_prefix = true;
+			for (const index_component_t&select : property.index) {
+			      const PENumber*number = dynamic_cast<const PENumber*>(select.msb);
+			      constant_prefix = constant_prefix && number && !select.lsb
+				    && select.sel == index_component_t::SEL_BIT
+				    && number->value().is_defined();
+			}
+			bool iterator_ok = true;
+			perm_string iterator_name = perm_string::literal("item");
+			if (!locator->get_parms().empty()) {
+			      const named_pexpr_t&parm = locator->get_parms().front();
+			      const PEIdent*iterator = dynamic_cast<const PEIdent*>(parm.parm);
+			      iterator_ok = parm.name.nil() && iterator
+				    && !iterator->path().package
+				    && !iterator->has_scoped_type_prefix()
+				    && iterator->path().size() == 1
+				    && iterator->path().back().index.empty();
+			      if (iterator_ok)
+				    iterator_name = iterator->path().back().name;
+			}
+			constraint_reduction_iter_ctx_t iter_ctx;
+			iter_ctx.name = iterator_name;
+			iter_ctx.value_type = array ? array->element_type() : nullptr;
+			iter_ctx.parent = constraint_reduction_iter_ctx_;
+			const constraint_reduction_iter_ctx_t*saved_iter =
+			      constraint_reduction_iter_ctx_;
+			constraint_reduction_iter_ctx_ = &iter_ctx;
+			const netclass_t*iterator_type = array
+			      ? dynamic_cast<const netclass_t*>(array->element_type())
+			      : nullptr;
+			set<perm_string>state_members;
+			function<bool(const PExpr*)>state_predicate =
+			      [&](const PExpr*part) -> bool {
+				if (!part || dynamic_cast<const PENumber*>(part)) return true;
+				if (const PEIdent*id = dynamic_cast<const PEIdent*>(part)) {
+				      if (!iterator_type || id->path().package
+					  || id->has_scoped_type_prefix()
+					  || id->path().size() != 2) return false;
+				      const name_component_t&root = id->path().name.front();
+				      const name_component_t&member = id->path().name.back();
+				      if (root.local_scope || member.local_scope
+					  || root.name != iterator_name
+					  || !root.index.empty() || !member.index.empty()) return false;
+				      int midx = iterator_type->property_idx_from_name(member.name);
+				      if (midx < 0) return false;
+				      property_qualifier_t qual =
+					    iterator_type->get_prop_qual((size_t)midx);
+				      ivl_type_t type = iterator_type->get_prop_type((size_t)midx);
+				      bool legal = !qual.test_rand() && !qual.test_randc()
+					    && type && type->packed() && type->packed_width()
+					    && (type->base_type() == IVL_VT_BOOL
+						|| type->base_type() == IVL_VT_LOGIC);
+				      if (legal) state_members.insert(member.name);
+				      return legal;
+				}
+				if (const PEUnary*unary = dynamic_cast<const PEUnary*>(part)) {
+				      char op = unary->get_op();
+				      return op != 'i' && op != 'I' && op != 'd' && op != 'D'
+					    && state_predicate(unary->get_expr());
+				}
+				if (const PEBinary*binary = dynamic_cast<const PEBinary*>(part))
+				      return state_predicate(binary->get_left())
+					    && state_predicate(binary->get_right());
+				if (const PETernary*ternary = dynamic_cast<const PETernary*>(part))
+				      return state_predicate(ternary->get_cond())
+					    && state_predicate(ternary->get_true())
+					    && state_predicate(ternary->get_false());
+				return false;
+			      };
+			bool predicate_state_only = state_predicate(
+			      locator->with_constraints().front());
+			bool predicate_randc = constraint_source_references_randc_(
+			      locator->with_constraints().front(), cls,
+			      value_slots, scope, loop_env);
+			constraint_reduction_iter_ctx_ = saved_iter;
+			scoped_static_locator = array && constant_prefix && iterator_ok
+			      && predicate_state_only
+			      && owner->get_prop_qual((size_t)pid).test_static()
+			      && property.index.size() + 1
+				    == array->static_dimensions().size()
+			      && dynamic_cast<const netclass_t*>(array->element_type())
+			      && !predicate_randc;
+			if (scoped_static_locator) {
+			      const netranges_t&dims = array->static_dimensions();
+			      const netrange_t&remaining = dims[property.index.size()];
+			      long first = remaining.get_msb();
+			      long step = first <= remaining.get_lsb() ? 1 : -1;
+			      string count;
+			      for (unsigned long digit = 0;
+				   digit < remaining.width(); ++digit) {
+				    long declared = first + step * (long)digit;
+				    constraint_reduction_iter_ctx_t concrete_ctx;
+				    concrete_ctx.name = iterator_name;
+				    concrete_ctx.value_type = iterator_type;
+				    concrete_ctx.parent = saved_iter;
+				    for (perm_string member_name : state_members) {
+					  int member = iterator_type->property_idx_from_name(
+						member_name);
+					  ivl_type_t member_type = iterator_type->get_prop_type(
+						(size_t)member);
+					  pform_name_t selected_path = receiver_path;
+					  index_component_t select;
+					  select.sel = index_component_t::SEL_BIT;
+					  select.msb = new PENumber(
+						new verinum((int64_t)declared));
+					  select.lsb = nullptr;
+					  selected_path.back().index.push_back(select);
+					  selected_path.push_back(name_component_t(member_name));
+					  PEIdent*selected_member = new PEIdent(
+						selected_path, UINT_MAX);
+					  selected_member->set_scoped_type_prefix();
+					  if (receiver_type_args)
+						selected_member->set_borrowed_leading_type_args(
+						      receiver_type_args);
+					  selected_member->set_line(*call);
+					  string slot = constraint_state_expression_slot_(
+						call, selected_member, member_type, cls, false);
+					  if (slot.empty()) return "";
+					  concrete_ctx.fixed_state_members[member_name] = slot;
+				    }
+				    constraint_reduction_iter_ctx_ = &concrete_ctx;
+				    string predicate = pexpr_to_constraint_ir(
+					  locator->with_constraints().front(), cls,
+					  value_slots, scope, loop_env);
+				    constraint_reduction_iter_ctx_ = saved_iter;
+				    if (predicate.empty()) return "";
+				    string term = "(ite " + predicate
+					  + " c:1:32:s c:0:32:s)";
+				    count = count.empty() ? term
+					  : "(add " + count + " " + term + ")";
+			      }
+			      return count.empty() ? "c:0:32:s"
+				    : "(trunc:32:s " + count + ")";
+			}
+		  }
+	    }
+	    string locator_count = constraint_fixed_chained_locator_count_ir_(
+		  call, cls, value_slots, scope, loop_env);
+	    if (!locator_count.empty()) return locator_count;
+	    locator_count = constraint_fixed_locator_count_ir_(
+		  call, cls, value_slots, scope, loop_env);
+	    if (!locator_count.empty()) return locator_count;
 
 	      /* IEEE 1800-2017/2023 20.8.1: fold integral literals and named
 	       * constants before the 64-bit IR representation loses high bits.
@@ -28664,7 +30094,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (prop != cpath.end()) {
 			pform_name_t::const_iterator method = prop;
 			++method;
-			if (method != cpath.end() && !prop->index.empty())
+			/* A constant prefix select of a multidimensional fixed array
+			 * leaves a fixed one-dimensional receiver, e.g.
+			 * values[0].sum() with (item). Validate and canonicalize the
+			 * prefix below once the declared dimensions are known. */
+			if (method != cpath.end() && prop->index.size() > 1)
 			      method = cpath.end();
 			if (method != cpath.end() && !method->index.empty())
 			      method = cpath.end();
@@ -28722,12 +30156,47 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    ivl_type_t etype = ua ? ua->element_type() : nullptr;
 				    ivl_variable_type_t ebase = etype
 					  ? etype->base_type() : IVL_VT_NO_TYPE;
-				    if (ua->static_dimensions().size() != 1)
+				    const netranges_t&dimensions =
+					  ua->static_dimensions();
+				    if (dimensions.size() != prop->index.size() + 1) {
+					  if (prop->index.empty())
+						return reduction_error(
+						      "requires a one-dimensional unpacked array "
+						      "in a constraint; got "
+						      + to_string(dimensions.size())
+						      + " unpacked dimensions.");
 					  return reduction_error(
-						"requires a one-dimensional unpacked array in a "
-						"constraint; got "
-						+ to_string(ua->static_dimensions().size())
-						+ " unpacked dimensions.");
+						"requires a one-dimensional fixed-array receiver "
+						"after constant prefix selection.");
+				    }
+				    unsigned long canonical_base = 0;
+				    unsigned long stride = 1;
+				    for (size_t dim = dimensions.size(); dim > 1; --dim)
+					  stride *= dimensions[dim-1].width();
+				    if (!prop->index.empty()) {
+					  const index_component_t&select =
+						prop->index.front();
+					  if (!select.msb || select.lsb
+					      || select.sel != index_component_t::SEL_BIT)
+						return reduction_error(
+						      "requires a constant fixed-array prefix index.");
+					  string index_ir = pexpr_to_constraint_ir(
+						select.msb, cls, value_slots, scope, loop_env);
+					  constraint_const_ir_t index;
+					  if (!constraint_parse_const_ir_(index_ir, index)
+					      || index.width > 64)
+						return reduction_error(
+						      "requires a constant fixed-array prefix index.");
+					  uint64_t word = constraint_resize_const_bits_(
+						index, 64, index.is_signed);
+					  const netrange_t&outer = dimensions.front();
+					  word -= (uint64_t)std::min(
+						outer.get_msb(), outer.get_lsb());
+					  if (word >= outer.width())
+						return reduction_error(
+						      "has an out-of-bounds fixed-array prefix index.");
+					  canonical_base = (unsigned long)word * stride;
+				    }
 				    if (ebase != IVL_VT_BOOL
 					&& ebase != IVL_VT_LOGIC) {
 					  return reduction_error(
@@ -28793,8 +30262,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						      "(IEEE 1800-2017 7.12.3).");
 				    }
 
-				    const netrange_t&range =
-					  ua->static_dimensions().front();
+				    const netrange_t&range = dimensions.back();
 				    long range_lo = std::min(range.get_msb(),
 							     range.get_lsb());
 				    unsigned long count = range.width();
@@ -28803,7 +30271,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					 elem += 1) {
 					  string leaf = "e:" + to_string(pidx)
 						+ ":" + to_string(ewid) + ":"
-						+ to_string(elem) + esfx;
+						+ to_string(canonical_base + elem) + esfx;
 					  string value = leaf;
 					  if (!with_exprs.empty()) {
 						long declared_index = range_lo + (long)elem;
@@ -28948,6 +30416,188 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			return "(" + op + " " + arg + ")";
 		  }
 	    }
+
+	      /* IEEE 1800-2017 18.5.12 / 1800-2023 18.5.11: a
+	       * integral member function is evaluated before the
+	       * solve and its result becomes a state value. Keep a typed slot in
+	       * the constraint and let each randomize call evaluate the method on
+	       * its actual receiver after pre_randomize(). */
+	    if (cls && constraint_ir_state_calls_ctx_
+		&& (!call->receiver_expr() || scoped_static_locator)
+		&& !cpath.empty() && call->with_constraints().empty()) {
+		  NetScope*method = nullptr;
+		  if (!call->path().package && !call->has_scoped_type_prefix()
+		      && cpath.size() == 1 && cpath.front().index.empty())
+			method = cls->resolve_method_call_scope(
+			      constraint_ir_design_ctx_, cpath.front().name);
+		  else {
+			symbol_search_results found;
+			if (symbol_search(call, constraint_ir_design_ctx_,
+			      const_cast<NetScope*>(scope), call->path(), UINT_MAX,
+			      &found)
+			    && found.scope && found.scope->type() == NetScope::FUNC
+			    && found.path_tail.empty())
+			      method = found.scope;
+		  }
+		  bool enum_step = !method && !cpath.empty()
+			&& (cpath.back().name == perm_string::literal("next")
+			    || cpath.back().name == perm_string::literal("prev"))
+			&& call->get_parms().size() <= 1;
+		  constraint_source_type_t enum_result;
+		  if (enum_step) {
+			if (cpath.size() > 1) {
+			      pform_name_t receiver_path = cpath;
+			      receiver_path.pop_back();
+			      unique_ptr<PEIdent>receiver;
+			      if (call->path().package)
+				    receiver.reset(new PEIdent(
+					  call->path().package, receiver_path, UINT_MAX));
+			      else
+				    receiver.reset(new PEIdent(receiver_path, UINT_MAX));
+			      if (call->leading_type_args())
+				    receiver->set_borrowed_leading_type_args(
+					  call->leading_type_args());
+			      receiver->set_scoped_type_prefix(
+				    call->has_scoped_type_prefix());
+			      enum_result = constraint_source_expr_type_(
+				    receiver.get(), cls, value_slots, scope);
+			}
+		  }
+		  if ((method && method->type() == NetScope::FUNC)
+		      || (enum_step && !enum_result.unpacked_dimensions
+			  && dynamic_cast<const netenum_t*>(enum_result.type))
+		      || scoped_static_locator) {
+			const PFunction*pfunc = method ? method->func_pform() : nullptr;
+			if (pfunc && (!method->func_def() || !method->func_def()->proc()))
+			      elaborate_function_outside_caller_fork_(
+				constraint_ir_design_ctx_, pfunc, method);
+			const NetFuncDef*def = method ? method->func_def() : nullptr;
+			const NetNet*result = def ? def->return_sig() : nullptr;
+			ivl_type_t result_type = result ? result->net_type()
+			      : scoped_static_locator
+			      ? static_cast<ivl_type_t>(&netvector_t::atom2s32)
+			      : enum_result.type;
+			unsigned implicit_this = method
+			      && scope_method_uses_implicit_this(
+				    constraint_ir_design_ctx_, method) ? 1U : 0U;
+		    if (result_type
+			    && (result_type->base_type() == IVL_VT_BOOL
+				|| result_type->base_type() == IVL_VT_LOGIC)
+			    && (!result || result->unpacked_dimensions() == 0)) {
+			      bool arguments_ok = true;
+			      for (size_t arg = implicit_this;
+				   def && arg < def->port_count(); ++arg) {
+				    NetNet*port = def->port(arg);
+				    const vector<pform_tf_port_t>*pform_ports =
+					  pfunc ? pfunc->peek_ports() : nullptr;
+				    const PWire*pform_port = nullptr;
+				    if (pform_ports) {
+					  for (const pform_tf_port_t&candidate : *pform_ports) {
+						if (candidate.port
+						    && candidate.port->basename() == port->name()) {
+						      pform_port = candidate.port;
+						      break;
+						}
+					  }
+				    }
+				    bool const_ref = port->port_type() == NetNet::PREF
+					  && pform_port && pform_port->get_const();
+				    if (port->port_type() != NetNet::PINPUT
+					&& !const_ref) {
+					  cerr << call->get_fileline() << ": error: A function "
+					       << "used in a constraint may not have output, "
+					       << "inout, or non-const ref arguments." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  arguments_ok = false;
+					  break;
+				    }
+			      }
+			      if (!arguments_ok) return "";
+
+			      NetScope*class_scope = const_cast<NetScope*>(cls->class_scope());
+			      NetScope*wrapper = new NetScope(class_scope,
+				    hname_t(class_scope->local_symbol()), NetScope::FUNC);
+			      wrapper->is_auto(true);
+			      wrapper->set_line(call);
+			      wrapper->set_elab_stage(3);
+			      NetNet*receiver = new NetNet(wrapper,
+				    perm_string::literal(THIS_TOKEN), NetNet::REG, cls);
+			      receiver->port_type(NetNet::PINPUT);
+			      NetNet*wrapper_result = new NetNet(wrapper,
+				    wrapper->basename(), NetNet::REG, result_type);
+			      vector<NetNet*>wrapper_ports(1, receiver);
+			      vector<NetExpr*>wrapper_defaults(1, nullptr);
+			      NetFuncDef*wrapper_def = new NetFuncDef(wrapper,
+				    wrapper_result, wrapper_ports, wrapper_defaults);
+			      wrapper->set_func_def(wrapper_def);
+			      NetExpr*wrapped_call = elaborate_rval_expr(
+				    constraint_ir_design_ctx_, wrapper, result_type,
+				    const_cast<PECallFunction*>(call), false);
+			      if (!wrapped_call) return "";
+			      NetAssign*return_value = new NetAssign(
+				    new NetAssign_(wrapper_result), wrapped_call);
+			      return_value->set_line(*call);
+			      NetBlock*wrapper_body = new NetBlock(NetBlock::SEQU, nullptr);
+			      wrapper_body->set_line(*call);
+			      wrapper_body->append(return_value);
+			      wrapper_def->set_proc(wrapper_body);
+
+			      constraint_function_purity_t purity(
+				    constraint_ir_design_ctx_);
+			      if (!scoped_static_locator && !purity.check(wrapper)) {
+				    cerr << call->get_fileline() << ": error: Function '"
+					 << call->path()
+					 << "' used in a constraint is not pure: "
+					 << purity.reason() << "." << endl;
+				    constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      set<netclass_t::constraint_dependency_t>dependencies;
+			      if (!scoped_static_locator
+				  && !constraint_call_dependencies_(wrapped_call, cls,
+				    receiver, dependencies)) {
+				    cerr << call->get_fileline() << ": error: Function '"
+					 << call->path() << "' used in a constraint has "
+					 << "an argument expression whose random-variable "
+					 << "dependencies cannot be represented." << endl;
+				    constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      netclass_t::constraint_state_call_t desc;
+			      desc.method = wrapper->basename();
+			      desc.method_scope = wrapper;
+			      ostringstream method_path;
+			      method_path << scope_path(wrapper);
+			      desc.method_scope_name = method_path.str();
+			      desc.is_virtual = false;
+			      desc.argument_dependencies.assign(
+				    dependencies.begin(), dependencies.end());
+			      desc.width = result_type->packed_width();
+			      desc.is_signed = result_type->get_signed();
+			      size_t slot = constraint_ir_state_calls_ctx_->size();
+			      constraint_ir_state_calls_ctx_->push_back(desc);
+		      return "v:" + to_string(slot) + ":"
+			    + to_string(desc.width)
+			    + (desc.is_signed ? ":s" : "");
+		}
+	  }
+	    }
+	    /* A source function call that reaches here matched none of the
+	     * representable constraint forms above.  Diagnose it at the call
+	     * rather than letting the enclosing constraint-item fallback report
+	     * that the item was ignored, which would silently weaken the class
+	     * constraint.  System calls retain their existing per-form handling. */
+	    bool user_function = !cpath.empty()
+		  && cpath.back().name.str()[0] != '$';
+	    if (cls && constraint_ir_state_calls_ctx_ && user_function
+		&& constraint_ir_design_ctx_
+		&& constraint_ir_design_ctx_->errors == call_errors_before) {
+		  cerr << call->get_fileline() << ": error: Function call '"
+		       << call->path() << "' used in a class constraint is unresolved "
+		       << "or has an unsupported receiver, argument, or result form."
+		       << endl;
+		  constraint_ir_design_ctx_->errors += 1;
+	    }
 	    return "";
       }
 
@@ -29080,7 +30730,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// binding the loop variable to each canonical index.
       if (const PEConstraintForeach*cfe =
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
-	    if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil())
+	    if (cfe->loop_vars().empty())
 		  return "";
 
             /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: capture
@@ -29089,6 +30739,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
              * (18.7.1); leave unsupported shapes on the diagnostic path. */
             if (stateforeach_emit_ctx_) return ""; // nested templates need separate bindings
 	    if (cfe->has_hierarchical_target()) {
+                  if (cfe->loop_vars().size() != 1
+                      || cfe->loop_vars()[0].nil()) return "";
                   if (!cls || !value_slots || !scope_randomize_object_slots_
                       || !constraint_ir_design_ctx_ || !scope
                       || stateforeach_emit_ctx_ || dynforeach_emit_ctx_
@@ -29157,6 +30809,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	         unpacked array, this is a fixed packed domain, so unroll its
 	         declared indices now and let selected operands become `(bit)'. */
 	    if (!cls) {
+		  if (cfe->loop_vars().size() != 1
+		      || cfe->loop_vars()[0].nil()) return "";
 		  if (!scope_randomize_emit_ctx_) return "";
 		  long range_lo = 0;
 		  unsigned long count = 0;
@@ -29201,18 +30855,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    int idx = cls->property_idx_from_name(cfe->array_name());
 	    if (idx < 0)
 		  return "";
+	    ivl_type_t foreach_type = cls->get_prop_type((size_t)idx);
+	    const netqueue_t*assoc_foreach =
+		  dynamic_cast<const netqueue_t*>(foreach_type);
+	    bool class_key_assoc = assoc_foreach && assoc_foreach->assoc_compat()
+		  && dynamic_cast<const netclass_t*>(
+			assoc_foreach->assoc_index_type());
 	    if (!cls->get_prop_qual((size_t)idx).test_rand()
-		&& !constraint_state_prop_ok_(cls->get_prop_type((size_t)idx), true))
+		&& !constraint_state_prop_ok_(foreach_type, true)
+		&& !class_key_assoc)
 		  return "";
 	    const netuarray_t*ua =
-		  dynamic_cast<const netuarray_t*>(cls->get_prop_type((size_t)idx));
+		  dynamic_cast<const netuarray_t*>(foreach_type);
 	      // Dynamic array or queue property: the element count is a
 	      // runtime value (18.5.8.2: the size is solved before the
 	      // iterative constraints), so emit a template the runtime
 	      // expands after the size is known. One level only.
 	    if (!ua) {
-		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(
-			cls->get_prop_type((size_t)idx));
+		  if (cfe->loop_vars().size() != 1
+		      || cfe->loop_vars()[0].nil()) return "";
+		  const netdarray_t*da = dynamic_cast<const netdarray_t*>(foreach_type);
 		  if (!da || dynforeach_emit_ctx_)
 			return "";
 		  ivl_type_t etype = da->element_type();
@@ -29230,6 +30892,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  dctx.prop_idx = idx;
 		  dctx.elem_wid = ewid;
 		  dctx.elem_signed = esig;
+		  const netqueue_t*queue = dynamic_cast<const netqueue_t*>(da);
+		  if (queue && queue->assoc_compat()) {
+			dctx.assoc_key_type = dynamic_cast<const netclass_t*>(
+			      queue->assoc_index_type());
+		  }
 		  dynforeach_emit_ctx_ = &dctx;
 		  string body;
 		  for (const PExpr*item : cfe->items()) {
@@ -29245,35 +30912,55 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  dynforeach_emit_ctx_ = nullptr;
 		  if (body.empty())
 			return "";
+		  if (dctx.assoc_key_type)
+			return "(assocforeach " + to_string(idx) + " " + body + ")";
 		  return "(dynforeach " + to_string(idx)
 			+ ":" + to_string(ewid) + (esig ? ":s" : "")
 			+ " " + body + ")";
 	    }
 	    const netranges_t&dims = ua->static_dimensions();
-	    if (dims.size() != 1)
+	    if (cfe->loop_vars().size() > dims.size())
 		  return "";
-	    unsigned long count = dims[0].width();
-	      // The loop variable takes the DECLARED index values
-	      // (IEEE 1800-2017 18.5.8.1), so index arithmetic in the
-	      // constraint body sees the source-level indices; the
-	      // element-variable emitter maps declared -> canonical.
-	    long range_lo = dims[0].get_msb() < dims[0].get_lsb()
-		  ? dims[0].get_msb() : dims[0].get_lsb();
-
 	    string acc;
-	    for (unsigned long i = 0 ; i < count ; i += 1) {
-		  map<perm_string,uint64_t> env2;
-		  if (loop_env) env2 = *loop_env;
-		  env2[cfe->loop_vars()[0]] = (uint64_t)(range_lo + (long)i);
-		  for (const PExpr*item : cfe->items()) {
-			if (!item) continue;
-			string s = pexpr_to_constraint_ir(item, cls,
-						value_slots, scope, &env2);
-			if (s.empty())
-			      return "";
-			acc = acc.empty() ? s : "(and " + acc + " " + s + ")";
+	    map<perm_string,uint64_t> env2;
+	    if (loop_env) env2 = *loop_env;
+	    bool valid = true;
+	    function<void(size_t)> unroll = [&](size_t dim) {
+		  if (!valid) return;
+		  if (dim == cfe->loop_vars().size()) {
+			for (const PExpr*item : cfe->items()) {
+			      if (!item) continue;
+			      string s = pexpr_to_constraint_ir(
+				    item, cls, value_slots, scope, &env2);
+			      if (s.empty()) { valid = false; return; }
+			      acc = acc.empty() ? s
+				    : "(and " + acc + " " + s + ")";
+			}
+			return;
 		  }
-	    }
+		  perm_string loop = cfe->loop_vars()[dim];
+		  /* An omitted iterator suppresses iteration over that dimension;
+		   * a short iterator list likewise omits all trailing dimensions. */
+		  if (loop.nil()) {
+			unroll(dim + 1);
+			return;
+		  }
+		  long first = dims[dim].get_msb();
+		  long step = first <= dims[dim].get_lsb() ? 1 : -1;
+		  for (unsigned long digit = 0;
+		       digit < dims[dim].width(); ++digit) {
+			auto prior = env2.find(loop);
+			bool had_prior = prior != env2.end();
+			uint64_t prior_value = had_prior ? prior->second : 0;
+			env2[loop] = (uint64_t)(first + step * (long)digit);
+			unroll(dim + 1);
+			if (had_prior) env2[loop] = prior_value;
+			else env2.erase(loop);
+		  }
+	    };
+	    unroll(0);
+	    if (!valid)
+		  return "";
 	    return acc;
       }
 
@@ -29973,13 +31660,19 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
       for (perm_string name : pclass->type->constraint_order) {
             auto found = pclass->type->constraints.find(name);
             if (found == pclass->type->constraints.end()) continue;
-            const auto&cit = *found;
+	    const auto&cit = *found;
 	    string ir;
+	    vector<constraint_state_call_t> state_calls;
+	    vector<constraint_state_call_t>*save_state_calls =
+		  constraint_ir_state_calls_ctx_;
+	    constraint_ir_state_calls_ctx_ = &state_calls;
 	    for (PExpr*item : cit.second) {
 		  if (!item) continue;
 		  unsigned errors_before = des->errors;
+		  size_t calls_before = state_calls.size();
 		  string s = pexpr_to_class_constraint_ir(
 			item, this, nullptr, des, class_scope_);
+		  if (s.empty()) state_calls.resize(calls_before);
 		  if (!s.empty()) {
 			if (!ir.empty()) ir += " ";
 			ir += s;
@@ -29998,8 +31691,9 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 			}
 		  }
 	    }
+	    constraint_ir_state_calls_ctx_ = save_state_calls;
 	    if (!ir.empty())
-		  add_constraint_ir(string(cit.first), ir);
+		  add_constraint_ir(string(cit.first), ir, state_calls);
       }
 
       /* Synthesize an inside constraint for each random enum property. */

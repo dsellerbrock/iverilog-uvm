@@ -1,0 +1,1 @@
+`include "ivltests/sv_constraint_function_purity_transitive_write_fail.v"

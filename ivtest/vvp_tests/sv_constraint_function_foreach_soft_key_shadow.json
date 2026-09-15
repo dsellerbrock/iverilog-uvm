@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_function_foreach_soft_key_shadow.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_function_foreach_soft_key_shadow"
+}

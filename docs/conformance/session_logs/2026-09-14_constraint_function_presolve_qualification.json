@@ -1,0 +1,93 @@
+{
+  "completed_at": 1789436084.4742699,
+  "qualified": true,
+  "scope": "L64 repaired candidate seven-gate regression qualification; not full IEEE or UVM conformance",
+  "source_files": 749,
+  "source_mismatches": [],
+  "installed_mismatches": [],
+  "tracked_diff_stable": true,
+  "gates": {
+    "integrated": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "json": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "uvm": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "nfa": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "releases": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "makecheck": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    },
+    "frontend": {
+      "exit": 0,
+      "stable": true,
+      "matches_candidate": true
+    }
+  },
+  "counts": {
+    "legacy": {
+      "total": 5253,
+      "passed": 5248,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "json": {
+      "ran": 2189,
+      "failed": 0
+    },
+    "uvm": {
+      "passed": 357,
+      "failed": 0,
+      "skipped": 0,
+      "real_dpi": true
+    },
+    "nfa": {
+      "passed": 58,
+      "failed": 0
+    },
+    "release_smoke": {
+      "passed": 15,
+      "scope": "smoke only"
+    },
+    "frontend_scenarios": 12,
+    "vpi": 108,
+    "negative": 149,
+    "stateforeach_runtime": 15,
+    "copyout_runtime": 6,
+    "covergroup_exports": 66
+  },
+  "candidate_artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "5916fdcc543cd4c6cc0c6e7269828f8aa6566460dbade4d30e6f0eb0523bd6ed",
+    "local-install/lib/ivl/ivl": "170c54ca223eaa12295a7543228702864e9482e5d39c598ba4103981eb0e2ce2",
+    "local-install/lib/ivl/vvp.tgt": "dbb8e39094b14c2084a9645c25684d2761118e2610b4ff1aa728ddb45ff78287",
+    "local-install/lib/ivl/uvm_dpi.vpi": "c7715ba14d9614c0bd42628e039fe1143d79821ff4bc1352bd187fb5e000f098",
+    "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+  },
+  "focused": {
+    "paired_outcomes": 250,
+    "permanent_per_harness": 206,
+    "malformed_operands": 4
+  },
+  "local_evidence": "evidence/batch-20260914-l64/qualification-nested-handle"
+}

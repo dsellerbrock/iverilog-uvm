@@ -1892,3 +1892,26 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
 - **Authority:** IEEE 1800-2017/2023 11.5.1 and VPI value/callback semantics.
   Range tags are handle relations; the existing integer range-query extension
   is not claimed as implementation of those standard relations.
+
+### L64 — Function-valued constraint evaluation and argument ordering
+
+- **State:** QUALIFIED for the evidenced subset; local integration pending.
+- **Active ID:** CONSTRAINT-FUNCTION-PRESOLVE.
+- **Root cause:** legal function-valued constraints were ignored or lacked typed
+  per-object result transport and staged active-argument dependencies.
+- **Authority:** IEEE 1800-2017 and 1800-2023 18.5.11, with array-method,
+  constraint-guard, soft-constraint and null-handle rules for affected operands.
+- **Scope:** pure legal input/const-ref calls, typed result capture, qualified
+  and virtual dispatch, active scalar/member/element/size argument stages, one
+  rollback transaction, static overlays, selected fixed-array operands, and
+  conditional-member validity. No-argument body reads do not invent priority.
+- **Validation:** 250 paired focused outcomes; 206 permanent cases in each
+  harness; legacy5253 total/5248 pass/0 fail/2 NI/3 EF; JSON2189/0; real-DPI
+  UVM357/0/0; NFA58/0; release15 smoke passes; frontend12 scenarios; make check.
+  All seven gates used identical frozen artifacts and749 source/test/docs files.
+- **Limits:** dynamic-foreach per-iteration function capture, broader inline
+  wide-value transport, active returned-member aliases, selected indexed
+  conditional handles and multi-prefix reductions remain gaps. This does not
+  qualify all Clause18, IEEE1800.2, or whole unmodified OpenTitan/Caliptra DV.
+- **Evidence:** session_logs/2026-09-14_constraint_function_presolve.md and
+  its companion _qualification.json; failed earlier batches remain preserved.

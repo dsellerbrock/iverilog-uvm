@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_purity_static_return_retain_fail.v:9: error: Function 'purity_static_return_retain_pkg::counter' used in a constraint is not pure: reads retained state from a nonautomatic function return variable.
+1 error(s) during elaboration.

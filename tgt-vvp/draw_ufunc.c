@@ -1283,6 +1283,12 @@ int draw_vif_statement_output_arguments(ivl_scope_t scope,
 		  continue;
 	    }
 	    if (direction == IVL_SIP_REF) {
+		  /* A selected const-ref actual may use a companion because the
+		     reference ABI cannot name the subobject directly. It is copied
+		     in by the preamble, but const ref is input-only and must never
+		     publish the companion back to the caller. */
+		  if (ivl_signal_const(port))
+			continue;
 		  if (ref_actual_is_nameable_(argv[idx]))
 			continue;
 	    } else if (direction != IVL_SIP_OUTPUT
@@ -1310,6 +1316,8 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
 		 companion does: reading the formal reads the companion,
 		 so the ordinary copy-out is what puts it back. */
 	    if (port_type == IVL_SIP_REF) {
+		  if (ivl_signal_const(port))
+			continue;
 		  if (ref_actual_is_nameable_(ivl_expr_parm(expr, idx)))
 			continue;
 	    } else if ((port_type != IVL_SIP_OUTPUT) &&

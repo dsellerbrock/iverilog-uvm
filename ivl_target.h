@@ -2269,6 +2269,8 @@ extern int         ivl_signal_lsb(ivl_signal_t net) __attribute__((deprecated));
 extern unsigned    ivl_signal_width(ivl_signal_t net);
 extern ivl_signal_port_t ivl_signal_port(ivl_signal_t net);
 extern int         ivl_signal_module_port_index(ivl_signal_t net);
+/* True for a SystemVerilog const variable/formal, including const ref. */
+extern int         ivl_signal_const(ivl_signal_t net);
 extern int         ivl_signal_signed(ivl_signal_t net);
 extern int         ivl_signal_integer(ivl_signal_t net);
 extern int         ivl_signal_local(ivl_signal_t net);
@@ -2715,6 +2717,20 @@ extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
+extern int         ivl_type_constraint_state_calls(ivl_type_t net);
+extern int         ivl_type_constraint_state_call_constraint(ivl_type_t net, int idx);
+extern const char* ivl_type_constraint_state_call_scope_name(ivl_type_t net, int idx);
+extern unsigned    ivl_type_constraint_state_call_width(ivl_type_t net, int idx);
+extern int         ivl_type_constraint_state_call_signed(ivl_type_t net, int idx);
+extern int         ivl_type_constraint_state_call_virtual(ivl_type_t net, int idx);
+
+extern unsigned ivl_type_constraint_state_call_deps(ivl_type_t net, int idx);
+extern unsigned ivl_type_constraint_state_call_dep(ivl_type_t net, int idx,
+    unsigned dep);
+extern unsigned ivl_type_constraint_state_call_dep_kind(ivl_type_t net, int idx,
+    unsigned dep);
+extern unsigned ivl_type_constraint_state_call_dep_leaf(ivl_type_t net, int idx,
+    unsigned dep);
 
 /* Covergroup bin metadata on synthesized covergroup class types.
  * Only valid when the class type represents a covergroup. */

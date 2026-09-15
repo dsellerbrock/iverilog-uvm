@@ -1,6 +1,6 @@
 status: active
-branch: "main"
-current_blocker: "UVM release regressions: type-parameter method dispatch and function-valued constraints"
+branch: "agent/constraint-function-presolve-20260914"
+current_blocker: "Function constraint evaluation: scalar/fixed-element/member stages and static-array reads pass; dynamic size/element stages and remaining call forms need work."
 phase: "batch_regression_repairs"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
@@ -10,12 +10,12 @@ unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouc
 pending_gates: "L53-L62 broad qualification failed: four legacy failures repaired locally in fac7f8a11; seven release compile failures remain under repair. Corrected broad run pending repair cluster."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "Finish type-parameter scoped method dispatch, then implement real pre-solve constraint function evaluation."
-next_action: "L63 integrated f57a08a78; implement real function-valued constraints using existing runtime call and solver-slot machinery."
-next_command: "Focused type-parameter method review; no per-fix full-suite rerun."
+next_selection: "Complete and qualify the constraint-function repair before selecting the next compiler blocker."
+next_action: "Frozen conditional-final candidate: focused246/246, permanent202/202 both harnesses, exact repair4/4. Execute corrected full L64 seven-gate batch; frontend alone last; inspect all evidence before local integration."
+next_command: "Use focused counterexamples for remaining typed dependency and call-form gaps; no broad gate until repair cluster is ready."
 next_command_cwd: repository root
-candidate_state: "L61 locally integrated as 497110d63; broad qualification remains c686a4781."
-installed_tools: "Current intermediate method-repair artifacts recorded by SHA256 in evidence/uvm-release-regression-assessment/root-method-controls/static-context-review.json. Broad baseline remains c686a4781."
+candidate_state: "L63 locally integrated as f57a08a78 plus cc66db23e docs; L64 remains uncommitted and not broadly qualified."
+installed_tools: "Current SHA256 fingerprints: evidence/uvm-release-regression-assessment/semantic/typed-member-ref-fixed.json and typed-member-ref-permanent.json. Full baseline remains c686a4781."
 validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
 next_validation: "Finish release repair cluster with cheap positive/negative reproducers, then rerun corrected combined qualification; frontend relocation gate last and alone."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
@@ -989,3 +989,9 @@ release_typeparam_repair_start: "Samecheckout fromdb7d2bf01 aftercanonicalgrapht
 
 l63_local_integration: f57a08a78
 l63_validation: "Legacy5/5, JSON10/10, independent18/18, neighbors9/9; unchanged2020.3.2 smoke passes. Broad requalification pending."
+
+l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,frontend12,makecheck pass; legacy5249/2fail and JSON2185/2fail share two diagnostic mismatches. Snapshot735sources/6artifacts/diff stable. Freeze released for minimal diagnostic repairs; golds unchanged, not qualified or integrated. Evidence qualification-corrected/summary.json."
+
+l64_nested_handle_repair: "Runtime branch-read classification repaired; focused250/250 stable, permanent206/206 each harness, original4/4 and diagnostic2/2 each, malformed4/4, stateforeach15/15. Prior integrated5249/0fail predates runtime repair; current broad qualification pending. No integration. Session2026-09-14_constraint_function_presolve.md."
+
+l64_qualified: "All7 current-artifact gates pass: legacy5253/0fail,JSON2189/0,UVM357/0/0realDPI,NFA58,release15smoke,frontend12,makecheck. Snapshot749files/6artifacts/diff stable; manifest103editionpairs verified. L64 evidenced subset ready localintegration, full standards/application goals remain incomplete."

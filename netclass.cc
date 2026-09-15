@@ -987,11 +987,13 @@ bool netclass_t::interface_assignment_compatible_from(
       return !interface_modport_.nil() && source->interface_modport_.nil();
 }
 
-void netclass_t::add_constraint_ir(const string&name, const string&ir)
+void netclass_t::add_constraint_ir(const string&name, const string&ir,
+		const vector<constraint_state_call_t>&calls)
 {
       constraint_ir_t c;
       c.name = name;
       c.ir = ir;
+      c.state_calls = calls;
       constraint_irs_.push_back(c);
 }
 
@@ -1000,7 +1002,37 @@ void netclass_t::merge_inherited_constraint_irs_() const
       if (constraint_irs_merged_)
 	    return;
 
+      auto flatten_state_calls = [&]() {
+	    constraint_state_calls_.clear();
+	    for (size_t ci = 0; ci < constraint_irs_.size(); ++ci) {
+		  constraint_ir_t&entry = constraint_irs_[ci];
+		  size_t base = constraint_state_calls_.size();
+		  entry.flat_ir.clear();
+		  const char*begin = entry.ir.c_str();
+		  const char*ptr = begin;
+		  while (*ptr) {
+			bool token_start = ptr == begin
+			      || !(isalnum((unsigned char)ptr[-1]) || ptr[-1] == '_');
+			if (token_start && ptr[0] == 'v' && ptr[1] == ':') {
+			      char*end = nullptr;
+			      unsigned long slot = strtoul(ptr + 2, &end, 10);
+			      if (end != ptr + 2) {
+				    entry.flat_ir += "v:" + to_string(base + slot);
+				    ptr = end;
+				    continue;
+			      }
+			}
+			entry.flat_ir += *ptr++;
+		  }
+		  for (constraint_state_call_t call : entry.state_calls) {
+			call.constraint_index = ci;
+			constraint_state_calls_.push_back(call);
+		  }
+	    }
+      };
+
       if (!super_) {
+	    flatten_state_calls();
 	    constraint_irs_merged_ = true;
 	    return;
       }
@@ -1049,6 +1081,8 @@ void netclass_t::merge_inherited_constraint_irs_() const
       if (!inherited.empty())
 	    constraint_irs_.insert(constraint_irs_.begin(),
 				   inherited.begin(), inherited.end());
+
+      flatten_state_calls();
 }
 
 void netclass_t::add_covgrp_bin(unsigned cp, unsigned prop, uint64_t lo, uint64_t hi,
@@ -1085,5 +1119,19 @@ const string& netclass_t::constraint_ir_name(size_t idx) const
 
 const string& netclass_t::constraint_ir_str(size_t idx) const
 {
-      return constraint_irs_[idx].ir;
+      merge_inherited_constraint_irs_();
+      return constraint_irs_[idx].flat_ir;
+}
+
+size_t netclass_t::constraint_state_call_count() const
+{
+      merge_inherited_constraint_irs_();
+      return constraint_state_calls_.size();
+}
+
+const netclass_t::constraint_state_call_t&
+netclass_t::constraint_state_call(size_t idx) const
+{
+      merge_inherited_constraint_irs_();
+      return constraint_state_calls_[idx];
 }

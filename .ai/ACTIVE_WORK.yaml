@@ -1,21 +1,25 @@
-id: RELEASE-TYPE-PARAMETER-STATIC-METHOD
-title: Resolve type-parameter-qualified class methods
-status: INTEGRATED_LOCALLY
-base_revision: db7d2bf01
+id: CONSTRAINT-FUNCTION-PRESOLVE
+title: Evaluate function-valued class constraints before solving
+status: DONE
+base_revision: cc66db23e
 allowed_scope:
-  - Resolve static task and function statement calls through concrete class type parameters
-  - Defer calls only while the enclosing parameterized class template is unspecialized
-  - Preserve implicit-this dispatch for legal superclass-qualified non-static calls
-  - Diagnose unrelated or static-context non-static calls and missing/nonclass receivers
+  - Execute active function-valued class constraints against each runtime object after pre_randomize
+  - Preserve constraint modes, inheritance, virtual and lexical nonvirtual dispatch, nested objects, and inline constraints
+  - Bind legal input and const-ref state arguments with ordinary type conversion
+  - Solve active random function arguments in separate priority stages, preserving one rollback transaction and inline captures
+  - Reject illegal or unsupported calls and impure function bodies explicitly
+  - Transport typed function results into separate per-object solver slots without truncation or aliasing
 forbidden_scope:
-  - Identifier or method-name no-op stubs
-  - Constraint-function state or constraint_mode implementation
-  - General class/object/package/hierarchy dispatch rewrites
+  - Ignoring function-valued constraints or implementing constraint_mode as a no-op
+  - General random solver redesign unrelated to function-valued constraints
+  - DD030 packed-select increment and DD031 array-return changes
 focused_features_before_this: 0
 validation_batch: 20260914
-last_validated_revision: Legacy 5/5 and JSON 10/10 focused tests pass; independent receiver/task/function controls 18/18 pass.
-pending_gates: Corrected broad batch qualification after release repair cluster.
-next_action: Integrate locally, then implement real pre-solve function-valued constraints.
+last_validated_revision: "Uncommitted nested-handle repair on cc66db23e: focused250/250 stable; permanent206/206 each harness stable; original4/4 and diagnostic2/2 each harness; malformed conditional operands4/4 and stateforeach15/15. Prior integrated5249/0fail preceded runtime repair; current full qualification remains pending."
+pending_gates: "None for the evidenced L64 subset; seven current-artifact gates passed."
+next_action: "Commit and integrate qualified L64 locally, then return to coordinator blocker selection; remaining function/operand gaps stay explicitly open."
 stop_after_completion: false
 
 local_integration: f57a08a78
+
+l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,frontend12,makecheck pass; legacy5249/2fail and JSON2185/2fail share two diagnostic mismatches. Snapshot735sources/6artifacts/diff stable. Freeze released for minimal diagnostic repairs; golds unchanged, not qualified or integrated. Evidence qualification-corrected/summary.json."

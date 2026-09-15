@@ -234,11 +234,36 @@ class netclass_t : public ivl_type_s {
 	// Constraint IR: simple token-stream representation of constraint blocks.
 	// Format: each item is "name\tir_string" where ir_string is an
 	// S-expression like "(lt p:1:8 c:255)".
-      void add_constraint_ir(const std::string&name, const std::string&ir);
+      struct constraint_dependency_t {
+		  enum kind_t { PROP = 0, MEMBER = 1, ELEM = 2, SIZE = 3 };
+		  unsigned kind;
+		  unsigned property;
+		  unsigned leaf;
+		  bool operator<(const constraint_dependency_t&that) const
+		  {
+			if (kind != that.kind) return kind < that.kind;
+			if (property != that.property) return property < that.property;
+			return leaf < that.leaf;
+		  }
+	};
+      struct constraint_state_call_t {
+	    perm_string method;
+	    NetScope*method_scope;
+	    std::string method_scope_name;
+	    bool is_virtual;
+	    std::vector<constraint_dependency_t> argument_dependencies;
+	    size_t constraint_index;
+	    unsigned width;
+	    bool is_signed;
+      };
+      void add_constraint_ir(const std::string&name, const std::string&ir,
+		const std::vector<constraint_state_call_t>&calls = {});
       size_t constraint_ir_count() const
 	    { merge_inherited_constraint_irs_(); return constraint_irs_.size(); }
       const std::string& constraint_ir_name(size_t idx) const;
       const std::string& constraint_ir_str(size_t idx)  const;
+      size_t constraint_state_call_count() const;
+      const constraint_state_call_t&constraint_state_call(size_t idx) const;
       void set_body_elaborated(bool flag) { body_elaborated_ = flag; }
       bool body_elaborated() const { return body_elaborated_; }
       bool constraints_elaborated() const { return constraints_elaborated_; }
@@ -339,8 +364,11 @@ class netclass_t : public ivl_type_s {
       struct constraint_ir_t {
 	    std::string name;
 	    std::string ir;
+	    std::string flat_ir;
+	    std::vector<constraint_state_call_t> state_calls;
       };
       mutable std::vector<constraint_ir_t> constraint_irs_;
+	mutable std::vector<constraint_state_call_t> constraint_state_calls_;
 	// Unimplemented pure constraints inherited by this exact class type.
 	// The source location is the original pure declaration, used by the
 	// concrete-class diagnostic.

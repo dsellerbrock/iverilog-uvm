@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_function_purity_file_function_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_function_purity_file_function_fail"
+}

@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_purity_virtual_write_fail.v:5: error: Function 'value' used in a constraint is not pure: writes class, container, or indirect state.
+1 error(s) during elaboration.

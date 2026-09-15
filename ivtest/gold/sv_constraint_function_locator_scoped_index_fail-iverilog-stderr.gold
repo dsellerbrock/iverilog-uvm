@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_locator_scoped_index_fail.v:13: error: Function call 'size' used in a class constraint is unresolved or has an unsupported receiver, argument, or result form.
+1 error(s) during elaboration.

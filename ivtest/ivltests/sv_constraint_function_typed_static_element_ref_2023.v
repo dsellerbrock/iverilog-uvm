@@ -1,0 +1,1 @@
+`include "ivltests/sv_constraint_function_typed_static_element_ref.v"

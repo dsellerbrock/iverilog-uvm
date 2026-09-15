@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_function_inout_fail.v:5: error: A function used in a constraint may not have output, inout, or non-const ref arguments.
+1 error(s) during elaboration.
