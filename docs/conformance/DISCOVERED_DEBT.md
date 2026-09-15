@@ -1752,3 +1752,5 @@ Do not count arbitrary ignored seed plusargs as seed diversity. This is a DV
 workflow capability gap, not a claim that IEEE mandates a particular CLI.
 Record-only while coverage owns vthread.cc; future work should expose and test
 reproducible root-seed control without changing per-process/object stability.
+
+Seed-control reducer evidence: `evidence/application-check-20260915/root-seed-assessment/result.json` records identical four-value root RNG output for +ntb_random_seed=1 and2 on the installed L109 runtime.
