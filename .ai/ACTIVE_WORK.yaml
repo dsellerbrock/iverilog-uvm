@@ -54,7 +54,7 @@ integrated_focused_fixes:
     evidence: docs/conformance/session_logs/2026-09-14_joint_element_ordering_validation.json
     broad_qualification: pending near ten integrated fixes
 
-l86_increment_status: "First seven pairs pass both harnesses;8 coincident-edge controls pass; prefix increment builds and paired source-failure witness passes. Remaining lifecycle retention past an unacked MATCH and final boundary validation pending. See CAMPAIGN for candidate hashes."
+l86_increment_status: "Integrated13fee7ec9; see committed multiclock bounded antecedent validation evidence linked in CAMPAIGN."
 
 l88_index_identity_refinement: "Coordinator confirmed both editions silently accept ordering at64'h100000000 by narrowing it to element0; evidence l88-wide-index.json. Authorize a narrow shared delem bounds guard before unsigned VarRef/ElemVar conversion in vvp/vvp_z3.cc, preserving exact index identity and rejecting unsupported indices before sampling. Add wide-index and negative-index rollback controls. This is necessary L88 boundary correctness, not a separate counted fix."
 
@@ -62,7 +62,7 @@ l88_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_dynamic_ele
 
 l88_integration_revision: d6a15ca2b
 
-l86_latest_failures: "Paused-destination kill/restart drops fresh parent; completed lifecycle records remain behind unacknowledged MATCH. Both paired reducers in CAMPAIGN; fixes remain in owned source scope."
+l86_latest_failures: "Historical failures resolved in13fee7ec9; original failed reducers preserved in CAMPAIGN-linked evidence."
 
 l89_integration_revision: 1ffe476b6
 
