@@ -2,7 +2,7 @@ status: active
 branch: agent/compiler-campaign-after-l84-20260914
 current_blocker: PARALLEL-BATCH-L86-L87
 phase: parallel_implementation
-source_revision: 240dd5f6f
+source_revision: 9f416e09a
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 240dd5f6f
@@ -19,13 +19,13 @@ published_work:
     stacked_on: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     published_head: 67be888271584400bf387305420a383cce64b8c5
     current_ci_run: 34931769313
-    current_ci_observation: Cross-platform CI in progress; all seven local gates passed.
+    current_ci_observation: Ubuntu24 passed; other five jobs in progress at latest check. All seven local gates passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     state: open
     published_head: 9f79ff51cefe85194beb954409750e2e741dfcc3
     current_ci_run: 34927916125
-    current_ci_observation: Ubuntu22/24 passed; macOS and three Windows jobs still active at latest check. Local seven-gate qualification passed.
+    current_ci_observation: Ubuntu22/24 and all three Windows jobs passed; macOS remains active. Local seven-gate qualification passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/280
     state: externally_merged
@@ -63,15 +63,15 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: Full serial build/install of L75-L84 completed; candidate hashes and broad evidence live in evidence/batch-20260914-l84/qualification.
-pending_gates: PR284 and parent PR283 cross-platform CI and authorized merge; all local L75-L84 gates passed.
+installed_tools: L75-L84 compiler/target plus rebuilt L85 runtime including graph RNG rollback; exact focused candidate hashes in evidence/batch-20260914-after-l84/l85-candidate.json.
+pending_gates: Broad gates for the current post-L84 batch near ten fixes; PR284/283 cross-platform CI and authorized merge. L85 focused gates passed; L86/L87 unvalidated.
 next_action: Implement L87 selected-element joint ordering and L86 bounded multiclock antecedents; coordinator owns builds/harnesses/review. L85 integrated with focused validation; keep published branches fixed.
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
 
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
+latest_focused_evidence: docs/conformance/session_logs/2026-09-14_joint_ordered_distribution_validation.json
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
@@ -82,7 +82,7 @@ active_lanes:
     agent: /root/constraint_wide
     files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
 shared_execution_owner: coordinator
-parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
+parallel_baseline: evidence/next-batch-after-l84/baseline.json; L87 refreshed in evidence/batch-20260914-after-l84/next-selection/baseline.json
 
 l72_status: Integrated1f2441a23 with focused validation.
 l71_status: Integrated5a04f1e9d; six cases per harness and 36 neighbors passed.
@@ -90,7 +90,7 @@ l71_status: Integrated5a04f1e9d; six cases per harness and 36 neighbors passed.
 l73_status: Integrated352a15164; 12 cases per harness, two constant generate oracles and 34 neighbors passed.
 l74_status: Integrated374318731; six cases per harness and two additional runtime neighbors passed.
 
-current_batch:
+published_l75_l84_batch:
   base_revision: 9f79ff51c
   focused_features: 10
   integrated_l75: f95f0bc11
@@ -104,14 +104,14 @@ current_batch:
   integrated_l83: 2d8d1cab6
   integrated_l84: 240dd5f6f
   selected_lanes: []
-  source_edits: L75-L84 qualified at304507aeb and published at67be88827 in PR284. Next implementation scope not yet selected.
+  source_edits: L75-L84 qualified at304507aeb and published at67be88827 in PR284. Subsequent selection is in current_batch and ACTIVE_WORK.
 
 l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.
 
 l77_status: Integrated d11c3852c; eight cases per harness and 50 neighbors passed.
 l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
 
-next_batch:
+current_batch:
   base_revision: fd500e2b5
   focused_features: 1
   integrated_l85: 9f416e09a
