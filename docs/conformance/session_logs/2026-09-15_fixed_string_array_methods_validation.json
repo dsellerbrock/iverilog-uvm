@@ -1,0 +1,72 @@
+{
+  "scope": "L99 fixed unpacked string-array mutating methods; focused qualification only",
+  "base_revision": "33043810c",
+  "standards": [
+    "IEEE1800-2017 6.16,7.4,13.4.3",
+    "IEEE1800-2023 6.16,7.4,13.4.3"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 10,
+      "failed": 0
+    },
+    "json": {
+      "ran": 10,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 23,
+      "failed": 0
+    },
+    "json": {
+      "ran": 24,
+      "failed": 0
+    },
+    "vpi": {
+      "ran": 108,
+      "failed": 0
+    }
+  },
+  "source_and_artifacts": {
+    "elaborate.cc": "5ce01044cd1f22d8d83dd27dddb1751c957d98fc67c22697873beed8783f9962",
+    "net_func_eval.cc": "d5918c2671771e322225a9ec6ed1f706c810ad9ccc698f7ba1943dfb44187460",
+    "pform.cc": "f58b20b29c39e6e32ef17b46c7c720bb05fe1719421176efc00066d8f4bb70ea",
+    "tgt-vvp/draw_vpi.c": "3dbe174fa481cde6dcdbf1bec3f2510f4f47bfa043fc1ce50a668757bdff4e24",
+    "vvp/array.cc": "603b6a9e84b1e8462e8b56c970a41ef03bb9b82a70f3244c842bec72839717c1",
+    "local-install/lib/ivl/ivl": "968eb5cdb0d3c2639f8f3e5d7704a468374871e8c150352b825ee72e1d14b9d9",
+    "local-install/lib/ivl/vvp.tgt": "7471eb3637918a8bedd03cd59f835eb0d2dd4b5b544ce7b404df55dfe2b3511d",
+    "local-install/bin/vvp": "2756036ed1072fa23313a308f195da94744510a8decda9b207929675450a95e2"
+  },
+  "concurrent_source": "Installed candidate includes pending L100 source at recorded fingerprint. L100 is not qualified by L99 tests.",
+  "logs": [
+    "l99-final-legacy.log",
+    "l99-final-json.log",
+    "l99-neighbors-final-legacy.log",
+    "l99-neighbors-final-json.log",
+    "l99-vpi-neighbors.log"
+  ],
+  "build": "l99-l100-repair-build.log",
+  "install": "l99-l100-repair-install.log",
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "failed_candidates": [
+    "l99-first-direct.json",
+    "l99-l100-first-direct.json",
+    "l99-focused-legacy.log",
+    "l99-focused-retry-legacy.log"
+  ],
+  "test_hashes": {
+    "ivtest/ivltests/sv_const_string_array_method.v": "2319a41dc7365fe05084fc9ea9f4cd12b81e6b657167babe84d26b0ef02602c1",
+    "ivtest/ivltests/sv_const_string_array_method_2023.v": "c05d1e20d2d2d835d5ce3ea02ce4cc714b9644ed1d8e757defae4f7676505196",
+    "ivtest/ivltests/sv_const_string_array_method_argument_fail.v": "69374704e63a7fe67437d1e0180339486d51918e65581fd25d9ff04bd782c7a9",
+    "ivtest/ivltests/sv_const_string_array_method_argument_fail_2023.v": "2ac3b0874771ec746df8b84fe2f1a0d047aa1327da3522a287a53b4254f018e1",
+    "ivtest/ivltests/sv_const_string_array_method_bounds.v": "1f9e450d3c65e55b3b6e23568d301c49d650598ae35bcac2ee169f4e70fafb31",
+    "ivtest/ivltests/sv_const_string_array_method_bounds_2023.v": "5d7e71deb6fb25ed22857ca517c484ad8dc1ab06f3866e166434344a06dd29fe",
+    "ivtest/ivltests/sv_const_string_array_method_external_fail.v": "0256773a92eadbfd9327025d6882819e45e8dce18387ad4a948316cb809de626",
+    "ivtest/ivltests/sv_const_string_array_method_external_fail_2023.v": "a66b4f2a7bc7b1f283d25191a91cfcd0c187f2df25053d24bdbad1e2eb3343fd",
+    "ivtest/ivltests/sv_const_string_array_method_runtime.v": "7c41e6447f48ed7cd3bf31d7946f5f44fb14db59739aad0392a03d1cdd099187",
+    "ivtest/ivltests/sv_const_string_array_method_runtime_2023.v": "8dc92cf0b38b5dc7b68d5a99348a55aeaf28ce5868b34ef30be954aa8e13255e"
+  },
+  "limitations": "Full string/container/VPI and language support remain partial. General selected real VPI outputs and nonzero-bound VPI output addresses require separate assessment."
+}

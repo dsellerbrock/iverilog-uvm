@@ -231,3 +231,5 @@ L96 shares the 13.4.3 input-only constant-function rule; [paired evidence](sessi
 L98 shares the 13.4.3 generated-declaration restriction; [paired evidence](session_logs/2026-09-15_generated_constant_function_legality_validation.json) records both editions.
 
 L97 applies the shared repetition and empty-composition requirements; [paired evidence](session_logs/2026-09-15_nested_finite_grouped_repetition_validation.json) records edition-specific validation.
+
+L99 uses the shared string-variable and constant-function requirements; [paired evidence](session_logs/2026-09-15_fixed_string_array_methods_validation.json) records separate edition executions.

@@ -7,7 +7,7 @@ coordinator_owns: [Shared builds, Installation, Shared harnesses and test output
 lanes:
   - id: L99-FIXED-STRING-ARRAY-METHODS
     agent: /root/constraint_abi
-    status: AUTHORIZED
+    status: FOCUSED_TESTED
     standards: IEEE1800-2017 and2023 6.16,7.4 and13.4.3
     reproducer: evidence/batch-20260915-after-l95/next-string-array-method-assessment/baseline.json
     actual: Constant putc/itoa on local fixed string-array words abort compilation; runtime calls silently leave words unchanged.
@@ -30,7 +30,7 @@ lanes:
     scope: Finite acyclic Boolean/delay second-clock consequences with distinct per-child NFA masks in existing age/tag FIFOs. Reuse START/MATCH/CLOSE and result/epoch aggregation, including fixed antecedents through existing source NFA path. Preserve fixed/trailing-window fast paths. No runtime scheduler, unbounded operators or match-action/local merges.
     acceptance: Paired late-branch success/all-dead failure/early acceptance, internal delay and group ranges, multiple universal antecedent children with divergent outcomes, exact action counts/times and coverage, both implications/coincident processorders/prefixes, Off/Kill/disable/restart, paused destination/backlog/reclamation, construction/depth and unsupported controls; existing fixed and grouped neighbors.
 file_conflict_policy: Disjoint source and test-prefix ownership; coordinator alone edits shared manifests and runs builds/install/harnesses. Agents submit patches without committing.
-focused_features_completed_in_batch: 3
+focused_features_completed_in_batch: 4
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l85_l95_active_work_archive.yaml
 stop_after_completion: false

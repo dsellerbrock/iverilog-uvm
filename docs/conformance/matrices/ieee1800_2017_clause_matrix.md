@@ -1458,3 +1458,7 @@ IMPLEMENTED for the [recorded declaration-scope checks](../session_logs/2026-09-
 ### L97 — Nested finite grouped repetition
 
 IMPLEMENTED for the [recorded nested multi-term group subset](../session_logs/2026-09-15_nested_finite_grouped_repetition.md). Nested ranged fixed consequents, unbounded groups and broader sequence operands remain PARTIAL; broad qualification is pending.
+
+### L99 — Fixed string-array methods
+
+IMPLEMENTED for the [recorded fixed-array receiver subset](../session_logs/2026-09-15_fixed_string_array_methods.md), including constant and runtime mutation. General container/VPI behavior remains PARTIAL; broad qualification is pending.

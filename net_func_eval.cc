@@ -1238,6 +1238,10 @@ static string const_string_format_int_(int32_t value, unsigned radix)
       return text;
 }
 
+static NetExpr** eval_func_signal_slot_(const LineInfo&loc,
+	const NetESignal*sig, map<perm_string,LocalVar>&context_map,
+	NetExpr*&invalid_slot, bool&discard_store);
+
 bool NetSTask::evaluate_function(const LineInfo&loc,
 				 map<perm_string,LocalVar>&context_map) const
 {
@@ -1252,16 +1256,15 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
       bool realtoa = strcmp(name_, "$ivl_string_method$realtoa") == 0;
       if ((radix || realtoa) && parms_.size() == 2) {
 	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
-	    if (!receiver || receiver->word_index()) return false;
-	    map<perm_string,LocalVar>::iterator slot_it =
-		  context_map.find(receiver->name());
-	    if (slot_it == context_map.end()) return false;
-	    LocalVar*slot = &slot_it->second;
-	    while (slot->nwords == -1) slot = slot->ref;
-	    if (slot->nwords != 0) return false;
+	    if (!receiver) return false;
+	    NetExpr*invalid_slot = 0;
+	    bool discard_store = false;
+	    NetExpr**value_slot = eval_func_signal_slot_(
+		  loc, receiver, context_map, invalid_slot, discard_store);
+	    if (!value_slot) return false;
 
 	    NetExpr*arg = parms_[1]->evaluate_function(loc, context_map);
-	    if (!arg) return false;
+	    if (!arg) { delete invalid_slot; return false; }
 	    string text;
 	    if (radix) {
 		  int32_t converted;
@@ -1273,7 +1276,7 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
 			      static_cast<uint32_t>(converted_value.as_long()));
 		  } else if (const NetECReal*value = dynamic_cast<const NetECReal*>(arg)) {
 			converted = static_cast<int32_t>(value->value().as_long());
-		  } else { delete arg; return false; }
+		  } else { delete arg; delete invalid_slot; return false; }
 		  text = const_string_format_int_(converted, radix);
 	    } else {
 		  double converted;
@@ -1281,28 +1284,29 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
 			converted = value->value().as_double();
 		  else if (const NetEConst*value = dynamic_cast<const NetEConst*>(arg))
 			converted = value->value().as_double();
-		  else { delete arg; return false; }
+		  else { delete arg; delete invalid_slot; return false; }
 		  char buffer[64];
 		  snprintf(buffer, sizeof buffer, "%g", converted);
 		  text = buffer;
 	    }
 	    delete arg;
-	    delete slot->value;
-	    slot->value = new NetECString(text);
-	    slot->value->set_line(*this);
+	    if (discard_store) { delete invalid_slot; return true; }
+	    delete *value_slot;
+	    *value_slot = new NetECString(text);
+	    (*value_slot)->set_line(*this);
+	    delete invalid_slot;
 	    return true;
       }
 
       if (strcmp(name_, "$ivl_string_method$putc") == 0
 	  && parms_.size() == 3) {
 	    const NetESignal*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
-	    if (!receiver || receiver->word_index()) return false;
-	    map<perm_string,LocalVar>::iterator slot_it =
-		  context_map.find(receiver->name());
-	    if (slot_it == context_map.end()) return false;
-	    LocalVar*slot = &slot_it->second;
-	    while (slot->nwords == -1) slot = slot->ref;
-	    if (slot->nwords != 0) return false;
+	    if (!receiver) return false;
+	    NetExpr*invalid_slot = 0;
+	    bool discard_store = false;
+	    NetExpr**value_slot = eval_func_signal_slot_(
+		  loc, receiver, context_map, invalid_slot, discard_store);
+	    if (!value_slot) return false;
 
 	    auto numeric_arg = [&](const NetExpr*expr, unsigned width,
 				   int64_t&value) -> bool {
@@ -1331,21 +1335,33 @@ bool NetSTask::evaluate_function(const LineInfo&loc,
 
 	    int64_t index = 0;
 	    int64_t character = 0;
-	    if (!numeric_arg(parms_[1], 32, index)) return false;
-	    if (!numeric_arg(parms_[2], 8, character)) return false;
+	    if (!numeric_arg(parms_[1], 32, index)) {
+		  delete invalid_slot;
+		  return false;
+	    }
+	    if (!numeric_arg(parms_[2], 8, character)) {
+		  delete invalid_slot;
+		  return false;
+	    }
+	    if (discard_store) { delete invalid_slot; return true; }
 	    string text;
-	    if (const NetEConst*old = dynamic_cast<const NetEConst*>(slot->value)) {
-		  if (!old->value().is_string()) return false;
+	    if (const NetEConst*old = dynamic_cast<const NetEConst*>(*value_slot)) {
+		  if (!old->value().is_string()) {
+			delete invalid_slot;
+			return false;
+		  }
 		  text = old->value().as_raw_string();
-	    } else if (slot->value) {
+	    } else if (*value_slot) {
+		  delete invalid_slot;
 		  return false;
 	    }
 	    if (index >= 0 && static_cast<uint64_t>(index) < text.size()
 		&& character != 0)
 		  text[static_cast<size_t>(index)] = static_cast<char>(character);
-	    delete slot->value;
-	    slot->value = new NetECString(text);
-	    slot->value->set_line(*this);
+	    delete *value_slot;
+	    *value_slot = new NetECString(text);
+	    (*value_slot)->set_line(*this);
+	    delete invalid_slot;
 	    return true;
       }
 

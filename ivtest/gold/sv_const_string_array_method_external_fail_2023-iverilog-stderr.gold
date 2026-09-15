@@ -1,0 +1,3 @@
+./ivltests/sv_const_string_array_method_external_fail.v:4: error: Cannot assign words in this constant-function context.
+./ivltests/sv_const_string_array_method_external_fail.v:7: error: Unable to evaluate parameter VALUE value: sv_const_string_array_method_external_fail.folded()
+1 error(s) during elaboration.

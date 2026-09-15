@@ -1545,10 +1545,46 @@ static NetExpr* elaborate_root_indexed_method_target_expr_(const LineInfo*li,
 			  // `arr[0].method()`.
 			NetExpr*canon = 0;
 			if (const NetEConst*cmux = dynamic_cast<const NetEConst*>(mux)) {
-			      list<long> idx_consts;
-			      idx_consts.push_back(cmux->value().as_long());
-			      canon = normalize_variable_unpacked(base_sig->sig(), idx_consts);
-			      delete mux;
+			      bool negative = false;
+			      uint64_t magnitude = cmux->value().is_defined()
+				    ? verinum_signed_magnitude(cmux->value(), negative)
+				    : UINT64_MAX;
+			      const uint64_t long_max = static_cast<uint64_t>(LONG_MAX);
+			      bool fits_long = cmux->value().is_defined()
+				    && ((!negative && magnitude <= long_max)
+				        || (negative && magnitude <= long_max + 1));
+			      if (fits_long) {
+				    long value = negative
+					  ? (magnitude == long_max + 1 ? LONG_MIN
+					     : -static_cast<long>(magnitude))
+					  : static_cast<long>(magnitude);
+				    list<long> idx_consts;
+				    idx_consts.push_back(value);
+				    canon = normalize_variable_unpacked(
+				          base_sig->sig(), idx_consts);
+			      }
+			      if (canon) {
+				    delete mux;
+			      } else if (dynamic_cast<const netstring_t*>(base_type)
+				         && (method_name == "itoa" || method_name == "hextoa"
+				             || method_name == "octtoa" || method_name == "bintoa"
+				             || method_name == "realtoa" || method_name == "putc")) {
+				    /* Mutating string methods still evaluate their arguments
+				     * when the selected fixed-array word is out of range, and
+				     * then discard the update. Preserve that selected receiver
+				     * instead of falling back to the whole array. The expression
+				     * normalizer retains the full invalid canonical address for
+				     * the evaluator/runtime bounds check. */
+				    list<NetExpr*> idx_exprs;
+				    idx_exprs.push_back(mux);
+				    const netsarray_t*stype = dynamic_cast<const netsarray_t*>(
+				          base_sig->sig()->array_type());
+				    if (stype)
+					  canon = normalize_variable_unpacked(
+					        *li, stype, idx_exprs);
+			      } else {
+				    delete mux;
+			      }
 			} else {
 			      list<NetExpr*> idx1;
 			      idx1.push_back(mux);

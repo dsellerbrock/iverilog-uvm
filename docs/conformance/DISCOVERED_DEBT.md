@@ -1725,3 +1725,7 @@ DD-030 update: L67 implements the scalar packed-signal and return-slot subset wi
   and retain kill/restart, coincident clocks, and action scheduling.
 
 DD032 is resolved for the fixed-pipeline control subset by [L92](session_logs/2026-09-15_fixed_multiclock_assertion_control.md); original failing records remain preserved. Broad qualification is pending.
+
+## L99 adjacent VPI output observations — 2026-09-15
+
+During L99 boundary testing, selected real fixed-array `$sscanf` outputs arrived as nonassignable constants, and selected integral outputs with negative/nonzero declared bounds appeared to use an unnormalized word index. These observations are unqualified, require baseline reproduction and IEEE21.3/VPI address review, and are not part of L99 completion. Evidence: `evidence/batch-20260915-after-l95/next-string-array-method-assessment/L99-IMPLEMENTATION.md`. No new implementation is authorized by this record.

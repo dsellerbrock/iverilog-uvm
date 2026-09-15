@@ -57,6 +57,8 @@ command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
 latest record above. Publication status and subsequent work remain in CAMPAIGN.
 No newer whole-application replay is claimed.
 
+Latest additional focused evidence: [L99 fixed string-array methods](session_logs/2026-09-15_fixed_string_array_methods.md). Broad qualification remains the revision-scoped batch record above.
+
 ## History
 
 The former continuation narrative is preserved in the

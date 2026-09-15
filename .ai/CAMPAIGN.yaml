@@ -365,3 +365,10 @@ parallel_l99_l100_repair_checkpoint:
     pr283: Squashed to main at 874e00680.
     tree_comparison: Each squash tree equals its original PR head; origin/main currently contains only L65-L74, and parent squashes do not propagate the later batches to main.
     sync_policy: Preserve L75-L100 work. Reconcile main ancestry at a clean integration checkpoint; next publication must carry L75 onward to main if no subsequent external merge does so.
+
+l99_integration_checkpoint:
+  status: FOCUSED_TESTED; integration commit contains this record.
+  focused_fixes_in_batch: 4
+  evidence: docs/conformance/session_logs/2026-09-15_fixed_string_array_methods_validation.json
+  active_implementation: L100 asynchronous disable acceptance under investigation.
+  next_action: Select next independent evaluator blocker after bounded assessment; broad gates near ten integrated fixes.
