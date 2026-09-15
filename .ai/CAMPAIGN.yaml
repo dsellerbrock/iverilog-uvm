@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
 current_blocker: PARALLEL-L106-L107
-phase: application_blocker_assessment_with_frozen_compiler_patches
+phase: opentitan_lookup_implementation_and_caliptra_configuration_assessment
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -22,7 +22,7 @@ current_candidate:
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Preserve frozen L106/L107; assess fresh OpenTitan object lookup regression and Caliptra missing build inputs with the two existing agents. Select explicit application implementation scopes from cheap reproducers before edits.
+  next_action: Implement authorized L108 lookup fix in elab_expr.cc while second existing agent verifies Caliptra provider closure. Preserve frozen L106/L107; coordinator builds after source freeze, runs focused tests, then retries original OpenTitan smoke.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
