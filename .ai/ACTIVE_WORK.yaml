@@ -1,27 +1,43 @@
-id: CLASS-ARRAY-PACKED-SELECT-INCREMENT
-title: Preserve fixed-array class-property word identity through packed updates
-status: FOCUSED_TESTED
-base_revision: 813fafadf
-standards:
-  ieee1800_2017: "7.4.6, 11.4.1, 11.4.2, 11.5.1"
-  ieee1800_2023: "7.4.5, 11.4.1, 11.4.2, 11.5.1"
-reproducer: evidence/class-array-packed-incdec-l70/abi/receiver-word-base.sv
-current_behavior: "Packed ++/-- over fixed-array class-property elements is rejected at target generation in both editions."
-expected_behavior: "Capture receiver, word and base once; preserve current neighbors, selected width, result context and independent invalid word/base suppression."
-root_cause: "Selected-property lowering rejects all words; scalar partial-property stores address slot zero and stack merge is signed-only."
-allowed_scope:
-  - Extend packed-property expression lowering to canonical fixed-array words
-  - Reuse fixed-slot index capture, typed full-element invalid reads and selected arithmetic
-  - Add indexed signed/unsigned partial-property stores sharing existing runtime RMW implementation
-  - Paired focused positive, boundary, negative, permanent and affected-neighbor tests
-forbidden_scope:
-  - Dynamic-array, queue, associative or nested inner-carrier redesign
-  - Stale whole-word writeback, repeated selectors or unsigned-offset truncation
-  - Null-default conformance claims
+id: PARALLEL-BATCH-L71-L72
+title: Coordinator-authorized independent compiler implementation lanes
+status: IMPLEMENTING
+base_revision: a83b9623c
+authority: "User explicitly authorized two parallel implementation lanes with disjoint file ownership; this supersedes the prior single-blocker workflow."
+coordinator_owns:
+  - Shared builds and installation
+  - All legacy and JSON harness execution and shared ivtest/log output
+  - Main manifests, shared documentation, integration commits and review
+lanes:
+  - id: L71-NESTED-PACKED-INCREMENT
+    agent: /root/constraint_abi
+    status: REPRODUCED
+    standards: "IEEE 1800-2017/2023 11.4.1, 11.4.2, 11.5.1"
+    reproducer: evidence/parallel-batch-l71-l72/nested-packed-increment.sv
+    actual: "Both editions reject legal nested packed prefix selection increment at target generation."
+    expected: "Preserve each packed carrier bound, update only overlapping selected bits, return selected-width pre/post value and evaluate indices once."
+    owns: [elab_expr.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
+    test_prefix: sv_nested_packed_incdec
+    allowed_scope: "Nested integral packed-select increment/decrement expression identity, bounded read and writeback, permanent focused tests."
+    forbidden_scope: "Constant-function evaluator, solver, dynamic containers or unrelated assignment redesign."
+    dependencies: "L67-L70 captured selected storage; no dependency on L72."
+    acceptance: "Paired positive pre/post, negative readonly, boundary full/partial invalid inner selects, runtime/unknown/wide indices, exact single evaluation, neighbor preservation; affected selected-update regressions."
+  - id: L72-CONSTANT-STRING-CHARACTER
+    agent: /root/constraint_wide
+    status: REPRODUCED
+    standards: "IEEE 1800-2017/2023 6.16 and 13.4.3; verify exact signed-byte and index conversion subclauses."
+    reproducer: evidence/parallel-batch-l71-l72/constant-string-character.sv
+    actual: "Both editions compile localparam first(ABC) but compute character result1 instead of65."
+    expected: "Constant function string character reads use byte selection, index conversion, invalid-index rules and signed result type."
+    owns: [net_func_eval.cc]
+    test_prefix: sv_const_string_character
+    allowed_scope: "String character evaluation in constant functions and permanent focused tests."
+    forbidden_scope: "Runtime/lowering files owned by L71, parser, global string storage, unrelated evaluator fallbacks."
+    dependencies: "Existing elaborated typed string selections; no dependency on L71."
+    acceptance: "Paired ASCII/high-bit/empty-string/bounds/index-conversion/argument-local positive checks, focused invalid constant-expression diagnostics, runtime parity and evaluator neighbors."
+file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
 validation_batch: 20260914_after_l64
 focused_features_completed_in_batch: 6
-pending_gates: "L70 focused and neighboring validation passed; broad batch gate at approximately ten-feature cadence."
-prerequisites: "L69 focused checkpoint preserved; L64 latest broad qualification."
-next_action: "Preserve focused checkpoint and return to coordinator selection; broad batch qualification remains pending."
+pending_gates: "Focused lane checks, then broad required suites after approximately ten integrated fixes and coherent PR publication."
+last_broad_qualified_semantic_revision: 4bc02c51b
+baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json
 stop_after_completion: false
-evidence: docs/conformance/session_logs/2026-09-14_class_array_packed_increment.md
