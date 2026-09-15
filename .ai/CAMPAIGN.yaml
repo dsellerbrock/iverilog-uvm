@@ -1,6 +1,6 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L111-COUPLED-RANDC-ORDERED-DIST
+current_blocker: L111-COUPLED-RANDC-ORDERED-DIST + APP-ROOT-SEED-CONTROL
 phase: parallel_constraint_validation_and_coverage_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
@@ -16,13 +16,13 @@ latest_broad_qualification:
   scope: Ten recorded local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   base_revision: 05b0c44e1
-  installed_semantic_revision: 9027c1938
+  installed_semantic_revision: L110 base9027c1938 plus uncommitted L111 runtime3bc2737fe5f463753d1ea52026cca40c8a71902f756bc1bffebb0bb1c8be3d23
   installed_fingerprints: docs/conformance/session_logs/2026-09-15_constructor_transition_bins_validation.json
-  shared_process: L111 initial compile/install88371 active (3bc2737f runtime source). L110 integrated9027c1938 after focused and neighboring tests; prior build3242 terminal0 and latest L111 source restored. No suspended source remains.
+  shared_process: None. L111 build88371 and focused30545 terminal0; initial2pairedcases pass both harnesses. Installed L111 candidate remains unqualified pending expanded acceptance and failure/rollback audit.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Poll88371 then run L111 cheap reducer; full post-draw failure audit remains unresolved, not integration-ready. constraint_abi assesses root-seed DV control before next authorization. Five semantic fixes integrated; broad gates near ten.
+  next_action: Run expanded L111 rollback/element/unsupported controls on installed candidate before integration; verify every RNG owner is transactionally restored. constraint_abi implements authorized root-seed application lane. Preserve five integrated semantic fixes; broad gates near ten.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.

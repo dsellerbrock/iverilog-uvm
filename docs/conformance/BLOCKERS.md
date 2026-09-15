@@ -2355,3 +2355,10 @@ L109 evidence: [independent cyclic components](session_logs/2026-09-15_joint_ord
 - **Closure:** Complete cyclic-first sampling followed by ordered conditional sampling for enumerable components, preserving failure and history semantics.
 
 L110 evidence and oracle correction: [constructor transition endpoints](session_logs/2026-09-15_constructor_transition_bins.md).
+
+### APP-ROOT-SEED-CONTROL — Reproducible runtime seed selection
+
+- **State:** IN_PROGRESS; coordinator-authorized independent runtime-entry lane.
+- **Evidence:** `evidence/application-check-20260915/root-seed-assessment/l110-followup/ASSESSMENT.md`.
+- **Closure:** Numeric root seed control before thread creation, preserving default and hierarchical RNG behavior; test original OpenTitan with explicit seeds.
+- **Classification:** Application DV capability; not an IEEE-mandated CLI spelling or new clause-completion claim.

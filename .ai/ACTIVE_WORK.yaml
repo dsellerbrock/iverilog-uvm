@@ -142,3 +142,20 @@ constraint_implementation_lane:
   scope: Complete enumerable scalar/fixed-element component support with one coupled cyclic leaf using existing stage/table mechanisms. Prove representation/support before draws without conditioning cyclic selection on later implementation failures. No dist fallback, weakened constraints or fake cycles. Larger/non-enumerable, multiple cyclic leaves and direct cyclic dist subjects remain explicit unsupported boundaries unless separately proved.
   acceptance: Paired multiple-cycle runtime oracle, scalar/fixed element paths claimed, multiple ordinary completions per cyclic value, UNSAT rollback/history/RNG, disabled modes, zero-weight/zero-total/cap behavior, direct illegal order negatives, L109 independence and Z01 neighbors. Distinguish standards-permitted randomization failure from implementation limits.
   coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. No agent builds or commits.
+
+application_seed_lane:
+  id: APP-ROOT-SEED-CONTROL
+  status: AUTHORIZED
+  agent: /root/constraint_abi
+  assessment: evidence/application-check-20260915/root-seed-assessment/l110-followup/ASSESSMENT.md
+  reproducer: evidence/application-check-20260915/root-seed-assessment/root_seed.sv
+  actual: +ntb_random_seed=1 and2 are ignored and produce identical root RNG streams.
+  expected: Numeric uint32 seed controls design-root initialization reproducibly before root thread creation; omission preserves the current default stream and hierarchical process/object stability.
+  owns: [vvp/compile.cc, vvp/vthread.cc, vvp/vthread.h]
+  fixture_prefix: sv_runtime_root_seed
+  scope: Once-only exact numeric seed parsing before first compile_thread creates a vthread; seed remains in VPI argv. Reject empty/signed/whitespace/junk/overflow/duplicate values before design thread creation. Reuse root generator, no UVM/corpus edits or special-case workloads.
+  dependencies: L110 integrated and source released. Independent of L111 vvp_z3.cc.
+  acceptance: Omitted default exact stream, repeated/equal/different seeds, uint32 zero/max, invalid and duplicate options, argv order, root/fork/object hierarchy stability and explicit srandom overrides, real unmodified OpenTitan smoke under explicit seeds when focus passes.
+  standards: Application DV control; preserve IEEE1800-2017/2023 18.13 stability. The option spelling itself is not an IEEE conformance requirement.
+  counting: Track application runtime capability separately from IEEE semantic increments.
+  coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. No agent builds or commits.
