@@ -1,4 +1,7 @@
 ivltests/sv_const_string_substr_fail.v:6: error: String method `substr' requires 2 arguments, got 3.
+ivltests/sv_const_string_substr_fail.v:12: error: Unable to evaluate string parameter EXTRA value: sv_const_string_substr_fail.extra("abc")
 ivltests/sv_const_string_substr_fail.v:3: error: String method `substr' requires 2 arguments, got 1.
+ivltests/sv_const_string_substr_fail.v:11: error: Unable to evaluate string parameter MISSING value: sv_const_string_substr_fail.missing("abc")
 ivltests/sv_const_string_substr_fail.v:9: error: Object sv_const_string_substr_fail.wrong_receiver.value has no method "substr(...)".
-3 error(s) during elaboration.
+ivltests/sv_const_string_substr_fail.v:13: error: Unable to evaluate string parameter TYPE value: sv_const_string_substr_fail.wrong_receiver(32'sd1)
+6 error(s) during elaboration.

@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
 current_blocker: PARALLEL-L104-L105
-phase: broad_qualification
+phase: broad_qualification_retry
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -23,14 +23,14 @@ current_candidate:
   build_log: evidence/batch-20260915-after-l95/l105-string-rejection-build.log
   install_log: evidence/batch-20260915-after-l95/l105-string-rejection-install.log
   focused_records: [docs/conformance/session_logs/2026-09-15_constant_mixed_equality_validation.json, docs/conformance/session_logs/2026-09-15_nonlocal_constant_function_values_validation.json]
-  broad_evidence: evidence/batch-20260915-after-l95/qualification
+  broad_evidence: evidence/batch-20260915-after-l95/qualification-retry1
   broad_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
-  shared_process: Coordinator will start integrated gate after candidate snapshot; inspect run.json/status files and live process before resuming.
+  shared_process: First integrated gate42159 exited1 with five stale diagnostic golds; exact corrections and focused replays pass. No compiler source changed. Retry after fresh snapshot.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
   next_action: Run seven broad gates serially, stop escalation on any failure, preserve exact candidate and raw logs. Publish coherent main PR only after qualification.
-  exact_next_command: python3 evidence/batch-20260915-after-l95/qualification/run_gate.py integrated
+  exact_next_command: python3 evidence/batch-20260915-after-l95/qualification-retry1/run_gate.py integrated
   next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
   broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
 publication:

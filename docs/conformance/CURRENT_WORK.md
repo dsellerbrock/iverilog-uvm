@@ -71,6 +71,8 @@ Latest L104 focused evidence: [constant mixed equality](session_logs/2026-09-15_
 
 Latest L105 focused evidence: [nonlocal constant-function values](session_logs/2026-09-15_nonlocal_constant_function_values.md).
 
+Current batch broad validation: [first-gate correction](session_logs/2026-09-15_l96_l105_first_gate_correction.md); retry pending.
+
 ## History
 
 The former continuation narrative is preserved in the
