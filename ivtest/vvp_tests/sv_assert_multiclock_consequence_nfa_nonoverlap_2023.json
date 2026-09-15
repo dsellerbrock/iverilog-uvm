@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_assert_multiclock_consequence_nfa_nonoverlap_2023.v",
+  "gold": "sv_assert_multiclock_consequence_nfa_nonoverlap_2023",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions"
+  ]
+}

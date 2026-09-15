@@ -1,0 +1,92 @@
+{
+  "scope": "L100 finite multiclock consequence alternatives; focused only",
+  "base_revision": "34b1cc24c",
+  "standards": [
+    "IEEE1800-2017 16.9.2,16.12.7,16.12.22,16.13.2",
+    "IEEE1800-2023 16.9.2,16.12.7,16.12.22,16.13.2"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 30,
+      "failed": 0
+    },
+    "json": {
+      "ran": 30,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 106,
+      "failed": 0
+    },
+    "json": {
+      "ran": 106,
+      "failed": 0
+    }
+  },
+  "nfa": {
+    "passed": 58,
+    "failed": 0
+  },
+  "source_and_artifacts": {
+    "elaborate.cc": "5ce01044cd1f22d8d83dd27dddb1751c957d98fc67c22697873beed8783f9962",
+    "net_func_eval.cc": "d5918c2671771e322225a9ec6ed1f706c810ad9ccc698f7ba1943dfb44187460",
+    "pform.cc": "f58b20b29c39e6e32ef17b46c7c720bb05fe1719421176efc00066d8f4bb70ea",
+    "tgt-vvp/draw_vpi.c": "3dbe174fa481cde6dcdbf1bec3f2510f4f47bfa043fc1ce50a668757bdff4e24",
+    "vvp/array.cc": "603b6a9e84b1e8462e8b56c970a41ef03bb9b82a70f3244c842bec72839717c1",
+    "local-install/lib/ivl/ivl": "968eb5cdb0d3c2639f8f3e5d7704a468374871e8c150352b825ee72e1d14b9d9",
+    "local-install/lib/ivl/vvp.tgt": "7471eb3637918a8bedd03cd59f835eb0d2dd4b5b544ce7b404df55dfe2b3511d",
+    "local-install/bin/vvp": "2756036ed1072fa23313a308f195da94744510a8decda9b207929675450a95e2"
+  },
+  "logs": [
+    "l100-complete-legacy.log",
+    "l100-final-focus-json.log",
+    "l100-final-neighbors-legacy.log",
+    "l100-final-neighbors-json.log",
+    "l100-nfa.log"
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "build": "l99-l100-repair-build.log",
+  "install": "l99-l100-repair-install.log",
+  "failed_evidence": [
+    "l99-l100-first-direct.json",
+    "l99-l100-repair-direct.json",
+    "l100-boundaries-direct.json",
+    "l100-neighbors-legacy.log",
+    "l100-neighbors-vvp.log"
+  ],
+  "fixture_hashes": {
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_backlog.v": "2b594b981f006db3d0858d1d6cf46fcf2ede15b60db58a7ea01cc0545fe98a67",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_backlog_2023.v": "df3423e11b695dfbf30ec50df820edc7a2ae24ba9bb84e9a68e952a69dac8859",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_cover.v": "ce5d807fa7b03ae66ead9b5a2b670a7e7863356ce834039b3aafacf5ac68fda7",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_cover_2023.v": "f86e31ce88f03f61fdbea647606c0598443ad60d7565ecc18a9ac439cad8a34b",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_dead.v": "3df3228c143f1159f0a9ed54980138b52cc77b828aaab2e15c598234eb411a7b",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_dead_2023.v": "4faeab434b8b72ca74808f44c4c74a9cb6144116751d7e5e6e8ce003ed45294c",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_depth64.v": "6cc05451aba607904c6c6636a459664959d81b9c2696bbbb9354dfe6d79f545a",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_depth64_2023.v": "1da195cb73039e2a4cc744e744299e70fa118f55fe1df4fe3308d1aba7f41c54",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_depth65_fail.v": "e951bd842733c1de4e95909c1b8f0b1ad9e85a806dfd031686a948a1f1574816",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_depth65_fail_2023.v": "667bc30c2d5147282e1f18927df56be0dc90025a704044bb0e0e3b259d0e6efd",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_disable.v": "b25b3408ce5358ac87d9e92c691b50b1f231e3bb3ab000dd5680c398f0e53a1b",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_disable_2023.v": "46a2be9cdf97c311bc921e6eafbad303803c346f30a91704c212079aa105d0a3",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_early.v": "eb3cd2abc6dfaae4b088e6a81ee6053756be8c78fe0ac984f670651c0e72264c",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_early_2023.v": "a66f6c9d90492bcd67a08df0d598b92e771919f247cb59f3bdb75df1bf13a247",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_empty_nonoverlap.v": "4b2d2395edf34ead8d8dcd6cec6b08b5c5cb7c4363eb59733c4d6f4322bb1ad6",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_empty_nonoverlap_2023.v": "7bc84b6f029569ffdff38fd576f4f76b09e3e19643e24add558871698c5cc466",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_kill_restart.v": "9772cc6847fe2760bf5704a539d1e97629b1858af2d0e6026c5ffc9ecebcdaa1",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_kill_restart_2023.v": "851ae7adb841c620a34a00e64be9048e7d6f81e6743072b33d1e601afb89fb27",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_late.v": "d12c7e97f473f81273e7860623002b4346107f416d19bc90a6fb7f9c4f6d310d",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_late_2023.v": "bb7546d57a9173ce2adf3a8f0a5e573f8bfb671dc1983373b83f40efd3068887",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_nonoverlap.v": "d1ab313f6a82527fce8919d23b5ac73fcf837642ddb6f98a94a18564a2f15d07",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_nonoverlap_2023.v": "dc57ee2d179119ca22f91a25b0f60c195a0a618b6554f8e4a5b4d9b3401131d4",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_prefix_off.v": "6a7f739ee2d242c188c53e87becc7d2940b4f3ecca1804c18b269a94d48dbcb7",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_prefix_off_2023.v": "84a2a8973c3b846df99eec522530e26be18529d3f03bb53e35093245d2c01f23",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_reverse_order.v": "4dbb467d998f7dbe7085a6d191143496dcb032407e33e9a7b7d8deabd128021b",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_reverse_order_2023.v": "144dc83eeac02b5092623ffa5ce92e2654e512c5f28dd0bc5338873c15af8fe2",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_siblings.v": "33d3919975bdf8c59e19eac273b9080928e4d385a74ffbd4d1143cd7a7d8b27e",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_siblings_2023.v": "816e711fbee407afb2ce6aba4fb0e6adf7cb781ef44236b11ad85f0c515bbe3a",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_unbounded_fail.v": "ce7c8ffcf2482c794485896cead9c77807147ed17a5fe6ef5917b86307a335ec",
+    "ivtest/ivltests/sv_assert_multiclock_consequence_nfa_unbounded_fail_2023.v": "3366a00ebb4affd59e1f9b238f0629a738fe159849328ddbbfc2344df4efaf73"
+  },
+  "limitations": "Finite acyclic Boolean/delay consequences through existing64-tick construction bound. Plain sequence transport, unbounded/cyclic forms, match actions and local merges remain unsupported. Full conformance not claimed."
+}

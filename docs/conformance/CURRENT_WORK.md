@@ -59,6 +59,8 @@ No newer whole-application replay is claimed.
 
 Latest additional focused evidence: [L99 fixed string-array methods](session_logs/2026-09-15_fixed_string_array_methods.md). Broad qualification remains the revision-scoped batch record above.
 
+Latest SVA focused evidence: [L100 finite multiclock consequences](session_logs/2026-09-15_finite_multiclock_consequences.md).
+
 ## History
 
 The former continuation narrative is preserved in the

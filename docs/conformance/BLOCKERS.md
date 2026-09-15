@@ -2250,7 +2250,9 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 ### L100 — Finite multiclock consequence alternatives rejected
 
 - **Area / edition:** SVA / IEEE1800-2017 and2023 16.9.2,16.12.7,16.12.22,16.13.2.
-- **State:** IN_PROGRESS; coordinator-authorized independent lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Confidence:** REPRODUCED.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/assessment.md`; internal one-copy consequence fails at50 while two-copy branch should succeed at90, but both editions reject the source.
 - **Closure:** Distinct finite consequence NFA per child; one existential child result feeds universal parent aggregation. Preserve synchronization, controls, pending backlogs and unsupported construction boundaries with paired behavioral tests.
+
+- **Implementation evidence:** [L100 session](session_logs/2026-09-15_finite_multiclock_consequences.md).

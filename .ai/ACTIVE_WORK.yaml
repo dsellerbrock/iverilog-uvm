@@ -19,7 +19,7 @@ lanes:
     acceptance: Both editions constant/runtime putc and five formatting methods, nonzero/ascending/descending bounds, once-only selector and arguments, zero byte/OOB/X/wide index, untouched neighbors, repeated overwrite/automatic frames, local-only constants and invalid actual controls; preserve scalar method and VPI array neighbors.
   - id: L100-FINITE-MULTICLOCK-CONSEQUENT-NFA
     agent: /root/constraint_wide
-    status: AUTHORIZED
+    status: FOCUSED_TESTED
     standards: IEEE1800-2017 and2023 16.9.2,16.12.7,16.12.22,16.13.2
     reproducer: evidence/batch-20260915-after-l95/next-ranged-consequence-assessment/ranged_group_consequence.sv
     actual: Both editions reject an internal ranged grouped second-clock consequence whose later branch should succeed at90 after early branch fails at50.
@@ -30,7 +30,7 @@ lanes:
     scope: Finite acyclic Boolean/delay second-clock consequences with distinct per-child NFA masks in existing age/tag FIFOs. Reuse START/MATCH/CLOSE and result/epoch aggregation, including fixed antecedents through existing source NFA path. Preserve fixed/trailing-window fast paths. No runtime scheduler, unbounded operators or match-action/local merges.
     acceptance: Paired late-branch success/all-dead failure/early acceptance, internal delay and group ranges, multiple universal antecedent children with divergent outcomes, exact action counts/times and coverage, both implications/coincident processorders/prefixes, Off/Kill/disable/restart, paused destination/backlog/reclamation, construction/depth and unsupported controls; existing fixed and grouped neighbors.
 file_conflict_policy: Disjoint source and test-prefix ownership; coordinator alone edits shared manifests and runs builds/install/harnesses. Agents submit patches without committing.
-focused_features_completed_in_batch: 4
+focused_features_completed_in_batch: 5
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l85_l95_active_work_archive.yaml
 stop_after_completion: false

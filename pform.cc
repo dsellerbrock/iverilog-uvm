@@ -18946,9 +18946,9 @@ static bool sva_mc_expand_chain_(std::vector<sva_seq_step_t>&steps,
    therefore exposes every endpoint of the original parent attempt.  Limit
    this entry point to L86's finite constant-delay subset; the
    general same-clock NFA engine owns repetitions, locals, and first_match. */
-static bool sva_mc_bounded_antecedent_nfa_(
+static bool sva_mc_bounded_chain_nfa_(
 		const std::vector<sva_seq_step_t>&steps, sva_nfa_t&nfa,
-		long&depth, bool&accepts_empty)
+		long&depth, bool&accepts_empty, bool require_ranged = true)
 {
       bool ranged = false;
       accepts_empty = false;
@@ -18968,7 +18968,7 @@ static bool sva_mc_bounded_antecedent_nfa_(
 	    ranged |= st.delay_lo != st.delay_hi || st.rep_kind == 3
 		  || st.group_repeat_start;
       }
-      if (!ranged) return false;
+      if (require_ranged && !ranged) return false;
 
       sva_stree_t leaf;
       leaf.chain = const_cast<std::vector<sva_seq_step_t>*>(&steps);
@@ -19102,10 +19102,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   its own clock domain. Expand each chain to a per-tick slot
 	   array (null slot = pure delay tick). */
       std::vector<PExpr*> a_slots, p_slots, b_slots;
-      sva_nfa_t a_nfa;
-      long a_depth = 0;
+      sva_nfa_t a_nfa, b_nfa;
+      long a_depth = 0, b_depth = 0;
       bool antecedent_accepts_empty = false;
+      bool consequence_accepts_empty = false;
       bool ranged_antecedent = false;
+      bool consequence_nfa_mode = false;
       long b_window = 0;      /* extra ticks the final boolean may land on */
       if (!why) {
 	    if (prop->antecedent)
@@ -19114,7 +19116,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  sva_splice_sequences_(loc, *prop->mc_prefix);
 	    sva_splice_sequences_(loc, *prop->seq);
 	    if (prop->antecedent)
-		  ranged_antecedent = sva_mc_bounded_antecedent_nfa_(
+		  ranged_antecedent = sva_mc_bounded_chain_nfa_(
 			*prop->antecedent, a_nfa, a_depth,
 			antecedent_accepts_empty);
 	    bool antecedent_group = false;
@@ -19132,14 +19134,43 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  why = "a multiclocked sequence whose first-clock prefix is "
 			"not a fixed-length boolean chain (constant ##N delays "
 			"only)";
-	    else if (!sva_mc_expand_chain_(*prop->seq, b_slots, &b_window))
-		  why = "a multiclocked property's second-clock suffix is "
-			"neither a fixed-length boolean chain nor one with a "
-			"single trailing bounded window (`##[m:n] b', "
-			"`b[*m:n]')";
-	    else if ((!ranged_antecedent && a_slots.size() > 64)
+	    else if (!sva_mc_expand_chain_(*prop->seq, b_slots, &b_window)) {
+                  consequence_nfa_mode = sva_mc_bounded_chain_nfa_(
+                        *prop->seq, b_nfa, b_depth,
+                        consequence_accepts_empty, false);
+                  if (consequence_nfa_mode) {
+                        /* The failed fixed expansion may have exposed a
+                           borrowed prefix.  The NFA owns all evaluation for
+                           this suffix; do not sample that partial view too. */
+                        b_slots.clear();
+                        b_window = 0;
+                  }
+                  if (!consequence_nfa_mode || consequence_accepts_empty)
+                        why = "a multiclocked property's second-clock suffix is "
+                              "neither a fixed-length boolean chain nor a finite "
+                              "acyclic Boolean/delay sequence";
+            }
+            if (!why && consequence_nfa_mode && plain)
+                  why = "a plain multiclocked sequence whose second-clock "
+                        "finite NFA needs implication parent transport";
+            if (!why && consequence_nfa_mode && !ranged_antecedent) {
+                  /* The parent/result protocol is also required for a fixed
+                     antecedent when its child is an NFA. */
+                  ranged_antecedent = sva_mc_bounded_chain_nfa_(
+                        *prop->antecedent, a_nfa, a_depth,
+                        antecedent_accepts_empty, false);
+                  if (ranged_antecedent)
+                        /* `a_slots' borrows expressions still owned by the
+                           antecedent.  The promoted NFA samples those guards;
+                           retaining this alias would sample/delete them twice. */
+                        a_slots.clear();
+                  if (!ranged_antecedent)
+                        why = "a multiclocked implication whose fixed antecedent "
+                              "cannot enter the finite child-NFA transport";
+            }
+            if (!why && ((!ranged_antecedent && a_slots.size() > 64)
 		     || p_slots.size() > 64
-		     || b_slots.size() + b_window > 64)
+		     || b_slots.size() + b_window > 64))
 		  why = "a multiclocked property with a chain over "
 			"64 ticks";
       }
@@ -19275,8 +19306,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       if (prop->mc_prefix)
 	    for (size_t j = 0 ; j < prop->mc_prefix->size() ; j += 1)
 		  (*prop->mc_prefix)[j].expr = nullptr;
-      for (size_t j = 0 ; j < prop->seq->size() ; j += 1)
-	    (*prop->seq)[j].expr = nullptr;
+      if (!consequence_nfa_mode)
+            for (size_t j = 0 ; j < prop->seq->size() ; j += 1)
+                  (*prop->seq)[j].expr = nullptr;
 
       size_t Ta = a_slots.size();
       size_t Tp = p_slots.size();
@@ -19366,6 +19398,32 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	       requires no sampled guard register. */
       }
 
+      std::map<PExpr*,perm_string> consequence_guard;
+      if (consequence_nfa_mode) {
+            unsigned gidx = 0;
+            for (size_t i = 0; i < b_nfa.edges.size(); ++i)
+                  for (size_t g = 0; g < b_nfa.edges[i].guards.size(); ++g) {
+                        PExpr*key = b_nfa.edges[i].guards[g];
+                        if (consequence_guard.count(key)) continue;
+                        PExpr*copy = sva_clone_expr_(key);
+                        ivl_assert(loc, copy);
+                        PExpr*prep = sva_wrap_preponed_(copy, prep_sampled,
+                                                       prep_live_operands);
+                        PExpr*src = copy;
+                        if (prep) { delete copy; src = prep; }
+                        PExpr*bound = sva_rewrite_sampled_(
+                              loc, src, inst, mc_hist_idx, mc_pre2, mc_post2,
+                              mc_init2);
+                        perm_string reg = sva_make_reg_(loc, inst, "mcbnfg", gidx++);
+                        PEBComp*truth = new PEBComp(
+                              'E', sva_not_(loc, sva_not_(loc, bound)),
+                              sva_bit_(loc, 1));
+                        FILE_NAME(truth, loc);
+                        mc_pre2.push_back(sva_assign_(loc, reg, truth));
+                        consequence_guard[key] = reg;
+                  }
+      }
+
 	/* M9-7: antecedent PIPELINE in the c1 domain. pa_k = "an
 	   attempt matched the first k ticks and awaits the tick-k
 	   check now"; a fresh attempt starts every tick (pa_0 == 1).
@@ -19389,7 +19447,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   discharge the obligation on. A c2 tick can receive several c1
 	   matches at once, so every age carries an obligation COUNT rather
 	   than a presence bit. */
-      size_t Tw = Tb + (size_t)b_window;
+      size_t Tw = consequence_nfa_mode ? (size_t)b_depth
+                                       : Tb + (size_t)b_window;
       std::vector<perm_string> tb (Tw);
       for (size_t k = 1 ; k < Tw ; k += 1)
 	    tb[k] = sva_make_reg_(loc, inst, "mcb", (unsigned)k, true);
@@ -19403,6 +19462,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       perm_string agg_epoch;
       perm_string cover_req, cover_ack, cover_due;
       std::vector<perm_string> tag_data, tag_head, tag_tail, tag_stop;
+      std::vector< std::vector<perm_string> > tag_mask;
       std::vector<perm_string> ptag_data, ptag_empty;
       std::vector<perm_string> ptag_head, ptag_tail, ptag_stop;
       size_t prefix_offset = (!plain && Tp && prop->op_type == 2) ? 1 : 0;
@@ -19437,11 +19497,17 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    tag_head.resize(Tw);
 	    tag_tail.resize(Tw);
 	    tag_stop.resize(Tw);
-	    for (size_t k = 0; k < Tw; ++k) {
+	    if (consequence_nfa_mode)
+                  tag_mask.resize(Tw, std::vector<perm_string>(b_nfa.nstates));
+            for (size_t k = 0; k < Tw; ++k) {
 		  tag_data[k] = sva_make_assoc_reg_(loc, inst, "mctag", k, 64);
 		  tag_head[k] = sva_make_reg_(loc, inst, "mctagh", k, true);
 		  tag_tail[k] = sva_make_reg_(loc, inst, "mctagt", k, true);
 		  tag_stop[k] = sva_make_reg_(loc, inst, "mctags", k, true);
+                  if (consequence_nfa_mode)
+                        for (unsigned j = 0; j < b_nfa.nstates; ++j)
+                              tag_mask[k][j] = sva_make_assoc_reg_(
+                                    loc, inst, "mctagm", (unsigned)(k*b_nfa.nstates+j), 1);
 	    }
 	    ptag_data.resize(prefix_stages);
 	    ptag_empty.resize(prefix_stages);
@@ -20129,6 +20195,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (ranged_antecedent) {
 		  for (size_t k = 0; k < Tw; ++k) {
 			clear.push_back(sva_assoc_delete_(loc, tag_data[k], nullptr));
+                        if (consequence_nfa_mode)
+                              for (unsigned j = 0; j < b_nfa.nstates; ++j)
+                                    clear.push_back(sva_assoc_delete_(
+                                          loc, tag_mask[k][j], nullptr));
 			clear.push_back(sva_assign_(loc, tag_head[k],
 						   sva_num32_(loc, 0)));
 			clear.push_back(sva_assign_(loc, tag_tail[k],
@@ -20316,6 +20386,148 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			sva_assign_(loc, fs_req, add), nullptr));
 	    }
       }
+      } else if (consequence_nfa_mode) {
+            auto append_nfa = [&](size_t stage, PExpr*parent,
+                                  const std::vector<PExpr*>&mask) -> Statement* {
+                  std::vector<Statement*> put;
+                  put.push_back(sva_assign_index_(loc, tag_data[stage],
+                        sva_id_(loc, tag_tail[stage]), parent));
+                  for (unsigned j = 0; j < b_nfa.nstates; ++j)
+                        put.push_back(sva_assign_index_(loc, tag_mask[stage][j],
+                              sva_id_(loc, tag_tail[stage]), mask[j]));
+                  PEBinary*next = new PEBinary(
+                        '+', sva_id_(loc, tag_tail[stage]), sva_num32_(loc, 1));
+                  FILE_NAME(next, loc);
+                  put.push_back(sva_assign_(loc, tag_tail[stage], next));
+                  return sva_block_(loc, put);
+            };
+            auto start_child = [&](PExpr*parent) -> Statement* {
+                  std::vector<PExpr*> mask(b_nfa.nstates);
+                  for (unsigned j = 0; j < b_nfa.nstates; ++j)
+                        mask[j] = sva_bit_(loc, j == b_nfa.start);
+                  return append_nfa(0, parent, mask);
+            };
+            auto emit_result = [&](bool failed, PExpr*parent) -> Statement* {
+                  std::vector<Statement*> put;
+                  put.push_back(sva_assign_index_(loc, result_kind,
+                        sva_id_(loc, result_req), sva_bit_(loc, failed)));
+                  put.push_back(sva_assign_index_(loc, result_parent,
+                        sva_id_(loc, result_req), parent));
+                  PEBinary*next = new PEBinary(
+                        '+', sva_id_(loc, result_req), sva_num32_(loc, 1));
+                  FILE_NAME(next, loc);
+                  put.push_back(sva_assign_(loc, result_req, next));
+                  return sva_block_(loc, put);
+            };
+
+            PEBComp*records = new PEBComp(
+                  '<', sva_id_(loc, rec_scan), sva_id_(loc, req_snapshot));
+            FILE_NAME(records, loc);
+            std::vector<Statement*> record_one;
+            record_one.push_back(sva_assign_(loc, rec_kind_tmp,
+                  sva_index_(loc, rec_kind, sva_id_(loc, rec_scan))));
+            record_one.push_back(sva_assign_(loc, rec_parent_tmp,
+                  sva_index_(loc, rec_parent, sva_id_(loc, rec_scan))));
+            PEBComp*regular = new PEBComp(
+                  'e', sva_id_(loc, rec_kind_tmp),
+                  new PENumber(new verinum((uint64_t)1, 3)));
+            FILE_NAME(regular, loc);
+            record_one.push_back(sva_if_(loc, regular,
+                  start_child(sva_id_(loc, rec_parent_tmp)), nullptr));
+            PEBinary*scan_next = new PEBinary(
+                  '+', sva_id_(loc, rec_scan), sva_num32_(loc, 1));
+            FILE_NAME(scan_next, loc);
+            record_one.push_back(sva_assign_(loc, rec_scan, scan_next));
+            PWhile*record_loop = new PWhile(records,
+                                             sva_block_(loc, record_one));
+            FILE_NAME(record_loop, loc);
+            epoch_body.push_back(record_loop);
+            epoch_body.push_back(sva_assign_nb_(loc, ack,
+                                                sva_id_(loc, rec_scan)));
+            if (antecedent_accepts_empty) {
+                  PEBComp*empty_records = new PEBComp(
+                        '<', sva_id_(loc, empty_scan), sva_id_(loc, empty_req));
+                  FILE_NAME(empty_records, loc);
+                  std::vector<Statement*> empty_one;
+                  empty_one.push_back(sva_assign_(loc, rec_kind_tmp,
+                        sva_index_(loc, rec_kind, sva_id_(loc, empty_scan))));
+                  empty_one.push_back(sva_assign_(loc, rec_parent_tmp,
+                        sva_index_(loc, rec_parent, sva_id_(loc, empty_scan))));
+                  PEBComp*is_empty = new PEBComp(
+                        'e', sva_id_(loc, rec_kind_tmp),
+                        new PENumber(new verinum((uint64_t)5, 3)));
+                  FILE_NAME(is_empty, loc);
+                  empty_one.push_back(sva_if_(loc, is_empty,
+                        start_child(sva_id_(loc, rec_parent_tmp)), nullptr));
+                  PEBinary*empty_next = new PEBinary(
+                        '+', sva_id_(loc, empty_scan), sva_num32_(loc, 1));
+                  FILE_NAME(empty_next, loc);
+                  empty_one.push_back(sva_assign_(loc, empty_scan, empty_next));
+                  PWhile*empty_loop = new PWhile(empty_records,
+                                                  sva_block_(loc, empty_one));
+                  FILE_NAME(empty_loop, loc);
+                  epoch_body.push_back(empty_loop);
+            }
+
+            /* Every FIFO entry is one antecedent child and carries its own
+               NFA mask.  Descending order ensures a continued mask is first
+               advanced on the following destination edge. */
+            for (size_t rk = Tw; rk-- > 0;) {
+                  size_t k = rk;
+                  epoch_body.push_back(sva_assign_(loc, tag_stop[k],
+                                                   sva_id_(loc, tag_tail[k])));
+                  PEBComp*tags = new PEBComp(
+                        '<', sva_id_(loc, tag_head[k]),
+                        sva_id_(loc, tag_stop[k]));
+                  FILE_NAME(tags, loc);
+                  std::vector<Statement*> one;
+                  one.push_back(sva_assign_(loc, rec_parent_tmp,
+                        sva_index_(loc, tag_data[k], sva_id_(loc, tag_head[k]))));
+                  std::vector<PExpr*> nx(b_nfa.nstates, nullptr);
+                  for (unsigned j = 0; j < b_nfa.nstates; ++j) {
+                        for (size_t ei = 0; ei < b_nfa.edges.size(); ++ei) {
+                              const sva_nfa_edge_t&ed = b_nfa.edges[ei];
+                              if (ed.to != j) continue;
+                              PExpr*term = sva_index_(loc, tag_mask[k][ed.from],
+                                                     sva_id_(loc, tag_head[k]));
+                              for (size_t g = 0; g < ed.guards.size(); ++g) {
+                                    std::map<PExpr*,perm_string>::iterator it =
+                                          consequence_guard.find(ed.guards[g]);
+                                    ivl_assert(loc, it != consequence_guard.end());
+                                    term = sva_logic_(loc, 'a', term,
+                                                      sva_id_(loc, it->second));
+                              }
+                              nx[j] = nx[j] ? sva_logic_(loc, 'o', nx[j], term)
+                                            : term;
+                        }
+                        if (!nx[j]) nx[j] = sva_bit_(loc, 0);
+                  }
+                  PExpr*alive = sva_clone_expr_(nx[0]);
+                  for (unsigned j = 1; j < b_nfa.nstates; ++j)
+                        alive = sva_logic_(loc, 'o', alive,
+                                          sva_clone_expr_(nx[j]));
+                  Statement*continued = (k + 1 < Tw)
+                        ? append_nfa(k+1, sva_id_(loc, rec_parent_tmp), nx)
+                        : emit_result(true, sva_id_(loc, rec_parent_tmp));
+                  Statement*not_accept = sva_if_(loc, alive, continued,
+                        emit_result(true, sva_id_(loc, rec_parent_tmp)));
+                  one.push_back(sva_if_(loc,
+                        sva_clone_expr_(nx[b_nfa.accept]),
+                        emit_result(false, sva_id_(loc, rec_parent_tmp)),
+                        not_accept));
+                  one.push_back(sva_assoc_delete_(loc, tag_data[k],
+                                                   sva_id_(loc, tag_head[k])));
+                  for (unsigned j = 0; j < b_nfa.nstates; ++j)
+                        one.push_back(sva_assoc_delete_(loc, tag_mask[k][j],
+                                                       sva_id_(loc, tag_head[k])));
+                  PEBinary*head_next = new PEBinary(
+                        '+', sva_id_(loc, tag_head[k]), sva_num32_(loc, 1));
+                  FILE_NAME(head_next, loc);
+                  one.push_back(sva_assign_(loc, tag_head[k], head_next));
+                  PWhile*loop = new PWhile(tags, sva_block_(loc, one));
+                  FILE_NAME(loop, loc);
+                  epoch_body.push_back(loop);
+            }
       } else {
 	    auto append_tag = [&](size_t stage, PExpr*parent) -> Statement* {
 		  std::vector<Statement*>put;
