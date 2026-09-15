@@ -120,21 +120,24 @@ current_batch:
   baseline: evidence/next-batch-after-l84/baseline.json
 
 active_scope_refinement:
-  L85: Conditional range validation must not reject only after random prefix selection; source patch under review, no candidate build yet.
+  L85: Completed; see integrated focused evidence in ACTIVE_WORK.
   L86: Authorized dynamic parent-tagged handoff and single-verdict aggregation within owned lowering files; preserve event regions, cancellation, and unbounded clock skew.
-shared_process_observation: No shared build or harness running at scope-refinement checkpoint.
+shared_process_observation: Historical scope-refinement checkpoint; see shared_process_latest.
 
 l85_transaction_refinement: Exact range rollback test exposed prefill RNG advancement before Z3. Coordinator authorizes snapshot/restore of each visited object RNG in existing graph transaction; preserves successful-call consumption and existing object visitation/alias policy. Evidence l85-ranges-direct.json; source baseline remains installed until rebuilt.
 
 l85_status: Integrated9f416e09a; eight cases each harness and23 neighbors passed. Broad qualification pending.
-latest_runtime_install: L85 including graph RNG rollback; candidate hashes in evidence/batch-20260914-after-l84/l85-candidate.json.
-shared_process_observation_latest: All L85 builds and focused harnesses terminal; no shared process active.
+latest_runtime_install: See installed_tools for current combined candidate.
+shared_process_observation_latest: See shared_process_latest.
 l87_baseline: evidence/batch-20260914-after-l84/next-selection/baseline.json
 
-l87_frontend_refinement: l87-direct.json exposed invalid constant fixed-array ordering silently dropped after a warning. Coordinator authorizes a narrow PEConstraintOrder vars_to_ir diagnostic in elaborate.cc for direct rank-matched fixed-array constant selectors; unrelated unsupported lowering remains outside this ticket. Runtime candidate built; positive harnesses running, frontend not rebuilt yet.
+l87_frontend_refinement: l87-direct.json exposed invalid constant fixed-array ordering silently dropped after a warning. Coordinator authorizes a narrow PEConstraintOrder vars_to_ir diagnostic in elaborate.cc for direct rank-matched fixed-array constant selectors; unrelated unsupported lowering remains outside this ticket. Completed in L87; see focused evidence.
 
 l87_status: Integrated831cdeca2;10 cases per harness and31 neighbors passed.
 l88_baseline: evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json
-l86_status: First compile failed17 expression-lvalue helper errors; source frozen snapshot in l86-first-source.patch/json, agent correcting. No installation from failed build. Prefix combination and paused-destination record reclamation remain pending.
-installed_candidate_latest: L87 runtime and elaborator with pre-L86 SVA objects; exact hashes in evidence/batch-20260914-after-l84/l87-candidate.json.
-shared_process_latest: L87 tests and first L86 build terminal; no shared build/test running at selection checkpoint.
+l86_status: "Third compiler build succeeds; corrected controls yield12 of14 direct cases passing. Internal fixture changed good on coincident edge and needs timeline correction. First-clock prefix and paused-destination reclamation remain in implementation. Evidence l86-control-direct.json."
+l88_status: "Baseline reducer passes both editions; first focused harnesses6/10 pass each. Signed/enum boundary fixture has compile/lowering issue; mixed case lacks expected size-zero diagnostic gold. Agent correcting without weakening oracle. Evidence l88-first-focused.json."
+installed_candidate_latest: See installed_tools and l86-l88-first-combined-candidate.json.
+shared_process_latest: "Build session37708, direct session53130 and focused session2587 are terminal; no shared build or harness active. L86 source edits authorized to resume."
+
+l88_index_boundary: "Fresh l88-wide-index.json proves64-bit index silently narrows to element0. Shared delem pre-conversion guard authorized in ACTIVE_WORK; preserve current candidate until rebuild."

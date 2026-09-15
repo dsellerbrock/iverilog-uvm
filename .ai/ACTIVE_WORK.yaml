@@ -55,3 +55,5 @@ integrated_focused_fixes:
     broad_qualification: pending near ten integrated fixes
 
 l86_increment_status: "Compiler builds and SV reducer compiles after generated indexed-assignment and associative delete-call corrections. Runtime blocked by test use of unimplemented $assertvacuousoff; lane correcting test setup. First-clock consequent prefix and no-MATCH paused-destination storage remain pending. No implementation completion claim."
+
+l88_index_identity_refinement: "Coordinator confirmed both editions silently accept ordering at64'h100000000 by narrowing it to element0; evidence l88-wide-index.json. Authorize a narrow shared delem bounds guard before unsigned VarRef/ElemVar conversion in vvp/vvp_z3.cc, preserving exact index identity and rejecting unsupported indices before sampling. Add wide-index and negative-index rollback controls. This is necessary L88 boundary correctness, not a separate counted fix."
