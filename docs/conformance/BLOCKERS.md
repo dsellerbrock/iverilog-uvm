@@ -1989,3 +1989,9 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 - **Status:** IMPLEMENTED for focused local character writes and constant-function locality diagnostics; broad qualification pending.
 - **Remaining:** Qualified package lvalue syntax is separate; runtime compound lowering is L74.
 - **Evidence:** [L73 session](session_logs/2026-09-14_constant_string_character_write.md).
+
+### L74 — Runtime scalar string character compound assignments
+
+- **Status:** IMPLEMENTED for focused scalar/local/ref character updates; broad qualification pending.
+- **Remaining:** Whole-string compound operations, array receivers and function-return character storage are separate gaps.
+- **Evidence:** [L74 session](session_logs/2026-09-14_runtime_string_character_compound.md).

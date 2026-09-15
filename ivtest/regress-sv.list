@@ -3353,3 +3353,11 @@ sv_const_string_character_write_mixed_fail CE,-g2017,-s,sv_const_string_characte
 sv_const_string_character_write_mixed_fail_2023 CE,-g2023,-s,sv_const_string_character_write_mixed_fail ivltests gold=sv_const_string_character_write_mixed_fail.gold
 sv_const_string_character_write_compound_const CO,-g2017,-tnull,-s,sv_const_string_character_write_compound_const ivltests
 sv_const_string_character_write_compound_const_2023 CO,-g2023,-tnull,-s,sv_const_string_character_write_compound_const ivltests
+
+# L74: runtime string character compound assignment
+sv_string_character_compound normal,-g2017 ivltests gold=sv_string_character_compound.gold
+sv_string_character_compound_2023 normal,-g2023 ivltests gold=sv_string_character_compound.gold
+sv_string_character_compound_bounds normal,-g2017 ivltests gold=sv_string_character_compound_bounds.gold
+sv_string_character_compound_bounds_2023 normal,-g2023 ivltests gold=sv_string_character_compound_bounds.gold
+sv_string_character_compound_fail CE,-g2017 ivltests gold=sv_string_character_compound_fail.gold
+sv_string_character_compound_fail_2023 CE,-g2023 ivltests gold=sv_string_character_compound_fail.gold

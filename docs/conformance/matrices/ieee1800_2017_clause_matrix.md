@@ -1346,3 +1346,7 @@ IMPLEMENTED for retained nested selections rooted in scalar packed signals and f
 ### L73 — Constant-function string character writes (6.16, 11.4.1, 13.4.3)
 
 IMPLEMENTED for the evidenced local character writes, putc conversions, compound arithmetic, byte signedness and nonlocal-write rejection. See [L73 evidence](../session_logs/2026-09-14_constant_string_character_write.md); broad qualification remains pending.
+
+### L74 — Runtime string character compound assignments (6.16, 11.4.1)
+
+IMPLEMENTED for scalar string character compound arithmetic, with byte typing, captured int index conversion and existing putc bounds/zero-byte behavior. See [L74 evidence](../session_logs/2026-09-14_runtime_string_character_compound.md); broader receivers and batch qualification remain pending.

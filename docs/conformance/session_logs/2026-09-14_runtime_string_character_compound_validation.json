@@ -1,0 +1,21 @@
+{
+  "scope": "L74 focused runtime scalar string character compound assignments",
+  "source_base": "352a1516435309343b4f688935ab925fdfc1aec0",
+  "depends_on": "352a15164 signed character lvalue metadata",
+  "source_sha256": {
+    "tgt-vvp/stmt_assign.c": "01a655a3bd93b1d65098cf55efae076dbdbf0fdc2768c34d2a34342394983485"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "3743aba55cbf6a24d271bf88ff445faf376646c278718190eb2be4f65ff074ae",
+    "local-install/lib/ivl/ivl": "770f319cce0cea0040c6c649a7f16d23333e789699fe99fabc7245e36268dfeb",
+    "local-install/lib/ivl/vvp.tgt": "3cc683e4d8389e5ede307d6d3607836cf0e6293d63f3bb872831cfda1ae7cecc"
+  },
+  "permanent_legacy": 6,
+  "permanent_json": 6,
+  "string_neighbors_json": 2,
+  "shared_string_evaluator_neighbors_json": 34,
+  "broad_qualified": false,
+  "evidence": "evidence/parallel-batch-l71-l72/l74-final-harness.json",
+  "integration_evidence": "evidence/parallel-batch-l71-l72/l73-l74-integration-harness.json"
+}

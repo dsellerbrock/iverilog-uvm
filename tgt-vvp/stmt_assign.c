@@ -2747,9 +2747,41 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
       ivl_signal_t var= ivl_lval_sig(lval);
 
       assert(ivl_stmt_lvals(net) == 1);
-      /* Compound string assignments (+=, etc.) are not yet supported.
-       * Compile-progress: skip and continue rather than asserting. */
       if (ivl_stmt_opcode(net) != 0) {
+	    /* A character selection is an 8-bit integral l-value. Capture its
+	     * selector once, read the old byte with the established string-select
+	     * path, apply the ordinary vector compound operation, and write it
+	     * through putc. putc retains the standard invalid-index, empty-string,
+	     * and zero-byte behavior. */
+	    if (part && !aidx && !signal_is_return_value(var)) {
+		  int mux_word = allocate_word();
+		  int mux_flag = allocate_flag();
+		  /* string.getc/putc take a two-state signed int index. Perform
+		   * that conversion once here so reads and writes use the same
+		   * low 32 bits, including X/Z-to-zero conversion. */
+		  draw_eval_vec4(part);
+		  resize_vec4_wid(part, 32);
+		  fprintf(vvp_out, "    %%cast2; string character selector to int\n");
+		  fprintf(vvp_out, "    %%ix/vec4/s %d; capture string character selector\n",
+		          mux_word);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve string character selector\n",
+		          mux_flag);
+		  fprintf(vvp_out, "    %%load/str v%p_0; string character compound read\n",
+		          var);
+		  fprintf(vvp_out, "    %%substr/vec4 %d, 8; selected string character\n",
+		          mux_word);
+		  fprintf(vvp_out, "    %%pop/str 1; discard captured string\n");
+		  draw_stmt_assign_vector_rhs(net, 8);
+		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
+		          mux_flag);
+		  fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d; string character compound store\n",
+		          var, mux_word);
+		  clr_word(mux_word);
+		  clr_flag(mux_flag);
+		  return 0;
+	    }
+	    /* Whole-string and string-array compound assignments remain separate
+	     * unsupported forms. */
 	    fprintf(stderr, "%s: warning: compound string assignment (op='%c') "
 		    "not yet supported (compile-progress: skipped).\n",
 		    ivl_stmt_file(net), ivl_stmt_opcode(net));
