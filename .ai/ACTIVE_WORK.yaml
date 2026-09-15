@@ -8,7 +8,7 @@ lanes:
   - id: L89-JOINT-QUEUE-ELEMENT-ORDERING
     parent: Z01
     agent: /root/constraint_abi
-    status: REPRODUCED
+    status: FOCUSED_TESTED
     standards: "IEEE 1800-2017 18.4,18.5.9/18.5.10; IEEE 1800-2023 18.4,18.5.8/18.5.9; queue sizing and retained-element semantics in7.10."
     reproducer: evidence/batch-20260914-after-l84/next-queue-assessment/joint_queue_element_order.sv
     actual: "Refreshed after L88: both editions drop queue element ordering with a warning and return first-element one685/1024 times instead of uniform512."
@@ -35,7 +35,7 @@ lanes:
     acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 3
+focused_features_completed_in_batch: 4
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false

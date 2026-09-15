@@ -3432,6 +3432,7 @@ struct random_container_desc_t {
       uint64_t max_size = 0;
       string elem_type;
       unsigned elem_width = 32;
+      bool elem_integral = false;
 };
 
 static random_container_desc_t random_container_desc_(const string&text)
@@ -3453,8 +3454,10 @@ static random_container_desc_t random_container_desc_(const string&text)
       if ((1 == sscanf(elem, "b%u%zn", &width, &n) && n == desc.elem_type.size())
 	  || (1 == sscanf(elem, "sb%u%zn", &width, &n) && n == desc.elem_type.size())
 	  || (1 == sscanf(elem, "v%u%zn", &width, &n) && n == desc.elem_type.size())
-	  || (1 == sscanf(elem, "sv%u%zn", &width, &n) && n == desc.elem_type.size()))
+	  || (1 == sscanf(elem, "sv%u%zn", &width, &n) && n == desc.elem_type.size())) {
 	    desc.elem_width = width ? width : 32;
+	    desc.elem_integral = true;
+      }
       return desc;
 }
 
@@ -5712,11 +5715,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               && base != "r" && base != "S"
                               && base[0] != 'D' && base[0] != 'Q'
                               && base[0] != 'M';
-                        bool dynamic_integral = base.size() > 1 && base[0] == 'D'
-                              && (base[1] == 'b' || base[1] == 'v'
-                                  || (base[1] == 's' && base.size() > 2
-                                      && (base[2] == 'b' || base[2] == 'v')));
-                        return fixed || dynamic_integral;
+                        const Z3Builder::SizeVar*size = nullptr;
+                        for (const auto&candidate : builder.size_vars)
+                              if (candidate.idx == ref.idx) {
+                                    size = &candidate;
+                                    break;
+                              }
+                        const random_container_desc_t desc = size
+                              ? random_container_desc_(size->container_type)
+                              : random_container_desc_t();
+                        bool variable_integral = size && desc.elem_integral
+                              && ((base.size() > 1 && base[0] == 'D')
+                                  || desc.is_queue);
+                        return fixed || variable_integral;
                   };
                   for (const auto&pair : builder.order_pairs)
                         if ((pair.first.kind != Z3Builder::OrderRef::PROP
@@ -5760,7 +5771,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         if (ref.kind != Z3Builder::OrderRef::ELEM) continue;
                         const string&base = builder.type(ref.idx)
                               ->property_base_type(builder.local_index(ref.idx));
-                        if (base.empty() || base[0] != 'D') continue;
+                        const Z3Builder::SizeVar*size_var = nullptr;
+                        for (const auto&candidate : builder.size_vars)
+                              if (candidate.idx == ref.idx) {
+                                    size_var = &candidate;
+                                    break;
+                              }
+                        if (!size_var
+                            || ((base.empty() || base[0] != 'D')
+                                && !random_container_desc_(
+                                      size_var->container_type).is_queue))
+                              continue;
                         auto size = proved_joint_sizes.find(ref.idx);
                         if (size == proved_joint_sizes.end())
                               return fail_joint("dynamic element ordering requires one proved array size");

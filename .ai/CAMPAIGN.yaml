@@ -19,7 +19,7 @@ published_work:
     stacked_on: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     published_head: 67be888271584400bf387305420a383cce64b8c5
     current_ci_run: 34931769313
-    current_ci_observation: Ubuntu22/24 passed; macOS and three Windows jobs in progress at latest check. All seven local gates passed.
+    current_ci_observation: Five platform jobs passed; CLANG64 remains in progress. All seven local gates passed.
     evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/283
     state: open
@@ -113,7 +113,7 @@ l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
 
 current_batch:
   base_revision: fd500e2b5
-  focused_features: 3
+  focused_features: 4
   integrated_l85: 9f416e09a
   integrated_l87: 831cdeca2
   integrated_l88: d6a15ca2b
@@ -151,3 +151,5 @@ coordinator_checkpoint: "Three fixes integrated; L86 andL89 authorized independe
 
 l88_integration_revision: d6a15ca2b
 l86_remaining_reducers: evidence/batch-20260914-after-l84/l86-kill-review/first.json; evidence/batch-20260914-after-l84/l86-lifecycle-review/first.json
+
+l89_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_queue_element_ordering_validation.json

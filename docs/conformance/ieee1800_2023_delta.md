@@ -197,3 +197,7 @@ of 2017 18.5.10 and 2023 18.5.9. Shared scope/evidence belong to the
 ## L88 shared dynamic-array ordering evidence
 
 The 2023 array sizing and ordering clauses (18.4, 18.5.7.2, 18.5.8/18.5.9) share the bounded implementation recorded in the [2017 matrix L88 entry](matrices/ieee1800_2017_clause_matrix.md#l88--joint-dynamic-array-selected-element-ordering). Separate edition regressions are linked there; no queue or associative-array ordering extension is implied.
+
+## L89 shared queue ordering evidence
+
+The 2023 clauses18.4 and18.5.8/18.5.9 share the bounded implementation in the [2017 matrix L89 entry](matrices/ieee1800_2017_clause_matrix.md#l89--joint-queue-selected-element-ordering), with separate edition regressions. No full queue or randomization conformance is claimed.

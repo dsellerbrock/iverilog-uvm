@@ -30737,8 +30737,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netdarray_t*array = prop < 0 ? nullptr
 				    : dynamic_cast<const netdarray_t*>(
 				          cls->get_prop_type((size_t)prop));
-			      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(array);
-			      if (!array || queue || component.local_scope
+			      if (!array || component.local_scope
 			          || component.index.size() != 1)
 				    return "";
 			      property_qualifier_t qual =

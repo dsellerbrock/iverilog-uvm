@@ -22,7 +22,8 @@ records retain their original revisions and limits.
 
 [L85 ordered distributions](session_logs/2026-09-14_joint_ordered_distribution.md),
 [L87 selected-element ordering](session_logs/2026-09-14_joint_element_ordering.md),
-and [L88 dynamic-array ordering](session_logs/2026-09-15_joint_dynamic_element_ordering.md)
+[L88 dynamic-array ordering](session_logs/2026-09-15_joint_dynamic_element_ordering.md),
+and [L89 queue ordering](session_logs/2026-09-15_joint_queue_element_ordering.md)
 record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence
