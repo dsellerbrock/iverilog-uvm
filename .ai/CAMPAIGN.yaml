@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l84-20260914
-current_blocker: SELECT-NEXT-PARALLEL-BATCH
-phase: coordinator_selection
+current_blocker: PARALLEL-BATCH-L85-L86
+phase: parallel_implementation
 source_revision: 240dd5f6f
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
@@ -65,7 +65,7 @@ preserved_local_batch:
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
 installed_tools: Full serial build/install of L75-L84 completed; candidate hashes and broad evidence live in evidence/batch-20260914-l84/qualification.
 pending_gates: PR284 and parent PR283 cross-platform CI and authorized merge; all local L75-L84 gates passed.
-next_action: Preserve both published branches, assess two independent current blockers with cheap reproducers, record ownership in ACTIVE/CAMPAIGN, then reuse the two existing cheaper implementation agents.
+next_action: Implement the authorized independent L85 solver and L86 multiclock lanes; root owns shared builds/harnesses/review. Keep PR283/284 branches fixed.
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
@@ -74,7 +74,13 @@ merge_requirements: Required CI and explicit merge permissions remain in force. 
 latest_focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
-active_lanes: []
+active_lanes:
+  - id: L85-JOINT-ORDERED-DISTRIBUTION
+    agent: /root/constraint_abi
+    files: vvp/vvp_z3.cc
+  - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
+    agent: /root/constraint_wide
+    files: pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h
 shared_execution_owner: coordinator
 parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
 
@@ -104,3 +110,9 @@ l76_scope_refinement: Root reproduced tolower in both editions; include both cas
 
 l77_status: Integrated d11c3852c; eight cases per harness and 50 neighbors passed.
 l78_status: Integrated cf34519c0; six cases per harness and 22 neighbors passed.
+
+next_batch:
+  base_revision: fd500e2b5
+  focused_features: 0
+  selected_lanes: [L85, L86]
+  baseline: evidence/next-batch-after-l84/baseline.json

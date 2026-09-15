@@ -1,31 +1,41 @@
-id: SELECT-NEXT-PARALLEL-BATCH
-title: Coordinator selection after qualified L75-L84 publication
-status: ASSESSMENT_PENDING
-base_revision: 240dd5f6f
-authority: "User authorized focused fixes followed by required broad suites near ten integrated fixes and coherent PR publication."
-coordinator_owns: [All builds and installation, All seven broad gates, Source freeze and artifact snapshots, Documentation and publication]
-implementation_lanes:
-  - agent: /root/constraint_abi
-    status: INTEGRATED_FROZEN
-    latest_fix: L83
-    revision: 2d8d1cab6
-  - agent: /root/constraint_wide
-    status: INTEGRATED_FROZEN
-    latest_fix: L84
-    revision: 240dd5f6f
-file_conflict_policy: "No new implementation before two independent current reproducers and explicit disjoint ownership are recorded. Existing agents retained; no new worktrees."
-validation_batch: 20260914_l84
-focused_features_completed_in_batch: 10
-focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
-qualification_directory: evidence/batch-20260914-l84/qualification
-pending_gates: []
-qualification_record: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
-gate_order: "Run frontend last and exclusively because it moves installation; legacy and JSON harnesses must not overlap."
+id: PARALLEL-BATCH-L85-L86
+title: Ordered joint distribution and bounded multiclock antecedent semantics
+status: IMPLEMENTING
+base_revision: fd500e2b5
+authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
+coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
+lanes:
+  - id: L85-JOINT-ORDERED-DISTRIBUTION
+    parent: Z01
+    agent: /root/constraint_abi
+    status: REPRODUCED
+    standards: "IEEE 1800-2017 18.5.4, 18.5.9, 18.5.10; IEEE 1800-2023 18.5.4, 18.5.8, 18.5.9"
+    reproducer: evidence/next-batch-after-l84/joint_ordered_dist.sv
+    actual: "Both editions compile, but legal randomize returns failure: joint solve-before with dist is not yet supported."
+    expected: "Sample each solve-before stage with its prescribed distribution, preserving conditional fibers and joint hard relations."
+    owns: [vvp/vvp_z3.cc]
+    test_prefix: sv_randomize_joint_ordered_dist
+    allowed_scope: "Joint canonical scalar solve-before stages with the existing supported unconditional hard distribution family and state-only weights, preserving exact stage projection and existing enumeration limits. Reuse existing distribution and ordered-stage machinery."
+    forbidden_scope: "New randc ordering, arbitrary coupled distribution algebra, non-scalar ordering variables, parser/target redesign, SVA sources and weakening unsupported guards."
+    dependencies: "Existing Z01A ordered stages and exact joint distribution sampling; independent of L86."
+    acceptance: "Both editions: first/later stage weights, hand-derived marginal/conditional probabilities, unequal fiber sizes, := and :/ range weights within supported family, root/child alias identity, mode/callbacks, seeded replay, unsatisfiable/cap/zero-weight rollback, unsupported coupled shapes rejected; solver neighbors. Update the old ordered-dist rejection fixture only for newly supported semantics, retaining other rejection coverage."
+  - id: L86-MULTICLOCK-BOUNDED-ANTECEDENT
+    parent: S01
+    agent: /root/constraint_wide
+    status: REPRODUCED
+    standards: "IEEE 1800-2017/2023 16.9.2, 16.12, 16.13.1, 16.13.3"
+    reproducer: evidence/next-batch-after-l84/multiclock_range_antecedent.sv
+    actual: "Both editions reject the bounded variable-length antecedent because the multiclock lowerer accepts only fixed-length boolean chains."
+    expected: "Every matching antecedent endpoint creates its standards-correct consequent obligation; the two-endpoint witness yields exactly one failure."
+    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
+    test_prefix: sv_assert_multiclock_bounded_antecedent
+    allowed_scope: "Finite constant ##[m:n] delay windows in otherwise fixed single-clock antecedents of multiclock implications, preserving every match, clock handoff, attempt identity and action semantics. Reuse existing multiclock lowering/NFA infrastructure."
+    forbidden_scope: "Unbounded sequences, general repetition/operator expansion, solver sources, parser grammar changes, dropping alternative matches or weakening assertion semantics."
+    dependencies: "Existing fixed-chain multiclock lowering and clock-flow semantics; independent of L85."
+    acceptance: "Both editions: all matching endpoints, early/late consequent pass/fail, overlapping antecedent attempts, zero/equal/finite range boundaries, |-> and |=> handoff, coincident edges in both source orders, preponed sampling, disable iff, cover/assert action counts and focused invalid/unsupported bounds; existing multiclock/NFA neighbors. If public action/attempt identity requires more architecture, report exact invariant and scope expansion before proceeding; do not replace the property by unrelated public assertions."
+file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
+validation_batch: 20260914_after_l84
+focused_features_completed_in_batch: 0
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
-
-published_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/284
-published_branch: agent/string-return-uppercase-20260914
-published_head: 67be888271584400bf387305420a383cce64b8c5
-next_implementation_authorized: false

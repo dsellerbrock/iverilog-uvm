@@ -2095,3 +2095,19 @@ The [joint qualification record](session_logs/2026-09-14_compiler_batch_l65_l74_
 ### L75–L84 local qualification checkpoint
 
 The [joint qualification record](session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json) supersedes pending broad-gate notes for these bounded subsets. Remote CI and complete application/edition support remain separate obligations.
+
+### L85 — Ordered distributions in joint canonical scalar solves
+
+- **Parent:** Z01.
+- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject a legal ordered weighted joint graph at runtime.
+- **Scope:** Existing supported hard distribution family combined with bounded canonical scalar solve-before stages; correct stage marginals and conditional fibers.
+- **Standards:** 2017 18.5.4/18.5.9/18.5.10; 2023 18.5.4/18.5.8/18.5.9.
+
+### L86 — Bounded delay-range antecedents in multiclock implications
+
+- **Parent:** S01 residual scope.
+- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **Evidence:** `evidence/next-batch-after-l84/baseline.json`; both editions reject the finite two-endpoint antecedent.
+- **Scope:** Finite constant delay windows with all matching endpoints, correct clock handoff and preserved attempt/action semantics.
+- **Standards:** IEEE 1800-2017/2023 16.9.2, 16.12 and 16.13.
