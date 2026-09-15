@@ -60,4 +60,6 @@ l88_index_identity_refinement: "Coordinator confirmed both editions silently acc
 
 l88_focused_evidence: docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json
 
-  # Integrated L88 revision and evidence are recorded in CAMPAIGN.
+l88_integration_revision: d6a15ca2b
+
+l86_latest_failures: "Paused-destination kill/restart drops fresh parent; completed lifecycle records remain behind unacknowledged MATCH. Both paired reducers in CAMPAIGN; fixes remain in owned source scope."

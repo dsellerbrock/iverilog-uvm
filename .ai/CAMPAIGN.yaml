@@ -63,8 +63,8 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: "Combined frozen unintegrated L86/L88 compiler and runtime candidate built successfully; hashes in evidence/batch-20260914-after-l84/l86-l88-first-combined-candidate.json. L75-L84 target retained. No qualification claim for L86/L88."
-pending_gates: Broad gates for the current post-L84 batch near ten fixes; PR284/283 cross-platform CI and authorized merge. L85/L87 focused gates passed; L86/L88 unvalidated.
+installed_tools: "L88 runtime/elaborator plus L86 prefix compiler increment; hashes in evidence/batch-20260914-after-l84/l86-prefix-candidate.json. Subsequent lane source edits unbuilt. No broad qualification."
+pending_gates: "Broad current-batch gates near ten integrated fixes; L86/L89 completion and focused validation; PR284 remaining CI and authorized merge. PR283 CI passed."
 next_action: "Implement authorized L89 queue ordering while completing L86 lifecycle and boundary validation. Three focused fixes integrated; broad gates near ten."
 next_command: git status --short
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
@@ -136,10 +136,10 @@ l87_frontend_refinement: l87-direct.json exposed invalid constant fixed-array or
 
 l87_status: Integrated831cdeca2;10 cases per harness and31 neighbors passed.
 l88_baseline: evidence/batch-20260914-after-l84/next-dynamic-assessment/baseline.json
-l86_status: "Third compiler build succeeds; corrected controls yield12 of14 direct cases passing. Internal fixture changed good on coincident edge and needs timeline correction. First-clock prefix and paused-destination reclamation remain in implementation. Evidence l86-control-direct.json."
+l86_status: "First14 cases per harness and8coincidence cases pass, prefix direct pair passes. Fresh paused-c2 kill/restart loses fresh parent verdict; retention probe leaves2002records for2real pending children. Source corrections in progress; evidence l86-kill-review/first.json and l86-lifecycle-review/first.json."
 l88_status: "Focused tested; ten cases per harness, fourteen final dynamic neighbors and41 preceding ordering neighbors. Evidence docs/conformance/session_logs/2026-09-15_joint_dynamic_element_ordering_validation.json."
 installed_candidate_latest: See installed_tools and l86-l88-first-combined-candidate.json.
-shared_process_latest: "Build session37708, direct session53130 and focused session2587 are terminal; no shared build or harness active. L86 source edits authorized to resume."
+shared_process_latest: "All shared builds and tests terminal at checkpoint; root owns next build after both source freezes."
 
 l88_index_boundary: "Fresh l88-wide-index.json proves64-bit index silently narrows to element0. Shared delem pre-conversion guard authorized in ACTIVE_WORK; preserve current candidate until rebuild."
 
@@ -148,3 +148,6 @@ l86_prefix_evidence: evidence/batch-20260914-after-l84/l86-prefix-first.json
 l86_prefix_candidate: evidence/batch-20260914-after-l84/l86-prefix-candidate.json
 current_installed_state: "L88 runtime and elaborator plus built L86 prefix increment. Subsequent pform edits unbuilt. No broad qualification of this candidate."
 coordinator_checkpoint: "Three fixes integrated; L86 andL89 authorized independently. All shared builds/tests terminal. No new worktrees or agents; existing other trees retained under ownership safeguards."
+
+l88_integration_revision: d6a15ca2b
+l86_remaining_reducers: evidence/batch-20260914-after-l84/l86-kill-review/first.json; evidence/batch-20260914-after-l84/l86-lifecycle-review/first.json
