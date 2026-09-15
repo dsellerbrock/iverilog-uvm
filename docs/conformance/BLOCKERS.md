@@ -2124,7 +2124,9 @@ qualification is established by this scope refinement.
 ### L87 — Joint selected integral array-element ordering
 
 - **Parent:** Z01.
-- **State:** REPRODUCED and coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; integrated implementation awaits broad batch qualification.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-selection/baseline.json` at L85; both editions reject selected-element ordering.
 - **Scope:** Statically selected fixed-array integral elements with exact ordered stage identity/projection; dynamic ordering and other unsupported families remain separate.
 - **Standards:** 2017 18.5.9/18.5.10; 2023 18.5.8/18.5.9.
+
+- **L87 implementation evidence:** [Focused session](session_logs/2026-09-14_joint_element_ordering.md).

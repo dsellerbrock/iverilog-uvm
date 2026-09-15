@@ -1402,3 +1402,7 @@ The bounded implementations above now have [joint local batch qualification](../
 ### L85 — Joint ordered distributions
 
 IMPLEMENTED for the [recorded canonical scalar subset](../session_logs/2026-09-14_joint_ordered_distribution.md), with exact staged distributions and atomic graph rollback. Broader joint distribution families remain PARTIAL; broad batch qualification is pending.
+
+### L87 — Joint selected-element ordering
+
+IMPLEMENTED within the [recorded fixed-array integral subset](../session_logs/2026-09-14_joint_element_ordering.md), including exact staged element identity and focused out-of-range diagnostics. Dynamic containers and other ordering families remain separate; broad batch qualification is pending.

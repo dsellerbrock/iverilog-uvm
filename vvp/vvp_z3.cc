@@ -5688,10 +5688,24 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Reject before any sampling; a cap failure after a randc draw
             // could otherwise condition successful calls on that draw.
             if (!builder.order_pairs.empty()) {
+                  auto fixed_element_order_ref = [&](const Z3Builder::OrderRef&ref) {
+                        if (ref.kind != Z3Builder::OrderRef::ELEM) return false;
+                        const class_type*type = builder.type(ref.idx);
+                        unsigned pid = builder.local_index(ref.idx);
+                        const string&base = type->property_base_type(pid);
+                        return type->property_array_size(pid) >= 1
+                              && !base.empty() && base != "o"
+                              && base.compare(0, 3, "oc:") != 0
+                              && base != "r" && base != "S"
+                              && base[0] != 'D' && base[0] != 'Q'
+                              && base[0] != 'M';
+                  };
                   for (const auto&pair : builder.order_pairs)
-                        if (pair.first.kind != Z3Builder::OrderRef::PROP
-                            || pair.second.kind != Z3Builder::OrderRef::PROP)
-                              return fail_joint("joint solve-before requires canonical scalar ordering variables");
+                        if ((pair.first.kind != Z3Builder::OrderRef::PROP
+                             && !fixed_element_order_ref(pair.first))
+                            || (pair.second.kind != Z3Builder::OrderRef::PROP
+                                && !fixed_element_order_ref(pair.second)))
+                              return fail_joint("joint solve-before requires canonical scalar or fixed-element ordering variables");
                   for (const auto&pv : builder.prop_vars)
                         if (rand_scalar_active_(builder, prop_active, pv.idx)
                             && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)))
@@ -6006,17 +6020,17 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Longest distance to a sink schedules partially ordered variables
             // as late as possible, with unordered variables in the final stage
             // (IEEE 1800-2017 18.5.10; IEEE 1800-2023 18.5.9).
-            map<unsigned, unsigned> remaining;
+            map<Z3Builder::OrderRef, unsigned> remaining;
             for (const auto&pair : builder.order_pairs) {
-                  remaining[pair.first.idx];
-                  remaining[pair.second.idx];
+                  remaining[pair.first];
+                  remaining[pair.second];
             }
             for (size_t pass = 0; pass < remaining.size(); ++pass) {
                   bool changed = false;
                   for (const auto&pair : builder.order_pairs) {
-                        unsigned want = remaining[pair.second.idx] + 1;
-                        if (remaining[pair.first.idx] < want) {
-                              remaining[pair.first.idx] = want;
+                        unsigned want = remaining[pair.second] + 1;
+                        if (remaining[pair.first] < want) {
+                              remaining[pair.first] = want;
                               changed = true;
                         }
                   }
@@ -6029,9 +6043,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   final_stage = max(final_stage, entry.second);
             map<Z3_ast, unsigned> stages;
             for (const auto&pv : builder.prop_vars) {
-                  auto found = remaining.find(pv.idx);
+                  Z3Builder::OrderRef ref = {
+                        Z3Builder::OrderRef::PROP, pv.idx, 0
+                  };
+                  auto found = remaining.find(ref);
                   if (found != remaining.end())
                         stages[pv.var] = final_stage - found->second;
+            }
+            for (const auto&ev : builder.elem_vars) {
+                  Z3Builder::OrderRef ref = {
+                        Z3Builder::OrderRef::ELEM, ev.idx, ev.elem
+                  };
+                  auto found = remaining.find(ref);
+                  if (found != remaining.end())
+                        stages[ev.var] = final_stage - found->second;
             }
             vector<vector<Z3_ast> > components;
             if (!z3_joint_components_(ctx, base, variables, components))

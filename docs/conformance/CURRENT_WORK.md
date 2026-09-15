@@ -20,8 +20,9 @@ records retain their original revisions and limits.
 
 ## Newer focused implementation evidence
 
-[L85 ordered distributions](session_logs/2026-09-14_joint_ordered_distribution.md) records the next
-focused implementation. It does not replace the broad qualification above.
+[L85 ordered distributions](session_logs/2026-09-14_joint_ordered_distribution.md)
+and [L87 selected-element ordering](session_logs/2026-09-14_joint_element_ordering.md)
+record newer focused implementations. They do not replace the broad qualification above.
 
 ## Application evidence
 

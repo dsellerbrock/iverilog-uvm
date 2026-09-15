@@ -187,3 +187,9 @@ from 2017 18.5.4 wording. L85 supports the common fully feasible-range subset
 and rejects unsupported fibers before drawing, without claiming that edition
 difference implemented. Shared scope and paired evidence belong to the
 [2017 matrix L85 entry](matrices/ieee1800_2017_clause_matrix.md#l85--joint-ordered-distributions).
+
+## L87 shared selected-element ordering evidence
+
+The paired fixed integral-element tests exercise the common ordering semantics
+of 2017 18.5.10 and 2023 18.5.9. Shared scope/evidence belong to the
+[2017 matrix L87 entry](matrices/ieee1800_2017_clause_matrix.md#l87--joint-selected-element-ordering); this does not add real or dynamic-container ordering support.

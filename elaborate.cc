@@ -30678,12 +30678,54 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_randc_capture_t capture(co, "solve before");
 	    capture.seen = constraint_source_references_randc_(
 		  co, cls, value_slots, scope, loop_env);
+	    auto diagnose_fixed_oob = [&](const PExpr*item) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+		  if (!id || !cls || id->path().package
+		      || id->has_scoped_type_prefix()
+		      || id->path().name.size() != 1)
+			return;
+		  const name_component_t&component = id->path().name.front();
+		  if (component.local_scope || component.index.empty()) return;
+		  int prop = cls->property_idx_from_name(component.name);
+		  const netuarray_t*array = prop < 0 ? nullptr
+			: dynamic_cast<const netuarray_t*>(
+			      cls->get_prop_type((size_t)prop));
+		  if (!array || array->static_dimensions().size()
+			!= component.index.size()) return;
+
+		  size_t dim = 0;
+		  for (const index_component_t&select : component.index) {
+			if (!select.msb || select.lsb
+			    || select.sel != index_component_t::SEL_BIT) return;
+			string index_ir = pexpr_to_constraint_ir(select.msb, cls,
+			      value_slots, scope, loop_env);
+			constraint_const_ir_t value;
+			if (!constraint_parse_const_ir_(index_ir, value)
+			    || value.width > 64) return;
+			uint64_t digit = constraint_resize_const_bits_(
+			      value, 64, value.is_signed);
+			const netrange_t&range = array->static_dimensions()[dim++];
+			digit -= (uint64_t)std::min(
+			      range.get_msb(), range.get_lsb());
+			if (digit < range.width()) continue;
+			if (constraint_ir_design_ctx_
+			    && constraint_ir_design_ctx_
+			         ->mark_constraint_order_diagnostic(item)) {
+			      cerr << item->get_fileline()
+			           << ": error: selected fixed-array target of 'solve before' "
+			           << "is outside its declared range." << endl;
+			      constraint_ir_design_ctx_->errors += 1;
+			}
+			return;
+		  }
+	    };
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
+			if (s.empty()) diagnose_fixed_oob(item);
 			  // Ordering may name a scalar rand property, a dynamic
 			  // container size, or a statically selected rand-array
 			  // element. The runtime retains the complete identity so
