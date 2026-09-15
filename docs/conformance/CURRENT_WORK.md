@@ -27,7 +27,7 @@ Latest focused runtime increment: [L109 independent cyclic components](session_l
 The [L108 OpenTitan smoke replay](session_logs/2026-09-15_implicit_property_method_lookup.md)
 records a fresh passing original-UVM-1.2 debug-crossbar workload after the
 lookup repair. It is scoped to one core/default run; broader qualification
-remains pending.
+remains pending. A [runtime-only replay on L109](session_logs/2026-09-15_opentitan_l109_runtime_validation.json) also passes using the same compiled workload and default seed.
 
 The [Caliptra include adapter and runtime replay](session_logs/2026-09-15_caliptra_include_overlay.md)
 records the selected paired compile replay and a failed unmodified checked

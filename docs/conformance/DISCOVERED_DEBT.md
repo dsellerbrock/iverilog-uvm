@@ -1741,3 +1741,14 @@ expectations that differ from the unchanged L108 frontend. Evidence and exact
 names are in `session_logs/2026-09-15_joint_ordered_independent_randc_validation.json`.
 These are not in main manifests; record-only, not repaired under L109. Reassess
 against their original semantic intent before updating expectations.
+
+## Application seed selection — 2026-09-15
+
+During the L110/L111 checkpoint, an additional-seed OpenTitan replay could not
+be selected through the current VVP interface. `vvp -h` exposes no seed option;
+`design_root_rng_state_` in `vvp/vthread.cc` is initialized to a fixed constant
+and has no seed setter. UVM1.2 derives its global seed from `$urandom`.
+Do not count arbitrary ignored seed plusargs as seed diversity. This is a DV
+workflow capability gap, not a claim that IEEE mandates a particular CLI.
+Record-only while coverage owns vthread.cc; future work should expose and test
+reproducible root-seed control without changing per-process/object stability.

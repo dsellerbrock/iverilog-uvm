@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan-after-l108/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-runtime.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=xbar_base_test",
+    "+UVM_TEST_SEQ=xbar_smoke_vseq"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan-after-l109",
+  "exit": 0,
+  "seconds": 16.00963833300011,
+  "runtime_sha256": "154aa9ff02a9a3f4e1344ce95735c47ab7878a528b0a9a6d620903142ed67c7b",
+  "compiled_artifact_sha256": "4b70408b313759ba4730f618346a3ee7098adee3704b9b9e4c18897886597033",
+  "compile_provenance": "L108 existing unmodified workload, no recompile",
+  "runtime_revision": "6d346269f",
+  "explicit_seed": null,
+  "pass_banner": true,
+  "log": "src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:190: Warning: Calling system function $system() as a task.\nsrc/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:190:          The functions return value will be ignored.\nUVM_INFO @ 0 ps: reporter [RNTST] Running test xbar_base_test...\nUVM_INFO @ 102626255 ps: (xbar_base_vseq.sv:100) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq] uvm_test_top.env.dbg_agent.sequencer.dbg_seq finished sending 190 requests\nUVM_INFO @ 107626255 ps: (scoreboard.sv:159) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Totally 380 items processed\nUVM_INFO @ 107626255 ps: (uvm_report_catcher.svh:705) [UVM/REPORT/CATCHER] \n--- UVM Report catcher Summary ---\n\n\nNumber of demoted UVM_FATAL reports  :    0\nNumber of demoted UVM_ERROR reports  :    0\nNumber of demoted UVM_WARNING reports:    0\nNumber of caught UVM_FATAL reports   :    0\nNumber of caught UVM_ERROR reports   :    0\nNumber of caught UVM_WARNING reports :    0\n\nUVM_INFO @ 107626255 ps: (uvm_report_server.svh:847) [UVM/REPORT/SERVER] \n--- UVM Report Summary ---\n\nQuit count :     0 of    50\n** Report counts by severity\nUVM_INFO :    4\nUVM_WARNING :    0\nUVM_ERROR :    0\nUVM_FATAL :    0\n** Report counts by id\n[RNTST]     1\n[UVM/REPORT/CATCHER]     1\n[uvm_test_top.env.scoreboard]     1\n[uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq]     1\n\n\nTEST PASSED CHECKS\n _____         _                                  _ _ \n|_   _|__  ___| |_   _ __   __ _ ___ ___  ___  __| | |\n  | |/ _ \\/ __| __| | '_ \\ / _` / __/ __|/ _ \\/ _` | |\n  | |  __/\\__ \\ |_  | |_) | (_| \\__ \\__ \\  __/ (_| |_|\n  |_|\\___||___/\\__| | .__/ \\__,_|___/___/\\___|\\__,_(_)\n                    |_|                               \n\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src/base/uvm_root.svh:517: $finish called at 107626255 (1ps)\n",
+  "status": "PASS: one default-seed workload, reused L108 compile artifact",
+  "requests": 190,
+  "scoreboard_items": 380,
+  "uvm_warnings": 0,
+  "uvm_errors": 0,
+  "uvm_fatals": 0,
+  "corpus_revision": "7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19",
+  "uvm": "unmodified Accellera UVM1.2",
+  "scope": "Runtime compatibility check only; not additional seed coverage or fresh compile qualification"
+}
