@@ -1,0 +1,4 @@
+./ivltests/sv_constraint_multiprefix_fail.v:4: error: Array reduction method sum() requires a one-dimensional fixed-array receiver after constant prefix selection.
+./ivltests/sv_constraint_multiprefix_fail.v:5: error: Array reduction method sum() has an out-of-bounds fixed-array prefix index.
+./ivltests/sv_constraint_multiprefix_fail.v:6: error: Array reduction method sum() requires a constant fixed-array prefix index.
+3 error(s) during elaboration.

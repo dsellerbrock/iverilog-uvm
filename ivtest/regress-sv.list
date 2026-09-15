@@ -3261,3 +3261,13 @@ sv_constraint_function_conditional_nested_handle normal,-g2017,-s,test ivltests 
 sv_constraint_function_conditional_nested_handle_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_conditional_nested_handle.gold
 sv_constraint_function_conditional_nested_scopes normal,-g2017,-s,test ivltests gold=sv_constraint_function_conditional_nested_scopes.gold
 sv_constraint_function_conditional_nested_scopes_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_conditional_nested_scopes.gold
+
+# Multidimensional selected-row reductions.
+sv_constraint_multiprefix_state normal,-g2017,-s,test ivltests gold=sv_constraint_multiprefix_state.gold
+sv_constraint_multiprefix_state_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_multiprefix_state.gold
+sv_constraint_multiprefix_active normal,-g2017,-s,test ivltests gold=sv_constraint_multiprefix_active.gold
+sv_constraint_multiprefix_active_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_multiprefix_active.gold
+sv_constraint_multiprefix_rank4 normal,-g2017,-s,test ivltests gold=sv_constraint_multiprefix_rank4.gold
+sv_constraint_multiprefix_rank4_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_multiprefix_rank4.gold
+sv_constraint_multiprefix_fail CE,-g2017,-s,test ivltests gold=sv_constraint_multiprefix_fail.gold
+sv_constraint_multiprefix_fail_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_multiprefix_fail.gold

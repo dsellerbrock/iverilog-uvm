@@ -1915,3 +1915,19 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   qualify all Clause18, IEEE1800.2, or whole unmodified OpenTitan/Caliptra DV.
 - **Evidence:** session_logs/2026-09-14_constraint_function_presolve.md and
   its companion _qualification.json; failed earlier batches remain preserved.
+
+### L65 — Multiple prefix indices on constrained fixed-array reductions
+
+- **State:** IMPLEMENTED; focused tests pass; batch regression deferred.
+- **Active ID:** CONSTRAINT-MULTIPREFIX-REDUCTION.
+- **Authority:** IEEE1800-2017 7.12.3/18.5.8.2; IEEE1800-2023 7.12.3/18.5.7.2.
+- **Reproducer:** evidence/constraint-multidim-reductions-l65/selected-row.sv
+  is rejected in both editions on qualified localmain9ad50ce52.
+- **Root cause:** reduction admission permits at most one selected prefix,
+  and canonicalization only processes that first dimension.
+- **Scope:** multiple constant prefix indices leaving one fixed integral
+  unpacked dimension, all five reductions, normal with-expression semantics,
+  exact active/state element identity, bounds and transactional rollback.
+  Runtime-selected prefixes are a separate solver-expression capability.
+
+L65 validation: root2/2, independent4/4 positive and2 paired negative cases, permanent8/8 each harness, neighbors6/6 each. Stable artifacts. All five reductions preserve exact selected row, width/sign, index(), modes and rollback. User cadence defers full suite to about ten features.
