@@ -1,14 +1,14 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: PARALLEL-L106-L107
+current_blocker: L108-IMPLICIT-OBJECT-METHOD-LOOKUP
 phase: opentitan_lookup_implementation_and_caliptra_configuration_assessment
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l105_archive.yaml
 integrated_since_last_broad_batch:
-  count: 0
-  revisions: []
+  count: 2
+  revisions: [415823320, 0a5293059]
 latest_broad_qualification:
   integration_revision: 053e07d373c0fbd94f16eddae63b7ccc0327000c
   semantic_revision: 366ef2bf1
@@ -18,11 +18,11 @@ current_candidate:
   base_revision: 05b0c44e1
   installed_semantic_revision: 366ef2bf1
   installed_fingerprints: evidence/batch-20260915-after-l95/l105-final-fingerprints.json
-  shared_process: none; broad orchestrator93732 exited0 and source/artifact audit passed.
+  shared_process: None. L108 void build92553 failed before installation; installed candidate retains earlier L108 expression attempt. Focused L106/L107 checks passed; real OpenTitan replay pending repair.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Implement authorized L108 lookup fix in elab_expr.cc while second existing agent verifies Caliptra provider closure and assesses the exposed caliptra_axi_sram netlist.cc602 abort. Preserve frozen L106/L107; coordinator builds after source freeze, runs focused tests, then retries original OpenTitan smoke.
+  next_action: Implement authorized L108 lookup fix in elab_expr.cc while second existing agent verifies Caliptra provider closure and assesses the exposed caliptra_axi_sram netlist.cc602 abort. L106/L107 are integrated and focused-tested; coordinator builds L108 after source freeze, runs focused tests, then retries original OpenTitan smoke.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.

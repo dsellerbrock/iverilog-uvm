@@ -61,11 +61,13 @@ application_implementation:
   reproducer: evidence/application-check-20260915/opentitan/lookup-reducer/ASSESSMENT.md
   actual: Two dotted calls on an implicit-this property are rejected as bare parameterized class scope calls in both editions; explicit-this runtime controls pass.
   expected: Resolve the object property according to lexical/member lookup before unrelated outer class names; preserve actual scope-resolution restrictions.
-  owns: [elab_expr.cc, elaborate.cc]
+  owns: [elab_expr.cc, elaborate.cc, Statement.h, parse.y, pform.cc]
   fixture_prefix: sv_implicit_property_method_collision
-  scope: Correct PECallFunction width/elaboration and PCallTask void-method receiver dispatch using existing receiver resolution; preserve indexes, arguments, line information and single evaluation. No parser/runtime/library/upstream edits.
+  scope: Correct PECallFunction width/elaboration and PCallTask void-method receiver dispatch using existing receiver resolution; preserve indexes, arguments, line information and single evaluation. Only PCallTask scoped-prefix provenance in parser/carrier code; no grammar-language broadening, runtime/library/upstream edits.
   dependencies: Existing explicit-this receiver dispatch; no dependency on frozen L106/L107 patches.
   acceptance: Paired runtime void/value methods, null guard, inherited/protected and indexed properties, local/argument shadowing, unit/imported parameterized name collision, explicit-this equivalence; genuine bare generic scope, static context, missing member and access/specialization negatives; focused neighboring class tests and real unmodified OpenTitan smoke replay.
   preservation: L106/L107 remain unchanged; coordinator owns builds/install/shared harnesses/manifests/docs/review/integration.
 
 L108_scope_refinement: Exact void-call diagnostic traced to PCallTask::elaborate_method_ in elaborate.cc14972; elab_expr-only candidates did not fix reducer. Coordinator authorizes paired void/value dispatch fix, preserving all negative scope checks.
+
+L108_provenance_refinement: PCallTask drops dot-versus-scope syntax provenance. L107 is integrated, freeing pform.cc ownership. Authorize minimal bool carrier and propagation through parse construction/copies to preserve genuine scoped-call rejection; audit all constructors/conversions, retain Bison conflict signature.
