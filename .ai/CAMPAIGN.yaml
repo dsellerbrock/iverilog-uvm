@@ -54,7 +54,7 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: Full serial build/install of L73/L74 final candidate; focused fingerprints in latest session validation records. Seven broad gates passed; final artifacts stable.
+installed_tools: L78 compiler, L77 target and L75 runtime; focused artifact hashes recorded in L77/L78 validation. Last broad qualification remains the separate L65-L74 candidate.
 pending_gates: PR283 required cross-platform CI; focused checks and later broad qualification for the next independent batch.
 next_action: Implement authorized independent L79/L80 lanes after integrating L77/L78; coordinator owns builds, harnesses and review. Keep PR283 branch fixed.
 next_command: git diff --stat
@@ -62,7 +62,7 @@ next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-cam
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
 
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_runtime_string_character_compound.md
+latest_focused_evidence: docs/conformance/session_logs/2026-09-14_constant_string_comparison.md
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
@@ -86,6 +86,8 @@ current_batch:
   focused_features: 4
   integrated_l75: f95f0bc11
   integrated_l76: 24feb1f28
+  integrated_l77: d11c3852c
+  integrated_l78: cf34519c0
   selected_lanes: [L79, L80]
   source_edits: New lanes authorized after current failing reproducers; L75-L78 focused qualification only.
 
