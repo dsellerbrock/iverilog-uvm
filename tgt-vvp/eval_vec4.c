@@ -2341,6 +2341,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       ivl_expr_t prop_word = 0;
       ivl_type_t prop_type = 0;
       bool is_property = false;
+      bool is_property_select = false;
       bool is_array_word = false;
       bool is_signal_select = false;
       bool is_array_word_select = false;
@@ -2364,8 +2365,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	  case IVL_EX_SELECT: {
 		ivl_expr_t e1 = ivl_expr_oper1(sub);
 		select_base = ivl_expr_oper2(sub);
-		if (!e1 || ivl_expr_type(e1) != IVL_EX_SIGNAL
-		    || !ivl_expr_signal(e1) || !select_base) {
+		if (!e1 || !select_base
+		    || (ivl_expr_type(e1) != IVL_EX_SIGNAL
+		        && ivl_expr_type(e1) != IVL_EX_PROPERTY)) {
 		      fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
 		              "++/-- destination.\n",
 		              ivl_expr_file(sub), ivl_expr_lineno(sub));
@@ -2373,7 +2375,39 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		      draw_eval_vec4(sub);
 		      return;
 		}
+		if (ivl_expr_type(e1) == IVL_EX_PROPERTY) {
+		      pidx = ivl_expr_property_idx(e1);
+		      prop_sig = ivl_expr_signal(e1);
+		      prop_base = ivl_expr_oper2(e1);
+		      prop_word = ivl_expr_oper1(e1);
+		      prop_type = property_expr_type_(e1);
+		      if (pidx == (unsigned)-1 || (!prop_sig && !prop_base)
+		          || prop_word
+		          || (ivl_expr_value(e1) != IVL_VT_LOGIC
+		              && ivl_expr_value(e1) != IVL_VT_BOOL)) {
+			    fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
+			            "property ++/-- destination.\n",
+			            ivl_expr_file(sub), ivl_expr_lineno(sub));
+			    vvp_errors += 1;
+			    draw_eval_vec4(sub);
+			    return;
+		      }
+		      is_property = true;
+		      is_property_select = true;
+		      lab_null = local_count++;
+		      lab_out = local_count++;
+		      wid = ivl_expr_width(sub);
+		      break;
+		}
 		sig = ivl_expr_signal(e1);
+		if (!sig) {
+		      fprintf(stderr, "%s:%u: vvp.tgt error: unsupported packed "
+		              "++/-- destination.\n",
+		              ivl_expr_file(sub), ivl_expr_lineno(sub));
+		      vvp_errors += 1;
+		      draw_eval_vec4(sub);
+		      return;
+		}
 		if (ivl_signal_dimensions(sig) > 0) {
 		      array_word = ivl_expr_oper1(e1);
 		      if (!array_word) {
@@ -2460,6 +2494,21 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_value);
 	    } else {
 		  fprintf(vvp_out, "    %%prop/v %u;\n", pidx);
+		  if (is_property_select) {
+			select_index = allocate_word();
+			select_flag = allocate_flag();
+			draw_eval_vec4(select_base);
+			fprintf(vvp_out, "    %%dup/vec4; preserve packed property select base\n");
+			fprintf(vvp_out, ivl_expr_signed(select_base)
+			      ? "    %%ix/vec4/s %d; packed property select base\n"
+			      : "    %%ix/vec4 %d; packed property select base\n",
+			      select_index);
+			fprintf(vvp_out, "    %%flag_mov %d, 4; preserve packed property select validity\n",
+			        select_flag);
+			fprintf(vvp_out, ivl_expr_signed(select_base)
+			      ? "    %%part/s %u; increment selected property value\n"
+			      : "    %%part/u %u; increment selected property value\n", wid);
+		  }
 	    }
 	  } else if (is_array_word_select) {
 	    array_index = allocate_word();
@@ -2531,7 +2580,14 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range property store\n",
 			        thread_count, lab_skip_store, prop_range_flag);
 		  }
-		  if (prop_word)
+		  if (is_property_select) {
+			fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed property select validity\n",
+			        select_flag);
+			fprintf(vvp_out, ivl_expr_signed(select_base)
+			      ? "    %%store/prop/v/bits/x %u, %d, %u;\n"
+			      : "    %%store/prop/v/bits/ux %u, %d, %u;\n",
+			      pidx, select_index, wid);
+		  } else if (prop_word)
 			fprintf(vvp_out, "    %%store/prop/v/i %u, %d, %u;\n",
 			        pidx, prop_index, wid);
 		  else
@@ -2582,7 +2638,14 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range property store\n",
 			        thread_count, lab_skip_store, prop_range_flag);
 		  }
-		  if (prop_word)
+		  if (is_property_select) {
+			fprintf(vvp_out, "    %%flag_mov 4, %d; restore packed property select validity\n",
+			        select_flag);
+			fprintf(vvp_out, ivl_expr_signed(select_base)
+			      ? "    %%store/prop/v/bits/x %u, %d, %u;\n"
+			      : "    %%store/prop/v/bits/ux %u, %d, %u;\n",
+			      pidx, select_index, wid);
+		  } else if (prop_word)
 			fprintf(vvp_out, "    %%store/prop/v/i %u, %d, %u;\n",
 			        pidx, prop_index, wid);
 		  else
@@ -2630,6 +2693,10 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    if (prop_index) clr_word(prop_index);
 	    if (prop_x_flag >= 0) clr_flag(prop_x_flag);
 	    if (prop_range_flag >= 0) clr_flag(prop_range_flag);
+	    if (is_property_select) {
+		  clr_word(select_index);
+		  clr_flag(select_flag);
+	    }
 	  } else if (is_array_word_select) {
 	    clr_word(array_index);
 	    clr_flag(array_flag);

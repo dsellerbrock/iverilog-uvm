@@ -1945,7 +1945,7 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 - **State:** IMPLEMENTED for the evidenced subset; broad batch pending.
 - **Origin:** DD-030 selected-width runtime aborts and context-width rejection.
-- **Scope:** scalar packed-signal selections and scalar function-return storage; fixed-array receivers are addressed by L68; property receivers and bounded inner-carrier cases remain open.
+- **Scope:** scalar packed-signal selections and scalar function-return storage; fixed-array receivers are addressed by L68; scalar property receivers are addressed by L69; property-array and bounded inner-carrier cases remain open.
 - **Evidence:** [L67 session](session_logs/2026-09-14_packed_select_increment.md).
 - **Standards disposition:** [Clause11 refinement](matrices/ieee1800_2017_clause_matrix.md#l67--packed-select-incrementdecrement-expressions-1136-1142).
 
@@ -1953,5 +1953,13 @@ L65 validation: root2/2, independent4/4 positive and2 paired negative cases, per
 
 - **State:** IMPLEMENTED for the focused subset; broad batch pending.
 - **Origin:** L67 retained a focused rejection for selected fixed-array words.
-- **Scope:** fixed-array word and packed-index capture, bounds, result widths, automatic/return storage. Class-property receiver and bounded inner-carrier work remain open.
+- **Scope:** fixed-array word and packed-index capture, bounds, result widths, automatic/return storage. Scalar class-property receivers are addressed by L69; property-array and bounded inner-carrier work remain open.
 - **Evidence:** [L68 session](session_logs/2026-09-14_array_packed_increment.md).
+
+### L69 — Scalar class-property packed-select increment/decrement
+
+- **State:** IMPLEMENTED for the focused subset; broad batch pending.
+- **Scope:** scalar integral property bit/part pre/post updates, captured receiver,
+  bounds, contexts, inheritance/nesting, and readonly diagnostics.
+- **Limit:** selected unpacked-array properties remain unsupported.
+- **Evidence:** [L69 session](session_logs/2026-09-14_class_packed_increment.md).

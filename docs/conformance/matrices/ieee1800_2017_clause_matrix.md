@@ -1315,3 +1315,13 @@ Array indexing references are 2017 7.4.6 and 2023 7.4.5; both editions use
 11.4.2 and 11.5.1 for the update and packed select. See the
 [L68 evidence](../session_logs/2026-09-14_array_packed_increment.md) for scope,
 results and pending broad qualification.
+
+### L69 — Packed-select updates within scalar class properties
+
+IMPLEMENTED for the evidenced scalar integral class-property bit/part increment
+and decrement expressions. The receiver is captured before the packed base is
+evaluated, the base is evaluated once, and existing partial-property stores
+preserve neighboring bits and typed invalid-selection behavior. Selected
+unpacked-array properties remain unsupported. See the
+[L69 evidence](../session_logs/2026-09-14_class_packed_increment.md); broad batch
+qualification remains pending.

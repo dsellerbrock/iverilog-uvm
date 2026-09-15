@@ -1,0 +1,30 @@
+{
+  "scope": "L69 focused scalar class-property packed-select updates; broad qualification pending",
+  "source_base": "9aa3b3816",
+  "source_sha256": {
+    "tgt-vvp/eval_vec4.c": "afa0ce335ba2a362db76adad7e7a2cd5fe4ceb1892ad72a9c7a76ec996ac2fa6"
+  },
+  "artifacts": {
+    "local-install/bin/iverilog": "75f4c2cb870549334442cef65d668b31c7d2a50d8a756e1e98118759eb4dcaad",
+    "local-install/bin/vvp": "5916fdcc543cd4c6cc0c6e7269828f8aa6566460dbade4d30e6f0eb0523bd6ed",
+    "local-install/lib/ivl/ivl": "15db8eece1488084f00dcebf3773cd900347c18b8f15f54b8ef3f70d3e0283f6",
+    "local-install/lib/ivl/vvp.tgt": "82b842534ae464457977390c89bee97fa0d48a289e04320d090049f0947d4ee6"
+  },
+  "root_paired_outcomes": 26,
+  "permanent_legacy": 10,
+  "permanent_json": 10,
+  "broad_qualified": false,
+  "evidence": [
+    "evidence/class-packed-incdec-l69/candidate/results.json",
+    "evidence/class-packed-incdec-l69/permanent-legacy.log",
+    "evidence/class-packed-incdec-l69/permanent-json.log",
+    "evidence/class-packed-incdec-l69/neighbors.json"
+  ],
+  "neighbors_json": {
+    "l67": 8,
+    "l68": 8,
+    "whole_property_increment": 4,
+    "property_offsets": 8,
+    "property_compound_signed": 2
+  }
+}

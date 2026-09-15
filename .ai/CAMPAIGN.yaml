@@ -1,6 +1,6 @@
 status: active
 branch: agent/typed-array-return-20260914
-current_blocker: ARRAY-PACKED-SELECT-INCREMENT
+current_blocker: CLASS-PACKED-SELECT-INCREMENT
 phase: focused_feature_checkpoint
 source_revision: 7e44ed0dd
 documentation_sync_revision: 1decd88ef
@@ -24,7 +24,7 @@ published_work:
     export_revision: 1b41c8e4c
     published_head: 34dc9e16a
     current_ci_run: 34920408447
-    current_ci_observation: All platform builds passed; regression jobs remain running after external merge. No full CI pass claimed.
+    current_ci_observation: All platform builds and Ubuntu22/24 regressions passed; macOS and three Windows regression jobs remain running after external merge. No full CI pass claimed.
     prior_ci_run: 34919528675
     prior_ci_observation: Linux/macOS builds passed; Windows failed missing exports; Linux/macOS regressions were still running.
     pending: Windows linkage and full required CI on the updated head
@@ -38,16 +38,16 @@ preserved_local_batch:
   l66_revision: 711e54893
   l67_revision: 57ccfa80d
   l68_revision: 7e44ed0dd
-  focused_features: 4
+  focused_features: 5
   status: Focused tests passed; full batch qualification pending; not published
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: Built for L68 candidate; exact driver/compiler/runtime/target fingerprints in evidence/array-packed-incdec-l68/candidate/results.json.
+installed_tools: Built for L69 candidate; exact driver/compiler/runtime/target fingerprints in evidence/class-packed-incdec-l69/candidate/results.json.
 pending_gates: Updated PR281 cross-platform CI; next feature batch broad gates at the user-requested approximately ten-feature checkpoint.
-next_action: Preserve L68 tested checkpoint and select the next bounded requirement. Observe PR281 CI separately; broad batch qualification remains pending.
+next_action: Preserve L69 focused checkpoint and select the next bounded requirement; observe PR281 CI separately.
 next_command: gh run view 34920408447 --json status,jobs
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
 
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_array_packed_increment.md
+latest_focused_evidence: docs/conformance/session_logs/2026-09-14_class_packed_increment.md

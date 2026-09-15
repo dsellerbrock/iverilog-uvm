@@ -1,0 +1,2 @@
+ivltests/sv_class_packed_select_incdec_fail.v:7: error: Property readonly_value is constant in this method. (scope=sv_class_packed_select_incdec_fail)
+1 error(s) during elaboration.
