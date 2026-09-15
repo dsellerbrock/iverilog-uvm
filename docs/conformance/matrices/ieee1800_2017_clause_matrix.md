@@ -1382,3 +1382,7 @@ IMPLEMENTED within the [recorded scope](../session_logs/2026-09-14_constant_stri
 ### L81 — Fixed-array string-character compound stores
 
 IMPLEMENTED within the [evidenced scope](../session_logs/2026-09-14_array_string_character_compound.md); array function returns and broad qualification remain separate.
+
+### L82 — Constant string-to-integer conversions
+
+IMPLEMENTED for the four methods using the [shared parser](../session_logs/2026-09-14_constant_string_integer.md); broad batch qualification remains pending.

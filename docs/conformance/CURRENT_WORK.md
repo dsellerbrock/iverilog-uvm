@@ -67,3 +67,5 @@ The same focused batch now also includes [L77](session_logs/2026-09-14_string_ch
 Focused [L79](session_logs/2026-09-14_array_string_character_store.md) and [L80](session_logs/2026-09-14_constant_string_substr.md) evidence extends the same unqualified batch.
 
 [L81 focused evidence](session_logs/2026-09-14_array_string_character_compound.md) adds array character compound stores; broad batch qualification remains pending.
+
+[L82 focused evidence](session_logs/2026-09-14_constant_string_integer.md) adds the integer conversion family; broad qualification remains pending.

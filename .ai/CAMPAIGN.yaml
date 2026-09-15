@@ -1,8 +1,8 @@
 status: active
 branch: agent/string-return-uppercase-20260914
-current_blocker: PARALLEL-BATCH-L83-L82
+current_blocker: PARALLEL-BATCH-L83-L84
 phase: parallel_implementation
-source_revision: 45fcf1546
+source_revision: f517397bf
 documentation_sync_revision: 1decd88ef
 main_documentation_revision: fdbb8f34a
 last_broad_qualified_semantic_revision: 374318731
@@ -54,24 +54,24 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: L80 compiler and L79 target/runtime; focused artifact hashes recorded in L79/L80 validation. Last broad qualification remains the separate L65-L74 candidate.
+installed_tools: L82 compiler, L81 target and L79 runtime; focused hashes recorded in L81/L82 validation. Last broad qualification remains the separate L65-L74 candidate.
 pending_gates: PR283 required cross-platform CI; focused checks and later broad qualification for the next independent batch.
-next_action: Implement authorized independent L81/L82 lanes after integrating L79/L80; coordinator owns builds, harnesses and review. Keep PR283 branch fixed.
+next_action: Implement authorized independent L83/L84 lanes then freeze the approximately ten-fix batch for seven broad gates; coordinator owns builds, harnesses and review. Keep PR283 branch fixed.
 next_command: git diff --stat
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.
 merge_requirements: Required CI and explicit merge permissions remain in force. No remote merge authorized by this handoff.
 
-latest_focused_evidence: docs/conformance/session_logs/2026-09-14_constant_string_substr.md
+latest_focused_evidence: docs/conformance/session_logs/2026-09-14_constant_string_integer.md
 
 parallel_authorization: User requested two existing cheaper implementation agents with disjoint ownership; no review-only lane while implementation is available.
 active_lanes:
   - id: L83-ARRAY-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_abi
     files: tgt-vvp/eval_vec4.c
-  - id: L82-CONSTANT-STRING-INTEGER
+  - id: L84-CONSTANT-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_wide
-    files: net_func_eval.cc, netmisc.cc, netmisc.h, elab_expr.cc
+    files: net_func_eval.cc
 shared_execution_owner: coordinator
 parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
 
@@ -83,7 +83,7 @@ l74_status: Integrated374318731; six cases per harness and two additional runtim
 
 current_batch:
   base_revision: 9f79ff51c
-  focused_features: 7
+  focused_features: 8
   integrated_l75: f95f0bc11
   integrated_l76: 24feb1f28
   integrated_l77: d11c3852c
@@ -91,8 +91,9 @@ current_batch:
   integrated_l79: d02896d77
   integrated_l80: eb87a2593
   integrated_l81: 45fcf1546
-  selected_lanes: [L83, L82]
-  source_edits: New lanes authorized after current failing reproducers; L75-L80 focused qualification only.
+  integrated_l82: f517397bf
+  selected_lanes: [L83, L84]
+  source_edits: New lanes authorized after current failing reproducers; L75-L82 focused qualification only.
 
 l76_scope_refinement: Root reproduced tolower in both editions; include both case directions in one evaluator fix under existing ownership. Evidence next-constant-assessment/tolower-baseline.json.
 

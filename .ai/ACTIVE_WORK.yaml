@@ -1,7 +1,7 @@
-id: PARALLEL-BATCH-L83-L82
+id: PARALLEL-BATCH-L83-L84
 title: Coordinator-authorized independent array-storage and constant-evaluator lanes
 status: IMPLEMENTING
-base_revision: 45fcf1546
+base_revision: f517397bf
 authority: "User authorized two existing cheaper implementation agents, disjoint ownership, focused checks per fix and broad qualification near ten integrated fixes."
 coordinator_owns:
   - Shared builds and installation
@@ -19,24 +19,24 @@ lanes:
     test_prefix: sv_array_string_character_incdec
     allowed_scope: "Pre/post increment/decrement on fixed unpacked-array string characters using existing L79 opcode."
     forbidden_scope: "Array returns, dynamic/class receivers, constant evaluator, new runtime opcodes and unrelated selected updates."
-    dependencies: "Integrated L77 scalar character incdec and L79 indexed byte store; independent of L82."
+    dependencies: "Integrated L77 scalar character incdec and L79 indexed byte store; independent of L84."
     acceptance: "Both editions: all four operators, signed widened results and wrap/zero suppression, selector once, word isolation, static/automatic and nonzero declared bounds, invalid/X/wide word and int32 character conversion, empty/negative/OOB, readonly rejection and selected/string neighbors."
-  - id: L82-CONSTANT-STRING-INTEGER
+  - id: L84-CONSTANT-STRING-CHARACTER-INCREMENT
     agent: /root/constraint_wide
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 6.16.9, 13.4.3"
-    reproducer: evidence/batch-20260914-after-l74/l82-constant-string-integer.sv
-    actual: "Both editions reject constant atoi/atohex/atooct/atobin evaluation."
-    expected: "Radix-specific leading digit scan with underscores, first-invalid termination and integer result."
-    owns: [net_func_eval.cc, netmisc.cc, netmisc.h, elab_expr.cc]
-    test_prefix: sv_const_string_integer
-    allowed_scope: "One constant string-to-integer conversion family covering atoi/atohex/atooct/atobin. Move existing direct-fold parser into a shared helper with defined 32-bit modular accumulation; narrowly update direct-fold call sites."
-    forbidden_scope: "Other methods, runtime/target changes and generic fallback redesign."
-    dependencies: "Integrated constant string preservation; independent of L81."
-    acceptance: "Both editions: valid radix digits, underscores, empty/invalid-first/stop-at-invalid, no sign/size/base-prefix parsing, case/high bytes, signed 32-bit boundaries/overflow wrap, unchanged local/argument/repeated receivers, runtime bit/sign parity, arity/type rejection and constant neighbors."
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 6.16.3, 11.4.2, 13.4.3"
+    reproducer: evidence/batch-20260914-after-l74/l84-constant-character-incdec.sv
+    actual: "Both editions fail constant unary evaluation of a string character and assert downstream."
+    expected: "Update a local scalar string character and return the correct signed byte prefix/postfix result."
+    owns: [net_func_eval.cc]
+    test_prefix: sv_const_string_character_incdec
+    allowed_scope: "Scalar local/input-argument/return string character pre/post increment/decrement in constant functions; reuse existing local slots, int indices and byte arithmetic."
+    forbidden_scope: "Array/class/ref receivers, runtime/target changes, generic unsupported fallback redesign and unrelated packed selected updates."
+    dependencies: "Integrated constant string character read/write and runtime L77 parity; independent of L83."
+    acceptance: "Both editions: four forms, signed widened results/wrap, ignored zero stores, selector once, empty/negative/OOB/X/Z/wide indices, local/argument/return isolation, recursive/repeated calls, runtime parity and readonly/nonlocal rejection without abort; scalar unary and string neighbors."
 file_conflict_policy: "Do not edit outside ownership; report necessary expansion to coordinator. Never concurrently edit shared files."
 validation_batch: 20260914_after_l74
-focused_features_completed_in_batch: 7
+focused_features_completed_in_batch: 8
 pending_gates: "Focused lane validation then seven broad gates after approximately ten integrated fixes; PR283 cross-platform CI is separate."
 last_broad_qualified_semantic_revision: 374318731
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l65_l74_qualification.json
