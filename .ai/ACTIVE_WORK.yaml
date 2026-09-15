@@ -1,4 +1,4 @@
-id: PARALLEL-BATCH-L71-L73
+id: PARALLEL-BATCH-L74-L73
 title: Coordinator-authorized independent compiler implementation lanes
 status: IMPLEMENTING
 base_revision: a83b9623c
@@ -8,19 +8,19 @@ coordinator_owns:
   - All legacy and JSON harness execution and shared ivtest/log output
   - Main manifests, shared documentation, integration commits and review
 lanes:
-  - id: L71-NESTED-PACKED-INCREMENT
+  - id: L74-RUNTIME-STRING-CHARACTER-COMPOUND
     agent: /root/constraint_abi
     status: REPRODUCED
-    standards: "IEEE 1800-2017/2023 11.4.1, 11.4.2, 11.5.1"
-    reproducer: evidence/parallel-batch-l71-l72/nested-packed-increment.sv
-    actual: "Both editions reject legal nested packed prefix selection increment at target generation."
-    expected: "Preserve each packed carrier bound, update only overlapping selected bits, return selected-width pre/post value and evaluate indices once."
-    owns: [elab_expr.cc, tgt-vvp/eval_vec4.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
-    test_prefix: sv_nested_packed_incdec
-    allowed_scope: "Nested integral packed-select increment/decrement expression identity, bounded read and writeback, permanent focused tests."
-    forbidden_scope: "Constant-function evaluator, solver, dynamic containers or unrelated assignment redesign."
-    dependencies: "L67-L70 captured selected storage; no dependency on L72."
-    acceptance: "Paired positive pre/post, negative readonly, boundary full/partial invalid inner selects, runtime/unknown/wide indices, exact single evaluation, neighbor preservation; affected selected-update regressions."
+    standards: "IEEE 1800-2017/2023 6.16, 6.16.2, 11.4.1, 10.4"
+    reproducer: evidence/parallel-batch-l71-l72/runtime-string-character-compound.sv
+    actual: "Both editions warn and skip text[index_once()] += 1; text remains ABC and selector call count stays zero."
+    expected: "Read and update selected byte with single selector evaluation; ABC becomes ACC and call count becomes one."
+    owns: [tgt-vvp/stmt_assign.c, tgt-vvp/eval_string.c, vvp/vthread.cc, vvp/codes.h, vvp/compile.cc]
+    test_prefix: sv_string_character_compound
+    allowed_scope: "Runtime compound arithmetic on characters of scalar string variables; reuse existing integral operations and getc/putc machinery."
+    forbidden_scope: "Constant evaluator, lvalue elaboration, parser, whole-string concatenation or unrelated container updates."
+    dependencies: "Existing runtime string character operations; independent of L73 constant evaluator."
+    acceptance: "Paired arithmetic/bitwise/shift controls, selector-once, signed byte and int index conversion, empty/invalid/zero bytes, readonly negative, ordinary locals and argument storage; focused runtime neighbors."
   - id: L73-CONSTANT-STRING-CHARACTER-WRITE
     agent: /root/constraint_wide
     status: REPRODUCED
@@ -28,15 +28,15 @@ lanes:
     reproducer: evidence/parallel-batch-l71-l72/constant-string-character-write.sv
     actual: "Both editions evaluate text[0]=Z on ABC as ABB instead of ZBC in a constant function."
     expected: "String character writes replace the selected byte using putc(int,byte) semantics; invalid indices and zero bytes leave the string unchanged."
-    owns: [net_func_eval.cc]
+    owns: [net_func_eval.cc, elab_lval.cc]
     test_prefix: sv_const_string_character_write
-    allowed_scope: "Constant-function blocking character assignment, shared lvalue read/write normalization and focused permanent regressions."
+    allowed_scope: "Constant-function blocking character assignment, shared lvalue read/write normalization and focused permanent regressions. Narrow elaboration validation of nonlocal character writes is authorized to ensure counted diagnostics for required constant-function contexts; ordinary runtime side effects remain legal."
     forbidden_scope: "Runtime/lowering files owned by L71, parser, global string storage, unrelated evaluator fallbacks."
     dependencies: "Integrated L72 string preservation and character reads at1f2441a23; no dependency on L71."
     acceptance: "Paired first/last byte, local/argument/return, bounds/empty/zero-byte, two-state index conversion, signed-byte conversion, selector-once and compound controls; exact nonlocal-write rejection and L72/evaluator neighbors."
 file_conflict_policy: "Do not edit outside ownership; report required expansion to coordinator. Choose an independent blocker if ownership would overlap."
 validation_batch: 20260914_after_l64
-focused_features_completed_in_batch: 7
+focused_features_completed_in_batch: 8
 pending_gates: "Focused lane checks, then broad required suites after approximately ten integrated fixes and coherent PR publication."
 last_broad_qualified_semantic_revision: 4bc02c51b
 baseline_evidence: evidence/parallel-batch-l71-l72/baseline.json
