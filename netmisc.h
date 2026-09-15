@@ -431,7 +431,11 @@ extern NetExpr*make_checked_canonical_property_index(
 				    const LineInfo*loc,
 				    const std::list<index_component_t>&src,
 				    const netsarray_t*stype,
-				    bool need_const);
+      bool need_const);
+extern NetExpr*make_checked_canonical_packed_prefix(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const std::list<index_component_t>&src, const netranges_t&dims,
+      unsigned long carrier_width);
 
 /*
  * This function takes as input a NetNet signal and adds a constant

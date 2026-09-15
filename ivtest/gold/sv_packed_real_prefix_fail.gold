@@ -1,0 +1,2 @@
+./ivltests/sv_packed_real_prefix_fail.v:4: error: Packed array index 1.50000 cannot be a real value.
+Elaboration failed

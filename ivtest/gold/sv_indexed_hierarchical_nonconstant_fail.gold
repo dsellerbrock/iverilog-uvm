@@ -1,0 +1,3 @@
+./ivltests/sv_indexed_hierarchical_nonconstant_fail.v:9: error: Scope index expression is not constant: index
+./ivltests/sv_indexed_hierarchical_nonconstant_fail.v:10: error: Scope index expression is not constant: 1'bx
+2 error(s) during elaboration.

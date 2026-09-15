@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_runtime_assignment_expression_conversion.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_runtime_assignment_expression_conversion"
+}

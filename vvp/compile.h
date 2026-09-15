@@ -687,6 +687,10 @@ extern void compile_class_property(
 extern void compile_class_interface(char*dispatch_prefix);
 extern void compile_class_static_property(unsigned idx, char*storage);
 extern void compile_class_constraint(char*name, char*ir);
+extern void compile_class_constraint_dep(uint64_t kind, uint64_t property,
+		uint64_t leaf);
+extern void compile_class_constraint_call(uint64_t constraint, char*label,
+		char*method, uint64_t width, uint64_t is_virtual);
 extern void compile_class_covgrp_bin(uint64_t cp_idx, uint64_t prop_idx,
 				     uint64_t lo, uint64_t hi,
 				     uint64_t kind = 0, uint64_t tuple = 0,

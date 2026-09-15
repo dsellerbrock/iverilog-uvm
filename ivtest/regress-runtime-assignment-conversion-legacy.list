@@ -1,0 +1,2 @@
+sv_runtime_assignment_expression_conversion normal,-g2017 ivltests gold=sv_runtime_assignment_expression_conversion.gold
+sv_constant_assignment_expression_restrictions_fail CE,-g2017 ivltests gold=sv_constant_assignment_expression_restrictions_fail.gold

@@ -1,0 +1,1 @@
+`include "ivltests/sv_constraint_function_locator_chained_index_shadow.v"

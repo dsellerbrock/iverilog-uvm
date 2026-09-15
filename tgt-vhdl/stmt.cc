@@ -240,6 +240,11 @@ static int draw_noop(vhdl_procedural *, stmt_container *container,
 
 static vhdl_var_ref *make_assign_lhs(ivl_lval_t lval, vhdl_scope *scope)
 {
+   if (ivl_lval_part_carrier_width(lval)) {
+      error("Packed indexed writes bounded by an enclosing packed element "
+            "are not currently supported by the VHDL target");
+      return NULL;
+   }
    ivl_signal_t sig = ivl_lval_sig(lval);
    if (!sig) {
       error("Only signals as lvals supported at the moment");

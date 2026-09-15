@@ -58,8 +58,9 @@ static struct {
       data_type_t* data_type;
       nettype_t* user_nettype;
       bool interconnect;
+      bool is_const;
 } port_declaration_context = {
-      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false
+      NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -939,6 +940,7 @@ void reset_parser_file_state(void)
       port_declaration_context.data_type = 0;
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
+      port_declaration_context.is_const = false;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -1667,6 +1669,7 @@ static void port_declaration_context_init(void)
       port_declaration_context.data_type = nullptr;
       port_declaration_context.user_nettype = nullptr;
       port_declaration_context.interconnect = false;
+      port_declaration_context.is_const = false;
 }
 
 Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
@@ -1884,6 +1887,7 @@ static Module::port_t *module_declare_port_continuation(
       NetNet::Type nettype;
       PGBuiltin::Type gatetype;
       NetNet::PortType porttype;
+      pform_tf_port_direction_t tf_port_direction;
       ivl_variable_type_t vartype;
       PBlock::BL_TYPE join_keyword;
 
@@ -2387,7 +2391,8 @@ static Module::port_t *module_declare_port_continuation(
 
 %type <nettype>  net_type net_type_opt net_type_or_var net_type_or_var_opt
 %type <gatetype> gatetype switchtype
-%type <porttype> port_direction port_direction_opt tf_port_direction_opt
+%type <porttype> port_direction port_direction_opt
+%type <tf_port_direction> tf_port_direction_opt
 %type <vartype> integer_vector_type
 %type <parmvalue> parameter_value_opt
 %type <parmvalue> type_parameter_value
@@ -7651,19 +7656,19 @@ port_direction_opt
   ;
 
 /* SystemVerilog task/function formal arguments may use qualifiers like
-   "const ref". Parse the direction and ignore const semantics for now. */
+   "const ref". Preserve const separately from the ref direction. */
 tf_port_direction_opt
-  : port_direction_opt { $$ = $1; }
+  : port_direction_opt { $$.direction = $1; $$.is_const = false; }
   | K_const K_ref
-      { $$ = NetNet::PREF;
+      { $$.direction = NetNet::PREF; $$.is_const = true;
 	if (!pform_requires_sv(@2, "Reference port (ref)")) {
-	      $$ = NetNet::PINPUT;
+	      $$.direction = NetNet::PINPUT;
 	}
       }
   | K_ref K_const
-      { $$ = NetNet::PREF;
+	{ $$.direction = NetNet::PREF; $$.is_const = true;
 	if (!pform_requires_sv(@1, "Reference port (ref)")) {
-	      $$ = NetNet::PINPUT;
+	      $$.direction = NetNet::PINPUT;
 	}
       }
   ;
@@ -8597,7 +8602,11 @@ statement_or_null /* IEEE1800-2005: A.6.4 */
   : statement
       { $$ = $1; }
   | attribute_list_opt ';'
-      { $$ = 0; }
+      { PNoop*tmp = new PNoop;
+	FILE_NAME(tmp, @2);
+	pform_bind_attributes(tmp->attributes, $1);
+	$$ = tmp;
+      }
   ;
 
 stream_expression
@@ -8776,7 +8785,9 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 
   : tf_port_direction_opt K_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { std::vector<pform_tf_port_t>*tmp;
-	NetNet::PortType use_port_type = $1;
+	NetNet::PortType use_port_type = $1.direction;
+	bool use_const = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_const : $1.is_const;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
               use_port_type = port_declaration_context.port_type;
 	list<pform_port_t>* port_list = make_port_list($4, @4.lexical_pos, $5, 0);
@@ -8785,7 +8796,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      yyerror(@1, "error: Missing task/function port direction.");
 	      use_port_type = NetNet::PINPUT; // for error recovery
 	}
-	if (($3 == 0) && ($1==NetNet::PIMPLICIT)) {
+	if (($3 == 0) && ($1.direction==NetNet::PIMPLICIT)) {
 		// Detect special case this is an undecorated
 		// identifier and we need to get the declaration from
 		// left context.
@@ -8794,19 +8805,21 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      }
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list);
+					  port_list, false, use_const);
 
 	} else {
 		// Otherwise, the decorations for this identifier
 		// indicate the type. Save the type for any right
 		// context that may come later.
 	      port_declaration_context.port_type = use_port_type;
+	      port_declaration_context.is_const = use_const;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
 	      }
 	      port_declaration_context.data_type = $3;
-	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list);
+	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list,
+					 false, use_const);
 	}
 
 	$$ = tmp;
@@ -8820,7 +8833,9 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
   /* Allow TYPE_IDENTIFIER as port name — type name shadows in local port scope */
   | tf_port_direction_opt K_var_opt data_type_or_implicit TYPE_IDENTIFIER dimensions_opt initializer_opt
       { std::vector<pform_tf_port_t>*tmp;
-	NetNet::PortType use_port_type = $1;
+	NetNet::PortType use_port_type = $1.direction;
+	bool use_const = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_const : $1.is_const;
         if ((use_port_type == NetNet::PIMPLICIT) && (gn_system_verilog() || ($3 == 0)))
               use_port_type = port_declaration_context.port_type;
 	/* make_port_list takes ownership of $4.text and deletes it */
@@ -8830,18 +8845,20 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      yyerror(@1, "error: Missing task/function port direction.");
 	      use_port_type = NetNet::PINPUT;
 	}
-	if (($3 == 0) && ($1==NetNet::PIMPLICIT)) {
+	if (($3 == 0) && ($1.direction==NetNet::PIMPLICIT)) {
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list);
+					  port_list, false, use_const);
 	} else {
 	      port_declaration_context.port_type = use_port_type;
+	      port_declaration_context.is_const = use_const;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
 	      }
 	      port_declaration_context.data_type = $3;
-	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list);
+	      tmp = pform_make_task_ports(@3, use_port_type, $3, port_list,
+					 false, use_const);
 	}
 
 	$$ = tmp;
@@ -8864,6 +8881,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 tf_port_list /* IEEE1800-2005: A.2.7 */
   :   { port_declaration_context.port_type = gn_system_verilog() ? NetNet::PINPUT : NetNet::PIMPLICIT;
 	port_declaration_context.data_type = 0;
+	port_declaration_context.is_const = false;
       }
     tf_port_item_list
       { $$ = $2; }
@@ -18593,10 +18611,6 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = new PNoop;
       }
 
-  /* IEEE 1800-2012 §26.7: package import inside function/task body */
-  | package_import_declaration
-      { $$ = new PNoop; }
-
   ;
 
   /* Randsequence production grammar (IEEE 1800-2017 A.5.2).  The parse
@@ -18667,7 +18681,12 @@ rs_formal
   | K_const K_ref data_type IDENTIFIER initializer_opt
       { rs_formal_t*f = new rs_formal_t;
 	f->name = lex_strings.make($4); f->type = $3;
-	f->direction = NetNet::PREF; f->default_expr = $5;
+	f->direction = NetNet::PREF; f->is_const = true; f->default_expr = $5;
+	FILE_NAME(f, @4); delete[] $4; $$ = f; }
+  | K_ref K_const data_type IDENTIFIER initializer_opt
+      { rs_formal_t*f = new rs_formal_t;
+	f->name = lex_strings.make($4); f->type = $3;
+	f->direction = NetNet::PREF; f->is_const = true; f->default_expr = $5;
 	FILE_NAME(f, @4); delete[] $4; $$ = f; }
   ;
 
@@ -18843,10 +18862,32 @@ statement_or_null_list
 	if ($2) tmp->push_back($2);
 	$$ = tmp;
       }
+  /* Imports update lexical lookup while parsing and emit no statement.
+     Keep them on the top-level block/routine list so they cannot appear as
+     conditional or loop substatements. The empty executable list identifies
+     the declaration prefix, including declarations routed through the
+     statement grammar by its existing conflict resolution. */
+  | statement_or_null_list package_import_declaration
+      { if (!$1->empty())
+	      yyerror(@2, "error: Package imports must precede statements in a procedural block.");
+	$$ = $1;
+      }
+  | statement_or_null_list attribute_instance_list package_import_declaration
+      { if (!$1->empty())
+	      yyerror(@3, "error: Package imports must precede statements in a procedural block.");
+	pform_discard_call_attributes($2);
+	$$ = $1;
+      }
   | statement_or_null
       { std::vector<Statement*>*tmp = new std::vector<Statement*>(0);
 	if ($1) tmp->push_back($1);
 	$$ = tmp;
+      }
+  | package_import_declaration
+      { $$ = new std::vector<Statement*>; }
+  | attribute_instance_list package_import_declaration
+      { pform_discard_call_attributes($1);
+	$$ = new std::vector<Statement*>;
       }
   ;
 

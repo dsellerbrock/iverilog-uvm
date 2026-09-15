@@ -1,0 +1,2 @@
+./ivltests/sv_indexed_hierarchical_missing_task_fail.v:6: error: Enable of unknown task ``dut['sd1].missing''.
+Elaboration failed

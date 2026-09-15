@@ -1728,6 +1728,12 @@ extern ivl_expr_t  ivl_lval_idx(ivl_lval_t net);
 extern int         ivl_lval_is_array_slice(ivl_lval_t net);
 extern int         ivl_lval_is_queue_slice(ivl_lval_t net);
 extern ivl_expr_t  ivl_lval_part_off(ivl_lval_t net);
+/* A nonzero carrier width bounds an indexed packed part select to one
+ * statically selected packed element. part_off remains an absolute canonical
+ * bit offset in the complete signal; carrier_off is absolute as well. */
+extern uint64_t ivl_lval_part_carrier_off(ivl_lval_t net);
+extern unsigned ivl_lval_part_carrier_width(ivl_lval_t net);
+extern ivl_expr_t ivl_lval_dynamic_part_carrier(ivl_lval_t net);
 extern ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net);
 extern ivl_stream_range_t ivl_lval_stream_range(ivl_lval_t net);
 extern ivl_expr_t ivl_lval_stream_range_first(ivl_lval_t net);
@@ -2263,6 +2269,8 @@ extern int         ivl_signal_lsb(ivl_signal_t net) __attribute__((deprecated));
 extern unsigned    ivl_signal_width(ivl_signal_t net);
 extern ivl_signal_port_t ivl_signal_port(ivl_signal_t net);
 extern int         ivl_signal_module_port_index(ivl_signal_t net);
+/* True for a SystemVerilog const variable/formal, including const ref. */
+extern int         ivl_signal_const(ivl_signal_t net);
 extern int         ivl_signal_signed(ivl_signal_t net);
 extern int         ivl_signal_integer(ivl_signal_t net);
 extern int         ivl_signal_local(ivl_signal_t net);
@@ -2709,6 +2717,20 @@ extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
 extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);
 extern const char* ivl_type_constraint_ir(ivl_type_t net, int idx);
+extern int         ivl_type_constraint_state_calls(ivl_type_t net);
+extern int         ivl_type_constraint_state_call_constraint(ivl_type_t net, int idx);
+extern const char* ivl_type_constraint_state_call_scope_name(ivl_type_t net, int idx);
+extern unsigned    ivl_type_constraint_state_call_width(ivl_type_t net, int idx);
+extern int         ivl_type_constraint_state_call_signed(ivl_type_t net, int idx);
+extern int         ivl_type_constraint_state_call_virtual(ivl_type_t net, int idx);
+
+extern unsigned ivl_type_constraint_state_call_deps(ivl_type_t net, int idx);
+extern unsigned ivl_type_constraint_state_call_dep(ivl_type_t net, int idx,
+    unsigned dep);
+extern unsigned ivl_type_constraint_state_call_dep_kind(ivl_type_t net, int idx,
+    unsigned dep);
+extern unsigned ivl_type_constraint_state_call_dep_leaf(ivl_type_t net, int idx,
+    unsigned dep);
 
 /* Covergroup bin metadata on synthesized covergroup class types.
  * Only valid when the class type represents a covergroup. */

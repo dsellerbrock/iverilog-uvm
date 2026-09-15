@@ -38,6 +38,22 @@ static bool loop_break;
 static bool loop_continue;
 static bool randsequence_break;
 static bool randsequence_return;
+
+static bool const_index_int64_(const verinum&value, int64_t&result)
+{
+      if (!value.is_defined()) return false;
+      bool negative = false;
+      uint64_t magnitude = verinum_signed_magnitude(value, negative);
+      if (negative) {
+	    if (magnitude > uint64_t(INT64_MAX)+1) return false;
+	    result = magnitude == uint64_t(INT64_MAX)+1
+		 ? INT64_MIN : -static_cast<int64_t>(magnitude);
+      } else {
+	    if (magnitude > uint64_t(INT64_MAX)) return false;
+	    result = static_cast<int64_t>(magnitude);
+      }
+      return true;
+}
 static bool warned_eval_expr_unsupported = false;
 static bool warned_eval_stmt_unsupported = false;
 static bool warned_eval_string_len_fallback = false;
@@ -60,7 +76,62 @@ static NetExpr* fix_assign_value(const NetNet*lhs, NetExpr*rhs)
 	    rhs = ce;
       }
       rhs->cast_signed(lhs->get_signed());
+      ce = dynamic_cast<NetEConst*>(rhs);
+      if (lhs->data_type() == IVL_VT_BOOL && ce) {
+            verinum value = ce->value();
+            value.cast_to_int2();
+            NetEConst*tmp = new NetEConst(value);
+            tmp->set_line(*rhs);
+            delete rhs;
+            rhs = tmp;
+            rhs->cast_signed(lhs->get_signed());
+      }
       return rhs;
+}
+
+static void eval_func_lval_op_vec_(const LineInfo&loc, char op,
+                                    verinum&lv, const verinum&rv)
+{
+      unsigned lv_width = lv.len();
+      bool lv_sign = lv.has_sign();
+      switch (op) {
+        case 'l':
+        case 'R':
+          break;
+        case 'r':
+          lv.has_sign(false);
+          break;
+        default:
+          lv.has_sign(rv.has_sign());
+          lv = cast_to_width(lv, rv.len());
+      }
+      switch (op) {
+        case '+': lv = lv + rv; break;
+        case '-': lv = lv - rv; break;
+        case '*': lv = lv * rv; break;
+        case '/': lv = lv / rv; break;
+        case '%': lv = lv % rv; break;
+        case '&':
+          for (unsigned idx = 0; idx < lv.len(); ++idx)
+                lv.set(idx, lv[idx] & rv[idx]);
+          break;
+        case '|':
+          for (unsigned idx = 0; idx < lv.len(); ++idx)
+                lv.set(idx, lv[idx] | rv[idx]);
+          break;
+        case '^':
+          for (unsigned idx = 0; idx < lv.len(); ++idx)
+                lv.set(idx, lv[idx] ^ rv[idx]);
+          break;
+        case 'l': lv = lv << rv.as_unsigned(); break;
+        case 'r':
+        case 'R': lv = lv >> rv.as_unsigned(); break;
+        default:
+          cerr << "Illegal assignment operator: " << human_readable_op(op) << endl;
+          ivl_assert(loc, 0);
+      }
+      lv = cast_to_width(lv, lv_width);
+      lv.has_sign(lv_sign);
 }
 
 NetExpr* NetFuncDef::evaluate_function(const LineInfo&loc, const std::vector<NetExpr*>&args) const
@@ -352,67 +423,7 @@ void NetAssign::eval_func_lval_op_real_(const LineInfo&loc,
 void NetAssign::eval_func_lval_op_(const LineInfo&loc,
 				   verinum&lv, const verinum&rv) const
 {
-      unsigned lv_width = lv.len();
-      bool lv_sign = lv.has_sign();
-      switch (op_) {
-	  case 'l':
-	  case 'R':
-	      // The left operand is self-determined.
-	    break;
-	  case 'r':
-	      // The left operand is self-determined, but we need to
-	      // cast it to unsigned to get a logical shift.
-	    lv.has_sign(false);
-	    break;
-          default:
-	      // The left operand must be cast to the expression type/size
-	    lv.has_sign(rv.has_sign());
-	    lv = cast_to_width(lv, rv.len());
-      }
-      switch (op_) {
-	  case '+':
-	    lv = lv + rv;
-	    break;
-	  case '-':
-	    lv = lv - rv;
-	    break;
-	  case '*':
-	    lv = lv * rv;
-	    break;
-	  case '/':
-	    lv = lv / rv;
-	    break;
-	  case '%':
-	    lv = lv % rv;
-	    break;
-	  case '&':
-	    for (unsigned idx = 0 ; idx < lv.len() ; idx += 1)
-		  lv.set(idx, lv[idx] & rv[idx]);
-	    break;
-	  case '|':
-	    for (unsigned idx = 0 ; idx < lv.len() ; idx += 1)
-		  lv.set(idx, lv[idx] | rv[idx]);
-	    break;
-	  case '^':
-	    for (unsigned idx = 0 ; idx < lv.len() ; idx += 1)
-		  lv.set(idx, lv[idx] ^ rv[idx]);
-	    break;
-	  case 'l':
-	    lv = lv << rv.as_unsigned();
-	    break;
-	  case 'r':
-	    lv = lv >> rv.as_unsigned();
-	    break;
-	  case 'R':
-	    lv = lv >> rv.as_unsigned();
-	    break;
-	  default:
-	    cerr << "Illegal assignment operator: "
-		 << human_readable_op(op_) << endl;
-	    ivl_assert(loc, 0);
-      }
-      lv = cast_to_width(lv, lv_width);
-      lv.has_sign(lv_sign);
+      eval_func_lval_op_vec_(loc, op_, lv, rv);
 }
 
 bool NetAssign::eval_func_lval_(const LineInfo&loc,
@@ -473,10 +484,36 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
       }
 
       if (const NetExpr*base_expr = lval->get_base()) {
+	    int64_t carrier_base = 0;
+	    uint64_t carrier_width = lval->sig()
+		  ? lval->sig()->vector_width() : lval->lwidth();
+	    bool carrier_ok = true;
+	    if (const NetExpr*carrier_expr = lval->dynamic_part_carrier()) {
+		  NetExpr*carrier_result = carrier_expr->evaluate_function(
+			loc, context_map);
+		  if (!carrier_result) {
+			delete rval_result;
+			return false;
+		  }
+		  const NetEConst*carrier_const =
+			dynamic_cast<NetEConst*>(carrier_result);
+		  carrier_ok = carrier_const
+			&& const_index_int64_(carrier_const->value(), carrier_base);
+		  delete carrier_result;
+		  carrier_width = lval->part_carrier_width();
+	    } else if (lval->has_part_carrier()) {
+		  carrier_base = lval->part_carrier_off();
+		  carrier_width = lval->part_carrier_width();
+	    }
 	    NetExpr*base_result = base_expr->evaluate_function(loc, context_map);
 	    if (base_result == 0) {
 		  delete rval_result;
 		  return false;
+	    }
+	    if (!carrier_ok) {
+		  delete base_result;
+		  delete rval_result;
+		  return true;
 	    }
 
 	    const NetEConst*base_const = dynamic_cast<NetEConst*>(base_result);
@@ -486,7 +523,20 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
 		  return false;
 	    }
 
-	    long base = base_const->value().as_long();
+	    int64_t base = 0;
+	    if (!const_index_int64_(base_const->value(), base)) {
+		  delete base_result;
+		  delete rval_result;
+		  return true;
+	    }
+	    if (!lval->dynamic_part_carrier() && lval->has_part_carrier()) {
+		  if (carrier_base > 0 && base < INT64_MIN+carrier_base) {
+			delete base_result;
+			delete rval_result;
+			return true;
+		  }
+		  base -= carrier_base;
+	    }
 
 	    if (old_lval == 0)
 		  old_lval = make_const_x(lval->sig() ? lval->sig()->vector_width() : 1);
@@ -509,22 +559,41 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
 	    verinum lpart(verinum::Vx, lval->lwidth());
 	    if (op_) {
 		  for (unsigned idx = 0 ; idx < lpart.len() ; idx += 1) {
-			long ldx = base + idx;
-			if (ldx >= 0 && (unsigned long)ldx < lval_v.len())
-			      lpart.set(idx, lval_v[ldx]);
+			if (base > INT64_MAX-int64_t(idx)) continue;
+			int64_t rel = base + idx;
+			if (rel >= 0 && uint64_t(rel) < carrier_width
+			    && carrier_base <= INT64_MAX-rel) {
+			      int64_t ldx = carrier_base + rel;
+			      if (ldx >= 0 && uint64_t(ldx) < lval_v.len())
+				    lpart.set(idx, lval_v[ldx]);
+			}
 		  }
+		  if (lval->sig()
+		      && lval->sig()->data_type() == IVL_VT_BOOL)
+			for (unsigned idx = 0; idx < lpart.len(); ++idx)
+			      if (lpart[idx] != verinum::V1)
+				    lpart.set(idx, verinum::V0);
 		  eval_func_lval_op_(loc, lpart, rval_v);
 	    } else {
 		  lpart = cast_to_width(rval_v, lval->lwidth());
 	    }
 	    for (unsigned idx = 0 ; idx < lpart.len() ; idx += 1) {
-		  long ldx = base + idx;
-		  if (ldx >= 0 && (unsigned long)ldx < lval_v.len())
-			lval_v.set(idx+base, lpart[idx]);
+		  if (base > INT64_MAX-int64_t(idx)) continue;
+		  int64_t rel = base + idx;
+		  if (rel >= 0 && uint64_t(rel) < carrier_width
+		      && carrier_base <= INT64_MAX-rel) {
+			int64_t ldx = carrier_base + rel;
+			if (ldx >= 0 && uint64_t(ldx) < lval_v.len())
+			      lval_v.set(ldx, lpart[idx]);
+		  }
 	    }
 
 	    delete base_result;
 	    delete rval_result;
+	    if (lval->sig() && lval->sig()->data_type() == IVL_VT_BOOL)
+		  for (unsigned idx = 0; idx < lval_v.len(); ++idx)
+			if (lval_v[idx] != verinum::V1)
+			      lval_v.set(idx, verinum::V0);
 	    rval_result = new NetEConst(lval_v);
       } else {
 	    if (op_ == 0) {
@@ -1487,9 +1556,157 @@ NetExpr* NetETernary::evaluate_function(const LineInfo&loc,
       return res;
 }
 
+static NetExpr* eval_func_signal_default_(const NetESignal*sig);
+
+static NetExpr** eval_func_signal_slot_(const LineInfo&loc,
+                                        const NetESignal*sig,
+                                        map<perm_string,LocalVar>&context_map,
+                                        NetExpr*&invalid_slot,
+                                        bool&discard_store)
+{
+      map<perm_string,LocalVar>::iterator ptr = context_map.find(sig->name());
+      if (ptr == context_map.end()) {
+            cerr << sig->get_fileline() << ": error: Cannot assign "
+                 << sig->name() << " in this constant-function context." << endl;
+            return 0;
+      }
+      LocalVar*var = &ptr->second;
+      while (var->nwords == -1) {
+            ivl_assert(*sig, var->ref);
+            var = var->ref;
+      }
+      if (var->nwords == 0)
+            return &var->value;
+
+      const NetExpr*word = sig->word_index();
+      if (!word) return 0;
+      unique_ptr<NetExpr>word_result(word->evaluate_function(loc, context_map));
+      if (!word_result) return 0;
+      const NetEConst*word_const =
+            dynamic_cast<const NetEConst*>(word_result.get());
+      if (!word_const) return 0;
+      int64_t index = 0;
+      if (!const_index_int64_(word_const->value(), index)
+          || index < 0 || index >= var->nwords) {
+            invalid_slot = eval_func_signal_default_(sig);
+            discard_store = true;
+            return &invalid_slot;
+      }
+      return &var->array[index];
+}
+
+static NetExpr* eval_func_signal_default_(const NetESignal*sig)
+{
+      NetExpr*result = 0;
+      switch (sig->expr_type()) {
+        case IVL_VT_BOOL:
+          result = make_const_0(sig->expr_width());
+          break;
+        case IVL_VT_LOGIC:
+          result = make_const_x(sig->expr_width());
+          break;
+        case IVL_VT_REAL:
+          return new NetECReal(verireal(0.0));
+        default:
+          return 0;
+      }
+      result->cast_signed(sig->has_sign());
+      return result;
+}
+
+NetExpr* NetEAssignExpr::evaluate_function(const LineInfo&loc,
+                              map<perm_string,LocalVar>&context_map) const
+{
+      ivl_assert(*this, nparms() == 2);
+      const NetESignal*lhs = dynamic_cast<const NetESignal*>(parm(0));
+      if (!lhs) return 0;
+      NetExpr*invalid_slot = 0;
+      bool discard_store = false;
+      NetExpr**slot = eval_func_signal_slot_(loc, lhs, context_map,
+                                             invalid_slot, discard_store);
+      if (!slot) return 0;
+
+      unique_ptr<NetExpr>rhs(parm(1)->evaluate_function(loc, context_map));
+      if (!rhs) {
+            delete invalid_slot;
+            return 0;
+      }
+      NetExpr*assigned = 0;
+      char op = name()[strlen(name())-1];
+      if (op == '=') {
+            assigned = fix_assign_value(lhs->sig(), rhs.release());
+      } else {
+            if (!*slot)
+                  *slot = eval_func_signal_default_(lhs);
+            const NetEConst*old_const =
+                  dynamic_cast<const NetEConst*>(*slot);
+            const NetEConst*rhs_const =
+                  dynamic_cast<const NetEConst*>(rhs.get());
+            if (!old_const || !rhs_const) {
+                  delete invalid_slot;
+                  return 0;
+            }
+            verinum value = old_const->value();
+            eval_func_lval_op_vec_(loc, op, value, rhs_const->value());
+            assigned = fix_assign_value(lhs->sig(), new NetEConst(value));
+      }
+      assigned->set_line(*this);
+      delete *slot;
+      *slot = assigned->dup_expr();
+      if (discard_store) {
+            delete *slot;
+            *slot = 0;
+      }
+      return assigned;
+}
+
 NetExpr* NetEUnary::evaluate_function(const LineInfo&loc,
 				map<perm_string,LocalVar>&context_map) const
 {
+      if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
+            const NetESignal*sig = dynamic_cast<const NetESignal*>(expr_);
+            if (!sig) return 0;
+            NetExpr*invalid_slot = 0;
+            bool discard_store = false;
+            NetExpr**slot = eval_func_signal_slot_(loc, sig, context_map,
+                                                   invalid_slot, discard_store);
+            if (!slot) return 0;
+            if (!*slot)
+                  *slot = eval_func_signal_default_(sig);
+            if (!*slot) {
+                  delete invalid_slot;
+                  return 0;
+            }
+            unique_ptr<NetExpr>old((*slot)->dup_expr());
+            NetExpr*updated = 0;
+            if (const NetEConst*old_const =
+                      dynamic_cast<const NetEConst*>(old.get())) {
+                  verinum value = old_const->value();
+                  verinum one(uint64_t(1), value.len());
+                  one.has_sign(value.has_sign());
+                  eval_func_lval_op_vec_(loc,
+                        (op_ == 'i' || op_ == 'I') ? '+' : '-', value, one);
+                  updated = fix_assign_value(sig->sig(), new NetEConst(value));
+            } else if (const NetECReal*old_real =
+                            dynamic_cast<const NetECReal*>(old.get())) {
+                  double value = old_real->value().as_double();
+                  value += (op_ == 'i' || op_ == 'I') ? 1.0 : -1.0;
+                  updated = new NetECReal(verireal(value));
+            } else {
+                  delete invalid_slot;
+                  return 0;
+            }
+            updated->set_line(*this);
+            delete *slot;
+            *slot = updated;
+            NetExpr*result = (op_ == 'i' || op_ == 'd')
+                  ? old.release() : updated->dup_expr();
+            if (discard_store) {
+                  delete *slot;
+                  *slot = 0;
+            }
+            return result;
+      }
       NetExpr*val = expr_->evaluate_function(loc, context_map);
       if (val == 0) return 0;
 
@@ -1501,6 +1718,56 @@ NetExpr* NetEUnary::evaluate_function(const LineInfo&loc,
 NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 				map<perm_string,LocalVar>&context_map) const
 {
+      if (strcmp(name_, "$ivl_checked_property_index") == 0) {
+	    uint64_t canonical = 0;
+	    bool invalid = false;
+	    ivl_assert(*this, parms_.size() % 4 == 0);
+	    for (size_t idx = 0; idx < parms_.size(); idx += 4) {
+		  NetExpr*raw_expr = parms_[idx]->evaluate_function(loc, context_map);
+		  if (!raw_expr) return 0;
+		  const NetEConst*raw = dynamic_cast<NetEConst*>(raw_expr);
+		  int64_t value = 0;
+		  bool valid = raw && const_index_int64_(raw->value(), value);
+		  delete raw_expr;
+		  int64_t low = 0;
+		  int64_t width = 0;
+		  int64_t stride = 0;
+		  for (unsigned sub = 1; valid && sub < 4; ++sub) {
+			NetExpr*tmp_expr = parms_[idx+sub]->evaluate_function(
+			      loc, context_map);
+			if (!tmp_expr) return 0;
+			const NetEConst*tmp = dynamic_cast<NetEConst*>(tmp_expr);
+			int64_t*dst = sub == 1 ? &low : sub == 2 ? &width : &stride;
+			valid = tmp && const_index_int64_(tmp->value(), *dst);
+			delete tmp_expr;
+		  }
+		  if (!valid || width <= 0 || stride < 0 || value < low) {
+			invalid = true;
+			continue;
+		  }
+		  uint64_t ordinal = uint64_t(value)-uint64_t(low);
+		  if (ordinal >= uint64_t(width)
+		      || ordinal > UINT64_MAX/uint64_t(stride ? stride : 1)) {
+			invalid = true;
+			continue;
+		  }
+		  uint64_t add = ordinal * uint64_t(stride);
+		  if (canonical > UINT64_MAX-add) {
+			invalid = true;
+			continue;
+		  }
+		  canonical += add;
+	    }
+	    if (invalid) {
+		  NetEConst*res = make_const_x(64);
+		  res->set_line(*this);
+		  return res;
+	    }
+	    NetEConst*res = new NetEConst(verinum(canonical, 64));
+	    res->set_line(*this);
+	    return res;
+      }
+
       if (strcmp(name_, "$ivl_string_method$len") == 0 && parms_.size() == 1) {
 	    NetExpr*arg = parms_[0]->evaluate_function(loc, context_map);
 	    if (arg == 0) return 0;

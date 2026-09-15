@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_function_purity_static_partial_return_fail.v:9: error: Function 'purity_static_partial_return_pkg::partial' used in a constraint is not pure: is nonautomatic and does not unconditionally assign its return value.
+1 error(s) during elaboration.

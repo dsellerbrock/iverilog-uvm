@@ -557,10 +557,10 @@ struct __vpiPV : public __vpiHandle {
       vpiHandle parent;
       vvp_net_t*net;
       vpiHandle sbase;
-      int tbase;
+      int64_t tbase;
       unsigned width;
 };
-extern vpiHandle vpip_make_PV(char*name, int base, int width);
+extern vpiHandle vpip_make_PV(char*name, int64_t base, int width);
 extern vpiHandle vpip_make_PV(char*name, char*symbol, int width);
 extern vpiHandle vpip_make_PV(char*name, vpiHandle handle, int width);
 
@@ -1408,6 +1408,8 @@ extern void vpip_dec_str_to_vec4(vvp_vector4_t&val, const char*str);
 extern void vpip_hex_str_to_vec4(vvp_vector4_t&val, const char*str);
 
 extern vvp_vector4_t vec4_from_vpi_value(s_vpi_value*vp, unsigned wid);
+extern bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&vec,
+                                             bool is_signed, int64_t&value);
 extern double real_from_vpi_value(s_vpi_value*vp);
 
 extern void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,

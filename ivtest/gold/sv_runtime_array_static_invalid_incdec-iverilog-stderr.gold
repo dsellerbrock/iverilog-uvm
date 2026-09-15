@@ -1,0 +1,6 @@
+ivltests/sv_runtime_array_static_invalid_incdec.v:10: warning: ignoring out of bounds l-value array access ints[2].
+ivltests/sv_runtime_array_static_invalid_incdec.v:10: warning: returning 'bx for out of bounds array access ints[2].
+ivltests/sv_runtime_array_static_invalid_incdec.v:11: warning: ignoring out of bounds l-value array access logics[2].
+ivltests/sv_runtime_array_static_invalid_incdec.v:11: warning: returning 'bx for out of bounds array access logics[2].
+ivltests/sv_runtime_array_static_invalid_incdec.v:12: warning: ignoring out of bounds l-value array access reals[2].
+ivltests/sv_runtime_array_static_invalid_incdec.v:12: warning: returning 'bx for out of bounds array access reals[2].

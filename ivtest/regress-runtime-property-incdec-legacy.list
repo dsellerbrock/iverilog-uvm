@@ -1,0 +1,2 @@
+sv_runtime_property_incdec normal,-g2017 ivltests gold=sv_runtime_property_incdec.gold
+sv_runtime_const_property_incdec_fail CE,-g2017 ivltests gold=sv_runtime_const_property_incdec_fail.gold

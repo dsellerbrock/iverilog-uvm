@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_function_wide_signed_return.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_function_wide_signed_return"
+}

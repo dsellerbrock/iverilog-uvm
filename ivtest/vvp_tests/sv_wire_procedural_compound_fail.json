@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_wire_procedural_compound_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_wire_procedural_compound_fail"
+}

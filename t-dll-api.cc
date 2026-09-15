@@ -2064,6 +2064,24 @@ extern "C" ivl_expr_t ivl_lval_part_off(ivl_lval_t net)
       return net->loff;
 }
 
+extern "C" uint64_t ivl_lval_part_carrier_off(ivl_lval_t net)
+{
+      assert(net);
+      return net->part_carrier_off_;
+}
+
+extern "C" unsigned ivl_lval_part_carrier_width(ivl_lval_t net)
+{
+      assert(net);
+      return net->part_carrier_wid_;
+}
+
+extern "C" ivl_expr_t ivl_lval_dynamic_part_carrier(ivl_lval_t net)
+{
+      assert(net);
+      return net->dynamic_part_carrier_;
+}
+
 extern "C" ivl_select_type_t ivl_lval_sel_type(ivl_lval_t net)
 {
       assert(net);
@@ -3144,6 +3162,13 @@ extern "C" ivl_signal_port_t ivl_signal_port(ivl_signal_t net)
 {
       assert(net);
       return static_cast<ivl_signal_port_t>(net->port_);
+}
+
+extern "C" int ivl_signal_const(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->get_const() ? 1 : 0;
 }
 
 extern "C" int ivl_signal_module_port_index(ivl_signal_t net)
@@ -4318,6 +4343,71 @@ extern "C" const char* ivl_type_constraint_ir(ivl_type_t net, int idx)
       if (class_type && idx >= 0)
 	    return class_type->constraint_ir_str((size_t)idx).c_str();
       return "";
+}
+
+extern "C" int ivl_type_constraint_state_calls(ivl_type_t net)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type ? (int)type->constraint_state_call_count() : 0;
+}
+
+extern "C" int ivl_type_constraint_state_call_constraint(ivl_type_t net, int idx)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type && idx >= 0
+	    ? (int)type->constraint_state_call((size_t)idx).constraint_index : -1;
+}
+
+extern "C" const char* ivl_type_constraint_state_call_scope_name(ivl_type_t net, int idx)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type && idx >= 0
+	    ? type->constraint_state_call((size_t)idx).method_scope_name.c_str() : "";
+}
+
+extern "C" int ivl_type_constraint_state_call_virtual(ivl_type_t net, int idx)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type && idx >= 0 && type->constraint_state_call((size_t)idx).is_virtual;
+}
+
+extern "C" unsigned ivl_type_constraint_state_call_width(ivl_type_t net, int idx)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type && idx >= 0 ? type->constraint_state_call((size_t)idx).width : 0;
+}
+
+extern "C" int ivl_type_constraint_state_call_signed(ivl_type_t net, int idx)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type && idx >= 0 && type->constraint_state_call((size_t)idx).is_signed;
+}
+
+extern "C" unsigned ivl_type_constraint_state_call_deps(ivl_type_t net, int idx)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type->constraint_state_call(idx).argument_dependencies.size();
+}
+
+extern "C" unsigned ivl_type_constraint_state_call_dep(ivl_type_t net, int idx,
+      unsigned dep)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type->constraint_state_call(idx).argument_dependencies.at(dep).property;
+}
+
+extern "C" unsigned ivl_type_constraint_state_call_dep_kind(ivl_type_t net, int idx,
+      unsigned dep)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type->constraint_state_call(idx).argument_dependencies.at(dep).kind;
+}
+
+extern "C" unsigned ivl_type_constraint_state_call_dep_leaf(ivl_type_t net, int idx,
+      unsigned dep)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      return type->constraint_state_call(idx).argument_dependencies.at(dep).leaf;
 }
 
 extern "C" int ivl_type_covgrp_bins(ivl_type_t net)

@@ -1,0 +1,2 @@
+./ivltests/sv_dynamic_packed_prefix_shapes.v:32: warning: ignoring out of bounds l-value array access mem[3].
+PASSED

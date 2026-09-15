@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_packed_real_prefix_fail.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_packed_real_prefix_fail"
+}

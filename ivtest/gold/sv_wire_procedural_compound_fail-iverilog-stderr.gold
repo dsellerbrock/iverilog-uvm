@@ -1,0 +1,3 @@
+ivltests/sv_wire_procedural_compound_fail.v:3: error: 'value' is not a valid l-value for a procedural assignment.
+ivltests/sv_wire_procedural_compound_fail.v:2:      : 'value' is declared here as a wire.
+Elaboration failed

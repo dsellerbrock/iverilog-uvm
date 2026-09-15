@@ -1,0 +1,2 @@
+sv_task_lookup_resolution normal,-g2017	ivltests gold=sv_task_lookup_resolution.gold
+sv_missing_bare_task_fail CE,-g2017	ivltests gold=sv_missing_bare_task_fail.gold

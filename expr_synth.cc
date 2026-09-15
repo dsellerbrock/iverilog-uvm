@@ -1202,6 +1202,8 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
       NetNet*sub = expr_->synthesize(des, scope, root);
 
       if (sub == 0) return 0;
+      ivl_variable_type_t result_type = net_type()
+	    ? expr_type() : sub->data_type();
 
 	// Detect the special case that there is a base expression and
 	// it is constant. In this case we can generate fixed part selects.
@@ -1290,7 +1292,7 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 	    des->add_node(sel);
 
 	    ivl_assert(*this, select_width > 0);
-	    const netvector_t*tmp_vec = new netvector_t(sub->data_type(),
+	    const netvector_t*tmp_vec = new netvector_t(result_type,
 	                                                select_width-1, 0);
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
 				    NetNet::WIRE, tmp_vec);
@@ -1318,7 +1320,7 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 			connect(cat->pin(concat_count), above->pin(0));
 		  }
 
-		  tmp_vec = new netvector_t(sub->data_type(), expr_width()-1, 0);
+		  tmp_vec = new netvector_t(result_type, expr_width()-1, 0);
 		  tmp = new NetNet(scope, scope->local_symbol(),
 				   NetNet::WIRE, tmp_vec);
 		  tmp->set_line(*this);
@@ -1339,7 +1341,7 @@ NetNet* NetESelect::synthesize(Design *des, NetScope*scope, NetExpr*root)
 	    sel->set_line(*this);
 	    des->add_node(sel);
 
-	    const netvector_t*tmp_vec = new netvector_t(sub->data_type(),
+	    const netvector_t*tmp_vec = new netvector_t(result_type,
 	                                                expr_width()-1, 0);
 	    NetNet*tmp = new NetNet(scope, scope->local_symbol(),
 				    NetNet::IMPLICIT, tmp_vec);
@@ -1624,6 +1626,70 @@ static NetEvWait* make_func_trigger(Design*des, NetScope*scope, const NetExpr*ro
 
 NetNet* NetESFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
+
+      if (strcmp(name_, "$ivl_checked_property_index") == 0) {
+	    ivl_assert(*this, parms_.size() % 4 == 0);
+	    NetExpr*valid = 0;
+	    NetExpr*canonical = new NetEConst(verinum(uint64_t(0), 64));
+	    canonical->set_line(*this);
+	    for (size_t idx = 0; idx < parms_.size(); idx += 4) {
+		  NetExpr*raw_copy = parms_[idx]->dup_expr();
+		  NetNet*raw_net = raw_copy->synthesize(des, scope, raw_copy);
+		  delete raw_copy;
+		  if (!raw_net) {
+			delete valid;
+			delete canonical;
+			return 0;
+		  }
+		  auto raw_value = [raw_net, this]() -> NetExpr* {
+			NetExpr*value = new NetESignal(raw_net);
+			if (!raw_net->get_signed()) {
+			      value = pad_to_width(value,
+				   raw_net->vector_width()+1, *this);
+			      /* Keep the added bit zero-filled. Changing the pad node
+			       * itself to signed makes synthesis sign-extend the raw
+			       * unsigned index before the bounds comparison. */
+			      NetESelect*as_signed = new NetESelect(
+				    value, 0, value->expr_width());
+			      as_signed->set_line(*this);
+			      as_signed->cast_signed(true);
+			      value = as_signed;
+			} else {
+			      value->cast_signed(true);
+			}
+			return value;
+		  };
+		  NetExpr*ge = new NetEBComp('G', raw_value(),
+					 parms_[idx+1]->dup_expr());
+		  NetExpr*width_minus_one = new NetEBAdd(
+			'-', parms_[idx+2]->dup_expr(),
+			new NetEConst(verinum(uint64_t(1), 64)), 64, false);
+		  NetExpr*high = new NetEBAdd('+', parms_[idx+1]->dup_expr(),
+					 width_minus_one, 64, true);
+		  NetExpr*le = new NetEBComp('L', raw_value(), high);
+		  NetExpr*dim_valid = new NetEBLogic('a', ge, le);
+		  valid = valid ? static_cast<NetExpr*>(
+			new NetEBLogic('a', valid, dim_valid)) : dim_valid;
+
+		  unsigned arith_width = max<unsigned>(64,
+			raw_net->vector_width() + (raw_net->get_signed() ? 0 : 1));
+		  NetExpr*ordinal = new NetEBAdd('-', raw_value(),
+					      parms_[idx+1]->dup_expr(),
+					      arith_width, raw_net->get_signed());
+		  NetExpr*scaled = new NetEBMult('*', ordinal,
+					    cast_to_width(parms_[idx+3]->dup_expr(),
+						  arith_width, false, *this),
+					    arith_width, false);
+		  scaled = cast_to_width(scaled, 64, false, *this);
+		  canonical = new NetEBAdd('+', canonical, scaled, 64, false);
+	    }
+	    NetExpr*checked = new NetETernary(valid, canonical,
+					make_const_x(64), 64, false);
+	    checked->set_line(*this);
+	    NetNet*result = checked->synthesize(des, scope, checked);
+	    delete checked;
+	    return result;
+      }
 
       const struct sfunc_return_type*def = lookup_sys_func(name_);
 

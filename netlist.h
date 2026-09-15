@@ -3464,6 +3464,16 @@ class NetAssign_ {
 	// The part select has a specific type and the width of the select will
 	// be that of the type.
       void set_part(NetExpr *loff, ivl_type_t data_type);
+      void set_part_carrier(uint64_t off, unsigned wid)
+      { part_carrier_off_ = off; part_carrier_wid_ = wid; }
+      bool has_part_carrier() const { return part_carrier_wid_ != 0; }
+      uint64_t part_carrier_off() const { return part_carrier_off_; }
+      unsigned part_carrier_width() const { return part_carrier_wid_; }
+      void set_dynamic_part_carrier(NetExpr*base, unsigned wid);
+      bool has_dynamic_part_carrier() const
+      { return dynamic_part_carrier_ != nullptr; }
+      const NetExpr* dynamic_part_carrier() const
+      { return dynamic_part_carrier_; }
 	// Set the member or property name if the signal type is a
 	// class.
       void set_property(const perm_string&name, unsigned int idx);
@@ -3569,6 +3579,9 @@ class NetAssign_ {
       unsigned lwid_;
       ivl_select_type_t sel_type_;
       ivl_type_t part_data_type_ = nullptr;
+      uint64_t part_carrier_off_ = 0;
+      unsigned part_carrier_wid_ = 0;
+      NetExpr*dynamic_part_carrier_ = nullptr;
 	// Non-null when this l-value is an unpacked-array slice (partial
 	// index). Holds the sub-array type the slice presents; word_ holds
 	// the flat base word index. See set_array_slice().
@@ -5500,7 +5513,8 @@ class NetESelect  : public NetExpr {
       NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
                  ivl_select_type_t sel_type = IVL_SEL_OTHER);
       NetESelect(NetExpr*exp, NetExpr*base, unsigned wid,
-                 ivl_type_t use_type);
+                 ivl_type_t use_type,
+                 ivl_select_type_t sel_type = IVL_SEL_OTHER);
       ~NetESelect() override;
 
       const NetExpr*sub_expr() const;
@@ -5879,6 +5893,8 @@ class NetEAssignExpr : public NetESFunc {
       NexusSet* nex_input(bool rem_out = true,
                           bool always_sens = false,
                           bool nested_func = false) const override;
+      NetExpr* evaluate_function(const LineInfo&loc,
+                          std::map<perm_string,LocalVar>&ctx) const override;
       NetEAssignExpr* dup_expr() const override;
 
     private:
@@ -6210,10 +6226,14 @@ class Design {
       void finalize_interconnects();
 
 	// Functions
-      NetFuncDef* find_function(NetScope*scope, const pform_name_t&key);
+	/* search_up=false confines lookup to the starting scope and its
+	 * imports; package-qualified calls use this downward-only form. */
+      NetFuncDef* find_function(NetScope*scope, const pform_name_t&key,
+				bool search_up = true);
 
 	// Tasks
-      NetScope* find_task(NetScope*scope, const pform_name_t&name);
+      NetScope* find_task(NetScope*scope, const pform_name_t&name,
+			  bool search_up = true);
 
 	// NODES
       void add_node(NetNode*);

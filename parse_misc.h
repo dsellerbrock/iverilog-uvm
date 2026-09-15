@@ -35,7 +35,13 @@ struct rs_formal_t : public LineInfo {
       perm_string name;
       data_type_t* type = nullptr;
       NetNet::PortType direction = NetNet::PINPUT;
+      bool is_const = false;
       PExpr* default_expr = nullptr;
+};
+
+struct pform_tf_port_direction_t {
+      NetNet::PortType direction;
+      bool is_const;
 };
 
 struct rs_case_item_t;

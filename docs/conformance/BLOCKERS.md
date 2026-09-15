@@ -1821,3 +1821,97 @@ U14 final validation: U14 semantic729edce3c; test/Windows-CI coverage79885f484. 
   1873/0, UVM 357/0/0, NFA dual-run 58/58, UVM release matrix 15/15
   SMOKE_PASS, frontend all S1-S12.
 - **Evidence:** `evidence/campaign-20260908/l42/`.
+
+
+### L43 — Package imports after local declarations
+
+- **State:** IMPLEMENTED; focused validation passes. Full regression
+  qualification is deferred to the approximately ten-feature batch boundary
+  under the user's 2026-09-14 validation cadence.
+- **Origin:** DD-018, corrected after inspecting its invalid return-type reducer.
+- **Expected:** legal imports in procedural declaration prefixes resolve local
+  types and values without generating an executable operation. Imports after
+  statements and direct conditional/loop imports remain rejected.
+- **Root cause:** an existing import-as-statement production created `PNoop`,
+  which fell into `Statement::elaborate`'s internal-error path.
+- **Scope:** parser routing to declaration-capable lists, attribute handling,
+  preserving explicit null statements for placement checks, focused tests.
+- **Authority:** IEEE 1800-2017 and 1800-2023 A.2.1.3, A.2.6-A.2.8, 26.3.
+- **Evidence:** `evidence/dd018-assessment/`; permanent
+  `sv_procedural_package_import` tests. Both editions failed with six internal
+  errors before the patch. See the current ACTIVE_WORK record for final gates.
+
+### L44 — Compound stores to disjoint mixed-driver packed elements
+
+- **State:** IMPLEMENTED; focused validation passes, batch regression pending.
+- **Origin:** DD-019, unmodified OpenTitan PRINCE concat width assertion.
+- **Fix:** compound partial stores use the existing unresolved-net partial-force
+  route shared with ordinary assignments. No runtime assertion is relaxed.
+- **Authority:** IEEE 1800-2017 and 1800-2023 6.5 and 11.4.1.
+- **Validation:** original N=2/4/5/6 reducer passes in both editions; permanent
+  tests verify two successive input values, preservation of continuously driven
+  elements, ordinary dynamic index single evaluation and unknown-index no-write.
+  Explicit wire procedural assignment remains rejected. Legacy 2/2, JSON 4/4.
+- **Limit:** dynamic subparts of mixed-driver elements remain DD-021; full
+  application qualification and batch-wide regression are not claimed.
+
+### L45 — Reject unresolved bare task enables
+
+- **State:** IMPLEMENTED; focused legacy 2/2, JSON 4/4 and real UVM smoke pass.
+- **Origin:** DD-020: `missing_task()` compiled and execution continued after
+  a warning. It now reaches the existing unknown-task elaboration error.
+- **Authority:** IEEE 1800-2017/2023 13.3 and 23.8.1.
+- **Scope:** bare unresolved calls after normal lookup. Qualified/class fallback
+  gaps remain open. Forward, upward, compilation-unit and implicit class task
+  calls must continue to work. Broad regression follows the batch cadence.
+
+### L46 — Preserve packed-element bounds for indexed reads
+
+- **State:** IMPLEMENTED; legacy 1/1, JSON 2/2, null/synthesis and negative
+  checks pass both editions. DD-022 writes remain open.
+- **Authority:** IEEE 1800-2017/2023 11.5.1.
+- **Scope:** final indexed `+:`/`-:` reads after valid fixed packed prefixes
+  retain a bounded carrier through nested select expressions. Out-of-range bits
+  must read X without exposing neighboring packed elements. Shared runtime
+  part-select conversion must preserve wide index magnitude and signedness;
+  clipping must avoid overflow and retain in-range bits with X padding.
+- **Limits:** writes, invalid earlier prefixes and dynamic-prefix elaboration
+  remain open. DD-021 mixed-driver restrictions are unchanged.
+
+### L47 — Wide part-select values through VPI arguments
+
+- **State:** IMPLEMENTED; focused legacy 3/3, JSON 6/6, direct VPI checks
+  in both editions, and null/synthesis checks pass.
+- **Origin:** DD-023: formatting a wide out-of-range select returned aliased
+  bits. The corresponding monitor case also crashed.
+- **Fix:** preserve constant normalization and descriptor width; use the shared
+  wide-index conversion for dynamic VPI bases. Out-of-range reads return X and
+  writes have no effect; callbacks compare the actual selected value.
+- **Scope:** value semantics and callbacks triggered by parent value changes.
+  Full VPI metadata and index-only callback triggers are not qualified here.
+- **Authority:** IEEE 1800-2017/2023 11.5.1 and VPI value/callback semantics.
+  Range tags are handle relations; the existing integer range-query extension
+  is not claimed as implementation of those standard relations.
+
+### L64 — Function-valued constraint evaluation and argument ordering
+
+- **State:** QUALIFIED for the evidenced subset; integrated locally in4bc02c51b /0c6d5994a.
+- **Active ID:** CONSTRAINT-FUNCTION-PRESOLVE.
+- **Root cause:** legal function-valued constraints were ignored or lacked typed
+  per-object result transport and staged active-argument dependencies.
+- **Authority:** IEEE 1800-2017 and 1800-2023 18.5.11, with array-method,
+  constraint-guard, soft-constraint and null-handle rules for affected operands.
+- **Scope:** pure legal input/const-ref calls, typed result capture, qualified
+  and virtual dispatch, active scalar/member/element/size argument stages, one
+  rollback transaction, static overlays, selected fixed-array operands, and
+  conditional-member validity. No-argument body reads do not invent priority.
+- **Validation:** 250 paired focused outcomes; 206 permanent cases in each
+  harness; legacy5253 total/5248 pass/0 fail/2 NI/3 EF; JSON2189/0; real-DPI
+  UVM357/0/0; NFA58/0; release15 smoke passes; frontend12 scenarios; make check.
+  All seven gates used identical frozen artifacts and749 source/test/docs files.
+- **Limits:** dynamic-foreach per-iteration function capture, broader inline
+  wide-value transport, active returned-member aliases, selected indexed
+  conditional handles and multi-prefix reductions remain gaps. This does not
+  qualify all Clause18, IEEE1800.2, or whole unmodified OpenTitan/Caliptra DV.
+- **Evidence:** session_logs/2026-09-14_constraint_function_presolve.md and
+  its companion _qualification.json; failed earlier batches remain preserved.

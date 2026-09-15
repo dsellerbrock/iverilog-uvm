@@ -1,0 +1,3 @@
+./ivltests/sv_runtime_array_const_incdec_fail.v:5: error: Assignment to const signal `values` is not allowed.
+./ivltests/sv_runtime_array_const_incdec_fail.v:6: error: Assignment to const signal `values` is not allowed.
+2 error(s) during elaboration.

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_function_selected_array_sum.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_function_selected_array_sum"
+}

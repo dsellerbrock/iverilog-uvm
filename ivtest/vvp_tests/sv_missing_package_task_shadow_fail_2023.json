@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_missing_package_task_shadow_fail.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_missing_package_task_shadow_fail_2023"
+}

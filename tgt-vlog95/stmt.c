@@ -252,6 +252,14 @@ static void emit_stmt_lval_piece(ivl_scope_t scope, ivl_lval_t lval)
       int msb, lsb;
       assert(width > 0);
 
+      if (ivl_lval_part_carrier_width(lval)) {
+	    fprintf(stderr, "vlog95 error: packed indexed writes bounded by an "
+		    "enclosing packed element are not currently supported.\n");
+	    vlog_errors += 1;
+	    fprintf(vlog_out, "/* unsupported bounded packed write */");
+	    return;
+      }
+
 	/* A class supports a nested L-value so it may not have a signal
 	 * at this level. */
       if (! sig) {

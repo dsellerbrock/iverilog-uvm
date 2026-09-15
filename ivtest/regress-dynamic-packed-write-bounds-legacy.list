@@ -1,0 +1,5 @@
+sv_dynamic_packed_prefix_writes normal,-g2017 ivltests gold=sv_dynamic_packed_prefix_writes.gold
+sv_dynamic_packed_prefix_shapes normal,-g2017 ivltests gold=sv_dynamic_packed_prefix_shapes.gold
+sv_dynamic_packed_prefix_synth normal,-g2017,-S ivltests
+sv_dynamic_packed_prefix_wide_synth normal,-g2017,-S ivltests
+sv_dynamic_packed_nonleaf_part normal,-g2017 ivltests gold=sv_dynamic_packed_nonleaf_part.gold

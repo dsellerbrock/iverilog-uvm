@@ -650,6 +650,9 @@ struct ivl_lval_s {
       ivl_expr_t stream_range_first_;
       ivl_expr_t stream_range_second_;
       unsigned width_;
+      uint64_t part_carrier_off_;
+      unsigned part_carrier_wid_;
+      ivl_expr_t dynamic_part_carrier_;
       int property_idx;
       unsigned sel_type : 3;
       unsigned array_slice_ : 1;

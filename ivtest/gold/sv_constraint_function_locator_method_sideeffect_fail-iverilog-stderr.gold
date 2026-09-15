@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_locator_method_sideeffect_fail.v:11: error: Selected fixed-array iterator method expression used in a constraint is unresolved, impure, or has an unsupported result.
+1 error(s) during elaboration.

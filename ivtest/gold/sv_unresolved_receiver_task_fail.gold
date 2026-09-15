@@ -1,0 +1,20 @@
+./ivltests/sv_unresolved_receiver_task_fail.v:10: error: Enable of unknown task ``missing_receiver.run''.
+./ivltests/sv_unresolved_receiver_task_fail.v:11: error: Enable of unknown task ``missing_receiver['sd0].run''.
+./ivltests/sv_unresolved_receiver_task_fail.v:12: error: Enable of unknown task ``dut.missing.run''.
+./ivltests/sv_unresolved_receiver_task_fail.v:13: error: Enable of unknown task ``obj.missing.run''.
+./ivltests/sv_unresolved_receiver_task_fail.v:14: error: Enable of unknown task ``absent['sd0].clear''.
+./ivltests/sv_unresolved_receiver_task_fail.v:15: error: Enable of unknown task ``absent.copy''.
+./ivltests/sv_unresolved_receiver_task_fail.v:16: error: Enable of unknown task ``absent.reset''.
+./ivltests/sv_unresolved_receiver_task_fail.v:17: error: Enable of unknown task ``absent['sd0].get_fields''.
+./ivltests/sv_unresolved_receiver_task_fail.v:18: error: Enable of unknown task ``absent.constraint_mode''.
+./ivltests/sv_unresolved_receiver_task_fail.v:19: warning: Unable to bind wire/reg/memory `absent' in `test' (compile-progress: unresolved reference).
+./ivltests/sv_unresolved_receiver_task_fail.v:19: error: Enable of unknown task ``absent.c.constraint_mode''.
+./ivltests/sv_unresolved_receiver_task_fail.v:20: error: Enable of unknown task ``atomic.put''.
+./ivltests/sv_unresolved_receiver_task_fail.v:21: error: Can't find task mirror in class empty_class
+./ivltests/sv_unresolved_receiver_task_fail.v:22: error: Can't find task write in class empty_class
+./ivltests/sv_unresolved_receiver_task_fail.v:23: error: Enable of unknown task ``obj.no_constraint.constraint_mode''.
+./ivltests/sv_unresolved_receiver_task_fail.v:24: error: Enable of unknown task ``obj.scalar.delete''.
+./ivltests/sv_unresolved_receiver_task_fail.v:25: error: Enable of unknown task ``obj.scalar.push_back''.
+./ivltests/sv_unresolved_receiver_task_fail.v:26: error: Enable of unknown task ``obj.scalar.push_front''.
+./ivltests/sv_unresolved_receiver_task_fail.v:27: error: Enable of unknown task ``obj.scalar.insert''.
+18 error(s) during elaboration.

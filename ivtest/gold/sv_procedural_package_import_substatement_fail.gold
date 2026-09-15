@@ -1,0 +1,4 @@
+./ivltests/sv_procedural_package_import_substatement_fail.v:8: syntax error
+./ivltests/sv_procedural_package_import_substatement_fail.v:8: error: Malformed statement
+./ivltests/sv_procedural_package_import_substatement_fail.v:10: syntax error
+./ivltests/sv_procedural_package_import_substatement_fail.v:10: error: Malformed statement

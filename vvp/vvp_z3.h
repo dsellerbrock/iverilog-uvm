@@ -15,6 +15,13 @@ class vvp_cobject;
 class vvp_object_t;
 class vvp_vector4_t;
 
+struct vvp_z3_ref_s {
+      enum kind_t { PROP = 0, MEMBER = 1, ELEM = 2, SIZE = 3 };
+      unsigned kind;
+      unsigned property;
+      unsigned leaf;
+};
+
 /* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: one selected object graph
  * contributes one constraint problem. The caller retains the actual objects
  * and journals their values/history until every solve pass has succeeded. */
@@ -23,10 +30,14 @@ struct vvp_z3_object_s {
       vvp_cobject*rng_owner = nullptr;
       bool explicit_selection = false;
       std::vector<bool> active;
+      bool staged_selection = false;
+      std::vector<vvp_z3_ref_s> staged_active;
       bool include_class_constraints = true;
       std::vector<std::string> inherited_ir;
       std::vector<std::string> extra_ir;
       std::vector<uint64_t> slot_vals;
+      std::vector<vvp_vector4_t> class_slot_vals;
+      std::vector<std::string> planned_class_ir;
       std::vector<vvp_vector4_t> slot_words;
       std::vector<vvp_object_t> object_vals;
       std::vector<size_t> priority;
@@ -39,6 +50,31 @@ struct vvp_z3_object_s {
 // Reject unsupported cyclic storage before prefill mutates any participant.
 bool vvp_z3_graph_history_supported(const std::vector<vvp_z3_object_s>&objects);
 bool vvp_z3_randomize_graph(const std::vector<vvp_z3_object_s>&objects);
+
+struct vvp_z3_plan_item_s {
+      size_t object;
+      bool class_ir;
+      std::string ir;
+      std::vector<size_t> capture_slots;
+};
+struct vvp_z3_plan_call_s { size_t object; size_t slot; };
+struct vvp_z3_plan_deferred_elements_s {
+      size_t object;
+      unsigned property;
+      unsigned stage;
+};
+struct vvp_z3_plan_stage_s {
+      std::vector<vvp_z3_plan_call_s> before_calls;
+      std::vector<std::vector<vvp_z3_ref_s> > active;
+      std::vector<vvp_z3_plan_item_s> items;
+};
+struct vvp_z3_function_plan_s {
+      std::vector<vvp_z3_plan_stage_s> stages;
+      std::vector<vvp_z3_plan_deferred_elements_s> deferred_elements;
+      std::string error;
+};
+bool vvp_z3_plan_function_stages(const std::vector<vvp_z3_object_s>&objects,
+                                 vvp_z3_function_plan_s&plan);
 
 /* Expand selected state queues for the legacy scope route. The object graph
  * route expands with its canonical selections during each solve pass.
@@ -74,7 +110,8 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const std::vector<uint64_t>&    slot_vals  = {},
                       const std::vector<bool>*        prop_active = nullptr,
                       bool include_class_constraints = true,
-                      const std::vector<vvp_object_t>*object_vals = nullptr);
+                      const std::vector<vvp_object_t>*object_vals = nullptr,
+                      const std::vector<vvp_vector4_t>*class_slot_vals = nullptr);
 
 /*
  * Solve a scope-form std::randomize(vars) with-clause. Variable N is

@@ -1,0 +1,4 @@
+sv_runtime_array_element_incdec normal,-g2017 ivltests gold=sv_runtime_array_element_incdec.gold
+sv_constant_assignment_expression_restrictions_fail CE,-g2017 ivltests gold=sv_constant_assignment_expression_restrictions_fail.gold
+sv_runtime_array_const_incdec_fail CE,-g2017 ivltests gold=sv_runtime_array_const_incdec_fail.gold
+sv_runtime_array_static_invalid_incdec normal,-g2017 ivltests gold=sv_runtime_array_static_invalid_incdec.gold

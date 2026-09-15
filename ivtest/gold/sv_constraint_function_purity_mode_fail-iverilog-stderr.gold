@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_purity_mode_fail.v:5: error: Function 'value' used in a constraint is not pure: modifies rand_mode or constraint_mode.
+1 error(s) during elaboration.

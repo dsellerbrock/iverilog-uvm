@@ -637,26 +637,111 @@ static void draw_ternary_real(ivl_expr_t expr)
       clr_flag(cond_flag);
 }
 
-static void increment(ivl_expr_t e, bool pre)
+static void change_real(ivl_expr_t e, bool pre, bool incr)
 {
       ivl_signal_t sig = ivl_expr_signal(e);
-      fprintf(vvp_out, "    %%load/real v%p_0;\n", sig);
+      bool is_property = ivl_expr_type(e) == IVL_EX_PROPERTY;
+      unsigned pidx = is_property ? ivl_expr_property_idx(e) : 0;
+      ivl_expr_t prop_base = is_property ? ivl_expr_oper2(e) : 0;
+      ivl_expr_t prop_word = is_property ? ivl_expr_oper1(e) : 0;
+      ivl_type_t prop_type = is_property ? property_expr_type_(e) : 0;
+      int word_ix = -1;
+      int index_flag = -1;
+      int range_flag = -1;
+      unsigned lab_null = 0;
+      unsigned lab_out = 0;
+      unsigned lab_invalid = 0;
+      unsigned lab_value = 0;
+      unsigned lab_skip_store = 0;
+      unsigned lab_after_store = 0;
+      if (is_property
+          && ((pidx == (unsigned)-1) || (!sig && !prop_base)
+              || (prop_word && !property_selects_fixed_uarray_slot_(e)))) {
+            fprintf(stderr, "%s:%u: vvp.tgt error: unsupported real "
+                    "property ++/-- destination.\n",
+                    ivl_expr_file(e), ivl_expr_lineno(e));
+            vvp_errors += 1;
+            draw_eval_real(e);
+            return;
+      }
+      if (is_property) {
+            lab_null = local_count++;
+            lab_out = local_count++;
+            if (prop_word) {
+                  lab_invalid = local_count++;
+                  lab_value = local_count++;
+                  lab_skip_store = local_count++;
+                  lab_after_store = local_count++;
+            }
+            if (sig)
+                  fprintf(vvp_out, "    %%load/obj v%p_0; real property increment receiver\n", sig);
+            else
+                  draw_eval_object(prop_base);
+            fprintf(vvp_out, "    %%test_nul/obj;\n");
+            fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
+            if (prop_word && property_selects_fixed_uarray_slot_(e)) {
+                  word_ix = allocate_word();
+                  draw_fixed_uarray_slot_index_(prop_word, prop_type, word_ix,
+                                                &index_flag, &range_flag);
+                  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; invalid property slot\n",
+                          thread_count, lab_invalid, index_flag);
+                  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; property slot out of range\n",
+                          thread_count, lab_invalid, range_flag);
+                  fprintf(vvp_out, "    %%prop/r/i %u, %d;\n", pidx, word_ix);
+                  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_value);
+                  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_invalid);
+                  fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+                  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_value);
+            } else {
+                  fprintf(vvp_out, "    %%prop/r %u;\n", pidx);
+            }
+      } else if (ivl_signal_dimensions(sig) > 0) {
+            word_ix = allocate_word();
+            index_flag = allocate_flag();
+            draw_eval_expr_into_integer(ivl_expr_oper1(e), word_ix);
+            fprintf(vvp_out, "    %%flag_mov %d, 4; preserve array index validity\n",
+                    index_flag);
+            note_array_signal_use(sig);
+            fprintf(vvp_out, "    %%load/ar v%p, %d;\n", sig, word_ix);
+      } else {
+            fprintf(vvp_out, "    %%load/real v%p_0;\n", sig);
+      }
       if (!pre) fprintf(vvp_out, "    %%dup/real;\n");
       fprintf(vvp_out, "    %%pushi/real 1, 0x1000;\n");
-      fprintf(vvp_out, "    %%add/wr;\n");
+      fprintf(vvp_out, incr ? "    %%add/wr;\n" : "    %%sub/wr;\n");
       if ( pre) fprintf(vvp_out, "    %%dup/real;\n");
-      fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
-}
-
-static void decrement(ivl_expr_t e, bool pre)
-{
-      ivl_signal_t sig = ivl_expr_signal(e);
-      fprintf(vvp_out, "    %%load/real v%p_0;\n", sig);
-      if (!pre) fprintf(vvp_out, "    %%dup/real;\n");
-      fprintf(vvp_out, "    %%pushi/real 1, 0x1000;\n");
-      fprintf(vvp_out, "    %%sub/wr;\n");
-      if ( pre) fprintf(vvp_out, "    %%dup/real;\n");
-      fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+      if (word_ix >= 0) {
+            if (is_property) {
+                  fprintf(vvp_out, "    %%jmp/1xz T_%u.%u, %d; suppress invalid property store\n",
+                          thread_count, lab_skip_store, index_flag);
+                  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; suppress out-of-range property store\n",
+                          thread_count, lab_skip_store, range_flag);
+                  fprintf(vvp_out, "    %%store/prop/r/i %u, %d;\n", pidx, word_ix);
+                  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_after_store);
+                  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_skip_store);
+                  fprintf(vvp_out, "    %%pop/real 1; discard invalid property update\n");
+                  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_after_store);
+            } else {
+                  fprintf(vvp_out, "    %%flag_mov 4, %d; restore array index validity\n",
+                          index_flag);
+                  fprintf(vvp_out, "    %%store/reala v%p, %d;\n", sig, word_ix);
+            }
+            clr_word(word_ix);
+            clr_flag(index_flag);
+            if (range_flag >= 0) clr_flag(range_flag);
+      } else if (is_property) {
+            fprintf(vvp_out, "    %%store/prop/r %u;\n", pidx);
+      } else {
+            fprintf(vvp_out, "    %%store/real v%p_0;\n", sig);
+      }
+      if (is_property) {
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+            fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+            fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
+      }
 }
 
 static void draw_unary_real(ivl_expr_t expr)
@@ -709,17 +794,17 @@ static void draw_unary_real(ivl_expr_t expr)
 
       switch (ivl_expr_opcode(expr)) {
 	  case 'I':
-	    increment(sube, true);
+	    change_real(sube, true, true);
 	    return;
 	  case 'i':
-	    increment(sube, false);
+	    change_real(sube, false, true);
 	    return;
 
 	  case 'D':
-	    decrement(sube, true);
+	    change_real(sube, true, false);
 	    return;
 	  case 'd':
-	    decrement(sube, false);
+	    change_real(sube, false, false);
 	    return;
 	}
 

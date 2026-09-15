@@ -360,6 +360,32 @@ static bool z3_eval_uint64(Z3_context ctx, Z3_model model, Z3_ast var,
       return false;
 }
 
+static bool z3_eval_vec4_(Z3_context ctx, Z3_model model, Z3_ast var,
+                          vvp_vector4_t&out)
+{
+      Z3_sort sort = Z3_get_sort(ctx, var);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT) return false;
+      unsigned width = Z3_get_bv_sort_size(ctx, sort);
+      if (width == 0) return false;
+      Z3_ast value = nullptr;
+      if (!Z3_model_eval(ctx, model, var, 1, &value) || !value) return false;
+      value = Z3_simplify(ctx, value);
+      out = vvp_vector4_t(width, BIT4_0);
+      for (unsigned low = 0; low < width; low += 64) {
+            unsigned high = min(width - 1, low + 63);
+            Z3_ast chunk = Z3_simplify(ctx,
+                  Z3_mk_extract(ctx, high, low, value));
+            uint64_t bits = 0;
+            if (!z3_ground_uint64(ctx, chunk, bits)
+                && !z3_str_ground_uint64(ctx, chunk, high - low + 1, bits))
+                  return false;
+            for (unsigned bit = low; bit <= high; ++bit)
+                  out.set_bit(bit, (bits >> (bit - low)) & 1
+                                    ? BIT4_1 : BIT4_0);
+      }
+      return true;
+}
+
 /* ---------------------------------------------------------------
  * Simple recursive-descent tokenizer/parser for the IR format.
  * --------------------------------------------------------------- */
@@ -462,6 +488,8 @@ class z3_object_graph_t {
 
       bool active(unsigned idx) const;
       bool element_active(unsigned idx, unsigned elem) const;
+      bool member_active(unsigned idx, unsigned member) const;
+      bool size_active(unsigned idx) const;
       void select_storage_owners();
 
     private:
@@ -532,6 +560,7 @@ struct Z3Builder {
       // Keep invalid state reads until enclosing guards can exclude them
       // (IEEE 1800-2017 18.5.13 / 1800-2023 18.5.12).
       vector<string> state_errors;
+      vector<Z3_ast> side_constraints;
       // C7 (Phase 62b): optional optimize handle for soft asserts.
       // When non-null, dist branches emit Z3_optimize_assert_soft per
       // branch with the user-specified weight, biasing the model toward
@@ -622,6 +651,8 @@ struct Z3Builder {
       std::map<VarRef, size_t> disabled_soft_refs;
       std::set<VarRef>* collect_refs = nullptr;
       bool collect_refs_only = false;
+      bool allow_planner_value_slots = false;
+      vvp_cobject*assoc_foreach_key = nullptr;
       bool soft_ref_disabled(const VarRef&ref, size_t priority) const {
 	    for (const auto&entry : disabled_soft_refs) {
                   if (entry.second <= priority) continue;
@@ -889,18 +920,31 @@ static bool vec4_to_uint64_(const vvp_vector4_t&value, uint64_t&bits);
 /* Object reads must retain identity, not property_object::get_vec4's
  * intentional nullness view (IEEE 1800-2017/2023 8.4, 11.4.5, 18.4).
  * A null final handle is a value; a null owner or invalid index is an error. */
+enum constraint_handle_failure_t {
+      HANDLE_FAILURE_NONE,
+      HANDLE_FAILURE_STRUCTURAL,
+      HANDLE_FAILURE_ACCESS
+};
+
 static bool constraint_object_property_(vvp_cobject*owner, unsigned pid,
       vvp_object_t&value, string&error, uint64_t word = 0,
-      bool class_only = true)
+      bool class_only = true,
+      constraint_handle_failure_t*failure = nullptr)
 {
-      if (!owner) error = "null/non-class constraint object owner";
+      if (!owner) {
+            error = "null/non-class constraint object owner";
+            if (failure) *failure = HANDLE_FAILURE_ACCESS;
+      }
       else {
             const class_type*type = owner->get_defn();
             if (pid >= type->property_count()
                 || word >= type->property_array_size(pid)
                 || (type->property_base_type(pid) != "o"
                     && (class_only || type->property_base_type(pid).compare(0, 3, "oc:") != 0)))
-                  error = "invalid class-handle property metadata";
+                  {
+                        error = "invalid class-handle property metadata";
+                        if (failure) *failure = HANDLE_FAILURE_STRUCTURAL;
+                  }
             else {
                   owner->get_object(pid, value, word);
                   return true;
@@ -910,19 +954,24 @@ static bool constraint_object_property_(vvp_cobject*owner, unsigned pid,
 }
 
 static bool constraint_object_element_(vvp_cobject*owner, unsigned pid,
-      uint64_t index, vvp_object_t&value, string&error)
+      uint64_t index, vvp_object_t&value, string&error,
+      constraint_handle_failure_t*failure = nullptr)
 {
       if (!owner || pid >= owner->get_defn()->property_count()) {
             error = "invalid constraint object collection owner";
+            if (failure) *failure = owner ? HANDLE_FAILURE_STRUCTURAL
+                                          : HANDLE_FAILURE_ACCESS;
             return false;
       }
       const class_type*type = owner->get_defn();
       const string&base = type->property_base_type(pid);
       if (base == "o")
-            return constraint_object_property_(owner, pid, value, error, index);
+            return constraint_object_property_(owner, pid, value, error, index,
+                                               true, failure);
       if ((base != "Do" && base != "Qo")
           || type->property_array_size(pid) != 1) {
             error = "unsupported class-handle collection metadata";
+            if (failure) *failure = HANDLE_FAILURE_STRUCTURAL;
             return false;
       }
       vvp_object_t collection;
@@ -930,6 +979,7 @@ static bool constraint_object_element_(vvp_cobject*owner, unsigned pid,
       vvp_darray*array = collection.peek<vvp_darray>();
       if (!array || index >= array->get_size() || index > UINT_MAX) {
             error = "out-of-bounds class-handle constraint index";
+            if (failure) *failure = HANDLE_FAILURE_ACCESS;
             return false;
       }
       array->get_word((unsigned)index, value);
@@ -1248,7 +1298,8 @@ static bool eval_const_ir(IRParser& par, uint64_t& out)
 static bool read_constraint_handle_(IRParser&parser, vvp_cobject*receiver,
       const vector<vvp_object_t>*objects, const vector<vvp_object_t>*queues,
       const function<bool(IRParser&, uint64_t&, string&)>&index_value,
-      vvp_object_t&value, string&error)
+      vvp_object_t&value, string&error,
+      constraint_handle_failure_t*failure = nullptr)
 {
       auto fields = [](const string&text, vector<unsigned>&out, char separator) {
             istringstream input(text);
@@ -1265,6 +1316,7 @@ static bool read_constraint_handle_(IRParser&parser, vvp_cobject*receiver,
       };
       auto invalid = [&]() {
             if (error.empty()) error = "unsupported/malformed class-handle constraint operand";
+            if (failure) *failure = HANDLE_FAILURE_STRUCTURAL;
             return false;
       };
       if (parser.peek() == '(') {
@@ -1285,20 +1337,26 @@ static bool read_constraint_handle_(IRParser&parser, vvp_cobject*receiver,
                   vvp_darray*array = queues->at(ids[0]).peek<vvp_darray>();
                   if (!array || index >= array->get_size() || index > UINT_MAX) {
                         error = "out-of-bounds class-handle constraint index";
+                        if (failure) *failure = HANDLE_FAILURE_ACCESS;
                         return false;
                   }
                   array->get_word((unsigned)index, element);
                   if (op == "qhandle" && ids.size() == 1) value = element;
                   else if (op != "qfield" || ids.size() != 3
                       || !constraint_object_property_(element.peek<vvp_cobject>(),
-                            ids[1], value, error)) return invalid();
+                            ids[1], value, error, 0, true, failure)) {
+                        if (failure && *failure != HANDLE_FAILURE_NONE)
+                              return false;
+                        return invalid();
+                  }
             } else if (op == "delem" || op == "qmelem") {
                   if (ids.size() != (op == "delem" ? 2u : 3u)) return invalid();
-                  if (!constraint_object_element_(receiver, ids[0], index, element, error))
+                  if (!constraint_object_element_(receiver, ids[0], index,
+                                                  element, error, failure))
                         return false;
                   if (op == "delem") value = element;
                   else if (!constraint_object_property_(element.peek<vvp_cobject>(),
-                              ids[1], value, error)) return false;
+                              ids[1], value, error, 0, true, failure)) return false;
             } else return invalid();
       } else {
             string token = parser.read_token();
@@ -1319,7 +1377,8 @@ static bool read_constraint_handle_(IRParser&parser, vvp_cobject*receiver,
                   } else {
                         if (!fields(token.substr(2), ids, ':')) return invalid();
                         if (token[0] == 'e' && ids.size() == 3)
-                              return constraint_object_element_(receiver, ids[0], ids[2], value, error);
+                              return constraint_object_element_(receiver, ids[0],
+                                    ids[2], value, error, failure);
                         if (token[0] == 'p' && ids.size() == 2) ids.resize(1);
                         else if (token[0] == 'm' && ids.size() == 3) ids.resize(2);
                         else return invalid();
@@ -1327,12 +1386,16 @@ static bool read_constraint_handle_(IRParser&parser, vvp_cobject*receiver,
                   vvp_cobject*owner = receiver;
                   for (size_t i = 0; i < ids.size(); ++i) {
                         if (!constraint_object_property_(owner, ids[i], value, error,
-                                                         0, i + 1 == ids.size())) return false;
+                              0, i + 1 == ids.size(), failure)) return false;
                         owner = value.peek<vvp_cobject>();
                   }
             }
       }
-      if (!value.test_nil() && !value.peek<vvp_cobject>()) return invalid();
+      if (!value.test_nil() && !value.peek<vvp_cobject>()) {
+            error = "non-class constraint handle value";
+            if (failure) *failure = HANDLE_FAILURE_ACCESS;
+            return false;
+      }
       return true;
 }
 
@@ -1378,6 +1441,15 @@ static Z3_ast bool_to_bv1(Z3_context ctx, Z3_ast a)
       return Z3_mk_ite(ctx, a, one, zero);
 }
 
+static Z3_ast constraint_side_conjunction_(Z3Builder&b,
+                                            size_t begin, size_t end)
+{
+      if (begin >= end) return b.mk_true();
+      if (end == begin + 1) return b.side_constraints[begin];
+      return Z3_mk_and(b.ctx, (unsigned)(end - begin),
+                       b.side_constraints.data() + begin);
+}
+
 static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 {
       par.skip_ws();
@@ -1413,6 +1485,42 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       }
       if (tok.substr(0,2) == "e:") {
 	    return parse_elem(par, b, tok);
+      }
+	/* Function-result slots are substituted with captured constants before
+	 * an actual solve. The staging planner intentionally parses the original
+	 * IR first, however, so retain the token's declared bit-vector sort there.
+	 * Returning the generic Bool fallback made an arithmetic consumer such as
+	 * `(add p:0:32:s v:1:32:s)' ill-sorted before its call could be scheduled. */
+      if (tok.substr(0,2) == "v:") {
+	    if (!b.allow_planner_value_slots) {
+		  b.state_errors.push_back(
+			"unsubstituted class constraint function capture slot");
+		  return b.mk_true();
+	    }
+	    const char*text = tok.c_str() + 2;
+	    char*end = nullptr;
+	    unsigned long slot = strtoul(text, &end, 10);
+	    if (end == text || *end != ':') {
+		  b.state_errors.push_back(
+			"malformed class constraint function capture slot");
+		  return b.mk_true();
+	    }
+	    text = end + 1;
+	    unsigned long width_value = strtoul(text, &end, 10);
+	    bool is_signed = *end == ':' && end[1] == 's' && end[2] == 0;
+	    if (end == text || width_value == 0 || width_value > UINT_MAX
+		|| (*end != 0 && !is_signed)) {
+		  b.state_errors.push_back(
+			"invalid class constraint function capture slot width");
+		  return b.mk_true();
+	    }
+	    (void)slot;
+	    unsigned width = (unsigned)width_value;
+	    Z3_ast value = Z3_mk_fresh_const(
+		  b.ctx, "plan_value", Z3_mk_bv_sort(b.ctx, width));
+	    b.set_sv(value, width);
+	    if (is_signed) b.signed_vars.insert(value);
+	    return value;
       }
       return b.mk_true();
 }
@@ -1665,6 +1773,108 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                                        Z3_mk_bv_sort(b.ctx, 1));
       }
 
+      /* A scalar member selected through a conditional class handle. Keep
+       * the condition symbolic and attach null/invalid access only to the
+       * branch that selects it. Header: MEMBER:WIDTH[:s]. */
+      if (op == "hselectfield") {
+            string header = par.read_token();
+            const char*p = header.c_str();
+            char*end = nullptr;
+            unsigned long member_ul = strtoul(p, &end, 10);
+            if (end == p || *end != ':' || member_ul > UINT_MAX) {
+                  b.state_errors.push_back("malformed conditional class-member constraint");
+                  capture_balanced_form(par);
+                  return b.mk_true();
+            }
+            p = end + 1;
+            unsigned long width_ul = strtoul(p, &end, 10);
+            bool sflag = *end == ':' && end[1] == 's' && end[2] == 0;
+            if (end == p || width_ul == 0 || width_ul > 64
+                || (*end && !sflag)) {
+                  b.state_errors.push_back("malformed conditional class-member width");
+                  capture_balanced_form(par);
+                  return b.mk_true();
+            }
+            unsigned member = (unsigned)member_ul;
+            unsigned width = (unsigned)width_ul;
+            Z3_ast cond = bv_to_bool(b.ctx, build_z3_atom(par, b));
+            auto index_value = [](IRParser&index, uint64_t&value, string&error) {
+                  if (eval_const_ir(index, value)) return true;
+                  error = "conditional class-handle index is not constant";
+                  return false;
+            };
+            vvp_object_t yes_object, no_object;
+            string yes_error, no_error;
+            constraint_handle_failure_t yes_failure = HANDLE_FAILURE_NONE;
+            constraint_handle_failure_t no_failure = HANDLE_FAILURE_NONE;
+            bool yes_read = read_constraint_handle_(
+                  par, b.cobj, b.object_vals, nullptr, index_value,
+                  yes_object, yes_error, &yes_failure);
+            bool no_read = read_constraint_handle_(
+                  par, b.cobj, b.object_vals, nullptr, index_value,
+                  no_object, no_error, &no_failure);
+            if (!par.expect(')')) {
+                  b.state_errors.push_back("malformed conditional class-member constraint");
+                  return b.mk_true();
+            }
+            auto field = [&](const vvp_object_t&object, bool readable,
+                             const string&read_error,
+                             constraint_handle_failure_t read_failure,
+                             Z3_ast validity,
+                             Z3_ast&value) {
+                  vvp_cobject*owner = readable ? object.peek<vvp_cobject>() : nullptr;
+                  bool valid = owner && member < owner->get_defn()->property_count();
+                  if (!valid) {
+                        if (read_failure == HANDLE_FAILURE_STRUCTURAL
+                            || (owner && member >= owner->get_defn()->property_count()))
+                              b.state_errors.push_back(read_error.empty()
+                                    ? "invalid conditional class-member metadata"
+                                    : read_error);
+                        else b.side_constraints.push_back(validity);
+                        value = Z3_mk_unsigned_int64(
+                              b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+                        return;
+                  }
+                  if (b.graph) {
+                        unsigned idx = b.graph->intern(owner, member);
+                        if (b.collect_refs) {
+                              Z3Builder::VarRef ref = {
+                                    Z3Builder::VarRef::PROP, idx, 0
+                              };
+                              b.collect_refs->insert(ref);
+                        }
+                        if (b.collect_refs_only) {
+                              value = Z3_mk_unsigned_int64(
+                                    b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+                              return;
+                        }
+                        if (b.graph->active(idx)) {
+                              value = scalar_property_ref_(b, idx, width, sflag);
+                              return;
+                        }
+                  }
+                  vvp_vector4_t data;
+                  owner->get_vec4(member, data);
+                  uint64_t bits = 0;
+                  if (!vec4_to_uint64_(data, bits)) {
+                        b.side_constraints.push_back(
+                              validity);
+                        bits = 0;
+                  }
+                  value = Z3_mk_unsigned_int64(
+                        b.ctx, bits, Z3_mk_bv_sort(b.ctx, width));
+                  if (sflag) value = b.tag_signed_constant(value);
+            };
+            Z3_ast yes, no;
+            field(yes_object, yes_read, yes_error, yes_failure,
+                  Z3_mk_not(b.ctx, cond), yes);
+            field(no_object, no_read, no_error, no_failure, cond, no);
+            Z3_ast value = Z3_mk_ite(b.ctx, cond, yes, no);
+            b.set_sv(value, width);
+            if (sflag) b.signed_vars.insert(value);
+            return value;
+      }
+
 	/* Dynamic-array foreach template (IEEE 1800-2017 18.5.8.2).
 	 * Size pass: capture the body and contribute `true` (the size
 	 * variables elsewhere in the IR still participate). Element
@@ -1709,6 +1919,84 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  conj = Z3_mk_and(b.ctx, 2, args);
 	    }
 	    return conj;
+      }
+
+      /* Associative foreach over class-valued keys. The key set is state at
+	 * randomize time; expand every actual key and let qkeymember read that
+	 * key's current scalar state. */
+      if (op == "assocforeach") {
+	    string property_token = par.read_token();
+	    char*end = nullptr;
+	    unsigned long local = strtoul(property_token.c_str(), &end, 10);
+	    string body = capture_balanced_form(par);
+	    if (end == property_token.c_str() || *end) {
+		  b.state_errors.push_back("malformed associative foreach constraint");
+		  return b.mk_true();
+	    }
+	    unsigned pidx = b.property_index((unsigned)local);
+	    vvp_object_t object;
+	    b.object(pidx)->get_object(b.local_index(pidx), object, 0);
+	    vvp_assoc_base*assoc = object.peek<vvp_assoc_base>();
+	    if (!assoc) {
+		  b.state_errors.push_back("associative foreach property is not a live associative array");
+		  return b.mk_true();
+	    }
+	    Z3_ast conjunction = b.mk_true();
+	    vvp_object_t key;
+	    for (bool ok = assoc->first_key(key); ok; ok = assoc->next_key(key)) {
+		  vvp_cobject*key_object = key.peek<vvp_cobject>();
+		  if (!key_object) {
+			b.state_errors.push_back("associative foreach key is not a class object");
+			return b.mk_true();
+		  }
+		  IRParser instance(body);
+		  vvp_cobject*saved = b.assoc_foreach_key;
+		  b.assoc_foreach_key = key_object;
+		  Z3_ast term = bv_to_bool(b.ctx, build_z3_atom(instance, b));
+		  b.assoc_foreach_key = saved;
+		  if (!instance.at_end()) {
+			b.state_errors.push_back("malformed associative foreach body");
+			return b.mk_true();
+		  }
+		  Z3_ast args[2] = {conjunction, term};
+		  conjunction = Z3_mk_and(b.ctx, 2, args);
+	    }
+	    return conjunction;
+      }
+
+      if (op == "qkeymember") {
+	    string header = par.read_token();
+	    unsigned member = 0, width = 0; bool sign = false;
+	    parse_pws_header(header, member, width, sign);
+	    par.skip_ws(); par.expect(')');
+	    vvp_cobject*key = b.assoc_foreach_key;
+	    if (!key || member >= key->get_defn()->property_count()) {
+		  b.state_errors.push_back("missing/invalid associative foreach class key member");
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    }
+	    if (b.graph) {
+		  unsigned idx = b.graph->intern(key, member);
+		  return scalar_property_ref_(b, idx, width, sign);
+	    }
+	    vvp_vector4_t value;
+	    key->get_vec4(member, value, 0);
+	    if (value.size() != width) {
+		  b.state_errors.push_back("associative foreach key member width mismatch");
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	    }
+	    uint64_t bits = 0;
+	    for (unsigned bit = 0; bit < width; ++bit) {
+		  if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1) {
+			b.state_errors.push_back("X/Z associative foreach key member state");
+			return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+		  }
+		  if (value.value(bit) == BIT4_1 && bit < 64) bits |= UINT64_C(1) << bit;
+	    }
+	    Z3_ast result = Z3_mk_unsigned_int64(b.ctx, bits,
+		  Z3_mk_bv_sort(b.ctx, width));
+	    b.set_sv(result, width);
+	    if (sign) result = b.tag_signed_constant(result);
+	    return result;
       }
 
 	/* Element reference within an expanded dynforeach body:
@@ -1760,24 +2048,61 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    uint64_t idx64 = 0;
 	    bool ok = eval_const_ir(par, idx64);
 	    par.skip_ws(); par.expect(')');
+	    /* Planning precedes the size solve. An active dynamic element may be
+	     * created by that solve, so retain its typed dependency without
+	     * comparing it with the old container bound. The normal/second pass
+	     * below validates the solved bound before enforcing the element. */
+	    if (ok && b.collect_refs_only && b.graph
+	        && b.graph->size_active(pidx)) {
+		  if (b.collect_refs) {
+			Z3Builder::VarRef ref = {
+			      Z3Builder::VarRef::ELEM, pidx, (unsigned)idx64
+			};
+			b.collect_refs->insert(ref);
+		  }
+		  return Z3_mk_unsigned_int64(
+			b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
+	    }
+	    if (ok && !b.dyn_sizes && b.graph
+	        && b.graph->size_active(pidx)) {
+		  if (b.collect_refs) {
+			Z3Builder::VarRef ref = {
+			      Z3Builder::VarRef::ELEM, pidx, (unsigned)idx64
+			};
+			b.collect_refs->insert(ref);
+		  }
+		  Z3_ast var = b.get_elem_var(pidx, ewid, (unsigned)idx64);
+		  if (esig) b.signed_vars.insert(var);
+		  return var;
+	    }
 	    uint64_t count = 0;
+	    bool have_count = false;
 	    if (b.dyn_sizes) {
 		  auto it = b.dyn_sizes->find(pidx);
-		  if (it != b.dyn_sizes->end()) count = it->second;
+		  if (it != b.dyn_sizes->end()) {
+			count = it->second;
+			have_count = true;
+		  }
+	    }
+	    /* Inactive dynamic arrays are absent from the solved-size map.  Their
+	     * elements are state, so bound direct element references with the
+	     * current object size and let the normal state pinning constrain the
+	     * element value. */
+	    if (!have_count) {
+		  count = cobj_darray_size(b.object(pidx), b.local_index(pidx));
+		  have_count = true;
 	    }
 	    if (!ok || idx64 >= count) {
-		  static bool warned = false;
-		  if (!warned) {
-			fprintf(stderr, "Warning: dynamic foreach element"
-				" index %s (prop %u); constraint on that"
-				" element is unenforced (further similar"
-				" warnings suppressed)\n",
-				ok ? "out of the solved array bounds"
-				   : "is not constant after expansion",
-				pidx);
-			warned = true;
-		  }
-		  return mk_free_bv(b, ewid);
+		  ostringstream msg;
+		  msg << "dynamic array constraint element index ";
+		  if (!ok)
+			msg << "is not constant after expansion";
+		  else
+			msg << idx64 << " is outside property " << pidx
+			    << " size " << count;
+		  b.state_errors.push_back(msg.str());
+		  return Z3_mk_unsigned_int64(
+			b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
 	    }
 	    if (b.collect_refs) {
 		  Z3Builder::VarRef ref = {
@@ -1960,12 +2285,28 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 
       if (op == "ite") {
 	    size_t before = b.state_errors.size();
+	    size_t side_before = b.side_constraints.size();
 	    Z3_lbool condition, yes_guard, no_guard;
 	    Z3_ast cond = bv_to_bool(b.ctx, build_z3_atom(par, b, &condition));
 	    size_t after_cond = b.state_errors.size();
+	    size_t side_after_cond = b.side_constraints.size();
 	    Z3_ast yes = build_z3_atom(par, b, &yes_guard);
 	    size_t after_yes = b.state_errors.size();
+	    size_t side_after_yes = b.side_constraints.size();
 	    Z3_ast no = build_z3_atom(par, b, &no_guard);
+	    size_t side_after_no = b.side_constraints.size();
+	    Z3_ast cond_valid = constraint_side_conjunction_(
+		  b, side_before, side_after_cond);
+	    Z3_ast yes_valid = constraint_side_conjunction_(
+		  b, side_after_cond, side_after_yes);
+	    Z3_ast no_valid = constraint_side_conjunction_(
+		  b, side_after_yes, side_after_no);
+	    b.side_constraints.resize(side_before);
+	    Z3_ast selected_valid[3] = {
+		  cond_valid, Z3_mk_implies(b.ctx, cond, yes_valid),
+		  Z3_mk_implies(b.ctx, Z3_mk_not(b.ctx, cond), no_valid)
+	    };
+	    b.side_constraints.push_back(Z3_mk_and(b.ctx, 3, selected_valid));
 	    if (before == after_cond) {
                   if (condition == Z3_L_TRUE) b.state_errors.resize(after_yes);
                   else if (condition == Z3_L_FALSE)
@@ -1998,10 +2339,32 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 
       if (op == "and" || op == "or") {
 	    size_t before = b.state_errors.size();
+	    size_t side_before = b.side_constraints.size();
 	    Z3_lbool left_guard, right_guard;
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b, &left_guard));
 	    size_t after_left = b.state_errors.size();
+	    size_t side_after_left = b.side_constraints.size();
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b, &right_guard));
+	    size_t side_after_right = b.side_constraints.size();
+	    Z3_ast left_valid = constraint_side_conjunction_(
+		  b, side_before, side_after_left);
+	    Z3_ast right_valid = constraint_side_conjunction_(
+		  b, side_after_left, side_after_right);
+	    b.side_constraints.resize(side_before);
+	    Z3_ast left_decides = op == "and"
+		  ? Z3_mk_not(b.ctx, left) : left;
+	    Z3_ast right_decides = op == "and"
+		  ? Z3_mk_not(b.ctx, right) : right;
+	    Z3_ast left_or_right_valid[2] = { left_decides, right_valid };
+	    Z3_ast left_path[2] = {
+		  left_valid, Z3_mk_or(b.ctx, 2, left_or_right_valid)
+	    };
+	    Z3_ast right_path[2] = { right_valid, right_decides };
+	    Z3_ast either_path[2] = {
+		  Z3_mk_and(b.ctx, 2, left_path),
+		  Z3_mk_and(b.ctx, 2, right_path)
+	    };
+	    b.side_constraints.push_back(Z3_mk_or(b.ctx, 2, either_path));
             Z3_lbool deciding = op == "and" ? Z3_L_FALSE : Z3_L_TRUE;
             if ((before == after_left
                  && left_guard == deciding)
@@ -2025,9 +2388,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
        * equivalence A <-> B. Both operands take their boolean views. */
       if (op == "impl" || op == "iff") {
 	    size_t before = b.state_errors.size();
+	    size_t side_before = b.side_constraints.size();
 	    Z3_lbool left_guard;
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b, &left_guard));
 	    size_t after_left = b.state_errors.size();
+	    size_t side_after_left = b.side_constraints.size();
             if (op == "impl" && before == after_left && left_guard == Z3_L_FALSE) {
                   // Eliminate the guarded constraint before registering any
                   // soft/disable-soft/order/foreach side effects.
@@ -2040,6 +2405,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    if (op == "impl") b.soft_guards.push_back(left);
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
 	    if (op == "impl") b.soft_guards.pop_back();
+	    size_t side_after_right = b.side_constraints.size();
+	    Z3_ast left_valid = constraint_side_conjunction_(
+		  b, side_before, side_after_left);
+	    Z3_ast right_valid = constraint_side_conjunction_(
+		  b, side_after_left, side_after_right);
+	    b.side_constraints.resize(side_before);
+	    Z3_ast validity = op == "impl"
+		  ? Z3_mk_implies(b.ctx, left, right_valid)
+		  : right_valid;
+	    Z3_ast both_valid[2] = { left_valid, validity };
+	    b.side_constraints.push_back(Z3_mk_and(b.ctx, 2, both_valid));
 	    par.skip_ws(); par.expect(')');
 	    if (op == "impl")
 		  return Z3_mk_implies(b.ctx, left, right);
@@ -2225,6 +2601,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast left  = build_z3_atom(par, b);
 	    Z3_ast right = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
+	      // A nested comparison is a one-bit SystemVerilog integral value,
+	      // although Z3 represents it as Bool. Equality and relational
+	      // operators therefore size it like bit[0:0] before comparing.
+	    left = bool_to_bv1(b.ctx, left);
+	    right = bool_to_bv1(b.ctx, right);
 
 	      // Relational operands are unsigned when either operand is
 	      // unsigned (IEEE 1800-2017 11.8.1). Bare decimal literals are
@@ -2425,9 +2806,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    std::set<Z3Builder::VarRef>* saved = b.collect_refs;
 	    size_t nested_soft_begin = b.pending_soft.size();
 	    size_t nested_dist_begin = b.dist_specs.size();
+	    size_t side_begin = b.side_constraints.size();
 	    b.collect_refs = &refs;
 	    b.soft_keyword_depth += 1;
 	    Z3_ast inner = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    size_t side_end = b.side_constraints.size();
+	    if (side_end != side_begin) {
+		  Z3_ast validity = constraint_side_conjunction_(
+			b, side_begin, side_end);
+		  Z3_ast valid_inner[2] = { validity, inner };
+		  inner = Z3_mk_and(b.ctx, 2, valid_inner);
+		  b.side_constraints.resize(side_begin);
+	    }
 	    b.soft_keyword_depth -= 1;
 	    b.collect_refs = saved;
 	    if (b.collect_preferences) {
@@ -2880,7 +3270,16 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 	    par.skip_ws();
 	    if (par.at_end()) break;
 	    const char* before = par.p;
+	    size_t side_begin = b.side_constraints.size();
 	    Z3_ast expr = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    size_t side_end = b.side_constraints.size();
+	    if (side_end != side_begin) {
+		  Z3_ast validity = constraint_side_conjunction_(
+			b, side_begin, side_end);
+		  Z3_ast valid_expr[2] = { validity, expr };
+		  expr = Z3_mk_and(b.ctx, 2, valid_expr);
+		  b.side_constraints.resize(side_begin);
+	    }
 	    if (par.p == before) {
 		  static bool warned_no_progress = false;
 		  if (!warned_no_progress) {
@@ -2935,6 +3334,16 @@ static void cobj_set_prop_bits(vvp_cobject* cobj, unsigned idx, uint64_t bits)
       for (unsigned b = low_wid; b < wid; ++b)
 	    vec.set_bit(b, BIT4_0);
       cobj->set_vec4(idx, vec);
+}
+
+static bool cobj_set_prop_vec4_(vvp_cobject*cobj, unsigned idx,
+                                const vvp_vector4_t&value)
+{
+      vvp_vector4_t current;
+      cobj->get_vec4(idx, current);
+      if (current.size() != value.size()) return false;
+      cobj->set_vec4(idx, value);
+      return true;
 }
 
 /* Resolve the synthetic vvp_cobject that stores one unpacked-struct class
@@ -3206,6 +3615,81 @@ static string substitute_slots(const string& ir,
 	    }
       }
       return result;
+}
+
+/* Class-constraint function captures retain their complete four-state value.
+ * Build wide constants from existing concat/trunc IR instead of narrowing the
+ * runtime value through uint64_t. */
+static bool substitute_class_slots_(const string&ir,
+      const vector<vvp_vector4_t>&slot_vals, string&result, string&error)
+{
+      result.clear();
+      const char*begin = ir.c_str();
+      const char*p = begin;
+      while (*p) {
+            bool token_start = p == begin
+                  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+            if (!token_start || p[0] != 'v' || p[1] != ':') {
+                  result += *p++;
+                  continue;
+            }
+            const char*q = p + 2;
+            char*end = nullptr;
+            unsigned long slot = strtoul(q, &end, 10);
+            if (end == q || *end != ':') {
+                  error = "malformed class constraint function capture";
+                  return false;
+            }
+            q = end + 1;
+            unsigned long width = strtoul(q, &end, 10);
+            if (end == q || width == 0 || width > UINT_MAX) {
+                  error = "invalid class constraint function capture width";
+                  return false;
+            }
+            q = end;
+            bool is_signed = q[0] == ':' && q[1] == 's';
+            if (is_signed) q += 2;
+            if (slot > UINT_MAX || slot >= slot_vals.size()
+                || slot_vals[(size_t)slot].size() == 0) {
+                  error = "missing class constraint function capture slot "
+                        + to_string(slot);
+                  return false;
+            }
+            const vvp_vector4_t&value = slot_vals[(size_t)slot];
+            if (value.size() != width) {
+                  error = "class constraint function capture slot "
+                        + to_string(slot) + " has width "
+                        + to_string(value.size()) + ", expected "
+                        + to_string(width);
+                  return false;
+            }
+            for (unsigned bit = 0; bit < value.size(); ++bit)
+                  if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1) {
+                        error = "X/Z value in class constraint function capture slot "
+                              + to_string(slot);
+                        return false;
+                  }
+            string constant;
+            for (unsigned high = value.size(); high > 0;) {
+                  unsigned low = high > 64 ? high - 64 : 0;
+                  unsigned chunk_width = high - low;
+                  uint64_t bits = 0;
+                  for (unsigned bit = 0; bit < chunk_width; ++bit)
+                        if (value.value(low + bit) == BIT4_1)
+                              bits |= UINT64_C(1) << bit;
+                  constant += "c:" + to_string(bits) + ":"
+                            + to_string(chunk_width) + " ";
+                  high = low;
+            }
+            if (value.size() > 64) constant = "(concat " + constant + ")";
+            else constant.resize(constant.size() - 1);
+            if (is_signed)
+                  constant = "(trunc:" + to_string(width) + ":s "
+                           + constant + ")";
+            result += constant;
+            p = q;
+      }
+      return true;
 }
 
 /* Scope std::randomize may also carry queue/darray membership operands.
@@ -3553,6 +4037,11 @@ class state_foreach_expander_t {
             parser.consume();
             string op = parser.read_token();
             if (op.empty()) return false;
+            if (op == "hselectfield") {
+                  out.text = "(hselectfield" + capture_balanced_form(parser) + ")";
+                  out.ground = false;
+                  return true;
+            }
             if (op == "heq" || op == "hne") {
                   if (template_depth_) {
                         out.text = "(" + op + capture_balanced_form(parser) + ")";
@@ -3582,6 +4071,32 @@ class state_foreach_expander_t {
             // size/element solver passes (2017 18.5.8.1 / 2023 18.5.7.1).
             // Check their structure, then retain the original template: its
             // L is not an index into this state collection.
+            if (op == "assocforeach") {
+                  unsigned property = 0;
+                  if (template_depth_
+                      || !unsigned_token_(parser.read_token(), property)
+                      || property >= receiver_->get_defn()->property_count())
+                        return false;
+                  const char*begin = parser.p;
+                  state_foreach_value_t ignored;
+                  ++template_depth_;
+                  bool valid = expression(parser, ignored);
+                  --template_depth_;
+                  if (!valid || !parser.expect(')')) return false;
+                  out.text = "(assocforeach " + to_string(property)
+                        + string(begin, parser.p - begin);
+                  return true;
+            }
+            if (op == "qkeymember") {
+                  unsigned member = 0, unused = 0, width = 0; bool sign = false;
+                  if (!header_(parser.read_token(), "", member, unused,
+                               width, sign, false)
+                      || !parser.expect(')')) return false;
+                  out.text = "(qkeymember " + to_string(member) + ":"
+                        + to_string(width) + (sign ? ":s)" : ")");
+                  out.ground = false;
+                  return true;
+            }
             if (op == "dynforeach" || op == "delem" || op == "qmelem") {
                   const char*begin = parser.p;
                   unsigned property = 0, member = 0, width = 0; bool sign = false;
@@ -3889,7 +4404,14 @@ bool z3_object_graph_t::active(unsigned idx) const
 {
       for (const auto&binding : properties.at(idx).bindings)
             if (rand_active_(binding.scope->object->get_defn(),
-                  binding.scope->object, binding.scope->selection(), binding.pid))
+                  binding.scope->object, binding.scope->selection(), binding.pid)
+                && (!binding.scope->staged_selection
+                    || any_of(binding.scope->staged_active.begin(),
+                              binding.scope->staged_active.end(),
+                              [&](const vvp_z3_ref_s&ref) {
+                                    return ref.kind == vvp_z3_ref_s::PROP
+                                          && ref.property == binding.pid;
+                              })))
                   return true;
       return false;
 }
@@ -3911,7 +4433,49 @@ bool z3_object_graph_t::element_active(unsigned idx, unsigned elem) const
 {
       for (const auto&binding : properties.at(idx).bindings)
             if (rand_elem_active_(binding.scope->object->get_defn(),
-                  binding.scope->object, binding.scope->selection(), binding.pid, elem))
+                  binding.scope->object, binding.scope->selection(), binding.pid, elem)
+                && (!binding.scope->staged_selection
+                    || any_of(binding.scope->staged_active.begin(),
+                              binding.scope->staged_active.end(),
+                              [&](const vvp_z3_ref_s&ref) {
+                                    return ref.kind == vvp_z3_ref_s::ELEM
+                                          && ref.property == binding.pid
+                                          && ref.leaf == elem;
+                              })))
+                  return true;
+      return false;
+}
+
+bool z3_object_graph_t::member_active(unsigned idx, unsigned member) const
+{
+      for (const auto&binding : properties.at(idx).bindings)
+            if (rand_member_active_(binding.scope->object->get_defn(),
+                  binding.scope->object, binding.scope->selection(),
+                  binding.pid, member)
+                && (!binding.scope->staged_selection
+                    || any_of(binding.scope->staged_active.begin(),
+                              binding.scope->staged_active.end(),
+                              [&](const vvp_z3_ref_s&ref) {
+                                    return ref.kind == vvp_z3_ref_s::MEMBER
+                                          && ref.property == binding.pid
+                                          && ref.leaf == member;
+                              })))
+                  return true;
+      return false;
+}
+
+bool z3_object_graph_t::size_active(unsigned idx) const
+{
+      for (const auto&binding : properties.at(idx).bindings)
+            if (rand_active_(binding.scope->object->get_defn(),
+                  binding.scope->object, binding.scope->selection(), binding.pid)
+                && (!binding.scope->staged_selection
+                    || any_of(binding.scope->staged_active.begin(),
+                              binding.scope->staged_active.end(),
+                              [&](const vvp_z3_ref_s&ref) {
+                                    return ref.kind == vvp_z3_ref_s::SIZE
+                                          && ref.property == binding.pid;
+                              })))
                   return true;
       return false;
 }
@@ -3944,18 +4508,23 @@ static bool rand_elem_active_(const Z3Builder&builder,
             : rand_elem_active_(builder.defn, builder.cobj, selection, idx, elem);
 }
 
+static bool rand_size_active_(const Z3Builder&builder,
+      const vector<bool>*selection, unsigned idx)
+{
+      return builder.graph ? builder.graph->size_active(idx)
+            : rand_active_(builder.defn, builder.cobj, selection, idx);
+}
+
 static bool rand_member_active_(const Z3Builder&builder,
       const vector<bool>*selection, unsigned outer, unsigned member)
 {
       if (!builder.graph)
             return rand_member_active_(builder.defn, builder.cobj,
                                        selection, outer, member);
-      if (!builder.graph->active(outer)) return false;
+      if (!builder.graph->member_active(outer, member)) return false;
       vvp_cobject*owner = cobj_struct_prop(builder.object(outer),
                                           builder.local_index(outer));
-      return owner && member < owner->get_defn()->property_count()
-            && owner->get_defn()->property_is_rand(member)
-            && owner->rand_mode_for_randomization(member, 0);
+      return owner != nullptr;
 }
 
 /* IEEE 1800-2017 18.5.13 / 1800-2023 18.5.12: classify from source
@@ -3977,7 +4546,7 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
                     : ref.kind == Z3Builder::VarRef::ELEM
                       ? rand_elem_active_(b, b.prop_active, ref.idx, ref.leaf)
                       : !(b.dyn_sizes && b.dyn_sizes->count(ref.idx))
-                        && rand_active_(b, b.prop_active, ref.idx);
+                        && rand_size_active_(b, b.prop_active, ref.idx);
             if (active) random = true;
             else state_refs.insert(ref);
       }
@@ -4581,6 +5150,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      z3_rng_stream_t& root_rng,
                       const vector<string>& extra_ir,
                       const vector<uint64_t>& slot_vals,
+                      const vector<vvp_vector4_t>& class_slot_vals,
                       const std::map<unsigned,uint64_t>* dyn_sizes,
                       std::vector<Z3Builder::DynForeach>* dyn_out,
                       const std::vector<bool>* prop_active,
@@ -4613,6 +5183,34 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       builder.object_vals = object_vals;
       builder.prop_active = prop_active;
       builder.dyn_sizes = dyn_sizes;
+      if (graph) {
+            /* A staged leaf may be unconstrained by IR. Materialized dynamic
+             * ELEM selections still need solver variables so this stage owns
+             * their diversity and exactly one randc history event. */
+            for (const auto&scope : graph->objects)
+                  if (scope.staged_selection)
+                        for (const auto&ref : scope.staged_active) {
+                              if (ref.kind != vvp_z3_ref_s::ELEM) continue;
+                              unsigned idx = graph->intern(scope.object,
+                                                          ref.property);
+                              const string&type = scope.object->get_defn()
+                                    ->property_base_type(ref.property);
+                              if (type.empty()
+                                  || (type[0] != 'D' && type[0] != 'Q'))
+                                    continue;
+                              vvp_object_t container;
+                              scope.object->get_object(ref.property,
+                                                       container, 0);
+                              vvp_darray*array = container.peek<vvp_darray>();
+                              if (!array || ref.leaf >= array->get_size())
+                                    continue;
+                              vvp_vector4_t word;
+                              array->get_word(ref.leaf, word);
+                              if (word.size())
+                                    builder.get_elem_var(idx, word.size(),
+                                                         ref.leaf);
+                        }
+      }
       auto owner_rng = [&](vvp_cobject*owner) -> z3_rng_stream_t& {
             if (!streams || !owner || owner == cobj) return root_rng;
             auto&stream = (*streams)[owner];
@@ -4656,7 +5254,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       auto parse_owner = [&](const class_type*owner_type, vvp_cobject*owner,
                              const vector<string>&inherited,
-                             const vector<string>&extras, const vector<uint64_t>&slots,
+                             const vector<string>&extras,
+                             const vector<string>&planned_class,
+                             const vector<uint64_t>&slots,
+                             const vector<vvp_vector4_t>&class_slots,
                              bool use_class, Z3_solver solver, bool optimize,
                              const vvp_z3_object_s*source) {
             builder.defn = owner_type;
@@ -4669,7 +5270,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             };
             for (const string&ir : inherited) add(ir);
             for (size_t ci = 0; use_class && ci < owner_type->constraint_count(); ++ci)
-                  if (!owner || owner->constraint_mode(ci)) add(owner_type->constraint_ir(ci));
+                  if (!owner || owner->constraint_mode(ci)) {
+                        string ir;
+                        string error;
+                        if (!substitute_class_slots_(owner_type->constraint_ir(ci),
+                                                    class_slots, ir, error)) {
+                              builder.state_errors.push_back(error);
+                              return false;
+                        }
+                        add(ir);
+                  }
+            for (const string&source_ir : planned_class) {
+                  string ir;
+                  string error;
+                  if (!substitute_class_slots_(source_ir, class_slots, ir, error)) {
+                        builder.state_errors.push_back(error);
+                        return false;
+                  }
+                  add(ir);
+            }
             for (const string&ir : extras) {
                   if (source && ir.find("(qforeach ") != string::npos) {
                         string expanded;
@@ -4699,19 +5318,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   {
                         builder.object_vals = &owner->object_vals;
                         if (!parse_owner(owner->object->get_defn(), owner->object,
-                              owner->inherited_ir, owner->extra_ir, owner->slot_vals,
+                              owner->inherited_ir, owner->extra_ir,
+                              owner->planned_class_ir, owner->slot_vals,
+                              owner->class_slot_vals,
                               owner->include_class_constraints, solver, optimize, owner))
                               return false;
                   }
             } else {
-                  parse_owner(defn, cobj, {}, extra_ir, slot_vals,
-                              include_class_constraints, solver, optimize, nullptr);
+                  if (!parse_owner(defn, cobj, {}, extra_ir, {}, slot_vals,
+                                   class_slot_vals, include_class_constraints,
+                                   solver, optimize, nullptr))
+                        return false;
             }
             builder.defn = defn;
             builder.cobj = cobj;
             return true;
       };
-      if (!parse_problem(base, true)) return fail_joint(nullptr);
+      if (!parse_problem(base, true)) {
+            if (!builder.state_errors.empty())
+                  fprintf(stderr, "ERROR: constraint state read: %s.\n",
+                          builder.state_errors.front().c_str());
+            return fail_joint(nullptr);
+      }
       if (!builder.state_errors.empty()) {
             fprintf(stderr, "ERROR: constraint state read: %s.\n",
                     builder.state_errors.front().c_str());
@@ -4788,7 +5416,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_solver_assert(ctx, base, eq);
       }
       for (auto& sv : builder.size_vars) {
-	    if (rand_active_(builder, prop_active, sv.idx)) continue;
+	    if (rand_size_active_(builder, prop_active, sv.idx)) continue;
 	    Z3_sort s32 = Z3_mk_bv_sort(ctx, 32);
 	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
 		  cobj_darray_size(builder.object(sv.idx), builder.local_index(sv.idx)), s32);
@@ -4985,7 +5613,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      // size pass — the element pass has them pinned already.)
 	    if (!dyn_sizes)
 		  for (auto& sv : builder.size_vars)
-			if (rand_active_(builder, prop_active, sv.idx))
+			if (rand_size_active_(builder, prop_active, sv.idx))
 			      precheck = Z3_L_FALSE;
 
 	      // A constrained randc variable must be selected against its
@@ -5084,7 +5712,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         const auto&sv = builder.size_vars[i];
                         if (values[0][i] > random_container_size_cap_(sv.container_type))
                               return fail_joint("a fixed array size exceeds the supported allocation limit");
-                        if (!rand_active_(builder, prop_active, sv.idx)
+                        if (!rand_size_active_(builder, prop_active, sv.idx)
                             || !builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx))
                             || random_container_desc_(sv.container_type).elem_width <= 20) continue;
                         for (uint64_t elem = 0; elem < values[0][i]; ++elem)
@@ -5108,7 +5736,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				     ref.idx, ref.leaf);
 	    if (ref.kind == Z3Builder::VarRef::PROP)
                   return rand_scalar_active_(builder, prop_active, ref.idx);
-	    return rand_active_(builder, prop_active, ref.idx);
+	    return rand_size_active_(builder, prop_active, ref.idx);
       };
       auto dist_disabled = [&](const Z3Builder::DistSpec&spec) -> bool {
 	    if (!spec.disableable) return false;
@@ -5542,7 +6170,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (ref.kind == Z3Builder::OrderRef::MEMBER)
 			return rand_member_active_(builder, prop_active,
 					   ref.idx, ref.elem);
-		  return rand_active_(builder, prop_active, ref.idx);
+		  return ref.kind == Z3Builder::OrderRef::SIZE
+			? rand_size_active_(builder, prop_active, ref.idx)
+			: rand_active_(builder, prop_active, ref.idx);
 	    };
 	    for (const auto& pr : builder.order_pairs) {
 		  rank[pr.first];
@@ -5826,7 +6456,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, mv.var, rv));
       }
       for (auto& sv : builder.size_vars) {
-	    if (!rand_active_(builder, prop_active, sv.idx)) continue;
+	    if (!rand_size_active_(builder, prop_active, sv.idx)) continue;
 	      // Prefer small varied sizes when the constraints leave slack.
 	      // R3 (IEEE 1800-2017 18.13.1): draw from the OBJECT's own
 	      // generator (always seeded, see of_NEW_COBJ), not libc rand(),
@@ -5888,7 +6518,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&sv : builder.size_vars) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
                   if ((type != "Do" && type != "Qo")
-                      || !rand_active_(builder, prop_active, sv.idx)) continue;
+                      || !rand_size_active_(builder, prop_active, sv.idx)) continue;
                   uint64_t count = 0;
                   if (!z3_eval_uint64(ctx, model, sv.var, count)
                       || count != cobj_darray_size(builder.object(sv.idx), builder.local_index(sv.idx))) {
@@ -5932,19 +6562,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       for (auto& pv : builder.prop_vars) {
             if (defer_joint) continue;
 	    if (!rand_scalar_active_(builder, prop_active, pv.idx)) continue;
-	    uint64_t bits = 0;
-	    if (!z3_eval_uint64(ctx, model, pv.var, bits)) {
+	    vvp_vector4_t value;
+	    if (!z3_eval_vec4_(ctx, model, pv.var, value)) {
 		  Z3_model_dec_ref(ctx, model);
 		  Z3_solver_dec_ref(ctx, base);
 		  Z3_optimize_dec_ref(ctx, opt);
 		  Z3_del_context(ctx);
 		  return Z3PASS_FAILED;
 	    }
-	    cobj_set_prop_bits(builder.object(pv.idx), builder.local_index(pv.idx), bits);
+	    if (!cobj_set_prop_vec4_(builder.object(pv.idx),
+	                             builder.local_index(pv.idx), value)) {
+		  fprintf(stderr, "ERROR: constraint model width %u does not match "
+			  "property width.\n", value.size());
+		  Z3_model_dec_ref(ctx, model);
+		  Z3_solver_dec_ref(ctx, base);
+		  Z3_optimize_dec_ref(ctx, opt);
+		  Z3_del_context(ctx);
+		  return Z3PASS_FAILED;
+	    }
 	    if (z3_dyndbg())
-		  fprintf(stderr, "[z3dyn] prop  prop=%u width=%u "
-			  "bits=%llu\n", pv.idx, pv.width,
-			  (unsigned long long)bits);
+		  fprintf(stderr, "[z3dyn] prop  prop=%u width=%u\n",
+			  pv.idx, pv.width);
       }
       for (const member_write_t&write : member_writes) {
 	    cobj_set_member_bits(builder.object(write.outer), builder.local_index(write.outer), write.member, write.bits);
@@ -5983,7 +6621,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       };
 
       for (auto& sv : builder.size_vars) {
-	    if (!rand_active_(builder, prop_active, sv.idx)) continue;
+	    if (!rand_size_active_(builder, prop_active, sv.idx)) continue;
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
@@ -6072,8 +6710,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (vvp_darray*stored_array = stored.peek<vvp_darray>())
 			for (size_t adr = 0 ; adr < stored_array->get_size();
 			     adr += 1) {
-			      if (!rand_elem_active_(builder, prop_active,
-						     sv.idx, (unsigned)adr))
+		      if (!rand_elem_active_(builder, prop_active,
+					     sv.idx, (unsigned)adr))
 				    continue;
 			      bool modeled_element = false;
 			      for (const auto&ev : builder.elem_vars)
@@ -6094,11 +6732,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    }
       }
 
-	// Apply solved array-element values.
+      // Apply solved array-element values.
       for (auto& ev : builder.elem_vars) {
             if (defer_joint) continue;
 	    if (!rand_elem_active_(builder, prop_active, ev.idx, ev.elem))
 		  continue;
+	    uint64_t count = cobj_darray_size(builder.object(ev.idx),
+	                                      builder.local_index(ev.idx));
+	    const string&type_text = builder.type(ev.idx)->property_base_type(
+	          builder.local_index(ev.idx));
+	    if (!type_text.empty()
+	        && (type_text[0] == 'D' || type_text[0] == 'Q')
+	        && ev.elem >= count) {
+		  fprintf(stderr, "ERROR: constraint element %u remains outside "
+		          "the solved dynamic-container size %llu.\n", ev.elem,
+		          (unsigned long long)count);
+		  Z3_model_dec_ref(ctx, model);
+		  Z3_solver_dec_ref(ctx, base);
+		  Z3_optimize_dec_ref(ctx, opt);
+		  Z3_del_context(ctx);
+		  return Z3PASS_FAILED;
+	    }
 	    uint64_t bits = 0;
 	    bool ev_ok = z3_eval_uint64(ctx, model, ev.var, bits);
 	    if (ev_ok)
@@ -6123,7 +6777,8 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
                       const vector<uint64_t>& slot_vals,
                       const std::vector<bool>* prop_active,
                       bool include_class_constraints,
-                      const vector<vvp_object_t>*object_vals)
+                      const vector<vvp_object_t>*object_vals,
+                      const vector<vvp_vector4_t>*class_slot_vals)
 {
       if ((!include_class_constraints || defn->constraint_count() == 0)
 	  && extra_ir.empty()) return true;
@@ -6133,7 +6788,10 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	// Size pass: dynamic-foreach bodies deferred; sizes solved and
 	// written back.
       std::vector<Z3Builder::DynForeach> dyn;
-      int r1 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
+      static const vector<vvp_vector4_t> no_class_slots;
+      const vector<vvp_vector4_t>&class_slots = class_slot_vals
+	    ? *class_slot_vals : no_class_slots;
+      int r1 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
 			      nullptr, &dyn, prop_active,
 			      include_class_constraints, nullptr, nullptr, object_vals);
       if (dyn.empty())
@@ -6155,7 +6813,7 @@ bool vvp_z3_randomize(const class_type* defn, vvp_cobject* cobj,
 	// Replay the size pass's RNG prefix. The object itself remains at the
 	// furthest state already consumed; only new suffix words advance it.
       rng.rewind();
-      int r2 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals,
+      int r2 = z3_solve_pass_(defn, cobj, rng, extra_ir, slot_vals, class_slots,
 			      &sizes, nullptr, prop_active,
 			      include_class_constraints, nullptr, nullptr, object_vals);
       return r2 != Z3PASS_FAILED;
@@ -6214,6 +6872,639 @@ bool vvp_z3_graph_history_supported(const vector<vvp_z3_object_s>&objects)
       return true;
 }
 
+namespace {
+struct function_plan_item_t {
+      vvp_z3_plan_item_s item;
+      set<Z3Builder::VarRef> refs;
+      vector<size_t> calls;
+      unsigned stage = 0;
+      unsigned minimum_stage = 0;
+};
+
+static bool take_top_ir_(const char*&p, string&out)
+{
+      while (*p && isspace((unsigned char)*p)) ++p;
+      if (!*p) return false;
+      const char*begin = p;
+      if (*p != '(') {
+            while (*p && !isspace((unsigned char)*p)) ++p;
+            out.assign(begin, p - begin);
+            return true;
+      }
+      unsigned depth = 0;
+      do {
+            if (*p == '(') ++depth;
+            else if (*p == ')') --depth;
+            ++p;
+      } while (*p && depth);
+      if (depth) return false;
+      out.assign(begin, p - begin);
+      return true;
+}
+
+static bool split_constraint_items_(const string&ir, vector<string>&items)
+{
+      const char*p = ir.c_str();
+      for (;;) {
+            while (*p && isspace((unsigned char)*p)) ++p;
+            if (!*p) break;
+            string form;
+            if (!take_top_ir_(p, form)) return false;
+            IRParser parser(form);
+            if (parser.peek() == '(') {
+                  parser.consume();
+                  if (parser.read_token() == "and") {
+                        string body = capture_balanced_form(parser);
+                        if (!split_constraint_items_(body, items)) return false;
+                        continue;
+                  }
+            }
+            items.push_back(form);
+      }
+      return true;
+}
+
+static vector<size_t> capture_slots_(const string&ir)
+{
+      set<size_t> slots;
+      const char*begin = ir.c_str();
+      for (const char*p = begin; *p; ++p) {
+            bool boundary = p == begin
+                  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+            if (!boundary || p[0] != 'v' || p[1] != ':') continue;
+            char*end = nullptr;
+            unsigned long slot = strtoul(p + 2, &end, 10);
+            if (end != p + 2 && *end == ':') slots.insert((size_t)slot);
+      }
+      return vector<size_t>(slots.begin(), slots.end());
+}
+
+static bool top_dynamic_foreach_(const string&ir)
+{
+      IRParser parser(ir);
+      if (parser.peek() != '(') return false;
+      parser.consume();
+      return parser.read_token() == "dynforeach";
+}
+
+}
+
+bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
+                                 vvp_z3_function_plan_s&plan)
+{
+      plan.stages.clear();
+      plan.deferred_elements.clear();
+      plan.error.clear();
+      if (objects.empty()) return true;
+      z3_object_graph_t graph(objects);
+      graph.select_storage_owners();
+      if (!graph.valid) {
+            plan.error = "invalid object storage in constraint function plan";
+            return false;
+      }
+      Z3_config cfg = Z3_mk_config();
+      Z3_context ctx = Z3_mk_context(cfg);
+      Z3_del_config(cfg);
+      vector<function_plan_item_t> work;
+      map<unsigned, Z3Builder::VarRef> member_aliases;
+      for (unsigned outer = 0; outer < graph.properties.size(); ++outer) {
+            const auto&property = graph.properties[outer];
+            const string&base = property.object->get_defn()->property_base_type(
+                  property.pid);
+            if (base.compare(0, 3, "oc:") != 0) continue;
+            vvp_cobject*record = cobj_struct_prop(property.object, property.pid);
+            if (!record) continue;
+            for (unsigned member = 0;
+                 member < record->get_defn()->property_count(); ++member) {
+                  unsigned child = graph.intern(record, member);
+                  member_aliases[child] = {
+                        Z3Builder::VarRef::MEMBER, outer, member};
+            }
+      }
+      auto add_ir = [&](size_t object, const string&ir, bool class_ir,
+                        unsigned constraint) -> bool {
+            vector<string> split;
+            if (!split_constraint_items_(ir, split)) {
+                  plan.error = "malformed top-level constraint expression";
+                  return false;
+            }
+            const class_type*type = objects[object].object->get_defn();
+            for (const string&item_ir : split) {
+                  function_plan_item_t entry;
+                  entry.item = {object, class_ir, item_ir,
+                                class_ir ? capture_slots_(item_ir)
+                                         : vector<size_t>()};
+                  Z3Builder builder(ctx, type, objects[object].object, &graph);
+                  set<Z3Builder::VarRef> refs;
+                  builder.collect_refs = &refs;
+                  builder.collect_refs_only = true;
+                  builder.allow_planner_value_slots = true;
+                  parse_constraint_ir(item_ir, builder);
+                  if (!builder.state_errors.empty()) {
+                        plan.error = builder.state_errors.front();
+                        return false;
+                  }
+                  for (const auto&ref : refs) {
+                        Z3Builder::VarRef canonical = ref;
+                        if (ref.kind == Z3Builder::VarRef::PROP) {
+                              auto alias = member_aliases.find(ref.idx);
+                              if (alias != member_aliases.end())
+                                    canonical = alias->second;
+                        }
+                        bool active = canonical.kind == Z3Builder::VarRef::PROP
+                              ? (canonical.idx < graph.properties.size()
+                                 && graph.active(canonical.idx))
+                              : canonical.kind == Z3Builder::VarRef::MEMBER
+                              ? rand_member_active_(builder, nullptr,
+                                                    canonical.idx, canonical.leaf)
+                              : canonical.kind == Z3Builder::VarRef::ELEM
+                              ? rand_elem_active_(builder, nullptr,
+                                                  canonical.idx, canonical.leaf)
+                              : canonical.idx < graph.properties.size()
+                                && graph.active(canonical.idx);
+                        if (active) entry.refs.insert(canonical);
+                  }
+                  if (class_ir)
+                        for (size_t slot : entry.item.capture_slots) {
+                              const auto&calls = type->constraint_state_calls();
+                              if (slot >= calls.size()
+                                  || (constraint != UINT_MAX
+                                      && calls[slot].constraint != constraint)) {
+                                    plan.error = "constraint function capture metadata does not match its IR slot";
+                                    return false;
+                              }
+                              entry.calls.push_back(slot);
+                        }
+                  work.push_back(entry);
+            }
+            return true;
+      };
+      for (size_t oi = 0; oi < objects.size(); ++oi) {
+            const vvp_z3_object_s&owner = objects[oi];
+            const class_type*type = owner.object->get_defn();
+            for (const string&ir : owner.inherited_ir)
+                  if (!add_ir(oi, ir, true, UINT_MAX)) goto fail;
+            if (owner.include_class_constraints)
+                  for (size_t ci = 0; ci < type->constraint_count(); ++ci)
+                        if (owner.object->constraint_mode(ci)
+                            && !add_ir(oi, type->constraint_ir(ci), true,
+                                       (unsigned)ci)) goto fail;
+            for (const string&ir : owner.extra_ir)
+                  if (!add_ir(oi, ir, false, UINT_MAX)) goto fail;
+      }
+
+      {
+            using Ref = Z3Builder::VarRef;
+            map<Ref, set<Ref> > edges;
+            set<Ref> active_refs;
+            auto active_ref = [&](const Ref&ref) {
+                  if (ref.idx >= graph.properties.size()) return false;
+                  if (ref.kind == Ref::PROP) return graph.active(ref.idx);
+                  if (ref.kind == Ref::ELEM)
+                        return graph.element_active(ref.idx, ref.leaf);
+                  if (ref.kind == Ref::MEMBER)
+                        return graph.member_active(ref.idx, ref.leaf);
+                  return graph.size_active(ref.idx);
+            };
+            for (unsigned idx = 0; idx < graph.properties.size(); ++idx) {
+                  if (member_aliases.count(idx)) continue;
+                  const class_type*type = graph.properties[idx].object->get_defn();
+                  unsigned pid = graph.properties[idx].pid;
+                  const string&base = type->property_base_type(pid);
+                  uint64_t words = type->property_array_size(pid);
+                  if (words > 1) {
+                        for (unsigned leaf = 0; leaf < words; ++leaf) {
+                              Ref ref = {Ref::ELEM, idx, leaf};
+                              if (active_ref(ref)) active_refs.insert(ref);
+                        }
+                  } else if (base.compare(0, 3, "oc:") == 0) {
+                        vvp_cobject*record = cobj_struct_prop(
+                              graph.properties[idx].object, pid);
+                        if (record)
+                              for (unsigned leaf = 0;
+                                   leaf < record->get_defn()->property_count(); ++leaf) {
+                                    Ref ref = {Ref::MEMBER, idx, leaf};
+                                    if (active_ref(ref)) active_refs.insert(ref);
+                              }
+                  } else if (!base.empty()
+                             && (base[0] == 'D' || base[0] == 'Q')) {
+                        Ref size = {Ref::SIZE, idx, 0};
+                        if (active_ref(size)) {
+                              active_refs.insert(size);
+                              uint64_t words = cobj_darray_size(
+                                    graph.properties[idx].object,
+                                    graph.properties[idx].pid);
+                              for (unsigned leaf = 0; leaf < words; ++leaf) {
+                                    Ref element = {Ref::ELEM, idx, leaf};
+                                    if (active_ref(element))
+                                          active_refs.insert(element);
+                              }
+                        }
+                  } else if (!base.empty() && base[0] == 'M') {
+                        if (graph.size_active(idx)) {
+                              plan.error = "associative-container function priority is not yet supported";
+                              goto fail;
+                        }
+                  } else {
+                        Ref ref = {Ref::PROP, idx, 0};
+                        if (active_ref(ref)) active_refs.insert(ref);
+                  }
+            }
+
+            vector<pair<size_t,size_t> > state_calls;
+            vector<vector<pair<size_t,size_t> > > item_calls(work.size());
+            vector<vector<set<Ref> > > call_args(work.size());
+            vector<set<Ref> > item_args(work.size());
+            set<Ref> all_args;
+            for (size_t wi = 0; wi < work.size(); ++wi) {
+                  const vvp_z3_object_s&scope = objects[work[wi].item.object];
+                  const class_type*type = scope.object->get_defn();
+                  for (size_t slot : work[wi].calls) {
+                        const auto&call = type->constraint_state_calls()[slot];
+                        set<Ref> args;
+                        for (const auto&dependency : call.argument_dependencies) {
+                              if (dependency.kind > Ref::SIZE) {
+                                    plan.error = "invalid typed constraint function dependency";
+                                    goto fail;
+                              }
+                              unsigned idx = graph.intern(scope.object,
+                                                          dependency.property);
+                              Ref ref = {static_cast<Ref::Kind>(dependency.kind),
+                                         idx, dependency.leaf};
+                              if (active_ref(ref)) {
+                                    args.insert(ref);
+                                    active_refs.insert(ref);
+                              }
+                        }
+                        item_args[wi].insert(args.begin(), args.end());
+                        all_args.insert(args.begin(), args.end());
+                        item_calls[wi].push_back({work[wi].item.object, slot});
+                        call_args[wi].push_back(args);
+                        if (args.empty())
+                              state_calls.push_back({work[wi].item.object, slot});
+                  }
+            }
+            for (const auto&entry : work)
+                  active_refs.insert(entry.refs.begin(), entry.refs.end());
+            for (const Ref&element : active_refs) {
+                  if (element.kind != Ref::ELEM) continue;
+                  const string&base = graph.properties[element.idx].object
+                        ->get_defn()->property_base_type(
+                              graph.properties[element.idx].pid);
+                  if (!base.empty() && (base[0] == 'D' || base[0] == 'Q')) {
+                        Ref size = {Ref::SIZE, element.idx, 0};
+                        if (active_refs.count(size)) edges[size].insert(element);
+                  }
+            }
+            for (size_t wi = 0; wi < work.size(); ++wi)
+                  for (const auto&args : call_args[wi])
+                        for (const Ref&arg : args)
+                              for (const Ref&target : work[wi].refs)
+                                    if (!args.count(target)
+                                        && all_args.count(target))
+                                          edges[arg].insert(target);
+            map<Ref, unsigned> levels;
+            for (const Ref&ref : active_refs) levels[ref] = 0;
+            for (size_t pass = 0; pass < active_refs.size(); ++pass) {
+                  bool changed = false;
+                  for (const auto&edge : edges)
+                        for (const Ref&to : edge.second)
+                              if (levels[to] <= levels[edge.first]) {
+                                    levels[to] = levels[edge.first] + 1;
+                                    changed = true;
+                              }
+                  if (!changed) break;
+                  if (pass + 1 == active_refs.size()) {
+                        plan.error = "cyclic active-random constraint function dependency";
+                        goto fail;
+                  }
+            }
+            unsigned final_level = 0;
+            if (!all_args.empty()) {
+                  for (const Ref&arg : all_args)
+                        final_level = max(final_level, levels[arg]);
+                  ++final_level;
+                  for (const Ref&ref : active_refs)
+                        /* Dynamic size is an inherent prerequisite of its
+                         * prospective elements. Keep that established tier;
+                         * ordinary nonargument scalars/elements remain peers
+                         * in the final lower set. */
+                        if (!all_args.count(ref) && ref.kind != Ref::SIZE)
+                              levels[ref] = final_level;
+            }
+            for (const Ref&element : active_refs) {
+                  if (element.kind != Ref::ELEM) continue;
+                  const string&base = graph.properties[element.idx].object
+                        ->get_defn()->property_base_type(
+                              graph.properties[element.idx].pid);
+                  if (!base.empty() && (base[0] == 'D' || base[0] == 'Q')) {
+                        Ref size = {Ref::SIZE, element.idx, 0};
+                        levels[element] = max(levels[element], levels[size] + 1);
+                  }
+            }
+            /* Foreach is one semantic scope, but after SIZE is fixed its
+             * iterations can occupy different function-priority sets. Keep
+             * the existing runtime expansion and partition it with L guards:
+             * exact argument elements are constrained in their own tier;
+             * every other iteration remains with the ordinary lower peers. */
+            {
+                  vector<function_plan_item_t> expanded_work;
+                  vector<vector<pair<size_t,size_t> > > expanded_item_calls;
+                  vector<vector<set<Ref> > > expanded_call_args;
+                  vector<set<Ref> > expanded_item_args;
+                  for (size_t wi = 0; wi < work.size(); ++wi) {
+                        if (!top_dynamic_foreach_(work[wi].item.ir)) {
+                              expanded_work.push_back(work[wi]);
+                              expanded_item_calls.push_back(item_calls[wi]);
+                              expanded_call_args.push_back(call_args[wi]);
+                              expanded_item_args.push_back(item_args[wi]);
+                              continue;
+                        }
+                        if (!work[wi].calls.empty()) {
+                              plan.error = "function calls inside dynamic foreach priority are not yet supported";
+                              goto fail;
+                        }
+                        IRParser parser(work[wi].item.ir);
+                        parser.consume();
+                        if (parser.read_token() != "dynforeach") {
+                              plan.error = "malformed dynamic foreach plan item";
+                              goto fail;
+                        }
+                        string header = parser.read_token();
+                        unsigned local = 0, width = 0; bool is_signed = false;
+                        parse_pws_header(header, local, width, is_signed);
+                        unsigned canonical = graph.intern(
+                              objects[work[wi].item.object].object, local);
+                        string body = capture_balanced_form(parser);
+                        vector<Ref> exact;
+                        for (const Ref&arg : all_args)
+                              if (arg.kind == Ref::ELEM
+                                  && arg.idx == canonical)
+                                    exact.push_back(arg);
+                        for (const Ref&arg : exact) {
+                              function_plan_item_t part = work[wi];
+                              ostringstream ir;
+                              ir << "(dynforeach " << header
+                                 << " (impl (eq L c:" << arg.leaf
+                                 << ":32) " << body << "))";
+                              part.item.ir = ir.str();
+                              part.refs.clear();
+                              string concrete = subst_loop_token(body,
+                                                                 arg.leaf);
+                              Z3Builder collector(ctx,
+                                    objects[part.item.object].object->get_defn(),
+                                    objects[part.item.object].object, &graph);
+                              set<Ref> concrete_refs;
+                              collector.collect_refs = &concrete_refs;
+                              Z3_ast concrete_ast = parse_constraint_ir(
+                                    concrete, collector);
+                              concrete_ast = Z3_simplify(ctx,
+                                    collector.resolve_signed_constants(
+                                          concrete_ast));
+                              if (!collector.state_errors.empty()) {
+                                    plan.error = collector.state_errors.front();
+                                    goto fail;
+                              }
+                              auto contains_ast = [&](Z3_ast needle) {
+                                    vector<Z3_ast> pending(1, concrete_ast);
+                                    set<Z3_ast> seen;
+                                    while (!pending.empty()) {
+                                          Z3_ast node = pending.back();
+                                          pending.pop_back();
+                                          if (node == needle) return true;
+                                          if (!seen.insert(node).second
+                                              || Z3_get_ast_kind(ctx, node)
+                                                   != Z3_APP_AST)
+                                                continue;
+                                          Z3_app app = Z3_to_app(ctx, node);
+                                          for (unsigned ai = 0;
+                                               ai < Z3_get_app_num_args(ctx, app);
+                                               ++ai)
+                                                pending.push_back(
+                                                      Z3_get_app_arg(ctx, app,
+                                                                     ai));
+                                    }
+                                    return false;
+                              };
+                              for (Ref ref : concrete_refs) {
+                                    Z3_ast variable = nullptr;
+                                    if (ref.kind == Ref::PROP)
+                                          for (const auto&var : collector.prop_vars)
+                                                if (var.idx == ref.idx)
+                                                      variable = var.var;
+                                    if (ref.kind == Ref::ELEM)
+                                          for (const auto&var : collector.elem_vars)
+                                                if (var.idx == ref.idx
+                                                    && var.elem == ref.leaf)
+                                                      variable = var.var;
+                                    if (ref.kind == Ref::SIZE)
+                                          for (const auto&var : collector.size_vars)
+                                                if (var.idx == ref.idx)
+                                                      variable = var.var;
+                                    if (ref.kind == Ref::MEMBER)
+                                          for (const auto&var : collector.member_vars)
+                                                if (var.outer == ref.idx
+                                                    && var.member == ref.leaf)
+                                                      variable = var.var;
+                                    if (!variable || !contains_ast(variable))
+                                          continue;
+                                    if (ref.kind == Ref::PROP) {
+                                          auto alias = member_aliases.find(ref.idx);
+                                          if (alias != member_aliases.end())
+                                                ref = alias->second;
+                                    }
+                                    if (active_ref(ref)) {
+                                          if (!levels.count(ref)) {
+                                                unsigned level = final_level;
+                                                if (ref.kind == Ref::SIZE)
+                                                      level = 0;
+                                                else if (ref.kind == Ref::ELEM) {
+                                                      const string&base =
+                                                            graph.properties[ref.idx].object
+                                                                  ->get_defn()->property_base_type(
+                                                                        graph.properties[ref.idx].pid);
+                                                      if (!base.empty()
+                                                          && (base[0] == 'D'
+                                                              || base[0] == 'Q')) {
+                                                            Ref size = {
+                                                                  Ref::SIZE,
+                                                                  ref.idx, 0};
+                                                            level = max(level,
+                                                                  levels[size] + 1);
+                                                      }
+                                                }
+                                                levels[ref] = level;
+                                                active_refs.insert(ref);
+                                          }
+                                          part.refs.insert(ref);
+                                    }
+                              }
+                              part.minimum_stage = 0;
+                              expanded_work.push_back(part);
+                              expanded_item_calls.emplace_back();
+                              expanded_call_args.emplace_back();
+                              expanded_item_args.emplace_back();
+                        }
+                        function_plan_item_t remainder = work[wi];
+                        if (!exact.empty()) {
+                              ostringstream guard;
+                              if (exact.size() > 1) guard << "(and ";
+                              for (const Ref&arg : exact)
+                                    guard << "(ne L c:" << arg.leaf << ":32)";
+                              if (exact.size() > 1) guard << ")";
+                              ostringstream ir;
+                              ir << "(dynforeach " << header << " (impl "
+                                 << guard.str() << " " << body << "))";
+                              remainder.item.ir = ir.str();
+                        }
+                        remainder.minimum_stage = final_level;
+                        expanded_work.push_back(remainder);
+                        expanded_item_calls.emplace_back();
+                        expanded_call_args.emplace_back();
+                        expanded_item_args.emplace_back();
+                  }
+                  work.swap(expanded_work);
+                  item_calls.swap(expanded_item_calls);
+                  call_args.swap(expanded_call_args);
+                  item_args.swap(expanded_item_args);
+            }
+            unsigned dynamic_element_level = 0;
+            for (const Ref&ref : active_refs)
+                  if (ref.kind == Ref::SIZE)
+                        dynamic_element_level = max(
+                              dynamic_element_level, levels[ref] + 1);
+            unsigned count = 1;
+            for (size_t wi = 0; wi < work.size(); ++wi) {
+                  unsigned stage = work[wi].minimum_stage;
+                  for (const Ref&ref : work[wi].refs)
+                        if (active_ref(ref)) stage = max(stage, levels[ref]);
+                  for (const Ref&arg : item_args[wi])
+                        stage = max(stage, levels[arg] + 1);
+                  if (top_dynamic_foreach_(work[wi].item.ir))
+                        stage = max(stage, dynamic_element_level);
+                  work[wi].stage = stage;
+                  count = max(count, stage + 1);
+            }
+            for (const Ref&ref : active_refs)
+                  count = max(count, levels[ref] + 1);
+            plan.stages.resize(count);
+            for (auto&stage : plan.stages)
+                  stage.active.resize(objects.size());
+            for (const Ref&ref : active_refs) {
+                  for (const auto&binding : graph.properties[ref.idx].bindings)
+                        for (size_t oi = 0; oi < objects.size(); ++oi)
+                              if (binding.scope == &objects[oi]) {
+                                    bool selected = ref.kind == Ref::ELEM
+                                          ? rand_elem_active_(
+                                                objects[oi].object->get_defn(),
+                                                objects[oi].object,
+                                                objects[oi].selection(),
+                                                binding.pid, ref.leaf)
+                                          : ref.kind == Ref::MEMBER
+                                          ? rand_member_active_(
+                                                objects[oi].object->get_defn(),
+                                                objects[oi].object,
+                                                objects[oi].selection(),
+                                                binding.pid, ref.leaf)
+                                          : rand_active_(
+                                                objects[oi].object->get_defn(),
+                                                objects[oi].object,
+                                                objects[oi].selection(),
+                                                binding.pid);
+                                    if (selected) {
+                                          plan.stages[levels[ref]].active[oi].push_back(
+                                                {static_cast<unsigned>(ref.kind),
+                                                 binding.pid, ref.leaf});
+                                          /* m:OUTER:MEMBER lowers to the
+                                           * synthetic struct object's scalar
+                                           * property in the solver. Select
+                                           * that canonical storage in the
+                                           * same stage; otherwise a later
+                                           * child-object pass can overwrite
+                                           * the solved member. */
+                                          if (ref.kind == Ref::MEMBER) {
+                                                vvp_cobject*record =
+                                                      cobj_struct_prop(
+                                                            objects[oi].object,
+                                                            binding.pid);
+                                                unsigned child = graph.intern(
+                                                      record, ref.leaf);
+                                                for (const auto&child_binding :
+                                                     graph.properties[child].bindings)
+                                                      for (size_t ci = 0;
+                                                           ci < objects.size(); ++ci)
+                                                            if (child_binding.scope
+                                                                  == &objects[ci])
+                                                                  plan.stages[levels[ref]].active[ci].push_back(
+                                                                        {vvp_z3_ref_s::PROP,
+                                                                         child_binding.pid, 0});
+                                          }
+                                    }
+                              }
+            }
+            /* A size solve may create leaves after planning. Materialize all
+             * otherwise-unmentioned active leaves in the final priority set
+             * after that size has been applied; exact earlier ELEM stages are
+             * retained and excluded by the runtime expansion. */
+            set<pair<size_t, unsigned> > deferred_bindings;
+            for (unsigned idx = 0; idx < graph.properties.size(); ++idx) {
+                  Ref size = {Ref::SIZE, idx, 0};
+                  if (!active_refs.count(size)) continue;
+                  const auto&property = graph.properties[idx];
+                  const string&base = property.object->get_defn()
+                        ->property_base_type(property.pid);
+                  if (base.empty() || (base[0] != 'D' && base[0] != 'Q'))
+                        continue;
+                  for (const auto&binding : property.bindings)
+                        for (size_t oi = 0; oi < objects.size(); ++oi)
+                              if (binding.scope == &objects[oi]
+                                  && rand_active_(
+                                        objects[oi].object->get_defn(),
+                                        objects[oi].object,
+                                        objects[oi].selection(), binding.pid)) {
+                                    if (!deferred_bindings.insert(
+                                          {oi, binding.pid}).second)
+                                          continue;
+                                    unsigned deferred_stage =
+                                          max(final_level, levels[size] + 1);
+                                    while (plan.stages.size()
+                                           <= deferred_stage) {
+                                          plan.stages.emplace_back();
+                                          plan.stages.back().active.resize(
+                                                objects.size());
+                                    }
+                                    plan.deferred_elements.push_back(
+                                          {oi, binding.pid, deferred_stage});
+                              }
+            }
+            set<pair<size_t,size_t> > scheduled_state;
+            for (const auto&call : state_calls)
+                  if (scheduled_state.insert(call).second)
+                        plan.stages[0].before_calls.push_back({call.first, call.second});
+            map<pair<size_t,size_t>, unsigned> call_stages;
+            for (size_t wi = 0; wi < work.size(); ++wi)
+                  for (const auto&call : item_calls[wi])
+                        if (!scheduled_state.count(call)) {
+                              auto found = call_stages.find(call);
+                              if (found == call_stages.end()
+                                  || work[wi].stage < found->second)
+                                    call_stages[call] = work[wi].stage;
+                        }
+            for (const auto&entry : call_stages)
+                  plan.stages[entry.second].before_calls.push_back(
+                        {entry.first.first, entry.first.second});
+            for (size_t wi = 0; wi < work.size(); ++wi)
+                  plan.stages[work[wi].stage].items.push_back(work[wi].item);
+      }
+      Z3_del_context(ctx);
+      return true;
+fail:
+      Z3_del_context(ctx);
+      plan.stages.clear();
+      plan.deferred_elements.clear();
+      return false;
+}
+
 /* Both passes use the same storage registry and replay each actual object's
  * RNG stream. No independently solved child value becomes a state pin. */
 bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
@@ -6222,6 +7513,7 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       bool constrained = false;
       for (const auto&owner : objects)
             constrained |= !owner.inherited_ir.empty() || !owner.extra_ir.empty()
+                  || !owner.planned_class_ir.empty()
                   || (owner.include_class_constraints
                       && owner.object->get_defn()->constraint_count() != 0);
       if (!constrained) return true;
@@ -6233,8 +7525,9 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       vector<Z3Builder::DynForeach> dyn;
       static const vector<string> no_extra;
       static const vector<uint64_t> no_slots;
+      static const vector<vvp_vector4_t> no_class_slots;
       int result = z3_solve_pass_(root.object->get_defn(), root.object,
-            root_rng, no_extra, no_slots, nullptr, &dyn, root.selection(),
+            root_rng, no_extra, no_slots, no_class_slots, nullptr, &dyn, root.selection(),
             true, &graph, &streams);
       if (result == Z3PASS_FAILED || dyn.empty()) return result != Z3PASS_FAILED;
       map<unsigned, uint64_t> sizes;
@@ -6245,7 +7538,7 @@ bool vvp_z3_randomize_graph(const vector<vvp_z3_object_s>&objects)
       root_rng.rewind();
       for (auto&stream : streams) stream.second->rewind();
       return z3_solve_pass_(root.object->get_defn(), root.object,
-            root_rng, no_extra, no_slots, &sizes, nullptr, root.selection(),
+            root_rng, no_extra, no_slots, no_class_slots, &sizes, nullptr, root.selection(),
             true, &graph, &streams) != Z3PASS_FAILED;
 }
 

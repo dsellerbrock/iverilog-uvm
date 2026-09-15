@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_function_static_rollback_events.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_function_static_rollback_events"
+}

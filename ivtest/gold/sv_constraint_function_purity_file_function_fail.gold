@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_function_purity_file_function_fail.v:4: error: Function 'value' used in a constraint is not pure: evaluates an expression with side effects or an unsupported call.
+1 error(s) during elaboration.

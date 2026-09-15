@@ -932,6 +932,7 @@ class PNoop  : public Statement {
       bool refs_name(perm_string name) const override;
       PNoop() { }
       ~PNoop() override { }
+      NetProc* elaborate(Design*des, NetScope*scope) const override;
 };
 
 class PRepeat : public Statement {

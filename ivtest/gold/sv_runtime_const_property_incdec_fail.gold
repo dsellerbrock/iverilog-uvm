@@ -1,0 +1,3 @@
+./ivltests/sv_runtime_const_property_incdec_fail.v:10: error: Property scalar is constant in this method. (scope=test)
+./ivltests/sv_runtime_const_property_incdec_fail.v:11: error: Property values is constant in this method. (scope=test)
+2 error(s) during elaboration.

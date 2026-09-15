@@ -1,0 +1,5 @@
+./ivltests/sv_constant_assignment_expression_restrictions_fail.v:3: error: A reference to a non-local net or variable (`outside') is not allowed in a constant function.
+./ivltests/sv_constant_assignment_expression_restrictions_fail.v:4: error: A reference to a non-local net or variable (`outside') is not allowed in a constant function.
+./ivltests/sv_constant_assignment_expression_restrictions_fail.v:7: error: Unable to evaluate parameter B value: test.inc_nonlocal()
+./ivltests/sv_constant_assignment_expression_restrictions_fail.v:8: error: A reference to a net or variable (`outside') is not allowed in a constant expression.
+4 error(s) during elaboration.

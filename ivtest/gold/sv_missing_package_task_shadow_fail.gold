@@ -1,0 +1,3 @@
+./ivltests/sv_missing_package_task_shadow_fail.v:10: error: Enable of unknown task ``missing''.
+./ivltests/sv_missing_package_task_shadow_fail.v:10: Unable to elaborate statement in task $unit.holder.invoke at ./ivltests/sv_missing_package_task_shadow_fail.v:9.
+1 error(s) during elaboration.

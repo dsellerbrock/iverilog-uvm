@@ -172,6 +172,11 @@ static unsigned show_assign_lval(ivl_lval_t lval, unsigned ind)
 	    fprintf(out, "%*sPart select base:\n", ind+4, "");
 	    show_expression(ivl_lval_part_off(lval), ind+8);
       }
+      if (ivl_lval_dynamic_part_carrier(lval)) {
+	    fprintf(out, "%*sDynamic packed carrier (width=%u):\n", ind+4, "",
+		    ivl_lval_part_carrier_width(lval));
+	    show_expression(ivl_lval_dynamic_part_carrier(lval), ind+8);
+      }
 
       return ivl_lval_width(lval);
 }

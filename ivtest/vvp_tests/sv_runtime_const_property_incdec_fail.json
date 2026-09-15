@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_runtime_const_property_incdec_fail.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_runtime_const_property_incdec_fail"
+}

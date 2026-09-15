@@ -214,6 +214,14 @@ bool dll_target::make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, con
       }
 
       cur->width_ = asn->lwidth();
+      cur->part_carrier_off_ = asn->part_carrier_off();
+      cur->part_carrier_wid_ = asn->part_carrier_width();
+      cur->dynamic_part_carrier_ = 0;
+      if (asn->dynamic_part_carrier()) {
+	    asn->dynamic_part_carrier()->expr_scan(this);
+	    cur->dynamic_part_carrier_ = expr_;
+	    expr_ = 0;
+      }
       cur->net_type_ = asn->lval_type();
       cur->stream_range_ = asn->stream_range();
       cur->stream_range_first_ = 0;

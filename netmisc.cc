@@ -1193,7 +1193,12 @@ NetExpr* normalize_variable_unpacked(const LineInfo&loc, const netranges_t&dims,
 	      // have a proper width to make sure there are no
 	      // losses. So calculate a min_wid width.
 	    unsigned tmp_wid;
-	    unsigned min_wid = tmp->expr_width();
+	      /* Canonical array addresses are signed mathematical values. Add a
+	       * leading zero to an unsigned source before applying a declared
+	       * range offset so UINT_MAX-like values cannot wrap onto a valid
+	       * word. */
+	    bool add_tmp_sign = !tmp->has_sign();
+	    unsigned min_wid = tmp->expr_width() + add_tmp_sign;
 	    if (use_base != 0 && ((tmp_wid = num_bits(use_base)) >= min_wid))
 		  min_wid = tmp_wid + 1;
 	    if ((tmp_wid = num_bits(dims[idx].width()+1)) >= min_wid)
@@ -1202,6 +1207,12 @@ NetExpr* normalize_variable_unpacked(const LineInfo&loc, const netranges_t&dims,
 		  min_wid += num_bits(use_stride);
 
 	    tmp = pad_to_width(tmp, min_wid, loc);
+	    if (add_tmp_sign) {
+		  NetESelect*as_signed = new NetESelect(tmp, 0, min_wid);
+		  as_signed->set_line(loc);
+		  as_signed->cast_signed(true);
+		  tmp = as_signed;
+	    }
 
 	      // Now generate the math to calculate the canonical address.
 	    NetExpr*tmp_scaled = 0;
@@ -1364,12 +1375,11 @@ static NetEConst* make_i64_index_constant_(int64_t value,
       return result;
 }
 
-NetExpr* make_checked_canonical_property_index(
+static NetExpr* make_checked_canonical_index_(
       Design*des, NetScope*scope, const LineInfo*loc,
-      const list<index_component_t>&src, const netsarray_t*stype,
+      const list<index_component_t>&src, const netranges_t&dims,
       bool need_const)
 {
-      const netranges_t&dims = stype->static_dimensions();
       ivl_assert(*loc, !dims.empty());
       ivl_assert(*loc, src.size() == dims.size());
 
@@ -1496,6 +1506,44 @@ NetExpr* make_checked_canonical_property_index(
       }
       indices_expr.clear();
       return checked;
+}
+
+NetExpr* make_checked_canonical_property_index(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const list<index_component_t>&src, const netsarray_t*stype,
+      bool need_const)
+{
+      return make_checked_canonical_index_(des, scope, loc, src,
+                                           stype->static_dimensions(),
+                                           need_const);
+}
+
+NetExpr* make_checked_canonical_packed_prefix(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const list<index_component_t>&src, const netranges_t&dims,
+      unsigned long carrier_width)
+{
+      ivl_assert(*loc, src.size() == dims.size());
+      NetExpr*base = 0;
+      vector<uint64_t> strides(dims.size(), carrier_width);
+      for (size_t idx = dims.size(); idx > 1; --idx)
+            strides[idx-2] = strides[idx-1] * dims[idx-1].width();
+      list<index_component_t>::const_iterator raw = src.begin();
+      for (size_t idx = 0; idx < dims.size(); ++idx, ++raw) {
+            list<index_component_t> one_index(1, *raw);
+            netranges_t one_dim(1, dims[idx]);
+            NetExpr*term = make_checked_canonical_index_(
+                  des, scope, loc, one_index, one_dim, false);
+            if (!term) {
+                  delete base;
+                  return 0;
+            }
+            if (dims[idx].get_msb() < dims[idx].get_lsb())
+                  term = make_sub_expr((long)dims[idx].width()-1, term);
+            term = scale_index_to_bits(term, strides[idx], *loc);
+            base = base ? make_add_expr(loc, base, term) : term;
+      }
+      return base;
 }
 
 NetEConst* make_const_x(unsigned long wid)
@@ -2849,10 +2897,37 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 		  return hname_t(comp.name, 0);
 	    }
 
-	    if (NetEConst*ctmp = dynamic_cast<NetEConst*>(tmp)) {
-		  index_values.push_back(ctmp->value().as_long());
+	    NetEConst*ctmp = dynamic_cast<NetEConst*>(tmp);
+	    if (ctmp && ctmp->value().is_defined()) {
+		  bool negative = false;
+		  uint64_t magnitude = verinum_signed_magnitude(
+			ctmp->value(), negative);
+		  /* hname_t stores every elaborated scope index as an int. */
+		  uint64_t negative_limit =
+			static_cast<uint64_t>(INT_MAX) + 1;
+		  bool in_range = negative ? magnitude <= negative_limit
+					   : magnitude <= INT_MAX;
+		  if (in_range) {
+			int use_index;
+			if (!negative)
+			      use_index = static_cast<int>(magnitude);
+			else if (magnitude == negative_limit)
+			      use_index = INT_MIN;
+			else
+			      use_index = -static_cast<int>(magnitude);
+			index_values.push_back(use_index);
+			delete ctmp;
+			continue;
+		  }
+		  if (!quiet) {
+			cerr << index.msb->get_fileline() << ": error: "
+			     << "Scope index expression is outside the supported "
+				"scope-index range: " << *index.msb << endl;
+			des->errors += 1;
+		  }
+		  error_flag = true;
 		  delete ctmp;
-		  continue;
+		  return hname_t(comp.name, 0);
 	    }
 	      // Darn, the expression doesn't evaluate to a constant. A
 	      // quiet probe (e.g. Design::find_signal() checking whether a

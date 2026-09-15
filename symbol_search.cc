@@ -660,6 +660,12 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			res->scope = chld;
 			res->path_head = path;
 			return true;
+		  } else if (!path_tail.index.empty()) {
+			cerr << li->get_fileline() << ": error: Scope index for `"
+			     << path_tail.name << "' is out of range." << endl;
+			des->errors += 1;
+			res->scope_index_error = true;
+			return false;
 		  }
 	    }
 

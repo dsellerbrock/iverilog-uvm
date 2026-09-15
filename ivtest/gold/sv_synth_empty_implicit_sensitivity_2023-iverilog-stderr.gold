@@ -1,0 +1,3 @@
+ivltests/sv_synth_empty_implicit_sensitivity.v:7: warning: @* found no sensitivities so it will never trigger.
+ivltests/sv_synth_empty_implicit_sensitivity.v:20: warning: Process not synthesized.
+ivltests/sv_synth_empty_implicit_sensitivity.v:7: warning: Process not synthesized.

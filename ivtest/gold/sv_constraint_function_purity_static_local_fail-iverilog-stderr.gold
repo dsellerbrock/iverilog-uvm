@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_purity_static_local_fail.v:4: error: Function 'value' used in a constraint is not pure: writes static or external state.
+1 error(s) during elaboration.

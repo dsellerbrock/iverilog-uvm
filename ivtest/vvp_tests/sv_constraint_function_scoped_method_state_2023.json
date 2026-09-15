@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_function_scoped_method_state.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_function_scoped_method_state"
+}

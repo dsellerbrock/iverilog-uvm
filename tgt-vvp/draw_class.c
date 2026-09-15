@@ -498,6 +498,27 @@ void draw_class_in_scope(ivl_type_t classtype)
       }
 
       {
+	    int nc = ivl_type_constraint_state_calls(classtype);
+	    for (idx = 0; idx < nc; ++idx) {
+		  const char*scope_name =
+			ivl_type_constraint_state_call_scope_name(classtype, idx);
+		  const char*dot = strrchr(scope_name, '.');
+		  fprintf(vvp_out, " .constraint_call %d \"%s\" \"%s\" %u %u\n",
+			ivl_type_constraint_state_call_constraint(classtype, idx),
+			vvp_mangle_id(scope_name), dot ? dot + 1 : scope_name,
+			ivl_type_constraint_state_call_width(classtype, idx),
+			ivl_type_constraint_state_call_virtual(classtype, idx));
+                  unsigned ndeps = ivl_type_constraint_state_call_deps(classtype, idx);
+                  for (unsigned dep = 0; dep < ndeps; ++dep) {
+		 fprintf(vvp_out, " .constraint_dep %u %u %u\n",
+		       ivl_type_constraint_state_call_dep_kind(classtype, idx, dep),
+		       ivl_type_constraint_state_call_dep(classtype, idx, dep),
+		       ivl_type_constraint_state_call_dep_leaf(classtype, idx, dep));
+                  }
+	    }
+      }
+
+      {
 	      /* Full record form. The trailing transition/guard fields keep
 		 old VVP streams readable while carrying compact repetition state.
 		 (vvp also still parses the older 4/5-operand forms.) */

@@ -1,23 +1,23 @@
 status: active
-branch: "agent/campaign-recording-after275-20260911"
-current_blocker: "none (L35 closed -- real=string implicit-conversion hard error, found by fire-testing the DD046 empirical-sweep probe on a hand-built case after an advisor review challenged the initial 'empirically unreached' disposition; all six gates pass at 4982/4977/0/2NI/3EF (+1 new CE test). DD046's curated candidates are now exhausted; next candidate not yet selected)"
-phase: "blocker_selection"
+branch: "agent/constraint-function-presolve-20260914"
+current_blocker: "Function constraint evaluation: scalar/fixed-element/member stages and static-array reads pass; dynamic size/element stages and remaining call forms need work."
+phase: "batch_regression_repairs"
 policy_checkpoint: 5f0be599c
 source_baseline: 49505f514ca2729d597d4a2d7347fd639a1209a3
-last_integrated_good_revision: "d0b6015bf"
+last_integrated_good_revision: "c686a4781"
 preserved_work: ../iverilog-uvm-string-array-param-after253-arm64-20260904 (original full dirty fork patch untouched)
 unrelated_preserved_work: ../iverilog-uvm (dirty deferred assertion patch untouched)
-pending_gates: "None. L35 closed with all six required gates exit0 (evidence/campaign-20260908/l35/). Only local-install/lib/ivl/ivl (the frontend binary) changed vs the L34 baseline -- pure elaboration-time fix, no codegen/runtime touched; re-baselined in l35/installed-frozen-sha256.json."
+pending_gates: "L53-L62 broad qualification failed: four legacy failures repaired locally in fac7f8a11; seven release compile failures remain under repair. Corrected broad run pending repair cluster."
 merge_requirements: Required remote CI and existing merge permissions remain in force. User has explicitly directed not to gate further campaign progress on this branch's open PR #276's remote CI status.
 suspended_parent: "L12 patch/tests/contract in evidence/campaign-20260908/l12; S02 design boundary also retained."
-next_selection: "DD046 fallback-inventory triage continues (user-directed: smokes -> compile fallbacks -> implementations). L33/L34/L35 all closed this pass, plus the full 12-row curated-table re-triage. L35 is the notable one: DD046's re-triage first dispositioned 'Lost expression typing' as 'empirically unreached' (0 hits across a 357-test UVM sweep + a ~5000-test ivtest sweep with an instrumented probe) -- but an advisor review pointed out a probe that never fires and one that's never reached look identical, so a hand-built sanity construct was compiled to fire-test the probe before trusting the negative result. It fired immediately on the most ordinary construct possible (`real r; string s; r = s;`), reproducing a real, previously-silent defect (0.0 substitution for a well-typed string assigned to a real target, no implicit conversion is defined per IEEE 1800 6.16). Root-caused, fixed as a hard error mirroring the existing class-handle/aggregate precedent, and closed as L35 with all six gates passing (4982/4977/0/2NI/3EF, +1 new permanent CE test). Methodology lesson recorded: fire-test an instrumentation probe on a positive case before trusting its silence on a corpus sweep. DD046's curated 12-row table (now 13 with L35 split out) is fully exhausted for quickly-bounded candidates. The second elab_and_eval overload's un-excluded vectorable branch (netmisc.cc:2392-2398) was investigated and ruled out, not left open: netqueue_t inherits from netdarray_t, so the existing well-typed-aggregate hard error already catches a queue source there the same as a fixed array, leaving only a genuinely unresolved-generic (VOID/NO_TYPE) tmp able to reach it -- the same wall every other probed-but-unfired branch in this sweep hit; not a quick-win reducer target. Remaining next-step options, none yet selected: (a) mine the raw 12849-line fallback-tracked-candidates.tsv for fresh uncurated candidates; (b) the real-typed (IVL_VT_REAL) nested class-property VPI-lvalue gap (L33/L34's named follow-on, sized as needing a new runtime class + grammar token); (c) shift to the user's third priority phase (broader implementation work) -- both of the user's first two explicit phases (smokes, then compile fallbacks) are now satisfied with evidence."
-next_action: "PR #276 (whole post-275 batch through L33) is open; L34, the DD046 re-triage, and L35 all landed as new commits directly in that same branch/PR per campaign publication policy (no new PR, no CI gating per explicit user instruction). Report phases 1-2 complete to the user and let them confirm the phase-3 shift rather than selecting it unilaterally."
-next_command: "Ask the user to confirm the phase-3 shift to broader implementation work, or, if they want DD046 continued, mine fallback-tracked-candidates.tsv (awk -F'\\t' filter on stub/degradation tags in tgt-vvp/*.c, vvp/*.cc, elab_expr.cc, netmisc.cc excluding lines near an existing cerr/fprintf(stderr)) or size the real-typed CPR/__vpiClassPropertyRealVar work as its own increment."
+next_selection: "Complete and qualify the constraint-function repair before selecting the next compiler blocker."
+next_action: "Frozen conditional-final candidate: focused246/246, permanent202/202 both harnesses, exact repair4/4. Execute corrected full L64 seven-gate batch; frontend alone last; inspect all evidence before local integration."
+next_command: "Use focused counterexamples for remaining typed dependency and call-form gaps; no broad gate until repair cluster is ready."
 next_command_cwd: repository root
-candidate_state: "U14nativepartial implementation testedwithbuildtreebackend; installed0a4e7d639 baseline untouched,notyetfullyvalidated."
-installed_tools: "0a4e7d639 fullyvalidated; l31/sha256.txt verified after frontend restore."
-validation_state: "0a4e7d639; both-edition signed/mixed/shift/wide/four-state and local/property reducers PASS; permanentfocus2legacy/2JSON,neighbors125legacy/92JSON,makecheck and independentdesign/code/ownershipreviewclear. Integrated92982exit0:legacy4981total4976pass0fail2NI3EF,VPI105/0,negative149/0,runtime15/15,copyout6/6,exports66. JSON7147exit0:1873/0. UVM32316exit0:REAL DPI355/0/0. NFA58/58. Frontend49875exit0 allscenarios;installation restored andfivefrozenhashes match. Complete15release results-322hzu4s13SMOKE_PASS2COMPILE_FAIL,allstatuses/source/archivehashes unchanged vsL30. No full associative/UVM qualification claim."
-next_validation: "Next selected prerequisite requires its own reducer,contract,review and fullgates."
+candidate_state: "L63 locally integrated as f57a08a78 plus cc66db23e docs; L64 remains uncommitted and not broadly qualified."
+installed_tools: "Current SHA256 fingerprints: evidence/uvm-release-regression-assessment/semantic/typed-member-ref-fixed.json and typed-member-ref-permanent.json. Full baseline remains c686a4781."
+validation_state: "c686a4781: legacy5019/0fail, JSON1929/0fail, VPI108/108, negative149/149, runtime15/15, copyout6/6, exports66; UVM357/0/0 real DPI, NFA58/58, releases15 SMOKE_PASS; make check and all frontend scenarios pass."
+next_validation: "Finish release repair cluster with cheap positive/negative reproducers, then rerun corrected combined qualification; frontend relocation gate last and alone."
 completed_replay: "L17 original1.2 OpenTitan evidence/campaign-20260908/l17/opentitan/result.json: PASS,152requests/288scoreboard items,0UVMwarnings/errors/fatals,normal finish,compile/runtime semantic debt0. One default-seed -g2012 debug-crossbar smoke only;historical L16 DEBT superseded."
 
 publication_policy_checkpoint: bfb4f1802
@@ -786,3 +786,214 @@ l32_focused: "Both permanent editions fail beforepatch andpass after; raw litera
 l32_full_gate_start: "Semanticab54351c3,focused2/2,VPIneighbors6/6,makecheck andindependentreviewclear. Integrated36861,UVM45709,NFA1979,releases6583 running;JSON/frontend unstarted. Source/installfreeze active,hashes l32/installed-frozen-sha256.json. Lastfullyvalidated729edce3c. Aftervalidation closure L32 is third validated increment afterPR275,so assess coherent newPR publication milestone before resumingU15; no merging authorization."
 
 handoff_checkpoint: "User requests handoff to another model due usage boundary. L32ab54351c3 awaitingvalidation; no further implementation by outgoing agent. NFA1979exit0:58/58. Releases6583exit1 forpreserved1.1b/c compilegaps;results-j96p2nep complete/baseline_valid13SMOKE_PASS2COMPILE_FAIL,all15statuses/source/archivehashes identical toU14; separate1.1d lifecyclePASS. Integrated36861/UVM45709 were stillrunning at handoff; JSON/frontend unstarted. Six frozen hashes match. Do not startanotherimplementationwriter or duplicategates. Resume exactcheckpoint; U15remains suspended."
+
+validation_batch_20260914:
+  authorization: "User: implement with cheap reproducers and negative tests for about ten features, then run the whole suite."
+  target_features: 10
+  focused_validated_features: [L43, L44, L45, L46, L47, L48, L49, L50, L51, L52]
+  in_progress: none
+  broad_gates: passed
+  qualified_revision: c686a4781
+  qualification_evidence: evidence/batch-20260914-l43-l52/qualification-corrected/qualification-summary.json
+  first_pass_candidate: e5a1eb846
+  first_pass_results: "Legacy 5018 total / 4984 pass / 29 fail / 2 NI / 3 EF; JSON 1927 / 13 fail; VPI108/108, negative149/149, runtime15/15, copyout6/6; UVM357/0/0 REAL DPI, NFA58/58, releases15/15 SMOKE_PASS, make check passed. Frontend deferred."
+  first_pass_evidence: evidence/batch-20260914-l43-l52/first-pass-summary.json
+  rule: "Each feature needs standard-grounded expected behavior, pre-fix evidence, focused positive/negative checks and a local checkpoint. Regressions block the feature. Focused validation does not imply full regression qualification."
+  implementation_model: "gpt-5.6-sol reused for implementation; root coordinates, reviews and assesses an independent next problem."
+  integration: "User authorized local merges; no remote merge or push authorization inferred. No new clone/worktree created. Retire only completed eligible trees through the cleanup script."
+
+l43_checkpoint: "Focused legacy3/3, JSON6/6 (positive and negative in 2017/2023); Bison562SR1122RR vs563SR1122RR; no full suite claimed. Next: commit, integrate locally, activate DD-019. No new worktree or clone."
+
+l43_local_integration: "d4f344ec7 fast-forwarded into local main; not pushed. Shared AST graph refreshed from main, excluding scratch evidence/local-install/downloaded third_party. Existing worktrees retained; no new clone created."
+
+l44_parallel_assessment: "DD-020 reproduces bare missing-task calls compiling and executing the following marker in2017/2023; OpenTitan synchronizer calls absent setters. Queued afterL44, no unrelated implementation. Reset-time scoreboard mismatch not attributed to compiler."
+
+l44_checkpoint: "Focused legacy2/2 and JSON4/4; original eight reduced cases pass both editions. Root target/test review clear. PRINCE compiles0, runtime reaches CPU300 guard(-24); no application pass. Full suites deferred. DD021 dynamic mixed-driver elaboration remains open."
+
+l45_checkpoint: "One-line unresolved bare-task fallback guard reviewed; forward/upward/unit/implicit-class calls pass both editions. Legacy2/2, JSON4/4, real UVM cfgdb smoke pass. Third focused feature; broad suites deferred. Next DD022 element-bound correctness before DD021."
+
+l45_local_integration: "ad33d31e2 (L44) and67b6750af (L45) fast-forwarded into localmain; no remote push/merge. Shared AST graph refreshed from localmain:50940nodes94622edges. Current L46branch reuses same checkout. No clone/worktree created; existing two trees retained."
+
+l46_selection: "DD022 first bounded read increment uses nested NetESelect to retain selected packed-element width for indexed +:/-: reads. Read/write defect remains one tracked debt; write IR carrier bounds need separate design covering plain/compound/NBA/synthesis. No mixeddriver rejection relaxation until writes preserve prefix bounds. Three focused features completed; full suites still deferred."
+
+l46_runtime_prerequisite: "Boundarytests exposed PART int32 indextruncation and PARTI unsigned-to-signed narrowing. Read increment includes reuse ofexisting exact/saturatingwide indexconversion and shared overflow-safe X-padding clip. Do not dropwide tests or substituteconstantguards; no runtimeassertions weakened."
+
+l46_checkpoint: "Focusedlegacy1/1 JSON2/2; null/synthesis bothmodes; negativebothmodes; L44neighbor4/4; nestedwideformatbothmodes pass. Rootreviewclear. Fourthfocusedfeature; fullsuitesdeferred. DD023 one-dimensionalwideconstantformat next; writebounds/DD021remainopen."
+
+l47_checkpoint: "Legacy3/3 JSON6/6 directVPIbothmodes null/synthesisbothmodes; L46neighbor2/2 pass. CompilerVPIvalue/callbackreviewclear. Fifthfocusedfeature; broadgatesdeferred. NextDD022invalidpackedprefixreads, withwriteboundsretainedopen."
+
+l47_local_integration: "L46bcda22349 andL47c3fb934fd fast-forwarded into localmain. Sharedgraph updatedfrommain50972nodes94667edges. No remote push/merge ornewclone/worktree. Same retainedcheckout nowagent/l48-packed-prefix-reads-20260914; five focusedfeatures, broadgatespending atapproximatelyten."
+
+l48_checkpoint: "Per-dimension final indexed reads reviewed. Legacy2/2 JSON4/4 L46neighbor2/2 null/synthesisbothmodes pass; variable part-bound negative rejects. Sixth focusedfeature. Accidental partial broad run terminated143 because ./regress ignoresarguments; observed sv_rand_distribution1 mismatch requiresfreshbatchassessment. Use perl vvp_reg.pl positional-list directly. Next DD022writeboundsdesign; fullqualificationpending."
+
+l48_local_integration: "d28149794 fast-forwarded into localmain; canonicalgraph refreshed50983nodes94686edges. Samecheckout nowagent/l49-packed-write-bounds-20260914. ReusedSolworker assesseswriteboundswhile root reproducedpackage/hierarchical unresolvedtaskno-ops inbotheditions. No remote push/merge ornewclone/worktree."
+
+l49_checkpoint: "Fixed-prefix bounded writes reviewed across IR, VVP blocking/compound/NBA, synthesis and source targets. Legacy4/4 JSON8/8, root228-case boundary matrix both editions pass. Review caught and corrected blocking array-stack handling, constant compound routing, and full-width NBA bypass. Seventh focused increment; broad suites pending. Dynamic/invalid prefix writes and DD021 remain open."
+
+l49_local_integration: "8e5a86047 fast-forwarded into local main. Canonical graph refreshed51018nodes94766edges. Samecheckout nowagent/l50-empty-sensitivity-20260914; no remote changes ornewworktree. DD024minimal classifier correction selected while rootextends DD020 qualified-call controls."
+
+l50_checkpoint: "Empty implicit event waits preserve runtime semantics through primary classification and legacy synthesis tokenization. Both null-body dereferences corrected; second confirmed by crashstack. Focusedlegacy2/2 JSON4/4 pass, including forced-synthesis diagnostic. Eighth focused increment; broadqualificationpending."
+
+l51_checkpoint: "Packagequalified task/function statement lookup usesexistingdownwardimport-aware resolver; selfqualifiedforward tasks execute; missingpkgcalls cannotcaptureunitshadows. Legacy4/4 JSON8/8 pass includingexports andclassshadownegative. Ninth focused increment; L50/L51 locallycommitted inretainedfeaturebranch forbatchmerge."
+
+l52_checkpoint: "Indexedmodule/generate taskcalls execute withdelay,args,copyout andcorrectinstance effects; indexedvoidfunctions andruntimeobjectindices preserved. Legacy5/5 JSON10/10, rootnegativeindex+INT_MINcontrols both editions pass. Sharedscopeindices rejectunknown,OOB andrepresentationoverflow. Tenth focusedincrement, readyforonefullbatch. No remotechanges ornewworktree."
+
+batch_corrections_focused: "All first-pass failures rechecked: legacy45/45 and JSON42/42 pass; permanent two-state packed-prefix synthesis regression both editions; build/install and root source review clear. Corrected broad qualification pending; first-pass evidence preserved. No remote changes or new worktree."
+
+batch_20260914_qualified: "Corrected c686a4781 passed all broad gates. Full frontend restore preserves six hashes. Shared main graph:51083nodes94825edges. Next constant-invalid packed-write matrix fails6/6 per edition with RHS/base evaluated once; unindexed dut.missing compiles0. These are next bounded increments, not regression waivers."
+
+validation_batch_after_l52:
+  target_features: 10
+  baseline: c686a4781
+  focused_validated_features: [L53, L54, L55, L56, L57, L58, L59, L60, L61, L62]
+  in_progress: full_batch_qualification
+  broad_gates: deferred_until_approximately_ten_features
+  implementation_model: gpt-5.6-sol, same reused agent
+  rule: Standards-grounded reproducers and focused positive/negative checks before local integration; no full-suite qualification inferred from focused passes.
+
+l53_checkpoint: "Scope-proven unindexed hierarchical missing tasks reject; valid forward tasks/functions preserve delay/copyout/effects. Corrected case-comparison test, legacy13/13 JSON24/24, incremental build/install and root review pass. First focused feature in next batch. Remaining object/unresolved receiver fallback is open."
+
+l53_local_integration: "e9d9b5ad7 fast-forwarded into localmain; shared graph updated51090nodes94829edges. No newworktree orremotechanges. L54 uses same retained checkout on a new branch."
+
+l54_checkpoint: "Common indexed-lvalue IR suppresses proven-invalid constant prefix writes while preserving index/RHS evaluation. Legacy4/4 JSON8/8, original6-case matrix both modes, 128-bit prefix probe, and root ordinary/synthesized runtime4/4 pass. Dynamic prefixes and DD021 remain open. Two focused features in currentbatch."
+
+l55_checkpoint: "Proven fixed packed carriers permit disjoint dynamic subpart writes; actual overlap remains a compile error. Legacy7/7, JSON14/14, null both modes pass. Root source/test review clear. Three focused features in current batch; broad suites deferred. Dynamic prefixes and same-word unpacked mixed-driver restrictions remain open."
+
+l55_local_integration: "c39c0b997 fast-forwarded into local main; canonical graph updated51101nodes94837edges. Same retained checkout now L56; no remote changes or new worktrees."
+l56_root_baseline: "Independent378-case signed128 prefix matrix fails65 per edition on frozen f039 binary. Independent36-case clocked NBA DUT fails8 each in ordinary and synthesized execution in both editions. Hashes stable across probes; expected values computed independently from declared dimension coordinates. Evidence in dynamic-mixed-driver-assessment/l56."
+
+l56_review_findings: "Reuse existing checked-property-index runtime helper, reverse numeric-low ordinals for ascending packed dimensions, preserve dynamic-carrier inputs in nex_input. Independent108-case bit/whole-element baseline fails34 per edition; sensitivity-only prefix changes pass ordinary/-S both editions before L56. Implementation remains unqualified WIP."
+
+l56_first_executable_slice: "Installed ae60f63f31f0b3f90c8201d7e8d2c997b5ae38a16ac34a8e52c2cb7db79dc344. Original blocking invalid-prefix/spill checks pass both modes. Independent378-case replay still fails4 blocking,126 compound,126 NBA per edition. Four blocking failures are partial-low descending -: tails; unsigned synthetic width adjustment identified in collapse_packed_member_indices. Not integrated or qualified."
+
+l56_blocking_correction: "Stable649fbf7c1211fd606d030cae9f1e5919c95b7e4409cbc64d07f896df38932f8a passes all126 blocking indexed-write cases per edition. Compound/NBA remain WIP. Root found constant-function carrier omission plus required precise-output/procedural-driver consumers; no integration until corrected."
+
+l56_compound_review: "Nested carrier-relative old-value reads verified by root arithmetic logic/bit probe in both editions, hashes stable. NBA delay/capture oracle prepared; consumer implementation and full focused qualification remain pending."
+
+l56_pure_packed_checkpoint: "Root378 indexed-write cases pass botheditions; delayedNBA temporal oracle passes botheditions, stable3hashes. Agent108 bit/whole-element matrix passesboth. Fixed array-word504cases remain WIP-red with skippedprefixeval; constantfunction/synthesis/precision/sourceguards remain pending. No merge or fullsuite qualification."
+
+l56_array_checkpoint: "Root freshly verified504 fixed-array cases peredition pass with stable3hashes; runtime carrier consumption and word validity preserved. Const-eval/synthesis/analysis/sourceguards/packaging remain pending. L56 is still fourth feature in progress, not added to focused_validated_features."
+
+l56_const_checkpoint: "Root dynamic/static/compound constant-function fixtures passbothmodes (6runs), stablehash. Postincrement-expression side-effect fixture cannot evaluate; scalar-only isolation confirms separate DD-025 while postincrement statement passes. Synthesischecked-index lowering remains in progress."
+
+l56_freeze_review_reopened: "Root fresh14 synthesis/sensitivity/constant runs pass at stable1f73cdce compiler. Expanded128-bit signed/unsigned synthesis across descending/ascending/negative ranges crashes expr_synth.cc:164 in10 runs while10 ordinary controls pass. Separate fixed-array constant part-select regression writes0080 instead of00f0 in both editions. Reused worker repairing both and auditing source targets; no L56 integration or feature credit. Evidence root-freeze-consumer-results.json, root-wide-synthesis-results.json, root-array-constant-part-results.json underl56."
+
+l56_static_word_review: "Root constant OOB word controls preserve selector/RHS calls for blocking and NBA but compound skips both selector calls (0/0/1 rather than1/1/1) in both editions. Existing runtime-word504 matrix did not cover this constant-folded route. Assigned same worker, evidence root-invalid-constant-word-results.json; no integration."
+
+l56_nonleaf_review: "Root nonleaf indexed part-select words[oi][mi+:2] on [1:0][2:0][7:0] passes in-range but spills atmi2:000012340000 instead of000000340000 in both editions. Existing hook handles only leaf tails. Same worker generalizing carrier at selected dimension, evidence root-nonleaf-indexed-part-results.json."
+
+l56_corrected_root_checkpoint: "Stable installed compiler 54e6d71e3cf32e99b9c50b9f62e32601ec345b5bd39c313c55fcdd4b42465875; corrected review32/32 and regression18/18 root runs pass. Includes original990-case matrices and108 nonleaf cases per edition. Neighbor/negative harnesses11legacy19JSON pass. Final permanent test tightening pending, then local integration; no broad qualification inferred."
+
+l56_final_focus: "Final tightened legacy5/5 and JSON10/10, status0; final-tightened-{legacy,json}-3 logs. Root review50/50 runs and neighbor11legacy19JSON pass. Ready for local integration. Session2026-09-14_l56_dynamic_packed_write_bounds.md. No remote changes."
+
+l56_local_integration: "e9531fbfb fast-forwarded into local main. Fourth focused-validated feature in current batch. Broad gates deferred until approximately ten features; no remote action or new worktree. Shared graph refresh follows this checkpoint."
+
+l57_start: "Same retained checkout branched from36e74e8c3 after L56 integration and shared graph terminal0 (51153nodes94948edges7299communities). Same gpt-5.6-sol worker implementing DD020; no new clone/worktree. Root records independent next evidence. Broad gates remain deferred at4 focused features."
+
+dd025_post_l56_assessment: "Root15-form constant assignment/inc-dec baseline:30/30 runtime controls pass,0/30 constant invocations compile, both editions, stable3hashes. Corrected earlier evaluator attribution: inc-dec is NetEUnary; plain/compound assignment is NetEAssignExpr. Evidence constant-assignment-expression-assessment/baseline-results.json. Queued after L57; no unrelated source edits."
+
+l57_root_named_escape_review: "Installed candidate 0a7819c74fdaf4022a6ae7d57d41ecc232f07376a9d0bd9649e4a19a476c0b16 rejects unknown_copy and nested collection errors, but16/24 paired invalid calls remain compile0 through name-based UVM/TLM and constraint-mode noops. Root named-escape-baseline.json records stable hash. Existing worker removing those bypasses; independent exact-effect named-method and constraint-mode controls prepared."
+
+l57_collection_review: "Secondcandidate root48/48 receiver controls pass. Additional scalar-member collection calls reveal8wrongcompile0 vs2pop_backCE controls; untyped multi-hop collection name fallback must be removed after real dispatch. Worker assigned; valid class-owned queue control prepared."
+
+l57_final_review: "Final root40/40 and specialization/hook neighbors12/12 paired outcomes pass; permanentlegacy9/9 JSON10/10; source removes untyped UVM/TLM/collection name stubs and diagnoses unresolved receivers after proper lookup. Source frozen, diffcheckpassed. Ready for local integration; no full-suite claim."
+
+l57_local_integration: "e025a775d fast-forwarded into local main; fifth focused feature in batch. Same worker/worktree, no remote changes; graph refresh follows this checkpoint. DD025 constant function assignment/inc-dec is next."
+
+l58_start: "Same checkout branched fromcbbf3b3b7 after L57 integration and graph terminal0 (51165nodes94946edges7312communities). Same gpt-5.6-sol worker assigned DD025 with root15-form paired baseline and L56blocked side-effect oracle. Fivefocusedfeatures beforethis; no newtree/remotes/broadgates."
+
+l58_boundary_baseline: "Root12forms xruntime/constant x2editions:22/24runtimepass,4/24constantpass(shortcircuit); stablehash. Two runtime failures isolate DD026 bit assignment-expression conversion, ordinary statement control4/4pass. Const evaluator must preserve normative55, not copy runtimeX. Evidence constant-assignment-expression-assessment/root-boundaries."
+
+l58_indexed_review: "Root indexed local a[idx++]++ expects1675; installed candidate constant result-525 bothmodes assigned for correction. Runtime counterpart SIGSEGV recorded separately DD027. Nonlocal increment/assignment and ref-argument negative constant controls reject all6paired cases. Evidence root-boundaries/array-index-baseline-results.json and negative-baseline-results.json."
+
+l58_current_root_checkpoint: "Stable compiler 6a827c5d2bf0f81c3da2b4a25a49f3cb927452094878bb471d2a10c293cddb59 passes68/68 root constant runs across baseline15forms, narrow/wide/signed/real/4state/default/independent invocation/indexedlocal controls and L56 invalid packed-carrier sideeffect oracle. This supersedes firstslice reversed increment results. Invalid/wide array-index semantics and final packaging/review still pending."
+
+l58_final_root_replay: "Final installed10e1f74a compiler passes78/78 paired root checks with stable3hashes, including exact invalid/wide array indices. Existing constant-function neighbors18/18 and L56 packed constant neighbors6/6 pass. Explicit test-counter initialization is clarity only (IEEE6.11.2 int is two-state); typed-default signedness correction is being reproduced by the same worker before integration. No broad suites run."
+
+dd026_dynamic_runtime_baseline: "Fresh module-level delayed assignment from a runtime logic signal into bit scalar storesX and returns0X instead of5 and05 in both editions. Evidence runtime-assignment-conversion-assessment/baseline-results.json. Confirms next defect without constant-fold masking."
+
+dd027_expanded_runtime_baseline: "Stable3hash paired32run matrix: int/bit/logic fixed-array pre/post increment/decrement compile but runtimeSIGSEGV in24runs; real8runs omit index effects, report unresolvedfunctor placeholder, and return wrong values. Evidence runtime-array-increment-assessment/baseline-results.json. Root assessment only, no runtime edits."
+
+l58_reviewed_final: "Corrected signed-default metadata; signed invalid postfix comparison red before and green after in both editions. Final root80/80 exact outcome checks, stable3hashes, existing constant-function neighbors18/18, permanentlegacy4/4 JSON6/6. Eight root runtime invocations emit known DD027 unresolvedfunctor warnings from uncalled array-function bytecode; exact constant results pass but no clean runtime qualification claimed. Permanent indexed-local coverage is compile-only. Ready for local integration; full gates remain pending."
+
+l58_local_integration: "53624bc87 fast-forwarded into local main. Sixth focused feature in batch, broad gates pending. No remote action, new clone, or new worktree. Shared graph refresh follows."
+
+l59_start: "Same retained checkout branched from76c50bac8 after L58 integration and shared graph terminal0 (51210nodes95029edges7318communities). Reused gpt-5.6-sol worker implements DD026; six focused features beforethis. Root96case paired operator/width baseline passes8, fails88, stable3hashes; evidence runtime-assignment-conversion-assessment/operator-matrix/baseline-results.json. No newtree/remotes/broadgates."
+
+l59_final_review: "Two-line common destination cast before duplication/storage. Final root96/96 operator/width cases with exact clean output and stable3hashes; existing expression/negative/constant neighbors8/8 paired; permanentlegacy2/2 JSON4/4; target build/install0/0. Source/testreview clear, frozen. Ready for local integration; M4C22 remains PARTIAL pending broad batch qualification."
+
+l59_local_integration: "177e7e448 fast-forwarded into local main. Seventh focused feature; full gates deferred to approximately-ten-feature batch. Same worker and retained checkout, no remote changes. DD027 runtime fixed-array increment/decrement selected next."
+
+l60_start: "Same retained checkout branched from0c85d32a8 after L59 integration and graph terminal0(51218nodes95036edges7343communities). Reusedgpt-5.6-sol worker assigned DD027 runtimearray increment/decrement with32paired baseline. Sevenfocusedfeatures beforethis; no newtree/remotes/broadgates. Root expands wide/OOB/ascending/typed-default boundaries in parallel."
+
+l60_boundary_baseline: "Root24paired runs encode108semanticcases peredition across bit8/logic8/real, ascending/nonzero/negative ranges, preincrement/postdecrement, exact valid/OOB/X/Z/positive-negative128bit indices, once-only selector and unchangedneighbors. Allcompile0;16integralSIGSEGV and8realSIGABRT before completion. StableL59threehashes. Evidence runtime-array-increment-assessment/boundaries/baseline-results.json; worker implementing rootcause."
+
+dd028_property_increment_baseline: "Root4paired scalar/fixed-array property postfix cases compileclean then fail exactstorageeffects; emitted scalarbytecode reads but has noincrement/store. Same prop_word read-only fallback existsatbase0c85d32a8, notintroducedbyL60. Evidence runtime-property-increment-assessment/baseline-results.json. QueuedL61; packed bit/part-select8paired controls already emitfocusedunsupporteddiagnostics."
+
+dd028_expanded_baseline: "Root48paired propertyincdec cases (int/logic/real,scalar/array,all4forms) allcompileclean;32integralwrongresult and16realruntimeabort. Stable3hash. Evidence runtime-property-increment-assessment/matrix/baseline-results.json. L61queued afterL60."
+
+dd029_string_array_index_baseline: "Rootunsigned128 index1<<32 and1<<100 alias stringelement0 in4paired runs, expectedempty. Cleancompile thenwrongresult; stablehashes. of_LOAD_STRA narrowsunsigned andmissesoverflowflag. Evidence runtime-string-array-index-assessment/baseline-results.json. QueuedafterDD028."
+
+l60_root_checkpoint: "Installed d7457796compiler/78e456f9target/bd56a091runtime passes84/84 rootruns with exactcleanresults, includingoriginal32,boundary24,wide-real16,recursive2,sharedstore2,and8L58formerstartupwarnings nowclean. Root negativeconstarrayincrement stillcompile0inbothmodes; assignedworkerexistinglvaluevalidation+CEcoverage beforeintegration. Netarraynegativealreadyrejects. Sourceindexhelper/sampledneighborcleanupreview pending; nofeaturecredit yet."
+
+l60_static_invalid_review: "LiteralOOB a[2]++ on2element int/logic/real arrays fails6paired compilations after operandrvaluefolding eraseslvalueidentity (inappropriate++). Dynamicinvalid84rootchecks remainpass. Sameworker assignedpreservearrayoperandidentity andtypeddefault/no-store forliteralinvalidindices beforeintegration. Evidence runtime-array-increment-assessment/static-invalid/results.json. Constarraynegativevalidation also inprogress."
+
+dd030_packed_select_increment_baseline: "Earlier8widenedcontext CE controls didnotprove universalrejection. Matching-widthbit1/part4 operands compileclean thenVVPabortwidthassert in4pairedruns; evidence runtime-selected-increment-assessment/matching-width/results.json. Separateexistingpackedselectdefect, queuedafterDD028/DD029."
+
+l60_final_root_review: "Stable0f6667adcompiler/78e456f9target/179d69ffruntime passes94/94 rootoutcomes incl84cleanpositives,6literalOOBpositiveswithexpectedwarnings,4const/netCE. Existinginc/genvar/realarray/stringarray/assignment10neighborspass. Permanentstaticinvalidcoverage and removalofredundantindexhelperrewrite pendingbeforefinalfreeze. Broadgatesremainpending; L60notyetcounted."
+
+l60_frozen_final: "Root94/94 atstable0f6667ad/78e456f9/a6788f42, plus6/6 literalX constant/runtime checks;10/10existingneighbors. Permanentlegacy4/4 JSON8/8 final-5. Originalindexconverterrestored, isolatedboundary24/24passwithfixedconsumers; no genericconverterrewrite or preponedpathchange. ConstCE/staticinvalidcoveragepermanent. Readyforlocalintegration, broadgatespending."
+
+l60_local_integration: "bceb03f89 fast-forwarded into local main. Eighth focused feature; full gates deferred to approximately-ten-feature batch. No remote action/newtree. DD028property incrementsnext, thenDD029stringreads; DD030packedselecttrackedafterthose."
+
+l61_start: "Same retained checkout branchedfrom490f7c51c afterL60 integration andgraphterminal0(51234nodes95061edges7325communities). Reusedgpt-5.6-sol workerassignedDD028; eightfeaturesbeforethis. Rootcapture-indexed6paired baseline: scalarint2pass,arrayint2wrongresult,real2compilerabort. Directsignal vs expressionreceiverdistinctionmatters. Functionreturn-member syntaxisunverified andexcludedfromclaim. No newtree/remotes/broadgates."
+
+l61_root_frozen: "114/114 independent paired outcomes pass with stable ivl0f6667ad, target41b624bc, runtimea6788f42. Baseline48, boundaries48, capture6, notifications6, restrictions6. Worker neighbors21/21; permanentlegacy2/2 JSON4/4. Source reviewed; local integration next, broad gates pending."
+
+l61_local_integration: "497110d63 fast-forwarded to local main; ninth focused feature. Root114/114, neighbors21/21, legacy2/2 JSON4/4. No remote action or extra worktree. DD029 next; broad qualification pending tenth feature."
+
+l62_start: "Same retained checkout branched from841aec48d afterL61 integration and graph terminal0(51245nodes95083edges7311communities). Reused existing sol worker; no extra trees/models. DD029 root matrix8paired failures prepared. Tenth feature then full gates."
+
+l62_root_automatic_baseline: "Eight additional paired automatic-function string-array matrix runs compile clean then fail exact wide-index empty-default oracle. Evidence runtime-string-array-index-assessment/automatic/baseline-results.json. IEEE7.4.6 Table7-1 confirmed from local2023text. Existing seven-gate batch runner prepared; frontend must run last alone due to installed-resource relocation."
+
+l62_first_candidate_root: "Stable ivl0f6667ad/target41b624bc/runtime65baa472 candidate passes16/20 independent runs. Four failures are module/automatic unsigned128 allones index into[-1:1] aliasing -1. Runtime consumer fix alone is insufficient; worker investigating declared-index normalization overflow. Root-candidate/results.json preserved. No batch qualification launched."
+
+l62_normalized_root: "Shared unpacked normalization zeroextends unsigned indices before signed canonical arithmetic. Root36/36 pass stable compilerb99ccb58/targete3b1a404/runtime65baa472: original4,matrix8,automatic8,neighborreads8,invalidstores8. Prior four aliases resolved; permanent validation/freeze pending. Evidence root-normalized/results.json."
+
+l62_signedness_width_controls: "32/32 paired int/logic/real/string controls at index widths8/32/64/128 preserve signed -1 reads while rejecting unsigned allones aliases. Evidence signedness-widths/results.json. This complements36 normalized root runs; permanent freeze pending."
+
+l62_final_freeze: "Root68/68 stable b99ccb58/e3b1a404/65baa472; permanentlegacy1/1 JSON2/2 neighbors4/4. Direct int expression regression requires declared two-state conversion after generic array load, included. Source/tests reviewed. Ready localintegration then fullbatchgates."
+
+l62_local_integration: "5dfcc959f fast-forwarded localmain; tenth focusedfeature. Seven full gates next; previous broadqualifiedbaseline remainsc686a4781. No remotes/newtrees."
+
+batch_l53_l62_firstpass: "All7gates terminal at6d617022d. JSON1971/0,UVM357/0/0 realDPI,NFA58,makecheck,frontend12 pass. Integratedlegacy5041total5032pass4fail2NI3EF; VPI108,negative149,runtime15,copyout6,exports66pass. Releases8SMOKE_PASS7COMPILE_FAIL. All6installedhashesrestored; trackedclean. Notqualified. Evidence qualification/first-pass-summary.json."
+batch_l53_l62_repairs_start: "Samecheckout branch from6d617022d; reusedworker legacy4repairs with cheaptests. Rootownsdoc/evidence. UVM release missingconstraintfunction semantics require actualpresolveevaluation, noemptyconstraint_modestub. Statictypeparammethodlookup separate. Lastbroadqualifiedbaseline staysc686a4781."
+
+release_constraint_semantic_baseline: "Root paired function-valued state constraint warnsignored then randomize returns1 withwrongx; modeenable/disable form failslookup. Equivalentdirectstate-variablecontrols all4pass includingunsat. Evidence uvm-release-regression-assessment/semantic/{baseline-results,direct-control-results}.json. Existing randomize_invoke_hook_/free_hook_ supplies frame/reentry machinery forfutureactualpresolvefunctionevaluation."
+
+batch_return_type_sibling: "Root8paired element-return-loop probes: int/logic4wrongfirstword, real/string4compilerabort scalarreturn dimensionassertions. DD031 recorded; worker alerted. Strobe padding controls prepared to prevent erasing genuineOOBselectXbits. No broad rerun."
+
+legacy_repair_root_first: "Candidatebec6fae4/5883cae4/65baa472 passes4integral/logic elementreturn probes and6synthesis reductions. Fourreal/string wholepattern+terminalcomparison returnload probes also pass. Strobe10stillSORRY onfirstcandidate; DD031elementreturn4stillabort. Evidence root-repair-replay/first.json andreturn-patterns/candidate-results.json. Worker continuingactualstrobeIR investigation."
+
+repair_additional_oracles: "Deferred strobe cast controls preserve explicit8bittruncation andsigned/unsigned reinterpretation; blindSELECT-padpeeling rejected atreview. Root type-parameter staticmethod reducer failsbothmodes with exactLIBTYPElookup, independent ofUVM. Evidence strobe-casts/first-results.json anduvm-release-regression-assessment/type-parameter-baseline.json."
+
+legacy_repair_root_second: "Stabletarget23e7239f passes10deferredstrobe outcomes includinglive5/128bitindex,OOBpackedselectX,andzeroextension. Sixexplicitcaststrobe cases remainfocusedSORRY, notsilentwrongvalues. Originalfourreplay restored: signed_a,arrayreturn,synthPASSED; pr1830834onlyline22SORRYmatchesexistinggold. Permanentexactharness/freeze pending. Evidence root-repair-replay/{strobe-second,original-four}.json."
+
+legacy_repair_final_review_pending: "Exactfourlegacyharness4/4pass final4/four.log. Neighborpr1988302b expectedCE perregress-vlg.list, worker correctingfocusedlist. Filevariantsfstrobe/fmonitor root4paired currentlySORRY; same-familyrepair requestedbeforefreeze. PermanentpairedJSONregistration pending. ActualUVMpick-sequence2paired reducer ignoreslegalfunctionconstraint then returnswrongvalue withsuccess; semantic/pick-sequence-baseline.json."
+
+legacy_repairs_frozen: "Reviewfinal5legacy2JSON2deferredcontrols allpass; neighbors5pass. Root22/24finalreplay passes;2fmonitor cases retainconstantwordrestrictiondiagnostic, notclaimedfixed. Finaltarget48ee3f66; compilerbec6fae4/runtime65baa472. Ready localintegration; all4originallegacyoutcomes restored. UVMrelease7failuresremain andno broadretestyet."
+
+legacy_repairs_integrated: "fac7f8a11 fastforwardedlocalmain; rootfocused22passplus2documentedmonitorunsupported, originalfourrestored. Nextrelease typeparamstaticlookup andrealfunctionconstraint semantics. DD031retained. Broadbaselinec686a4781 unchanged untilcorrectedgates."
+
+release_typeparam_repair_start: "Samecheckout fromdb7d2bf01 aftercanonicalgraphterminal0. Existing solworker implementsreal typeformal staticmethod lookup; pairedsemanticreducer prepared. Rootindependentconstraints tests. No newtree or broadretest."
+
+l63_local_integration: f57a08a78
+l63_validation: "Legacy5/5, JSON10/10, independent18/18, neighbors9/9; unchanged2020.3.2 smoke passes. Broad requalification pending."
+
+l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,frontend12,makecheck pass; legacy5249/2fail and JSON2185/2fail share two diagnostic mismatches. Snapshot735sources/6artifacts/diff stable. Freeze released for minimal diagnostic repairs; golds unchanged, not qualified or integrated. Evidence qualification-corrected/summary.json."
+
+l64_nested_handle_repair: "Runtime branch-read classification repaired; focused250/250 stable, permanent206/206 each harness, original4/4 and diagnostic2/2 each, malformed4/4, stateforeach15/15. Prior integrated5249/0fail predates runtime repair; current broad qualification pending. No integration. Session2026-09-14_constraint_function_presolve.md."
+
+l64_qualified: "All7 current-artifact gates pass: legacy5253/0fail,JSON2189/0,UVM357/0/0realDPI,NFA58,release15smoke,frontend12,makecheck. Snapshot749files/6artifacts/diff stable; manifest103editionpairs verified. L64 evidenced subset ready localintegration, full standards/application goals remain incomplete."
+
+l64_local_integration: "4bc02c51b semantic implementation plus0c6d5994a test-only whitespace cleanup fastforwardedlocalmain fromcc66db23e. Full7gates passed; no remote publication. Two existing trees retained, no eligible cleanup. Graph refresh pending clean canonical checkout; next phase coordinator blocker selection, full mission active."

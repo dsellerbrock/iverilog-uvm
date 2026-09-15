@@ -1,0 +1,2 @@
+ivltests/sv_constraint_function_scoped_method_sideeffect_fail.v:13: error: Specialized static method/member expression used in a constraint is unresolved, impure, or has an unsupported result.
+1 error(s) during elaboration.

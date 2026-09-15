@@ -2109,12 +2109,15 @@ NetNet* Design::find_signal(NetScope*scope, pform_name_t path)
       return 0;
 }
 
-NetFuncDef* Design::find_function(NetScope*scope, const pform_name_t&name)
+NetFuncDef* Design::find_function(NetScope*scope, const pform_name_t&name,
+				  bool search_up)
 {
       assert(scope);
 
       std::list<hname_t> eval_path = eval_scope_path(this, scope, name);
-      NetScope*func = find_scope(scope, eval_path, NetScope::FUNC);
+      NetScope*func = search_up
+	    ? find_scope(scope, eval_path, NetScope::FUNC)
+	    : find_scope_(scope, eval_path, NetScope::FUNC);
       if (!func)
 	    return elaborate_missing_package_function_scope_(this, scope, name);
 	      if (func && (func->type() == NetScope::FUNC)) {
@@ -2134,10 +2137,13 @@ NetFuncDef* Design::find_function(NetScope*scope, const pform_name_t&name)
       return 0;
 }
 
-NetScope* Design::find_task(NetScope*scope, const pform_name_t&name)
+NetScope* Design::find_task(NetScope*scope, const pform_name_t&name,
+			    bool search_up)
 {
       std::list<hname_t> eval_path = eval_scope_path(this, scope, name);
-      NetScope*task = find_scope(scope, eval_path, NetScope::TASK);
+      NetScope*task = search_up
+	    ? find_scope(scope, eval_path, NetScope::TASK)
+	    : find_scope_(scope, eval_path, NetScope::TASK);
       if (task && (task->type() == NetScope::TASK))
 	    return task;
 

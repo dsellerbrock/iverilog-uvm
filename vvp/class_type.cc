@@ -374,6 +374,38 @@ static void static_property_get_object_(vpiHandle storage, size_t idx,
 
 }
 
+static map<vvp_net_t*, pair<const class_type*, size_t> >
+      static_randomize_vec4_overlays_;
+static map<__vpiArray*, pair<const class_type*, size_t> >
+      static_randomize_word_overlays_;
+
+bool class_static_randomize_overlay_vec4(vvp_net_t*net,
+                                          vvp_vector4_t&value)
+{
+      auto found = static_randomize_vec4_overlays_.find(net);
+      return found != static_randomize_vec4_overlays_.end()
+            && found->second.first->static_randomize_transaction_vec4(
+                  found->second.second, 0, value);
+}
+
+bool class_static_randomize_overlay_word(__vpiArray*array, size_t leaf,
+                                          vvp_vector4_t&value)
+{
+      auto found = static_randomize_word_overlays_.find(array);
+      return found != static_randomize_word_overlays_.end()
+            && found->second.first->static_randomize_transaction_vec4(
+                  found->second.second, leaf, value);
+}
+
+bool class_static_randomize_overlay_object(vvp_net_t*net,
+                                            vvp_object_t&value)
+{
+      auto found = static_randomize_vec4_overlays_.find(net);
+      return found != static_randomize_vec4_overlays_.end()
+            && found->second.first->static_randomize_transaction_object(
+                  found->second.second, 0, value);
+}
+
 /*
  * This class_property_t class is an abstract base class for
  * representing a property of an instance. The definition keeps and
@@ -1380,6 +1412,20 @@ class_type::class_type(const string&nam, size_t nprop)
 
 class_type::~class_type()
 {
+      for (auto it = static_randomize_vec4_overlays_.begin();
+           it != static_randomize_vec4_overlays_.end(); ) {
+            if (it->second.first == this)
+                  it = static_randomize_vec4_overlays_.erase(it);
+            else
+                  ++it;
+      }
+      for (auto it = static_randomize_word_overlays_.begin();
+           it != static_randomize_word_overlays_.end(); ) {
+            if (it->second.first == this)
+                  it = static_randomize_word_overlays_.erase(it);
+            else
+                  ++it;
+      }
       for (size_t idx = 0 ; idx < properties_.size() ; idx += 1)
 	    delete properties_[idx].type;
 }
@@ -1500,6 +1546,13 @@ vpiHandle class_type::static_property_storage_(size_t idx) const
 		    type_code);
 	    abort();
       }
+	if (wants_array) {
+	      static_randomize_word_overlays_[array] = make_pair(this, idx);
+	} else {
+	      vvp_net_t*net = static_property_net_(cell->storage);
+	      if (net)
+		    static_randomize_vec4_overlays_[net] = make_pair(this, idx);
+	}
       return cell->storage;
 }
 
@@ -1671,6 +1724,28 @@ void class_type::static_randomize_transaction_rollback(size_t idx) const
       cell->randomize_dirty.clear();
 }
 
+bool class_type::static_randomize_transaction_vec4(
+      size_t idx, size_t leaf, vvp_vector4_t&value) const
+{
+      static_property_cell_t*cell = static_property_cell_(idx);
+      if (!cell || !cell->randomize_transaction_active) return false;
+      auto found = cell->randomize_vec4.find(leaf);
+      if (found == cell->randomize_vec4.end()) return false;
+      value = found->second;
+      return true;
+}
+
+bool class_type::static_randomize_transaction_object(
+      size_t idx, size_t leaf, vvp_object_t&value) const
+{
+      static_property_cell_t*cell = static_property_cell_(idx);
+      if (!cell || !cell->randomize_transaction_active) return false;
+      auto found = cell->randomize_object.find(leaf);
+      if (found == cell->randomize_object.end()) return false;
+      value = found->second;
+      return true;
+}
+
 const std::string& class_type::property_base_type(size_t idx) const
 {
       static const std::string nil;
@@ -1767,6 +1842,23 @@ void class_type::add_constraint(const string&name, const string&ir)
       c.name = name;
       c.ir = ir;
       constraints_.push_back(c);
+}
+
+void class_type::add_constraint_state_call(unsigned constraint,
+		const string&label, const string&method, unsigned width,
+		bool is_virtual)
+{
+      constraint_state_call_t call = {constraint, label, method, width,
+	    is_virtual};
+      constraint_state_calls_.push_back(call);
+}
+
+void class_type::add_constraint_state_dependency(unsigned kind, unsigned property,
+		unsigned leaf)
+{
+      assert(!constraint_state_calls_.empty());
+      constraint_dependency_t dep = {kind, property, leaf};
+      constraint_state_calls_.back().argument_dependencies.push_back(dep);
 }
 
 const string& class_type::constraint_name(size_t idx) const
@@ -2731,6 +2823,21 @@ void compile_class_constraint(char*name, char*ir)
       compile_class->add_constraint(string(name), string(ir));
       delete[]name;
       delete[]ir;
+}
+
+void compile_class_constraint_dep(uint64_t kind, uint64_t property, uint64_t leaf)
+{
+      compile_class->add_constraint_state_dependency(kind, property, leaf);
+}
+
+void compile_class_constraint_call(uint64_t constraint, char*label,
+		char*method, uint64_t width, uint64_t is_virtual)
+{
+      compile_class->add_constraint_state_call((unsigned)constraint,
+		label ? label : "", method ? method : "", (unsigned)width,
+		is_virtual != 0);
+      delete[]label;
+      delete[]method;
 }
 
 void class_type::add_covgrp_bin(unsigned cp_idx, unsigned prop_idx,

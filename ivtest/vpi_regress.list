@@ -77,6 +77,7 @@ br_ml20191013		normal			br_ml20191013.c		br_ml20191013.gold
 by_index		normal			by_index.c		by_index.gold
 by_name			normal			by_name.c		by_name.log
 callback1		normal			callback1.c		callback1.log
+wide_part_select_vpi normal,-g2023 wide_part_select_vpi.c wide_part_select_vpi.log
 celldefine		normal			celldefine.c		celldefine.gold
 dumpports_activity_cb	normal,-g2012		dumpports_activity_cb.c	dumpports_activity_cb.gold
 check_version		normal			check_version.c		check_version.gold

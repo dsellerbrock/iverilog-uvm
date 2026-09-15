@@ -1,18 +1,25 @@
-id: "L42"
-title: "Integral class-property read/written as a string used the wrong conversion (or none)"
-status: "closed"
-phase: "phase 3 (implementation campaign), second increment"
-base_revision: "631bba6e8 (PR #277 merged, L36-L41 closed pending PR #278)"
-last_validated_revision: "HEAD (L42 closed, all six gates passed)"
-parent: "Phase-B backlog (tasks/todo.md), found incidentally during L40's investigation on 2026-09-11, deferred as feature-sized, picked up as the next implementation-campaign item after L41."
-reproducer: "evidence/campaign-20260908/l42/l42_plain_int_property.sv (the get_string fix); l42_set_string.sv (the set_string fix, including left-truncation); l42_edge_cases.sv (byte/shortint, zero-value, zero-fill); l42_bit_vector.sv (property_bit already worked, property_logic didn't -- confirms the fix's precise scope); l42_xbit.sv (X-bit safety); ivtest/ivltests/sv_class_property_string_conversion.v (new permanent regression)."
-expected_behavior: "An integral class property read/written as a string must get the same IEEE 1800-2017/2023 6.16 packed-byte conversion a plain (non-property) vec4-typed variable already gets, not a warn-and-stub."
-root_cause: "property_atom<T> and property_logic (vvp/class_type.cc) never overrode class_property_t::get_string/set_string, falling to the base class's generic 'unsupported' stub."
-allowed_scope: ["vvp/vvp_net.h + vvp_net.cc: new shared vector4_to_packed_string() helper, extracted from vthread.cc's existing of_PUSHV_STR opcode (which was refactored to call it -- dedup, no behavior change for the pre-existing plain-variable path).", "vvp/class_type.cc: get_string/set_string overrides on property_atom<T> and property_logic, plus a new shared pack_string_into_vec4_() helper for the write direction.", "ivtest/regress-sv.list + ivtest/ivltests/sv_class_property_string_conversion.v: new permanent regression."]
-non_goals: ["Did not touch property_bit (2-state bit vectors) -- confirmed already correct before this fix, no change needed.", "Did not touch property_string (actual string-typed properties) -- already correct.", "Did not add any new X/Z-specific handling -- the shared conversion already treats X/Z as 0, matching the pre-existing plain-variable behavior, verified not to crash."]
-validation_contract: "All six required gates: integrated ivtest 4991/4986/0F/2NI/3EF (prior baseline 4990/4985 +1 new normal test), JSON 1873/0 (unaffected), UVM 357/0/0, NFA 58/58, releases 15/15 SMOKE_PASS, frontend all S1-S12."
-discovery_policy: "First hypothesis (from the L40-era DISCOVERED_DEBT.md entry) guessed this needed a 'property_vec4-style get_string override doing the itoa conversion' -- i.e. decimal formatting. Verified against the LRM directly before implementing anything: 6.16 defines integral-to-string as byte-PACKING, not decimal formatting (confirmed empirically too: a plain int variable with value 42 already converts to the 1-character string '*', not '42'). Implementing the wrong (itoa) conversion would have been a second, different-shaped bug; tracing the actual existing plain-variable opcode (%pushv/str) before writing any new code avoided that."
-evidence: "../evidence/campaign-20260908/l42/"
-next_action: "Select the next Phase-B implementation-backlog item from tasks/todo.md. DD-018 (function/task-body import) remains blocked pending a proper bison --report=state trace -- do not re-attempt the plain block_item_decl addition, it reproduces the +222 reduce/reduce conflict jump. Other candidates: the $low()/$high() 'object code 615' fallback; eval_string.c:249; a fresh re-audit of BLOCKERS.md for superseded rows."
-next_command: "Commit and push L42, open a PR, then continue the implementation campaign per the user's standing directive."
+id: CONSTRAINT-FUNCTION-PRESOLVE
+title: Evaluate function-valued class constraints before solving
+status: DONE
+base_revision: 0c6d5994a
+allowed_scope:
+  - Execute active function-valued class constraints against each runtime object after pre_randomize
+  - Preserve constraint modes, inheritance, virtual and lexical nonvirtual dispatch, nested objects, and inline constraints
+  - Bind legal input and const-ref state arguments with ordinary type conversion
+  - Solve active random function arguments in separate priority stages, preserving one rollback transaction and inline captures
+  - Reject illegal or unsupported calls and impure function bodies explicitly
+  - Transport typed function results into separate per-object solver slots without truncation or aliasing
+forbidden_scope:
+  - Ignoring function-valued constraints or implementing constraint_mode as a no-op
+  - General random solver redesign unrelated to function-valued constraints
+  - DD030 packed-select increment and DD031 array-return changes
+focused_features_before_this: 0
+validation_batch: 20260914
+last_validated_revision: "4bc02c51b semantic implementation; local main0c6d5994a adds test-only trailing-whitespace cleanup. Seven gates passed the frozen implementation: legacy5253/0fail,JSON2189/0,UVM357/0/0realDPI,NFA58,release15smoke,frontend12,makecheck; focused250 and permanent206 each harness."
+pending_gates: "None for the evidenced L64 subset; seven current-artifact gates passed."
+next_action: "Coordinator selection: activate the next concrete conformance blocker from current evidence. L64 is locally integrated; remaining function/operand gaps remain open. Canonical graph refresh requires retained clean canonical checkout; do not update graph from this feature worktree."
 stop_after_completion: false
+
+local_integration: 0c6d5994a
+
+l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,frontend12,makecheck pass; legacy5249/2fail and JSON2185/2fail share two diagnostic mismatches. Snapshot735sources/6artifacts/diff stable. Freeze released for minimal diagnostic repairs; golds unchanged, not qualified or integrated. Evidence qualification-corrected/summary.json."

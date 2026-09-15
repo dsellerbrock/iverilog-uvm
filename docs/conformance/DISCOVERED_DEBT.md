@@ -938,55 +938,763 @@ probe that depended on it. An upstream report is a separate, unfiled action.
   feature (which object kinds, what elaboration-to-vvp plumbing) rather than
   a single reducer-sized fix.
 
-### DD-018 — `import pkg::*;` anywhere inside a function/task body fails outright
+### DD-018 — Procedural package import after a local declaration (L43)
 
-- **Discovered while working:** L41 (class-body import diagnostic quality)
-- **Observation:** while writing a positive-control test to confirm L41's
-  fix left method-body imports unaffected, found that `import pkg::*;`
-  written ANYWHERE inside an ordinary (non-class) function or task body
-  fails with a plain `syntax error` / `I give up on this function
-  definition.` -- independent of position (first statement or after
-  another declaration) and independent of whether a class is involved at
-  all. Confirmed against the LRM's own formal grammar: IEEE 1800-2017/2023
-  A.2.1.3's `data_declaration ::= ... | package_import_declaration` and
-  A.6.3's `block_item_declaration ::= data_declaration | ...` -- so this
-  is legal SystemVerilog unrestricted to module/package scope, not a
-  guess.
-- **Attempted fix, REVERTED:** added `package_import_declaration` as a
-  `block_item_decl` alternative in `parse.y` (the same shape as L41's
-  `class_item` addition). Unlike L41, this was NOT a clean, zero-conflict
-  change: bison's reduce/reduce conflict count jumped from 1122 to 1344
-  (+222; shift/reduce stayed flat at 563). `block_item_decl` is reachable
-  from far more contexts than `class_item` was (module bodies, named
-  begin/end blocks, task/function bodies, generate blocks, all via
-  `block_item_decls_opt`), and `K_import` is also the leading token of
-  `dpi_import_export_declaration`'s several forms -- the ambiguity is
-  suspected to be an import-vs-DPI-import overlap reachable from a shared
-  block-level state, but this was NOT traced to a specific state before
-  reverting. A jump this large, unlike L41's identical-before-and-after
-  result, is not something to force through on a "probably fine" basis --
-  reverted rather than risk silently corrupting an unrelated construct's
-  parse. `parse.y` is back to its pre-attempt state; no source change
-  landed for this row.
-- **File/function:** `parse.y` `block_item_decl` (~line 9088-9353,
-  post-L41 line numbers) and whatever `dpi_import_export_declaration`
-  state actually collides with it; root cause not traced.
-- **Possible clause:** IEEE 1800-2017/2023 A.2.1.3 + A.6.3 (cited above,
-  confirmed against the LRM text directly, not inferred).
-- **Evidence:** minimal reducer, `import pkg1::*;` as either the first or
-  second statement in a plain module-scope function body, both fail
-  identically; not archived to a permanent evidence directory this pass.
-- **Reproducer status:** confirmed (hand-built reducer, not from real
-  application source)
-- **Triage status:** untriaged; needs its own dedicated investigation
-  (a full `bison --report=state` diff identifying exactly which new
-  states appear and what collides in them -- not just a conflict-count
-  diff, which only tells you THAT something new collides, not WHAT) --
-  do not re-attempt the plain `block_item_decl` addition without that
-  trace, it reproduces the same +222 reduce/reduce jump. A narrower
-  alternative worth trying first: a dedicated production for
-  `K_import package_import_item_list ';'` used only inside
-  `block_item_decl` (not reusing the shared `package_import_declaration`
-  nonterminal DPI-import forms might also reach), which may sidestep the
-  overlap entirely.
-  not just a conflict-count diff) before attempting a fix.
+- **Current status (2026-09-14):** IMPLEMENTED with focused validation; L43 implements
+  the legal declaration-prefix case with invalid-placement safeguards.
+- **Correction to the L41 assessment:** the archived reducers declared
+  `function foo_t get_val()` before importing `foo_t` inside the body. Their
+  syntax failure occurred at the return type, before the import. With an `int`
+  return type, a leading import already works. An import after `int dummy;`
+  instead reaches an existing statement-context production and fails with
+  `What kind of statement? 5PNoop` during elaboration.
+- **Root cause:** package lookup is already installed by
+  `pform_package_import`; the fallback statement production creates an
+  unelaboratable `PNoop` for a declaration. A one-line null replacement was
+  rejected in review because it also accepts illegal conditional/late imports
+  and crashes when an attribute is bound through the null statement.
+- **Grammar investigation:** the old +222 reduce/reduce jump is reproduced
+  by duplicating the already-present `block_item_decl` import alternative.
+  Bison state 1230 contains two identical completed productions and all 222
+  extra conflicts. This is not evidence of a DPI-import collision. Scratch
+  reports: `evidence/dd018-assessment/{baseline,duplicate}.output`.
+- **Normative basis:** both IEEE 1800-2017 and 1800-2023 A.2.1.3,
+  A.2.6-A.2.8 and 26.3. Imports belong in declaration prefixes, not arbitrary
+  statement positions. The earlier A.6.3 citation was imprecise; the
+  `block_item_declaration` production is in A.2.8.
+- **Evidence:** corrected reducers and pre-fix six-error regression logs in
+  `evidence/dd018-assessment/`. Permanent positive source:
+  `ivtest/ivltests/sv_procedural_package_import.v`.
+
+### DD-019 — Packed mixed-driver compound assignment aborts (PRINCE)
+
+- **Discovered during:** L43; independent assessment only, not active implementation.
+- **Observation:** freshly compiled unmodified OpenTitan `prim_prince_sim`
+  aborts in `vvp_fun_concat::recv_vec4_pv`: port 0 expects 256 bits, receives
+  384. Compiler/target/runtime hashes were unchanged during this replay.
+- **Reducer:** `evidence/opentitan-runtime-assessment/packed_compound_drivers.sv`.
+  A six-word packed array has word 0 assigned in `always_comb`, with `^= 0`
+  following the ordinary assignment; other words are continuously driven.
+  The plain-assignment control passes. Compound form reproduces the exact abort.
+- **Root-cause hypothesis:** ordinary assignments use `%force/vec4/off` for
+  a signal lowered to an unresolved net, while `put_vec_to_lval` emits
+  `%store/vec4` for the compound form. The runtime store reaches the concat
+  network with the full packed width. Investigate target write routing,
+  not a width-clamping workaround in the concat runtime.
+- **Normative basis to verify at activation:** IEEE 1800-2017/2023 6.5
+  (independent packed elements may have different kinds of drivers), 11.4.1
+  (compound assignment equivalence and single index evaluation).
+- **Status:** L44 implemented with focused validation. Full PRINCE success is unproven;
+  missing native DPI dependencies may expose a later independent failure.
+
+### DD-020 — Unresolved task calls compile and continue after a warning
+
+- **Discovered during:** L44, independent next-blocker assessment.
+- **Observation:** the OpenTitan synchronizer test calls mode/interval setter
+  tasks absent from the pinned `prim_cdc_rand_delay` implementation. The
+  compiler ignores all six enables instead of rejecting the unresolved calls.
+  That application cannot serve as clean simulator qualification evidence.
+- **Reducer:** `evidence/unresolved-task-assessment/missing_task.sv` calls an
+  undeclared task and prints a marker afterward. Both 2017 and 2023 compile
+  with exit 0 and execute the marker. `results.json` records both runs.
+- **Location:** `PCallTask` elaboration in `elaborate.cc`, including the
+  SystemVerilog-only bare unknown-task warning/no-op branch near line 14069;
+  qualified/class paths contain related fallbacks requiring separate assessment.
+- **Expected:** an unresolved enable cannot be treated as a successful call.
+  IEEE 1800-2017/2023 13.3 and 23.8.1 govern task calls and lookup.
+- **Status:** L45 implements the bare unqualified-call diagnostic. Qualified
+  and class fallback paths remain OPEN and must not be mistaken for semantics.
+  The synchronizer's reset-time queue mismatch itself remains untriaged; the
+  missing setters are not claimed to be its root cause.
+- **Post-L48 assessment:** `missing_package_task.sv` calls a missing task in an
+  existing package; `missing_hier_task.sv` calls a missing task in an existing
+  module instance. Both compile and execute `CONTINUED` in both editions.
+  `evidence/unresolved-task-assessment/qualified-results.json` records all four
+  runs. Package and hierarchical fallback branches remain distinct next fixes;
+  preserve valid forward declarations and class method dispatch when correcting
+  them. No implementation or qualification is claimed yet.
+
+DD-020 qualified-call follow-up: `qualified-shadow-function-results.json`
+records an explicit missing package call from a class compiling and continuing
+in both editions despite a same-named class method. Valid package void/nonvoid
+functions and hierarchical void functions retain their side effects in the
+positive control. These form the next bounded elaboration checks.
+
+Indexed hierarchy follow-up: `indexed_hier_task_valid.sv` calls a real task in
+`child dut[1:0]`. Both editions discard `dut[1].bump()` and leave both counters
+zero (`indexed-hier-task-results.json`). This is an execution defect for a
+valid call, distinct from missing-call diagnostics. The early indexed-object
+fallback bypasses ordinary hierarchical task lookup. Scope/object separation
+must preserve valid object-array methods when fixing module/generate calls.
+
+L51 implements downward package-qualified task/function statement lookup,
+including valid self-qualified forward tasks and exported subroutines. Missing
+members no longer fall back to compilation-unit task/function shadows or
+warning/no-op paths. IEEE 23.7.1 requires this downward-only resolution.
+Legacy 4/4 and JSON 8/8 pass; hierarchical and class fallback debt remains open.
+
+L52 resolves fixed indexed hierarchy through the ordinary task/function path
+and rejects missing members on proven indexed scopes. Module/generate tasks,
+copy-out, delays, void functions and object-array controls pass (legacy 5/5,
+JSON 10/10). Unknown/out-of-range/over-wide instance selections are diagnosed;
+legal negative indices including INT_MIN pass. Unindexed missing hierarchical
+tasks and class fallback paths remain OPEN. Full batch qualification is pending.
+
+### DD-021 — Dynamic subpart of a disjoint mixed-driver element is rejected
+
+- **Discovered during:** L44 boundary validation.
+- **Observation:** a fixed packed element written procedurally through a dynamic
+  subpart, with a different fixed element continuously driven, is rejected as
+  also continuously assigned before target emission.
+- **Authority:** IEEE 1800-2017/2023 6.5 permits disjoint static prefixes to have
+  different driver kinds; dynamic selection inside a fixed element does not
+  make the entire containing array the longest static prefix.
+- **Status:** OPEN. L44 covers the accepted static mixed-driver route only.
+  Do not register this legal source as an expected language-error regression.
+
+### DD-022 — Packed subpart writes escape the selected element
+
+- **Discovered during:** DD-021 prerequisite assessment alongside L45.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/subpart_bounds.sv`;
+  `logic [1:0][7:0] words = 16'ha520` followed by a procedural
+  `words[0][pos +: 4] = 4'hf`, with `pos=8`, changes the upper element:
+  observed `16'haf20`, expected unchanged `16'ha520`. Both editions fail
+  the runtime assertion; `bounds-results.json` records the results.
+- **Authority:** IEEE 1800-2017/2023 11.5.1: wholly out-of-range part-select
+  writes have no effect; partially out-of-range writes affect in-range bits only.
+- **Root-cause evidence:** `normalize_variable_part_base` flattens a subpart
+  offset into the full packed signal. `NetAssign_::set_part` retains the flat
+  base and width, without the selected element's bounds. The runtime therefore
+  treats the adjacent element as in range.
+- **Read counterpart:** `subpart_read_bounds.sv` reads `5` from the neighboring
+  element instead of `x` in both editions (`read-bounds-results.json`).
+- **Status:** OPEN prerequisite to DD-021. Do not merely relax mixed-driver
+  rejection while writes can escape the static prefix into continuous drivers.
+  Assess ordinary, compound and nonblocking write paths plus read semantics,
+  partial overlaps, index single evaluation, ascending/descending declarations
+  and unknown indexes before choosing the shared correction.
+
+- **L46 bounded implementation:** read-only indexed `+:`/`-:` selects with a
+  fixed packed prefix will retain the selected carrier as nested `NetESelect`
+  nodes. Write semantics remain OPEN regardless of read-focused test results.
+- **Write design checkpoint:** preserve canonical selected-carrier bounds through
+  `NetAssign_`, `dup_lval`, target lvalue transport and synthesis. Consumers include
+  VVP blocking/compound/NBA paths, procedural sensitivity/write analysis,
+  `synth2.cc`, and VHDL/Verilog source targets. Reuse interval intersection logic;
+  do not duplicate index evaluation or silently drop partial in-range writes.
+- **Additional boundary:** `prefix-bounds.sv` reads `3` instead of `x` from
+  `words[0][3][0+:4]` when the middle declared dimension is `[2:0]`.
+  `prefix-results.json` records the 2023 failure. Constant prefix flattening
+  also lacks per-dimension bounds checks; L46's valid-prefix read scope does
+  not qualify this case.
+- **L48 focused read correction:** final-dimension indexed reads preserve every
+  packed prefix as a nested selection, including dynamic and unknown prefixes.
+  Focused tests cover both editions, unpacked-word suffixes, two-state results,
+  wide indices, single evaluation, and unchanged subarray selection. Legacy 2/2,
+  JSON 4/4, L46 neighbor 2/2, and null/synthesis checks pass. Packed writes remain
+  OPEN and broad qualification remains pending.
+- **L49 synthesis baseline:** `write-synthesis-runtime.sv` synthesizes the
+  combinational DUT with `-S` and simulates it under a retained testbench.
+  Both editions return `a7e0` instead of `a5e0` for a partial write into the
+  low packed element. `write-synthesis-red-results.json` records the failures.
+  A target compile-only smoke cannot establish correct write semantics.
+
+### DD-023 — Wide constant one-dimensional select aliases in formatting arguments
+
+- **Discovered during:** L46 wide-index review.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/one-dimensional-wide.sv`.
+  Formatting `value[64'h1_0000_0000+:4]` for an eight-bit value produces `0101`
+  instead of `xxxx`, while the dynamic-base version produces `xxxx` after L46.
+  Both editions fail the string-result assertion. Assignment context does not
+  reproduce this case, so do not claim all constant reads are affected.
+- **Authority:** IEEE 1800-2017/2023 11.5.1.
+- **Evidence:** `one-dimensional-wide-results.json`. The analogous nested packed
+  read passes both modes (`nested-wide-format-results.json`).
+- **Status:** L47 focused value/callback correction implemented. Constant
+  normalization and VPI base transport both required correction; direct VPI
+  read/write and parent-value callback checks pass both editions. Full metadata
+  and index-only callback triggers remain unqualified.
+
+
+DD-022 follow-up evidence: `prefix-boundary-results.json` shows both editions
+reading neighboring bits for an out-of-range or X middle prefix, while evaluating
+the final index function once. `prefix-outside.sv` and `prefix-unknown.sv` are the
+next read-side reproducers; neither is qualified by L46/L47.
+
+DD-022 write-side preparation: `write-boundary-results.json` contains six failing
+checks across both editions. Blocking and nonblocking writes to `words[0][6+:4]`
+change `a520` into `a7e0` instead of `a5e0`; compound XOR produces `a6e0`, also
+changing the adjacent element. Sources are `write-blocking.sv`,
+`write-compound.sv` and `write-nonblocking.sv` in the same evidence directory.
+The read fixes do not qualify these assignment paths.
+
+L49 focused write correction preserves carrier bounds for defined, valid fixed
+packed prefixes across blocking, compound, NBA and synthesis. Legacy 4/4,
+JSON 8/8 and a root 228-case boundary matrix per edition pass. Constant compound
+and unpacked-array routes have permanent review regression assertions. Dynamic
+and invalid write prefixes, unsupported source-target translations and broad
+qualification remain OPEN; DD-021 is not relaxed by this increment.
+
+### DD-024 — Empty implicit sensitivity crashes synthesis
+
+- **Discovered during:** L49 constant-write validation. A reducer with no RHS
+  reads did not isolate packed-carrier synthesis.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/synthesis-empty-sensitivity.sv`
+  contains a one-dimensional output assigned a constant in `always @*`.
+  With `-S -tnull`, both editions warn that the block will never trigger, then
+  crash with exit 139. `synthesis-empty-sensitivity-results.json` records this.
+- **Scope:** independent of packed-carrier metadata; this reducer has no packed
+  subpart selection. Whether it predates L49 has not been verified against a
+  prior binary. Do not count the crash as a packed-write qualification failure
+  after replacing that test with a DUT that actually reads an input.
+- **Expected:** preserve the semantics of an event wait with no triggering
+  signals, or report an explicit synthesis limitation. Never infer a constant
+  driver merely because the unreachable assignment contains a constant.
+  IEEE 1800-2017/2023 9.4.2.2 governs implicit event controls; compare the distinct
+  time-zero execution rule for `always_comb` in 9.2.2.2.
+- **Status:** L50 fixes null-body dereferences in asynchronous classification
+  and legacy synthesis tokenization. Focused legacy 2/2 and JSON 4/4 pass,
+  preserving dormant X output, time-zero always_comb execution and ordinary
+  retriggering. Forced synthesis still rejects explicitly. Broad qualification
+  remains pending.
+
+
+L43–L52 batch qualification checkpoint (`c686a4781`, 2026-09-14): all local
+broad gates pass after correcting null AST actions, selector name handling,
+sensitivity selection kinds, declared two-state read casts and VPI array-word
+signedness. This supersedes the broad-pending notes for L43–L52 above; DD-024
+is locally qualified within its stated empty-wait scope. The broader DD-020,
+DD-021 and DD-022 obligations remain open.
+
+Next DD-020 evidence: `unindexed-hier-frozen-candidate.json` still observes
+`dut.missing()` compiling successfully in both editions. Valid module/package
+forward tasks and indexed object methods pass the accompanying controls.
+
+Next DD-022 evidence:
+`evidence/dynamic-mixed-driver-assessment/invalid-prefix-writes/results.json`
+records constant OOB and X prefixes leaking blocking, compound and NBA writes
+in both editions (six cases per edition). Final-index and RHS functions each
+execute once. A correction must preserve that evaluation while preventing
+invalid stores; classifying dynamic prefixes as constant-invalid is incorrect.
+
+L53 focused follow-up closes the proven non-class/non-package unindexed
+hierarchy receiver case: missing tasks are diagnosed after existing resolution
+attempts. Legacy13/13 and JSON24/24 pass with forward-call effects and inherited
+method controls. Unresolved receivers and broader object-method fallbacks
+remain open; full batch qualification is pending.
+
+L54 focused correction suppresses indexed writes through proven-invalid
+constant packed prefixes in the common lvalue path. Blocking, compound, NBA
+and unpacked-word controls preserve evaluation counts and unchanged storage;
+legacy4/4, JSON8/8 and independent ordinary/synthesized runtime checks pass.
+A 128-bit prefix probe passes with existing host-width warnings. Dynamic
+prefixes remain open. DD-021 still reproduces on the L53 baseline in
+`dynamic-after-l53-results.json`: a dynamic subpart of words[0] is rejected
+when words[1] has the disjoint continuous driver. The next implementation must
+reuse exact static-prefix bounds rather than relax driver conflicts globally.
+
+L55 focused DD-021 correction checks the driven mask of a proven valid fixed
+packed carrier before permitting a dynamic final subpart write. The permanent
+positive exercises blocking, compound and delayed NBA, partial low/high and
+both directions, unknown/OOB bases, continuous neighbor updates and evaluation
+counts. Actual same-carrier overlap remains a compile error. Legacy7/7 and
+JSON14/14 pass. The earlier unpacked whole-word conflict guard and unproven
+prefix cases remain open; this is not full mixed-driver completion.
+
+DD-022 next runtime-prefix evidence:
+`evidence/dynamic-mixed-driver-assessment/dynamic-prefix-next/results.json`
+records six failures per edition on the L55 focused binary. An invalid middle
+index aliases an adjacent element; a valid dynamic prefix with a partial final
+select spills into adjacent bits. Blocking, compound and NBA all fail, while
+each prefix, final-index and RHS function executes once. Runtime per-dimension
+validation and selected-element clipping must preserve those evaluation counts.
+
+L56 baseline expands DD-022 coverage with an independently calculated 378-case
+matrix over signed 128-bit prefix/final indices, including huge values, X/Z,
+ascending and negative ranges, both selection directions and three assignment
+forms. The L55 binary fails 65 checks per edition. A separate clocked NBA DUT
+has 36 cases and fails eight in each ordinary/synthesized run, in both editions.
+`l56/root-red-results.json` and `l56/root-synth-red-results.json` record stable
+compiler hashes before/after. These are failing baseline evidence, not passing
+qualification. Expected bit placement is calculated from each declared range,
+without using the compiler's flattened-index expressions.
+
+DD-020 next unresolved-receiver matrix on the L55 binary:
+`evidence/unresolved-task-assessment/after-l55/results.json` records
+`missing_receiver.run()`, `missing_receiver[0].run()`, `dut.missing.run()` and
+`obj.missing.run()` compiling and completing with ignored-call warnings in
+both editions. `absent[0].clear()` and `absent.copy()` compile and complete
+without a diagnostic. Direct missing methods on resolved scalar/indexed class
+objects already reject; valid object and forward hierarchy calls retain their
+observed counter effects. Binary hashes are stable across this assessment.
+The relevant fallback paths are `PCallTask::elaborate_usr`'s indexed-object
+fallback and its unresolved dotted-call branches. A correction must preserve
+valid deferred type-parameter resolution and built-in methods while preventing
+invalid executable calls from becoming empty blocks. IEEE 1800-2017/2023
+13.3 and 23.8.1 govern task declarations/calls and name resolution.
+
+L56 sibling-route baseline: `l56/root-bit-element-red-results.json` records
+34 failures per edition across 108 dynamic bit/whole-element assignment cases.
+These share the flattened-prefix defect with indexed part-select writes.
+The independent `root_dynamic_sensitivity.sv` control passes ordinary and
+synthesized execution in both editions before L56. Moving prefix expressions
+out of the final base must preserve their contribution to `NetAssign_` input
+sensitivity; changing only the outer or middle index must retrigger `always @*`.
+
+L56 first executable WIP uses the existing checked-property-index runtime
+helper for packed prefixes, with per-dimension orientation and stride. Original
+blocking invalid-prefix/spill reproducers pass, but the independent matrix on
+`ae60f63f...` finds four blocking failures per edition: descending `-:4` with
+base 1 on [7:0], and equivalent negative ranges. Expected partial-low writes
+are suppressed. `collapse_packed_member_indices` constructs its width adjustment
+as an unsigned PENumber, so the negative relative offset is treated as a wide
+unsigned value. Compound and NBA consumers are not yet connected and remain
+red (126 cases each per edition). `l56/root-slice1-results.json` records this
+partial implementation evidence; it is not a qualification checkpoint.
+
+L56 blocking correction now passes all 126 indexed-write blocking cases per
+edition on installed `649fbf7c...` (stable before/after hashes in
+`root-blocking-fixed-results.json`). Compound and NBA remain WIP-red.
+Consumer review found constant-function assignment evaluation ignoring dynamic
+carrier metadata: `root_const_function.sv` gives valid=0xF instead of
+0x0F0000000000, with partial and invalid selections also wrong in both editions.
+`root-const-function-slice1-results.json` records the evidence. Required
+consumers also include precise output/driver analysis: a constant relative
+base must not be interpreted as a constant absolute destination when its
+carrier is dynamic. These are L56 integration obligations, not waived gaps.
+
+L56 compound review corrected a whole-signal old-value read to nested carrier
+and relative selections. `root_compound_old_value.sv` now passes both editions:
+partial high/low and descending selects propagate X through four-state +=,
+while two-state old-value conversion produces the expected numeric result.
+`root-compound-old-value-results.json` records stable compiler/target/runtime
+hashes. This arithmetic probe is necessary because bitwise XOR alone cannot
+expose an out-of-carrier old-value read. `root_nba_capture.sv` is the pending
+independent delay/capture/partial-update oracle; no result is claimed yet.
+
+L56 pure-packed checkpoint: `root-packed-complete-results.json` records all
+378 indexed-write cases passing in each edition, with stable compiler, VVP
+target and runtime hashes. `root-nba-capture-results.json` additionally proves
+captured dynamic indices/RHS values and disjoint delayed partial updates in
+both editions. Whole-feature qualification is still pending.
+
+The separate fixed unpacked-word matrix has 504 cases per edition and remains
+red before its consumers are connected (`root-array-before-consumer-results.json`,
+installed ivl 3f7515fe...). Packed-prefix function counts are zero in those
+paths, although the word, final-index and RHS functions execute. The matrix
+checks valid, OOB, X and 128-bit overflow word indices, every packed dimension,
+and all three assignment forms against independently calculated storage.
+The clocking prefix probe still emits its existing focused unsupported
+runtime-clockvar diagnostic; no clocking-support claim is made.
+
+L56 fixed-array consumer checkpoint: `root-array-connected-results.json`
+records all 504 cases passing in each edition with stable compiler/target/runtime
+hashes. Blocking, compound and NBA now consume the checked carrier while
+preserving word validity independently. This supersedes the WIP-red array
+checkpoint above. Constant-function evaluation, synthesis, precise analysis,
+source-target handling and permanent regression packaging remain pending;
+L56 is not yet integrated or fully focused-qualified.
+
+L56 constant evaluator checkpoint: independent dynamic-prefix, static-carrier
+and compound logic/bit fixtures pass both editions (six runs in
+`l56/root-const-review-results.json`, stable compiler hash). Static high/OOB
+writes previously corrupted adjacent bits (`root-const-static-before-results.json`)
+and are now clipped. Invalid carrier suppression occurs after final-index
+evaluation; exact index conversion and partial-offset arithmetic were reviewed.
+The postincrement side-effect fixture cannot yet qualify this behavior because
+of the separate constant-expression evaluation defect below.
+
+### DD-025 — Postincrement expressions fail constant-function evaluation
+
+- **Discovered during:** L56 compile-time index side-effect testing.
+- **Reducer:** `evidence/dynamic-mixed-driver-assessment/l56/const-postinc_expression.sv`
+  uses only local scalar integers: `i=0; j=i++; return 10*i+j;` in a constant
+  function. Both editions reject its localparam invocation with an inability
+  to evaluate the parameter. The corresponding statement `i++; return i;`
+  compiles and produces the expected result in both editions.
+- **Evidence:** `l56/const-postinc-isolation-results.json`. No packed arrays or
+  dynamic carrier metadata are involved in these isolated reducers.
+- **Expected:** expression postincrement returns the old value and increments
+  the local variable once during constant-function evaluation. Track IEEE
+  1800-2017 and 2023 compatibility separately.
+- **Status:** OPEN. Increment/decrement uses `NetEUnary`, whose constant
+  evaluator currently evaluates an operand as a value without updating its
+  local l-value. Assignment expressions use `NetEAssignExpr` and separately
+  lack a dedicated constant-function evaluator. Do not count
+  `root_const_index_effects.sv` as a passing L56 side-effect check while this
+  prerequisite remains unsupported.
+
+### L56 pre-integration review checkpoint — 2026-09-14
+
+L56 remains unintegrated. Fourteen fresh ordinary/synthesized sensitivity,
+clocked-write, and constant-function controls pass with stable installed hashes
+(`l56/root-freeze-consumer-results.json`). Two expanded checks require correction:
+
+- The checked-index synthesis lowering asserts on 128-bit signed and unsigned
+  inputs (`expr_synth.cc:164`). Ten synthesized runs fail across descending,
+  ascending, and negative packed ranges; all ten ordinary controls pass.
+  See `l56/root-wide-synthesis-results.json` and `root_wide_synth_shape*.sv`.
+- Fixed unpacked-array word elaboration treats a constant `[7:4]` tail as one
+  bit: `words[1][0][7:4]=4'hf` stores `16'h0080` instead of `16'h00f0` in
+  both editions. See `l56/root-array-constant-part-results.json` and
+  `root_array_constant_part.sv`.
+
+Both are active L56 review findings, assigned to the existing implementation
+agent; neither is deferred as accepted behavior. Broad qualification remains
+at the previous batch baseline.
+
+A third L56 review control covers a statically invalid unpacked word rather
+than the runtime word expressions in the 504-case matrix. Blocking and NBA
+preserve both selector calls and the RHS call, while compound assignment
+skips both selector calls (`0/0/1` rather than `1/1/1`) in both editions.
+`l56/root-invalid-constant-word-results.json` records all six runs. The
+static-word compound read path requires the same one-time selector evaluation
+as the other L56 routes; correction is assigned to the same worker.
+
+The final part-select can also select packed elements larger than one bit.
+`words[oi][mi+:2]` on `[1:0][2:0][7:0]` passes the valid `mi=0` control but
+spills into the adjacent outer element at `oi=0, mi=2`: actual
+`000012340000`, expected `000000340000`, in both editions. Evidence:
+`l56/root-nonleaf-indexed-part-results.json`. This remains an L56 bounds
+review finding; the checked carrier must cover the selected packed dimension,
+with offsets and widths scaled by its remaining element width.
+
+### L56 corrected review — 2026-09-14
+
+All four pre-integration findings above are corrected in the installed
+candidate. `l56/root-corrected-review-results.json` passes 32/32 paired
+ordinary/synthesized runs, including the 108-case nonleaf matrix.
+`l56/root-corrected-regression-results.json` passes 18/18 runs, including
+the original 378 packed, 108 bit/whole-element, and 504 array-word cases
+per edition. Installed compiler/target/runtime hashes remain stable.
+Neighbor checks pass 11/11 legacy and 19/19 JSON, including negative
+mixed-driver tests and checked-property-index controls. These results
+supersede the review failures above for this candidate; the historical
+failure logs are retained. DD-025 remains separate and open. Full-suite
+qualification still belongs to the previous batch until the next broad gate.
+
+### DD-025 expanded baseline — 2026-09-14 after L56
+
+`evidence/constant-assignment-expression-assessment/baseline-results.json`
+records 15 forms in both IEEE modes: pre/post increment and decrement,
+plain assignment, arithmetic/bitwise compound assignments, and shifts.
+All 30 runtime controls pass exact final-local and expression-result checks;
+all 30 constant-function invocations fail elaboration. Compiler/target/runtime
+hashes are stable across the sweep. The functions use local scalar integers,
+with sequenced statements, avoiding unspecified ordering between competing
+side effects in one expression. This confirms two missing evaluator routes:
+`NetEUnary::evaluate_function` for increment/decrement and `NetEAssignExpr`
+(inherited `NetESFunc::evaluate_function`) for assignment expressions.
+
+Authority checked in local IEEE texts: 2017 11.4.1/11.4.2 and 13.4.3,
+2023 11.3/11.4.1/11.4.2 and 13.4.3. The assignment-expression result must
+reflect the destination type; prefix/postfix forms must return the proper
+new/old value while changing the local variable exactly once. Existing
+statement assignment evaluation provides a candidate shared implementation,
+but no DD-025 compiler change has been made during L57.
+
+### DD-020 L57 receiver review — 2026-09-14
+
+The first installed L57 candidate rejects ordinary missing receiver calls,
+but name-based UVM/TLM and constraint-mode fallbacks still accept invalid
+receivers or missing methods. The paired root probe accepts 16/24 invalid
+calls: `absent.reset`, `absent[0].get_fields`, missing constraint-mode
+receivers/constraints, `atomic.put`, and missing `mirror`/`m.write` methods.
+The other eight controls reject. Evidence:
+`evidence/unresolved-task-assessment/l57-root/named-escape-baseline.json`,
+with stable compiler hash `0a7819c74fdaf4022a6ae7d57d41ecc232f07376a9d0bd9649e4a19a476c0b16`.
+
+These are active L57 review findings, not retained exceptions for familiar
+method names. Valid direct/indexed/nested methods with those same names and
+named constraint-mode updates have independent exact-effect controls ready
+for the corrected build. No UVM source changes or broad-suite claims follow
+from this focused receiver review.
+
+L57 second-candidate review passes all 28 named-receiver and exact-effect
+controls plus the 20-case original paired receiver corpus. A further typed
+receiver probe finds the remaining untyped collection-name fallback:
+`obj.member.delete/push_back/push_front/insert` accepts an integer member
+without diagnostics (eight paired wrong passes), while `pop_back` rejects.
+`l57-root/scalar-member-escape-results.json` records this finding. Removal
+of `is_multi_hop_collection_task_stub_candidate_` is assigned to the existing
+worker; a valid class-owned queue control checks contents and method effects.
+
+L57 final review supersedes the receiver and scalar-member failures above:
+`l57-root/final-results.json` passes 40/40 paired outcomes with stable hashes,
+and `specialization-neighbor-results.json` passes 12/12, including concrete
+specialized task effects and invalid default specialization rejection.
+Permanent focus passes 9 legacy and 10 JSON tests. All name-only receiver
+stubs identified in L57 are removed; unspecialized type-parameter deferral
+remains separate from concrete call execution. Broad/application qualification
+remains pending at the feature-batch gate.
+
+### DD-026 — Two-state assignment expression retains unknown bits at runtime
+
+- **Discovered while working:** L58 independent destination-conversion controls.
+- **Reducer:** `evidence/constant-assignment-expression-assessment/root-boundaries/bit_assign_x-runtime.sv`.
+  Local `bit[3:0] i,j; j=(i=4'bx101);` should produce `{i,j}=8'h55` after
+  conversion to the destination type, but yields unknown bits in both modes.
+- **Control:** ordinary statements `i=4'bx101; j=i;` pass exact `55` checks
+  at runtime and in constant functions, four paired runs recorded in
+  `bit-statement-control-results.json`.
+- **Evidence:** `root-boundaries/baseline-results.json`, stable compiler hash.
+- **Authority:** IEEE 1800-2017/2023 11.3 assignment-expression destination-type
+  conversion and 6.11 two-state integral types.
+- **Status:** OPEN. This is a runtime expression-conversion defect. L58's
+  constant evaluator must implement the correct two-state semantics, not
+  copy this runtime behavior. No runtime source edit has been made during
+  the independent assessment.
+
+L58 boundary baseline adds 12 forms across runtime/constant evaluation and
+both editions: 22/24 runtime checks pass (the two DD-026 failures above),
+4/24 constant checks pass (short-circuit controls whose mutation operand is
+not evaluated). Narrow wrap, signed arithmetic/shift, 128-bit values,
+four-state increment, real inc/dec, and a chosen ternary branch provide
+independent exact-result tests. Evidence is under
+`evidence/constant-assignment-expression-assessment/root-boundaries/`.
+
+### DD-027 — Runtime increment of a fixed-array element crashes VVP
+
+- **Discovered while working:** L58 indexed-local constant-function controls.
+- **Reducer:** `evidence/constant-assignment-expression-assessment/root-boundaries/array_index_post-runtime.sv`.
+  A function initializes `a[0]=5`, `a[1]=7`, `idx=0`, then evaluates
+  `j=a[idx++]++`. It must leave `idx=1`, `a[0]=6`, `a[1]=7`, and `j=5`.
+- **Evidence:** `array-index-baseline-results.json`: both IEEE modes compile
+  successfully and VVP terminates with signal 11. The paired constant form
+  is an active L58 candidate review case and currently produces an incorrect
+  value; that evaluator failure is not the same runtime crash.
+- **Possible source:** `tgt-vvp/eval_vec4.c:draw_unary_inc_dec` distinguishes
+  signals/selects/properties but requires review of fixed-array word addressing.
+- **Authority:** IEEE 1800-2017/2023 11.4.2 and 7.4.6; the index expression
+  must retain its single evaluation and postfix must return the old element.
+- **Status:** OPEN. Runtime repair is separate from L58 constant evaluation;
+  no runtime change was made during this assessment.
+
+L58 current corrected candidate passes 68/68 independent paired constant
+runs in `evidence/constant-assignment-expression-assessment/root-current-results.json`,
+with stable compiler/target/runtime hashes. This includes typed defaults,
+independent invocations, indexed-local postfix effects, and the previously
+blocked L56 packed-carrier side-effect oracle. The reversed increment
+candidate failure is corrected. Invalid/X/wide array-index no-store behavior
+is still under review, including preservation of evaluator failure instead
+of silently substituting a default. DD-026 and DD-027 runtime defects remain
+separately open; these constant-function passes do not close either.
+
+
+DD-026 runtime-only confirmation: a delayed module-level expression
+`returned=(stored=input_value)` with `bit [3:0] stored` and runtime
+`logic [3:0] input_value=4'bx101` produces stored X / returned 0X in both
+editions, instead of 5 / 05. This excludes constant-function folding as a
+mask. Evidence: `evidence/runtime-assignment-conversion-assessment/baseline-results.json`.
+
+DD-027 expanded runtime baseline: 32 paired runs cover all four pre/post
+increment/decrement forms on int, bit, logic, and real fixed arrays. All 24
+integral runs crash with signal 11; the eight real runs fail exact effects,
+leave the index unchanged, and report an unresolved-functor placeholder.
+The real path directly loads/stores a scalar signal label and omits the
+array index. Evidence: `evidence/runtime-array-increment-assessment/baseline-results.json`;
+all three installed binary hashes remain stable across the baseline.
+
+
+### DD-025 L58 final review — 2026-09-14
+
+**Focused fix validated; broad batch qualification pending.** Local scalar
+assignment expressions and integral/real local increment/decrement now
+preserve mutation and expression results during constant evaluation.
+Invalid indexed increments return typed signed defaults and suppress stores;
+failed index evaluation remains an error. Final independent outcomes are
+80/80, permanent legacy 4/4 and JSON 6/6, existing constant-function neighbors
+18/18. See `session_logs/2026-09-14_l58_constant_expression_effects.md`.
+Eight independent constant-result runtime checks retain DD-027 startup
+warnings from uncalled array-function bodies. No clean runtime claim is
+made for those forms. DD-026 and DD-027 remain open.
+
+
+DD-026 L59 independent operator/width baseline: 96 paired cases cover
+plain assignment and eleven compound forms on bit[7:0], signed byte,
+signed int, and bit[127:0]. Dynamic mixed X/Z input is checked against
+manually derived converted storage and 128-bit expression results; 8 pass
+and 88 fail on the frozen L58 target. Evidence:
+`evidence/runtime-assignment-conversion-assessment/operator-matrix/baseline-results.json`.
+
+M4C-22 is reopened to PARTIAL while the L58 constant-evaluation and L59
+runtime-conversion corrections await the next batch qualification. Its
+original destination-conversion claim was too broad for the X/Z cases.
+
+
+### DD-026 L59 final review — 2026-09-14
+
+**Focused fix validated; broad batch qualification pending.** Runtime
+assignment-expression code generation now applies the existing two-state
+conversion before copying the result for storage and return. This corrects
+plain, arithmetic, bitwise, and shift compounds through one common path.
+The independent 96-case matrix now passes with exact clean output, compared
+with 8/96 before the fix. Eight paired existing expression/negative/constant
+neighbors pass; permanent legacy 2/2 and JSON 4/4 pass. See the L59 session
+log. DD-027 runtime array increment remains separate and open.
+
+
+DD-027 L60 boundary baseline adds 108 semantic cases per edition across
+bit[7:0], logic[7:0], and real elements; ascending/nonzero/negative ranges;
+preincrement and postdecrement; valid, out-of-range, X/Z, and signed
+128-bit indices. It pins selector evaluation once and unchanged neighboring
+elements. All 24 runs compile, but 16 integral runs crash with signal 11
+and eight real runs abort with signal 6 before completing the cases.
+Evidence: `evidence/runtime-array-increment-assessment/boundaries/baseline-results.json`.
+These are failing baselines, not completed runtime coverage.
+
+
+### DD-028 — Property increment expressions return without updating storage
+
+- **Discovered during:** L60 adjacent property-path review.
+- **Reducers:** `evidence/runtime-property-increment-assessment/scalar.sv`
+  and `array.sv`. A scalar `c.a++` returns 5 but fails to update 5 to 6.
+  A fixed-array property `c.a[index++]++` evaluates the index once and returns
+  the old value, but also omits the element update.
+- **Evidence:** `baseline-results.json` records four clean compilations and
+  four exact-result failures across IEEE 2017 and 2023, with stable installed
+  hashes. Emitted scalar bytecode contains property reads but no increment
+  or subsequent property store. The same `prop_word` read-only fallback
+  exists in `0c85d32a8:tgt-vvp/eval_vec4.c`, before L60 edits.
+- **Expected:** IEEE 1800-2017/2023 11.4.2 requires increment/decrement to
+  update the operand and return the appropriate old/new value. A read-only
+  substitution does not implement this operation.
+- **Status:** OPEN. Queued for L61 after the active fixed-array runtime repair.
+  This is distinct from local fixed-array signal storage in DD-027.
+
+DD-028 expanded matrix: int/logic/real, scalar/fixed-array properties, and
+all four pre/post ++/-- forms produce 48 failing paired runs: 32 integral
+wrong-result exits and 16 real runtime aborts after clean compilation.
+Stable-hash evidence: `evidence/runtime-property-increment-assessment/matrix/baseline-results.json`.
+
+
+### DD-029 — Wide fixed string-array reads alias a valid element
+
+- **Discovered during:** L60 shared array load/store review.
+- **Reducers:** `evidence/runtime-string-array-index-assessment/read-32.sv`
+  and `read-100.sv`. A two-element string array indexed by unsigned 128-bit
+  values `1<<32` or `1<<100` returns element zero instead of the empty string.
+- **Evidence:** `baseline-results.json`: four clean compilations followed by
+  four exact runtime failures, stable hashes, both IEEE editions.
+- **Source:** `of_LOAD_STRA` narrows the index to unsigned and recognizes only
+  the unknown flag value, not the separate overflow flag value. This is the
+  string-read counterpart of the integral/real bounds work in L60.
+- **Expected:** IEEE 1800-2017/2023 7.4.6 typed invalid-index read behavior;
+  the result is the element type's default, without reading a valid element.
+- **Status:** OPEN. Queued after DD-028; the active L60 shared store fix does
+  not by itself repair string reads.
+
+L60 review remains open: literal out-of-range array-element increments are
+folded as rvalue defaults before unary elaboration, then rejected as constant
+operands (six paired int/logic/real compile failures). Dynamic invalid-index
+checks pass, but do not establish literal-index support. Readonly const-array
+increment validation also required correction before integration.
+
+
+### DD-030 — Matching-width packed-select increment crashes at runtime
+
+- **Discovered during:** L60 operand-reconstruction boundary review.
+- **Reducers:** `evidence/runtime-selected-increment-assessment/matching-width/`.
+  `logic result; result=a[index++]++;` and a four-bit result assigned from
+  `a[3:0]++` compile cleanly, then abort in `vvp_vector4_t::add` on a width
+  assertion. Four paired runs fail with signal 6.
+- **Correction to earlier assessment:** the eight earlier widened-result
+  probes were rejected as unsupported vector slices. That evidence does not
+  prove all packed-select increment forms are diagnosed: matching result
+  widths reach the backend path, which uses the whole carrier width.
+- **Expected:** IEEE 1800-2017/2023 11.4.2 selected-lvalue update with the
+  selected width, correct prefix/postfix result, and untouched carrier bits.
+- **Status:** OPEN. Separate from L60 whole unpacked-array elements. Queued
+  after the silent-result DD-028 and DD-029 defects.
+
+
+### DD-027 L60 final review — 2026-09-14
+
+**Focused fix validated; broad batch qualification pending.** Whole fixed
+unpacked-array element pre/post ++/-- now captures the index once and uses
+array storage. Native bounds and all invalid-index flags are checked before
+narrowing addresses. Const updates are rejected, while literal-invalid
+operands preserve typed defaults and suppress stores. Final independent
+94/94 outcomes plus six constant/runtime literal-X checks pass; ten existing
+neighbors and permanent legacy 4/4, JSON 8/8 pass. The original index converter
+is retained: the defect was in its consumers' treatment of overflow flags.
+See `session_logs/2026-09-14_l60_runtime_array_increment.md` for exact scope,
+known compile warnings, and hashes. DD-028/029/030 remain separate and open.
+
+
+DD-028 L61 receiver-form assessment: `handles[select_receiver()].property`
+with once-only receiver selection already works for scalar int properties
+(two paired passes), while indexed property elements omit updates (two
+failures) and real expression receivers abort during compilation (two
+failures). Evidence: `evidence/runtime-property-increment-assessment/capture-indexed/baseline-results.json`.
+Direct signal receivers and expression receivers must both be covered;
+passing one does not qualify the other. Separate function-return/member
+syntax probes stopped at parsing and have no established grammar disposition;
+they are not counted as proven runtime defects or L61 requirements.
+
+### DD-028 L61 frozen review — 2026-09-14
+
+Scalar and fixed-array whole-property pre/post increment/decrement now use
+property storage for integral and real operands. Receiver capture precedes
+index evaluation; invalid slots yield typed defaults and suppress only the
+store. Unsupported property destination shapes produce a target error.
+Root frozen replay passes 114/114 paired outcomes, including the 48 original
+failures, 48 boundary runs, six receiver controls, six alias-notification runs,
+and six const restrictions/const-handle controls. Evidence:
+`evidence/runtime-property-increment-assessment/root-frozen/results.json`.
+Permanent legacy 2/2, JSON 4/4, and 21 neighboring checks pass. This is focused
+validation pending batch qualification, not closure of packed-select DD-030.
+
+DD-029 next: the expanded signed/unsigned 128-bit string-array read matrix
+has eight failing paired runs (40 semantic cases per edition), including
+nonzero/negative declared ranges and indices above 32, 63, and 100 bits.
+Evidence: `evidence/runtime-string-array-index-assessment/matrix/baseline-results.json`.
+
+### DD-029 L62 first-candidate review — 2026-09-14
+
+The runtime consumer now rejects wide native addresses before narrowing and
+recognizes all invalid-index flags. Root replay at runtime SHA `65baa472`
+passes 16/20 runs, but four module/automatic paired unsigned-128 cases still
+alias element -1 in a declared [-1:1] array when the source index is all ones.
+The source index is a large positive unsigned value; normalization appears to
+wrap it into a valid coordinate before the runtime bounds check. This remains
+under investigation, not qualified or waived. Evidence:
+`evidence/runtime-string-array-index-assessment/root-candidate/results.json`.
+
+### DD-029 L62 normalized candidate — 2026-09-14
+
+Independent sibling probes establish that unsigned all-ones normalization also
+aliased integral and real array reads. The shared normalizer now zero-extends
+unsigned source indices before signed canonical arithmetic, following the
+existing packed-offset representation. Root replay passes 36/36 paired runs:
+original reproducers, module/automatic range matrices, int/logic/real/string
+read controls, and invalid-store neighbor preservation. Stable hashes are in
+`evidence/runtime-string-array-index-assessment/root-normalized/results.json`.
+Permanent regressions, final freeze, and broad batch qualification remain pending.
+
+L62 frozen review:68/68 root cases, permanentlegacy1/1 JSON2/2, fourneighbors.
+Direct two-state element comparison also verifies conversion after generic
+vector array load, before any assignment can hide X. Source reviewed; batch
+qualification remains pending. Evidence `root-final/results.json`.
+
+### DD-031 — Real/string array-return element stores take scalar return path
+
+Status: OPEN, observed during L53–L62 batch repair review.
+Legal automatic functions returning typedef unpacked arrays and assigning
+individual result elements in a loop abort compilation for real and string
+elements: store_real_to_lval at stmt_assign.c2654 and
+show_stmt_assign_sig_string at stmt_assign.c2773 assert dimensions==0.
+The scalar return-value special case precedes fixed-array element handling.
+Integral and logic variants compile but reproduce the separately diagnosed
+stale flag4 on the first returned element. Whole-array pattern results in the
+existing sv_uarray_func_return test do not cover these element assignments.
+Paired2017/2023 evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/baseline-results.json`.
+Do not claim full typed array-return support from whole-pattern tests alone.
+
+DD-031 follow-up: real array-return compound assignments also abort in both
+editions. Constant and dynamic selectors reach get_real_from_lval assertions
+at stmt_assign.c2564 and c2579 respectively. put_real_to_lval also unconditionally
+routes return signals through scalar `%ret/real`, so removing the read asserts
+alone would not be sufficient. Reuse the existing array load/store paths for
+array return storage, retaining the scalar return path only for scalar values.
+Evidence: `evidence/batch-20260914-l53-l62/qualification/return-types/compound-baseline.json`.
