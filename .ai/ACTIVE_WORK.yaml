@@ -1,22 +1,22 @@
-id: PARALLEL-L96-L97
+id: PARALLEL-L98-L97
 title: Constant-function formal legality and nested finite SVA repetition
 status: IMPLEMENTING
 base_revision: 5726ab0eb
 authority: User authorizes two existing cheaper agents, independent mechanisms, focused validation and broad gates near ten integrated fixes.
 coordinator_owns: [Shared builds, Installation, Shared harnesses and test output, Main manifests, Documentation, Integration and review]
 lanes:
-  - id: L96-CONSTANT-FUNCTION-NONINPUT-FORMALS
+  - id: L98-GENERATED-CONSTANT-FUNCTION
     agent: /root/constraint_abi
-    status: FOCUSED_TESTED
+    status: AUTHORIZED
     standards: IEEE1800-2017 and2023 13.4.3
-    reproducer: evidence/batch-20260914-after-l84/next-const-formals-assessment/baseline.json
-    actual: Both editions accept prohibited ref/output/inout calls during constant evaluation.
-    expected: Reject constant calls with non-input formals while preserving legal runtime calls.
+    reproducer: evidence/batch-20260915-after-l95/next-constant-defaults-assessment/generate-baseline.json
+    actual: A function declared inside a generate block incorrectly folds a localparam in both editions.
+    expected: Reject generated-function constant evaluation while preserving legal runtime calls.
     owns: [elab_expr.cc]
-    test_prefix: sv_const_function_formal
-    dependencies: No source dependency on L97; use existing formal direction and constant-call classification.
-    scope: Smallest shared constant-call legality check; do not emulate prohibited copy-out in constant evaluator.
-    acceptance: Paired input-only constant/runtime positives; output/inout/ref and const-ref constant negatives; legal runtime writable-formal controls; nested calls and unused runtime helper boundaries; preserve constant string and function neighbors.
+    test_prefix: sv_const_function_generate
+    dependencies: L96c681f81a5 integrated; independent of L97 pform/NFA ownership.
+    scope: Extend shared constant-call classification with generated-declaration ancestry; no parser/runtime or unrelated constant-function changes.
+    acceptance: Paired direct and nested generated constant-call negatives, gen-if/gen-for/named-nested boundaries, runtime generated-call positive, module/package constant and default controls, cached classification ordering, preserve L96.
   - id: L97-NESTED-FINITE-GROUPED-REPETITION
     agent: /root/constraint_wide
     status: AUTHORIZED
@@ -34,3 +34,5 @@ focused_features_completed_in_batch: 1
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l85_l95_active_work_archive.yaml
 stop_after_completion: false
+
+l96_integration_revision: c681f81a5
