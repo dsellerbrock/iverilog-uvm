@@ -22,6 +22,10 @@ records retain their original revisions and limits.
 
 ## Application evidence
 
+The [September 15 focused application assessment](session_logs/2026-09-15_application_priority_assessment.md)
+records a fresh OpenTitan UVM compile failure and selected Caliptra include-path
+probes on semantic revision `366ef2bf1`. It does not replace the whole census.
+
 The [September 13 OpenTitan/Caliptra census](session_logs/2026-09-13_opentitan_caliptra_rebaseline_after277.md)
 is scoped to `631bba6e8`. It predates L43–L64 and is not an application replay
 of the newer compiler. It includes failures and dependency/configuration debt;
@@ -52,7 +56,7 @@ into cross-platform qualification.
 as `9c8f716b1`, repairs build defects exposed by that publication. Its current revision, CI state, and exact next
 command belong to CAMPAIGN. The post-L64 batch is locally qualified by the
 latest record above. Publication status and subsequent work remain in CAMPAIGN.
-No newer whole-application replay is claimed.
+The focused application replay above is newer; no newer whole-application census is claimed.
 
 ## History
 

@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
 current_blocker: PARALLEL-L106-L107
-phase: parallel_implementation
+phase: application_blocker_assessment_with_frozen_compiler_patches
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -22,19 +22,19 @@ current_candidate:
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Implement L106/L107 independently, freeze both sources, coordinator rebuilds once and runs focused positive/negative/boundary/runtime checks. Integrate individually and select further independent blockers.
+  next_action: Preserve frozen L106/L107; assess fresh OpenTitan object lookup regression and Caliptra missing build inputs with the two existing agents. Select explicit application implementation scopes from cheap reproducers before edits.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.
 publication:
   latest_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/286
-  state: OPEN against main; six platform CI jobs IN_PROGRESS at last observation.
+  state: MERGED externally at2026-09-15T16:02:04Z; six platform CI jobs still IN_PROGRESS at fresh observation.
   published_head: 05b0c44e1bfff3b431287599d43e507856028e9f
   content: Thirty-one recorded fixes L75-L105; twenty-one previously published but unpropagated fixes plus ten new L96-L105 fixes.
-  current_main: 874e006805cbaab7c1de3a58f385f3724927f6a4
+  current_main: c45760199; fetched tree is identical to published05b0c44e1.
   prior_stack: PR284 andPR285 were merged into parent branches after parent propagation, leaving L75-L95 outside main. PR286 preserves those batches against main.
   previous_ci: PR285 run34973595268 passed all six platforms; not a new-PR CI claim.
-  merge_authority: Remote merge not requested. Preserve published branch; new local work uses this next-batch branch in the same worktree. Recheck PR286 status/main ancestry before future publication or sync.
+  merge_authority: Remote merge not requested. Preserve published branch; new local work uses this next-batch branch in the same worktree. Fetched main is tree-identical to the published parent; preserve next-batch changes when reconciling ancestry.
 worktrees:
   created_this_batch: none
   cleanup: No new clones/trees; active and other-owner trees retained under established safeguards. Worktree list audited before branch switch.

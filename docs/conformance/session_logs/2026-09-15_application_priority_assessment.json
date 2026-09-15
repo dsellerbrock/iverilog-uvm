@@ -1,0 +1,874 @@
+{
+  "date": "2026-09-15",
+  "installed_semantic_revision": "366ef2bf1",
+  "source_head": "4b1e74b1c",
+  "unbuilt_source_changes": [
+    "L106 net_func_eval.cc",
+    "L107 pform.cc"
+  ],
+  "opentitan": {
+    "metadata": {
+      "opentitan_revision": "7a3ad34b6d483f4d1d69ac670ddb1c45f1172e19",
+      "opentitan_dirty": false,
+      "compiler_fingerprint": {
+        "components": {
+          "driver": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "sha256": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b"
+          },
+          "compiler_engine": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivl",
+            "sha256": "98d5c9d43b087e3bdfd667e5b5fea1895482a22b3e0a37fa7f2df1e61b86be10"
+          },
+          "vvp_target": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.tgt",
+            "sha256": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1"
+          },
+          "vvp_runtime": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "sha256": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f"
+          },
+          "normal_config": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.conf",
+            "sha256": "29fb593ff99ce168ff0506c4f31d47fc01c542ec40d3933db59ff4e74fb9a2a4"
+          },
+          "synthesis_config": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp-s.conf",
+            "sha256": "f5016b4b72a6d9a445b720fa35680221b33921e8e9087c221abe00873da0fb5e"
+          },
+          "uvm_dpi": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/uvm_dpi.vpi",
+            "sha256": "e0a27aef75c26f4b35b7a4ce722e48aff4921490585f0ce3b5718651f9151f8f"
+          }
+        },
+        "uvm_sources": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+        }
+      }
+    },
+    "results": [
+      {
+        "lane": "runtime",
+        "core": "lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1",
+        "description": "XBAR DV sim target",
+        "target": "sim",
+        "work_root": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1",
+        "provider_mappings": [
+          "lowrisc:prim_generic:all:0.1",
+          "lowrisc:systems:top_darjeeling:0.1"
+        ],
+        "status": "FAIL",
+        "simulation_category": "uvm",
+        "simulation_default_tool": "vcs",
+        "simulation_toplevels": [
+          "xbar_tb_top"
+        ],
+        "simulation_core_file": "hw/top_darjeeling/ip/xbar_dbg/dv/autogen/xbar_dbg_sim.core",
+        "dvsim_config": "hw/top_darjeeling/ip/xbar_dbg/dv/autogen/xbar_dbg_sim_cfg.hjson",
+        "dvsim_test": "xbar_smoke",
+        "uvm_test": "xbar_base_test",
+        "uvm_test_seq": "xbar_smoke_vseq",
+        "dvsim_regression": "smoke",
+        "dvsim_runtime_args": [
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "dvsim_build_mode": "xbar_build_mode",
+        "dvsim_build_options": [
+          "+define+UVM",
+          "+define+UVM_NO_DEPRECATED",
+          "+define+UVM_REGEX_NO_DPI",
+          "+define+UVM_REG_ADDR_WIDTH=32",
+          "+define+UVM_REG_DATA_WIDTH=32",
+          "+define+UVM_REG_BYTENABLE_WIDTH=4",
+          "+define+SIMULATION",
+          "+define+DUT_HIER=tb.dut"
+        ],
+        "dvsim_timescale": "1ns/1ps",
+        "native_dependencies": [],
+        "dpi_dependencies": [],
+        "orchestration_requirements": [
+          "en_run_modes"
+        ],
+        "unresolved_runtime_options": [],
+        "simulation_metadata_warnings": [],
+        "setup_command": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/arm64-tooling/opentitan-python313/bin/fusesoc --cores-root=/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34 --cores-root=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/matrix-provider-cores run --target=sim --tool=icarus --setup --work-root=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1 --mapping=lowrisc:prim_generic:all:0.1 --mapping=lowrisc:systems:top_darjeeling:0.1 lowrisc:dv:top_darjeeling_xbar_dbg_sim:0.1",
+        "setup_returncode": 0,
+        "setup_duration_seconds": 0.842,
+        "setup_timed_out": false,
+        "setup_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-setup.log",
+        "setup_warnings": [],
+        "top_selection_notes": [
+          "declared toplevel 'xbar_tb_top' is not in the source list; rooted the conventional OpenTitan DV testbench module 'tb'",
+          "also rooted bind-carrying module(s) ['sec_cm_prim_count_bind', 'sec_cm_prim_double_lfsr_bind', 'sec_cm_prim_onehot_check_bind', 'sec_cm_prim_singleton_fifo_bind', 'sec_cm_prim_sparse_fsm_flop_bind', 'xbar_dbg_bind']: nothing instantiates them, so an explicit root would drop their bind directives"
+        ],
+        "source_list": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1.scr",
+        "compiler_source_list": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-iverilog.scr",
+        "top_options": [
+          "-stb",
+          "-ssec_cm_prim_count_bind",
+          "-ssec_cm_prim_double_lfsr_bind",
+          "-ssec_cm_prim_onehot_check_bind",
+          "-ssec_cm_prim_singleton_fifo_bind",
+          "-ssec_cm_prim_sparse_fsm_flop_bind",
+          "-sxbar_dbg_bind"
+        ],
+        "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog -g2012 -stb -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_singleton_fifo_bind -ssec_cm_prim_sparse_fsm_flop_bind -sxbar_dbg_bind -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-runtime.vvp -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-iverilog.scr",
+        "compile_returncode": 2,
+        "compile_duration_seconds": 1.146,
+        "compile_timed_out": false,
+        "compile_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/opentitan/matrix/runtime/lowrisc_dv_top_darjeeling_xbar_dbg_sim_0.1/matrix-compile.log",
+        "hard_error_count": 2,
+        "hard_errors": [
+          "src/lowrisc_dv_dv_base_reg_0/dv_base_reg_field.sv:239: error: Parameterized class `mubi_cov' requires an explicit #(...) specialization before ::.",
+          "src/lowrisc_dv_dv_base_reg_0/dv_base_reg_field.sv:311: error: Parameterized class `mubi_cov' requires an explicit #(...) specialization before ::."
+        ],
+        "semantic_debt_count": 0,
+        "semantic_debt": [],
+        "output_sha256": "d18665b4ffff789b2bc314347e82fe8e2b650e8ec6d1780816bfd2ca2dcfd164"
+      }
+    ]
+  },
+  "caliptra": {
+    "scope": "Selected missing-header compile-only probes; not a full 105-row requalification or runtime test.",
+    "abr_header_cluster": {
+      "source_revision": {
+        "adams_bridge_commit": "e59eba955eac2a1adcb059f250641ede78e304be",
+        "commit": "bd31614182fb56e55578f48086a10ded650434fd",
+        "dirty": false,
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl"
+      },
+      "compiler_engine_sha256": "98d5c9d43b087e3bdfd667e5b5fea1895482a22b3e0a37fa7f2df1e61b86be10",
+      "results": [
+        {
+          "job": "abr_libs",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "__caliptra_census_fileset",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/config/abr_libs.vf",
+            "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-rebaseline-after277-20260913/fileset_top.sv"
+          ],
+          "exit": 0,
+          "elapsed": 0.013,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "abr_prim_generic",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "__caliptra_census_fileset",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim_generic/config/abr_prim_generic.vf",
+            "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-rebaseline-after277-20260913/fileset_top.sv"
+          ],
+          "exit": 1,
+          "elapsed": 0.009,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl/abr_prim_assert.sv:17: Include file abr_sva.svh not found\nPreprocessor failed with 1 errors.\n",
+          "compile_only": true
+        },
+        {
+          "job": "rej_sampler",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "rej_sampler_ctrl",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_sampler/config/rej_sampler.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "rej_bounded",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "rej_bounded_ctrl",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_bounded/config/rej_bounded.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.015,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "exp_mask",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "exp_mask_ctrl",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/exp_mask/config/exp_mask.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.013,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "sample_in_ball",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sample_in_ball_ctrl",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sample_in_ball/config/sample_in_ball.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "cbd_sampler",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "cbd_sampler_ctrl",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/cbd_sampler/config/cbd_sampler.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.013,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "decompose",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "decompose",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/config/decompose.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.026,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "decompose_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "decompose_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/config/decompose_tb.vf"
+          ],
+          "exit": 3,
+          "elapsed": 0.026,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:178: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:49: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `decompose_tb'\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:49: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `decompose_tb'\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56: error: port ``w1_encode_done'' is not a port of dut.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56: warning: Port 6 (src_base_addr) of module decompose expects 14 bit(s), given 1.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56:        : Padding 13 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56: warning: Port 7 (dest_base_addr) of module decompose expects 14 bit(s), given 1.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56:        : Padding 13 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56: warning: Port 8 (hint_src_base_addr) of module decompose expects 14 bit(s), given 1.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/tb/decompose_tb.sv:56:        : Padding 13 high bits of the port.\n3 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "compress",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "compress",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/compress/config/compress.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "compress_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "compress_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/compress/config/compress_tb.vf"
+          ],
+          "exit": 2,
+          "elapsed": 0.015,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/compress/tb/compress_tb.sv:43: error: port ``mem_wr_req'' is not a port of dut.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/compress/tb/compress_tb.sv:43: error: port ``mem_wr_data'' is not a port of dut.\n2 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "decompress",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "decompress",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompress/config/decompress.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "skencode",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "skencode",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/config/skencode.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.015,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "skencode_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "skencode_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/config/skencode_tb.vf"
+          ],
+          "exit": 1,
+          "elapsed": 0.014,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/tb/skencode_tb.sv:186: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/tb/skencode_tb.sv:187: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/tb/skencode_tb.sv:220: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/tb/skencode_tb.sv:221: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_encode/tb/skencode_tb.sv:29: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `skencode_tb'\n1 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "skdecode",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "skdecode",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/config/skdecode.vf"
+          ],
+          "exit": 1,
+          "elapsed": 0.02,
+          "clean_compile": false,
+          "diagnostics": "error: Unable to find the root module \"skdecode\" in the Verilog source.\n     : Perhaps ``-s skdecode'' is incorrect?\n1 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "skdecode_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "skdecode_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/config/skdecode_tb.vf"
+          ],
+          "exit": 7,
+          "elapsed": 0.03,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:50: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `skdecode_tb'\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:81: error: port ``keymem_a_rd_data'' is not a port of dut.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:81: error: port ``keymem_b_rd_data'' is not a port of dut.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:81: error: port ``keymem_a_rd_req'' is not a port of dut.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:81: error: port ``keymem_b_rd_req'' is not a port of dut.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:86: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `skdecode_tb'\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:86: error: Cast size expression must be constant and greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:86: internal error: Found a zero width constant!\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:86: internal error: Port expression too complicated for elaboration.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:81: warning: Port 6 (dest_base_addr) of module skdecode_top expects 14 bit(s), given 1.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sk_decode/tb/skdecode_tb.sv:81:        : Padding 13 high bits of the port.\n7 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "makehint",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "makehint",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/makehint/config/makehint.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.015,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "makehint_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "makehint_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/makehint/config/makehint_tb.vf"
+          ],
+          "exit": 2,
+          "elapsed": 0.016,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/makehint/tb/makehint_tb.sv:66: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `makehint_tb'\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/makehint/tb/makehint_tb.sv:66: error: Cast size expression must be constant and greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/makehint/tb/makehint_tb.sv:66: internal error: Found a zero width constant!\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/makehint/tb/makehint_tb.sv:66: internal error: Port expression too complicated for elaboration.\n2 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "sigencode_z",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sigencode_z_top",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/config/sigencode_z.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.023,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "sigencode_z_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sigencode_z_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/config/sigencode_z_tb.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.025,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:189: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:190: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:96:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 2 (addr_a) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112: warning: Port 6 (addr_b) of module sig_dual_port_memory expects 15 bit(s), given 14.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_encode_z/tb/sigencode_z_tb.sv:112:        : Padding 1 high bits of the port.\n",
+          "compile_only": true
+        },
+        {
+          "job": "sigdecode_z",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sigdecode_z_top",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_decode_z/config/sigdecode_z.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.015,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "sigdecode_z_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sigdecode_z_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_decode_z/config/sigdecode_z_tb.vf"
+          ],
+          "exit": 1,
+          "elapsed": 0.013,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_decode_z/tb/sigdecode_z_tb.sv:185: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_decode_z/tb/sigdecode_z_tb.sv:186: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sig_decode_z/tb/sigdecode_z_tb.sv:29: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `sigdecode_z_tb'\n1 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "sigdecode_h",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sigdecode_h",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sigdecode_h/config/sigdecode_h.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.015,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "sigdecode_h_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "sigdecode_h_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sigdecode_h/config/sigdecode_h_tb.vf"
+          ],
+          "exit": 2,
+          "elapsed": 0.015,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sigdecode_h/tb/sigdecode_h_tb.sv:62: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `sigdecode_h_tb'\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sigdecode_h/tb/sigdecode_h_tb.sv:62: error: Cast size expression must be constant and greater than zero.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sigdecode_h/tb/sigdecode_h_tb.sv:62: internal error: Found a zero width constant!\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/sigdecode_h/tb/sigdecode_h_tb.sv:62: internal error: Port expression too complicated for elaboration.\n2 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "pkdecode",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "pkdecode",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/pk_decode/config/pkdecode.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "pkdecode_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "pkdecode_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/pk_decode/config/pkdecode_tb.vf"
+          ],
+          "exit": 2,
+          "elapsed": 0.014,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/pk_decode/tb/pkdecode_tb.sv:186: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/pk_decode/tb/pkdecode_tb.sv:187: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/pk_decode/tb/pkdecode_tb.sv:60: error: parameter `MEM_ADDR_WIDTH` not found in `pkdecode_tb.dut`.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/pk_decode/tb/pkdecode_tb.sv:28: error: Unable to bind parameter `MLDSA_MEM_ADDR_WIDTH' in `pkdecode_tb'\n2 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "power2round",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "power2round_top",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.016,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "power2round_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "power2round_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.017,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:174: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:175: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:176: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79: warning: Port 5 (src_base_addr) of module power2round_top expects 14 bit(s), given 15.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79:        : Pruning 1 high bits of the expression.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79: warning: Port 6 (skmem_dest_base_addr) of module power2round_top expects 14 bit(s), given 15.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/tb/power2round_tb.sv:79:        : Pruning 1 high bits of the expression.\n",
+          "compile_only": true
+        },
+        {
+          "job": "ntt_pkg",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "__caliptra_census_fileset",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/config/ntt_pkg.vf",
+            "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-rebaseline-after277-20260913/fileset_top.sv"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "ntt_top",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "ntt_top",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/config/ntt_top.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.047,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "ntt_top_tb",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "ntt_top_tb",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/config/ntt_top_tb.vf"
+          ],
+          "exit": 4,
+          "elapsed": 0.024,
+          "clean_compile": false,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_top_tb.sv:237: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_top_tb.sv:294: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_top_tb.sv:296: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_top_tb.sv:297: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_top_tb.sv:370: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_top_tb.sv:372: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/mlkem_hybrid_bf_tb.sv:115: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/mlkem_hybrid_bf_tb.sv:195: warning: Static variable initialization requires explicit lifetime in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_wrapper.sv:234: error: parameter `MEM_ADDR_WIDTH` not found in `ntt_top_tb.dut.ntt_top_inst0`.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_wrapper.sv:233: error: parameter `MLDSA_N` not found in `ntt_top_tb.dut.ntt_top_inst0`.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_wrapper.sv:232: error: parameter `MLDSA_Q` not found in `ntt_top_tb.dut.ntt_top_inst0`.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/ntt_top/tb/ntt_wrapper.sv:231: error: parameter `REG_SIZE` not found in `ntt_top_tb.dut.ntt_top_inst0`.\n4 error(s) during elaboration.\n",
+          "compile_only": true
+        },
+        {
+          "job": "barrett_reduction",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "barrett_reduction",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/barrett_reduction/config/barrett_reduction.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.014,
+          "clean_compile": true,
+          "diagnostics": "",
+          "compile_only": true
+        }
+      ]
+    },
+    "representative_probes": {
+      "compiler_engine_sha256": "98d5c9d43b087e3bdfd667e5b5fea1895482a22b3e0a37fa7f2df1e61b86be10",
+      "source_revision": "bd31614182fb56e55578f48086a10ded650434fd",
+      "upstream_changed": "",
+      "results": [
+        {
+          "job": "decompose",
+          "configuration": "baseline",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "decompose",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/config/decompose.vf"
+          ],
+          "exit": 2,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl/abr_piso_multi.sv:39: Include file abr_prim_assert.sv not found\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_libs/rtl/abr_piso_multi.sv:38: syntax error\nI give up.\n",
+          "compile_only": true
+        },
+        {
+          "job": "decompose",
+          "configuration": "include_closure",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/abr_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "decompose",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/decompose/config/decompose.vf"
+          ],
+          "exit": 0,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "pcrvault",
+          "configuration": "baseline",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "pv",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/pcrvault/config/pcrvault.vf"
+          ],
+          "exit": 2,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/pcrvault/rtl/pv_reg.sv:315: Include file caliptra_prim_assert.sv not found\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/pcrvault/rtl/pv_reg.sv:314: syntax error\nI give up.\n",
+          "compile_only": true
+        },
+        {
+          "job": "pcrvault",
+          "configuration": "include_closure",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim/rtl",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "pv",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/pcrvault/config/pcrvault.vf"
+          ],
+          "exit": 0,
+          "diagnostics": "",
+          "compile_only": true
+        },
+        {
+          "job": "aes",
+          "configuration": "baseline",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "aes_cipher_core",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/aes/config/aes.vf"
+          ],
+          "exit": 1,
+          "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/aes/rtl/aes_clp_wrapper.sv:27: Include file caliptra_reg_field_defines.svh not found\nPreprocessor failed with 1 errors.\n",
+          "compile_only": true
+        },
+        {
+          "job": "aes",
+          "configuration": "include_closure",
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-I/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/integration/rtl/caliptra_reg",
+            "-g2012",
+            "-tnull",
+            "-s",
+            "aes_cipher_core",
+            "-gassertions",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/aes/config/aes.vf"
+          ],
+          "exit": 0,
+          "diagnostics": "",
+          "compile_only": true
+        }
+      ]
+    }
+  }
+}

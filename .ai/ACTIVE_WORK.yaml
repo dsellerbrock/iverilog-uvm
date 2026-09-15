@@ -38,3 +38,17 @@ integrated_revisions: []
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml
 stop_after_completion: false
+
+application_priority_assessment:
+  authority: User requests Caliptra SV progress and one real OpenTitan UVM pass; preserve pending compiler work.
+  installed_baseline: L105 semantic366ef2bf1; L106/L107 remain frozen and unbuilt.
+  preservation: evidence/application-check-20260915/preserved-l106-l107/provenance.json
+  shared_process: None at process audit; fresh OpenTitan replay terminated with compile failure.
+  lanes:
+    - agent: /root/constraint_abi
+      scope: Assess object-property versus parameterized-class name collision; private cheap reducer and IEEE lookup evidence only, no implementation edits yet.
+      evidence: evidence/application-check-20260915/opentitan/result.json
+    - agent: /root/constraint_wide
+      scope: Assess authoritative Caliptra include and dependency configuration; private evidence only, no upstream edits or shared harness execution.
+      evidence: evidence/application-check-20260915/caliptra/representative-include-closure.json
+  next_selection: Coordinator reviews reducers and records explicit implementation ownership before source changes.
