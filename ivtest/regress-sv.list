@@ -4002,3 +4002,7 @@ sv_joint_coupled_randc_ordered_cap_fail normal,-g2017,-s,sv_joint_coupled_randc_
 sv_joint_coupled_randc_ordered_cap_fail_2023 normal,-g2023,-s,sv_joint_coupled_randc_ordered_cap_fail ivltests gold=sv_joint_coupled_randc_ordered_cap_fail.gold
 sv_joint_ordered_independent_randc_coupled normal,-g2017,-s,sv_joint_ordered_independent_randc_coupled ivltests gold=sv_joint_ordered_independent_randc_coupled.gold
 sv_joint_ordered_independent_randc_coupled_2023 normal,-g2023,-s,sv_joint_ordered_independent_randc_coupled ivltests gold=sv_joint_ordered_independent_randc_coupled.gold
+sv_runtime_root_seed normal,-g2017,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed.gold
+sv_runtime_root_seed_2023 normal,-g2023,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed.gold
+sv_runtime_root_seed_hierarchy normal,-g2017,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed_hierarchy.gold
+sv_runtime_root_seed_hierarchy_2023 normal,-g2023,-stest,+ntb_random_seed=1 ivltests gold=sv_runtime_root_seed_hierarchy.gold

@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "sv_runtime_root_seed_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "vvp-args-extended": ["+ntb_random_seed=1"],
+  "gold": "sv_runtime_root_seed"
+}

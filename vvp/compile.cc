@@ -3154,6 +3154,12 @@ void compile_thread(char*start_sym, char*flag)
 {
       bool push_flag = false;
 
+      if (!vthread_init_design_root_seed()) {
+	    free(start_sym);
+	    free(flag);
+	    return;
+      }
+
       symbol_value_t tmp = sym_get_value(sym_codespace, start_sym);
       vvp_code_t pc = reinterpret_cast<vvp_code_t>(tmp.ptr);
       if (pc == 0) {

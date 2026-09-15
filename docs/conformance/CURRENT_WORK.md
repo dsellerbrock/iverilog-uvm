@@ -28,6 +28,10 @@ Latest focused constraint increment: [L111 coupled cyclic ordered solving](sessi
 
 ## Application evidence
 
+[Explicit-seed OpenTitan smoke replays](session_logs/2026-09-15_runtime_root_seed.md) pass
+with the new root-seed runtime control; compile provenance and scope are
+recorded separately from full application qualification.
+
 The [L108 OpenTitan smoke replay](session_logs/2026-09-15_implicit_property_method_lookup.md)
 records a fresh passing original-UVM-1.2 debug-crossbar workload after the
 lookup repair. It is scoped to one core/default run; broader qualification

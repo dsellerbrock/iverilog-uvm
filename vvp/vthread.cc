@@ -6696,6 +6696,61 @@ static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
  */
 static uint64_t design_root_rng_state_ = 0x9E3779B97F4A7C15ull;
 
+bool vthread_init_design_root_seed()
+{
+      enum seed_status_t { SEED_UNCHECKED, SEED_READY, SEED_INVALID };
+      static seed_status_t status = SEED_UNCHECKED;
+      if (status != SEED_UNCHECKED) return status == SEED_READY;
+
+      s_vpi_vlog_info info;
+      if (!vpi_get_vlog_info(&info)) {
+	    status = SEED_READY;
+	    return true;
+      }
+      static const char prefix[] = "+ntb_random_seed=";
+      bool found = false;
+      uint32_t seed = 0;
+      const char*reason = 0;
+      for (int idx = 0; idx < info.argc; idx++) {
+	    const char*arg = info.argv[idx];
+	    if (!arg || strncmp(arg, prefix, sizeof prefix - 1) != 0) continue;
+	    if (found) { reason = "duplicate option"; break; }
+	    found = true;
+	    const char*cur = arg + sizeof prefix - 1;
+	    if (!*cur) { reason = "empty value"; break; }
+	    uint64_t value = 0;
+	    for (; *cur; cur++) {
+		  if (*cur < '0' || *cur > '9') {
+			reason = "value must be unsigned decimal";
+			break;
+		  }
+		  unsigned digit = (unsigned)(*cur - '0');
+		  if (value > UINT32_MAX / 10
+		      || (value == UINT32_MAX / 10 && digit > UINT32_MAX % 10)) {
+			reason = "value exceeds uint32"; break;
+		  }
+		  value = value * 10 + digit;
+	    }
+	    if (reason) break;
+	    seed = (uint32_t)value;
+      }
+      if (reason) {
+	    cerr << "ERROR: invalid +ntb_random_seed: " << reason << "." << endl;
+	    compile_errors += 1;
+	    status = SEED_INVALID;
+	    return false;
+      }
+      if (found) {
+	    uint64_t z = (uint64_t)seed + UINT64_C(0x9E3779B97F4A7C15);
+	    z = (z ^ (z >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
+	    z = (z ^ (z >> 27)) * UINT64_C(0x94D049BB133111EB);
+	    z ^= z >> 31;
+	    design_root_rng_state_ = z ? z : UINT64_C(0x9E3779B97F4A7C15);
+      }
+      status = SEED_READY;
+      return true;
+}
+
 static uint32_t design_root_rng_next_()
 {
       uint64_t x = design_root_rng_state_;
