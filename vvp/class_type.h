@@ -316,6 +316,11 @@ class class_type : public __vpiHandle {
 	    unsigned value_width = 64;
 	    bool value_signed = false;
 	    unsigned guard_idx = 0xFFFFFFFFu;
+	    unsigned trans_seq = 0;
+	    unsigned trans_term = 0;
+	    unsigned trans_repeat = 0;
+	    uint64_t trans_min = 1;
+	    uint64_t trans_max = 1;
       };
       struct cov_cross_t {
 	    unsigned family = 0;
@@ -382,12 +387,20 @@ class class_type : public __vpiHandle {
 			      const std::string&hi_ir,
 			      unsigned value_width = 64,
 			      bool value_signed = false,
-			      unsigned guard_idx = COV_NO_GUARD)
+			      unsigned guard_idx = COV_NO_GUARD,
+			      unsigned trans_seq = 0,
+			      unsigned trans_term = 0,
+			      unsigned trans_repeat = 0,
+			      uint64_t trans_min = 1,
+			      uint64_t trans_max = 1)
       { cov_dyn_bin_t b;
 	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
 	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
 	b.value_width = value_width; b.value_signed = value_signed;
 	b.guard_idx = guard_idx;
+	b.trans_seq = trans_seq; b.trans_term = trans_term;
+	b.trans_repeat = trans_repeat; b.trans_min = trans_min;
+	b.trans_max = trans_max;
 	covgrp_dyn_bins_.push_back(b); }
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
       const cov_dyn_bin_t& covgrp_dyn_bin(size_t idx) const
@@ -469,6 +482,8 @@ class class_type : public __vpiHandle {
             const std::vector<std::pair<uint64_t,uint64_t>>&ranges) const;
       uint64_t cross_type_register_bin(unsigned family,
             const std::vector<std::pair<unsigned,uint64_t>>&name) const;
+      uint64_t trans_type_register_bin(unsigned family,
+            const std::vector<uint64_t>&name) const;
       void cross_type_register_named(unsigned family,
             const std::vector<unsigned>&props) const;
       unsigned __int128 dyn_type_total(unsigned family) const
@@ -531,6 +546,8 @@ class class_type : public __vpiHandle {
       mutable std::map<unsigned, unsigned __int128> covgrp_dyn_type_totals_;
       mutable std::map<unsigned, std::vector<std::pair<uint64_t,uint64_t>>>
             covgrp_dyn_type_ranges_;
+      mutable std::map<unsigned,std::map<std::vector<uint64_t>,uint64_t>>
+            covgrp_trans_type_bins_;
       struct cov_cross_type_t {
             std::map<std::vector<std::pair<unsigned,uint64_t>>,uint64_t> bins;
             std::set<unsigned> named_props;

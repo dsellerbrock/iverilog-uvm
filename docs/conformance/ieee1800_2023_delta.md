@@ -255,3 +255,5 @@ L107 finite first_match prefixes have paired [2017/2023 focused evidence](sessio
 L108 object-method statement lookup has paired [2017/2023 focused evidence](session_logs/2026-09-15_implicit_property_method_lookup.md). The separately recorded OpenTitan workload uses g2012; do not infer2023 UVM qualification from it.
 
 L109 pairs 2023 18.4.2/18.5.9 with the [shared independent-randc evidence](session_logs/2026-09-15_joint_ordered_independent_randc.md). Broad qualification remains pending.
+
+L110 pairs 2023 19.5.2/19.11.3 with [shared constructor-transition evidence](session_logs/2026-09-15_constructor_transition_bins.md), including the corrected nonzero-weight oracle.

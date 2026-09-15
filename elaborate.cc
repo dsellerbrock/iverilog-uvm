@@ -33216,6 +33216,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 
 				      struct trans_term_t {
 					    std::vector<std::pair<uint64_t,uint64_t>> ranges;
+					    std::vector<std::pair<std::string,std::string>> ir_ranges;
+					    bool dynamic = false;
 					    unsigned repeat = 0;
 					    uint64_t min = 1, max = 1;
 					    uint64_t alternatives = 0;
@@ -33224,6 +33226,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      std::vector<uint64_t> seq_bases;
 				      unsigned __int128 family_total = 0;
 				      bool bad = false;
+				      bool constructor_dependent = false;
 				      static const uint64_t transition_repeat_limit = 65536;
 				      static const uint64_t array_transition_limit = 65536;
 
@@ -33264,13 +33267,40 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    unsigned __int128 sequence_variants = 1;
 					    for (auto&source_term : source_terms) {
 						  trans_term_t term;
-						  if (!eval_ranges(source_term.ranges, term.ranges)
-						      || term.ranges.empty()) {
-							cerr << "sorry: covergroup transition terms must "
-							     << "be nonempty constant sets; bin '"
-							     << bin.name << "' is dropped." << endl;
+						  if (!eval_ranges(source_term.ranges, term.ranges)) {
+							term.dynamic = true;
+							constructor_dependent = true;
+							for (auto&r : source_term.ranges) {
+							      ctor_range_shape_t ls = ctor_range_shape(r.first);
+							      ctor_range_shape_t hs = ctor_range_shape(r.second);
+							      std::string li = ctor_range_ir(r.first);
+							      std::string hi = ctor_range_ir(r.second);
+							      if (!ls.first || !hs.first || li.empty() || hi.empty()) {
+								    bad = true;
+								    break;
+							      }
+							      term.ir_ranges.push_back(std::make_pair(li, hi));
+							}
+							if (bad || term.ir_ranges.empty()) {
+							      cerr << "error: covergroup transition term in bin '"
+								   << bin.name << "' has an unsupported "
+								      "constructor expression; the bin is dropped."
+								   << endl;
+							      des->errors += 1;
+							      bad = true;
+							      break;
+							}
+						  } else if (term.ranges.empty()) {
 							bad = true;
 							break;
+						  } else {
+							for (auto&r : source_term.ranges) {
+							      std::string li = ctor_range_ir(r.first);
+							      std::string hi = ctor_range_ir(r.second);
+							      if (li.empty() || hi.empty()) { bad = true; break; }
+							      term.ir_ranges.push_back(std::make_pair(li, hi));
+							}
+							if (bad) break;
 						  }
 						  std::sort(term.ranges.begin(), term.ranges.end());
 						  std::vector<std::pair<uint64_t,uint64_t>> merged;
@@ -33288,7 +33318,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  for (auto&r : term.ranges)
 							alternatives += (unsigned __int128)r.second
 								      - r.first + 1;
-						  if (alternatives == 0
+						  if ((!term.dynamic && alternatives == 0)
 						      || (bin.arrayed
 							  && alternatives > array_transition_limit)) {
 							cerr << "sorry: arrayed transition term in bin '"
@@ -33297,7 +33327,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							bad = true;
 							break;
 						  }
-						  term.alternatives = alternatives > UINT64_MAX
+						  term.alternatives = term.dynamic ? 1 : alternatives > UINT64_MAX
 							? UINT64_MAX : (uint64_t)alternatives;
 						  term.repeat = (unsigned)source_term.repeat_kind;
 						  if (source_term.repeat_kind
@@ -33332,7 +33362,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  unsigned __int128 variants = 0;
 						  unsigned __int128 power = 1;
 						  for (uint64_t n = 1; n <= term.max; n++) {
-							power = capped_mul(power, alternatives);
+							power = capped_mul(power, term.dynamic ? 1 : alternatives);
 							if (n >= term.min)
 							      variants = capped_add(variants, power);
 						  }
@@ -33357,6 +33387,21 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    programs.push_back(std::move(terms));
 				      }
 				      if (bad) continue;
+				      if (constructor_dependent) {
+					    unsigned family = dyn_family++;
+					    for (unsigned sq = 0; sq < programs.size(); sq++)
+					    for (unsigned st = 0; st < programs[sq].size(); st++) {
+						  trans_term_t&term = programs[sq][st];
+						  for (auto&r : term.ir_ranges)
+							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx, 4u,
+							      family, bin.arrayed ? 0 : ~(uint64_t)0,
+							      bin.name.str(), r.first, r.second,
+							      cp_value_width, cp_value_signed, bin_guard,
+							      sq, st, term.repeat, term.min, term.max);
+					    }
+					    has_value_bins = true;
+					    continue;
+				      }
 				      if (bin.arrayed && family_total > array_transition_limit) {
 					    cerr << "sorry: arrayed transition bin '" << bin.name
 						 << "' needs more than " << array_transition_limit

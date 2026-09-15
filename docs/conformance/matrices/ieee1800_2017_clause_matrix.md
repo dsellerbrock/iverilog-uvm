@@ -1506,3 +1506,7 @@ FOCUSED_TESTED for the [recorded receiver/provenance and access subset](../sessi
 ### L109 — Independent randc with ordered graph solving
 
 IMPLEMENTED for the [recorded independent enumerable subset](../session_logs/2026-09-15_joint_ordered_independent_randc.md); broad qualification pending. Coupled cyclic distributions and broader clause coverage remain PARTIAL.
+
+### L110 — Constructor transition endpoints
+
+IMPLEMENTED for the [recorded constructor-endpoint subset](../session_logs/2026-09-15_constructor_transition_bins.md); broad qualification pending. Dynamic repetition bounds and broader coverage obligations remain PARTIAL.

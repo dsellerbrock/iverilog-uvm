@@ -7090,6 +7090,88 @@ static uint64_t covgrp_trans_term_rank_(const covgrp_trans_term_t&term,
       return covgrp_trans_sat_add_(offset, word);
 }
 
+static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
+      uint64_t key_prefix, const std::vector<const class_type::cov_bin_t*>&records,
+      uint64_t value)
+{
+      std::map<unsigned,std::map<unsigned,covgrp_trans_term_t>> programs;
+      std::map<unsigned,uint64_t> seq_bases;
+      for (const class_type::cov_bin_t*bin : records) {
+	    unsigned seq = bin->tuple >> 8, term_idx = bin->tuple & 255;
+	    covgrp_trans_term_t&term = programs[seq][term_idx];
+	    term.ranges.push_back(bin); term.repeat = bin->trans_repeat;
+	    term.min = bin->trans_min; term.max = bin->trans_max;
+	    term.alternatives = bin->trans_alt_count;
+	    seq_bases[seq] = bin->trans_base;
+      }
+      std::set<uint64_t> completions;
+      for (auto&seq_entry : programs) {
+	    unsigned seq = seq_entry.first;
+	    auto&term_map = seq_entry.second;
+	    std::vector<covgrp_trans_term_t> terms;
+	    for (unsigned ti = 0; !term_map.empty() && ti <= term_map.rbegin()->first; ti++) {
+		  auto found = term_map.find(ti);
+		  if (found == term_map.end()) { terms.clear(); break; }
+		  terms.push_back(found->second);
+	    }
+	    if (terms.empty()) continue;
+	    uint64_t key = key_prefix | seq;
+	    std::vector<vvp_cobject::cov_trans_state_t> old_states =
+		  cobj->cov_trans_states(key);
+	    std::set<vvp_cobject::cov_trans_state_t> next_states;
+	    auto advance = [&](const vvp_cobject::cov_trans_state_t&state,
+			       uint64_t count, uint64_t word, bool nonconsecutive) {
+		  const covgrp_trans_term_t&term = terms[state.term];
+		  uint64_t rank = covgrp_trans_term_rank_(term, count, word);
+		  uint64_t prefix = covgrp_trans_sat_add_(
+			covgrp_trans_sat_mul_(state.prefix,
+			      covgrp_trans_term_variants_(term)), rank);
+		  if (state.term + 1 == terms.size()) {
+			completions.insert(covgrp_trans_sat_add_(seq_bases[seq], prefix));
+			return;
+		  }
+		  vvp_cobject::cov_trans_state_t out;
+		  out.term = state.term + 1; out.prefix = prefix;
+		  out.waiting = nonconsecutive; out.forbid_term = state.term;
+		  next_states.insert(out);
+	    };
+	    auto consume = [&](const vvp_cobject::cov_trans_state_t&state,
+			       bool allow_nonmatch) {
+		  if (state.term >= terms.size()) return;
+		  const covgrp_trans_term_t&term = terms[state.term];
+		  uint64_t ordinal = 0;
+		  bool matches = covgrp_trans_match_(term, value, ordinal);
+		  if (state.waiting && !matches) {
+			uint64_t unused = 0;
+			if (state.forbid_term < terms.size()
+			    && covgrp_trans_match_(terms[state.forbid_term], value, unused)) return;
+			next_states.insert(state); return;
+		  }
+		  if (!matches) {
+			if (allow_nonmatch || term.repeat == 2 || term.repeat == 3)
+			      next_states.insert(state);
+			return;
+		  }
+		  uint64_t count = state.count + 1;
+		  uint64_t word = covgrp_trans_sat_add_(
+			covgrp_trans_sat_mul_(state.word, term.alternatives), ordinal);
+		  if (count >= term.min) advance(state, count, word, term.repeat == 3);
+		  if (count < term.max) {
+			vvp_cobject::cov_trans_state_t stay = state;
+			stay.count = count; stay.word = word; stay.waiting = false;
+			next_states.insert(stay);
+		  }
+	    };
+	    for (const auto&state : old_states) consume(state, false);
+	    vvp_cobject::cov_trans_state_t fresh;
+	    uint64_t first = 0;
+	    if (covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
+	    auto&stored = cobj->cov_trans_states(key);
+	    stored.assign(next_states.begin(), next_states.end());
+      }
+      return completions;
+}
+
 static unsigned __int128 covgrp_dyn_logical_count_(
       const covgrp_dyn_state_t&state);
 
@@ -7098,9 +7180,65 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 {
 	if (cobj->cov_dyn_resolved()) return cobj->cov_dyn_states();
       std::map<unsigned,covgrp_dyn_state_t> out;
+	std::map<unsigned,covgrp_dyn_trans_state_t> trans_out;
 	bool deferred = false;
       for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
 	    const class_type::cov_dyn_bin_t&rec = defn->covgrp_dyn_bin(ri);
+	    if ((rec.kind & 7) == 4) {
+		  covgrp_dyn_trans_state_t&ts = trans_out[rec.family];
+		  if (!ts.meta) ts.meta = &rec;
+		  uint64_t lo = 0, hi = 0;
+		  unsigned lw = 0, hw = 0;
+		  bool ls = false, hs = false;
+		  if (!defn->covgrp_eval_ir(cobj, rec.lo_ir, lo, lw, ls)
+		      || !defn->covgrp_eval_ir(cobj, rec.hi_ir, hi, hw, hs)) {
+			ts.valid = false;
+			if (cobj->cov_dyn_warn_once(rec.family))
+			      std::cerr << "ERROR: constructor-dependent transition bin '"
+					<< rec.name << "' has an X/Z or invalid endpoint."
+					<< std::endl;
+			vpip_set_return_value(1);
+			if (!schedule_finished()) schedule_finish(0);
+			continue;
+		  }
+		  uint64_t mask = rec.value_width >= 64 ? UINT64_MAX
+			: ((UINT64_C(1) << rec.value_width) - 1);
+		  auto number = [](uint64_t bits, unsigned width, bool sign) -> __int128 {
+			if (width < 64) bits &= (UINT64_C(1) << width) - 1;
+			if (sign && width && (bits & (UINT64_C(1) << (width - 1)))) {
+			      if (width == 64) return (__int128)(int64_t)bits;
+			      return (__int128)bits - ((__int128)1 << width);
+			}
+			return bits;
+		  };
+		  __int128 ln = number(lo, lw, ls), hn = number(hi, hw, hs);
+		  __int128 dmin = rec.value_signed
+			? -((__int128)1 << (rec.value_width - 1)) : 0;
+		  __int128 dmax = rec.value_signed
+			? ((__int128)1 << (rec.value_width - 1)) - 1
+			: rec.value_width == 64 ? (__int128)UINT64_MAX
+			: ((__int128)1 << rec.value_width) - 1;
+		  if (ln > hn || hn < dmin || ln > dmax) continue;
+		  ln = std::max(ln, dmin); hn = std::min(hn, dmax);
+		  auto encoded = [&](const __int128&n) -> uint64_t {
+			return (uint64_t)n & mask;
+		  };
+		  auto append = [&](uint64_t first, uint64_t last) {
+			class_type::cov_bin_t bin;
+			bin.cp_idx = rec.cp_idx; bin.item_idx = rec.item_idx;
+			bin.prop_idx = class_type::COV_NO_PROP;
+			bin.kind = 4; bin.lo = first; bin.hi = last;
+			bin.tuple = (rec.trans_seq << 8) | rec.trans_term;
+			bin.trans_repeat = rec.trans_repeat;
+			bin.trans_min = rec.trans_min; bin.trans_max = rec.trans_max;
+			bin.trans_family = rec.family; bin.guard_idx = rec.guard_idx;
+			ts.records.push_back(bin);
+		  };
+		  if (rec.value_signed && ln < 0 && hn >= 0) {
+			append(encoded(ln), mask); append(0, encoded(hn));
+		  } else append(encoded(ln), encoded(hn));
+		  continue;
+	    }
 	    covgrp_dyn_state_t&state = out[rec.family];
 	    if (state.meta
 		&& (state.meta->cp_idx != rec.cp_idx
@@ -7372,6 +7510,112 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  append(encoded(resolved_lo), encoded(resolved_hi));
 	    }
       }
+
+	// Complete each constructor-resolved transition program atomically.
+	// Alternative ordinals and sequence bases are derived only after every
+	// endpoint has resolved, so no partial program can be sampled.
+	for (auto&entry : trans_out) {
+	      covgrp_dyn_trans_state_t&ts = entry.second;
+	      if (!ts.valid || ts.records.empty()) { ts.valid = false; continue; }
+	      std::map<unsigned,std::map<unsigned,std::vector<size_t>>> groups;
+	      for (size_t i = 0; i < ts.records.size(); i++)
+		    groups[ts.records[i].tuple >> 8][ts.records[i].tuple & 255].push_back(i);
+	      for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri++) {
+		    const auto&decl = defn->covgrp_dyn_bin(ri);
+		    if ((decl.kind & 7) != 4 || decl.family != entry.first) continue;
+		    if (!groups[decl.trans_seq].count(decl.trans_term)) ts.valid = false;
+	      }
+	      uint64_t base = 0;
+	      std::vector<std::vector<uint64_t>> identities;
+	      for (auto&sq : groups) {
+		    std::vector<std::vector<std::vector<uint64_t>>> term_words;
+		    uint64_t sequence_total = 1;
+		    for (unsigned ti = 0; ti <= sq.second.rbegin()->first; ti++) {
+			  auto found = sq.second.find(ti);
+			  if (found == sq.second.end()) { ts.valid = false; break; }
+			  uint64_t alternatives = 0;
+			  std::vector<uint64_t> values;
+			  for (size_t idx : found->second) {
+				class_type::cov_bin_t&bin = ts.records[idx];
+				bin.trans_alt = alternatives;
+				for (uint64_t v = bin.lo;; v++) {
+				      values.push_back(v); alternatives++;
+				      if (v == bin.hi) break;
+				      if (alternatives > 65536) break;
+				}
+			  }
+			  if (alternatives == 0 || alternatives > 65536) {
+				ts.valid = false; break;
+			  }
+			  const class_type::cov_bin_t&head = ts.records[found->second[0]];
+			  for (size_t idx : found->second) {
+				ts.records[idx].trans_alt_count = alternatives;
+				ts.records[idx].trans_base = base;
+			  }
+			  std::vector<std::vector<uint64_t>> words;
+			  for (uint64_t n = head.trans_min; n <= head.trans_max; n++) {
+				uint64_t count = 1;
+				for (uint64_t k = 0; k < n; k++)
+				      count = covgrp_trans_sat_mul_(count, values.size());
+				if (count > 65536 || words.size() > 65536 - count) {
+				      words.resize(65537); break;
+				}
+				std::vector<std::vector<uint64_t>> level(1);
+				for (uint64_t k = 0; k < n; k++) {
+				      std::vector<std::vector<uint64_t>> next;
+				      next.reserve(level.size() * values.size());
+				      for (auto&prefix : level) for (uint64_t v : values) {
+					    std::vector<uint64_t> item = prefix;
+					    item.push_back(v); next.push_back(std::move(item));
+				      }
+				      level.swap(next);
+				}
+				words.insert(words.end(), level.begin(), level.end());
+				if (words.size() > 65536) break;
+			  }
+			  sequence_total = covgrp_trans_sat_mul_(sequence_total, words.size());
+			  term_words.push_back(std::move(words));
+		    }
+		    if (!ts.valid || sequence_total > 65536
+			|| base > 65536 - sequence_total) { ts.valid = false; break; }
+		    std::vector<std::vector<uint64_t>> sequences(1);
+		    unsigned term_number = 0;
+		    for (auto&words : term_words) {
+			  std::vector<std::vector<uint64_t>> next;
+			  for (auto&prefix : sequences) for (auto&word : words) {
+				std::vector<uint64_t> joined = prefix;
+				const class_type::cov_bin_t&head =
+				      ts.records[sq.second[term_number][0]];
+				joined.push_back(UINT64_C(0x5445524d00000000)
+				      | ((uint64_t)head.trans_repeat << 48)
+				      | ((uint64_t)term_number << 32) | word.size());
+				joined.insert(joined.end(), word.begin(), word.end());
+				next.push_back(std::move(joined));
+			  }
+			  sequences.swap(next);
+			  term_number++;
+		    }
+		    identities.insert(identities.end(), sequences.begin(), sequences.end());
+		    base += sequence_total;
+	      }
+	      if (!ts.valid || identities.empty()) {
+		    ts.valid = false;
+		    std::cerr << "ERROR: constructor-dependent transition bin '"
+			      << (ts.meta ? ts.meta->name : std::string())
+			      << "' resolves to an empty or excessive program." << std::endl;
+		    vpip_set_return_value(1);
+		    if (!schedule_finished()) schedule_finish(0);
+		    continue;
+	      }
+	      bool arrayed = ts.meta->array_size == 0;
+	      uint64_t shared = arrayed ? 0
+		    : defn->trans_type_register_bin(entry.first, std::vector<uint64_t>());
+	      for (auto&id : identities) {
+		    ts.type_bins.push_back(arrayed
+			  ? defn->trans_type_register_bin(entry.first, id) : shared);
+	      }
+	}
+	cobj->cov_dyn_trans_resolve(trans_out);
 	// Integral open bin arrays are value-keyed (19.5.1): overlapping ranges
 	// and duplicate set elements create one logical bin for that resolved
 	// value. Fixed [N] arrays deliberately retain occurrence order for their
@@ -8410,6 +8654,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
       size_t nbins = defn->covgrp_bin_count();
       const std::map<unsigned,covgrp_dyn_state_t>&dyn_states =
 	    covgrp_dyn_states_(defn, cobj);
+      const std::map<unsigned,covgrp_dyn_trans_state_t>&dyn_trans_states =
+	    cobj->cov_dyn_trans_states();
       const std::map<unsigned,covgrp_cross_state_t>&cross_states =
 	    covgrp_cross_states_(defn, cobj);
 
@@ -8602,147 +8848,30 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  continue;
 	    }
 	    if (k == 4) {
-		    // A bin-level iff is a per-bin count guard (19.5.1), not a
-		    // sampling gate. In particular, a false guard on an
-		    // intermediate sample of a transition must not freeze or reset
-		    // the transition recognizer. Apply it only to completions below.
 		  bool count_enabled = bin_enabled(first.guard_idx);
-		    // Compact transition-program NFA. One active state carries
-		    // the current term, repetition count, and mixed-radix rank;
-		    // bounded ranges therefore cost O(active attempts), not the
-		    // sum of every expanded sequence length.
-		  std::map<unsigned,
-			std::map<unsigned, covgrp_trans_term_t>> programs;
-		  std::map<unsigned, uint64_t> seq_bases;
-		  unsigned cpi = first.cp_idx;
-		  for (size_t bi : recs) {
-			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			unsigned seq = bin.tuple >> 8;
-			unsigned term_idx = bin.tuple & 255;
-			covgrp_trans_term_t&term = programs[seq][term_idx];
-			term.ranges.push_back(&bin);
-			term.repeat = bin.trans_repeat;
-			term.min = bin.trans_min;
-			term.max = bin.trans_max;
-			term.alternatives = bin.trans_alt_count;
-			seq_bases[seq] = bin.trans_base;
-			cpi = bin.cp_idx;
-		  }
-		  if (cpi >= ncp || !cp_sampled[cpi] || cp_suppressed[cpi])
-			continue; // transition progress freezes while unsampled/carved
-		  uint64_t value = cp_vals[cpi];
-		  std::set<unsigned> completed_props;
-		  std::set<std::pair<unsigned,uint64_t>> completed_families;
-
-		  for (auto&seq_entry : programs) {
-			unsigned seq = seq_entry.first;
-			std::map<unsigned,covgrp_trans_term_t>&term_map =
-			      seq_entry.second;
-			if (term_map.empty()) continue;
-			std::vector<covgrp_trans_term_t> terms;
-			for (unsigned ti = 0; ti <= term_map.rbegin()->first; ti++) {
-			      auto found = term_map.find(ti);
-			      if (found == term_map.end()) { terms.clear(); break; }
-			      terms.push_back(found->second);
-			}
-			if (terms.empty()) continue;
-
-			uint64_t key = ((uint64_t)kv.first << 32) | seq;
-			std::vector<vvp_cobject::cov_trans_state_t> old_states =
-			      cobj->cov_trans_states(key);
-			std::set<vvp_cobject::cov_trans_state_t> next_states;
-			std::set<uint64_t> sequence_completions;
-
-			auto advance = [&](const vvp_cobject::cov_trans_state_t&state,
-					   uint64_t count, uint64_t word,
-					   bool nonconsecutive) {
-			      const covgrp_trans_term_t&term = terms[state.term];
-			      uint64_t term_rank = covgrp_trans_term_rank_(
-				    term, count, word);
-			      uint64_t prefix = covgrp_trans_sat_add_(
-				    covgrp_trans_sat_mul_(state.prefix,
-					  covgrp_trans_term_variants_(term)),
-				    term_rank);
-			      if (state.term + 1 == terms.size()) {
-				    sequence_completions.insert(covgrp_trans_sat_add_(
-					  seq_bases[seq], prefix));
-				    return;
-			      }
-			      vvp_cobject::cov_trans_state_t out;
-			      out.term = state.term + 1;
-			      out.prefix = prefix;
-			      out.waiting = nonconsecutive;
-			      out.forbid_term = state.term;
-			      next_states.insert(out);
-			};
-
-			auto consume = [&](const vvp_cobject::cov_trans_state_t&state,
-					  bool allow_nonmatch) {
-			      if (state.term >= terms.size()) return;
-			      const covgrp_trans_term_t&term = terms[state.term];
-			      uint64_t ordinal = 0;
-			      bool matches = covgrp_trans_match_(term, value, ordinal);
-			      if (state.waiting && !matches) {
-				    uint64_t unused = 0;
-				    if (state.forbid_term < terms.size()
-					&& covgrp_trans_match_(terms[state.forbid_term],
-							 value, unused))
-					  return;
-				    next_states.insert(state);
-				    return;
-			      }
-			      if (!matches) {
-				    if (allow_nonmatch || term.repeat == 2 || term.repeat == 3)
-					  next_states.insert(state);
-				    return;
-			      }
-			      uint64_t count = state.count + 1;
-			      uint64_t word = covgrp_trans_sat_add_(
-				    covgrp_trans_sat_mul_(state.word,
-					  term.alternatives), ordinal);
-			      if (count >= term.min)
-				    advance(state, count, word, term.repeat == 3);
-			      if (count < term.max) {
-				    vvp_cobject::cov_trans_state_t stay = state;
-				    stay.count = count;
-				    stay.word = word;
-				    stay.waiting = false;
-				    next_states.insert(stay);
-			      }
-			};
-
-			for (const auto&state : old_states)
-			      consume(state, false);
-			vvp_cobject::cov_trans_state_t fresh;
-			uint64_t first_ordinal = 0;
-			if (covgrp_trans_match_(terms[0], value, first_ordinal))
-			      consume(fresh, false);
-
-			std::vector<vvp_cobject::cov_trans_state_t>&stored =
-			      cobj->cov_trans_states(key);
-			stored.assign(next_states.begin(), next_states.end());
-
-			for (uint64_t logical : sequence_completions) {
-			      if (first.trans_family == class_type::COV_NO_FAMILY)
-				    completed_props.insert(kv.first);
-			      else
-				    completed_families.insert(std::make_pair(
-					  first.trans_family, logical));
-			}
-		  }
-
-		  for (unsigned prop : completed_props) {
+		  unsigned cp = first.cp_idx;
+		  if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp])
+			continue;
+		  std::vector<const class_type::cov_bin_t*> records;
+		  for (size_t bi : recs) records.push_back(&defn->covgrp_bin(bi));
+		  std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+			((uint64_t)kv.first << 32), records, cp_vals[cp]);
+		  bool named_hit = false;
+		  for (uint64_t logical : completed) {
 			if (!count_enabled) continue;
-			covgrp_bump_count_(cobj, prop);
-			transition_hits.insert(prop);
+			if (first.trans_family == class_type::COV_NO_FAMILY) {
+			      named_hit = true;
+			} else {
+			      cobj->cov_dyn_bump(first.trans_family, logical);
+			      transition_hits.insert(kv.first);
+			      transition_family_hits.insert(std::make_pair(
+				    first.trans_family, logical));
+			}
 			item_matched[first.item_idx] = true;
 		  }
-		  for (auto&hit : completed_families) {
-			if (!count_enabled) continue;
-			cobj->cov_dyn_bump(hit.first, hit.second);
+		  if (named_hit) {
+			covgrp_bump_count_(cobj, kv.first);
 			transition_hits.insert(kv.first);
-			transition_family_hits.insert(hit);
-			item_matched[first.item_idx] = true;
 		  }
 		  continue;
 	    }
@@ -8779,6 +8908,33 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 		  covgrp_bump_count_(cobj, kv.first);
 		  item_matched[first.item_idx] = true;
 	    }
+      }
+
+	// Constructor-resolved transition programs share the static NFA engine,
+	// but keep instance-local endpoints and canonical type-bin identities.
+      for (auto&entry : dyn_trans_states) {
+	    const covgrp_dyn_trans_state_t&state = entry.second;
+	    if (!state.valid || !state.meta || state.records.empty()) continue;
+	    unsigned cp = state.meta->cp_idx;
+	    if (cp >= ncp || !cp_sampled[cp] || cp_suppressed[cp]) continue;
+	    std::vector<const class_type::cov_bin_t*> records;
+	    for (const auto&rec : state.records) records.push_back(&rec);
+	    std::set<uint64_t> completed = covgrp_trans_advance_(cobj,
+		  (UINT64_C(1) << 63) | ((uint64_t)entry.first << 16),
+		  records, cp_vals[cp]);
+	    if (!bin_enabled(state.meta->guard_idx)) continue;
+	    bool named_hit = false;
+	    for (uint64_t logical : completed) {
+		  if (logical >= state.type_bins.size()) continue;
+		  uint64_t local = state.meta->array_size == 0 ? logical : 0;
+		  if (state.meta->array_size == 0)
+			cobj->cov_dyn_bump(entry.first, local, state.type_bins[logical]);
+		  else named_hit = true;
+		  transition_family_hits.insert(std::make_pair(entry.first, logical));
+		  item_matched[state.meta->item_idx] = true;
+	    }
+	    if (named_hit && !state.type_bins.empty())
+		  cobj->cov_dyn_bump(entry.first, 0, state.type_bins[0]);
       }
 
 	// Normal constructor-dependent families are sampled after carve-outs.
@@ -9096,6 +9252,18 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes)
 			at_least == 0 ? (long double)logical
 			      : (long double)cobj->cov_dyn_hits(entry.first,
 				    at_least);
+	    }
+	    const auto&dyn_trans_states = cobj->cov_dyn_trans_states();
+	    for (auto&entry : dyn_trans_states) {
+		  const covgrp_dyn_trans_state_t&state = entry.second;
+		  if (!state.valid || !state.meta) continue;
+		  long double logical = state.meta->array_size == 0
+			? state.type_bins.size() : 1;
+		  item_dyn_total[state.meta->item_idx] += logical;
+		  unsigned at_least = state.meta->item_idx < defn->covgrp_item_count()
+			? defn->covgrp_item_at_least(cobj, state.meta->item_idx) : 1;
+		  item_dyn_hits[state.meta->item_idx] += at_least == 0 ? logical
+			: cobj->cov_dyn_hits(entry.first, at_least);
 	    }
 	    const std::map<unsigned,covgrp_cross_state_t>&cross_states =
 		  covgrp_cross_states_(defn, cobj);

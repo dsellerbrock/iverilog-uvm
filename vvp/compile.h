@@ -708,7 +708,12 @@ extern void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					 uint64_t array_size, char*name,
 					 char*lo_ir, char*hi_ir,
 					 uint64_t guard_idx = 0xFFFFFFFFu,
-					 char*value_type = 0);
+					 char*value_type = 0,
+					 uint64_t trans_seq = 0,
+					 uint64_t trans_term = 0,
+					 uint64_t trans_repeat = 0,
+					 uint64_t trans_min = 1,
+					 uint64_t trans_max = 1);
 extern void compile_class_covgrp_cross(uint64_t family, uint64_t item_idx,
 				       uint64_t n_dims, uint64_t retain_auto);
 extern void compile_class_covgrp_cross_term(uint64_t family, uint64_t dim,

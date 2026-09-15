@@ -2909,7 +2909,10 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 				  uint64_t kind, uint64_t family,
 				  uint64_t array_size, char*name,
 				  char*lo_ir, char*hi_ir,
-				  uint64_t guard_idx, char*value_type)
+				  uint64_t guard_idx, char*value_type,
+				  uint64_t trans_seq, uint64_t trans_term,
+				  uint64_t trans_repeat, uint64_t trans_min,
+				  uint64_t trans_max)
 {
       assert(compile_class);
       const uint64_t u32_max = std::numeric_limits<unsigned>::max();
@@ -2956,7 +2959,10 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	       if (!value_type_bad) value_width = (unsigned)parsed;
 	 }
       if (cp_idx > u32_max || item_idx > u32_max || kind > u32_max
-	  || family > u32_max || guard_idx > u32_max || bad_type) {
+	  || family > u32_max || guard_idx > u32_max
+	  || trans_seq > 255 || trans_term > 255 || trans_repeat > 3
+	  || trans_min == 0 || trans_max < trans_min || trans_max > 65536
+	  || bad_type) {
 	yyerror("invalid .covgrp_dyn_bin metadata value");
 	free(name);
 	free(lo_ir);
@@ -2971,7 +2977,11 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 					array_size, name ? name : "",
 					lo_ir ? lo_ir : "", hi_ir ? hi_ir : "",
 					value_width, value_signed,
-					(unsigned)guard_idx);
+					(unsigned)guard_idx,
+					(unsigned)trans_seq,
+					(unsigned)trans_term,
+					(unsigned)trans_repeat,
+					trans_min, trans_max);
       free(name);
       free(lo_ir);
       free(hi_ir);
@@ -3769,6 +3779,18 @@ uint64_t class_type::cross_type_register_bin(unsigned family,
       return bins.emplace(name, bins.size()).first->second;
 }
 
+uint64_t class_type::trans_type_register_bin(unsigned family,
+      const std::vector<uint64_t>&name) const
+{
+      auto&bins = covgrp_trans_type_bins_[family];
+      auto found = bins.find(name);
+      if (found != bins.end()) return found->second;
+      uint64_t id = bins.size();
+      bins[name] = id;
+      dyn_type_register_total(family, bins.size());
+      return id;
+}
+
 void class_type::cross_type_register_named(unsigned family,
       const std::vector<unsigned>&props) const
 {
@@ -3834,7 +3856,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes) const
 	std::set<unsigned> seen_dyn_families;
       for (size_t bi = 0 ; bi < covgrp_dyn_bins_.size() ; bi += 1) {
 	    const cov_dyn_bin_t&rec = covgrp_dyn_bins_[bi];
-	    if ((rec.kind & 7) != 0) continue;
+	    if ((rec.kind & 7) != 0 && (rec.kind & 7) != 4) continue;
 	    if (!seen_dyn_families.insert(rec.family).second) continue;
 	    unsigned at_least = rec.item_idx < covgrp_items_.size()
 		  ? covgrp_cumulative_at_least_(rec.item_idx) : 1;

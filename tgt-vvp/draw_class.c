@@ -545,23 +545,44 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    }
 	    int nd = ivl_type_covgrp_dyn_bins(classtype);
 	    for (idx = 0 ; idx < nd ; idx += 1) {
-		  fprintf(vvp_out,
-			  " .covgrp_dyn_bin %u %u %u %u %" PRIu64
-			  " \"%s\" \"%s\" \"%s\" \"%c%u\" %u\n",
+		  unsigned kind = ivl_type_covgrp_dyn_bin_kind(classtype, idx);
+		  if ((kind & 7) == 4) {
+			fprintf(vvp_out,
+			  " .covgrp_dyn_trans %u %u %u %u %" PRIu64
+			  " \"%s\" \"%s\" \"%s\" \"%c%u\" %u %u %u %u"
+			  " %" PRIu64 " %" PRIu64 "\n",
 			  ivl_type_covgrp_dyn_bin_cp(classtype, idx),
-			  ivl_type_covgrp_dyn_bin_item(classtype, idx),
-			  ivl_type_covgrp_dyn_bin_kind(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_item(classtype, idx), kind,
 			  ivl_type_covgrp_dyn_bin_family(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_array_size(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_name(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_lo_ir(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_hi_ir(classtype, idx),
-			  ivl_type_covgrp_dyn_bin_value_signed(classtype, idx)
-				? 's' : 'u',
+			  ivl_type_covgrp_dyn_bin_value_signed(classtype, idx) ? 's' : 'u',
+			  ivl_type_covgrp_dyn_bin_value_width(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_guard(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_trans_seq(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_trans_term(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_trans_repeat(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_trans_min(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_trans_max(classtype, idx));
+		  } else {
+			fprintf(vvp_out,
+			  " .covgrp_dyn_bin %u %u %u %u %" PRIu64
+			  " \"%s\" \"%s\" \"%s\" \"%c%u\" %u\n",
+			  ivl_type_covgrp_dyn_bin_cp(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_item(classtype, idx), kind,
+			  ivl_type_covgrp_dyn_bin_family(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_array_size(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_name(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_lo_ir(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_hi_ir(classtype, idx),
+			  ivl_type_covgrp_dyn_bin_value_signed(classtype, idx) ? 's' : 'u',
 			  ivl_type_covgrp_dyn_bin_value_width(classtype, idx),
 			  ivl_type_covgrp_dyn_bin_guard(classtype, idx));
+		  }
 	    }
-	    int nx = ivl_type_covgrp_crosses(classtype);
+    int nx = ivl_type_covgrp_crosses(classtype);
 	    for (idx = 0 ; idx < nx ; idx += 1) {
 		  fprintf(vvp_out, " .covgrp_cross %u %u %u %u\n",
 			  ivl_type_covgrp_cross_family(classtype, idx),

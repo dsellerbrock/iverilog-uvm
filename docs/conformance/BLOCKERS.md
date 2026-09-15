@@ -2340,7 +2340,7 @@ L108 implementation and application evidence: [object-method lookup](session_log
 
 ### L110 — Constructor-dependent transition-bin endpoints
 
-- **State:** IN_PROGRESS; coordinator-authorized independent coverage lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Standards:** IEEE1800-2017 and2023 19.5.2/19.11.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-v01-assessment/frontend-mechanism.md`.
 - **Closure:** Complete constructor-resolved transition programs and merged bin identity, preserving transition recognition and instance/type coverage. No bin-dropping workaround.
@@ -2353,3 +2353,5 @@ L109 evidence: [independent cyclic components](session_logs/2026-09-15_joint_ord
 - **Standards:** IEEE1800-2017 18.4.2/18.5.10;2023 18.4.2/18.5.9.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-z01-coupled-assessment/assessment.md`.
 - **Closure:** Complete cyclic-first sampling followed by ordered conditional sampling for enumerable components, preserving failure and history semantics.
+
+L110 evidence and oracle correction: [constructor transition endpoints](session_logs/2026-09-15_constructor_transition_bins.md).

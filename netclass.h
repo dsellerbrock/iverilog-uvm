@@ -446,6 +446,11 @@ class netclass_t : public ivl_type_s {
 	    unsigned value_width = 64;
 	    bool value_signed = false;
 	    unsigned guard_idx = 0xFFFFFFFFu;
+	    unsigned trans_seq = 0;
+	    unsigned trans_term = 0;
+	    unsigned trans_repeat = 0;
+	    uint64_t trans_min = 1;
+	    uint64_t trans_max = 1;
       };
 
 	// Compact per-instance cross metadata. A header identifies one cross
@@ -511,12 +516,20 @@ class netclass_t : public ivl_type_s {
 			      const std::string&hi_ir,
 			      unsigned value_width = 64,
 			      bool value_signed = false,
-			      unsigned guard_idx = COVGRP_NO_GUARD)
+			      unsigned guard_idx = COVGRP_NO_GUARD,
+			      unsigned trans_seq = 0,
+			      unsigned trans_term = 0,
+			      unsigned trans_repeat = 0,
+			      uint64_t trans_min = 1,
+			      uint64_t trans_max = 1)
       { covgrp_dyn_bin_t b;
 	b.cp_idx = cp; b.item_idx = item; b.kind = kind; b.family = family;
 	b.array_size = array_size; b.name = name; b.lo_ir = lo_ir; b.hi_ir = hi_ir;
 	b.value_width = value_width; b.value_signed = value_signed;
 	b.guard_idx = guard_idx;
+	b.trans_seq = trans_seq; b.trans_term = trans_term;
+	b.trans_repeat = trans_repeat; b.trans_min = trans_min;
+	b.trans_max = trans_max;
 	covgrp_dyn_bins_.push_back(b); }
       size_t covgrp_dyn_bin_count() const { return covgrp_dyn_bins_.size(); }
       const covgrp_dyn_bin_t& covgrp_dyn_bin(size_t idx) const

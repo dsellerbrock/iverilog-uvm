@@ -2767,6 +2767,11 @@ extern const char* ivl_type_covgrp_dyn_bin_hi_ir(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_value_width(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_value_signed(ivl_type_t net, int idx);
 extern unsigned ivl_type_covgrp_dyn_bin_guard(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_trans_seq(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_trans_term(ivl_type_t net, int idx);
+extern unsigned ivl_type_covgrp_dyn_bin_trans_repeat(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_dyn_bin_trans_min(ivl_type_t net, int idx);
+extern uint64_t ivl_type_covgrp_dyn_bin_trans_max(ivl_type_t net, int idx);
 /* Compact per-instance cross plans. Term kinds are 0=fixed normal-bin
  * property, 1=dynamic bin family, 2=transition-bin property, and
  * 3=logical member of a transition family. Cross-bin kinds are
