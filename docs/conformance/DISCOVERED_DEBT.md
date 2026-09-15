@@ -1729,3 +1729,7 @@ DD032 is resolved for the fixed-pipeline control subset by [L92](session_logs/20
 ## L99 adjacent VPI output observations — 2026-09-15
 
 During L99 boundary testing, selected real fixed-array `$sscanf` outputs arrived as nonassignable constants, and selected integral outputs with negative/nonzero declared bounds appeared to use an unnormalized word index. These observations are unqualified, require baseline reproduction and IEEE21.3/VPI address review, and are not part of L99 completion. Evidence: `evidence/batch-20260915-after-l95/next-string-array-method-assessment/L99-IMPLEMENTATION.md`. No new implementation is authorized by this record.
+
+### L101 discovery — const local fixed-string-array initializer
+
+During L101, a constant local fixed-string-array aggregate initializer crashed before the character update. This is a separate unqualified initializer defect, not evidence against selected-character reads or the implemented update path. Evidence: `evidence/batch-20260915-after-l95/l101-l102-first-direct.json` and the L101 assessment reducers. Possible scope: declaration/aggregate initialization under clauses6.16 and10.9; standards and minimal root cause require triage. Status: recorded, not selected. L101 readonly regression uses a module const receiver and pins its write rejection.

@@ -1,36 +1,32 @@
 status: active
 branch: agent/compiler-campaign-after-l95-20260915
-current_blocker: PARALLEL-L101-L103
-phase: focused_validation_and_repair
+current_blocker: PARALLEL-L104-L105
+phase: parallel_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
 history: docs/conformance/session_logs/2026-09-15_campaign_through_l100_archive.yaml
 integrated_since_last_broad_batch:
   count: 8
-  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5]
+  revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb]
 latest_broad_qualification:
   integration_revision: d45ee87abc65fbfd10c4897f9726bfe53d7d8055
   semantic_revision: e43ecd536
   record: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
   scope: Eleven recorded subsets only; not qualification of current candidate or full IEEE/UVM/application mission.
 current_candidate:
-  compiler_sources: Pending L101 net_func_eval.cc and L102 pform.cc; source ownership remains disjoint.
-  build: Clean build/install passed using installed Command Line Tools and Homebrew Bison.
+  compiler_sources: L101 and L103 integrated; focused checks passed on exact final source fingerprints. L104/L105 now authorized.
+  build: Serial rebuild/install passed using Command Line Tools and Homebrew Bison.
   toolchain: DEVELOPER_DIR=/Library/Developer/CommandLineTools; Apple clang21.0.0; Homebrew Bison3.8.2; /usr/bin/flex.
-  environment_change: Active Xcode required license acceptance and stale dependencies referenced removed SDK headers. No license accepted. Clean recovery and correct Bison path are preserved in logs.
-  fingerprints: evidence/batch-20260915-after-l95/l101-l102-first-fingerprints.json
-  build_log: evidence/batch-20260915-after-l95/l101-l102-clt-bison-build.log
-  install_log: evidence/batch-20260915-after-l95/l101-l102-clt-bison-install.log
-  direct_evidence: evidence/batch-20260915-after-l95/l101-l102-retry-direct.json
-  shared_process: none
-  l101: Recursive runtime control passes; selected-character ordering parameter still aborts and bounds parameter fails evaluation. Agent investigating without weakening tests; readonly/external diagnostics captured.
-  l102: Integrated at0efbf81c5; focused evidence in docs/conformance/session_logs/2026-09-15_plain_multiclock_consequences_validation.json.
-  l103: Ranged-prefix plain existential aggregation authorized after paired rejection evidence.
+  fingerprints: evidence/batch-20260915-after-l95/l101-l103-final-fingerprints.json
+  build_log: evidence/batch-20260915-after-l95/l101-result-width-build.log
+  install_log: evidence/batch-20260915-after-l95/l101-result-width-install.log
+  shared_process: none; final neighbor harness session69057 exited0.
+  focused_records: [docs/conformance/session_logs/2026-09-15_constant_array_character_increment_validation.json, docs/conformance/session_logs/2026-09-15_plain_multiclock_ranged_prefix_validation.json]
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns build/install/shared harnesses, review, integration, main manifests and docs.
-  next_action: Finish L101 reducer/root-cause repair and L103 implementation; coordinator runs focused harnesses on frozen candidate and integrates passing lanes individually.
+  next_action: Implement L104 and L105 with disjoint ownership, freeze sources, then coordinator rebuilds and runs focused validation. After integration run seven broad gates before publishing.
   next_build: Use DEVELOPER_DIR=/Library/Developer/CommandLineTools with make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install, only after agent source freeze.
   broad_gate_policy: Run required suites near ten integrated fixes, including clean toolchain provenance; see docs/conformance/REGRESSION_POLICY.md and previous qualification record for commands.
 publication:

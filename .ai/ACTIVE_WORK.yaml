@@ -1,37 +1,37 @@
-id: PARALLEL-L101-L103
-title: Constant array-character increment and plain multiclock consequence alternatives
+id: PARALLEL-L104-L105
+title: Constant comparison sizing and nonlocal constant-function legality
 status: IMPLEMENTING
-base_revision: 450c63f00
-authority: User authorizes two existing cheaper implementation agents, disjoint mechanisms and focused validation before broad gates near ten fixes.
-coordinator_owns: [Shared builds, Installation, Shared test harnesses and outputs, Main manifests, Documentation, Integration and review]
+base_revision: eb5eb6ebb
+authority: User authorizes two existing cheaper implementation agents, independent mechanisms and focused validation before broad gates near ten fixes.
+coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Main manifests, Documentation, Integration and review]
 lanes:
-  - id: L101-CONSTANT-ARRAY-CHARACTER-INCDEC
+  - id: L104-CONSTANT-MIXED-EQUALITY
     agent: /root/constraint_abi
-    status: FOCUSED_TESTED
-    standards: IEEE1800-2017 and2023 6.16,11.4.2,13.4.3
-    reproducer: evidence/batch-20260915-after-l95/next-const-array-character-assessment/isolated-baseline.json
-    actual: Both editions abort when evaluating pre/post increment or decrement of a local fixed string-array character; plain and compound assignments and runtime controls pass.
-    expected: Apply byte update to the exact selected local array word and return the correct pre/post value with each selector evaluated once.
-    owns: [net_func_eval.cc]
-    test_prefix: sv_const_array_string_character_incdec
-    dependencies: L99 word-slot resolver and scalar string-character incdec; independent of pform lane.
-    scope: Reuse selected LocalVar slot resolution in existing NetEUnary string-character path; no runtime/target/parser or generic assertion suppression.
-    acceptance: Both editions all four operators, ascending/descending/nonzero arrays, automatic recursive frames, once-only word and character selectors, signed byte and widened results, ff wrap with zero-write suppression, empty/negative/X/wide/OOB selectors, untouched neighbors, runtime parity and external/readonly diagnostics. Preserve scalar and plain/compound array neighbors.
-  - id: L103-PLAIN-RANGED-MULTICLOCK-PREFIX
+    status: AUTHORIZED
+    standards: IEEE1800-2017 and2023 5.9, Table11-21,11.8.2
+    reproducer: evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md
+    actual: Constant function comparing integer97 with packed literal a fails evaluation in both editions; runtime equivalent returns true.
+    expected: Apply standard common integral operand sizing and signedness; preserve four-state results and true string equality.
+    owns: [eval_tree.cc, elab_expr.cc]
+    test_prefix: sv_const_mixed_equality
+    dependencies: Existing comparison folders and contextual sizing; independent of nonlocal signal lookup.
+    scope: Trace comparison callers and fix the common sizing mechanism for integral equality, including related equality operators where affected. No net_func_eval.cc edits; report if that file is necessary before proceeding.
+    acceptance: Both editions operand order, unequal widths, signed/unsigned and X/Z, ==/!=/===/!== and wildcard neighbors, literals and explicit casts, true string variables, constant/runtime parity and illegal-type diagnostic control.
+  - id: L105-NONLOCAL-CONSTANT-FALLBACK
     agent: /root/constraint_wide
-    status: FOCUSED_TESTED
-    standards: IEEE1800-2017 and2023 16.9.2,16.13.1,16.13.2
-    reproducer: evidence/batch-20260915-after-l95/next-plain-ranged-prefix-assessment/assessment.md
-    actual: Both editions reject finite ranged first-clock plain sequence prefixes before second-clock alternatives.
-    expected: One plain sequence attempt succeeds when any complete prefix/suffix path matches, even if another prefix child fails; failure waits for all paths to exhaust.
-    owns: [pform.cc, pform_sva_nfa.cc, pform_sva_nfa.h]
-    test_prefix: sv_assert_plain_multiclock_ranged_prefix
-    dependencies: L102 fixed plain transport integrated at0efbf81c5; independent of L101 evaluator repair.
-    scope: Reuse source/destination finite NFAs and existing par_pending/par_closed/par_reported stores with existential plain aggregation. Preserve universal implication aggregation. No new scheduler, unbounded forms or local-action merges.
-    acceptance: Paired early-child-failure/later-success, first-success while prefix open, all-fail timing after CLOSE, no prefix match, ##0/##1 cutoff and reversed process order, cover once, overlapping parents, Off/Kill/async disable/restart, paused destination backlog and reclamation, finite depth and unsupported controls; preserve L100/L102 neighbors.
-file_conflict_policy: No overlapping source or fixture edits; no agent commits or shared builds. Coordinator integrates each patch before selecting the next lane item.
+    status: AUTHORIZED
+    standards: IEEE1800-2017 and2023 13.4.3
+    reproducer: evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md
+    actual: Reading mutable package state initialized to7 silently yields constant0 in both editions.
+    expected: Nonlocal mutable variables cannot supply constant-function values; legal package parameters and local values remain valid and ordinary runtime reads retain state.
+    owns: [net_func_eval.cc]
+    test_prefix: sv_const_nonlocal_static
+    dependencies: Existing NetESignal local context lookup; L101 integrated at7ef17f630. Independent of comparison sizing.
+    scope: Remove fabricated default fallback for nonlocal package/class static reads, preserve legal local evaluation and focused diagnostics. No elab_expr.cc or eval_tree.cc edits; report any necessary scope expansion.
+    acceptance: Both editions initialized/uninitialized mutable package scalar and string values reject, class-static controls reject, legal parameter/local/automatic-frame constants pass, runtime package and static reads observe actual state. Check constant string/array neighbors; no compilation-only success claim.
+file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
 focused_features_completed_in_batch: 8
-integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5]
+integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb]
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json
-prior_work: docs/conformance/session_logs/2026-09-15_l99_l100_active_work_archive.yaml
+prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml
 stop_after_completion: false

@@ -2283,3 +2283,17 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 - **Closure:** Existential complete-path aggregation for each plain sequence attempt, with exact times, all-fail/early-success behavior, controls, backlogs and preserved implication universality.
 
 - **Implementation evidence:** [L103 session](session_logs/2026-09-15_plain_multiclock_ranged_prefix.md).
+
+### L104 — Constant mixed integral/literal equality
+
+- **State:** IN_PROGRESS; coordinator-authorized comparison lane.
+- **Standards:** IEEE1800-2017 and2023 5.9, Table11-21,11.8.2.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md`.
+- **Closure:** Common integral operand sizing, signedness and four-state equality with constant/runtime parity.
+
+### L105 — Fabricated nonlocal constant-function values
+
+- **State:** IN_PROGRESS; coordinator-authorized signal-evaluation lane.
+- **Standards:** IEEE1800-2017 and2023 13.4.3.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md`.
+- **Closure:** Reject nonlocal mutable state during constant evaluation; retain actual runtime state and legal constant inputs.
