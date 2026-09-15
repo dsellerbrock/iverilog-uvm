@@ -386,3 +386,12 @@ l101_l102_authorization:
   main_sync: Refreshed origin/main874e00680 has exactly the tree of ancestor9f79ff51c; ancestry-only merge preserves all integrated source and tests.
   next_action: Agents implement authorized mechanisms; coordinator combines build only after source freezes, then runs focused validation. No broad gates until approximately ten fixes.
   publish: Later stack batches remain absent from main; next coherent PR must include preserved L75 onward unless externally advanced first.
+
+l101_l102_toolchain_recovery:
+  source_state: L101 net_func_eval.cc and L102 pform.cc frozen; fixture development continues independently.
+  original_build: Failed before compilation because active Xcode required license acceptance. No license was accepted.
+  clt_recovery: DEVELOPER_DIR=/Library/Developer/CommandLineTools selects installed Apple clang21.0.0. Old dependency files referenced removed Xcode SDK headers, requiring make clean.
+  parser_recovery: Clean regeneration found system Bison too old; use existing Homebrew Bison3.8.2 and /usr/bin/flex as specified in AGENTS.md.
+  build_logs: evidence/batch-20260915-after-l95/l101-l102-clt-bison-build.log
+  installation_logs: evidence/batch-20260915-after-l95/l101-l102-clt-bison-install.log
+  validation: New candidate has not yet been tested; full clean build changes toolchain provenance and must be included in later batch qualification.
