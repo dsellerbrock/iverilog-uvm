@@ -1,5 +1,8 @@
 # IEEE 1800 + UVM Coverage — Phased Proposal
 
+> **Historical record.** Historical phase proposal; its draft status and task order no longer select work.
+> See the [documentation index](docs/README.md) for current guidance and evidence.
+
 **Status:** draft for approval
 **Scope:** functional correctness only (no perf work)
 **Out of scope:** event-loop parallelism, JIT, OT smoke completion (separate)

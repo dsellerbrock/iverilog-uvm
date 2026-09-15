@@ -1,5 +1,8 @@
 # Full-UVM debt tracker (cost-aware regression system)
 
+> **Historical record.** Historical July 2026 full-UVM ledger; "last passed" below is not the latest project result.
+> See the [documentation index](../../docs/README.md) for current guidance and evidence.
+
 Full UVM last passed: OpenTitan array-element member l-value head
 (229/229, real DPI, zero skips, 2026-07-30, solo run on the exact commit
 tree; ivtest gate clean at 3285 tests, VPI 94/94, negative 91/91). What

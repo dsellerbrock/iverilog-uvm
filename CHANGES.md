@@ -1,5 +1,8 @@
 # SystemVerilog/UVM Enablement — Technical Design Document
 
+> **Historical record.** Phase-era technical design history; this is not a current changelog.
+> See the [documentation index](docs/README.md) for current guidance and evidence.
+
 This document describes every change in the `development` branch relative to
 `steveicarus/iverilog` `master`. Changes are grouped by feature area. For each
 feature: what was broken, the root cause, the fix, files changed, and test coverage.
@@ -21,7 +24,7 @@ feature: what was broken, the root cause, the fix, files changed, and test cover
 7. [DPI-C Import](#7-dpi-c-import)
 8. [String Methods, Class Arrays, Assoc Array Fixes](#8-string-methods-class-arrays-assoc-array-fixes)
 9. [Grammar Fixes (parse.y)](#9-grammar-fixes-parsey)
-10. [CI / Build Portability](#10-ci--build-portability)
+10. [CI / Build Portability](#10b-ci--build-portability)
 11. [Upstream Readiness Summary](#11-upstream-readiness-summary)
 12. [Known Limitations and Deferred Work](#12-known-limitations-and-deferred-work)
 13. [Commit Index](#13-commit-index)

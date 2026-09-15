@@ -1,5 +1,9 @@
 # M8 — Clocking blocks & program scheduling: clause-14 disposition matrix
 
+Focused clause-14 evidence. Dated rows and follow-ups describe their tested
+subsets; they do not establish complete clocking support. The
+[clause matrix](matrices/ieee1800_2017_clause_matrix.md) owns the overall disposition.
+
 Audit of IEEE 1800-2017 clause 14 (clocking blocks), exact modport access
 under 25.5, and the program end-of-simulation interaction under 24.7. This is
 the M8-5 deliverable: every listed clause-14 subfeature has a disposition, and

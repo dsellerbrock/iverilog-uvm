@@ -1,5 +1,8 @@
 # Scheduler Conformance Inventory — M6B (2026-07-16)
 
+> **Historical record.** Historical scheduler inventory; later dispositions belong in the clause matrix.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 Milestone **M6B — Scheduler conformance audit and remediation**. This is
 the construct-level companion to the queue/region architecture audit
 (`scheduler_audit_2026_07.md`): for each scheduling-relevant construct it

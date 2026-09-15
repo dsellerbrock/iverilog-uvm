@@ -1,5 +1,8 @@
 # Capability probes
 
+> **Historical record.** Historical July 2026 probe inventory; re-run against the intended compiler before using its verdicts.
+> See the [documentation index](../../docs/README.md) for current guidance and evidence.
+
 These are the probes behind the **capability analysis of all open manifesto
 items** recorded in `docs/conformance/ROADMAP.md` (2026-07-24). They are not
 part of any regression gate. Each one answers a single question — *what does

@@ -1,5 +1,8 @@
 # Historical README — phase-era engineering notes (spring 2026)
 
+> **Historical record.** May 2026 README snapshot; build, status, and next-step text is historical.
+> See the [documentation index](../README.md) for current guidance and evidence.
+
 > **Historical document.** This is the project README as it stood during the
 > phase-numbered development era (roughly Phases 8–63, spring 2026), preserved
 > verbatim below for its detailed per-phase fix narratives, the OpenTitan UART
@@ -38,7 +41,7 @@
 > for any real work. This fork is for exploration and upstream contribution
 > purposes only.
 >
-> Full technical design document: [`CHANGES.md`](CHANGES.md)
+> Full technical design document: [`CHANGES.md`](../../CHANGES.md)
 
 ---
 
@@ -463,7 +466,7 @@ iverilog/                    ← This repository (fork of steveicarus/iverilog)
 
 These changes are being prepared for upstream submission to
 [steveicarus/iverilog](https://github.com/steveicarus/iverilog). See
-[`CHANGES.md`](CHANGES.md) for the complete breakdown: which commits are
+[`CHANGES.md`](../../CHANGES.md) for the complete breakdown: which commits are
 upstream-ready, which need splitting, and which need maintainer discussion.
 
 **Key upstream considerations:**

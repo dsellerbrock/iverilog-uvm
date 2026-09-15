@@ -1,5 +1,9 @@
 # OpenTitan gap ledger
 
+Application evidence ledger: each entry is scoped to its named revision.
+[BLOCKERS](BLOCKERS.md) owns current operational status;
+[CURRENT_WORK](CURRENT_WORK.md) links the latest application census.
+
 One row per distinct defect found while making this fork run
 [OpenTitan](https://github.com/lowRISC/opentitan) (measured against
 `dsellerbrock/opentitan` @ `ef575385`, a clean unmodified upstream snapshot).

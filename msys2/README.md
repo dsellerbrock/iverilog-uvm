@@ -21,8 +21,9 @@ pacman -S base-devel
 
 # Retrieve the Icarus Verilog sources. Optionally, retrieve a tarball, or a
 # specific branch/version.
-git clone https://github.com/steveicarus/iverilog
-cd iverilog
+git clone https://github.com/dsellerbrock/iverilog-uvm
+cd iverilog-uvm
+git submodule update --init uvm-core
 
 # Call makepkg-mingw from the directory 'msys2'. It will install dependencies,
 # build, check, and package Icarus Verilog.
@@ -37,15 +38,13 @@ Additional configuration options can be passed to the configuration step
 by setting the environment variable `IVL_CONFIG_OPTIONS` before calling
 `makepkg-mingw`, e.g.
 ```sh
-export IVL_CONFIG_OPTIONS=-"-enable-suffix=-devel --enable-libvvp"
+export IVL_CONFIG_OPTIONS="--enable-suffix=-devel --enable-libvvp"
 ```
 
-NOTE: the continuous integration workflow in [github.com/steveicarus/iverilog]
-(https://github.com/steveicarus/iverilog) uses the above procedure for building
-Icarus Verilog for Windows each time a commit is pushed or a pull request is
-updated. The generated packages are uploaded as artifacts. Hence, users willing
-to test *development* builds or specific features, can download and install the
-tarballs from the corresponding CI run.
+The fork's [CI workflow](../.github/workflows/test.yml) defines its Windows
+builds and artifacts. The [UVM frontend reference](../docs/uvm_frontend.md#windows--msys2)
+explains the Windows DPI link requirements. Package dependencies are declared
+in [PKGBUILD](PKGBUILD), including Z3 and libffi.
 
 Nevertheless, the content of functions `build` and `check` in the PKGBUILD file
 should be familiar to any user willing to build iverilog *manually*. Those can
