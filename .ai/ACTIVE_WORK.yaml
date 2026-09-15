@@ -33,8 +33,8 @@ lanes:
     scope: Direct Boolean first_match first-clock chains with one finite delay window, including exact-window boundary; reuse earliest-endpoint source closure without new scheduler/destination machinery. Do not accept broader nested/wrapper/match-item forms without proving preserved cut scope; diagnose unsupported forms explicitly.
     acceptance: Both editions earliest failure versus later would-pass endpoint, earliest success, no endpoint, exact/ranged windows, plain and implication use, ##0/##1 and reversed event order, overlapping attempts, cover once, Off/Kill/async disable/restart, destination backlog, construction/unsupported negatives and preserved ordinary L100/L102/L103 aggregation. Honor all earliest same-tick matches; do not claim Boolean-only merged paths are observably different without proof.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared build/install or shared harnesses. Report source freeze and do not edit again until coordinator releases it.
-focused_features_completed_in_batch: 4
-integrated_revisions: [415823320, 0a5293059, 3823bd356, 6d346269f]
+focused_features_completed_in_batch: 5
+integrated_revisions: [415823320, 0a5293059, 3823bd356, 6d346269f, 9027c1938]
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml
 stop_after_completion: false
@@ -113,7 +113,7 @@ parallel_selection_lane:
 
 coverage_implementation_lane:
   id: L110-CONSTRUCTOR-TRANSITION-BINS
-  status: AUTHORIZED
+  status: FOCUSED_TESTED_BROAD_PENDING
   agent: /root/constraint_abi
   standards: IEEE1800-2017 and2023 19.5.2,19.11.3
   reproducer: evidence/application-check-20260915/l110-focused/nonzero-weight-union.sv
