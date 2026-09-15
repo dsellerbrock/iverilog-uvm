@@ -1908,6 +1908,49 @@ NetExpr* NetESFunc::evaluate_function(const LineInfo&loc,
 	    return res;
       }
 
+      if (strcmp(name_, "$ivl_string_method$substr") == 0
+	  && parms_.size() == 3) {
+	    NetExpr*text_expr = parms_[0]->evaluate_function(loc, context_map);
+	    if (text_expr == 0) return 0;
+	    NetExpr*first_expr = parms_[1]->evaluate_function(loc, context_map);
+	    if (first_expr == 0) {
+		  delete text_expr;
+		  return 0;
+	    }
+	    NetExpr*last_expr = parms_[2]->evaluate_function(loc, context_map);
+	    if (last_expr == 0) {
+		  delete text_expr;
+		  delete first_expr;
+		  return 0;
+	    }
+
+	    const NetEConst*text_const = dynamic_cast<const NetEConst*>(text_expr);
+	    const NetEConst*first_const = dynamic_cast<const NetEConst*>(first_expr);
+	    const NetEConst*last_const = dynamic_cast<const NetEConst*>(last_expr);
+	    if (text_const == 0 || first_const == 0 || last_const == 0
+		|| !text_const->value().is_string()) {
+		  delete text_expr;
+		  delete first_expr;
+		  delete last_expr;
+		  return 0;
+	    }
+
+	    string text = text_const->value().as_raw_string();
+	    int64_t first = const_string_index_(first_const->value());
+	    int64_t last = const_string_index_(last_const->value());
+	    delete text_expr;
+	    delete first_expr;
+	    delete last_expr;
+	    string result;
+	    if (first >= 0 && last >= first
+		&& static_cast<uint64_t>(last) < text.size())
+		  result = text.substr(static_cast<size_t>(first),
+				       static_cast<size_t>(last-first+1));
+	    NetECString*res = new NetECString(result);
+	    res->set_line(*this);
+	    return res;
+      }
+
       bool string_compare = strcmp(name_, "$ivl_string_method$compare") == 0;
       bool string_icompare = strcmp(name_, "$ivl_string_method$icompare") == 0;
       if ((string_compare || string_icompare) && parms_.size() == 2) {
