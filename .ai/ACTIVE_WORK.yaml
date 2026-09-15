@@ -71,3 +71,15 @@ application_implementation:
 L108_scope_refinement: Exact void-call diagnostic traced to PCallTask::elaborate_method_ in elaborate.cc14972; elab_expr-only candidates did not fix reducer. Coordinator authorizes paired void/value dispatch fix, preserving all negative scope checks.
 
 L108_provenance_refinement: PCallTask drops dot-versus-scope syntax provenance. L107 is integrated, freeing pform.cc ownership. Authorize minimal bool carrier and propagation through parse construction/copies to preserve genuine scoped-call rejection; audit all constructors/conversions, retain Bison conflict signature.
+
+caliptra_adapter_lane:
+  id: APP-CALIPTRA-INCLUDE-OVERLAY
+  status: AUTHORIZED
+  agent: /root/constraint_wide
+  evidence: evidence/application-check-20260915/caliptra/provider-overlay-40.md
+  root_cause: Generated file lists omit dependency include directories and seven source-demonstrated supplemental provider edges.
+  owns: [scripts/caliptra_include_overlay.py, tests/test_caliptra_include_overlay.py]
+  scope: Read-only include-directory adapter over pinned Caliptra compile.yml providers and seven documented supplemental edges. Emit ordered directories and provenance JSON for requested jobs; no source-file reorder, upstream edits, simulator invocation or guessed parameter overrides.
+  dependencies: Existing native Python3.13 venv with PyYAML6.0.3; no new dependency installation. Independent of L108 compiler source.
+  acceptance: Deterministic dependency-first paths, strict duplicate/missing-provider and cycle diagnostics, environment/COMPILE_ROOT expansion and existing directories, exactly40 known roots covered, normal reg headers exclude reg_ss. Coordinator replays both assertion modes and retains all later failures.
+  counting: Application build configuration only; never counted as compiler semantic feature or runtime pass.
