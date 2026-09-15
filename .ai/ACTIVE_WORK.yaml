@@ -195,3 +195,20 @@ frontend_assessment_lane:
   execution: Coordinator owns shared build and harness execution; agent may prepare source/commands and request coordinator repro runs.
 
 L112_oracle_review: Original assessed c2 generator produces posedges25/65, not55/75, and b stimulus races source edge30. Preserve original evidence; require corrected off-edge stimulus and explicitly computed clock schedule before accepting earliest-failure oracle. Admission rejection remains reproduced, runtime timing claim needs correction.
+
+nested_constraint_implementation_lane:
+  id: L113-NESTED-FIXED-ELEMENT-CONSTRAINT
+  status: AUTHORIZED
+  agent: /root/constraint_abi
+  standards: IEEE1800-2017 and2023 18.3,18.4,18.5,18.8
+  reproducer: evidence/application-check-20260915/nested-indexed-constraint-assessment/nested_indexed_leaf.sv
+  baseline: evidence/application-check-20260915/nested-indexed-constraint-assessment/baseline.json
+  actual: Both editions warn constraint ignored and runtime fails selected-element equality; nested scalar and direct element controls pass.
+  expected: Nested fixed integral element references participate as canonical graph leaves with correct activity, value assignment and cyclic history.
+  root_cause: Mixed object prefix and indexed terminal has no frontend IR identity; existing scalar state path cannot preserve element solve/writeback semantics.
+  owns: [elaborate.cc, vvp/vvp_z3.cc]
+  fixture_prefix: sv_constraint_nested_fixed_element
+  dependencies: Existing direct ELEM identity, live nested object graph and L111 transaction/cyclic machinery. Disjoint from L112 pform files.
+  scope: Resolve fixed integral constant-index terminal below class object prefix, preserve declared bounds/type/access and canonical graph identity end to end. No pinned-state substitution, dropped constraints or cap increases. Unsupported shapes must retain focused failure; report architecture expansion before edits outside ownership.
+  acceptance: Paired rand/randc scalar and enum elements, ascending/descending/nonzero/negative bounds, repeated/aliased references, activity, equality/inside/dist/order where legal, null handles and failed-call rollback/history, out-of-range/nonintegral/unsupported index controls, direct-element and nested scalar/state/L111 neighbors. No ignored-item warnings in successful cases.
+  coordinator: Owns all shared builds/installations/harnesses/main manifests/docs/review/integration. Agent source/private fixtures only; no commits/new agents.

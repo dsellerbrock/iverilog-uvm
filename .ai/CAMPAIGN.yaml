@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L112-TWO-WINDOW-FIRST-MATCH + nested indexed constraint assessment
-phase: parallel_sva_implementation_and_frontend_assessment
+current_blocker: L112-TWO-WINDOW-FIRST-MATCH + L113-NESTED-FIXED-ELEMENT-CONSTRAINT
+phase: parallel_sva_and_constraint_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md
@@ -16,13 +16,13 @@ latest_broad_qualification:
   scope: Ten recorded local subsets; full IEEE2017, IEEE2023, UVM and application mission remains incomplete.
 current_candidate:
   base_revision: 05b0c44e1
-  installed_semantic_revision: a8b831496 (L111 plus separately counted application root seed control)
+  installed_semantic_revision: a8b831496 plus uncommitted L112 pform.cc d5d05ab572e638a269d7cade97f9bb28010accdf1c8bca5ccaf897a87b2a59e5
   installed_fingerprints: docs/conformance/session_logs/2026-09-15_runtime_root_seed_validation.json
-  shared_process: None; process audit found no live build or simulator. L11173/73 both harnesses; root seed checker and4/4 both harnesses passed.
+  shared_process: None. L112 build63681 and initial focus42951 completed0; corrected earliest endpoint fixture2/2 in both harnesses. Expanded acceptance pending.
 coordination:
   agents: [/root/constraint_abi, /root/constraint_wide]
   coordinator: Owns shared builds/installations/harnesses, review, integration, main manifests and docs.
-  next_action: Implement authorized L112 in the SVA lane; assess nested indexed class constraints in the independent frontend lane. Coordinator owns builds and validation. Broad seven gates near ten semantic fixes, plus permanent root-seed checker.
+  next_action: Implement authorized L112 in the SVA lane; implement authorized L113 nested fixed-element constraints in the independent frontend/runtime lane. Coordinator owns builds and validation. Broad seven gates near ten semantic fixes, plus permanent root-seed checker.
   next_build: DEVELOPER_DIR=/Library/Developer/CommandLineTools make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex, then install; only after both sources freeze.
   toolchain: Native ARM64 Command Line Tools clang21.0.0; Homebrew Bison3.8.2, Z3/libffi and /usr/bin/flex. Active Xcode license not accepted.
   broad_gate_policy: Seven serial gates near ten integrated fixes; no source or installed-artifact changes during qualification. See REGRESSION_POLICY and previous qualification record.

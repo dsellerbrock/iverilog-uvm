@@ -2375,3 +2375,11 @@ cap. The existing NFA and earliest-endpoint mechanism are the proposed repair;
 acceptance includes tied endpoints, cancellation, clock handoff and depth limits.
 Assessment: `evidence/batch-20260915-after-l95/next-first-match-two-window-assessment/assessment.md`.
 Nested indexed class constraints are assessment-only in the independent lane.
+
+### L113 — nested fixed-element constraints
+
+REPRODUCED and SELECTED in ACTIVE_WORK. Both editions drop the equality on
+`leaf.cyc[0]` and the strengthened runtime oracle fails. The selected repair
+connects frontend nested element references to canonical solver graph leaves;
+scalar nested properties and direct array elements are control cases.
+Assessment and baseline: `evidence/application-check-20260915/nested-indexed-constraint-assessment/`.
