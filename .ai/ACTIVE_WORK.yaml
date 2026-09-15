@@ -1,6 +1,6 @@
-id: PARALLEL-BATCH-L94-L95
-title: Grouped finite repetition and constant-function putc
-status: FOCUSED_TESTED_AWAITING_BATCH_QUALIFICATION
+id: PARALLEL-BATCH-REGRESSION-REPAIR
+title: Repair packed-select and randc regressions exposed by broad qualification
+status: REGRESSION_REPAIR
 base_revision: fd500e2b5
 authority: "User authorized two existing cheaper implementation lanes, disjoint ownership, focused validation per fix and broad qualification near ten integrated fixes."
 coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses, Main manifests and documentation, Integration and review]
@@ -107,3 +107,22 @@ l95_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_p
 l94_fixed_fallback_refinement: "Shared parser now preserves groups; coordinator reproduced one-copy false success in fixed multiclock consequent. Materialize supported fixed group copies for prefix/consequent, retain only sound trailing earliest-match relaxation, and reject grouped antecedent fixed fallback after NFA refusal. This is required regression repair in L94, not new scope."
 
 l94_focused_evidence: docs/conformance/session_logs/2026-09-15_multiclock_grouped_repetition_validation.json
+
+coordinator_authorized_regression_lanes:
+  - id: L90-PACKED-SELECT-REGRESSION
+    agent: /root/constraint_abi
+    status: REPRODUCED
+    owns: [elab_expr.cc, elab_lval.cc, tgt-vvp/eval_vec4.c]
+    baseline: evidence/batch-20260914-after-l84/qualification/legacy-test-logs
+    scope: Repair packed-select two-state conversion regressions introduced by L90; preserve legacy parameter selects and actual two-state enum behavior.
+    acceptance: All13 named broad packed-select failures, paired enum-container focused cases, fixed invalid-index and four-state compatibility controls.
+    dependencies: Independent of Z3 lane; coordinator owns build, install and harnesses.
+  - id: ORDERED-RANDC-REGRESSION
+    agent: /root/constraint_wide
+    status: REPRODUCED
+    owns: [vvp/vvp_z3.cc]
+    baseline: evidence/batch-20260914-after-l84/qualification/legacy-test-logs/sv_randc_fixed_array_modes.log
+    scope: Repair attributable constrained randc feasible-cycle repetition regression while preserving exact joint-order distributions, RNG rollback and container modes.
+    acceptance: Existing sv_randc_fixed_array_modes seed/cycle oracle, focused fixed/dynamic/queue ordering and rollback neighbors; do not weaken expectations.
+    dependencies: Independent of compiler target lane; coordinator owns build, install and harnesses.
+regression_policy: These are corrections within the eleven-fix batch, not additional counted features. Full seven-gate qualification must restart from a corrected frozen candidate.
