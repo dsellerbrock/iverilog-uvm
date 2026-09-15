@@ -1,25 +1,20 @@
-id: CONSTRAINT-FUNCTION-PRESOLVE
-title: Evaluate function-valued class constraints before solving
-status: DONE
-base_revision: 0c6d5994a
+id: CI-EXPR-SYNTH-STRCMP-HEADER
+title: Declare strcmp directly in synthesis translation unit
+status: LOCALLY_VALIDATED
+base_revision: 5c0f5588e
+reproducer: "PR280 Ubuntu22.04 and24.04 build jobs fail expr_synth.cc:1630: strcmp was not declared; compiler identifies missing cstring."
+expected_behavior: "The synthesis translation unit builds with supported GCC/Clang toolchains without incidental transitive string declarations."
 allowed_scope:
-  - Execute active function-valued class constraints against each runtime object after pre_randomize
-  - Preserve constraint modes, inheritance, virtual and lexical nonvirtual dispatch, nested objects, and inline constraints
-  - Bind legal input and const-ref state arguments with ordinary type conversion
-  - Solve active random function arguments in separate priority stages, preserving one rollback transaction and inline captures
-  - Reject illegal or unsupported calls and impure function bodies explicitly
-  - Transport typed function results into separate per-object solver slots without truncation or aliasing
+  - Add direct standard declaration header for existing strcmp use in expr_synth.cc
+  - Rebuild affected object and run focused synthesis neighbors
+  - Publish minimal repair for merged PR280 and verify cross-platform CI
 forbidden_scope:
-  - Ignoring function-valued constraints or implementing constraint_mode as a no-op
-  - General random solver redesign unrelated to function-valued constraints
-  - DD030 packed-select increment and DD031 array-return changes
-focused_features_before_this: 0
-validation_batch: 20260914
-last_validated_revision: "4bc02c51b semantic implementation; local main0c6d5994a adds test-only trailing-whitespace cleanup. Seven gates passed the frozen implementation: legacy5253/0fail,JSON2189/0,UVM357/0/0realDPI,NFA58,release15smoke,frontend12,makecheck; focused250 and permanent206 each harness."
-pending_gates: "None for the evidenced L64 subset; seven current-artifact gates passed."
-next_action: "Coordinator selection: activate the next concrete conformance blocker from current evidence. L64 is locally integrated; remaining function/operand gaps remain open. Canonical graph refresh requires retained clean canonical checkout; do not update graph from this feature worktree."
+  - Change expression semantics or redesign synthesis
+  - Fold separately committed L65 implementation into the CI repair
+standards: "C++ standard-library declaration dependency; no IEEE semantic change"
+last_validated_revision: "L64 local7gate qualification; PR280 merged with Ubuntu build failures. L65 preserved on agent/constraint-multidim-reductions-20260914 at2bb01d593."
+pending_gates: "Affected build, focused synthesis, CI review on repair PR"
+next_action: "Reuse implementation worker for direct include, root builds/publishes; independent worker reviews affected uses."
 stop_after_completion: false
 
-local_integration: 0c6d5994a
-
-l64_corrected_batch_diagnostics: "All7gates terminal; UVM357,NFA58,releases15,frontend12,makecheck pass; legacy5249/2fail and JSON2185/2fail share two diagnostic mismatches. Snapshot735sources/6artifacts/diff stable. Freeze released for minimal diagnostic repairs; golds unchanged, not qualified or integrated. Evidence qualification-corrected/summary.json."
+validation: "Serial native build/install passed; existing synthesis fixtures passed 2/2 in each edition using the legacy harness. Independent review passed. Cross-platform CI pending repair PR."

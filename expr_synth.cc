@@ -20,6 +20,7 @@
 # include "config.h"
 # include "compiler.h"
 
+# include  <cstring>
 # include  <cstdlib>
 # include  <iostream>
 
