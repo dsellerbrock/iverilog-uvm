@@ -159,3 +159,5 @@ application_seed_lane:
   standards: Application DV control; preserve IEEE1800-2017/2023 18.13 stability. The option spelling itself is not an IEEE conformance requirement.
   counting: Track application runtime capability separately from IEEE semantic increments.
   coordinator: Shared builds/install/harnesses/main manifests/docs/review/integration. No agent builds or commits.
+
+L111_failure_refinement: Touching cyclic/distribution representation is preflighted with typed results. Other existing late unsupported rejections may remain because all exact-joint streams draw only from snapshotted graph owners; failed calls restore root/child RNG, values and cyclic histories. Deterministic failed-call-versus-control regression proves no draw is committed or skipped. Diagnostic timing alone is not a correctness requirement; semantic EMPTY is distinct from unsupported representation.
