@@ -71,7 +71,7 @@ active_lanes:
     files: tgt-vvp/stmt_assign.c
   - id: L82-CONSTANT-STRING-INTEGER
     agent: /root/constraint_wide
-    files: net_func_eval.cc
+    files: net_func_eval.cc, netmisc.cc, netmisc.h, elab_expr.cc
 shared_execution_owner: coordinator
 parallel_baseline: evidence/parallel-batch-l71-l72/baseline.json
 

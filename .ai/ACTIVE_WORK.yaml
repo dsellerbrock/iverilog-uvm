@@ -28,9 +28,9 @@ lanes:
     reproducer: evidence/batch-20260914-after-l74/l82-constant-string-integer.sv
     actual: "Both editions reject constant atoi/atohex/atooct/atobin evaluation."
     expected: "Radix-specific leading digit scan with underscores, first-invalid termination and integer result."
-    owns: [net_func_eval.cc]
+    owns: [net_func_eval.cc, netmisc.cc, netmisc.h, elab_expr.cc]
     test_prefix: sv_const_string_integer
-    allowed_scope: "One constant string-to-integer conversion family covering atoi/atohex/atooct/atobin. Defined 32-bit modular accumulation."
+    allowed_scope: "One constant string-to-integer conversion family covering atoi/atohex/atooct/atobin. Move existing direct-fold parser into a shared helper with defined 32-bit modular accumulation; narrowly update direct-fold call sites."
     forbidden_scope: "Other methods, runtime/target changes and generic fallback redesign."
     dependencies: "Integrated constant string preservation; independent of L81."
     acceptance: "Both editions: valid radix digits, underscores, empty/invalid-first/stop-at-invalid, no sign/size/base-prefix parsing, case/high bytes, signed 32-bit boundaries/overflow wrap, unchanged local/argument/repeated receivers, runtime bit/sign parity, arity/type rejection and constant neighbors."
