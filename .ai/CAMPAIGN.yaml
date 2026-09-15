@@ -54,9 +54,9 @@ preserved_local_batch:
   status: All seven broad gates passed at e25971651; published in PR283 at9f79ff51c
   evidence: docs/conformance/CURRENT_WORK.md links all focused batch records.
   next_sync: Completed in1decd88ef; only operational metadata conflicted and was resolved from reconciled handoff.
-installed_tools: L84 compiler, L83 target and L79 runtime passed focused checks; serial full batch build/install underway before qualification snapshot.
+installed_tools: Full serial build/install of L75-L84 completed; candidate hashes and broad evidence live in evidence/batch-20260914-l84/qualification.
 pending_gates: Seven broad gates for L75-L84; PR283 cross-platform CI remains separate.
-next_action: Finish serial full build/install, snapshot candidate, run seven broad gates, then publish coherent PR. Keep PR283 branch fixed.
+next_action: Snapshot frozen candidate, run seven broad gates, then publish coherent PR. Keep PR283 branch fixed.
 next_command: Inspect evidence/batch-20260914-l84/qualification and running gate processes.
 next_command_cwd: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 worktree_hygiene: No new worktrees created. Campaign remains active; retained main checkout is dirty; documentation tree belongs to its creating agent. Do not remove these automatically.

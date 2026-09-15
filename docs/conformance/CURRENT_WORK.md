@@ -60,4 +60,3 @@ The former continuation narrative is preserved in the
 Earlier checkpoints and failed attempts remain in the
 [session logs](session_logs/README.md). Keep historical results revision-scoped;
 update these pointers when new evidence is committed.
-
