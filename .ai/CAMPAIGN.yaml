@@ -1,7 +1,7 @@
 status: active
 branch: agent/compiler-campaign-after-l105-20260915
-current_blocker: L109-JOINT-ORDERED-INDEPENDENT-RANDC
-phase: parallel_runtime_implementation_and_caliptra_blocker_selection
+current_blocker: L109-JOINT-ORDERED-INDEPENDENT-RANDC + L110-CONSTRUCTOR-TRANSITION-BINS
+phase: parallel_constraint_validation_and_coverage_implementation
 mission: docs/conformance/iverilog_ieee1800_uvm_manifesto.md
 selected_work: .ai/ACTIVE_WORK.yaml
 current_evidence_index: docs/conformance/CURRENT_WORK.md

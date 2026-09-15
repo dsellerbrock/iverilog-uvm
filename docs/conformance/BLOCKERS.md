@@ -2337,3 +2337,10 @@ L107 focused evidence: [finite first_match prefixes](session_logs/2026-09-15_fir
 - **Closure:** Preserve randc-first sampling and cycle/rollback semantics for independent enumerable components alongside ordered stages; unsupported coupled forms remain explicit.
 
 L108 implementation and application evidence: [object-method lookup](session_logs/2026-09-15_implicit_property_method_lookup.md).
+
+### L110 — Constructor-dependent transition-bin endpoints
+
+- **State:** IN_PROGRESS; coordinator-authorized independent coverage lane.
+- **Standards:** IEEE1800-2017 and2023 19.5.2/19.11.3.
+- **Evidence:** `evidence/batch-20260915-after-l95/next-v01-assessment/frontend-mechanism.md`.
+- **Closure:** Complete constructor-resolved transition programs and merged bin identity, preserving transition recognition and instance/type coverage. No bin-dropping workaround.
