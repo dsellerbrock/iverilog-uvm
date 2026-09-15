@@ -8,7 +8,7 @@ coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Ma
 lanes:
   - id: L106-CONSTANT-LOCAL-ARRAY-PATTERN
     agent: /root/constraint_abi
-    status: AUTHORIZED
+    status: FOCUSED_TESTED_BROAD_PENDING
     standards: IEEE1800-2017 and2023 10.9,13.4.3
     reproducer: evidence/batch-20260915-after-l95/next-const-string-array-initializer-assessment/assessment.md
     actual: Both editions crash during constant evaluation of mutable, const and static-function local fixed-string-array aggregate initializers; runtime and separate element assignments pass.
@@ -33,7 +33,7 @@ lanes:
     scope: Direct Boolean first_match first-clock chains with one finite delay window, including exact-window boundary; reuse earliest-endpoint source closure without new scheduler/destination machinery. Do not accept broader nested/wrapper/match-item forms without proving preserved cut scope; diagnose unsupported forms explicitly.
     acceptance: Both editions earliest failure versus later would-pass endpoint, earliest success, no endpoint, exact/ranged windows, plain and implication use, ##0/##1 and reversed event order, overlapping attempts, cover once, Off/Kill/async disable/restart, destination backlog, construction/unsupported negatives and preserved ordinary L100/L102/L103 aggregation. Honor all earliest same-tick matches; do not claim Boolean-only merged paths are observably different without proof.
 file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared build/install or shared harnesses. Report source freeze and do not edit again until coordinator releases it.
-focused_features_completed_in_batch: 0
+focused_features_completed_in_batch: 1
 integrated_revisions: []
 last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
 prior_work: docs/conformance/session_logs/2026-09-15_l96_l105_active_work_archive.yaml
@@ -61,9 +61,11 @@ application_implementation:
   reproducer: evidence/application-check-20260915/opentitan/lookup-reducer/ASSESSMENT.md
   actual: Two dotted calls on an implicit-this property are rejected as bare parameterized class scope calls in both editions; explicit-this runtime controls pass.
   expected: Resolve the object property according to lexical/member lookup before unrelated outer class names; preserve actual scope-resolution restrictions.
-  owns: [elab_expr.cc]
+  owns: [elab_expr.cc, elaborate.cc]
   fixture_prefix: sv_implicit_property_method_collision
-  scope: Correct paired PECallFunction width/elaboration dispatch using existing receiver resolution; preserve indexes, arguments, line information and single evaluation. No parser/runtime/library/upstream edits.
+  scope: Correct PECallFunction width/elaboration and PCallTask void-method receiver dispatch using existing receiver resolution; preserve indexes, arguments, line information and single evaluation. No parser/runtime/library/upstream edits.
   dependencies: Existing explicit-this receiver dispatch; no dependency on frozen L106/L107 patches.
   acceptance: Paired runtime void/value methods, null guard, inherited/protected and indexed properties, local/argument shadowing, unit/imported parameterized name collision, explicit-this equivalence; genuine bare generic scope, static context, missing member and access/specialization negatives; focused neighboring class tests and real unmodified OpenTitan smoke replay.
   preservation: L106/L107 remain unchanged; coordinator owns builds/install/shared harnesses/manifests/docs/review/integration.
+
+L108_scope_refinement: Exact void-call diagnostic traced to PCallTask::elaborate_method_ in elaborate.cc14972; elab_expr-only candidates did not fix reducer. Coordinator authorizes paired void/value dispatch fix, preserving all negative scope checks.

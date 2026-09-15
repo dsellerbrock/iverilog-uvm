@@ -71,6 +71,19 @@ static int64_t const_string_index_(const verinum&value)
       return int_index.as_long();
 }
 
+static void flatten_array_pattern_(const NetEArrayPattern*pat,
+				   vector<const NetExpr*>&leaves)
+{
+      for (size_t idx = 0 ; idx < pat->item_size() ; idx += 1) {
+	    const NetExpr*item = pat->item(idx);
+	    if (const NetEArrayPattern*sub =
+		dynamic_cast<const NetEArrayPattern*>(item))
+	      flatten_array_pattern_(sub, leaves);
+	    else
+	      leaves.push_back(item);
+      }
+}
+
 static NetExpr* fix_assign_value(const NetNet*lhs, NetExpr*rhs)
 {
       NetEConst*ce = dynamic_cast<NetEConst*>(rhs);
@@ -198,20 +211,9 @@ NetExpr* NetFuncDef::evaluate_function(const LineInfo&loc, const std::vector<Net
 	    if (pnet->unpacked_dimensions() > 0) {
 		  const NetEArrayPattern*pat =
 			dynamic_cast<const NetEArrayPattern*>(args[idx]);
-		  std::vector<const NetExpr*>leaves;
-		  std::function<void(const NetEArrayPattern*)>flatten =
-			[&](const NetEArrayPattern*cur) {
-			      for (size_t k = 0 ; k < cur->item_size() ; k += 1) {
-				    const NetExpr*item = cur->item(k);
-				    if (const NetEArrayPattern*sub =
-					dynamic_cast<const NetEArrayPattern*>(item))
-					  flatten(sub);
-				    else
-					  leaves.push_back(item);
-			      }
-			};
+		  vector<const NetExpr*>leaves;
 		  if (pat)
-			flatten(pat);
+			flatten_array_pattern_(pat, leaves);
 		  unsigned nwords = pnet->unpacked_count();
 		  input_var.nwords = nwords;
 		  input_var.array = new NetExpr*[nwords];
@@ -482,6 +484,35 @@ bool NetAssign::eval_func_lval_(const LineInfo&loc,
       NetExpr*old_lval;
       int word = 0;
       if (var->nwords > 0) {
+	    if (!lval->word()) {
+		  const NetEArrayPattern*pattern =
+			dynamic_cast<const NetEArrayPattern*>(rval_result);
+		  vector<const NetExpr*>leaves;
+		  if (pattern)
+			flatten_array_pattern_(pattern, leaves);
+		  if (!pattern || leaves.size() != unsigned(var->nwords)) {
+			delete rval_result;
+			return false;
+		  }
+
+		  vector<NetExpr*>values(leaves.size(), nullptr);
+		  for (size_t idx = 0 ; idx < leaves.size() ; idx += 1) {
+			if (!leaves[idx]) break;
+			values[idx] = fix_assign_value(lval->sig(),
+						leaves[idx]->dup_expr());
+		  }
+		  delete rval_result;
+		  for (NetExpr*value : values) {
+			if (value) continue;
+			for (NetExpr*cleanup : values) delete cleanup;
+			return false;
+		  }
+		  for (size_t idx = 0 ; idx < values.size() ; idx += 1) {
+			delete var->array[idx];
+			var->array[idx] = values[idx];
+		  }
+		  return true;
+	    }
 	    NetExpr*word_result = lval->word()->evaluate_function(loc, context_map);
 	    if (word_result == 0) {
 		  delete rval_result;

@@ -1490,3 +1490,7 @@ IMPLEMENTED for the [recorded package/class-state rejection subset](../session_l
 ### L96–L105 local qualification checkpoint
 
 The ten recorded subsets have passed the [revision-scoped seven-gate checkpoint](../session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json). This supersedes the pending broad-gate notes for those subsets above. Broader clause coverage and full IEEE1800/UVM/application qualification remain incomplete; remote CI for the new publication is separate.
+
+### L106 — Whole local fixed-array pattern constant evaluation
+
+FOCUSED_TESTED for the [recorded subset](../session_logs/2026-09-15_constant_local_array_patterns.md); broad batch qualification pending. Broader constant-function and assignment-pattern coverage remains PARTIAL.

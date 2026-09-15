@@ -2306,7 +2306,7 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
 
 ### L106 — Whole local fixed-array pattern constant evaluation
 
-- **State:** IN_PROGRESS; coordinator-authorized evaluator lane.
+- **State:** FOCUSED_TESTED; required broad batch qualification pending.
 - **Standards:** IEEE1800-2017 and2023 10.9,13.4.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-const-string-array-initializer-assessment/assessment.md`.
 - **Closure:** Complete local pattern assignment into fixed-array slots, with constant/runtime parity and preserved type/shape/frame semantics.
@@ -2317,3 +2317,5 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
 - **Standards:** IEEE1800-2017 and2023 16.9.8,16.13.1,16.13.2.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-finite-sva-assessment/assessment.md`.
 - **Closure:** Earliest source endpoint cut for the selected finite direct Boolean subset, preserving clock handoff, controls and plain/implication aggregation.
+
+L106 focused evidence: [local fixed-array patterns](session_logs/2026-09-15_constant_local_array_patterns.md).

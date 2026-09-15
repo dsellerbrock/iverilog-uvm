@@ -1,0 +1,224 @@
+{
+  "status": "FOCUSED_TESTED; broad batch qualification pending",
+  "head_before_integration": "174a2ece84afe8b017f006131dc1633f682e31ab",
+  "source_hashes": {
+    "net_func_eval.cc": "81aea9d095e3bd7d2780e113aa0e0d7c2f203c14e93957aa9c2e5a0cad96dc0b",
+    "pform.cc": "0ed5b86b2b29020e3c68fafb4d5049e79951a11212cd24f9498f1495bb533a93",
+    "elab_expr.cc": "ce38dcf2d62fa61455e157b5054e5b1e626ee002af56e8f0ca5771913308d493"
+  },
+  "installed_engine_sha256": "3c1361989785f05bf47ed37f0a506ec94b80fc93570bb329c575afb975bc0888",
+  "candidate_note": "Installed candidate includes frozen L107 and unqualified L108 changes; L108 reducer remains failing. This is scoped L106 evidence, not whole-candidate qualification.",
+  "standards": [
+    "IEEE1800-2017 10.9,13.4.3",
+    "IEEE1800-2023 10.9,13.4.3"
+  ],
+  "focused": {
+    "legacy": 10,
+    "json": 10,
+    "failed": 0
+  },
+  "neighbors": {
+    "legacy": 42,
+    "json": 42,
+    "failed": 0
+  },
+  "logs": {
+    "evidence/application-check-20260915/l106-focused/legacy-corrected.log": {
+      "sha256": "a6143c70a1dd74f535b79ee635fd4e06a718c30339bfbd29beb268c84497bc63",
+      "summary": "local_array_pattern_frames: Passed.\n       sv_const_local_array_pattern_frames_2023: Passed.\n     sv_const_local_array_pattern_readonly_fail: Passed - CE.\nsv_const_local_array_pattern_readonly_fail_2023: Passed - CE.\n        sv_const_local_array_pattern_shape_fail: Passed - CE.\n   sv_const_local_array_pattern_shape_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=10, Passed=10, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    "evidence/application-check-20260915/l106-focused/json-corrected.log": {
+      "sha256": "b1f5208a4d01a55b7b7146d11ebd18e65bf7b09995112fa590f5d3a21df6dd7d",
+      "summary": "pattern_frames_2023: Passed.\n          sv_const_local_array_pattern_integral: Passed.\n     sv_const_local_array_pattern_integral_2023: Passed.\n     sv_const_local_array_pattern_readonly_fail: Passed - CE.\nsv_const_local_array_pattern_readonly_fail_2023: Passed - CE.\n        sv_const_local_array_pattern_shape_fail: Passed - CE.\n   sv_const_local_array_pattern_shape_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 10, Failed 0.\n"
+    },
+    "evidence/application-check-20260915/l106-focused/neighbors-legacy.log": {
+      "sha256": "e41b3d93b35efd7bb53423685d944216e29eb246352813a1b78d31b86b073771",
+      "summary": "time_state_2023: Passed.\n                                     sv_const_string_substr_fail: Passed - CE.\n                                sv_const_string_substr_fail_2023: Passed - CE.\n                                       sv_const_string_putc_fail: Passed - CE.\n                                  sv_const_string_putc_fail_2023: Passed - CE.\n============================================================================\nTest results:\n  Total=42, Passed=42, Failed=0, Not Implemented=0, Expected Fail=0\n"
+    },
+    "evidence/application-check-20260915/l106-focused/neighbors-vvp.log": {
+      "sha256": "814a9e75697e760fc9377539b9bbef4ac84ba9f0cad2debedc398c0233676964",
+      "summary": "\n                       sv_const_string_array_method_runtime_2023: Passed.\n                                       sv_const_string_putc_fail: Passed - CE.\n                                  sv_const_string_putc_fail_2023: Passed - CE.\n                                     sv_const_string_substr_fail: Passed - CE.\n                                sv_const_string_substr_fail_2023: Passed - CE.\n============================================================================\nTest results: Ran 42, Failed 0.\n"
+    }
+  },
+  "raw_probes": [
+    {
+      "name": "sv_const_local_array_pattern",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2017",
+        "-s",
+        "sv_const_local_array_pattern",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "stdout": "PASSED\n",
+      "stderr": ""
+    },
+    {
+      "name": "sv_const_local_array_pattern_2023",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2023",
+        "-s",
+        "sv_const_local_array_pattern",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_2023.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "stdout": "PASSED\n",
+      "stderr": ""
+    },
+    {
+      "name": "sv_const_local_array_pattern_frames",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2017",
+        "-s",
+        "sv_const_local_array_pattern_frames",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_frames.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_frames.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "stdout": "PASSED\n",
+      "stderr": ""
+    },
+    {
+      "name": "sv_const_local_array_pattern_frames_2023",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2023",
+        "-s",
+        "sv_const_local_array_pattern_frames",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_frames_2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_frames_2023.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "stdout": "PASSED\n",
+      "stderr": ""
+    },
+    {
+      "name": "sv_const_local_array_pattern_integral",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2017",
+        "-s",
+        "sv_const_local_array_pattern_integral",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_integral.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_integral.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "stdout": "PASSED\n",
+      "stderr": ""
+    },
+    {
+      "name": "sv_const_local_array_pattern_integral_2023",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2023",
+        "-s",
+        "sv_const_local_array_pattern_integral",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_integral_2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_integral_2023.v"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "stdout": "PASSED\n",
+      "stderr": ""
+    },
+    {
+      "name": "sv_const_local_array_pattern_readonly_fail",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2017",
+        "-s",
+        "sv_const_local_array_pattern_readonly_fail",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_readonly_fail.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_readonly_fail.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_readonly_fail.v:4: error: Assignment to const signal `words` is not allowed.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "name": "sv_const_local_array_pattern_readonly_fail_2023",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2023",
+        "-s",
+        "sv_const_local_array_pattern_readonly_fail",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_readonly_fail_2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_readonly_fail_2023.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_readonly_fail.v:4: error: Assignment to const signal `words` is not allowed.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "name": "sv_const_local_array_pattern_shape_fail",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2017",
+        "-s",
+        "sv_const_local_array_pattern_shape_fail",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_shape_fail.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_shape_fail.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_shape_fail.v:3: error: Unpacked array assignment pattern expects 2 element(s) in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_shape_fail.v:3:      : Found 1 element(s).\n1 error(s) during elaboration.\n"
+    },
+    {
+      "name": "sv_const_local_array_pattern_shape_fail_2023",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-I/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest",
+        "-g2023",
+        "-s",
+        "sv_const_local_array_pattern_shape_fail",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/application-check-20260915/l106-focused/sv_const_local_array_pattern_shape_fail_2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_shape_fail_2023.v"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_shape_fail.v:3: error: Unpacked array assignment pattern expects 2 element(s) in this context.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_const_local_array_pattern_shape_fail.v:3:      : Found 1 element(s).\n1 error(s) during elaboration.\n"
+    }
+  ],
+  "prior_attempts": "Initial direct2023 probes lacked test include path; initial golds lacked harness ./ prefix. Both corrected without semantic/test expectation changes; original logs retained."
+}

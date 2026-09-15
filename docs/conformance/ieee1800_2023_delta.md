@@ -247,3 +247,5 @@ L104 shares the equality sizing rules; [paired evidence](session_logs/2026-09-15
 L105 shares the constant-function locality restriction; [paired evidence](session_logs/2026-09-15_nonlocal_constant_function_values_validation.json) records both editions.
 
 L96–L105 share the [local qualification checkpoint](matrices/ieee1800_2017_clause_matrix.md#l96l105-local-qualification-checkpoint). Paired focused evidence remains edition-specific; the full UVM gate used its existing2012 mode.
+
+L106 local fixed-array pattern evaluation has paired 2017/2023 [focused evidence](session_logs/2026-09-15_constant_local_array_patterns.md). No edition difference is claimed; broad qualification remains pending.
