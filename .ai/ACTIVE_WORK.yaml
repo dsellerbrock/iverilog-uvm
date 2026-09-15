@@ -1,6 +1,6 @@
-id: QUALIFY-BATCH-L75-L84
-title: Frozen ten-fix compiler batch qualification
-status: QUALIFIED_AWAITING_PUBLICATION
+id: SELECT-NEXT-PARALLEL-BATCH
+title: Coordinator selection after qualified L75-L84 publication
+status: ASSESSMENT_PENDING
 base_revision: 240dd5f6f
 authority: "User authorized focused fixes followed by required broad suites near ten integrated fixes and coherent PR publication."
 coordinator_owns: [All builds and installation, All seven broad gates, Source freeze and artifact snapshots, Documentation and publication]
@@ -13,7 +13,7 @@ implementation_lanes:
     status: INTEGRATED_FROZEN
     latest_fix: L84
     revision: 240dd5f6f
-file_conflict_policy: "No tracked source/test edits during qualification. Existing agents retained; no new worktrees."
+file_conflict_policy: "No new implementation before two independent current reproducers and explicit disjoint ownership are recorded. Existing agents retained; no new worktrees."
 validation_batch: 20260914_l84
 focused_features_completed_in_batch: 10
 focused_evidence: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84.md
@@ -24,3 +24,8 @@ gate_order: "Run frontend last and exclusively because it moves installation; le
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
+
+published_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/284
+published_branch: agent/string-return-uppercase-20260914
+published_head: 67be888271584400bf387305420a383cce64b8c5
+next_implementation_authorized: false
