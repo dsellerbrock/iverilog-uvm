@@ -7,7 +7,7 @@ coordinator_owns: [All shared builds and installation, Legacy and JSON harnesses
 lanes:
   - id: L93-CONSTANT-STRING-FORMATTING
     agent: /root/constraint_abi
-    status: REPRODUCED
+    status: FOCUSED_TESTED
     standards: "IEEE1800-2017/2023 6.16.11-6.16.15 and13.4.3; distinguish language methods from ignorable system tasks."
     reproducer: evidence/batch-20260914-after-l84/next-string-format/baseline.json
     actual: "Both editions compile a constant function using s.itoa(-123), but silently return the unchanged empty string. Runtime control returns -123."
@@ -34,7 +34,7 @@ lanes:
     acceptance: "Both editions: whole-group endpoints with distinguishing interior values, m=0/1/>1 and m=n, internal/trailing group repetition, finite delay body and empty composition, both implications and prefixes, multiple parents/early failure/vacuity, coincident and paused clocks, Off/Kill/restart,64tick boundary/unsupported controls. Preserve L86/L91/L92 and same-clock NFA neighbors; replace newly supported CE expectations with exact runtime witnesses."
 file_conflict_policy: "No edits outside lane ownership; root owns shared builds, harnesses, manifests and docs. Preserve published PR283/284 branches."
 validation_batch: 20260914_after_l84
-focused_features_completed_in_batch: 8
+focused_features_completed_in_batch: 9
 last_broad_qualified_semantic_revision: 240dd5f6f
 last_broad_qualification: docs/conformance/session_logs/2026-09-14_compiler_batch_l75_l84_qualification.json
 stop_after_completion: false
@@ -82,3 +82,5 @@ l90_integration_revision: 6cf8d70de
 l92_focused_evidence: docs/conformance/session_logs/2026-09-15_fixed_multiclock_assertion_control_validation.json
 
 l92_integration_revision: 9f34faa98
+
+l93_focused_evidence: docs/conformance/session_logs/2026-09-15_constant_string_formatting_validation.json

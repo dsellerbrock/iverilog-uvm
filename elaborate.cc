@@ -14262,6 +14262,13 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 
       vector<NetExpr*>argv (1 + nparms);
       argv[0] = obj;
+      const bool string_integer_format_method =
+	    method_name == perm_string::literal("itoa")
+	    || method_name == perm_string::literal("hextoa")
+	    || method_name == perm_string::literal("octtoa")
+	    || method_name == perm_string::literal("bintoa");
+      const bool string_numeric_format_method = string_integer_format_method
+	    || method_name == perm_string::literal("realtoa");
       NetAssign_*mailbox_ref_output = 0;
       const netclass_t*class_type =
 	    dynamic_cast<const netclass_t*>(obj_type);
@@ -14325,6 +14332,21 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
 							idx, args[idx]);
+	    if (string_numeric_format_method && argv[idx + 1]
+		&& argv[idx + 1]->expr_type() != IVL_VT_BOOL
+		&& argv[idx + 1]->expr_type() != IVL_VT_LOGIC
+		&& argv[idx + 1]->expr_type() != IVL_VT_REAL) {
+		  cerr << args[idx]->get_fileline() << ": error: String formatting method `"
+		       << method_name << "' requires "
+		       << (string_integer_format_method ? "an integer" : "a real")
+		       << " argument; this expression is not implicitly numeric."
+		       << endl;
+		  des->errors += 1;
+		  for (NetExpr*expr : argv) delete expr;
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+		  noop->set_line(*this);
+		  return noop;
+	    }
       }
 
       const bool mailbox_message_method =

@@ -2179,9 +2179,11 @@ L86 [implementation and validation](session_logs/2026-09-15_multiclock_bounded_a
 
 ### L93 — Constant-function string formatting silently leaves the receiver unchanged
 
-- **State:** REPRODUCED; coordinator-authorized in ACTIVE_WORK.
+- **State:** FOCUSED_TESTED; broad batch qualification pending.
 - **Evidence:** `evidence/batch-20260914-after-l84/next-string-format/baseline.json`; runtime paired control succeeds, constant paired invocation returns the empty string after clean compilation.
 - **Scope:** Constant evaluation of the five string numeric-formatting methods; internal task lowering must retain the required function mutation. IEEE 1800-2017/2023 6.16.11–6.16.15 and 13.4.3.
+
+- **L93 evidence:** [Focused session](session_logs/2026-09-15_constant_string_formatting.md).
 
 ### L94 — Finite grouped consecutive repetition in multiclock antecedents
 
