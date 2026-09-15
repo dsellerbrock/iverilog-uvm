@@ -1502,3 +1502,7 @@ FOCUSED_TESTED for the [recorded direct finite Boolean subset](../session_logs/2
 ### L108 — Object-method statements versus class scope
 
 FOCUSED_TESTED for the [recorded receiver/provenance and access subset](../session_logs/2026-09-15_implicit_property_method_lookup.md); broad batch qualification pending. One OpenTitan smoke passes separately in g2012 with original UVM1.2. Broader class/UVM coverage remains PARTIAL.
+
+### L109 — Independent randc with ordered graph solving
+
+IMPLEMENTED for the [recorded independent enumerable subset](../session_logs/2026-09-15_joint_ordered_independent_randc.md); broad qualification pending. Coupled cyclic distributions and broader clause coverage remain PARTIAL.

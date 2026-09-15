@@ -253,3 +253,5 @@ L106 local fixed-array pattern evaluation has paired 2017/2023 [focused evidence
 L107 finite first_match prefixes have paired [2017/2023 focused evidence](session_logs/2026-09-15_first_match_multiclock_prefix.md); no edition difference is claimed. Broader semantics and qualification remain unfinished.
 
 L108 object-method statement lookup has paired [2017/2023 focused evidence](session_logs/2026-09-15_implicit_property_method_lookup.md). The separately recorded OpenTitan workload uses g2012; do not infer2023 UVM qualification from it.
+
+L109 pairs 2023 18.4.2/18.5.9 with the [shared independent-randc evidence](session_logs/2026-09-15_joint_ordered_independent_randc.md). Broad qualification remains pending.

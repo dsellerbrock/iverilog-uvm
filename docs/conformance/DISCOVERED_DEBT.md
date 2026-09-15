@@ -1733,3 +1733,11 @@ During L99 boundary testing, selected real fixed-array `$sscanf` outputs arrived
 ### L101 discovery — const local fixed-string-array initializer
 
 During L101, a constant local fixed-string-array aggregate initializer crashed before the character update. This is a separate unqualified initializer defect, not evidence against selected-character reads or the implemented update path. Evidence: `evidence/batch-20260915-after-l95/l101-l102-first-direct.json` and the L101 assessment reducers. Possible scope: declaration/aggregate initialization under clauses6.16 and10.9; standards and minimal root cause require triage. Status: recorded, not selected. L101 readonly regression uses a module const receiver and pins its write rejection.
+
+## L109 neighbor assessment — 2026-09-15
+
+Four focus-only randc provenance/iterator/hierarchy tests retain compile-output
+expectations that differ from the unchanged L108 frontend. Evidence and exact
+names are in `session_logs/2026-09-15_joint_ordered_independent_randc_validation.json`.
+These are not in main manifests; record-only, not repaired under L109. Reassess
+against their original semantic intent before updating expectations.

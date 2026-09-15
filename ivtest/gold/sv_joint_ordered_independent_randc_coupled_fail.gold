@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: joint solve-before with a coupled active randc component is not yet supported.
+PASSED

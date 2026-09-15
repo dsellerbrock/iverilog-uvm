@@ -20,6 +20,8 @@ support. Earlier [L85–L95](session_logs/2026-09-15_compiler_batch_l85_l95_qual
 and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.json)
 records retain their original revisions and limits.
 
+Latest focused runtime increment: [L109 independent cyclic components](session_logs/2026-09-15_joint_ordered_independent_randc.md), with broad qualification pending and retained neighbor failures.
+
 ## Application evidence
 
 The [L108 OpenTitan smoke replay](session_logs/2026-09-15_implicit_property_method_lookup.md)

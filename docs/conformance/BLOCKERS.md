@@ -2331,7 +2331,7 @@ L107 focused evidence: [finite first_match prefixes](session_logs/2026-09-15_fir
 
 ### L109 — Joint ordered solve with independent randc component
 
-- **State:** IN_PROGRESS; coordinator-authorized runtime lane.
+- **State:** FOCUSED_TESTED; broad qualification pending; four pre-existing focus-only compile expectation failures retained.
 - **Standards:** 2017 18.4.2/18.5.10;2023 18.4.2/18.5.9.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-z01-assessment/assessment.md`.
 - **Closure:** Preserve randc-first sampling and cycle/rollback semantics for independent enumerable components alongside ordered stages; unsupported coupled forms remain explicit.
@@ -2344,3 +2344,5 @@ L108 implementation and application evidence: [object-method lookup](session_log
 - **Standards:** IEEE1800-2017 and2023 19.5.2/19.11.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-v01-assessment/frontend-mechanism.md`.
 - **Closure:** Complete constructor-resolved transition programs and merged bin identity, preserving transition recognition and instance/type coverage. No bin-dropping workaround.
+
+L109 evidence: [independent cyclic components](session_logs/2026-09-15_joint_ordered_independent_randc.md).

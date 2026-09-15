@@ -5698,6 +5698,30 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, sa.a);
       }
 
+      auto var_ref_active = [&](const Z3Builder::VarRef&ref) -> bool {
+	    if (ref.kind == Z3Builder::VarRef::ELEM)
+		  return rand_elem_active_(builder, prop_active,
+				   ref.idx, ref.leaf);
+	    if (ref.kind == Z3Builder::VarRef::MEMBER)
+		  return rand_member_active_(builder, prop_active,
+				     ref.idx, ref.leaf);
+	    if (ref.kind == Z3Builder::VarRef::PROP)
+                  return rand_scalar_active_(builder, prop_active, ref.idx);
+	    return rand_size_active_(builder, prop_active, ref.idx);
+      };
+      auto dist_disabled = [&](const Z3Builder::DistSpec&spec) -> bool {
+	    if (!spec.disableable) return false;
+	    for (const auto&ref : spec.disable_refs)
+		  if (builder.soft_ref_disabled(ref, spec.priority)) return true;
+	    return false;
+      };
+      auto dist_active = [&](const Z3Builder::DistSpec&spec) -> bool {
+	    if (spec.refs.empty()) return true;
+	    for (const auto&ref : spec.refs)
+		  if (var_ref_active(ref)) return true;
+	    return false;
+      };
+
       map<unsigned, uint64_t> proved_joint_sizes;
       if (exact_joint) {
             // Ordered randc/dist and non-scalar stages need separate proofs.
@@ -5735,14 +5759,84 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                             || (pair.second.kind != Z3Builder::OrderRef::PROP
                                 && !supported_element_order_ref(pair.second)))
                               return fail_joint("joint solve-before requires canonical scalar or supported element ordering variables");
-                  for (const auto&pv : builder.prop_vars)
-                        if (rand_scalar_active_(builder, prop_active, pv.idx)
-                            && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)))
-                              return fail_joint("joint solve-before with active randc is not yet supported");
-                  for (const auto&ev : builder.elem_vars)
-                        if (rand_elem_active_(builder, prop_active, ev.idx, ev.elem)
-                            && builder.type(ev.idx)->property_is_randc(builder.local_index(ev.idx)))
-                              return fail_joint("joint solve-before with active randc is not yet supported");
+                  // randc is solved before ordinary rand variables (2017/2023
+                  // 18.4.2).  An independent cyclic component can therefore
+                  // use the existing graph-wide randc pre-sampling below and
+                  // be pinned before the ordered stages.  Keep rejecting a
+                  // cyclic leaf that shares a hard-constraint component with
+                  // an ordering or distribution reference: its conditional
+                  // distribution needs a joint cyclic-stage proof.
+                  vector<Z3_ast> active_vars;
+                  set<Z3_ast> cyclic_vars;
+                  set<Z3_ast> ordered_or_dist_vars;
+                  for (const auto&pv : builder.prop_vars) {
+                        if (!rand_scalar_active_(builder, prop_active, pv.idx))
+                              continue;
+                        active_vars.push_back(pv.var);
+                        if (builder.type(pv.idx)->property_is_randc(
+                              builder.local_index(pv.idx)))
+                              cyclic_vars.insert(pv.var);
+                  }
+                  for (const auto&ev : builder.elem_vars) {
+                        if (!rand_elem_active_(builder, prop_active,
+                                              ev.idx, ev.elem))
+                              continue;
+                        active_vars.push_back(ev.var);
+                        if (builder.type(ev.idx)->property_is_randc(
+                              builder.local_index(ev.idx)))
+                              cyclic_vars.insert(ev.var);
+                  }
+                  for (const auto&sv : builder.size_vars)
+                        if (rand_size_active_(builder, prop_active, sv.idx))
+                              active_vars.push_back(sv.var);
+                  auto mark_ref = [&](Z3Builder::OrderRef::Kind kind,
+                                      unsigned idx, unsigned elem) {
+                        if (kind == Z3Builder::OrderRef::PROP) {
+                              for (const auto&pv : builder.prop_vars)
+                                    if (pv.idx == idx)
+                                          ordered_or_dist_vars.insert(pv.var);
+                        } else if (kind == Z3Builder::OrderRef::ELEM) {
+                              for (const auto&ev : builder.elem_vars)
+                                    if (ev.idx == idx && ev.elem == elem)
+                                          ordered_or_dist_vars.insert(ev.var);
+                        } else if (kind == Z3Builder::OrderRef::SIZE) {
+                              for (const auto&sv : builder.size_vars)
+                                    if (sv.idx == idx)
+                                          ordered_or_dist_vars.insert(sv.var);
+                        }
+                  };
+                  for (const auto&pair : builder.order_pairs) {
+                        mark_ref(pair.first.kind, pair.first.idx,
+                                 pair.first.elem);
+                        mark_ref(pair.second.kind, pair.second.idx,
+                                 pair.second.elem);
+                  }
+                  for (const auto&spec : builder.dist_specs) {
+                        if (dist_disabled(spec) || !dist_active(spec)) continue;
+                        for (const auto&ref : spec.refs) {
+                              if (!cyclic_vars.empty()
+                                  && ref.kind == Z3Builder::VarRef::MEMBER)
+                                    return fail_joint("joint solve-before with a coupled active randc component is not yet supported");
+                              mark_ref(static_cast<Z3Builder::OrderRef::Kind>(ref.kind),
+                                       ref.idx, ref.leaf);
+                        }
+                  }
+                  if (!cyclic_vars.empty()) {
+                        vector<vector<Z3_ast> > components;
+                        if (!z3_joint_components_(ctx, base, active_vars,
+                                                  components))
+                              return fail_joint("the joint dependency graph contains an unsupported expression");
+                        for (const auto&component : components) {
+                              bool cyclic = false;
+                              bool ordered_or_dist = false;
+                              for (Z3_ast var : component) {
+                                    cyclic |= cyclic_vars.count(var);
+                                    ordered_or_dist |= ordered_or_dist_vars.count(var);
+                              }
+                              if (cyclic && ordered_or_dist)
+                                    return fail_joint("joint solve-before with a coupled active randc component is not yet supported");
+                        }
+                  }
             }
             vector<Z3_ast> sizes;
             for (const auto&sv : builder.size_vars) sizes.push_back(sv.var);
@@ -5796,29 +5890,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	// solved at an earlier solve...before stage. Exact groups are pinned when
 	// their subject becomes due; unsupported groups install their weighted-
 	// soft fallback at that same point.
-      auto var_ref_active = [&](const Z3Builder::VarRef&ref) -> bool {
-	    if (ref.kind == Z3Builder::VarRef::ELEM)
-		  return rand_elem_active_(builder, prop_active,
-				   ref.idx, ref.leaf);
-	    if (ref.kind == Z3Builder::VarRef::MEMBER)
-		  return rand_member_active_(builder, prop_active,
-				     ref.idx, ref.leaf);
-	    if (ref.kind == Z3Builder::VarRef::PROP)
-                  return rand_scalar_active_(builder, prop_active, ref.idx);
-	    return rand_size_active_(builder, prop_active, ref.idx);
-      };
-      auto dist_disabled = [&](const Z3Builder::DistSpec&spec) -> bool {
-	    if (!spec.disableable) return false;
-	    for (const auto&ref : spec.disable_refs)
-		  if (builder.soft_ref_disabled(ref, spec.priority)) return true;
-	    return false;
-      };
-      auto dist_active = [&](const Z3Builder::DistSpec&spec) -> bool {
-	    if (spec.refs.empty()) return true;
-	    for (const auto&ref : spec.refs)
-		  if (var_ref_active(ref)) return true;
-	    return false;
-      };
       auto install_dist_fallback = [&](Z3_optimize target,
 					 size_t spec_index) {
 	    const Z3Builder::DistSpec&spec = builder.dist_specs[spec_index];

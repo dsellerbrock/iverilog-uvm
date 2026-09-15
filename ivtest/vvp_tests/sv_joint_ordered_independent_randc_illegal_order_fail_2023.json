@@ -1,0 +1,1 @@
+{"type":"CE","source":"sv_joint_ordered_independent_randc_illegal_order_fail_2023.v","iverilog-args":["-g2023"],"gold":"sv_joint_ordered_independent_randc_illegal_order_fail_2023"}
