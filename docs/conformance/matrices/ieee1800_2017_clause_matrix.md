@@ -1550,3 +1550,11 @@ remain existential for plain sequences and spawn all required implication
 consequents. This is a bounded PARTIAL increment; unbounded/symbolic delays,
 repetition, locals, and non-prefix wrappers remain outside this path.
 [Paired evidence](../session_logs/2026-09-15_first_match_ranged_suffix_validation.json).
+
+### L115 focused refinement — clause18
+
+Wide fixed integral/enum constraint elements retain typed bits through constant
+IR, nested access, inactive state, solver sampling and writeback. Paired tests
+check65/96/128-bit data and RNG/state rollback. This is PARTIAL: sparse domains
+beyond the exact sampler cap and wide ordered/dist/cyclic mechanisms still
+reject explicitly. [Evidence](../session_logs/2026-09-15_wide_fixed_constraint_elements_validation.json).

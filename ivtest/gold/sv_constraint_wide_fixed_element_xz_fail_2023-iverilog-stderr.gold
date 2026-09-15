@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_wide_fixed_element_xz_fail.v:3: error: wide constraint constant contains X/Z bits.
+1 error(s) during elaboration.

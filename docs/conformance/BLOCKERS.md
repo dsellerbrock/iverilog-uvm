@@ -2392,15 +2392,12 @@ handoff. The selected NFA repair preserves the wrapper boundary so earliest
 exit commits without prematurely closing the complete source sequence.
 Assessment: `evidence/application-check-20260915/next-sva-after-l112/`.
 
-### L115 — arbitrary-width fixed rand element transport
+### L115 — wide fixed rand element transport
 
-REPRODUCED and SELECTED in ACTIVE_WORK. A legal65-bit direct fixed-element
-constraint currently reports successful randomization and truncates bit64.
-The selected repair carries full vectors through ordinary rand state/solve/
-writeback paths, sharing L113 nested identities. Wide cyclic history and
-uint64-based exact enumeration remain separate unsupported mechanisms until
-implemented; no full-width randomization completion is inferred.
-Assessment: `evidence/application-check-20260915/next-wide-element-assessment/`.
+FOCUSED_TESTED; broad pending. Full-bit constants, state, solving, rollback,
+and writeback are exercised in both editions. Sparse domains beyond the exact
+sampling cap and wide ordered/dist/cyclic domains remain explicit limitations.
+[Evidence](session_logs/2026-09-15_wide_fixed_constraint_elements_validation.json).
 
 ### L116 — first_match prefix with ranged source suffix
 

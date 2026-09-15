@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_constraint_wide_fixed_element_randc_fail.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_constraint_wide_fixed_element_randc_fail"
+}

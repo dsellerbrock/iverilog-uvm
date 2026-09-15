@@ -270,3 +270,7 @@ L116 validates the corresponding 2023 first_match/ranged-suffix behavior in
 paired mode tests; shared scope and limits belong to the
 [2017 matrix](matrices/ieee1800_2017_clause_matrix.md), with
 [revision-scoped evidence](session_logs/2026-09-15_first_match_ranged_suffix_validation.json).
+
+L115 has paired2023 wide fixed-element constraint evidence. Shared scope and
+explicit limitations are recorded in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md)
+and [validation record](session_logs/2026-09-15_wide_fixed_constraint_elements_validation.json).

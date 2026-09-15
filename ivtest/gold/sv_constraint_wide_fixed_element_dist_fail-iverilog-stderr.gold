@@ -1,0 +1,2 @@
+ivltests/sv_constraint_wide_fixed_element_dist_fail.v:4: error: dist references a runtime storage value wider than 64 bits, which the constraint runtime cannot transfer without losing high bits; use a <=64-bit typed intermediate expression.
+1 error(s) during elaboration.

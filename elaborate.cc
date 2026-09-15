@@ -25028,12 +25028,28 @@ static string constraint_constant_ir_(const PEIdent*id,
 
       auto const_ir = [&](const NetExpr*expr) -> string {
 	    const NetEConst*val = dynamic_cast<const NetEConst*>(expr);
-	    if (!val || !val->value().is_defined()) return "";
+	    if (!val) return "";
 	    const verinum&v = val->value();
+	    if (!v.is_defined()) {
+		  if (v.len() > 64 && constraint_ir_design_ctx_) {
+			cerr << id->get_fileline() << ": error: wide constraint "
+			     << "constant contains X/Z bits." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+		  return "";
+	    }
 	    if (full_value) {
 		  if (val->expr_type() == IVL_VT_STRING) return "";
 		  *full_value = v;
 	    } else if (constraint_dist_reject_wide_value_(id, v)) return "";
+	    if (v.len() > 64) {
+		  string bits;
+		  bits.reserve(v.len());
+		  for (unsigned bit = v.len(); bit-- > 0;)
+			bits += v.get(bit) == verinum::V1 ? '1' : '0';
+		  return "C:" + bits + ":" + to_string(v.len())
+			+ (v.has_sign() ? ":s" : "");
+	    }
 	    return "c:" + to_string(v.as_ulong64()) + ":"
 		  + to_string(v.len()) + (v.has_sign() ? ":s" : "");
       };
@@ -28958,9 +28974,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // is 32 bits when evaluated by the language runtime.
 	    if (!v.has_len() && !v.is_single() && bits < integer_width)
 		  bits = integer_width;
+	    if (bits > 64 && !v.is_defined()) {
+		  if (constraint_ir_design_ctx_) {
+			cerr << num->get_fileline() << ": error: wide constraint "
+			     << "constant contains X/Z bits." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+		  return "";
+	    }
 	    for (unsigned i = 0 ; i < v.len() && i < 64 ; i += 1)
 		  if (v.get(i) == verinum::V1)
 			val |= (uint64_t)1 << i;
+	    if (bits > 64) {
+		  string value;
+		  value.reserve(bits);
+		  for (unsigned bit = bits; bit-- > 0;)
+			value += bit < v.len() && v.get(bit) == verinum::V1
+			      ? '1' : '0';
+		  return "C:" + value + ":" + to_string(bits)
+			+ (v.has_sign() ? ":s" : "");
+	    }
 	    return "c:" + to_string(val) + ":" + to_string(bits)
 		  + (v.has_sign() ? ":s" : "");
       }
@@ -29378,12 +29411,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    unsigned width = element ? element->packed_width() : 0;
 				    if (!array || array->packed() || !dims
 					|| nested->index.size() != dims->size()
-					|| !element || !element->packed() || !width || width > 64
+					|| !element || !element->packed() || !width
 					|| (base != IVL_VT_BOOL && base != IVL_VT_LOGIC
 					    && !dynamic_cast<const netenum_t*>(element))) {
 					  cerr << id->get_fileline() << ": error: nested indexed "
 					       << "constraint terminal must be a fixed integral or "
-					       << "enum element no wider than 64 bits." << endl;
+					       << "enum element." << endl;
 					  constraint_ir_design_ctx_->errors += 1;
 					  return "";
 				    }
