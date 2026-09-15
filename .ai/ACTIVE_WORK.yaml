@@ -1,6 +1,6 @@
 id: CI-TARGET-API-EXPORTS
 title: Export the public target API additions from PR280 on Windows
-status: ROOT_CAUSED
+status: REVIEWED
 base_revision: 4956b2c1c
 reproducer: evidence/ci-strcmp-header/mingw64.log
 current_behavior: "PR281 Windows target link fails on ivl_lval_part_carrier_width and ivl_lval_dynamic_part_carrier; Ubuntu builds passed the header fix."
@@ -16,3 +16,5 @@ standards: "Build linkage repair for existing target API, no language semantic c
 prerequisites: "L65/L66 tested local branch agent/typed-array-return-20260914 at711e54893. Two focused features in next batch."
 pending_gates: "Independent export review and Windows CI"
 stop_after_completion: false
+
+validation: "Complete14-function declaration/export/C-linkage audit passed and independent review agreed. Current Windows CI remains pending updated PR head."
