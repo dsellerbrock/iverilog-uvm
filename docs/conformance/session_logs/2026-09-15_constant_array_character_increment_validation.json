@@ -1,0 +1,60 @@
+{
+  "scope": "L101 Constant fixed-array string-character increment; focused only",
+  "base_revision": "764846de98ef3ccc9377701df70c192efeeb33ed",
+  "standards": [
+    "IEEE1800-2017 6.16,11.4.2,13.4.3",
+    "IEEE1800-2023 6.16,11.4.2,13.4.3"
+  ],
+  "focused": {
+    "legacy": {
+      "ran": 10,
+      "failed": 0
+    },
+    "json": {
+      "ran": 10,
+      "failed": 0
+    }
+  },
+  "neighbors": {
+    "legacy": {
+      "ran": 38,
+      "failed": 0
+    },
+    "json": {
+      "ran": 38,
+      "failed": 0
+    }
+  },
+  "source_and_artifacts": {
+    "net_func_eval.cc": "f39e29487da00e9d47bcb1909559a94fb0adbb2902720fc1b8828f0251c82ed2",
+    "pform.cc": "885acb987fc12061e97be4a145d239358f306a82fb53cd683576ef4d6b29e48c",
+    "local-install/lib/ivl/ivl": "b42a4ef23832a63210d320812d44907a759c030b1de66702a51414becdaadfdd",
+    "local-install/lib/ivl/vvp.tgt": "96b096ef46cf3ebe12b7d1266c229279467ee089114291787a646f7e8611beb1",
+    "local-install/bin/iverilog": "42132803a35d918416fcef490921297cff9256d7b0b0078042355bcff1747a5b",
+    "local-install/bin/vvp": "a42cc9a5b3dcf4389e983bb0f0c1054951e584c873a0b697c3c494b8a7107a0f"
+  },
+  "candidate_scope": "Installed candidate includes both L101 and L103 final sources. This record qualifies only its stated focused subset.",
+  "toolchain": "Command Line Tools Apple clang21.0.0, Homebrew Bison3.8.2, /usr/bin/flex; DEVELOPER_DIR=/Library/Developer/CommandLineTools",
+  "build": "l101-result-width-build.log",
+  "install": "l101-result-width-install.log",
+  "logs": [
+    "l101-result-focused-legacy.log",
+    "l101-result-focused-vvp.log",
+    "l101-final-neighbors-legacy.log",
+    "l101-final-neighbors-vvp.log"
+  ],
+  "raw_evidence": "evidence/batch-20260915-after-l95",
+  "fixture_hashes": {
+    "ivtest/ivltests/sv_const_array_string_character_incdec.v": "d2a4cb8beda219f1bb7d6dd3a42f60ee6345c3f0b91faaf165b6a2aea79d4b4d",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_2023.v": "8ac57e2a6d0351e4139b31ddfb638b73f8c322d100d0baa5a036daf825ccd7ec",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_bounds.v": "c425340d2cb1ff222c29f2d0d4b892ffca4e046d8f25b9449208281acd4538f9",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_bounds_2023.v": "0351f6faa266149f1759d44037cea697ec0e492e4e58c0290fa65c2d944157ec",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_fail.v": "b941009df3905b601a3ccd1c7fe9f5940abd70b515570eb961ae58b9b4a30eaf",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_fail_2023.v": "141cb9158d379b8dfcaffaeaec458f2abc39401d0a5bf2028535b49ad57f0832",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_readonly_fail.v": "e4bfae2ea720a948fc255d1f6aa6c8e6e7f274efcc52e93a058420d2bf79f6c1",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_readonly_fail_2023.v": "fd33b54aa59e9b81cc506345437586af99dddf70e4bcd9894d84bed9bf390029",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_recursive.v": "13cf34e59c7d98051fe1cc0762ead033f850ef50f626d5293274cbdd5299129e",
+    "ivtest/ivltests/sv_const_array_string_character_incdec_recursive_2023.v": "17694bcea4809c2e29d9d2e936315ffea007870e39ffce8ff396e153f92687ab"
+  },
+  "broad_qualification": "Pending current batch seven gates; not whole-standard/UVM qualification."
+}

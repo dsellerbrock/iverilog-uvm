@@ -2259,10 +2259,12 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 
 ### L101 — Constant fixed-array string-character increment
 
-- **State:** IN_PROGRESS; coordinator-authorized independent evaluator lane.
+- **State:** FOCUSED_TESTED; broad qualification pending.
 - **Standards:** IEEE1800-2017 and2023 6.16,11.4.2,13.4.3.
 - **Evidence:** `evidence/batch-20260915-after-l95/next-const-array-character-assessment/isolated-baseline.json`.
 - **Closure:** Correct pre/post byte updates through the selected local fixed-array word, with runtime parity, once-only selectors, bounds and locality controls.
+
+- **Implementation evidence:** [L101 session](session_logs/2026-09-15_constant_array_character_increment.md).
 
 ### L102 — Plain finite multiclock consequence alternatives
 

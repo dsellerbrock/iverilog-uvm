@@ -1470,3 +1470,7 @@ IMPLEMENTED for the [recorded acyclic consequence subset](../session_logs/2026-0
 ### L102 — Plain multiclock finite consequences
 
 IMPLEMENTED for the [fixed first-clock prefix subset](../session_logs/2026-09-15_plain_multiclock_consequences.md), extending L100 to sequence properties without implication vacuity. Ranged prefixes and broader SVA remain PARTIAL; broad qualification pending.
+
+### L101 — Constant fixed-array string-character increment
+
+IMPLEMENTED for the [recorded subset](../session_logs/2026-09-15_constant_array_character_increment.md). Broader clause coverage remains PARTIAL; broad qualification pending.

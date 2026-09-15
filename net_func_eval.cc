@@ -1908,21 +1908,27 @@ NetExpr* NetEUnary::evaluate_function(const LineInfo&loc,
                   ? dynamic_cast<const NetESignal*>(select->sub_expr()) : 0;
             if (select && string_sig && select->select()
                 && select->expr_width() == 8
-                && string_sig->sig()->data_type() == IVL_VT_STRING
-                && string_sig->sig()->unpacked_dimensions() == 0
-                && string_sig->word_index() == 0) {
-                  unique_ptr<NetExpr>index_expr(
-                        select->select()->evaluate_function(loc, context_map));
-                  const NetEConst*index_const = index_expr
-                        ? dynamic_cast<const NetEConst*>(index_expr.get()) : 0;
-                  if (!index_const) return 0;
-                  int64_t index = const_string_index_(index_const->value());
-
+                && string_sig->sig()->data_type() == IVL_VT_STRING) {
+                  /* Resolve the selected array word before evaluating the
+                   * character index. Both are l-value selectors and each is
+                   * evaluated exactly once. The shared slot helper also
+                   * supplies the invalid-word discard behavior. */
                   NetExpr*invalid_slot = 0;
                   bool discard_store = false;
                   NetExpr**slot = eval_func_signal_slot_(loc, string_sig,
                         context_map, invalid_slot, discard_store);
                   if (!slot) return 0;
+
+                  unique_ptr<NetExpr>index_expr(
+                        select->select()->evaluate_function(loc, context_map));
+                  const NetEConst*index_const = index_expr
+                        ? dynamic_cast<const NetEConst*>(index_expr.get()) : 0;
+                  if (!index_const) {
+                        delete invalid_slot;
+                        return 0;
+                  }
+                  int64_t index = const_string_index_(index_const->value());
+
                   if (!*slot) {
                         *slot = new NetECString(string());
                         (*slot)->set_line(*this);
@@ -1962,8 +1968,11 @@ NetExpr* NetEUnary::evaluate_function(const LineInfo&loc,
                         *slot = updated;
                   }
                   delete invalid_slot;
-                  NetEConst*result = new NetEConst(
-                        (op_ == 'i' || op_ == 'd') ? old_value : new_value);
+                  verinum result_value =
+                        (op_ == 'i' || op_ == 'd') ? old_value : new_value;
+                  result_value = pad_to_width(result_value, expr_width());
+                  result_value.has_sign(has_sign());
+                  NetEConst*result = new NetEConst(result_value);
                   result->set_line(*this);
                   return result;
             }

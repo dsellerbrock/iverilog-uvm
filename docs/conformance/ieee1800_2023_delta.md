@@ -237,3 +237,5 @@ L99 uses the shared string-variable and constant-function requirements; [paired 
 L100 shares the multiclock sequence/implication requirements; [paired evidence](session_logs/2026-09-15_finite_multiclock_consequences_validation.json) records separate edition executions.
 
 L102 shares the sequence-property and clock-flow rules; [paired evidence](session_logs/2026-09-15_plain_multiclock_consequences_validation.json) records separate edition execution.
+
+L101 follows the shared 6.16,11.4.2,13.4.3 rules; [paired evidence](session_logs/2026-09-15_constant_array_character_increment_validation.json) records separate edition executions.

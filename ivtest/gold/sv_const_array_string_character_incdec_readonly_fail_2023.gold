@@ -1,0 +1,2 @@
+./ivltests/sv_const_array_string_character_incdec_readonly_fail.v:3: error: Assignment to const signal `words` is not allowed.
+Elaboration failed
