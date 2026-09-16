@@ -79,6 +79,23 @@ See BLOCKERS.md L117 for the full description. Short version:
   tested instead of the worktree's own build). See `gate.log` in this
   evidence directory for the run this log accompanies.
 
+## Integration status (important — read before merging anything)
+
+This fix is committed on `agent/l106-l116-regression-fix-20260915`
+(commit `b2c785381`), pushed to origin, built on top of the frozen
+candidate `cd4cf1260`. **No PR was opened against `main`.** That branch
+is 162 commits ahead of `origin/main` — the entire unpublished L106-L116
+batch (and earlier unpropagated work), not just this fix — so a PR from
+it would try to merge all of that in one shot, which is not this fix's
+call to make. The original frozen worktree
+(`iverilog-uvm-campaign-20260908`) was never modified; this work happened
+in a separate, disposable worktree/branch created specifically for it.
+
+To integrate: whoever publishes the L106-L116 batch (or a later
+qualification pass over it) should cherry-pick or rebase-in commit
+`b2c785381` before/as part of that publication — the batch's own broad
+qualification cannot pass without it, per the L117 root cause above.
+
 ## Scope discipline
 
 Both fixes are the minimum needed to restore each lane's own
