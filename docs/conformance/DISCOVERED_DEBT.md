@@ -1840,3 +1840,80 @@ L122's own regression test
 (`ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v`)
 deliberately avoids mixing kinds to stay in scope. Status: recorded,
 not selected.
+
+### DD-035 — Sequence match-item assignment LHS is a bare identifier only, no part-/bit-select (2026-09-16)
+
+Found compiling real, unmodified Caliptra source directly
+(`src/ecc/formal/properties/fv_montmultiplier_glue.sv`, line 113):
+```systemverilog
+property compare_p(prime,idx);
+logic [REG_SIZE-1:0] fv_result;
+logic [FULL_REG_SIZE-1:0] fv_reg;
+    ##0 n_i == prime
+    ##0 start_i
+    ##DLY_CONCAT
+    ##0 (1'b1, fv_reg[RADIX-1:0]    = (ecc_montgomerymultiplier.gen_PE[0].box_i.s_out))
+    ##1 (1'b1, fv_reg[2*RADIX-1:RADIX]   = (ecc_montgomerymultiplier.gen_PE[0].box_i.s_out))
+    ...
+```
+A sequence match-item assignment (`(bool, lhs = rhs)`) whose LHS is a
+part-select or bit-select of an assertion-local variable — building up
+a wide local register RADIX bits at a time across successive match
+steps — was rejected with a plain `syntax error`. Reduced to a minimal
+7-line case (both part-select `fv_reg[3:0] = ...` and bit-select
+`fv_reg[3] = ...` reproduce identically); confirmed independently:
+slang (`--std 1800-2017`) accepts the part-select form, 0 errors, 0
+warnings. This is ordinary `operator_assignment` LHS syntax (IEEE
+1800-2017/2023 A.2.10's `sequence_match_item ::= operator_assignment |
+...`, whose `variable_lvalue` production includes `[]`/`[:]` selects
+like any other assignment target) — not a special restriction on
+local-variable match-items specifically.
+
+**Root cause:** `parse.y`'s `sva_seq_atom` match-item-assignment
+alternatives (`'(' expression ',' IDENTIFIER '=' expression ')'` and
+the `sva_match_call_list`-suffixed variant) hardcode the LHS as a bare
+`IDENTIFIER` token — there is no part-/bit-select alternative at all.
+`pform_sva_coerce_local_assignment(loc, name, rhs)` likewise only takes
+a plain name, with no notion of a selected sub-range.
+
+**Why this is not a quick grammar patch (do not attempt a naive
+fix):** unlike L118-L123 (each a pure grammar gap whose downstream
+semantic layer already accepted a general expression), this genuinely
+needs new semantics, not just a wider grammar production. The
+assertion-local variable model here is "the whole named local holds
+one value, replaced wholesale by each match-item assignment we
+process" (`sva_local_decl_insert_`, `sva_local_decl_types_`,
+`pform_sva_coerce_local_assignment`) — there is no existing concept of
+a partial-width write. A grammar-only fix that accepts `fv_reg[3:0] =
+rhs` but silently lowers it as a full-width overwrite of `fv_reg`
+(dropping the untouched high bits, or worse, misinterpreting `rhs`'s
+width against the full local rather than the selected slice) would
+satisfy the parser while producing wrong values — exactly the
+"manufactured apparent success" the project's correctness bar forbids.
+A correct fix needs a real read-modify-write lowering: read the
+local's current value, blend the RHS into the selected bit range
+(e.g. via a synthesized concatenation/part-replace expression), and
+assign that back as the new whole-local value — before the *next*
+match-item's read of the local observes it.
+
+**Real corpus impact:** `fv_montmultiplier_glue.sv`'s `compare_p`
+property (both instantiations, `compare_concat_prime_p_a` and
+`compare_concat_prime_q_a`) is exactly this shape: it assembles
+`fv_reg` (a wide accumulator) RADIX bits at a time across 9 match
+steps, one part-select write per step, before comparing the fully
+assembled value. This is a real, non-contrived formal-verification
+pattern (checking a modular multiplier's output against pieces
+gathered from ecc_montgomerymultiplier's internal per-PE outputs), not
+a synthetic edge case.
+
+**Closure requirements:** design and implement the read-modify-write
+lowering described above; extend the `sva_seq_atom` match-item
+alternatives with a part-/bit-select LHS production (likely reusing
+whatever bit/part-select expression nonterminal ordinary lvalues use
+elsewhere in `parse.y`, checked for grammar conflicts the same way as
+every fix this session — `bison -y -d --report=state` totals compared
+before/after); verify against both a part-select and a bit-select
+reducer, plus the real originally-failing Caliptra file; add a
+functional (not just compile-success) permanent regression that
+actually checks the assembled value is correct, not merely that it
+parses. Status: recorded, not selected.
