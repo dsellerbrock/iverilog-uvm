@@ -118,18 +118,64 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 
 - **Area / edition:** Functional coverage / edition-agnostic
-- **State:** OPEN (V01A resolves bounded dynamic value-bin union locally)
-- **Confidence:** REPRODUCED
-- **Evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage` uses a
-  maximum registered dynamic-family size raised to the hit count — not an
-  exact union for arbitrary disjoint instance bin sets.
-- **What it blocks:** Correct type-coverage denominators/percentages for
-  class-type coverage with disjoint or partially overlapping instance bin
-  sets; any claim of coverage-number correctness beyond the all-hit case.
-- **Closure requirements:** Disjoint and overlapping instance domains with
-  known union sizes, including partial (non-100%) coverage results checked
-  against a hand-computed oracle, not just "coverage reaches 100%."
-- **Last verified revision:** 9218751e2; paired LRM19.11.3 overlapping-range reducer returns100 rather than66.666667 percent. Evidence/campaign-20260908/v01/union.sv.
+- **State:** **Re-verified CLOSED 2026-09-16** (was stale-OPEN; V01A's fix
+  is merged on `main` and covers this row's own stated closure
+  requirements — see below). Originally: OPEN (V01A resolves bounded
+  dynamic value-bin union locally).
+- **Confidence:** REPRODUCED (original defect), then RE-VERIFIED FIXED
+  against a fresh build of current `main` (not just re-read from an old
+  evidence file).
+- **Original evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage`
+  used a maximum registered dynamic-family size raised to the hit count —
+  not an exact union for arbitrary disjoint instance bin sets.
+- **2026-09-16 re-verification:** built the LRM's own §19.11.3 worked
+  example fresh (`covergroup gt(int l,h); type_option.merge_instances=1;
+  option.get_inst_coverage=1; coverpoint a { bins b[] = {[l:h]}; }
+  endgroup`, `gv1=new(0,1)`, `gv2=new(1,2)`, sample `a==0` on `gv1` and
+  `a==1` on both) against a fresh `main`-tip build (not a stale note):
+  `gv1.get_coverage()` and `gv2.get_coverage()` both return exactly
+  `66.6667`, `gv1.get_inst_coverage()` returns exactly `100.0`,
+  `gv2.get_inst_coverage()` returns exactly `50.0` — all four values
+  match the LRM's own stated answers exactly. (Two option-scoping
+  mistakes were made and corrected while building this reducer —
+  `merge_instances` is a `type_option`, not `option`, and
+  `get_inst_coverage()`'s return value equals `get_coverage()` unless
+  `option.get_inst_coverage` is explicitly set, both confirmed against
+  LRM text before concluding anything — Icarus's behavior at each
+  intermediate wrong-option step was itself correct per spec.)
+- **This row's own closure requirements, checked against the existing,
+  passing `ivtest/ivltests/sv_covergroup_merged_value_union.v` (registered
+  for both `-g2017` and `-g2023`, part of every ivtest sweep this session
+  with 0 failures):** disjoint instance domains (`unsampled disjoint`,
+  `partial disjoint`), a retired instance still counted
+  (`retired universe`), a non-100% partial-coverage result checked
+  against a hand-computed oracle (`merged hit threshold` = 100/3), signed
+  range crossing, fixed-size and scalar bins, and a 64-bit wide value bin
+  with no enumeration — all present and passing. This is not "coverage
+  reaches 100%" trivia; it is exactly the disjoint/overlapping/partial
+  oracle-checked scope this row asked for.
+- **LRM's second §19.11.3 worked example checked too** (`ga(abm)` with
+  differing constructor-arg `auto_bin_max` per instance, giving 96
+  cumulative auto-bins): this hits a DIFFERENT, already-diagnosed
+  limitation, not a silent-wrong-answer regression of V01/V01A —
+  `option.auto_bin_max = abm;` (`abm` a constructor argument, not a true
+  elaboration-time constant) produces a loud `sorry: covergroup option
+  'auto_bin_max' is not a constant; using default 64.` `auto_bin_max`
+  itself apparently isn't constructor-arg-drivable at all yet (unlike
+  `bins b[] = {[l:h]}` range bounds, which V01A's fix does handle
+  per-instance); not a V01/V01A regression, and already meets the
+  "unsupported behavior must produce a focused diagnostic" bar as-is.
+  Not filed as its own row — genuinely minor (auto-bin-max is rarely
+  made constructor-dependent in practice; the common case, a fixed
+  `auto_bin_max` with constructor-dependent VALUE RANGES, is exactly
+  what V01A already covers) — revisit only if a real corpus (OpenTitan/
+  Caliptra) reducer needs it.
+- **What remains genuinely unverified (not claimed closed):** transition-bin
+  / cross-bin unions specifically under `merge_instances` (as opposed to
+  the value-bin unions checked above). Re-open (or file a fresh,
+  separately-scoped row) only if a reducer for that specific shape is
+  found to fail — do not reopen this row generically without a concrete
+  new reproducer.
 
 ### F00 — Hardware formal proof backend (PROGRAM item, not a bug)
 
