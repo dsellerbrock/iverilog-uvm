@@ -1,0 +1,2 @@
+./ivltests/sv_concat_postfix_select_queue_operand_fail.v:16: error: a queue or dynamic array cannot be an operand of a concatenation here; `{...}' without an enclosing array-typed context is a packed bit-vector concatenation (IEEE 1800-2017/2023 10.10).
+Elaboration failed

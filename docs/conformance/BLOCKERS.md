@@ -2303,3 +2303,66 @@ The [batch record](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.
 - **Implementation evidence:** [L105 session](session_logs/2026-09-15_nonlocal_constant_function_values.md).
 
 L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json).
+
+### L118 — Queue/darray operand silently mistreated as vector bits in a concatenation select
+
+- **Status:** CLOSED 2026-09-15. Found while investigating a `tasks/todo.md`
+  Phase-B backlog item (`eval_string.c:249`'s silent select-on-unsupported-
+  base-type fallback) — the reducer built to test it never reached that
+  fallback at all, but surfaced this different, upstream bug instead.
+- **Symptom:** `s = {qa, qb}[1];` where `qa`/`qb` are `string queue`s
+  compiled with ZERO diagnostics and printed the wrong result (`s=""`,
+  should be a real element) at runtime. Disassembly showed Icarus lowering
+  `{qa, qb}` as a packed bit-vector concatenation (`%concat/vec4`) and then
+  bit-selecting into it, rather than recognizing the queue operands.
+- **Investigation correction (recorded so it isn't repeated):** initially
+  read this as a MISSING FEATURE (IEEE 1800-2017/2023 10.10 unpacked-array
+  concatenation, then an element select — primary grammar A.8.4 allows
+  `concatenation [ [ range_expression ] ]`) and began implementing a
+  `sorry:` diagnostic for it. Before finishing that, cross-checked with
+  slang: `slang --std 1800-2017` REJECTS the identical construct outright
+  (`error: invalid operand type 'string$[$]' in concatenation`), and the
+  same for a non-string (`int`) queue. Re-reading 10.10: unpacked array
+  concatenation requires an enclosing ARRAY-TYPED context (an assignment,
+  argument, or pattern target) to be recognized as such; `{...}[...]` used
+  as a bare sub-expression (the only way `PEPostSelect`'s base_ reaches a
+  `PEConcat`) offers no such context, so a queue/darray operand there is
+  simply illegal, not merely unimplemented. Reworded the diagnostic from
+  `sorry:` (implies valid-but-unsupported) to `error:` (illegal) to match.
+  This is the same discipline as [[discovered-debt-hypothesis-is-not-
+  diagnosis]] (memory) — verify a hypothesis against a primary source
+  before writing the fix, not just before closing the ticket.
+- **Root cause:** `PEPostSelect::elaborate_expr` (elab_expr.cc) unconditionally
+  elaborates its `base_` through `PEConcat`'s self-determined-width overload
+  (a plain packed-vector concatenation), with no check on operand types —
+  a queue/darray operand there was silently treated as vector bits instead
+  of being rejected.
+- **Fix:** added `postselect_concat_base_has_illegal_container_operand_()`
+  (elab_expr.cc), checked right after `base_->test_width()` populates
+  operand types: if any `PEConcat` operand covered by the select is itself
+  queue/darray-typed (by `expr_type()`, or via `PEIdent::test_type_of_ident`
+  for identifier operands), emit a focused `error:` citing IEEE
+  1800-2017/2023 10.10 and reject, instead of silently mis-elaborating.
+- **Scoped narrowly:** a concatenation of scalar queue/darray *elements*
+  (e.g. `{q[0], q[1]}[3:0]`, the operands are scalars, not the container)
+  is unaffected — verified with a permanent regression
+  (`sv_concat_postfix_select_queue_element.v`) alongside the negative one.
+  Plain packed-vector postfix-select (the pre-existing
+  `sv_concat_postfix_select.v` coverage) is unaffected.
+- **Permanent regression:** `ivtest/ivltests/sv_concat_postfix_select_queue_operand_fail.v`
+  (CE, new `error:` diagnostic) and
+  `ivtest/ivltests/sv_concat_postfix_select_queue_element.v` (normal,
+  guards against a future false-positive on the scalar-element case), both
+  registered in `ivtest/regress-sv.list` next to the existing postfix-
+  select entries.
+- **Validation:** focused 4/4 pass. Full `.github/ivtest_gate.sh` legacy
+  sweep: `Total=5810, Passed=5805, Failed=0`, 0 unexplained vs. the
+  `main`-tip (L96-L105) baseline. UVM regression: 357 passed, 0 failed, 0
+  skipped. (json/nfa/releases/frontend/makecheck gates not re-run for this
+  narrow, single-function fix — neither touched by the change.)
+- **Not fixed here, deliberately:** actually IMPLEMENTING unpacked-array
+  concatenation-then-element-select for the cases where it *is* legal
+  (inside an array-typed context, e.g. `bigq = {qa, qb}; s = bigq[1];`,
+  already two separate statements that already work today) is a real,
+  separate feature, not touched by this fix. Nothing in this fix's scope
+  claims that feature exists.
