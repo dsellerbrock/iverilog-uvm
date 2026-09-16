@@ -13168,6 +13168,38 @@ unsigned PEPostSelect::test_width(Design*des, NetScope*scope,
       return 0;
 }
 
+/* A `{...}[...]' select on a concatenation is always elaborated through
+ * the self-determined-width overload of PEConcat::elaborate_expr below,
+ * which only knows how to build a packed bit-vector concatenation --
+ * IEEE 1800-2017/2023 10.10's UNPACKED ARRAY concatenation needs an
+ * enclosing array-typed context (an assignment/argument/pattern target)
+ * to be recognized as such at all, and `{...}[...]' used as a bare
+ * sub-expression (no such context reaches PEPostSelect's base_) offers
+ * none. A queue/dynamic-array operand is therefore never a legal
+ * concatenation operand here -- confirmed independently: slang rejects
+ * the identical construct ("invalid operand type '...$[$]' in
+ * concatenation"). Icarus, however, silently treated the operand as if
+ * it were vector bits instead of rejecting it, producing a wrong
+ * (typically empty/zero) result with no diagnostic at all. Reject it
+ * before that happens, matching slang's disposition. */
+static bool postselect_concat_base_has_illegal_container_operand_(
+      const PEConcat*pec, Design*des, NetScope*scope)
+{
+      for (const PExpr*item : pec->stream_parms()) {
+            if (item->expr_type() == IVL_VT_QUEUE
+                || item->expr_type() == IVL_VT_DARRAY)
+                  return true;
+            if (const PEIdent*ident = dynamic_cast<const PEIdent*>(item)) {
+                  ivl_type_t ident_type = ident->test_type_of_ident(des, scope);
+                  if (ident_type
+                      && (ident_type->base_type() == IVL_VT_QUEUE
+                          || ident_type->base_type() == IVL_VT_DARRAY))
+                        return true;
+            }
+      }
+      return false;
+}
+
 NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
                                       unsigned expr_wid,
                                       unsigned flags) const
@@ -13178,6 +13210,20 @@ NetExpr* PEPostSelect::elaborate_expr(Design*des, NetScope*scope,
 
       width_mode_t base_mode = SIZED;
       base_->test_width(des, scope, base_mode);
+
+      if (const PEConcat*pec = dynamic_cast<const PEConcat*>(base_)) {
+            if (postselect_concat_base_has_illegal_container_operand_(
+                  pec, des, scope)) {
+                  cerr << get_fileline() << ": error: a queue or dynamic "
+                          "array cannot be an operand of a concatenation "
+                          "here; `{...}' without an enclosing array-typed "
+                          "context is a packed bit-vector concatenation "
+                          "(IEEE 1800-2017/2023 10.10)." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+      }
+
       NetExpr*base_expr = base_->elaborate_expr(des, scope,
                                                 base_->expr_width(), flags);
       if (!base_expr)
