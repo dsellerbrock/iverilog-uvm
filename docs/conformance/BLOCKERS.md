@@ -2608,3 +2608,76 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   (unresolved `bind`-target hierarchy references, from testing the file
   outside its full multi-file `bind` context — not a regression from
   this fix).
+
+### L121 — Named property forward reference resolved as an undefined signal
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra source directly (`src/sha512/formal/properties/
+  fv_constraints.sv`), immediately after L120 — same session, same
+  grounding approach.
+- **Symptom:** `assert/assume property (name);` where `name` is a
+  no-argument property declared LATER in the same module — legal per
+  IEEE 1800-2017/2023 (no textual-order requirement between a
+  `concurrent_assertion_statement` and the `property_declaration` it
+  names; confirmed independently: slang accepts the identical construct,
+  0 errors, 0 warnings) — was rejected with `error: Unable to bind
+  wire/reg/memory 'name'`, exactly as if the name were genuinely
+  undefined. Reproduced in a 15-line standalone isolated reducer. Two
+  separate real, unmodified Caliptra files rely on this exact
+  forward-reference shape (`src/sha512/formal/properties/
+  fv_constraints.sv`, `src/sha512_masked/formal/properties/
+  fv_constraints.sv`).
+- **Root cause:** `sva_module_properties` (the map `pform_make_assertion`
+  consults to resolve a bare `assert/assume/cover property (name);` to
+  its declaration) is populated in single-pass textual parse order. A
+  property declared after its first reference is not yet registered when
+  that reference is reached, so resolution fell straight through to
+  ordinary plain-identifier (signal) lookup and failed.
+- **Fix:** mirrors the pre-existing, exactly-analogous deferred-clock-
+  inference mechanism (`sva_pending_proc_` /
+  `pform_sva_flush_pending_procedural`, called at end-of-module). Added a
+  parallel `sva_pending_named_property_` list: when a bare single-
+  identifier property reference is not found in `sva_module_properties`,
+  park the full original call (loc/prop/fail_stmt/pass_stmt/kind/label)
+  and retry once at end-of-module (`pform_sva_flush_pending_named_
+  properties`, called before `pform_cur_module.pop_front()` so default-
+  clocking lookup still resolves correctly on retry) by re-entering
+  `pform_make_assertion` itself with the original arguments — by then
+  every property declaration in the module has been parsed and
+  registered. A name still unresolved at that point falls through to the
+  original, unchanged plain-identifier error path — not a new message,
+  no change for a genuinely undefined name (confirmed directly with a
+  dedicated negative reducer).
+- **Regression caught and fixed before landing (important process note):**
+  the first version of this fix deferred on ANY unresolved single
+  identifier, which also matches an ordinary already-declared signal used
+  directly as a property body (`assert property (a);` where `a` is a
+  plain `bit`/`wire` — indistinguishable from a forward-referenced
+  property name at the point of first resolution). Deferring those too
+  reordered their processing relative to other module items, which two
+  VPI assertion-attempt-callback tests depend on for their attempt/
+  instance numbering — caught immediately by the full ivtest gate's
+  bundled VPI suite (`vpi/m12_assert_attempt.v`, `vpi/m12br_assert_cb2.v`
+  went from 108/108 to 106/108, a real regression, not flakiness).
+  Root-caused precisely (diffed the VPI gold output, found the `_0`/`_1`
+  instance-index suffixes swapped) and fixed by narrowing the deferral
+  condition with `pform_get_wire_in_scope()`: only defer when the name
+  is not ALREADY resolvable as a known signal in scope, since such a
+  name is never going to resolve as a property later instead. Re-ran the
+  full VPI suite after the narrowing fix: back to 108/108.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_assert_named_property_forward_ref.v` (normal — the
+  fixed case, plus an ordinary-order property asserted alongside it to
+  confirm the deferral machinery doesn't disturb already-working cases)
+  and `sv_assert_named_property_undefined_fail.v` (CE — confirms a
+  genuinely undefined name is still rejected identically), both
+  registered in `ivtest/regress-sv.list`.
+- **Validation:** focused 4/4 pass (both new tests plus L120's two).
+  Full `.github/ivtest_gate.sh` legacy sweep: `Total=5816, Passed=5811,
+  Failed=0`, 0 unexplained. Bundled VPI suite: 108/108 (the regression
+  this fix's own first draft introduced, caught, root-caused, and fixed
+  within the same investigation before ever being committed). UVM
+  regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing
+  `src/sha512/formal/properties/fv_constraints.sv` (with its real DUT,
+  `sha512_core.v`) now compiles clean, exit 0.
