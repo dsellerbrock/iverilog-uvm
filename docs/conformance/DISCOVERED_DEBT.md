@@ -1801,3 +1801,42 @@ against both a direct-scope and wildcard-imported reference, plus a
 positional (non-keyed) assignment pattern and a partially-keyed one with
 a default (LRM 10.9's `default:` item), which were not tried this pass.
 Status: recorded, not selected.
+
+### DD-034 — Mixing `int` and `logic` assertion-local variable declarations in one property breaks binding (2026-09-16)
+
+Found while building a permanent regression for the L122 comma-
+separated multi-identifier local-declaration fix. **Not caused by that
+fix** — reproduces with zero commas involved, using only the pre-
+existing single-identifier `sva_int_local_declarations` chain grammar
+that L122 left untouched:
+
+```systemverilog
+property p1;
+  int a;
+  logic [3:0] z;
+  (1'b1, a = 1) ##1 (1'b1, z = a[3:0]) ##1 (z == 4'd1);
+endproperty
+```
+Rejected at elaboration with `error: Unable to bind wire/reg/memory
+'a[...]'` — `a` is declared (no parse error) but never actually
+materialized as a usable local variable once a `logic`-kind declaration
+also appears in the same property. Confirmed independently: slang
+accepts the identical construct, 0 errors, 0 warnings.
+
+Two same-kind declarations chained together (`int a; int b;`, or
+`logic [5:0] x; logic [2:0] y;`) work fine — the break is specifically
+mixing `int`-kind and `logic`-kind declarations within one property's
+local-variable section, not chaining itself. Not yet root-caused inside
+`pform.cc`'s `sva_local_decl_insert_`/`sva_local_decl_types_`
+machinery or whatever downstream step materializes each map entry as a
+real wire — the two candidate insertion functions
+(`pform_sva_declare_int_local`, `pform_sva_declare_logic_local`) both
+write into the same `sva_local_decl_types_` map via the same
+`sva_local_decl_insert_` helper, so the divergence is likely in a
+later, kind-sensitive consumer of that map, not in insertion itself —
+not traced further.
+
+L122's own regression test
+(`ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v`)
+deliberately avoids mixing kinds to stay in scope. Status: recorded,
+not selected.

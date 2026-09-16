@@ -9474,7 +9474,8 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
 				    const char*name,
-				    std::list<pform_range_t>*dimensions)
+				    std::list<pform_range_t>*dimensions,
+				    bool owns_dimensions)
 {
       PExpr*width = nullptr;
       bool failed = false;
@@ -9497,7 +9498,7 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 	    FILE_NAME(width, loc);
       }
 
-      if (dimensions) {
+      if (dimensions && owns_dimensions) {
 	    for (std::list<pform_range_t>::iterator it = dimensions->begin();
 		 it != dimensions->end(); ++it) {
 		  delete it->first;

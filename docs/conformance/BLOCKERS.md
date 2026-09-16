@@ -2681,3 +2681,99 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
 - **Real-world confirmation:** the exact originally-failing
   `src/sha512/formal/properties/fv_constraints.sv` (with its real DUT,
   `sha512_core.v`) now compiles clean, exit 0.
+
+### L122 — Comma-separated multi-identifier assertion-local variable declaration rejected as a syntax error
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra source directly (`src/ecc/formal/properties/
+  fv_ecc_pm_ctrl_abstract.sv`), while batch-scanning the `ecc` IP
+  block's 24-file formal corpus — same real-corpus grounding approach as
+  L120/L121.
+- **Symptom:** `logic [5:0] addra, addrb;` — a comma-separated
+  multi-identifier declaration inside a `property ... endproperty`
+  block's local-variable section — was rejected with a plain `syntax
+  error` pointing at the declaration line, followed by the expected
+  cascade (`Unable to bind wire/reg/memory` for the property name). The
+  single-identifier form (`logic [5:0] addra;`) already worked; only the
+  comma continuation was rejected. Confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors, 0
+  warnings — this is IEEE 1800-2017/2023 A.2.10's ordinary
+  `assertion_variable_declaration ::= data_type
+  list_of_variable_decl_assignments ';'`, ordinary comma-list variable
+  declaration syntax used everywhere else in the language, not a
+  special local-declaration-only restriction. Three genuine hits in the
+  originally-scanned real file (all on `logic[5:0] addra,addrb;` lines,
+  three separate properties), plus independently reproduced for the
+  `int` form (`int a, b;`).
+- **Root cause:** `parse.y`'s `sva_int_local_declarations` nonterminal
+  had six alternatives (base and `sva_int_local_declarations`-chained
+  forms, each for `K_int` and `K_sva_logic_local` with/without
+  `dimensions`), and every one of them terminated in exactly one
+  `IDENTIFIER ';'` — there was no comma continuation *within* a single
+  declaration statement, only the (different, already-working) ability
+  to chain multiple separate `;'-terminated declarations one after
+  another (`logic [5:0] addra; logic [5:0] addrb;` always worked).
+- **Fix:** added a new `sva_local_ident_list` nonterminal (returns
+  `std::list<perm_string>*`), structurally identical to the pre-existing
+  `sva_formal_list` comma-list pattern already used for parameterized-
+  property formal argument lists — reused the same, already-proven-safe
+  shape rather than inventing a new one. Replaced the bare `IDENTIFIER`
+  in all six `sva_int_local_declarations` alternatives with
+  `sva_local_ident_list`, and changed each action to loop over the
+  returned list, calling `pform_sva_declare_int_local`/
+  `pform_sva_declare_logic_local` once per name.
+  `pform_sva_declare_logic_local(loc, name, dimensions)` previously
+  always freed its `dimensions` argument (both the range-expression
+  contents and the list container itself) unconditionally — calling it
+  more than once with the same shared `dimensions` pointer (one call per
+  comma-separated name) would double-free. Added an `owns_dimensions`
+  parameter (default `true`, preserving every existing call site
+  unchanged) so the grammar action passes `false` for every identifier
+  in the list except the last, which alone releases the shared
+  dimensions list once all clones have been made.
+  `sva_local_dimension_width_()` was already safe to call once per
+  identifier sharing the same `dimensions` list: it clones the range
+  bounds (`sva_clone_expr_`) rather than consuming the originals, so
+  each identifier still gets its own independent width expression tree
+  — required since `pform_sva_end_local_declarations()` later deletes
+  each map entry's `width` individually, and two entries sharing one
+  `width` pointer would double-free there instead.
+- **Verified in scope, not conflated with a separate pre-existing
+  defect (important process note):** while building the permanent
+  regression, mixing `int`-kind and `logic`-kind local declarations
+  within one property (e.g. `int a; logic [3:0] z;`) was found to break
+  binding of the `int`-typed name(s) at elaboration
+  (`Unable to bind wire/reg/memory 'a'`) — but this reproduces with
+  **zero commas involved**, using only the pre-existing single-
+  identifier chain grammar this fix left untouched, so it is a separate,
+  pre-existing defect, not a regression from this fix and not required
+  for L122's closure. Recorded separately as DD-034 in
+  `DISCOVERED_DEBT.md`; the L122 regression test deliberately declares
+  only same-kind identifiers per property to stay in scope. See
+  [[discovered-debt-hypothesis-is-not-diagnosis]] — verified the
+  boundary of what this fix does and does not touch before claiming
+  either construct implemented.
+- **Bison grammar-safety check:** shift/reduce and reduce/reduce
+  conflict totals compared before/after (`bison -y -d --report=state`):
+  562/1122 identical in both, and the new rules are additive
+  (`sva_local_ident_list` mirrors `sva_formal_list`'s already-safe
+  shape) rather than modifying any existing production's alternatives.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v` (normal
+  — functionally verifies both the `logic [N:0] a, b;` base form and an
+  `int a, b; int c;` chain, matching values through the sequence rather
+  than only checking compile success), registered in
+  `ivtest/regress-sv.list`.
+- **Validation:** focused 5/5 pass (this test plus L120's and L121's
+  four). Full `.github/ivtest_gate.sh` sweep: `Total=5819, Passed=5814,
+  Failed=0, Not Implemented=2, Expected Fail=3`, name-diff gate clean (0
+  unexplained). Bundled VPI suite: 108/108. Negative suite: 148/148.
+  UVM regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing
+  `src/ecc/formal/properties/fv_ecc_pm_ctrl_abstract.sv` no longer
+  produces the `syntax error` on any of its three `logic[5:0]
+  addra,addrb;` declarations (grep-confirmed absent from the diagnostic
+  output; one unrelated pre-existing `syntax error` at line 40, a
+  standalone-file port-list type-resolution artifact from compiling
+  this file outside its package context, is untouched by and out of
+  scope for this fix).

@@ -397,10 +397,15 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
 extern void pform_sva_begin_local_declarations(void);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
 					const char*name);
+/* owns_dimensions=false borrows *dimensions to compute a width for one
+   name among several sharing a single comma-separated declaration,
+   without freeing the shared list; exactly one call among the group
+   (typically the last) must pass owns_dimensions=true to release it. */
 extern void pform_sva_declare_logic_local(
 					const struct vlltype&loc,
 					const char*name,
-					std::list<pform_range_t>*dimensions);
+					std::list<pform_range_t>*dimensions,
+					bool owns_dimensions = true);
 extern PExpr* pform_sva_coerce_local_assignment(
 					const struct vlltype&loc,
 					const char*name, PExpr*rhs);

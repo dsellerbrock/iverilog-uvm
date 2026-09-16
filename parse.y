@@ -2175,6 +2175,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <perm_strings> loop_variables
 %type <perm_strings> randomize_with_identifier_tail
 %type <perm_strings> sva_formal_list
+%type <perm_strings> sva_local_ident_list
 %type <port_list> list_of_port_identifiers list_of_variable_port_identifiers
 
 %type <decl_assignments> net_decl_assigns
@@ -7758,30 +7759,59 @@ sva_formal_list
 	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
   ;
 
+  /* Comma-separated identifiers sharing one assertion-local declaration
+     (e.g. `logic [5:0] a, b;`), distinct from sva_formal_list only in
+     which call sites consume it. */
+sva_local_ident_list
+  : sva_local_ident_list ',' IDENTIFIER
+      { $1->push_back(lex_strings.make($3)); delete[]$3; $$ = $1; }
+  | IDENTIFIER
+      { std::list<perm_string>*l = new std::list<perm_string>;
+	l->push_back(lex_strings.make($1)); delete[]$1; $$ = l; }
+  ;
+
 sva_int_local_declarations
-  : K_int IDENTIFIER ';'
+  : K_int sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
-	pform_sva_declare_int_local(@1, $2);
-	delete[] $2; $$ = 0; }
-  | K_sva_logic_local dimensions IDENTIFIER ';'
+	for (std::list<perm_string>::iterator it = $2->begin();
+	     it != $2->end(); ++it)
+	      pform_sva_declare_int_local(@1, it->str());
+	delete $2; $$ = 0; }
+  | K_sva_logic_local dimensions sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
-	pform_sva_declare_logic_local(@1, $3, $2);
-	delete[] $3;
+	for (std::list<perm_string>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      std::list<perm_string>::iterator next = it; ++next;
+	      pform_sva_declare_logic_local(@1, it->str(), $2,
+					     next == $3->end());
+	}
+	delete $3;
 	$$ = 0; }
-  | K_sva_logic_local IDENTIFIER ';'
+  | K_sva_logic_local sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
-	pform_sva_declare_logic_local(@1, $2, nullptr);
-	delete[] $2;
+	for (std::list<perm_string>::iterator it = $2->begin();
+	     it != $2->end(); ++it)
+	      pform_sva_declare_logic_local(@1, it->str(), nullptr);
+	delete $2;
 	$$ = 0; }
-  | sva_int_local_declarations K_int IDENTIFIER ';'
-      { pform_sva_declare_int_local(@2, $3);
-	delete[] $3; $$ = 0; }
-  | sva_int_local_declarations K_sva_logic_local dimensions IDENTIFIER ';'
-      { pform_sva_declare_logic_local(@2, $4, $3);
-	delete[] $4; $$ = 0; }
-  | sva_int_local_declarations K_sva_logic_local IDENTIFIER ';'
-      { pform_sva_declare_logic_local(@2, $3, nullptr);
-	delete[] $3; $$ = 0; }
+  | sva_int_local_declarations K_int sva_local_ident_list ';'
+      { for (std::list<perm_string>::iterator it = $3->begin();
+	     it != $3->end(); ++it)
+	      pform_sva_declare_int_local(@2, it->str());
+	delete $3; $$ = 0; }
+  | sva_int_local_declarations K_sva_logic_local dimensions sva_local_ident_list ';'
+      { for (std::list<perm_string>::iterator it = $4->begin();
+	     it != $4->end(); ++it) {
+	      std::list<perm_string>::iterator next = it; ++next;
+	      pform_sva_declare_logic_local(@2, it->str(), $3,
+					     next == $4->end());
+	}
+	delete $4; $$ = 0; }
+  | sva_int_local_declarations K_sva_logic_local sva_local_ident_list ';'
+      { for (std::list<perm_string>::iterator it = $3->begin();
+	     it != $3->end(); ++it)
+	      pform_sva_declare_logic_local(@2, it->str(), nullptr);
+	delete $3; $$ = 0; }
   ;
 
 /* IEEE 1800-2017 16.13.1: a multiclocked sequence has exactly ##0 or ##1

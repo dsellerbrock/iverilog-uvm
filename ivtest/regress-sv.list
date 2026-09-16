@@ -1664,6 +1664,7 @@ sv_assert_liveness_no_action normal,-g2012 ivltests
 sv_assert_liveness_real_action_fail CE,-g2012 ivltests gold=sv_assert_liveness_real_action_fail.gold
 sv_assert_named_property_forward_ref normal,-g2012 ivltests
 sv_assert_named_property_undefined_fail CE,-g2012 ivltests gold=sv_assert_named_property_undefined_fail.gold
+sv_assert_property_local_multi_ident_decl normal,-g2012 ivltests
 sv_array_elem_member_cassign normal,-g2012 ivltests
 sv_struct_member_mixed_assign normal,-g2012 ivltests
 sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope
