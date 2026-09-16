@@ -379,6 +379,7 @@ extern void pform_make_assertion(const struct vlltype&loc,
    anything still parked when the module (or checker) ends is an error. */
 extern void pform_sva_infer_procedural_clock(PEventStatement*ctl);
 extern void pform_sva_flush_pending_procedural(void);
+extern void pform_sva_flush_pending_named_properties(void);
 /* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE
    1800-2017 16.17) — a PROCEDURAL statement that blocks the executing
    process until a single attempt of the property completes, then runs
@@ -396,10 +397,15 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
 extern void pform_sva_begin_local_declarations(void);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
 					const char*name);
+/* owns_dimensions=false borrows *dimensions to compute a width for one
+   name among several sharing a single comma-separated declaration,
+   without freeing the shared list; exactly one call among the group
+   (typically the last) must pass owns_dimensions=true to release it. */
 extern void pform_sva_declare_logic_local(
 					const struct vlltype&loc,
 					const char*name,
-					std::list<pform_range_t>*dimensions);
+					std::list<pform_range_t>*dimensions,
+					bool owns_dimensions = true);
 extern PExpr* pform_sva_coerce_local_assignment(
 					const struct vlltype&loc,
 					const char*name, PExpr*rhs);

@@ -2535,6 +2535,14 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   synthesizes a sampler process into THIS module's scope. */
       pform_flush_pending_sampled_calls();
 
+	/* M9-SV2: retry any assert/assume/cover that named a property before
+	   its own declaration was reached (legal, forward reference). Also
+	   before the pop: a retry that resolves here and still needs clock
+	   inference falls back to the module's default clocking, which
+	   (like the sampled-value binding above) needs pform_cur_module
+	   to still name THIS module. */
+      pform_sva_flush_pending_named_properties();
+
       Module*cur_module  = pform_cur_module.front();
       pform_cur_module.pop_front();
       perm_string mod_name = cur_module->mod_name();
@@ -9466,7 +9474,8 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name)
 
 void pform_sva_declare_logic_local(const struct vlltype&loc,
 				    const char*name,
-				    std::list<pform_range_t>*dimensions)
+				    std::list<pform_range_t>*dimensions,
+				    bool owns_dimensions)
 {
       PExpr*width = nullptr;
       bool failed = false;
@@ -9489,7 +9498,7 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 	    FILE_NAME(width, loc);
       }
 
-      if (dimensions) {
+      if (dimensions && owns_dimensions) {
 	    for (std::list<pform_range_t>::iterator it = dimensions->begin();
 		 it != dimensions->end(); ++it) {
 		  delete it->first;
@@ -22596,6 +22605,48 @@ void pform_sva_flush_pending_procedural(void)
       sva_pending_proc_.clear();
 }
 
+/* Deferred retry for `assert/assume/cover property (name);' where `name'
+ * is not yet a registered property when first parsed (a forward
+ * reference to a property declared later in the same module -- legal
+ * per IEEE 1800-2017/2023, no textual-order requirement between a
+ * concurrent_assertion_statement and the property_declaration it names).
+ * See the deferral site in pform_make_assertion() for the full citation
+ * and real-world motivation. */
+struct sva_pending_named_property_t {
+      struct vlltype loc;
+      sva_property_t*prop;
+      Statement*fail_stmt;
+      Statement*pass_stmt;
+      int kind;
+      perm_string label;
+};
+static std::vector<sva_pending_named_property_t> sva_pending_named_property_;
+
+/* Sentinel that keeps pform_make_assertion() from deferring a second time
+ * while flushing this same list -- a name still unresolved at end of
+ * module falls through to the original (unchanged) plain-identifier
+ * resolution below the deferral site instead of looping. */
+static bool sva_named_prop_retry_active_ = false;
+
+/* Called at end of module, before sva_module_properties is cleared for
+ * the next module: every property declaration in this module has now
+ * been parsed and registered, so retry each deferred reference exactly
+ * once by re-entering pform_make_assertion() with its original
+ * arguments. */
+void pform_sva_flush_pending_named_properties(void)
+{
+      if (sva_pending_named_property_.empty()) return;
+      std::vector<sva_pending_named_property_t> pending;
+      pending.swap(sva_pending_named_property_);
+      sva_named_prop_retry_active_ = true;
+      for (size_t idx = 0 ; idx < pending.size() ; idx += 1) {
+	    sva_pending_named_property_t&p = pending[idx];
+	    pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
+				 p.kind, p.label);
+      }
+      sva_named_prop_retry_active_ = false;
+}
+
 /* A concurrent assertion synthesizes its own clocked always block plus the
  * state variables that block needs, and it does so at the point the
  * assertion is parsed. When the assertion sits in procedural code --
@@ -24350,8 +24401,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
 
 	/* A null pass action has no executable behavior. Consume its marker
-	   before checking whether this cover lowering supports pass actions. */
-      if (kind == 2 && dynamic_cast<PNoop*>(pass_stmt)) {
+	   before checking whether this lowering supports pass actions.
+	   `assert/assume property (p) ;' (a bare `;' pass-action-only form,
+	   IEEE 1800-2017 A.2.10) carries the identical PNoop sentinel as
+	   `cover property (p) ;' -- both come from the same statement_or_null
+	   production -- but this consumption used to be gated to kind==2
+	   (cover) only. For assert/assume (kind 0/1) the sentinel survived
+	   unconsumed and was later seen as a genuine non-null pass_stmt by
+	   pform_make_temporal_assertion_'s `if (pass_stmt && !pass_supported)'
+	   check, wrongly refusing a completely action-less
+	   `assert property (s_eventually(x));' with "a pass action on this
+	   property operator is not supported" -- there was no pass action at
+	   all. Real Caliptra/Adams-Bridge formal-verification sources use
+	   exactly this action-less liveness-assume shape. */
+      if (dynamic_cast<PNoop*>(pass_stmt)) {
 	    delete pass_stmt;
 	    pass_stmt = nullptr;
       }
@@ -24574,6 +24637,60 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      delete prop;
 			      delete fail_stmt;
 			      delete pass_stmt;
+			      return;
+			}
+			  /* IEEE 1800-2017/2023 place no textual-order requirement
+			   * on a named property_declaration relative to a
+			   * concurrent_assertion_statement referencing it within
+			   * the same module (confirmed independently: slang
+			   * accepts `assert property(p); ... property p; ...
+			   * endproperty' with 0 errors). sva_module_properties is
+			   * populated in single-pass textual parse order, so a
+			   * property declared LATER in the module is not yet
+			   * registered when an earlier assert/assume/cover using
+			   * its bare name is reached here -- this used to fall
+			   * straight through to plain-identifier (signal)
+			   * resolution and fail with "Unable to bind wire/reg/
+			   * memory", exactly as if the name were genuinely
+			   * undefined. Real, unmodified Caliptra formal
+			   * verification sources rely on the forward-reference
+			   * form (src/sha512/formal/properties/fv_constraints.sv,
+			   * src/sha512_masked/formal/properties/fv_constraints.sv).
+			   * Defer one retry to end-of-module, by which point every
+			   * property declaration in this module has been parsed
+			   * and registered; pform_sva_flush_pending_named_
+			   * properties() re-enters this exact function so a name
+			   * that is still unresolved even then falls through to
+			   * the original (correct, unchanged) plain-identifier
+			   * error path below -- not a new error message, no
+			   * change for a genuinely undefined name.
+			   *
+			   * Guarded to names that are not ALREADY a known signal:
+			   * `assert property (a);' where `a' is a plain
+			   * already-declared wire/reg is this exact same
+			   * "unresolved single identifier" shape, and deferring
+			   * it too would reorder its processing relative to every
+			   * other module item -- confirmed to actually happen and
+			   * break VPI attempt-callback ordering
+			   * (ivtest vpi/m12_assert_attempt.v, m12br_assert_cb2.v)
+			   * before this guard was added. A name already resolvable
+			   * as a signal right now is never going to resolve as a
+			   * property later instead, so skip deferral and fall
+			   * straight through to the original, order-preserving
+			   * plain-identifier path for it, exactly as before this
+			   * fix existed. */
+			if (pit == sva_module_properties.end()
+			    && !sva_named_prop_retry_active_
+			    && !pform_get_wire_in_scope(
+				  id->path().name.front().name)) {
+			      sva_pending_named_property_t pend;
+			      pend.loc = loc;
+			      pend.prop = prop;
+			      pend.fail_stmt = fail_stmt;
+			      pend.pass_stmt = pass_stmt;
+			      pend.kind = kind;
+			      pend.label = label;
+			      sva_pending_named_property_.push_back(pend);
 			      return;
 			}
 			if (pit != sva_module_properties.end() && pit->second) {
@@ -26068,8 +26185,10 @@ int pform_parse(const char*path)
            caller attempts another parse. */
       pform_abort_modport_item();
 
-	/* M9-10: an unclocked assertion outside any module never reaches
-	   pform_endmodule, so drain the park list here too. */
+	/* M9-10/M9-SV2: an unclocked assertion, or one naming a property
+	   before its declaration, outside any module never reaches
+	   pform_endmodule, so drain both park lists here too. */
+      pform_sva_flush_pending_named_properties();
       pform_sva_flush_pending_procedural();
 
       if (vl_input != stdin) {

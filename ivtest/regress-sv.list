@@ -1660,6 +1660,12 @@ sv_edition_iter_index_latest normal,-glatest ivltests
 sv_edition_iter_index_neighbour normal,-g2009 ivltests
 sv_edition_stacktrace_2017 CE,-g2017 ivltests gold=sv_edition_stacktrace_2017.gold
 sva_s_eventually_liveness normal,-g2012 ivltests
+sv_assert_liveness_no_action normal,-g2012 ivltests
+sv_assert_liveness_real_action_fail CE,-g2012 ivltests gold=sv_assert_liveness_real_action_fail.gold
+sv_assert_named_property_forward_ref normal,-g2012 ivltests
+sv_assert_named_property_undefined_fail CE,-g2012 ivltests gold=sv_assert_named_property_undefined_fail.gold
+sv_assert_property_local_multi_ident_decl normal,-g2012 ivltests
+sv_sva_cycle_delay_paren_expr normal,-g2012 ivltests
 sv_array_elem_member_cassign normal,-g2012 ivltests
 sv_struct_member_mixed_assign normal,-g2012 ivltests
 sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope
@@ -1683,6 +1689,7 @@ sv_always_comb_partsel_sens normal,-g2012 ivltests
 sv_always_comb_precise_select_sens normal,-g2012 ivltests
 sv_uarray_const_ternary normal,-g2012 ivltests
 sv_default_disable_iff normal,-g2012 ivltests
+sv_disable_iff_past_sampling_unconditional normal,-g2012 ivltests
 sva_throughout_goto_repeat normal,-g2012 ivltests
 sva_clocking_member_assert normal,-g2012 ivltests
 sva_seq_generate_scope normal,-g2012 ivltests
@@ -3273,6 +3280,7 @@ sv_constraint_multiprefix_rank4 normal,-g2017,-s,test ivltests gold=sv_constrain
 sv_constraint_multiprefix_rank4_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_multiprefix_rank4.gold
 sv_constraint_multiprefix_fail CE,-g2017,-s,test ivltests gold=sv_constraint_multiprefix_fail.gold
 sv_constraint_multiprefix_fail_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_multiprefix_fail.gold
+sv_constraint_local_outside_inline_fail CE,-g2012 ivltests gold=sv_constraint_local_outside_inline_fail.gold
 sv_typed_uarray_return_elements normal,-g2017 ivltests gold=sv_typed_uarray_return_elements.gold
 sv_typed_uarray_return_elements_2023 normal,-g2023 ivltests gold=sv_typed_uarray_return_elements.gold
 sv_real_uarray_return_compound normal,-g2017 ivltests gold=sv_real_uarray_return_compound.gold

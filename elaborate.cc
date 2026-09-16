@@ -29570,6 +29570,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  return scope_randomize_value_slot_(expr, nullptr,
 					       value_slots, 32);
 
+	      // Footnote 43 (IEEE 1800-2017/2023 A.2.11 constraint_block_item):
+	      // "The local:: qualifier shall only appear within the scope of
+	      // an inline constraint block." A plain class-body `constraint'
+	      // declaration builds its IR with value_slots == nullptr (no
+	      // randomize()-call-site scope to capture from at all), so
+	      // reaching here with local_qualified true means `local::' was
+	      // used outside an inline constraint -- illegal, not merely a
+	      // property reference. Without this check, `local::x' silently
+	      // fell through to ordinary property lookup below, resolving to
+	      // obj's OWN (live, jointly-solved) `x' instead of being
+	      // rejected -- confirmed independently: slang rejects the
+	      // identical construct ("'local' qualifier not allowed here").
+	    if (local_qualified && !value_slots) {
+		  cerr << expr->get_fileline() << ": error: The `local::' "
+		       << "qualifier is illegal outside an inline constraint "
+		       << "block (IEEE 1800-2017/2023 18.7.1, footnote 43)."
+		       << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
+
 	      /* An explicit IEEE 18.7 `with (identifier_list)' changes only
 	       * unqualified lookup. Listed roots are target members; an omitted
 	       * root is evaluated in the caller even if the target class has a

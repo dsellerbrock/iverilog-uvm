@@ -1,0 +1,2 @@
+./ivltests/sv_assert_named_property_undefined_fail.v:10: error: Unable to bind wire/reg/memory `this_property_is_never_declared' in `main'
+1 error(s) during elaboration.

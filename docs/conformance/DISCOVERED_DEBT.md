@@ -805,7 +805,7 @@ loss still require reducers; comments and diagnostic wording are not an oracle):
 | Membership | tgt-vvp/eval_vec4.c:1937 | **CLOSED as L38 (2026-09-11).** The prior re-triage checked the plain-signal and class-property cases of the queue/darray arm immediately above the loud fallback, and both were real implementations -- but missed a third case in that SAME arm: a QUEUE-valued expression that is neither a plain signal nor a class property (e.g. a function call returning a queue) silently forced membership to `0` with no diagnostic. Root cause: the arm's own comment named "Queue/darray" but its condition only tested `IVL_VT_DARRAY`, never `IVL_VT_QUEUE` -- a missing-enum-value oversight. Fixed with the one-line addition. See BLOCKERS.md L38. | None -- fixed. |
 | Increment/decrement | tgt-vvp/eval_vec4.c:2354 (now ~2351) | **RESOLVED (2026-09-11 re-triage).** `draw_unary_inc_dec`'s switch handles `IVL_EX_SIGNAL`/`IVL_EX_SELECT`/`IVL_EX_PROPERTY` with real codegen; only a genuinely unhandled expr type reaches the `default:` fallback, which itself prints a loud `sorry:` before the read-only fallback. Reducers for the two legal lvalue shapes a table reader would suspect (queue element `q[0]++`, associative-array element `assoc["k"]++`) both compute correctly (`evidence/campaign-20260908/dd046/c14_incdec.sv`) -- neither reaches `draw_unary_inc_dec` at all, so this candidate is not reachable by the constructs it looked like it should cover. | None -- already loud where reachable, and the obvious legal reproducers don't reach it |
 | Array locators | tgt-vvp/eval_object.c:2584,2622 (elaboration gate: elab_expr.cc:16554-16562) | **CLOSED as L36 (2026-09-11).** The prior re-triage's own framing was the bug: it treated the plain-signal "loud `sorry:` at elaboration" as evidence the row was resolved, without checking whether that `sorry:` was firing on ILLEGAL input. It was not -- IEEE 1800-2017/2023 7.12.1 places no restriction on element type or declared base for array locator methods, and the rejection fired on both non-BOOL/LOGIC elements and non-zero-based declared ranges for plain fixed-array signals. Fixed by unconditionally materializing any fixed array (direct-signal or property) into a `netdarray_t` temp, matching the sibling `make_array_unique_expr_` pattern, and widening the supported-element-type gate to BOOL/LOGIC/REAL/STRING/CLASS. See BLOCKERS.md L36. | None -- fixed. Multidimensional fixed arrays remain a genuine, correctly-loud `sorry` (subarray iteration unimplemented). |
-| String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | **Partially re-triaged (2026-09-11).** `eval_object.c`'s two select/null fallbacks (1197, ~1280) are already loud (`fprintf(stderr, "Warning: ...")` before the `%null`), not silent. `eval_string.c:249`'s "select on an unsupported base type -> empty string" fallback IS silent (no diagnostic) and remains genuinely open, but five attempted legal reproducers (ternary-selected string, string-concat select, bare function-call-result select, string-method-result select, queue-of-strings element select) each either hit an earlier parser/elaboration rejection (indexing a call/ternary result directly is not parseable in this grammar today) or resolved correctly through a different, already-working path (queue element char-select). No legal construct reaching this specific silent branch was found this pass; likely unreachable given current grammar restrictions on what may be select-indexed, but not proven so. | Re-open only if a specific reproducer is found for the `eval_string.c:249` branch. |
+| String/object lowering | tgt-vvp/eval_string.c:249; tgt-vvp/eval_object.c:1197,1282 | **Partially re-triaged (2026-09-11); further narrowed with structural evidence (2026-09-15).** `eval_object.c`'s two select/null fallbacks (1197, ~1280) are already loud (`fprintf(stderr, "Warning: ...")` before the `%null`), not silent. `eval_string.c:249`'s "select on an unsupported base type -> empty string" fallback IS silent (no diagnostic) and remains genuinely open in principle, but is now backed by a much stronger unreachability case than "five failed reproducers": (1) five prior attempts (ternary-selected string, string-concat select, bare function-call-result select, string-method-result select, queue-of-strings element select) each hit an earlier parser/elaboration rejection or resolved through an already-working path; (2) two MORE attempts this pass (a queue/darray-of-string concatenation then select -- `{qa,qb}[i]` -- and a mixed real-string-variable-plus-literal concatenation then select -- `{stringvar,"x"}[0]`) both also hit earlier, *different* rejections (the first is now L118's new `error:`, confirmed independently illegal via slang; the second hits `PEPostSelect::test_width`'s own pre-existing `!type_is_vectorable(base_->expr_type())` guard, "A postfix select requires a packed integral expression"); (3) tracing `PEPostSelect::test_width` directly (elab_expr.cc:13096) shows it ALREADY gates every select base to `type_is_vectorable` before elaboration ever runs -- a STRING-typed concat base (real string operand present) is rejected there, and a QUEUE/DARRAY-typed concat base is now rejected by L118's separate operand-type check (added because `PEConcat::test_width_`'s own crude expr-type computation doesn't detect queue/darray operands as non-vectorable, the one gap that let L118's reducer through). The two grammar-legal shapes that can reach `PEPostSelect`/produce an `IVL_EX_SELECT` at all -- `hierarchical_identifier select` (fully covered by the SIGNAL/ARRAY/PROPERTY branches earlier in `string_ex_select`) and `concatenation [ [ range_expression ] ]` (now shown to be gated to vectorable-only at elaboration, and a vectorable result is handled by `string_ex_select`'s own BOOL/LOGIC branch at the top, before ever reaching line 249) -- are both now accounted for. This is not a formal proof, but it is elaboration-level structural coverage, not just failed-reproducer accumulation; treat this branch as very likely dead code reachable only through a shape not yet identified. | Re-open only if a specific reproducer is found for the `eval_string.c:249` branch -- given the structural coverage above, that would most likely mean a shape that reaches `IVL_EX_SELECT` through neither `PEIdent` nor `PEPostSelect` (e.g. a different PExpr subtype's `elaborate_lval`/`elaborate_expr` also constructing a `NetESelect`), not another attempt at a concatenation or identifier select. |
 | Missing executable targets | tgt-vvp/vvp_process.c:808 | **Re-triaged (2026-09-11).** `emit_td_stub_definitions()` is a defensive bookkeeping safety net (emit an empty label for any thread-destination referenced but never defined, so a stray forward reference can't produce a dangling jump) rather than a feature-implementation fallback; not traced further this pass to find a legal construct that leaves a genuine reference unresolved. | Unclear this represents user-visible incorrect behavior; would need a concrete case where a legally-reachable TD reference has no definition. |
 | Simulator/VPI | vvp/compile.cc:1148; vvp/vpi_callback.cc:217 | **Re-triaged (2026-09-11), both resolved.** `compile.cc:1148`'s placeholder-net path is already loud (`unresolved_warn_once`) and is the generic safety net that ANY malformed functor reference trips -- it is literally the mechanism whose output ("unresolved functor stub"/"created placeholder net") was the observed symptom of the real L34 regression this session found and fixed; it did its job correctly. `vpi_callback.cc:217`'s `test_value_callback_ready()` "stub" is a legitimate virtual-method default (always-ready is correct for a plain full-value-change callback) properly overridden by `value_part_callback`/`array_word_part_callback`/`runtime_array_word_value_callback` wherever real bit/word-range filtering is actually needed -- traced all overrides and call sites; this is correct OOP design, not a defect. | None -- both already resolved (one already loud+working-as-intended, one already correctly designed). |
 | Qualification fallback | .github/uvm_test.sh:139 | Already understood at DD046's original writing: this row's own "Qualification needed" column already states the correct handling (keep real-DPI/no-DPI evidence separate). Not re-examined this pass; harness-flavored, not a compiler-semantics candidate. | Low priority; the existing disposition already looks correct. |
@@ -1733,3 +1733,353 @@ During L99 boundary testing, selected real fixed-array `$sscanf` outputs arrived
 ### L101 discovery — const local fixed-string-array initializer
 
 During L101, a constant local fixed-string-array aggregate initializer crashed before the character update. This is a separate unqualified initializer defect, not evidence against selected-character reads or the implemented update path. Evidence: `evidence/batch-20260915-after-l95/l101-l102-first-direct.json` and the L101 assessment reducers. Possible scope: declaration/aggregate initialization under clauses6.16 and10.9; standards and minimal root cause require triage. Status: recorded, not selected. L101 readonly regression uses a module const receiver and pins its write rejection.
+
+### DD-033 — Package-scope fixed unpacked-array `parameter` with a keyed assignment-pattern value (2026-09-16)
+
+Found compiling real, unmodified Caliptra formal-verification source
+directly (`src/sha256/formal/properties/fv_sha256_core_pkg.sv`, line 26):
+```systemverilog
+typedef bit unsigned [31:0] a_unsigned_32_64 [63:0];
+parameter a_unsigned_32_64 K = '{0:'h428A2F98, 1:'h71374491, ... 63:'hC67178F2};
+```
+A package-level (or, by the same code path, module-level) `parameter` of
+an explicit fixed-unpacked-array typedef, initialized with a fully-keyed
+(every index given) assignment pattern, is rejected with `error: Unable
+to evaluate parameter K value: '{...}` (`net_design.cc`, the `switch
+(expr->expr_type())` in the parameter-elaboration function). Confirmed
+independently: slang accepts the identical construct (minimized to a
+4-element `t`/`p` reducer), 0 errors. Two real Caliptra `fv_*_pkg.sv`
+files use exactly this pattern for round-constant tables (SHA-256's
+64-word K table is one; likely more across the corpus given how common
+round-constant tables are in hash/cipher RTL).
+
+**Root cause, level 1 (confirmed, minimal fix known):** the `switch`
+dispatches on `expr->expr_type()`, and a fixed-array-of-`bit`/`logic`
+constant's elaborated value (`NetEArrayPattern`) reports the ELEMENT's
+base type (`IVL_VT_LOGIC`/`IVL_VT_BOOL`), landing in the scalar
+LOGIC/BOOL case, which requires `dynamic_cast<NetEConst*>` and rejects
+anything else — including a `NetEArrayPattern`. This case already has an
+exact precedent one arm away: the `IVL_VT_NO_TYPE` case explicitly
+accepts a `NetEArrayPattern` for an **unpacked struct** parameter
+(`dynamic_cast<const netstruct_t*>(param_type) && !param_type->packed()
+&& dynamic_cast<const NetEArrayPattern*>(expr)`), added for the exact
+same reason. The direct mirror for an unpacked **array** parameter
+(check `dynamic_cast<const netuarray_t*>(param_type)` instead of
+`netstruct_t`, in the LOGIC/BOOL case since that's where an array's
+value lands, not NO_TYPE) was implemented, built, and confirmed to
+resolve this exact symptom.
+
+**Root cause, level 2 (found, NOT fixed, do not re-attempt the naive
+level-1 fix alone):** accepting the value is only half the feature.
+`K[0]`-style element selection on the now-accepted array parameter
+crashes the compiler: `assert: elab_expr.cc:24133: failed assertion
+par_ex` in `PEIdent::elaborate_expr_param_bit_`. That function already
+has a documented "defensive fallback" dispatcher —
+`if (found_in->is_array_parameter(name)) return
+elaborate_expr_param_array_(...);` — specifically for array-typed
+parameter element selects, but `is_array_parameter()` (`net_scope.cc`)
+returned false for `K` even after the level-1 fix, so control fell
+through to the scalar-bit path's `dynamic_cast<NetEConst*>(par)` +
+`ivl_assert`, which aborts. `is_array_parameter()` checks the given
+scope's *own* `parameters` map (`NetScope::is_array_parameter`); the
+reducer that exposed this used `import p::*;` (wildcard package import)
+to reach `K`, so the scope resolving the identifier and the scope that
+actually registered `K` with `is_array_param=true` (set in
+`net_scope.cc:505` from the parameter declaration's `udims`) may not be
+the same scope in this path — not traced further. **This is a real
+compiler crash, strictly worse than the pre-existing clean error it
+would replace — the level-1 fix was reverted rather than landed
+half-done.** `net_design.cc` is unmodified; `git diff` confirms clean.
+
+**Closure requirements:** both levels together, not level 1 alone —
+landing level 1 without level 2 trades a clean, honest `error:` for an
+`assert:` abort on the very next thing real code does with such a
+parameter (indexing into a round-constant table). Trace why
+`is_array_parameter()` disagrees with `net_scope.cc:505`'s registration
+for a package-imported array parameter specifically; confirm the fix
+against both a direct-scope and wildcard-imported reference, plus a
+positional (non-keyed) assignment pattern and a partially-keyed one with
+a default (LRM 10.9's `default:` item), which were not tried this pass.
+Status: recorded, not selected.
+
+### DD-034 — Mixing `int` and `logic` assertion-local variable declarations in one property breaks binding (2026-09-16)
+
+Found while building a permanent regression for the L122 comma-
+separated multi-identifier local-declaration fix. **Not caused by that
+fix** — reproduces with zero commas involved, using only the pre-
+existing single-identifier `sva_int_local_declarations` chain grammar
+that L122 left untouched:
+
+```systemverilog
+property p1;
+  int a;
+  logic [3:0] z;
+  (1'b1, a = 1) ##1 (1'b1, z = a[3:0]) ##1 (z == 4'd1);
+endproperty
+```
+Rejected at elaboration with `error: Unable to bind wire/reg/memory
+'a[...]'` — `a` is declared (no parse error) but never actually
+materialized as a usable local variable once a `logic`-kind declaration
+also appears in the same property. Confirmed independently: slang
+accepts the identical construct, 0 errors, 0 warnings.
+
+Two same-kind declarations chained together (`int a; int b;`, or
+`logic [5:0] x; logic [2:0] y;`) work fine — the break is specifically
+mixing `int`-kind and `logic`-kind declarations within one property's
+local-variable section, not chaining itself. Not yet root-caused inside
+`pform.cc`'s `sva_local_decl_insert_`/`sva_local_decl_types_`
+machinery or whatever downstream step materializes each map entry as a
+real wire — the two candidate insertion functions
+(`pform_sva_declare_int_local`, `pform_sva_declare_logic_local`) both
+write into the same `sva_local_decl_types_` map via the same
+`sva_local_decl_insert_` helper, so the divergence is likely in a
+later, kind-sensitive consumer of that map, not in insertion itself —
+not traced further.
+
+L122's own regression test
+(`ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v`)
+deliberately avoids mixing kinds to stay in scope. Status: recorded,
+not selected.
+
+### DD-035 — Sequence match-item assignment LHS is a bare identifier only, no part-/bit-select (2026-09-16)
+
+Found compiling real, unmodified Caliptra source directly
+(`src/ecc/formal/properties/fv_montmultiplier_glue.sv`, line 113):
+```systemverilog
+property compare_p(prime,idx);
+logic [REG_SIZE-1:0] fv_result;
+logic [FULL_REG_SIZE-1:0] fv_reg;
+    ##0 n_i == prime
+    ##0 start_i
+    ##DLY_CONCAT
+    ##0 (1'b1, fv_reg[RADIX-1:0]    = (ecc_montgomerymultiplier.gen_PE[0].box_i.s_out))
+    ##1 (1'b1, fv_reg[2*RADIX-1:RADIX]   = (ecc_montgomerymultiplier.gen_PE[0].box_i.s_out))
+    ...
+```
+A sequence match-item assignment (`(bool, lhs = rhs)`) whose LHS is a
+part-select or bit-select of an assertion-local variable — building up
+a wide local register RADIX bits at a time across successive match
+steps — was rejected with a plain `syntax error`. Reduced to a minimal
+7-line case (both part-select `fv_reg[3:0] = ...` and bit-select
+`fv_reg[3] = ...` reproduce identically); confirmed independently:
+slang (`--std 1800-2017`) accepts the part-select form, 0 errors, 0
+warnings. This is ordinary `operator_assignment` LHS syntax (IEEE
+1800-2017/2023 A.2.10's `sequence_match_item ::= operator_assignment |
+...`, whose `variable_lvalue` production includes `[]`/`[:]` selects
+like any other assignment target) — not a special restriction on
+local-variable match-items specifically.
+
+**Root cause:** `parse.y`'s `sva_seq_atom` match-item-assignment
+alternatives (`'(' expression ',' IDENTIFIER '=' expression ')'` and
+the `sva_match_call_list`-suffixed variant) hardcode the LHS as a bare
+`IDENTIFIER` token — there is no part-/bit-select alternative at all.
+`pform_sva_coerce_local_assignment(loc, name, rhs)` likewise only takes
+a plain name, with no notion of a selected sub-range.
+
+**Why this is not a quick grammar patch (do not attempt a naive
+fix):** unlike L118-L123 (each a pure grammar gap whose downstream
+semantic layer already accepted a general expression), this genuinely
+needs new semantics, not just a wider grammar production. The
+assertion-local variable model here is "the whole named local holds
+one value, replaced wholesale by each match-item assignment we
+process" (`sva_local_decl_insert_`, `sva_local_decl_types_`,
+`pform_sva_coerce_local_assignment`) — there is no existing concept of
+a partial-width write. A grammar-only fix that accepts `fv_reg[3:0] =
+rhs` but silently lowers it as a full-width overwrite of `fv_reg`
+(dropping the untouched high bits, or worse, misinterpreting `rhs`'s
+width against the full local rather than the selected slice) would
+satisfy the parser while producing wrong values — exactly the
+"manufactured apparent success" the project's correctness bar forbids.
+A correct fix needs a real read-modify-write lowering: read the
+local's current value, blend the RHS into the selected bit range
+(e.g. via a synthesized concatenation/part-replace expression), and
+assign that back as the new whole-local value — before the *next*
+match-item's read of the local observes it.
+
+**Real corpus impact:** `fv_montmultiplier_glue.sv`'s `compare_p`
+property (both instantiations, `compare_concat_prime_p_a` and
+`compare_concat_prime_q_a`) is exactly this shape: it assembles
+`fv_reg` (a wide accumulator) RADIX bits at a time across 9 match
+steps, one part-select write per step, before comparing the fully
+assembled value. This is a real, non-contrived formal-verification
+pattern (checking a modular multiplier's output against pieces
+gathered from ecc_montgomerymultiplier's internal per-PE outputs), not
+a synthetic edge case.
+
+**Closure requirements:** design and implement the read-modify-write
+lowering described above; extend the `sva_seq_atom` match-item
+alternatives with a part-/bit-select LHS production (likely reusing
+whatever bit/part-select expression nonterminal ordinary lvalues use
+elsewhere in `parse.y`, checked for grammar conflicts the same way as
+every fix this session — `bison -y -d --report=state` totals compared
+before/after); verify against both a part-select and a bit-select
+reducer, plus the real originally-failing Caliptra file; add a
+functional (not just compile-success) permanent regression that
+actually checks the assembled value is correct, not merely that it
+parses. Status: recorded, not selected.
+
+### DD-036 — Unpacked-array range select ("array slice") unsupported as a port-connection actual / continuous-assignment source (2026-09-16, HIGH VALUE: single blocker for `caliptra_top`)
+
+Found via a differential Icarus/slang static census over Caliptra's
+integration filelists (`evidence/caliptra-census-20260916/`, a patched
+copy of the pre-existing `run_census.py` driver — see
+[[census-driver-paths-rot]] — pointed at this session's own
+`iverilog-uvm-concat-select-20260915` build; 106 manifest targets, 60
+PASS, 5 `ICARUS_GAP`). **All five `ICARUS_GAP` targets
+(`ntt_masked_mult_reduction_tb`, `ntt_top`, `abr_top`, `caliptra_top`,
+`caliptra_top_ss_mode`) trace to the exact same two source sites** —
+confirmed by diffing each target's full error set: identical four
+lines in every one. This is the single thing currently standing
+between Icarus and a clean compile of `caliptra_top`, the full-chip
+integration target — directly relevant to mission objective 5.
+
+**Symptom**, from real, unmodified Caliptra source
+(`submodules/adams-bridge/src/ntt_top/rtl/ntt_masked_special_adder.sv:102-103`
+and `submodules/adams-bridge/src/abr_libs/rtl/abr_masked_add_sub_mod_Boolean.sv:134-135`):
+```systemverilog
+logic [1:0] r0_c0_delayed [WIDTH:0];   // unpacked array, WIDTH+1 elements
+...
+abr_masked_MUX #(.WIDTH(WIDTH)) r0_MUX_r0 (
+    ...
+    .r0(r0_c0_delayed[WIDTH-1:0]),     // range-select WIDTH elements out of WIDTH+1
+    .r1(r1_c1[WIDTH-1:0]),
+    ...
+);
+```
+`r0_c0_delayed[WIDTH-1:0]` is a **range select on an unpacked array**
+(selecting a contiguous WIDTH-element sub-array out of the WIDTH+1
+declared elements, itself an unpacked array of the same `[1:0]`
+element type), used as a port-connection actual. Rejected with:
+```
+sorry: Array slices are not yet supported for continuous assignment.
+     : Port 1 (r0) of sub is connected to r0_c0_delayed[(WIDTH)-('sd1):'sd0]
+```
+Minimal 10-line reducer confirms the same rejection in isolation, and
+confirms independently via slang (`--std 1800-2017`, 0 errors, 0
+warnings) that this is legal. This is an honest, already-correct
+`sorry:` diagnostic (not a crash, not a silently-wrong compile) — it
+meets the project's non-negotiable bar for unsupported behavior. This
+is a genuine **feature gap**, not a defect in already-claimed behavior.
+
+**Root cause, located precisely:** `elab_net.cc:1636-1689`
+(`PEIdent`'s unpacked-array select-to-net elaboration, reached while
+binding a port-connection actual). The existing code at this exact
+site already implements a **"slice view" mechanism** for a *sibling*
+case — a partial index that supplies fewer indices than the array has
+dimensions (e.g. `arr2d[i]` on a `arr2d[N][M]` 2-D unpacked array,
+yielding a 1-D `[M]` sub-array): it computes a contiguous pin range in
+the source net (`base_const->value().as_long()`, `slice_dims`), builds
+a new `NetNet` of `NetNet::IMPLICIT` type with those dimensions, and
+pin-aliases it onto the corresponding contiguous range of the source
+net's pins via `connect(view->pin(pin), sr.net->pin(base + pin))` —
+then returns that view net to stand in for the port connection. When
+that path's shape/type checks don't line up (`shape_ok`, `type_ok`),
+or when `name_tail.index` isn't the "fewer-dims-than-declared, each a
+plain index" shape it expects, control falls through unconditionally
+to the `sorry:` at line 1685.
+
+A single-dimension **range select** (`r0_c0_delayed[WIDTH-1:0]` — same
+number of dimensions as declared, but a contiguous *sub-range of
+elements within one dimension* rather than a reduced-dimension index)
+is a different `name_tail.index` shape than what `indices_to_expressions`
+above is built to consume here (a partial list of *whole-dimension*
+indices, not a `[hi:lo]` range within the last dimension) — this
+appears to be why it never even reaches the `shape_ok`/`type_ok`
+checks, going straight to the `sorry:`. **Not yet confirmed empirically
+how `name_tail.index` represents a `[hi:lo]` range vs. a plain index**
+(needs a debug trace or a read of whatever `index_component_t`/similar
+structure `path_.back().index` uses) — that is the next concrete step,
+not a full implementation guess.
+
+**Much stronger lead found: the exact machinery this needs already
+exists and is already used for three sibling contexts, just not this
+one.** `index_component_t` (`pform_types.h:140`) already distinguishes
+`SEL_BIT` (plain index) from `SEL_PART`/`SEL_IDX_UP`/`SEL_IDX_DO`
+(range/indexed-part-select forms) — confirming `[WIDTH-1:0]` parses to
+a genuinely different index shape than the partial-index case the
+existing `elab_net.cc:1636` branch handles (its call to
+`indices_to_expressions()` explicitly hard-errors "Array cannot be
+indexed by a range" if it ever receives a non-`SEL_BIT` component,
+confirming that function is scoped to plain indices only).
+
+A **complete, general, already-battle-tested decoder for exactly this
+shape already exists**: `decode_fixed_uarray_slice()`
+(`netmisc.h:179`, implemented `netmisc.cc:1080` via the static
+`decode_fixed_uarray_slice_select_()` helper at `netmisc.cc:940`,
+which explicitly handles `SEL_PART`/`SEL_IDX_UP`/`SEL_IDX_DO` with
+direction checks and clear diagnostics). It is already wired into
+**three** other contexts that all accept exactly this kind of
+unpacked-array slice today: function/task argument binding
+(`elab_expr.cc:15703`, `PECallFunction::elaborate_arguments_`),
+concatenation operands (`elab_expr.cc:5117/5252`), and an lvalue path
+(`elab_lval.cc:1509/3696`). Its signature takes a `PExpr*` directly —
+`decode_fixed_uarray_slice(des, scope, loc, expr, allow_whole, out,
+quiet)` — and returns a `fixed_uarray_slice_t{signal, canonical_base,
+count, selected_range, element_type, whole}` (`netmisc.h:170`) on
+success (return value `1`).
+
+**Recommended implementation angle** (not yet attempted — the one
+remaining unknown below must be resolved first): in
+`PEIdent::elaborate_unpacked_net()` (`elab_net.cc:1607`), where the
+existing partial-index branch currently falls through unconditionally
+to the `sorry:` for any non-partial-index shape, add a new branch that
+calls `decode_fixed_uarray_slice(des, scope, *this, this, false,
+slice)` before giving up; on success, build a `NetNet::IMPLICIT` view
+net sized to `slice.count` elements of `slice.element_type` and
+pin-alias it onto the source net's pins starting at the slice's base —
+the exact same `NetNet` + `connect()` pattern the existing partial-index
+branch already uses just below (`elab_net.cc:1668-1679`), just fed by
+`decode_fixed_uarray_slice`'s output instead of
+`indices_to_expressions`/`normalize_variable_unpacked`'s.
+
+**One concrete unknown to resolve empirically before writing this,
+not to assume:** `fixed_uarray_slice_t::canonical_base` and `::count`
+are documented as *word/element* units ("Lowest canonical word in the
+slice"), while the existing branch's `connect()` loop indexes
+`sr.net->pin(base + pin)` in raw *pin* units via `base` from
+`normalize_variable_unpacked()`. Whether one canonical word always
+equals exactly one `NetNet` pin for an unpacked array (making the unit
+conversion an identity) or needs an explicit element-to-pin-width
+multiplication has not been checked against the actual `NetNet`/
+`netuarray_t` pin layout — get this wrong and the fix would compile
+and elaborate cleanly while silently wiring the wrong bits, exactly
+the "manufactured apparent success" the project's correctness bar
+forbids. Verify by reading `normalize_variable_unpacked()` (used by
+the existing sibling branch) and one of the three existing
+`decode_fixed_uarray_slice()` call sites' downstream pin/word handling
+before writing a single line of the new branch — this is real,
+security-sensitive-precision elaboration work and deserves a full,
+dedicated session (with real simulation-correctness testing, not just
+compile-success testing, for its regression) rather than a rushed
+attempt.
+
+**LRM clause for unpacked array range-select syntax needs to be pinned
+down precisely before implementing** (this reducer's slang run used
+`--std=1800-2017` and slang accepted it, but confirm the exact clause
+— likely under 1800's "select" grammar for array types — rather than
+assuming a specific subclause number without checking; per
+[[discovered-debt-hypothesis-is-not-diagnosis]], verify against the
+LRM text directly before coding).
+
+**Census infrastructure note:** the patched driver copy lives at
+`evidence/caliptra-census-20260916/` (`run_census.py` +
+`fileset_top.sv`, `IVERILOG` repointed at
+`iverilog-uvm-concat-select-20260915/local-install/bin/iverilog`, `OUT`
+repointed at its own directory) — do not edit the original
+`caliptra-rtl-build/static-census-bd31614/run_census.py` in place (see
+[[census-driver-paths-rot]]); copy again into a fresh evidence
+directory and repoint `IVERILOG`/`OUT` for any future run, since the
+worktree path baked in here will itself rot once this worktree is
+retired. Full JSON/markdown results:
+`evidence/caliptra-census-20260916/caliptra-static-census.{json,md}`.
+
+**Closure requirements:** find the emission site and its assumptions;
+design and implement correct lowering (per-element loop or array-slice
+net view, whichever the existing net/PWire representation supports
+more directly); confirm the LRM clause; verify against the minimal
+reducer, both real originally-failing files, and re-run the census
+(expect all 5 `ICARUS_GAP` targets to flip to `PASS` from this single
+fix, since they share one root cause); add a functional permanent
+regression; re-run the full six-gate suite. Status: recorded, not
+selected — high priority given it single-handedly unblocks
+`caliptra_top`.

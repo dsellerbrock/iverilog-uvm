@@ -70,18 +70,64 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### Z01 — Joint solve-before stages unsupported
 
 - **Area / edition:** Randomization / edition-agnostic
-- **State:** OPEN
-- **Confidence:** SOURCE
-- **Evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
+- **State:** OPEN, but **cited evidence is stale (updated 2026-09-16) —
+  re-scope before doing anything else with this row.**
+- **Confidence:** SOURCE (original), evidence refresh below is REPRODUCED.
+- **Original evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
   `order_pairs` in the joint route ("solve before stages across objects are
   not supported"); PR #258.
-- **What it blocks:** Any DV workload using cross-object `solve ... before`
-  ordering under the joint solver (recorded as a shared xbar/runtime
-  frontier in the same session log as U01).
-- **Closure requirements:** Small-domain staged distributions with correct
-  marginal/conditional probabilities and graph rollback on failure; explicit
-  rejection preserved for shapes still out of scope after the fix.
-- **Last verified revision:** b9de0be7f reproduced both editions. Z01A resolves bounded canonical integral stages locally; ordered dist/randc and non-scalar/large-domain cases remain open.
+- **2026-09-16 evidence refresh:** the exact cited string ("solve before
+  stages across objects are not supported") no longer exists anywhere in
+  `vvp/vvp_z3.cc` on current `main` — grepped directly, zero hits. Built a
+  fresh cross-object `solve child.a before b;` reducer (a `Parent` class
+  holding a `rand Child child` handle, ordering the child's property before
+  the parent's own) against a current `main`-tip build: it does **not**
+  hard-reject. It compiles with a loud, honest warning ("Constraint item in
+  'order_c' of class Parent is not representable in the constraint solver
+  and is ignored") — the ordering *directive* itself is dropped, not the
+  constraint system — and `randomize()` still succeeds, with the
+  *underlying value constraints* (including a shape where `b`'s legal
+  range structurally depends on `child.a`, i.e. staging-dependent, not
+  just a flat equality) correctly satisfied every time (20/20 iterations,
+  both a plain-equality and a range-depends-on-child.a shape checked).
+  **This is a materially different state than the row's original
+  "explicitly rejects" framing** — satisfiability is preserved via the
+  general joint solver even without honoring the specific staging.
+- **NOT verified, and NOT claimed closed:** this row's actual closure bar
+  is distribution correctness — "small-domain staged distributions with
+  correct marginal/conditional probabilities" — not mere satisfiability.
+  A single-sample (or 20-sample) correctness check proves the joint
+  system is *solvable* consistently with the value constraints; it says
+  nothing about whether the *probability distribution* of the solutions
+  matches what §18.5.10 staged solving would produce (e.g. `child.a`
+  drawn uniformly first, then `b` uniformly from the resulting legal
+  range, vs. some other joint distribution a SAT-based simultaneous
+  solve might produce instead). That needs a statistical-sampling
+  reducer (many thousands of draws, checked against a hand-computed
+  expected distribution), which this pass did not attempt.
+- **What it blocks:** Any DV workload relying on cross-object
+  `solve ... before` for *distribution* correctness specifically (not
+  blocking plain satisfiability, which already works per the refresh
+  above) — recorded as a shared xbar/runtime frontier in the same
+  session log as U01.
+- **Closure requirements (unchanged):** Small-domain staged distributions
+  with correct marginal/conditional probabilities and graph rollback on
+  failure; explicit rejection (or correct staged solving) preserved for
+  shapes still out of scope.
+- **Last verified revision:** b9de0be7f (stale). Z01A resolves bounded
+  canonical integral stages locally (unmerged as of that note; unclear
+  whether the warn-and-drop-directive-then-jointly-solve behavior found
+  in the 2026-09-16 refresh above is Z01A's actual merged effect or a
+  separate, later change — not traced further this pass). Ordered
+  dist/randc and non-scalar/large-domain cases remain explicitly open per
+  that same note.
+- **Next step for whoever picks this up:** do not re-derive from the old
+  "explicitly rejects" framing — start from the 2026-09-16 refresh above.
+  Either (a) build the statistical-sampling reducer to settle distribution
+  correctness, or (b) if distribution correctness turns out fine too,
+  re-scope this row down to just the explicitly-still-open dist/randc/
+  large-domain cases and close the plain cross-object scalar-ordering
+  case formally with its own regression.
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
@@ -118,18 +164,64 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### V01 — Exact merged type-coverage bin universe (coverage correctness)
 
 - **Area / edition:** Functional coverage / edition-agnostic
-- **State:** OPEN (V01A resolves bounded dynamic value-bin union locally)
-- **Confidence:** REPRODUCED
-- **Evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage` uses a
-  maximum registered dynamic-family size raised to the hit count — not an
-  exact union for arbitrary disjoint instance bin sets.
-- **What it blocks:** Correct type-coverage denominators/percentages for
-  class-type coverage with disjoint or partially overlapping instance bin
-  sets; any claim of coverage-number correctness beyond the all-hit case.
-- **Closure requirements:** Disjoint and overlapping instance domains with
-  known union sizes, including partial (non-100%) coverage results checked
-  against a hand-computed oracle, not just "coverage reaches 100%."
-- **Last verified revision:** 9218751e2; paired LRM19.11.3 overlapping-range reducer returns100 rather than66.666667 percent. Evidence/campaign-20260908/v01/union.sv.
+- **State:** **Re-verified CLOSED 2026-09-16** (was stale-OPEN; V01A's fix
+  is merged on `main` and covers this row's own stated closure
+  requirements — see below). Originally: OPEN (V01A resolves bounded
+  dynamic value-bin union locally).
+- **Confidence:** REPRODUCED (original defect), then RE-VERIFIED FIXED
+  against a fresh build of current `main` (not just re-read from an old
+  evidence file).
+- **Original evidence / reproducer:** `vvp/class_type.cc`'s `type_coverage`
+  used a maximum registered dynamic-family size raised to the hit count —
+  not an exact union for arbitrary disjoint instance bin sets.
+- **2026-09-16 re-verification:** built the LRM's own §19.11.3 worked
+  example fresh (`covergroup gt(int l,h); type_option.merge_instances=1;
+  option.get_inst_coverage=1; coverpoint a { bins b[] = {[l:h]}; }
+  endgroup`, `gv1=new(0,1)`, `gv2=new(1,2)`, sample `a==0` on `gv1` and
+  `a==1` on both) against a fresh `main`-tip build (not a stale note):
+  `gv1.get_coverage()` and `gv2.get_coverage()` both return exactly
+  `66.6667`, `gv1.get_inst_coverage()` returns exactly `100.0`,
+  `gv2.get_inst_coverage()` returns exactly `50.0` — all four values
+  match the LRM's own stated answers exactly. (Two option-scoping
+  mistakes were made and corrected while building this reducer —
+  `merge_instances` is a `type_option`, not `option`, and
+  `get_inst_coverage()`'s return value equals `get_coverage()` unless
+  `option.get_inst_coverage` is explicitly set, both confirmed against
+  LRM text before concluding anything — Icarus's behavior at each
+  intermediate wrong-option step was itself correct per spec.)
+- **This row's own closure requirements, checked against the existing,
+  passing `ivtest/ivltests/sv_covergroup_merged_value_union.v` (registered
+  for both `-g2017` and `-g2023`, part of every ivtest sweep this session
+  with 0 failures):** disjoint instance domains (`unsampled disjoint`,
+  `partial disjoint`), a retired instance still counted
+  (`retired universe`), a non-100% partial-coverage result checked
+  against a hand-computed oracle (`merged hit threshold` = 100/3), signed
+  range crossing, fixed-size and scalar bins, and a 64-bit wide value bin
+  with no enumeration — all present and passing. This is not "coverage
+  reaches 100%" trivia; it is exactly the disjoint/overlapping/partial
+  oracle-checked scope this row asked for.
+- **LRM's second §19.11.3 worked example checked too** (`ga(abm)` with
+  differing constructor-arg `auto_bin_max` per instance, giving 96
+  cumulative auto-bins): this hits a DIFFERENT, already-diagnosed
+  limitation, not a silent-wrong-answer regression of V01/V01A —
+  `option.auto_bin_max = abm;` (`abm` a constructor argument, not a true
+  elaboration-time constant) produces a loud `sorry: covergroup option
+  'auto_bin_max' is not a constant; using default 64.` `auto_bin_max`
+  itself apparently isn't constructor-arg-drivable at all yet (unlike
+  `bins b[] = {[l:h]}` range bounds, which V01A's fix does handle
+  per-instance); not a V01/V01A regression, and already meets the
+  "unsupported behavior must produce a focused diagnostic" bar as-is.
+  Not filed as its own row — genuinely minor (auto-bin-max is rarely
+  made constructor-dependent in practice; the common case, a fixed
+  `auto_bin_max` with constructor-dependent VALUE RANGES, is exactly
+  what V01A already covers) — revisit only if a real corpus (OpenTitan/
+  Caliptra) reducer needs it.
+- **What remains genuinely unverified (not claimed closed):** transition-bin
+  / cross-bin unions specifically under `merge_instances` (as opposed to
+  the value-bin unions checked above). Re-open (or file a fresh,
+  separately-scoped row) only if a reducer for that specific shape is
+  found to fail — do not reopen this row generically without a concrete
+  new reproducer.
 
 ### F00 — Hardware formal proof backend (PROGRAM item, not a bug)
 
@@ -292,6 +384,23 @@ existing per-consequence verdict dispatch; S03 is selected independently on a
 fresh wrong-result reducer. A future S02 design must preserve attempt identity,
 open antecedent status and outstanding consequences across clock domains;
 architecture expansion is not authorized by this suspension.
+
+**2026-09-16 evidence check (compile-rejection claim only, not the
+architectural question):** the row's own cited symptom ("legal
+`a[*1:2] |=> @(posedge c2) b` is rejected") is stale — the identical
+construct compiles clean (exit 0, no diagnostic) against a current
+`main`-tip build, and a basic runtime smoke (100 time units, no
+triggering `a`/`b` activity) neither crashes nor hangs. This does
+**not** touch or resolve the actual open question (per-start vs.
+per-endpoint verdict counting under overlapping multi-endpoint matches)
+— that needs a carefully constructed multi-start/multi-endpoint
+triggering scenario to verify, which requires real expertise in how
+this specific construct unrolls into the NFA and was not attempted this
+pass; the "architecture expansion not authorized" boundary and
+SUSPENDED status both stand unchanged. Only the stale compile-rejection
+framing is corrected here so a future pass doesn't waste time trying to
+reproduce a rejection that no longer happens before it can even get to
+the real (runtime verdict-counting) question.
 
 ### S03 — NFA implication verdicts are emitted per endpoint
 
@@ -2366,3 +2475,383 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   already two separate statements that already work today) is a real,
   separate feature, not touched by this fix. Nothing in this fix's scope
   claims that feature exists.
+
+### L119 — `local::` outside an inline constraint block silently resolved as an ordinary property
+
+- **Status:** CLOSED 2026-09-15. Found while probing `local::` (IEEE
+  1800-2017/2023 18.7.1) for a hypothesized "snapshot the caller's value"
+  defect. **The hypothesized defect did not exist** — `local::` works
+  correctly for its real semantics (confirmed against the LRM's own
+  worked example, §18.7.1: `function int F(C obj, integer x); F =
+  obj.randomize() with { x < local::x; }; endfunction` — `local::x`
+  binds to `F`'s own local argument, not a snapshot of `obj`'s property;
+  reproduced exactly, 20/20 iterations correct). The investigation is
+  recorded here anyway because it surfaced a real, different, narrower
+  defect along the way.
+- **Symptom:** `local::` used directly inside an ordinary CLASS-BODY
+  `constraint` declaration (not an inline `randomize() with {...}`
+  block) — e.g. `class c; rand integer x; constraint c1 { x <
+  local::x; } endclass` — compiled with ZERO diagnostics and silently
+  resolved `local::x` to the class's own (live, jointly-solved) property
+  `x`, making the constraint an always-true tautology (`x < x` is never
+  satisfiable, so in practice the constraint was effectively dropped/
+  ignored by whatever fallback made the call still succeed).
+- **LRM citation:** footnote 43 on the `constraint_block_item` production
+  (A.2.11 in both editions): "The `local::` qualifier shall only appear
+  within the scope of an inline constraint block." Confirmed independently:
+  slang rejects the identical class-body construct with `'local'
+  qualifier not allowed here`.
+- **Root cause:** `pexpr_to_constraint_ir` (elaborate.cc) already had a
+  correct, working handler for `local::` identifiers
+  (`if (local_qualified && value_slots) return
+  scope_randomize_value_slot_(...)`), gated on `value_slots` being
+  non-null — `value_slots` is only ever non-null for an inline
+  constraint's IR build (it's the argument-capture list an inline
+  `with{}` clause needs; a plain class-body constraint has no
+  randomize()-call-site scope to capture from, so it's built with
+  `value_slots == nullptr`). When `local_qualified` was true but
+  `value_slots` was null, there was no corresponding rejection — control
+  fell through to the ordinary property-lookup path a few lines below,
+  silently treating `local::x` as plain `x`.
+- **Fix:** added the missing `if (local_qualified && !value_slots)` branch
+  immediately after the existing (correct) inline-capture branch, emitting
+  a focused `error:` citing 18.7.1 footnote 43 and returning `""` (which
+  the existing dropped-constraint hard-error convention in this file
+  already turns into a compile failure, not a silently weakened solve).
+- **Scope:** the correct inline-`local::` path (already working, four
+  pre-existing `ivtest` files cover it:
+  `sv_constraint_function_argument_inline.v`,
+  `sv_constraint_handle_inline.v`, `sv_struct_member_constraint_paths.v`,
+  `sv_constraint_darray_size_local_scope.v`) is completely untouched —
+  verified all four still pass.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_constraint_local_outside_inline_fail.v` (CE, the
+  class-body-`local::` rejection), registered in `ivtest/regress-sv.list`.
+- **Validation:** focused 5/5 pass (new test plus the four existing
+  inline-`local::` tests). Full `.github/ivtest_gate.sh` legacy sweep:
+  `Total=5812, Passed=5807, Failed=0`, 0 unexplained. UVM regression: 357
+  passed, 0 failed, 0 skipped.
+- **Process note:** this is a repeat of the same discipline as L118 in
+  this same session — an initial hypothesis (here: "`local::` doesn't
+  snapshot correctly") was WRONG, caught by checking the LRM's own worked
+  example and slang before writing any fix, which also reframed what the
+  real, narrower, genuinely-broken case actually was. See
+  [[discovered-debt-hypothesis-is-not-diagnosis]] (memory).
+
+### L120 — Action-less `assert/assume property` on a liveness operator wrongly refused
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra/Adams-Bridge formal-verification source
+  (`submodules/adams-bridge/formal/fv_ntt_ctrl/fv_ntt_ctrl_constraints.sv`)
+  directly — objective 5 grounding, not a synthetic reducer.
+- **Symptom:** a completely action-less `assert property (s_eventually(x));`
+  or `assume property (s_eventually(x));` — a bare `;` after the closing
+  paren, no `else`, no statement of any kind — was rejected with `sorry:
+  a pass action on this property operator is not supported (IEEE
+  1800-2017 16.14.6)`, even though the source contains no pass action at
+  all to refuse. Reproduced in complete isolation (a 7-line standalone
+  reducer, no Caliptra dependency needed). Confirmed NOT specific to
+  `assume`, or to any particular liveness shape: bare `assert`/`assume`
+  on plain `s_eventually(x)` and on `1'b1 |-> s_eventually(x)` (a
+  structurally different op_type reaching the same lowering) all hit it;
+  `cover property (s_eventually(x));` was correctly unaffected (see root
+  cause).
+- **Root cause:** IEEE 1800-2017 A.2.10's "pass action only"
+  `concurrent_assertion_statement` production
+  (`assert_or_assume K_property '(' property_spec ')' statement_or_null`)
+  represents a bare `;` trailing statement as a `PNoop` sentinel object,
+  not a null pointer — the same sentinel shape `cover property (p);` and
+  `... else ;` use. `pform_make_assertion()` (pform.cc) already consumed
+  and cleared this sentinel for the fail-action case (any `kind`) and for
+  `cover`'s pass-action case (`kind==2` only) — but never for
+  assert/assume's pass-action case (`kind` 0/1). The uncleared `PNoop*`
+  then reached `pform_make_temporal_assertion_()`'s
+  `if (pass_stmt && !pass_supported)` check as a plain non-null pointer,
+  indistinguishable from a genuine user-written pass action, for any
+  property routed through that lowering (`op_type >= 4`: `within`,
+  liveness, abort, and until-family operators) — which is exactly why
+  none of this session's earlier, simpler SVA reducers (plain `|->`/`|=>`,
+  `disable iff`+`$past`) had hit it: those operators don't reach this
+  lowering at all.
+- **Fix:** removed the `kind == 2 &&` restriction on the sentinel-clearing
+  check in `pform_make_assertion()` (one line), making the "a null pass
+  action has no executable behavior" consumption unconditional — matching
+  what the pre-existing comment already said it should do. `cover
+  property`'s own behavior is provably unchanged: it already hit this
+  same clearing path before the fix (`kind==2` was already true for it),
+  so removing the guard doesn't alter its control flow, only extends the
+  same clearing to `kind` 0/1.
+- **Scope verified narrow:** a REAL, non-empty pass action on a liveness
+  operator (`assert property (s_eventually(x)) hits++;`) is still
+  correctly refused with the identical diagnostic — confirmed directly,
+  not assumed. `else`-only and combined pass+fail forms on liveness
+  operators are unaffected (they never passed through the buggy
+  sentinel path in the first place — only the pass-action-only grammar
+  branch does). `cover property`'s already-correct behavior (own
+  separate "not supported" message for unsupported operators) is
+  unaffected, confirmed by direct comparison of its message before and
+  after the fix.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_assert_liveness_no_action.v` (normal — the fixed
+  case, both `assert`/`assume` and both operator shapes) and
+  `sv_assert_liveness_real_action_fail.v` (CE — confirms a genuine pass
+  action is still refused), both registered in `ivtest/regress-sv.list`.
+- **Validation:** focused 6/6 pass (both new tests plus four pre-existing
+  liveness/assertion tests, confirming no regression to already-working
+  shapes). Full `.github/ivtest_gate.sh` legacy sweep:
+  `Total=5814, Passed=5809, Failed=0`, 0 unexplained. UVM regression:
+  357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing real Caliptra
+  file (`fv_ntt_ctrl_constraints.sv`, tested standalone with its package
+  dependencies) now compiles with the two `sorry:` errors completely
+  gone; remaining warnings on that file are pre-existing and unrelated
+  (unresolved `bind`-target hierarchy references, from testing the file
+  outside its full multi-file `bind` context — not a regression from
+  this fix).
+
+### L121 — Named property forward reference resolved as an undefined signal
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra source directly (`src/sha512/formal/properties/
+  fv_constraints.sv`), immediately after L120 — same session, same
+  grounding approach.
+- **Symptom:** `assert/assume property (name);` where `name` is a
+  no-argument property declared LATER in the same module — legal per
+  IEEE 1800-2017/2023 (no textual-order requirement between a
+  `concurrent_assertion_statement` and the `property_declaration` it
+  names; confirmed independently: slang accepts the identical construct,
+  0 errors, 0 warnings) — was rejected with `error: Unable to bind
+  wire/reg/memory 'name'`, exactly as if the name were genuinely
+  undefined. Reproduced in a 15-line standalone isolated reducer. Two
+  separate real, unmodified Caliptra files rely on this exact
+  forward-reference shape (`src/sha512/formal/properties/
+  fv_constraints.sv`, `src/sha512_masked/formal/properties/
+  fv_constraints.sv`).
+- **Root cause:** `sva_module_properties` (the map `pform_make_assertion`
+  consults to resolve a bare `assert/assume/cover property (name);` to
+  its declaration) is populated in single-pass textual parse order. A
+  property declared after its first reference is not yet registered when
+  that reference is reached, so resolution fell straight through to
+  ordinary plain-identifier (signal) lookup and failed.
+- **Fix:** mirrors the pre-existing, exactly-analogous deferred-clock-
+  inference mechanism (`sva_pending_proc_` /
+  `pform_sva_flush_pending_procedural`, called at end-of-module). Added a
+  parallel `sva_pending_named_property_` list: when a bare single-
+  identifier property reference is not found in `sva_module_properties`,
+  park the full original call (loc/prop/fail_stmt/pass_stmt/kind/label)
+  and retry once at end-of-module (`pform_sva_flush_pending_named_
+  properties`, called before `pform_cur_module.pop_front()` so default-
+  clocking lookup still resolves correctly on retry) by re-entering
+  `pform_make_assertion` itself with the original arguments — by then
+  every property declaration in the module has been parsed and
+  registered. A name still unresolved at that point falls through to the
+  original, unchanged plain-identifier error path — not a new message,
+  no change for a genuinely undefined name (confirmed directly with a
+  dedicated negative reducer).
+- **Regression caught and fixed before landing (important process note):**
+  the first version of this fix deferred on ANY unresolved single
+  identifier, which also matches an ordinary already-declared signal used
+  directly as a property body (`assert property (a);` where `a` is a
+  plain `bit`/`wire` — indistinguishable from a forward-referenced
+  property name at the point of first resolution). Deferring those too
+  reordered their processing relative to other module items, which two
+  VPI assertion-attempt-callback tests depend on for their attempt/
+  instance numbering — caught immediately by the full ivtest gate's
+  bundled VPI suite (`vpi/m12_assert_attempt.v`, `vpi/m12br_assert_cb2.v`
+  went from 108/108 to 106/108, a real regression, not flakiness).
+  Root-caused precisely (diffed the VPI gold output, found the `_0`/`_1`
+  instance-index suffixes swapped) and fixed by narrowing the deferral
+  condition with `pform_get_wire_in_scope()`: only defer when the name
+  is not ALREADY resolvable as a known signal in scope, since such a
+  name is never going to resolve as a property later instead. Re-ran the
+  full VPI suite after the narrowing fix: back to 108/108.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_assert_named_property_forward_ref.v` (normal — the
+  fixed case, plus an ordinary-order property asserted alongside it to
+  confirm the deferral machinery doesn't disturb already-working cases)
+  and `sv_assert_named_property_undefined_fail.v` (CE — confirms a
+  genuinely undefined name is still rejected identically), both
+  registered in `ivtest/regress-sv.list`.
+- **Validation:** focused 4/4 pass (both new tests plus L120's two).
+  Full `.github/ivtest_gate.sh` legacy sweep: `Total=5816, Passed=5811,
+  Failed=0`, 0 unexplained. Bundled VPI suite: 108/108 (the regression
+  this fix's own first draft introduced, caught, root-caused, and fixed
+  within the same investigation before ever being committed). UVM
+  regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing
+  `src/sha512/formal/properties/fv_constraints.sv` (with its real DUT,
+  `sha512_core.v`) now compiles clean, exit 0.
+
+### L122 — Comma-separated multi-identifier assertion-local variable declaration rejected as a syntax error
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra source directly (`src/ecc/formal/properties/
+  fv_ecc_pm_ctrl_abstract.sv`), while batch-scanning the `ecc` IP
+  block's 24-file formal corpus — same real-corpus grounding approach as
+  L120/L121.
+- **Symptom:** `logic [5:0] addra, addrb;` — a comma-separated
+  multi-identifier declaration inside a `property ... endproperty`
+  block's local-variable section — was rejected with a plain `syntax
+  error` pointing at the declaration line, followed by the expected
+  cascade (`Unable to bind wire/reg/memory` for the property name). The
+  single-identifier form (`logic [5:0] addra;`) already worked; only the
+  comma continuation was rejected. Confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors, 0
+  warnings — this is IEEE 1800-2017/2023 A.2.10's ordinary
+  `assertion_variable_declaration ::= data_type
+  list_of_variable_decl_assignments ';'`, ordinary comma-list variable
+  declaration syntax used everywhere else in the language, not a
+  special local-declaration-only restriction. Three genuine hits in the
+  originally-scanned real file (all on `logic[5:0] addra,addrb;` lines,
+  three separate properties), plus independently reproduced for the
+  `int` form (`int a, b;`).
+- **Root cause:** `parse.y`'s `sva_int_local_declarations` nonterminal
+  had six alternatives (base and `sva_int_local_declarations`-chained
+  forms, each for `K_int` and `K_sva_logic_local` with/without
+  `dimensions`), and every one of them terminated in exactly one
+  `IDENTIFIER ';'` — there was no comma continuation *within* a single
+  declaration statement, only the (different, already-working) ability
+  to chain multiple separate `;'-terminated declarations one after
+  another (`logic [5:0] addra; logic [5:0] addrb;` always worked).
+- **Fix:** added a new `sva_local_ident_list` nonterminal (returns
+  `std::list<perm_string>*`), structurally identical to the pre-existing
+  `sva_formal_list` comma-list pattern already used for parameterized-
+  property formal argument lists — reused the same, already-proven-safe
+  shape rather than inventing a new one. Replaced the bare `IDENTIFIER`
+  in all six `sva_int_local_declarations` alternatives with
+  `sva_local_ident_list`, and changed each action to loop over the
+  returned list, calling `pform_sva_declare_int_local`/
+  `pform_sva_declare_logic_local` once per name.
+  `pform_sva_declare_logic_local(loc, name, dimensions)` previously
+  always freed its `dimensions` argument (both the range-expression
+  contents and the list container itself) unconditionally — calling it
+  more than once with the same shared `dimensions` pointer (one call per
+  comma-separated name) would double-free. Added an `owns_dimensions`
+  parameter (default `true`, preserving every existing call site
+  unchanged) so the grammar action passes `false` for every identifier
+  in the list except the last, which alone releases the shared
+  dimensions list once all clones have been made.
+  `sva_local_dimension_width_()` was already safe to call once per
+  identifier sharing the same `dimensions` list: it clones the range
+  bounds (`sva_clone_expr_`) rather than consuming the originals, so
+  each identifier still gets its own independent width expression tree
+  — required since `pform_sva_end_local_declarations()` later deletes
+  each map entry's `width` individually, and two entries sharing one
+  `width` pointer would double-free there instead.
+- **Verified in scope, not conflated with a separate pre-existing
+  defect (important process note):** while building the permanent
+  regression, mixing `int`-kind and `logic`-kind local declarations
+  within one property (e.g. `int a; logic [3:0] z;`) was found to break
+  binding of the `int`-typed name(s) at elaboration
+  (`Unable to bind wire/reg/memory 'a'`) — but this reproduces with
+  **zero commas involved**, using only the pre-existing single-
+  identifier chain grammar this fix left untouched, so it is a separate,
+  pre-existing defect, not a regression from this fix and not required
+  for L122's closure. Recorded separately as DD-034 in
+  `DISCOVERED_DEBT.md`; the L122 regression test deliberately declares
+  only same-kind identifiers per property to stay in scope. See
+  [[discovered-debt-hypothesis-is-not-diagnosis]] — verified the
+  boundary of what this fix does and does not touch before claiming
+  either construct implemented.
+- **Bison grammar-safety check:** shift/reduce and reduce/reduce
+  conflict totals compared before/after (`bison -y -d --report=state`):
+  562/1122 identical in both, and the new rules are additive
+  (`sva_local_ident_list` mirrors `sva_formal_list`'s already-safe
+  shape) rather than modifying any existing production's alternatives.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_assert_property_local_multi_ident_decl.v` (normal
+  — functionally verifies both the `logic [N:0] a, b;` base form and an
+  `int a, b; int c;` chain, matching values through the sequence rather
+  than only checking compile success), registered in
+  `ivtest/regress-sv.list`.
+- **Validation:** focused 5/5 pass (this test plus L120's and L121's
+  four). Full `.github/ivtest_gate.sh` sweep: `Total=5819, Passed=5814,
+  Failed=0, Not Implemented=2, Expected Fail=3`, name-diff gate clean (0
+  unexplained). Bundled VPI suite: 108/108. Negative suite: 148/148.
+  UVM regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing
+  `src/ecc/formal/properties/fv_ecc_pm_ctrl_abstract.sv` no longer
+  produces the `syntax error` on any of its three `logic[5:0]
+  addra,addrb;` declarations (grep-confirmed absent from the diagnostic
+  output; one unrelated pre-existing `syntax error` at line 40, a
+  standalone-file port-list type-resolution artifact from compiling
+  this file outside its package context, is untouched by and out of
+  scope for this fix).
+
+### L123 — Parenthesized cycle-delay expression (`##(expr)`) rejected as a syntax error
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra source directly (`src/ecc/formal/properties/
+  fv_ecc_hmac_drbg_interface_constraints.sv`, line 67), continuing the
+  same real-corpus scan of the `ecc` IP block's formal directory that
+  found L122.
+- **Symptom:** `##(time_window+1) hmac_drbg_valid;` — a parenthesized
+  expression as a cycle-delay operand, where `time_window` is a
+  property formal argument — was rejected with a plain `syntax error`.
+  Reduced further: the rejection is unconditional on what the parens
+  contain, including a pure compile-time-constant expression with no
+  formal argument at all (`##(1+1)`) or even a single bare literal
+  (`##(3)`) — every parenthesized form failed identically, while the
+  unparenthesized bare-identifier form (`##tw`) already correctly
+  reached a semantic diagnostic (`sorry: sequence cycle delays must be
+  literal constants`) rather than a parse-time syntax error. Confirmed
+  independently: slang (`--std 1800-2017`) accepts both `##(3+1)` and
+  `##(tw+1)`, 0 errors, 0 warnings — this is IEEE 1800-2017/2023
+  A.2.10's `cycle_delay_range ::= '##' constant_primary`, where
+  `constant_primary` includes `'(' constant_mintypmax_expression ')'`.
+- **Root cause:** `delay_value_simple` — the nonterminal shared by
+  every `K_CYCLE_DELAY` (`##`) use site across SVA sequences/
+  properties, procedural cycle delay, non-blocking cycle-delay
+  assignment, ordinary `#` delay, and specify-path delay — has four
+  alternatives (`DEC_NUMBER`, `REALTIME`, `IDENTIFIER`, `TIME_LITERAL`)
+  and no parenthesized-expression alternative. The procedural
+  cycle-delay statement production already worked around this locally
+  by spelling `K_CYCLE_DELAY '(' expression ')' statement_or_null` as
+  its own separate alternative (IEEE 1800-2017 14.11) rather than
+  extending the shared nonterminal, but the six SVA sequence/property
+  cycle-delay productions never got the same treatment.
+- **Fix:** added a new `sva_cycle_delay_value` nonterminal
+  (`delay_value_simple | '(' expression ')'`) and substituted it for
+  `delay_value_simple` at exactly the six SVA-specific `K_CYCLE_DELAY`
+  sites (`sva_multiclock_seq`, `sva_mc_tail`, the grouped-composite-
+  sequence alternative of `property_expr`, `sva_seq_comb_concat`, and
+  the leading/trailing-delay alternatives of `sva_seq_atom`).
+  Deliberately scoped to only these six: `delay_value_simple` itself
+  was left untouched to avoid any blast radius on the unrelated ordinary
+  `#`-delay and specify-path contexts that also use it, and the two
+  existing `K_CYCLE_DELAY` sites that don't need this fix (the
+  procedural statement production, which already has its own explicit
+  paren alternative; and the non-blocking cycle-delay assignment
+  production, not evidenced as broken by any real source) were left
+  alone.
+  The downstream consumers (`pform_sva_single_delay`,
+  `pform_sva_tree_concat`) already accepted an arbitrary `PExpr*` and
+  fell back to a graceful diagnostic for a non-resolvable value —
+  confirmed directly: `pform_sva_single_delay` already had a code
+  comment anticipating exactly this shape ("A property formal can later
+  substitute arithmetic here"), and the pre-existing bare-identifier
+  `##tw` path already exercised that same fallback. No semantic-layer
+  change was needed; this was purely a grammar gap.
+- **Bison grammar-safety check:** shift/reduce and reduce/reduce
+  conflict totals compared before/after (`bison -y -d --report=state`):
+  562/1122 identical in both.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_sva_cycle_delay_paren_expr.v` (normal — exercises
+  the parenthesized-arithmetic form at the ordinary leading-delay
+  position, plus a parenthesized-literal form through the separate
+  multiclock-boundary production, confirming the new alternative is
+  wired into more than one of the six touched call sites), registered
+  in `ivtest/regress-sv.list`.
+- **Validation:** focused pass (this test, compiles and runs correctly
+  standalone). Full `.github/ivtest_gate.sh` sweep: `Total=5820,
+  Passed=5815, Failed=0, Not Implemented=2, Expected Fail=3`, name-diff
+  gate clean (0 unexplained). Bundled VPI suite: 108/108. Negative
+  suite: 148/148. UVM regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing
+  `src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv`
+  no longer produces the `syntax error` at line 67; the file now
+  reaches only its remaining, already-documented `sorry:` limitations
+  (parameter-valued consecutive repetition, a separate known gap) plus
+  an expected standalone-compile artifact (`bind target module ... is
+  not defined in this compilation`, from compiling this file outside
+  its full project context).

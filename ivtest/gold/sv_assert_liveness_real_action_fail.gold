@@ -1,0 +1,1 @@
+./ivltests/sv_assert_liveness_real_action_fail.v:12: sorry: a pass action on this property operator is not supported (IEEE 1800-2017 16.14.6). Use the `else' half alone, or an `always' block on the same condition.
