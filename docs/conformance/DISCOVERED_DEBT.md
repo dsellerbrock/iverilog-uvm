@@ -1917,3 +1917,169 @@ reducer, plus the real originally-failing Caliptra file; add a
 functional (not just compile-success) permanent regression that
 actually checks the assembled value is correct, not merely that it
 parses. Status: recorded, not selected.
+
+### DD-036 — Unpacked-array range select ("array slice") unsupported as a port-connection actual / continuous-assignment source (2026-09-16, HIGH VALUE: single blocker for `caliptra_top`)
+
+Found via a differential Icarus/slang static census over Caliptra's
+integration filelists (`evidence/caliptra-census-20260916/`, a patched
+copy of the pre-existing `run_census.py` driver — see
+[[census-driver-paths-rot]] — pointed at this session's own
+`iverilog-uvm-concat-select-20260915` build; 106 manifest targets, 60
+PASS, 5 `ICARUS_GAP`). **All five `ICARUS_GAP` targets
+(`ntt_masked_mult_reduction_tb`, `ntt_top`, `abr_top`, `caliptra_top`,
+`caliptra_top_ss_mode`) trace to the exact same two source sites** —
+confirmed by diffing each target's full error set: identical four
+lines in every one. This is the single thing currently standing
+between Icarus and a clean compile of `caliptra_top`, the full-chip
+integration target — directly relevant to mission objective 5.
+
+**Symptom**, from real, unmodified Caliptra source
+(`submodules/adams-bridge/src/ntt_top/rtl/ntt_masked_special_adder.sv:102-103`
+and `submodules/adams-bridge/src/abr_libs/rtl/abr_masked_add_sub_mod_Boolean.sv:134-135`):
+```systemverilog
+logic [1:0] r0_c0_delayed [WIDTH:0];   // unpacked array, WIDTH+1 elements
+...
+abr_masked_MUX #(.WIDTH(WIDTH)) r0_MUX_r0 (
+    ...
+    .r0(r0_c0_delayed[WIDTH-1:0]),     // range-select WIDTH elements out of WIDTH+1
+    .r1(r1_c1[WIDTH-1:0]),
+    ...
+);
+```
+`r0_c0_delayed[WIDTH-1:0]` is a **range select on an unpacked array**
+(selecting a contiguous WIDTH-element sub-array out of the WIDTH+1
+declared elements, itself an unpacked array of the same `[1:0]`
+element type), used as a port-connection actual. Rejected with:
+```
+sorry: Array slices are not yet supported for continuous assignment.
+     : Port 1 (r0) of sub is connected to r0_c0_delayed[(WIDTH)-('sd1):'sd0]
+```
+Minimal 10-line reducer confirms the same rejection in isolation, and
+confirms independently via slang (`--std 1800-2017`, 0 errors, 0
+warnings) that this is legal. This is an honest, already-correct
+`sorry:` diagnostic (not a crash, not a silently-wrong compile) — it
+meets the project's non-negotiable bar for unsupported behavior. This
+is a genuine **feature gap**, not a defect in already-claimed behavior.
+
+**Root cause, located precisely:** `elab_net.cc:1636-1689`
+(`PEIdent`'s unpacked-array select-to-net elaboration, reached while
+binding a port-connection actual). The existing code at this exact
+site already implements a **"slice view" mechanism** for a *sibling*
+case — a partial index that supplies fewer indices than the array has
+dimensions (e.g. `arr2d[i]` on a `arr2d[N][M]` 2-D unpacked array,
+yielding a 1-D `[M]` sub-array): it computes a contiguous pin range in
+the source net (`base_const->value().as_long()`, `slice_dims`), builds
+a new `NetNet` of `NetNet::IMPLICIT` type with those dimensions, and
+pin-aliases it onto the corresponding contiguous range of the source
+net's pins via `connect(view->pin(pin), sr.net->pin(base + pin))` —
+then returns that view net to stand in for the port connection. When
+that path's shape/type checks don't line up (`shape_ok`, `type_ok`),
+or when `name_tail.index` isn't the "fewer-dims-than-declared, each a
+plain index" shape it expects, control falls through unconditionally
+to the `sorry:` at line 1685.
+
+A single-dimension **range select** (`r0_c0_delayed[WIDTH-1:0]` — same
+number of dimensions as declared, but a contiguous *sub-range of
+elements within one dimension* rather than a reduced-dimension index)
+is a different `name_tail.index` shape than what `indices_to_expressions`
+above is built to consume here (a partial list of *whole-dimension*
+indices, not a `[hi:lo]` range within the last dimension) — this
+appears to be why it never even reaches the `shape_ok`/`type_ok`
+checks, going straight to the `sorry:`. **Not yet confirmed empirically
+how `name_tail.index` represents a `[hi:lo]` range vs. a plain index**
+(needs a debug trace or a read of whatever `index_component_t`/similar
+structure `path_.back().index` uses) — that is the next concrete step,
+not a full implementation guess.
+
+**Much stronger lead found: the exact machinery this needs already
+exists and is already used for three sibling contexts, just not this
+one.** `index_component_t` (`pform_types.h:140`) already distinguishes
+`SEL_BIT` (plain index) from `SEL_PART`/`SEL_IDX_UP`/`SEL_IDX_DO`
+(range/indexed-part-select forms) — confirming `[WIDTH-1:0]` parses to
+a genuinely different index shape than the partial-index case the
+existing `elab_net.cc:1636` branch handles (its call to
+`indices_to_expressions()` explicitly hard-errors "Array cannot be
+indexed by a range" if it ever receives a non-`SEL_BIT` component,
+confirming that function is scoped to plain indices only).
+
+A **complete, general, already-battle-tested decoder for exactly this
+shape already exists**: `decode_fixed_uarray_slice()`
+(`netmisc.h:179`, implemented `netmisc.cc:1080` via the static
+`decode_fixed_uarray_slice_select_()` helper at `netmisc.cc:940`,
+which explicitly handles `SEL_PART`/`SEL_IDX_UP`/`SEL_IDX_DO` with
+direction checks and clear diagnostics). It is already wired into
+**three** other contexts that all accept exactly this kind of
+unpacked-array slice today: function/task argument binding
+(`elab_expr.cc:15703`, `PECallFunction::elaborate_arguments_`),
+concatenation operands (`elab_expr.cc:5117/5252`), and an lvalue path
+(`elab_lval.cc:1509/3696`). Its signature takes a `PExpr*` directly —
+`decode_fixed_uarray_slice(des, scope, loc, expr, allow_whole, out,
+quiet)` — and returns a `fixed_uarray_slice_t{signal, canonical_base,
+count, selected_range, element_type, whole}` (`netmisc.h:170`) on
+success (return value `1`).
+
+**Recommended implementation angle** (not yet attempted — the one
+remaining unknown below must be resolved first): in
+`PEIdent::elaborate_unpacked_net()` (`elab_net.cc:1607`), where the
+existing partial-index branch currently falls through unconditionally
+to the `sorry:` for any non-partial-index shape, add a new branch that
+calls `decode_fixed_uarray_slice(des, scope, *this, this, false,
+slice)` before giving up; on success, build a `NetNet::IMPLICIT` view
+net sized to `slice.count` elements of `slice.element_type` and
+pin-alias it onto the source net's pins starting at the slice's base —
+the exact same `NetNet` + `connect()` pattern the existing partial-index
+branch already uses just below (`elab_net.cc:1668-1679`), just fed by
+`decode_fixed_uarray_slice`'s output instead of
+`indices_to_expressions`/`normalize_variable_unpacked`'s.
+
+**One concrete unknown to resolve empirically before writing this,
+not to assume:** `fixed_uarray_slice_t::canonical_base` and `::count`
+are documented as *word/element* units ("Lowest canonical word in the
+slice"), while the existing branch's `connect()` loop indexes
+`sr.net->pin(base + pin)` in raw *pin* units via `base` from
+`normalize_variable_unpacked()`. Whether one canonical word always
+equals exactly one `NetNet` pin for an unpacked array (making the unit
+conversion an identity) or needs an explicit element-to-pin-width
+multiplication has not been checked against the actual `NetNet`/
+`netuarray_t` pin layout — get this wrong and the fix would compile
+and elaborate cleanly while silently wiring the wrong bits, exactly
+the "manufactured apparent success" the project's correctness bar
+forbids. Verify by reading `normalize_variable_unpacked()` (used by
+the existing sibling branch) and one of the three existing
+`decode_fixed_uarray_slice()` call sites' downstream pin/word handling
+before writing a single line of the new branch — this is real,
+security-sensitive-precision elaboration work and deserves a full,
+dedicated session (with real simulation-correctness testing, not just
+compile-success testing, for its regression) rather than a rushed
+attempt.
+
+**LRM clause for unpacked array range-select syntax needs to be pinned
+down precisely before implementing** (this reducer's slang run used
+`--std=1800-2017` and slang accepted it, but confirm the exact clause
+— likely under 1800's "select" grammar for array types — rather than
+assuming a specific subclause number without checking; per
+[[discovered-debt-hypothesis-is-not-diagnosis]], verify against the
+LRM text directly before coding).
+
+**Census infrastructure note:** the patched driver copy lives at
+`evidence/caliptra-census-20260916/` (`run_census.py` +
+`fileset_top.sv`, `IVERILOG` repointed at
+`iverilog-uvm-concat-select-20260915/local-install/bin/iverilog`, `OUT`
+repointed at its own directory) — do not edit the original
+`caliptra-rtl-build/static-census-bd31614/run_census.py` in place (see
+[[census-driver-paths-rot]]); copy again into a fresh evidence
+directory and repoint `IVERILOG`/`OUT` for any future run, since the
+worktree path baked in here will itself rot once this worktree is
+retired. Full JSON/markdown results:
+`evidence/caliptra-census-20260916/caliptra-static-census.{json,md}`.
+
+**Closure requirements:** find the emission site and its assumptions;
+design and implement correct lowering (per-element loop or array-slice
+net view, whichever the existing net/PWire representation supports
+more directly); confirm the LRM clause; verify against the minimal
+reducer, both real originally-failing files, and re-run the census
+(expect all 5 `ICARUS_GAP` targets to flip to `PASS` from this single
+fix, since they share one root cause); add a functional permanent
+regression; re-run the full six-gate suite. Status: recorded, not
+selected — high priority given it single-handedly unblocks
+`caliptra_top`.
