@@ -2961,3 +2961,107 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   **This closes the single defect that was blocking Icarus from
   compiling Caliptra's full-chip `caliptra_top` target at all** —
   directly serving mission objective 5.
+
+### L125 — Confirmed regression: object method call on a class member misresolved as a bare parameterized-class reference
+
+- **Status:** CLOSED 2026-09-16. Found via a full-corpus differential
+  OpenTitan census (`scripts/opentitan_matrix.py`, 530 jobs, unmodified
+  `opentitan-upstream` @ `7a3ad34b6`), run after the Caliptra `formal/`
+  corpus and the Caliptra full-integration census were both already
+  exhausted this session. **This is the first genuine regression found
+  this session** (L118-L124 were all pre-existing gaps in previously-
+  untested real corpus, not regressions) — root-caused with a proper
+  same-script, per-job diff against a freshly rebuilt pre-session
+  baseline before any fix was attempted, per
+  `[[verify-against-freshly-built-main-baseline]]`.
+- **Symptom:** `receiver.method()`, where `receiver` is an ordinary
+  class-member (or local) variable whose *declared type's name* happens
+  to coincide with an unrelated class's name declared elsewhere in the
+  design, was rejected with `error: Parameterized class 'name' requires
+  an explicit #(...) specialization before ::.` — even though the
+  actual source uses ordinary `.` member/method access, never `::`, and
+  `receiver` unambiguously names a variable, not a type. Reduced to a
+  20-line standalone case; confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors, 0
+  warnings.
+  Real, unmodified OpenTitan DV source hits this directly:
+  `hw/dv/sv/dv_base_reg/dv_base_reg_field.sv` declares `dv_base_mubi_cov
+  mubi_cov;` (a member variable) and calls `mubi_cov.create_cov(width)`;
+  `dv_base_mubi_cov.sv` (a sibling file in the same package) separately
+  declares an unrelated `class mubi_cov #(parameter int Width = 4, ...)`
+  — the name collision is between the *variable* and the *unrelated
+  class*, not a self-reference. `dv_base_reg_field.sv` is common DV
+  infrastructure; this broke compilation of `lowrisc:dv:tl_agent_sim`
+  and all eight `top_*_xbar_{main,peri}_sim` cores across all three
+  OpenTitan tops (earlgrey, darjeeling, englishbreakfast).
+- **Confirmed as a real regression, not a pre-existing gap newly
+  surfaced:** built the compiler at `631bba6e8` (PR #277, the last
+  reliably-documented clean baseline: "OpenTitan census ... PASS 203 |
+  FAIL 84 | ... RUNTIME_FAIL 23" exactly reproduced with today's
+  `scripts/opentitan_matrix.py`, confirming that script version is the
+  right comparison point) and ran the 20-line reducer directly: exit 0,
+  clean. The same reducer on current `main` (before this fix): rejected.
+  Bisected by building at each intervening squash-merge PR
+  (`d9bfbaeee`, `8346955a6`, `5c0f5588e`, `9c8f716b1`, `874e00680`,
+  `c45760199`, `34cd45c6b`, `5e0df21fd`) and re-testing the reducer at
+  each: first broken at `5c0f5588e` (PR #280, "L43-L64"), the squash
+  commit immediately after the clean `631bba6e8` baseline.
+- **Root cause:** `PCallTask::elaborate_usr()`'s dotted-call resolution
+  (`elaborate.cc`) added new machinery in PR #280 to support calling an
+  inherited static class method via a bare class-scoped name with
+  implicit `this` (`resolve_scoped_class_method_task_`, extended with
+  `deferred_type_parameter`/`illegal_nonstatic`/`use_implicit_this`
+  outputs). For a two-component dotted call (`receiver.method()`), this
+  new resolution path is tried and its "receiver is a bare, unspecialized
+  parameterized class name" diagnostic is acted on *before* checking
+  whether `receiver` already resolves as an ordinary variable in scope
+  — so a variable whose type happens to share a name with any
+  parameterized class anywhere in the design gets misidentified as a
+  reference to that unrelated class. The sibling call site for the
+  *expression-call* context (`PCallTask::elaborate_method_`, further
+  down in the same file) already had the correct guard
+  (`if (net == 0) { ... resolve_scoped_class_method_task_(...) ... }`
+  — only attempted when ordinary symbol resolution already failed to
+  find a net); only the statement-call site (`elaborate_usr`) was
+  missing it.
+- **Fix:** added the same "does the receiver already resolve as an
+  ordinary variable?" guard to the statement-call site: before invoking
+  `resolve_scoped_class_method_task_` for a two-component call, resolve
+  the single-component receiver via `symbol_search()`; if it finds an
+  ordinary net (`sr.net != nullptr`), skip the scoped-class-name
+  resolution entirely (`static_method` stays null) and fall through to
+  the existing, unchanged ordinary object-method dispatch
+  (`elaborate_method_`) below. Confirmed the already-correct sibling
+  call site needed no change.
+- **Verified the fix doesn't disturb what PR #280 added:** direct
+  reducers confirm (1) an inherited static task called via a bare name
+  with implicit `this` still resolves and runs correctly, (2) a
+  genuinely bare, unspecialized parameterized class reference (`gc::
+  hello();` with no shadowing variable) still correctly errors
+  unchanged, and (3) an explicit specialized scoped-static call
+  (`gc#(8)::hello();`) still works correctly.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_class_member_shadows_unrelated_class_name.v`
+  (normal — reproduces the exact real-world shape: an unrelated
+  parameterized class sharing a name with a plain class-member
+  variable, and a functional check that the method call actually ran,
+  not just that it compiled), registered in `ivtest/regress-sv.list`.
+- **Validation:** focused pass (this test, plus the three PR #280
+  behavior-preservation reducers above). Full `.github/ivtest_gate.sh`
+  sweep: `Total=5821, Passed=5816, Failed=0, Not Implemented=2, Expected
+  Fail=3`, name-diff gate clean (0 unexplained). Bundled VPI suite:
+  108/108. Negative suite: 148/148. UVM regression: 357 passed, 0
+  failed, 0 skipped.
+- **Real-world confirmation:** re-ran the full 530-job OpenTitan census
+  with the fixed compiler. `lowrisc:dv:tl_agent_sim:0.1` (`uvm` lane):
+  `FAIL -> PASS`. The `mubi_cov` error is confirmed completely gone from
+  every previously-affected `top_*_xbar_*_sim` core's `hard_errors` list
+  (checked directly, not inferred) — those cores do not flip all the way
+  to `PASS` because the compile now progresses further and reaches a
+  separate, deeper, pre-existing issue in `tlul_assert.sv` (`bind`-scope
+  signal binding inside a generated instance path, `tb.dut.
+  tlul_assert_host_rv_core_ibex__corei`), unrelated to this fix and out
+  of its scope — exactly the documented "a frontier fix usually ADVANCES
+  a core's first diagnostic rather than clearing it" pattern. Not
+  claimed as closing those cores; only the `mubi_cov` misresolution
+  itself is closed.

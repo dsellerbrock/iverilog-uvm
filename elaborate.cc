@@ -13918,12 +13918,37 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    perm_string method_name = peek_tail_name(type_path);
 	    type_path.pop_back();
 
+	      /* A receiver that already resolves to an ordinary variable
+	         must dispatch as a normal object method call below, not
+	         through bare-class-name/scoped-static resolution. Without
+	         this check, a class member whose declared type's name
+	         happens to coincide with an unrelated class elsewhere (e.g.
+	         OpenTitan DV's `dv_base_mubi_cov mubi_cov;` alongside a
+	         same-spelled but unrelated `class mubi_cov #(...)`) was
+	         misresolved as a bare reference to that unrelated
+	         parameterized class, rejected before ordinary method
+	         dispatch ever ran. IEEE 1800-2017/2023: an ordinary
+	         (non-type) identifier use resolves to the innermost
+	         declaration in scope; a class member shadows an outer
+	         type name of the same spelling here. */
+	    bool receiver_is_variable = false;
+	    if (type_path.size() == 1) {
+		  symbol_search_results receiver_sr;
+		  unsigned receiver_errors_before = des->errors;
+		  bool receiver_found = symbol_search(this, des, scope, type_path,
+						      UINT_MAX, &receiver_sr);
+		  if (des->errors == receiver_errors_before
+		      && receiver_found && receiver_sr.net)
+			receiver_is_variable = true;
+	    }
+
 	    bool illegal_bare_generic = false;
 	    perm_string nonclass_typedef;
 	    bool deferred_type_parameter = false;
 	    bool illegal_nonstatic = false;
 	    bool use_implicit_this = false;
-	    NetScope*static_method = resolve_scoped_class_method_task_(
+	    NetScope*static_method = receiver_is_variable ? nullptr
+		  : resolve_scoped_class_method_task_(
 		  des, pscope, type_path, method_name, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef,
 		  &deferred_type_parameter, &illegal_nonstatic,
