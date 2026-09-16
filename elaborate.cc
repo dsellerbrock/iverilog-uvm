@@ -24412,7 +24412,12 @@ static unsigned constraint_dist_ir_leaf_width_(const string&tok)
 	if (fields[0] == "c" || fields[0] == "p" || fields[0] == "pp"
 	  || fields[0] == "r"
 	  || fields[0] == "x"
-	  || fields[0] == "v")
+	  || fields[0] == "v"
+	  /* "C:<bits>:<width>[:s]" is the wide (>64-bit) constant terminal
+	   * constraint_constant_ir_() emits (see a689e79df) when a plain
+	   * "c:<u64>:<width>[:s]" can't hold the value. Same field layout,
+	   * width still at index 2. */
+	  || fields[0] == "C")
 	    return field_width(2);
       if (fields[0] == "m") return field_width(3);
       if (fields[0] == "e") return field_width(2);
@@ -24447,7 +24452,16 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  || tok.compare(0, 2, "x:") == 0
 		  || tok.compare(0, 2, "r:") == 0
 		  || tok.compare(0, 2, "v:") == 0
-		  || tok.compare(0, 2, "s:") == 0;
+		  || tok.compare(0, 2, "s:") == 0
+		  /* Wide (>64-bit) constant terminal, see the field_width(2)
+		   * comment above -- constraint_constant_ir_() (a689e79df)
+		   * started emitting this alongside plain "c:" but this
+		   * parser was never taught it, so wide dist weights/items
+		   * (e.g. a 128-bit literal) fell out of typed_terminal,
+		   * making constraint_dist_ir_terminal_() reject them as
+		   * "unsupported IEEE 11.8.2 top-down context propagation"
+		   * even though a bare wide constant is trivially terminal. */
+		  || tok.compare(0, 2, "C:") == 0;
 	    bool delem_header = !tok.empty()
 		  && isdigit((unsigned char)tok[0]) && tok.find(':') != string::npos;
 	    bool loop_header = tok == "L";
@@ -24484,6 +24498,19 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  out.is_constant = end && end != tok.c_str() + 2;
 		  out.constant_value = value;
 		  out.constant_nonzero = out.is_constant && value != 0;
+	    } else if (tok.compare(0, 2, "C:") == 0) {
+		  /* "C:<bits>:<width>[:s]" -- the value itself doesn't fit
+		   * uint64_t (that's why it isn't "c:"), so is_constant/
+		   * constant_value stay at their default like every other
+		   * non-"c:" terminal; but constant_nonzero is cheap and
+		   * meaningful here (a live "ground, not the loud saturated
+		   * fallback" branch depends on it, see
+		   * dist_weight_wide_zero_high in
+		   * ivtest/ivltests/sv_constraint_dist_boolean_subject.v) --
+		   * any '1' bit in the literal makes it nonzero. */
+		  size_t bits_end = tok.find(':', 2);
+		  out.constant_nonzero = bits_end != string::npos
+			&& tok.substr(2, bits_end - 2).find('1') != string::npos;
 	    }
 	    return out;
       }

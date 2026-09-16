@@ -6217,6 +6217,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                                 return fail_joint("a coupled randc distribution cannot be represented exactly");
                                     }
                               }
+                              // L106-116 regression (found 2026-09-15): the
+                              // enumerable-coupled-component path above was
+                              // built to prove a randc+dist coupling is
+                              // representable before sampling it (IEEE
+                              // 1800-2017/2023 18.4.2/18.5.14). It has no
+                              // equivalent proof for a component that is
+                              // cyclic+ordered but touches NO dist at all --
+                              // that case used to hit the unconditional
+                              // `fail_joint` this loop replaced, and must
+                              // still be rejected rather than silently
+                              // accepting whatever z3_enumerate_joint_ above
+                              // happened to pick. Without this, a plain
+                              // `solve randc_prop before other_prop` cyclic
+                              // dependency with no dist involved silently
+                              // samples the randc leaf instead of reporting
+                              // "not yet supported" (regression test:
+                              // ivtest/ivltests/sv_randomize_global_ordered_fail.v).
+                              if (distributions == 0)
+                                    return fail_joint("joint solve-before with a coupled active randc component is not yet supported");
                               if (distributions > 1)
                                     return fail_joint("multiple distributions in a coupled randc component are not yet supported");
                         }

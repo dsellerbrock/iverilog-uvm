@@ -2404,3 +2404,92 @@ sampling cap and wide ordered/dist/cyclic domains remain explicit limitations.
 FOCUSED_TESTED; broad qualification pending. Earliest wrapper commitment and
 all finite suffix endpoints are retained for plain/implication aggregation.
 [Evidence](session_logs/2026-09-15_first_match_ranged_suffix_validation.json).
+
+### L117 — L111/L115 broad-qualification regressions (found running the L106-L116 batch gate, 2026-09-15)
+
+- **Status:** CLOSED 2026-09-15. Found by actually running the L106-L116
+  candidate's own `.github/ivtest_gate.sh` broad-qualification gate (the
+  focused/neighbor tests each lane ran during development never exercised
+  these two legacy `ivtest` cases). The batch's own first gate ("integrated")
+  had exited nonzero with `Failed=3` and never proceeded past it -- these two
+  root causes are why.
+- **L111 regression -- "Coupled randc-first ordered distributions"
+  (`vvp/vvp_z3.cc`, `836ec3b19`):** the new enumerable-coupled-component
+  solver this lane introduced replaced an unconditional
+  `fail_joint("joint solve-before with a coupled active randc component is
+  not yet supported")` for ANY cyclic-randc component coupled to an
+  ordering or `dist` reference with logic that only re-rejects when the
+  component actually touches a `dist` (`distributions >= 1`, IEEE
+  1800-2017/2023 18.4.2/18.5.9-10, the lane's own target case). A component
+  coupled purely through `solve ... before ...` ordering, with **no** dist
+  involved, fell through with no rejection at all and silently accepted
+  whatever `z3_enumerate_joint_` happened to pick -- a randc value getting
+  sampled/changed when the spec has no defined semantics for that case yet.
+  Caught by the pre-existing regression `sv_randomize_global_ordered_fail`
+  (`_2023`)'s own runtime oracle: `FATAL: ordered randc silently sampled or
+  changed values`. Fixed with one added guard
+  (`if (distributions == 0) return fail_joint(...)`) restoring the reject
+  for exactly the case the lane's own solver doesn't (yet) prove, using the
+  message text already established for the sibling case a few lines above.
+  Zero change to the lane's actual target behavior (coupled randc+dist),
+  confirmed by direct compile+run against the fix (dist-coupled reducers
+  are `distributions >= 1`, never reach the new guard).
+  Separately, `ivtest/gold/sv_randomize_global_ordered_fail.gold`'s second
+  line was stale text from an EARLIER, non-regressing message rename inside
+  the same L106-L116 batch (`"...with active randc..."` -> `"...with a
+  coupled active randc component..."`, already the case at `836ec3b19`'s
+  own parent) -- updated to match; not a behavior change.
+- **L115 regression -- "wide fixed rand element transport" (`elaborate.cc`,
+  `a689e79df`):** the new wide (>64-bit) constant support this lane added
+  serializes such a constant into the constraint IR as a new
+  `"C:<bits>:<width>[:s]"` terminal token (`constraint_constant_ir_`), but
+  the sibling code that classifies dist item/weight expression shapes
+  (`constraint_dist_ir_shape_at_`'s `typed_terminal` check, and
+  `constraint_dist_ir_leaf_width_`) was never taught this new prefix --
+  only the pre-existing lowercase `"c:"` (fits in `uint64_t`). Any dist
+  weight or item touching a >64-bit constant -- even a bare literal like
+  `128'sd1` -- stopped parsing as a terminal at all, so
+  `constraint_dist_weight_shape_supported_`'s first check
+  (`if (!shape.parsed) return false;`) rejected it with "dist weight
+  expression requires unsupported IEEE 11.8.2 top-down context
+  propagation," a diagnostic meant for genuinely nonground/context-
+  dependent expressions, not a plain wide constant. Caught by the
+  pre-existing regression `sv_constraint_dist_boolean_subject` (classes
+  `dist_weight_wide_zero_high`, `dist_weight_over_uint64`). Fixed by
+  teaching both functions the `"C:"` prefix (same field layout as `"c:"`,
+  width at the same index) and deriving `constant_nonzero` from the bit
+  string directly, since the value itself doesn't fit `uint64_t` --
+  `dist_weight_wide_zero_high`'s own comment already documents why a wide
+  nonzero weight must not be mistaken for the zero/nonground case.
+- **Scope:** both fixes are narrowly targeted at the exact gap each lane's
+  own refactor opened -- neither touches the lane's actual new capability
+  (coupled randc+dist solving; wide-constant constraint transport), and
+  neither reopens work any other closed `L##`/`DD-0##` entry already
+  covers.
+- **Validation:** `sv_randomize_global_ordered_fail`, `_2023`, and
+  `sv_constraint_dist_boolean_subject` all byte-for-byte match their
+  (one corrected) gold files, confirmed by direct compile+run, not just
+  harness pass/fail. Full `.github/ivtest_gate.sh` legacy sweep re-run
+  against the fix: `Total=6014, Passed=6009, Failed=0` (0 unexplained
+  vs. baseline), plus VPI 108/108 and negative 148/148 --
+  `evidence/l106-l116-regression-fix-20260915/gate.log`. UVM regression
+  (highest-risk area given the fix touches the shared constraint solver
+  and dist elaboration) re-run separately: 357 passed, 0 failed, 0
+  skipped -- `evidence/l106-l116-regression-fix-20260915/uvm.log`. The
+  remaining json/nfa/releases/frontend/makecheck gates from the batch's
+  full seven-gate qualification were not re-run in this fix (out of
+  scope for this narrow regression fix; they weren't implicated by
+  either root cause and don't touch the two modified functions).
+- **Discovery-process note:** the first two attempts to reproduce these
+  regressions gave false signals and are worth naming so they aren't
+  repeated -- (1) `vvp_reg.pl -f <custom-subset-list>` fails these two
+  `sv_randomize_global_ordered_fail*` entries with a harness-internal
+  `Failed - running iverilog` at EVERY revision tested, including ones
+  where direct `iverilog`+`vvp` invocation proves the real behavior is
+  correct; the bug is in that specific `-f` code path, not the compiler --
+  don't trust it for isolated reducer checks. (2) `./driver/iverilog`
+  (source-tree, uninstalled) embeds an absolute `IVL_ROOT` baked in at
+  `./configure` time pointing at `local-install/lib/ivl`; running it after
+  `make -j4` without an intervening `make install` silently tests whatever
+  engine was installed LAST, not the just-built one -- always
+  `make install` before testing via the uninstalled driver.
