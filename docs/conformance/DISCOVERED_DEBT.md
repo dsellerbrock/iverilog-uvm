@@ -1918,6 +1918,44 @@ functional (not just compile-success) permanent regression that
 actually checks the assembled value is correct, not merely that it
 parses. Status: recorded, not selected.
 
+**Follow-up investigation (2026-09-16, still not selected — scope is
+larger than first estimated):** traced how `lv_name`/`lv_rhs` (the
+`sva_seq_step_t` fields a match-item assignment populates, per
+`parse_misc.h`) are actually consumed downstream. They are not read in
+one place; `lv_rhs` alone appears at 40+ sites across `pform.cc`,
+spanning the entire NFA/automaton sequence-lowering engine (roughly
+lines 16800-25200): dependency analysis for which locals a step reads
+vs. assigns (`sva_expr_reads_lv_`, ~16600-16650), `$past`-style
+history substitution for repeated locals (~18200-18280), automaton
+leaf/prefix collapsing rules that special-case "no local-variable
+assignment present" (dozens of `!st.lv_rhs`/`!cs.lv_rhs` checks used
+as simplification preconditions throughout), and the actual register
+synthesis (`sva_make_reg_`, a general-purpose carrier-register
+allocator used far beyond just local variables) with per-local storage
+in a `lv_rhs_reg` vector **indexed by variable name, not by variable
+name *plus selected range*** (`pform.cc` ~17200-17280,
+~17620-17622, ~17797-17799 — multiple distinct code-generation paths
+that each build the write action, not one choke point).
+
+This confirms the closure requirement above is not just "add a grammar
+production and a blend expression in
+`pform_sva_coerce_local_assignment`" — the read-modify-write blend
+would need to be correct at *every* one of these existing whole-
+variable-identity call sites, several of which assume `lv_rhs` is the
+complete new value for the named local (not a masked partial value),
+and some of which actively pattern-match on `lv_rhs`'s absence/
+presence as a simplification trigger for the wider automaton (changing
+what "having an lv_rhs" means at one of those sites without touching
+the others risks silently breaking already-working whole-variable
+match-item assignments elsewhere in the automaton, not just leaving
+the new part-select case incorrect). This is closer in scope to a
+sub-feature of the SVA automaton-lowering engine than a contained
+elaboration fix (compare to L124, which touched one function reusing
+existing infrastructure) — it needs a dedicated session with time to
+read the whole lowering pipeline before writing any code, not
+something to attempt opportunistically alongside other fixes. Status
+unchanged: recorded, not selected.
+
 ### DD-036 — Unpacked-array range select ("array slice") unsupported as a port-connection actual / continuous-assignment source (2026-09-16, HIGH VALUE: single blocker for `caliptra_top`)
 
 **CLOSED 2026-09-16, superseded by [L124](BLOCKERS.md).** The one open
