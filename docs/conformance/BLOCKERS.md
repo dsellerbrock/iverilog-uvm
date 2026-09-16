@@ -3065,3 +3065,95 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   a core's first diagnostic rather than clearing it" pattern. Not
   claimed as closing those cores; only the `mubi_cov` misresolution
   itself is closed.
+
+### L126 — Regression: named sequence solo-referenced inside a generate block loses its scope on deferred retry (fixes the L125-uncovered `tlul_assert` frontier)
+
+- **Status:** CLOSED 2026-09-16. Found by chasing the exact deeper
+  frontier L125 uncovered (see L125's "real-world confirmation" —
+  `top_*_xbar_*_sim` advanced past `mubi_cov` to a `tlul_assert.sv`
+  "Unable to bind wire/reg/memory" error on a sequence name). **This is
+  a regression in this session's own L121 fix** (named-property
+  forward-reference deferral, merged in PR #289) — the second
+  self-introduced regression found and fixed this session, again via
+  same-script/same-corpus verification before and after, not assumed.
+- **Symptom:** a named sequence declared inside a conditional generate
+  block, referenced as the *entire* property expression of an
+  assert/cover statement in the *same* block (no forward reference —
+  the declaration is textually first), was rejected with `error:
+  Unable to bind wire/reg/memory 'name'` — as if the sequence name were
+  undefined, even though it is declared right above its use. Reduced to
+  a 10-line case; a named-sequence reference *inside a longer chain*
+  (`x ##1 seq_name ##1 y`) in the same generate block already worked
+  correctly — only the *solo* reference (the sequence IS the whole
+  property expression) was affected. Confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors.
+  Real, unmodified OpenTitan RTL (`hw/ip/tlul/rtl/tlul_assert.sv`)
+  relies on exactly this shape: the `TLUL_D_CHAN_CONTENT_CHANGED_WO_
+  ACCEPTED`/`TLUL_COVER` macros declare a `sequence ..._S; ...
+  endsequence` inside `if (EndpointType == "Host") begin :
+  gen_host_cov`, referenced solo by a `cover property (...)` in the
+  same block — used by essentially every TL-UL-connected DV testbench.
+- **Root cause:** L121's deferral guard (`pform.cc`,
+  `pform_make_assertion`'s "named property instantiation" handling)
+  parks an unresolved bare single-identifier reference as a possible
+  forward-referenced *property*, retried at end-of-module — guarded to
+  skip deferral when the name is already resolvable as a known signal
+  (added when L121's first draft broke VPI attempt-callback ordering,
+  see L121's entry above). It did **not** also skip deferral when the
+  name was already resolvable as a known *sequence*
+  (`sva_module_sequences`) — and a solo sequence reference is never
+  going to appear in the *properties* map at all, so it unconditionally
+  looked exactly like an unresolved-property shape and always got
+  deferred. The deferred retry re-enters `pform_make_assertion` at
+  end-of-module, using `pform_cur_generate` (whatever generate block is
+  lexically active *at retry time*) to resolve the name — but by
+  end-of-module every generate block has already closed, so
+  `pform_cur_generate` no longer matches the `PGenerate*` the sequence
+  was actually declared under (`sva_scoped_name_t`'s key includes the
+  declaring generate block). This "worked" by pure accident at plain
+  module scope (both a module-scope declaration's key and the deferred
+  retry's implicit scope are `nullptr`) and failed only inside any
+  generate block — which is exactly why this was not caught by L121's
+  own validation (its reducers were all module-scope) and only surfaced
+  now via real corpus with generate-scoped sequences.
+- **Fix:** added a third deferral guard alongside the existing
+  not-already-a-signal check: also skip deferral when the name is
+  already resolvable as a known sequence in the *current* (still
+  correct) scope, via `sva_in_scope_(sva_module_sequences, name)`. Such
+  a reference falls straight through to the existing, unchanged ordinary
+  sequence-splicing path (`sva_splice_sequences_`, already scope-correct
+  since it runs immediately, not deferred) instead of being parked.
+- **Verified independently as a regression, not a pre-existing gap:**
+  built the compiler at `34cd45c6b` (L118, immediately before L119-
+  L123/L121 landed) and confirmed the reducer compiles clean there
+  (exit 0); the identical reducer on `main` before this fix (with L121
+  but not this fix) fails. Also confirmed the failing regression test
+  added for this fix genuinely fails when only L125's `elaborate.cc`
+  change is cherry-picked without this `pform.cc` change (isolating the
+  two fixes from each other).
+- **Permanent regression:**
+  `ivtest/ivltests/sv_sequence_solo_ref_in_generate_block.v` (normal —
+  exercises both the exact real-world shape, a `cover property` solo
+  reference, and a functional `assert property` implication using the
+  same solo reference, checked against a driven waveform, not just
+  compile success), registered in `ivtest/regress-sv.list`.
+- **Validation:** focused pass (this test, plus the chain-in-generate-
+  block reducer confirming no regression to the already-working case).
+  Full `.github/ivtest_gate.sh` sweep: `Total=5822, Passed=5817,
+  Failed=0, Not Implemented=2, Expected Fail=3`, name-diff gate clean (0
+  unexplained). Bundled VPI suite: 108/108 (re-confirms L121's own
+  attempt-callback-ordering regression stays fixed — this change adds a
+  guard to the same function). Negative suite: 148/148. UVM regression:
+  357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** re-ran the full 530-job OpenTitan census
+  with the fixed compiler (on top of L125). `uvm`-lane result: **all
+  eight `top_*_xbar_{main,peri,mbx,dbg}_sim` cores across all three
+  OpenTitan tops (earlgrey, darjeeling, englishbreakfast) flip `FAIL ->
+  PASS`** — the full crossbar DV family now compiles clean. A further
+  ~13 `uvm`-lane cores (`adc_ctrl_sim`, `dma_sim`, `hmac_sim`,
+  `mbx_sim`, `pattgen_sim`, `rv_timer_sim`, `soc_dbg_ctrl_sim`,
+  `uart_sim`, `gpio_sim` across multiple tops, `rstmgr_sim`) advance
+  from a genuine Icarus compile `FAIL` to `DEBT`/`UPSTREAM_INVALID`
+  (i.e. Icarus itself no longer errors on them; whatever those
+  categories track is a separate, non-Icarus concern). `uvm`-lane PASS:
+  190 → 198.
