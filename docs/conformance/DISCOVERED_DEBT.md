@@ -1733,3 +1733,71 @@ During L99 boundary testing, selected real fixed-array `$sscanf` outputs arrived
 ### L101 discovery — const local fixed-string-array initializer
 
 During L101, a constant local fixed-string-array aggregate initializer crashed before the character update. This is a separate unqualified initializer defect, not evidence against selected-character reads or the implemented update path. Evidence: `evidence/batch-20260915-after-l95/l101-l102-first-direct.json` and the L101 assessment reducers. Possible scope: declaration/aggregate initialization under clauses6.16 and10.9; standards and minimal root cause require triage. Status: recorded, not selected. L101 readonly regression uses a module const receiver and pins its write rejection.
+
+### DD-033 — Package-scope fixed unpacked-array `parameter` with a keyed assignment-pattern value (2026-09-16)
+
+Found compiling real, unmodified Caliptra formal-verification source
+directly (`src/sha256/formal/properties/fv_sha256_core_pkg.sv`, line 26):
+```systemverilog
+typedef bit unsigned [31:0] a_unsigned_32_64 [63:0];
+parameter a_unsigned_32_64 K = '{0:'h428A2F98, 1:'h71374491, ... 63:'hC67178F2};
+```
+A package-level (or, by the same code path, module-level) `parameter` of
+an explicit fixed-unpacked-array typedef, initialized with a fully-keyed
+(every index given) assignment pattern, is rejected with `error: Unable
+to evaluate parameter K value: '{...}` (`net_design.cc`, the `switch
+(expr->expr_type())` in the parameter-elaboration function). Confirmed
+independently: slang accepts the identical construct (minimized to a
+4-element `t`/`p` reducer), 0 errors. Two real Caliptra `fv_*_pkg.sv`
+files use exactly this pattern for round-constant tables (SHA-256's
+64-word K table is one; likely more across the corpus given how common
+round-constant tables are in hash/cipher RTL).
+
+**Root cause, level 1 (confirmed, minimal fix known):** the `switch`
+dispatches on `expr->expr_type()`, and a fixed-array-of-`bit`/`logic`
+constant's elaborated value (`NetEArrayPattern`) reports the ELEMENT's
+base type (`IVL_VT_LOGIC`/`IVL_VT_BOOL`), landing in the scalar
+LOGIC/BOOL case, which requires `dynamic_cast<NetEConst*>` and rejects
+anything else — including a `NetEArrayPattern`. This case already has an
+exact precedent one arm away: the `IVL_VT_NO_TYPE` case explicitly
+accepts a `NetEArrayPattern` for an **unpacked struct** parameter
+(`dynamic_cast<const netstruct_t*>(param_type) && !param_type->packed()
+&& dynamic_cast<const NetEArrayPattern*>(expr)`), added for the exact
+same reason. The direct mirror for an unpacked **array** parameter
+(check `dynamic_cast<const netuarray_t*>(param_type)` instead of
+`netstruct_t`, in the LOGIC/BOOL case since that's where an array's
+value lands, not NO_TYPE) was implemented, built, and confirmed to
+resolve this exact symptom.
+
+**Root cause, level 2 (found, NOT fixed, do not re-attempt the naive
+level-1 fix alone):** accepting the value is only half the feature.
+`K[0]`-style element selection on the now-accepted array parameter
+crashes the compiler: `assert: elab_expr.cc:24133: failed assertion
+par_ex` in `PEIdent::elaborate_expr_param_bit_`. That function already
+has a documented "defensive fallback" dispatcher —
+`if (found_in->is_array_parameter(name)) return
+elaborate_expr_param_array_(...);` — specifically for array-typed
+parameter element selects, but `is_array_parameter()` (`net_scope.cc`)
+returned false for `K` even after the level-1 fix, so control fell
+through to the scalar-bit path's `dynamic_cast<NetEConst*>(par)` +
+`ivl_assert`, which aborts. `is_array_parameter()` checks the given
+scope's *own* `parameters` map (`NetScope::is_array_parameter`); the
+reducer that exposed this used `import p::*;` (wildcard package import)
+to reach `K`, so the scope resolving the identifier and the scope that
+actually registered `K` with `is_array_param=true` (set in
+`net_scope.cc:505` from the parameter declaration's `udims`) may not be
+the same scope in this path — not traced further. **This is a real
+compiler crash, strictly worse than the pre-existing clean error it
+would replace — the level-1 fix was reverted rather than landed
+half-done.** `net_design.cc` is unmodified; `git diff` confirms clean.
+
+**Closure requirements:** both levels together, not level 1 alone —
+landing level 1 without level 2 trades a clean, honest `error:` for an
+`assert:` abort on the very next thing real code does with such a
+parameter (indexing into a round-constant table). Trace why
+`is_array_parameter()` disagrees with `net_scope.cc:505`'s registration
+for a package-imported array parameter specifically; confirm the fix
+against both a direct-scope and wildcard-imported reference, plus a
+positional (non-keyed) assignment pattern and a partially-keyed one with
+a default (LRM 10.9's `default:` item), which were not tried this pass.
+Status: recorded, not selected.
