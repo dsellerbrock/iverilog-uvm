@@ -2189,31 +2189,78 @@ Assertion failed: (pform_cur_generate->scheme_type == PGenerate::GS_CASE_ITEM
 after 82 accumulated diagnostic lines, the great majority genuine
 `syntax error`/`Invalid module item`/`Invalid module instantiation`
 cascades starting at `src/lowrisc_dv_spid_upload_sim_0.1/tb/
-spid_upload_tb.sv:186` — meaning this specific testbench file fails to
-parse almost entirely from a fairly early point onward, and the
-resulting cascade of malformed-parse recovery eventually leaves
-`pform_cur_generate`'s (or its parent's) `scheme_type` bookkeeping in a
-state the `pform_endgenerate` assertion doesn't expect. **Two possible
-distinct root causes, not yet distinguished:** (a) the very first
-`syntax error` at line 186 is itself a genuine, reducible Icarus gap
-(some construct this file uses that Icarus doesn't parse) whose
-downstream error-recovery is what corrupts the generate-scheme
-bookkeeping — in which case fixing the *first* error might make the
-whole cascade (and the eventual crash) disappear; or (b) the assertion
-in `pform_endgenerate` is reachable via a legitimate (if rare) parse-
-recovery path regardless of the root syntax error, and needs its own
-defensive fix (turning the crash into a diagnostic) independent of
-whatever triggered the first syntax error.
+spid_upload_tb.sv:186`.
 
-**Closure requirements:** first look at `spid_upload_tb.sv:186`
-directly (not yet read this pass) to determine if the FIRST syntax
-error is itself a real, reducible gap — fixing it might make this
-whole chain moot. If the first error is itself a deep/upstream issue
-not worth chasing, treat `pform_endgenerate`'s assertion (`pform.cc`
-~line 2907) as its own defensive-robustness problem: understand what
-`scheme_type` invariant it's protecting and make the function
-tolerate an inconsistent state gracefully (a diagnostic + safe bail,
-not a crash) after any prior parse error, mirroring the general
-principle that once `error_count > 0`, later passes must degrade
-gracefully rather than assume a fully-consistent parse tree. Status:
-recorded, not selected.
+**Follow-up investigation (2026-09-16, same pass): the crash reproduces
+standalone from this one file alone**, no other dependencies needed
+(`iverilog -g2012 -t null hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`
+aborts directly) — a much smaller starting point than the full
+`spid_upload_sim` fusesoc target.
+
+**The first syntax error's root construct identified, and it is
+already-known-invalid, not a new gap:** line 186 is
+`static task host();` — a `static` qualifier on an ordinary task
+declared directly in a module body (not a class out-of-block method
+definition). Confirmed independently with slang: it also rejects this,
+with a far more specific diagnostic than Icarus's generic `syntax
+error` — `error: qualifiers are not allowed on out-of-block method
+definitions [-Wqualifiers-on-out-of-block]`. So Icarus's *rejection* is
+correct (matches
+[[top-syntax-family-is-often-upstream-invalid]]'s pattern exactly: a
+`static task` at module scope, named in that very memory as a
+construct worth disproving before assuming it's a real gap) — only the
+diagnostic's *quality* (opaque "syntax error" vs. a clear, specific
+message) and the *downstream crash* are real problems. `sw()` (line
+293) is a second, identical `static task` at module scope, and is what
+actually contains the `case (cmd) inside ... endcase` block
+(lines 312-375) whose nested `begin...end` case-item bodies are what
+the crash trace's line numbers (338-354) fall inside — i.e. the crash
+happens while processing *ordinary procedural case-item bodies*, not
+anything resembling a real `generate case`. This means the parser's
+error-recovery after the `static task sw();` syntax error somehow
+routes subsequent processing of this *procedural* `case (cmd) inside`
+construct through code paths that manipulate `pform_cur_generate`'s
+generate-scheme bookkeeping — plausibly a bison error-recovery state
+overlap between ordinary `case_item` and `generate_case_item`
+productions once the parser is off its normal path, but this was not
+traced past `pform_endgenerate()`'s consuming end (`pform.cc` ~line
+2881-2913) to find where a generate scheme's `GS_CASE`/`GS_CASE_ITEM`
+gets spuriously pushed in the first place.
+
+**Deliberately not attempted as a quick "guard the assert" patch:**
+`pform_endgenerate()`'s assertion at line 2906-2907 protects a real
+structural invariant (a generate-case item's containing generate must
+itself be tagged `GS_CASE`, or the current scheme must itself be
+`GS_CASE_ITEM`) that later code
+(`parent_generate->generate_schemes.push_back(pform_cur_generate)` and
+whatever eventually walks `generate_schemes`) may rely on. Silently
+disabling or loosely guarding this assertion when `error_count > 0`
+would stop *this* crash but risks pushing a genuinely-inconsistent
+scheme object that a *different*, unguarded downstream traversal then
+dereferences unsafely — trading one diagnosable crash for a harder-to-
+trace one, or worse, a silently-wrong internal structure that doesn't
+crash at all. That is exactly the kind of "manufactured non-crash"
+this project's correctness bar forbids trading for safety without
+first understanding the invariant fully.
+
+**Closure requirements:** trace the actual parser actions between the
+`static task sw();` syntax error's recovery and the crash to find
+where/why a `GS_CASE`/`GS_CASE_ITEM`-tagged `PGenerate` gets created
+for what is really just an ordinary procedural `case (cmd) inside`
+block — likely by adding targeted instrumentation (print
+`pform_cur_generate`'s scheme_type transitions) while re-running the
+minimal single-file reducer, or by reading the bison error-recovery
+states around the `case_item`/`generate_case_item` productions in
+`parse.y` directly. Once the actual mis-route is understood, the
+correct fix is almost certainly to prevent that mis-route from
+happening at all (so `pform_endgenerate()`'s invariant is never
+violated), not to weaken the invariant check itself. Separately (lower
+priority, since the underlying rejection is already correct): give
+`static`/`automatic` qualifiers on a non-class-scope task/function
+declaration their own specific diagnostic (matching slang's
+"qualifiers are not allowed on out-of-block method definitions")
+instead of a generic `syntax error`, improving diagnostic quality even
+though the construct stays correctly rejected either way. Status:
+recorded, not selected — the standalone single-file reducer
+(`hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`, no dependencies)
+significantly lowers the bar for a future session to pick this up.
