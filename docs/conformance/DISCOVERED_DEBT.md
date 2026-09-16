@@ -2172,6 +2172,28 @@ elaboration failure). Given the scale of unrelated pre-existing debt
 in the same file, this is likely NOT one afternoon's work — plan a
 dedicated session. Status: recorded, not selected.
 
+**Follow-up (2026-09-16, same pass, inconclusive):** the real file's
+crash trace shows the identical `foreach` target-resolution error
+(`chip_scoreboard.sv:49`) printed twice — once under the properly-
+named class scope (`chip_env_pkg.chip_scoreboard.process_alerts_for_
+cov.$ivl_foreach884`) and again immediately before the crash under an
+ANONYMOUS auto-generated scope name (`chip_env_pkg._ivl_1.process_
+alerts_for_cov.$ivl_foreach884`, `_ivl_%d` being the generic anonymous-
+scope-naming counter in `net_scope.cc` — not specific to `foreach` or
+any retry mechanism by itself). This double appearance, with the named
+class scope replaced by an anonymous one on the second occurrence,
+*resembles* the same "same construct re-processed under a different/
+wrong scope" shape as L121/L126 (both of which really were exactly
+that), so it was tried as a lead: built a 3-level reducer (`cfg.
+chip_vif.alerts_cb.alerts`, a class member holding a virtual-interface-
+handle-to-clocking-block, `foreach`'d from within a class method) —
+it did NOT crash (5 ordinary errors, clean exit). The real construct
+has a 4th level the reducer didn't reproduce (`cfg.chip_vif.alerts_if.
+alerts_cb.alerts` — an extra virtual-interface-to-sub-interface hop
+before the clocking block), so this is inconclusive, not a
+disproof — the extra nesting level may be exactly what matters. Not
+pursued further this pass.
+
 ### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
 
 Found in the same scan as DD-037, also incorrectly reported fixed by
