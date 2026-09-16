@@ -1666,6 +1666,8 @@ sv_assert_named_property_forward_ref normal,-g2012 ivltests
 sv_assert_named_property_undefined_fail CE,-g2012 ivltests gold=sv_assert_named_property_undefined_fail.gold
 sv_assert_property_local_multi_ident_decl normal,-g2012 ivltests
 sv_sva_cycle_delay_paren_expr normal,-g2012 ivltests
+sv_unpacked_array_slice_port_conn normal,-g2012 ivltests
+sv_unpacked_array_slice_port_conn_dir_fail CE,-g2012 ivltests gold=sv_unpacked_array_slice_port_conn_dir_fail.gold
 sv_array_elem_member_cassign normal,-g2012 ivltests
 sv_struct_member_mixed_assign normal,-g2012 ivltests
 sv_uparam_dim_decl_scope normal,-g2012 ivltests sv_uparam_dim_decl_scope

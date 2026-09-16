@@ -1682,6 +1682,44 @@ NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope,
 			delete base_expr;
 		  }
 	    }
+	    /* IEEE 1800-2017/2023: a range select on a single-dimension
+	       fixed unpacked array (e.g. `arr[hi:lo]`) selects a contiguous
+	       sub-array of the same element type -- a different index shape
+	       than the partial-index case above (same dimension count,
+	       fewer elements, rather than fewer dimensions -- SEL_PART/
+	       SEL_IDX_UP/SEL_IDX_DO rather than a plain SEL_BIT). Reuse the
+	       existing fixed-array-slice decoder, already relied on for
+	       function/task arguments, concatenation operands, and lvalues,
+	       instead of reimplementing bound/direction checking here. */
+	    if (target_array && source_dims.size() == 1) {
+		  fixed_uarray_slice_t slice;
+		  int rc = decode_fixed_uarray_slice(des, scope, *this, this,
+						     false, slice);
+		  if (rc < 0)
+			return nullptr;
+		  if (rc > 0) {
+			netranges_t slice_dims;
+			slice_dims.push_back(slice.selected_range);
+			bool shape_ok = netrange_equivalent(
+			      slice_dims, target_array->static_dimensions());
+			bool type_ok = slice.element_type
+			      && slice.element_type->type_equivalent(
+				    target_array->element_type());
+			if (shape_ok && type_ok) {
+			      NetNet*view = new NetNet(
+				    scope, scope->local_symbol(),
+				    NetNet::IMPLICIT, slice_dims,
+				    sr.net->net_type());
+			      view->set_line(*this);
+			      view->local_flag(true);
+			      for (unsigned pin = 0 ; pin < view->pin_count();
+				   pin += 1)
+				    connect(view->pin(pin),
+					    sr.net->pin(slice.canonical_base + pin));
+			      return view;
+			}
+		  }
+	    }
 	    cerr << get_fileline() << ": sorry: Array slices are not yet "
 	         << "supported for continuous assignment." << endl;
 	    des->errors += 1;
