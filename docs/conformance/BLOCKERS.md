@@ -70,18 +70,64 @@ states it — re-verify before implementing, some are stale), `QUALIFICATION`
 ### Z01 — Joint solve-before stages unsupported
 
 - **Area / edition:** Randomization / edition-agnostic
-- **State:** OPEN
-- **Confidence:** SOURCE
-- **Evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
+- **State:** OPEN, but **cited evidence is stale (updated 2026-09-16) —
+  re-scope before doing anything else with this row.**
+- **Confidence:** SOURCE (original), evidence refresh below is REPRODUCED.
+- **Original evidence / reproducer:** `vvp/vvp_z3.cc` explicitly rejects
   `order_pairs` in the joint route ("solve before stages across objects are
   not supported"); PR #258.
-- **What it blocks:** Any DV workload using cross-object `solve ... before`
-  ordering under the joint solver (recorded as a shared xbar/runtime
-  frontier in the same session log as U01).
-- **Closure requirements:** Small-domain staged distributions with correct
-  marginal/conditional probabilities and graph rollback on failure; explicit
-  rejection preserved for shapes still out of scope after the fix.
-- **Last verified revision:** b9de0be7f reproduced both editions. Z01A resolves bounded canonical integral stages locally; ordered dist/randc and non-scalar/large-domain cases remain open.
+- **2026-09-16 evidence refresh:** the exact cited string ("solve before
+  stages across objects are not supported") no longer exists anywhere in
+  `vvp/vvp_z3.cc` on current `main` — grepped directly, zero hits. Built a
+  fresh cross-object `solve child.a before b;` reducer (a `Parent` class
+  holding a `rand Child child` handle, ordering the child's property before
+  the parent's own) against a current `main`-tip build: it does **not**
+  hard-reject. It compiles with a loud, honest warning ("Constraint item in
+  'order_c' of class Parent is not representable in the constraint solver
+  and is ignored") — the ordering *directive* itself is dropped, not the
+  constraint system — and `randomize()` still succeeds, with the
+  *underlying value constraints* (including a shape where `b`'s legal
+  range structurally depends on `child.a`, i.e. staging-dependent, not
+  just a flat equality) correctly satisfied every time (20/20 iterations,
+  both a plain-equality and a range-depends-on-child.a shape checked).
+  **This is a materially different state than the row's original
+  "explicitly rejects" framing** — satisfiability is preserved via the
+  general joint solver even without honoring the specific staging.
+- **NOT verified, and NOT claimed closed:** this row's actual closure bar
+  is distribution correctness — "small-domain staged distributions with
+  correct marginal/conditional probabilities" — not mere satisfiability.
+  A single-sample (or 20-sample) correctness check proves the joint
+  system is *solvable* consistently with the value constraints; it says
+  nothing about whether the *probability distribution* of the solutions
+  matches what §18.5.10 staged solving would produce (e.g. `child.a`
+  drawn uniformly first, then `b` uniformly from the resulting legal
+  range, vs. some other joint distribution a SAT-based simultaneous
+  solve might produce instead). That needs a statistical-sampling
+  reducer (many thousands of draws, checked against a hand-computed
+  expected distribution), which this pass did not attempt.
+- **What it blocks:** Any DV workload relying on cross-object
+  `solve ... before` for *distribution* correctness specifically (not
+  blocking plain satisfiability, which already works per the refresh
+  above) — recorded as a shared xbar/runtime frontier in the same
+  session log as U01.
+- **Closure requirements (unchanged):** Small-domain staged distributions
+  with correct marginal/conditional probabilities and graph rollback on
+  failure; explicit rejection (or correct staged solving) preserved for
+  shapes still out of scope.
+- **Last verified revision:** b9de0be7f (stale). Z01A resolves bounded
+  canonical integral stages locally (unmerged as of that note; unclear
+  whether the warn-and-drop-directive-then-jointly-solve behavior found
+  in the 2026-09-16 refresh above is Z01A's actual merged effect or a
+  separate, later change — not traced further this pass). Ordered
+  dist/randc and non-scalar/large-domain cases remain explicitly open per
+  that same note.
+- **Next step for whoever picks this up:** do not re-derive from the old
+  "explicitly rejects" framing — start from the 2026-09-16 refresh above.
+  Either (a) build the statistical-sampling reducer to settle distribution
+  correctness, or (b) if distribution correctness turns out fine too,
+  re-scope this row down to just the explicitly-still-open dist/randc/
+  large-domain cases and close the plain cross-object scalar-ordering
+  case formally with its own regression.
 
 ### C01 — Untranslated inline constraints are discarded (semantic degradation)
 
