@@ -385,6 +385,23 @@ fresh wrong-result reducer. A future S02 design must preserve attempt identity,
 open antecedent status and outstanding consequences across clock domains;
 architecture expansion is not authorized by this suspension.
 
+**2026-09-16 evidence check (compile-rejection claim only, not the
+architectural question):** the row's own cited symptom ("legal
+`a[*1:2] |=> @(posedge c2) b` is rejected") is stale — the identical
+construct compiles clean (exit 0, no diagnostic) against a current
+`main`-tip build, and a basic runtime smoke (100 time units, no
+triggering `a`/`b` activity) neither crashes nor hangs. This does
+**not** touch or resolve the actual open question (per-start vs.
+per-endpoint verdict counting under overlapping multi-endpoint matches)
+— that needs a carefully constructed multi-start/multi-endpoint
+triggering scenario to verify, which requires real expertise in how
+this specific construct unrolls into the NFA and was not attempted this
+pass; the "architecture expansion not authorized" boundary and
+SUSPENDED status both stand unchanged. Only the stale compile-rejection
+framing is corrected here so a future pass doesn't waste time trying to
+reproduce a rejection that no longer happens before it can even get to
+the real (runtime verdict-counting) question.
+
 ### S03 — NFA implication verdicts are emitted per endpoint
 
 - **Area / edition:** SVA / IEEE 1800-2017 and 1800-2023 16.12.7.
