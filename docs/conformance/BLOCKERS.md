@@ -2537,3 +2537,74 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   example and slang before writing any fix, which also reframed what the
   real, narrower, genuinely-broken case actually was. See
   [[discovered-debt-hypothesis-is-not-diagnosis]] (memory).
+
+### L120 — Action-less `assert/assume property` on a liveness operator wrongly refused
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra/Adams-Bridge formal-verification source
+  (`submodules/adams-bridge/formal/fv_ntt_ctrl/fv_ntt_ctrl_constraints.sv`)
+  directly — objective 5 grounding, not a synthetic reducer.
+- **Symptom:** a completely action-less `assert property (s_eventually(x));`
+  or `assume property (s_eventually(x));` — a bare `;` after the closing
+  paren, no `else`, no statement of any kind — was rejected with `sorry:
+  a pass action on this property operator is not supported (IEEE
+  1800-2017 16.14.6)`, even though the source contains no pass action at
+  all to refuse. Reproduced in complete isolation (a 7-line standalone
+  reducer, no Caliptra dependency needed). Confirmed NOT specific to
+  `assume`, or to any particular liveness shape: bare `assert`/`assume`
+  on plain `s_eventually(x)` and on `1'b1 |-> s_eventually(x)` (a
+  structurally different op_type reaching the same lowering) all hit it;
+  `cover property (s_eventually(x));` was correctly unaffected (see root
+  cause).
+- **Root cause:** IEEE 1800-2017 A.2.10's "pass action only"
+  `concurrent_assertion_statement` production
+  (`assert_or_assume K_property '(' property_spec ')' statement_or_null`)
+  represents a bare `;` trailing statement as a `PNoop` sentinel object,
+  not a null pointer — the same sentinel shape `cover property (p);` and
+  `... else ;` use. `pform_make_assertion()` (pform.cc) already consumed
+  and cleared this sentinel for the fail-action case (any `kind`) and for
+  `cover`'s pass-action case (`kind==2` only) — but never for
+  assert/assume's pass-action case (`kind` 0/1). The uncleared `PNoop*`
+  then reached `pform_make_temporal_assertion_()`'s
+  `if (pass_stmt && !pass_supported)` check as a plain non-null pointer,
+  indistinguishable from a genuine user-written pass action, for any
+  property routed through that lowering (`op_type >= 4`: `within`,
+  liveness, abort, and until-family operators) — which is exactly why
+  none of this session's earlier, simpler SVA reducers (plain `|->`/`|=>`,
+  `disable iff`+`$past`) had hit it: those operators don't reach this
+  lowering at all.
+- **Fix:** removed the `kind == 2 &&` restriction on the sentinel-clearing
+  check in `pform_make_assertion()` (one line), making the "a null pass
+  action has no executable behavior" consumption unconditional — matching
+  what the pre-existing comment already said it should do. `cover
+  property`'s own behavior is provably unchanged: it already hit this
+  same clearing path before the fix (`kind==2` was already true for it),
+  so removing the guard doesn't alter its control flow, only extends the
+  same clearing to `kind` 0/1.
+- **Scope verified narrow:** a REAL, non-empty pass action on a liveness
+  operator (`assert property (s_eventually(x)) hits++;`) is still
+  correctly refused with the identical diagnostic — confirmed directly,
+  not assumed. `else`-only and combined pass+fail forms on liveness
+  operators are unaffected (they never passed through the buggy
+  sentinel path in the first place — only the pass-action-only grammar
+  branch does). `cover property`'s already-correct behavior (own
+  separate "not supported" message for unsupported operators) is
+  unaffected, confirmed by direct comparison of its message before and
+  after the fix.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_assert_liveness_no_action.v` (normal — the fixed
+  case, both `assert`/`assume` and both operator shapes) and
+  `sv_assert_liveness_real_action_fail.v` (CE — confirms a genuine pass
+  action is still refused), both registered in `ivtest/regress-sv.list`.
+- **Validation:** focused 6/6 pass (both new tests plus four pre-existing
+  liveness/assertion tests, confirming no regression to already-working
+  shapes). Full `.github/ivtest_gate.sh` legacy sweep:
+  `Total=5814, Passed=5809, Failed=0`, 0 unexplained. UVM regression:
+  357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing real Caliptra
+  file (`fv_ntt_ctrl_constraints.sv`, tested standalone with its package
+  dependencies) now compiles with the two `sorry:` errors completely
+  gone; remaining warnings on that file are pre-existing and unrelated
+  (unresolved `bind`-target hierarchy references, from testing the file
+  outside its full multi-file `bind` context — not a regression from
+  this fix).

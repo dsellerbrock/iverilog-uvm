@@ -24350,8 +24350,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
 
 	/* A null pass action has no executable behavior. Consume its marker
-	   before checking whether this cover lowering supports pass actions. */
-      if (kind == 2 && dynamic_cast<PNoop*>(pass_stmt)) {
+	   before checking whether this lowering supports pass actions.
+	   `assert/assume property (p) ;' (a bare `;' pass-action-only form,
+	   IEEE 1800-2017 A.2.10) carries the identical PNoop sentinel as
+	   `cover property (p) ;' -- both come from the same statement_or_null
+	   production -- but this consumption used to be gated to kind==2
+	   (cover) only. For assert/assume (kind 0/1) the sentinel survived
+	   unconsumed and was later seen as a genuine non-null pass_stmt by
+	   pform_make_temporal_assertion_'s `if (pass_stmt && !pass_supported)'
+	   check, wrongly refusing a completely action-less
+	   `assert property (s_eventually(x));' with "a pass action on this
+	   property operator is not supported" -- there was no pass action at
+	   all. Real Caliptra/Adams-Bridge formal-verification sources use
+	   exactly this action-less liveness-assume shape. */
+      if (dynamic_cast<PNoop*>(pass_stmt)) {
 	    delete pass_stmt;
 	    pass_stmt = nullptr;
       }
