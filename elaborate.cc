@@ -17787,7 +17787,15 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
 	    }
 
 	    eparms[idx] = elab_sys_task_arg(des, scope, name, idx, parm.parm);
-	    if (!check_parm_is_const(eparms[idx])) {
+	    if (!eparms[idx]) {
+		    /* elab_sys_task_arg() already reported why the argument
+		       could not be elaborated (e.g. an undefined identifier,
+		       as in a mistyped/label-shaped `$fatal(..., (BadRef),
+		       ...)' argument) -- do not also dereference the null
+		       result to print its value, which crashed here before. */
+		  des->errors += 1;
+		  const_parms = false;
+	    } else if (!check_parm_is_const(eparms[idx])) {
 		  cerr << get_fileline() << ": error: Elaboration task "
 		       << name << "() parameter [" << idx+1 << "] '"
 		       << *eparms[idx] << "' is not constant." << endl;

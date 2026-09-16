@@ -3157,3 +3157,86 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   (i.e. Icarus itself no longer errors on them; whatever those
   categories track is a separate, non-Icarus concern). `uvm`-lane PASS:
   190 → 198.
+
+### L127 — Crash: elaboration-time `$fatal()`/`$error()`/`$warning()`/`$info()` segfaults on an unelaboratable argument
+
+- **Status:** CLOSED 2026-09-16. Found in the same OpenTitan `sva`-lane
+  census scan that led to L125/L126 — `lowrisc:{earlgrey,darjeeling}_dv:
+  otp_ctrl_sva:0.1` both showed a raw process crash (`Segmentation
+  fault: 11`, `hard_errors` truncated mid-message) rather than any
+  ordinary diagnostic. **A crash is categorically worse than a
+  diagnostic gap** — it produces no error message at all, violating the
+  project's bar that unsupported/invalid input must produce a focused
+  diagnostic, not silently (or violently) fail.
+- **Symptom:** an elaboration-time system-task call
+  (`$fatal`/`$error`/`$warning`/`$info`, IEEE 1800-2017/2023 clause
+  20.11) whose argument fails to elaborate as an expression (e.g. a
+  bare identifier that is not declared anywhere) crashed the compiler
+  with SIGSEGV instead of reporting a clean error. Real, unmodified
+  OpenTitan RTL (`hw/{top_earlgrey,top_darjeeling}/ip_autogen/otp_ctrl/
+  rtl/otp_ctrl.sv`) hits this directly via `hw/ip/prim/rtl/
+  prim_assert_standard_macros.svh`'s `` `ASSERT_INIT `` macro: under
+  `` `ifdef FPV_ON ``, it expands to `if (!(__prop)) $fatal(2, "...%s...
+  %s...", (__name), (__prop));` where `__name` is the assertion's own
+  bare label token (e.g. `ScrmblKeyNotAllZero_A2`) substituted
+  unquoted — an undefined identifier in this expression context, not a
+  string literal. Confirmed independently: slang (`--std 1800-2017`)
+  also rejects the reduced construct ("use of undeclared identifier"),
+  confirming a clean compile error is the correct response here, not a
+  crash — this is arguably an upstream macro issue for the `FPV_ON`
+  path, but that changes nothing about Icarus's obligation to fail
+  safely rather than crash on it.
+- **Root cause:** `PCallTask::elaborate_elab()` (`elaborate.cc`,
+  ~line 17789) calls `elab_sys_task_arg()` for each argument and, if the returned
+  `NetExpr*` fails `check_parm_is_const()`, prints a diagnostic
+  including the argument's current value (`*eparms[idx]`) — but never
+  checked whether `elab_sys_task_arg()` had returned `nullptr` (which
+  it does when an argument fails to elaborate at all, e.g. an
+  undefined identifier — already reported as a `warning: Unable to
+  bind wire/reg/memory` compile-progress message by that point).
+  `check_parm_is_const(nullptr)` itself is safe (a `dynamic_cast` on a
+  null pointer is well-defined and just returns false), but the
+  subsequent `cerr << ... << *eparms[idx] << ...` dereferences the null
+  pointer directly, crashing mid-print — explaining the exact
+  truncated error text captured in the census (`"Elaboration task
+  $fatal() parameter [3] '"` then nothing, then the shell's own
+  SIGSEGV report merged into the same output stream).
+- **Fix:** added an explicit null check on `eparms[idx]` before the
+  `check_parm_is_const()`/print step: when `elab_sys_task_arg()`
+  returns `nullptr`, count it as a non-constant parameter (advancing
+  `des->errors` and clearing `const_parms`, exactly as the existing
+  non-constant case does) without dereferencing anything, relying on
+  the earlier compile-progress warning already emitted by
+  `elab_sys_task_arg()` itself to explain why. No other behavior
+  changed — a fully-elaborable-but-non-constant argument still gets
+  the original, unchanged "is not constant" message with its value
+  printed.
+- **Verified the existing working cases are unaffected:** a single
+  fully-elaborable string-literal `$fatal` argument still prints its
+  message and fails elaboration exactly as before; a multi-argument
+  `$fatal` where every argument elaborates fine (just more than the
+  currently-supported single string) still hits the existing,
+  unrelated `sorry: Elaboration tasks currently only support a single
+  string argument` limitation, unchanged; a generate-`if` branch where
+  the `$fatal` guard condition is false (so the argument is never even
+  evaluated) still compiles clean, unchanged.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_elab_task_fatal_undef_arg_fail.v` (CE — the exact
+  crash-triggering shape, confirmed the harness's captured stderr
+  matches on the first attempt, no crash), registered in
+  `ivtest/regress-sv.list`.
+- **Validation:** focused 1/1 pass. Full `.github/ivtest_gate.sh`
+  sweep: `Total=5823, Passed=5818, Failed=0, Not Implemented=2, Expected
+  Fail=3`, name-diff gate clean (0 unexplained). Bundled VPI suite:
+  108/108. Negative suite: 148/148. UVM regression: 357 passed, 0
+  failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-crashing
+  `lowrisc:{earlgrey,darjeeling}_dv:otp_ctrl_sva:0.1` `sva`-lane targets
+  no longer crash — both now exit with a normal nonzero status and a
+  clean list of 11 `warning: Unable to bind wire/reg/memory` compile-
+  progress diagnostics (one per affected `` `ASSERT_INIT `` use), not a
+  signal-based abnormal termination. Not claimed as closing those two
+  targets to `PASS` — the underlying macro issue (an undefined
+  identifier used as a format argument under `FPV_ON`) is a separate,
+  likely-upstream concern outside this fix's scope; only the crash
+  itself is closed.
