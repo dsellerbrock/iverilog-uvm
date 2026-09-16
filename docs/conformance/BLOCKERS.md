@@ -2855,3 +2855,109 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   an expected standalone-compile artifact (`bind target module ... is
   not defined in this compilation`, from compiling this file outside
   its full project context).
+
+### L124 — Unpacked-array range select unsupported as a module port-connection actual (closes DD-036)
+
+- **Status:** CLOSED 2026-09-16. Found via a differential Icarus/slang
+  static census over Caliptra's full integration filelists (patched
+  copy of the pre-existing `run_census.py` census driver — see
+  `[[census-driver-paths-rot]]` — pointed at this worktree's build),
+  run to look for real defects beyond the `formal/` corpus already
+  exhausted this session. Recorded first as DD-036 in
+  `DISCOVERED_DEBT.md` with a precise root cause and a promising but
+  unverified fix angle; the one open unknown noted there
+  (word-vs-pin unit conversion) was resolved by reading
+  `normalize_variable_unpacked()`'s and `decode_fixed_uarray_slice()`'s
+  implementations directly, then the fix was implemented, built, and
+  fully validated — this entry supersedes DD-036, which is now closed.
+- **Symptom:** a range select on a single-dimension fixed unpacked
+  array (e.g. `arr[hi:lo]`, selecting a contiguous element sub-range of
+  the same element type) used as a module port-connection actual was
+  rejected with `sorry: Array slices are not yet supported for
+  continuous assignment.` Confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors, 0
+  warnings. **This single gap was the only thing blocking Icarus from
+  compiling Caliptra's full-chip `caliptra_top` integration target at
+  all** — the census's `ICARUS_GAP` category had exactly 5 entries
+  (`ntt_masked_mult_reduction_tb`, `ntt_top`, `abr_top`,
+  `caliptra_top`, `caliptra_top_ss_mode`), and diffing each target's
+  full error set showed all five traced to the exact same two real,
+  unmodified source sites
+  (`submodules/adams-bridge/src/ntt_top/rtl/ntt_masked_special_adder.sv:102-103`,
+  `submodules/adams-bridge/src/abr_libs/rtl/abr_masked_add_sub_mod_Boolean.sv:134-135`
+  — both connect a `WIDTH`-element slice out of a `WIDTH+1`-element
+  unpacked array straight to a submodule port, e.g.
+  `.r0(r0_c0_delayed[WIDTH-1:0])`).
+- **Root cause:** `PEIdent::elaborate_unpacked_net()`
+  (`elab_net.cc:1607`) already implements a "slice view" mechanism —
+  build a `NetNet::IMPLICIT` view net and `connect()`-alias it onto a
+  contiguous pin range of the source net — but only for a *sibling*
+  index shape: a partial index that supplies fewer indices than the
+  source array has dimensions (reducing dimensionality, e.g. `arr2d[i]`
+  on a 2-D array yielding a 1-D sub-array). A same-dimension-count
+  range select (`SEL_PART`/`SEL_IDX_UP`/`SEL_IDX_DO` in
+  `index_component_t`, rather than a plain `SEL_BIT` index) is a
+  different shape that `indices_to_expressions()` explicitly rejects
+  ("Array cannot be indexed by a range") if fed to it, so the code
+  never even attempted the slice-view path for this shape — it fell
+  straight through to the `sorry:`.
+- **Fix:** rather than reimplementing bound/direction decoding,
+  reused `decode_fixed_uarray_slice()` (`netmisc.h`/`netmisc.cc`), a
+  general fixed-unpacked-array-slice decoder already relied on by
+  three *other* contexts (function/task argument binding, concatenation
+  operands, an lvalue path) but never wired into module port
+  connections. Added a second branch in
+  `PEIdent::elaborate_unpacked_net()`, engaged only when the source has
+  exactly one unpacked dimension and the target formal is itself a
+  fixed unpacked array: call `decode_fixed_uarray_slice(des, scope,
+  *this, this, false, slice)`; on success, build the exact same
+  `NetNet::IMPLICIT` + `connect()` view-net pattern the existing
+  partial-index branch already uses, but pin-aliased starting at
+  `slice.canonical_base` instead of the partial-index branch's
+  `normalize_variable_unpacked()`-derived base. Confirmed by reading
+  both functions directly (not assumed) that `canonical_base` and the
+  existing branch's `base` are in the same word/pin-index space for a
+  1-D unpacked array (`normalize_variable_unpacked()`'s stride-based
+  canonical address and `decode_fixed_uarray_slice_select_()`'s
+  `low - declared_low` compute identically for a single dimension), so
+  no unit conversion was needed. On decode failure (`rc < 0`,
+  recognized-but-invalid shape, e.g. a direction mismatch),
+  `decode_fixed_uarray_slice()` has already reported its own precise
+  diagnostic, so the new branch returns immediately without also
+  emitting the generic `sorry:` (avoiding a confusing double message).
+  On `rc == 0` (not this shape at all) or a shape/type mismatch against
+  the target formal, control falls through unchanged to the existing
+  `sorry:` — every other case this function already handled is
+  untouched.
+- **Verified for simulation correctness, not just compile success:**
+  a functional reducer (see permanent regression below) confirms the
+  view net is wired to the *correct* pins — element-by-element value
+  matching, the out-of-range element (outside the slice) correctly
+  excluded and its later changes not leaking into the slice, and a
+  post-elaboration change to an in-range element correctly propagating
+  live through the connection (it is a real net alias, not a one-shot
+  copy). Also confirmed the ascending-declared-array direction (not
+  just descending) and the negative direction-mismatch case (properly
+  rejected with `decode_fixed_uarray_slice()`'s own diagnostic,
+  unchanged).
+- **Permanent regression:**
+  `ivtest/ivltests/sv_unpacked_array_slice_port_conn.v` (normal —
+  functional value/exclusion/live-propagation checks, not just compile
+  success) and `sv_unpacked_array_slice_port_conn_dir_fail.v` (CE — the
+  direction-mismatch negative case), both registered in
+  `ivtest/regress-sv.list`.
+- **Validation:** focused 2/2 pass. Full `.github/ivtest_gate.sh`
+  sweep: `Total=5822, Passed=5817, Failed=0, Not Implemented=2,
+  Expected Fail=3`, name-diff gate clean (0 unexplained). Bundled VPI
+  suite: 108/108. Negative suite: 148/148. UVM regression: 357 passed,
+  0 failed, 0 skipped.
+- **Real-world confirmation:** re-ran the exact census commands for all
+  5 previously-`ICARUS_GAP` targets directly — `ntt_top` and
+  `caliptra_top` both now compile with `-tnull` at exit 0, zero
+  diagnostic lines. Re-ran the full 106-target census:
+  `ICARUS_GAP: 0` (was 5), all five previously-failing targets now
+  report zero Icarus errors/warnings
+  (`evidence/caliptra-census-20260916/caliptra-static-census.json`).
+  **This closes the single defect that was blocking Icarus from
+  compiling Caliptra's full-chip `caliptra_top` target at all** —
+  directly serving mission objective 5.

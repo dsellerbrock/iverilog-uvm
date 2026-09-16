@@ -1920,6 +1920,17 @@ parses. Status: recorded, not selected.
 
 ### DD-036 — Unpacked-array range select ("array slice") unsupported as a port-connection actual / continuous-assignment source (2026-09-16, HIGH VALUE: single blocker for `caliptra_top`)
 
+**CLOSED 2026-09-16, superseded by [L124](BLOCKERS.md).** The one open
+unknown below (word-vs-pin unit conversion) was resolved by reading
+`normalize_variable_unpacked()` and `decode_fixed_uarray_slice_select_()`
+directly rather than assuming, and the recommended reuse angle
+(`decode_fixed_uarray_slice()` wired into
+`PEIdent::elaborate_unpacked_net()`) worked as anticipated. Full root
+cause, fix, and validation (including a re-run of the same 106-target
+census confirming `ICARUS_GAP: 0`, and direct re-compiles of
+`ntt_top`/`caliptra_top` at exit 0) are in L124's `BLOCKERS.md` entry.
+Left below verbatim as the original finding record.
+
 Found via a differential Icarus/slang static census over Caliptra's
 integration filelists (`evidence/caliptra-census-20260916/`, a patched
 copy of the pre-existing `run_census.py` driver — see
