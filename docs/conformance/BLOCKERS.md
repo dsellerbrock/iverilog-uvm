@@ -2777,3 +2777,81 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   standalone-file port-list type-resolution artifact from compiling
   this file outside its package context, is untouched by and out of
   scope for this fix).
+
+### L123 — Parenthesized cycle-delay expression (`##(expr)`) rejected as a syntax error
+
+- **Status:** CLOSED 2026-09-16. Found compiling real, unmodified
+  Caliptra source directly (`src/ecc/formal/properties/
+  fv_ecc_hmac_drbg_interface_constraints.sv`, line 67), continuing the
+  same real-corpus scan of the `ecc` IP block's formal directory that
+  found L122.
+- **Symptom:** `##(time_window+1) hmac_drbg_valid;` — a parenthesized
+  expression as a cycle-delay operand, where `time_window` is a
+  property formal argument — was rejected with a plain `syntax error`.
+  Reduced further: the rejection is unconditional on what the parens
+  contain, including a pure compile-time-constant expression with no
+  formal argument at all (`##(1+1)`) or even a single bare literal
+  (`##(3)`) — every parenthesized form failed identically, while the
+  unparenthesized bare-identifier form (`##tw`) already correctly
+  reached a semantic diagnostic (`sorry: sequence cycle delays must be
+  literal constants`) rather than a parse-time syntax error. Confirmed
+  independently: slang (`--std 1800-2017`) accepts both `##(3+1)` and
+  `##(tw+1)`, 0 errors, 0 warnings — this is IEEE 1800-2017/2023
+  A.2.10's `cycle_delay_range ::= '##' constant_primary`, where
+  `constant_primary` includes `'(' constant_mintypmax_expression ')'`.
+- **Root cause:** `delay_value_simple` — the nonterminal shared by
+  every `K_CYCLE_DELAY` (`##`) use site across SVA sequences/
+  properties, procedural cycle delay, non-blocking cycle-delay
+  assignment, ordinary `#` delay, and specify-path delay — has four
+  alternatives (`DEC_NUMBER`, `REALTIME`, `IDENTIFIER`, `TIME_LITERAL`)
+  and no parenthesized-expression alternative. The procedural
+  cycle-delay statement production already worked around this locally
+  by spelling `K_CYCLE_DELAY '(' expression ')' statement_or_null` as
+  its own separate alternative (IEEE 1800-2017 14.11) rather than
+  extending the shared nonterminal, but the six SVA sequence/property
+  cycle-delay productions never got the same treatment.
+- **Fix:** added a new `sva_cycle_delay_value` nonterminal
+  (`delay_value_simple | '(' expression ')'`) and substituted it for
+  `delay_value_simple` at exactly the six SVA-specific `K_CYCLE_DELAY`
+  sites (`sva_multiclock_seq`, `sva_mc_tail`, the grouped-composite-
+  sequence alternative of `property_expr`, `sva_seq_comb_concat`, and
+  the leading/trailing-delay alternatives of `sva_seq_atom`).
+  Deliberately scoped to only these six: `delay_value_simple` itself
+  was left untouched to avoid any blast radius on the unrelated ordinary
+  `#`-delay and specify-path contexts that also use it, and the two
+  existing `K_CYCLE_DELAY` sites that don't need this fix (the
+  procedural statement production, which already has its own explicit
+  paren alternative; and the non-blocking cycle-delay assignment
+  production, not evidenced as broken by any real source) were left
+  alone.
+  The downstream consumers (`pform_sva_single_delay`,
+  `pform_sva_tree_concat`) already accepted an arbitrary `PExpr*` and
+  fell back to a graceful diagnostic for a non-resolvable value —
+  confirmed directly: `pform_sva_single_delay` already had a code
+  comment anticipating exactly this shape ("A property formal can later
+  substitute arithmetic here"), and the pre-existing bare-identifier
+  `##tw` path already exercised that same fallback. No semantic-layer
+  change was needed; this was purely a grammar gap.
+- **Bison grammar-safety check:** shift/reduce and reduce/reduce
+  conflict totals compared before/after (`bison -y -d --report=state`):
+  562/1122 identical in both.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_sva_cycle_delay_paren_expr.v` (normal — exercises
+  the parenthesized-arithmetic form at the ordinary leading-delay
+  position, plus a parenthesized-literal form through the separate
+  multiclock-boundary production, confirming the new alternative is
+  wired into more than one of the six touched call sites), registered
+  in `ivtest/regress-sv.list`.
+- **Validation:** focused pass (this test, compiles and runs correctly
+  standalone). Full `.github/ivtest_gate.sh` sweep: `Total=5820,
+  Passed=5815, Failed=0, Not Implemented=2, Expected Fail=3`, name-diff
+  gate clean (0 unexplained). Bundled VPI suite: 108/108. Negative
+  suite: 148/148. UVM regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-failing
+  `src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv`
+  no longer produces the `syntax error` at line 67; the file now
+  reaches only its remaining, already-documented `sorry:` limitations
+  (parameter-valued consecutive repetition, a separate known gap) plus
+  an expected standalone-compile artifact (`bind target module ... is
+  not defined in this compilation`, from compiling this file outside
+  its full project context).

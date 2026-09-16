@@ -2297,6 +2297,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <spec_optional_args> timeskew_fullskew_opt_notifier timeskew_fullskew_opt_event_based_flag
 %type <spec_optional_args> timeskew_fullskew_opt_remain_active_flag
 
+%type <expr>  sva_cycle_delay_value
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
 %type <expr>  sva_bool_atom
 %type <for_var_decl> for_typed_variable_initializer
@@ -7814,12 +7815,31 @@ sva_int_local_declarations
 	delete $3; $$ = 0; }
   ;
 
+  /* IEEE 1800-2017/2023 A.2.10: cycle_delay_range's constant_primary
+     alternative includes a parenthesized expression, not just a bare
+     literal/identifier -- e.g. `##(time_window+1)` where time_window is
+     a property formal argument. delay_value_simple lacks this form (it
+     also backs ordinary `#' delay and specify-path delay contexts,
+     which this addition intentionally leaves untouched); this SVA-only
+     wrapper adds it just for the `##' cycle-delay operator. The
+     downstream consumers (pform_sva_single_delay, pform_sva_tree_concat)
+     already accept an arbitrary PExpr* and fall back to a graceful
+     diagnostic when it isn't a resolvable constant -- confirmed via the
+     pre-existing `##tw' (bare formal, no parens) path, which already
+     reached that same fallback. */
+sva_cycle_delay_value
+  : delay_value_simple
+      { $$ = $1; }
+  | '(' expression ')'
+      { $$ = $2; }
+  ;
+
 /* IEEE 1800-2017 16.13.1: a multiclocked sequence has exactly ##0 or ##1
    at the clock-flow boundary. The same-clock prefix and suffix keep their
    ordinary fixed-delay chains; the boundary stays explicit in the property
    IR so lowering can distinguish possibly-overlapping from strictly-after. */
 sva_multiclock_seq
-  : sva_seq_expr K_CYCLE_DELAY delay_value_simple event_control sva_seq_expr sva_mc_tail_opt
+  : sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value event_control sva_seq_expr sva_mc_tail_opt
       { sva_property_t*p = new sva_property_t;
 	PENumber*num = dynamic_cast<PENumber*>($3);
 	p->mc_prefix = $1;
@@ -7845,7 +7865,7 @@ sva_mc_tail_opt
   ;
 
 sva_mc_tail
-  : K_CYCLE_DELAY delay_value_simple event_control sva_seq_expr sva_mc_tail_opt
+  : K_CYCLE_DELAY sva_cycle_delay_value event_control sva_seq_expr sva_mc_tail_opt
       { std::vector<sva_mc_seg_t>*l = $5 ? $5 : new std::vector<sva_mc_seg_t>;
 	sva_mc_seg_t seg;
 	PENumber*num = dynamic_cast<PENumber*>($2);
@@ -7880,7 +7900,7 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      including when that sequence continues through a cycle delay.  Keep the
      grouped prefix exact: a global `sva_seq_comb ## ...' alternative would
      overlap every ordinary linear sequence concatenation. */
-  | '(' sva_seq_comb ')' K_CYCLE_DELAY delay_value_simple sva_seq_expr
+  | '(' sva_seq_comb ')' K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
       { $$ = pform_sva_tree_concat(@4, $2, $5, $6); }
   /* IEEE 1800-2017 A.2.10: the consequent is recursively a complete
      property_expr. Keeping this as the grammar's single ordinary
@@ -8162,7 +8182,7 @@ sva_seq_comb
    sequence_expr and can be concatenated with a linear suffix.  The tree
    helper preserves ##0 endpoint fusion and fixed ##N separation exactly. */
 sva_seq_comb_concat
-  : sva_seq_comb K_CYCLE_DELAY delay_value_simple sva_seq_expr
+  : sva_seq_comb K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
       { $$ = pform_sva_tree_concat(@2, $1, $3, $4); }
   ;
 
@@ -8295,7 +8315,7 @@ sva_seq_expr
 	$$ = $4;
       }
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
-  | K_CYCLE_DELAY delay_value_simple sva_seq_atom
+  | K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
       { pform_sva_single_delay(@2, (*$3)[0], $2);
         $$ = $3; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
@@ -8346,7 +8366,7 @@ sva_seq_expr
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $5; }
-  | sva_seq_expr K_CYCLE_DELAY delay_value_simple sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
       { pform_sva_single_delay(@3, (*$4)[0], $3);
         $1->insert($1->end(), $4->begin(), $4->end());
         delete $4;
