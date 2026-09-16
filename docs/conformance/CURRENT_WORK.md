@@ -22,6 +22,14 @@ records retain their original revisions and limits.
 
 ## Application evidence
 
+The [September 15 OpenTitan `xbar_smoke` UVM pass](session_logs/2026-09-15_opentitan_xbar_smoke_patched.md)
+is the first UVM test to reach `TEST PASSED CHECKS` against a stable OpenTitan
+release (Earlgrey-PROD-M6). **It is a patched-release result, not an
+unmodified-source pass** — one `dv_report_catcher.sv` source correction was
+required for a nonstandard `foreach` spelling (upstream syntax defect, not an
+Icarus gap; see the log for the IEEE 1800 §12.7.3 citation). The original,
+unmodified file's failure is preserved, not overwritten.
+
 The [September 13 OpenTitan/Caliptra census](session_logs/2026-09-13_opentitan_caliptra_rebaseline_after277.md)
 is scoped to `631bba6e8`. It predates L43–L64 and is not an application replay
 of the newer compiler. It includes failures and dependency/configuration debt;

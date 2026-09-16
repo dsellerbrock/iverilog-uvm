@@ -110,3 +110,10 @@ older per-release failures, source/tool hashes, ABI fixes, recording milestones,
 and the scoped OpenTitan UVM 1.2 debug-crossbar witness. Those results describe
 their named revisions. [CURRENT_WORK](CURRENT_WORK.md) points to the newest
 committed compiler and application evidence.
+
+A newer, separate result — OpenTitan's `xbar_smoke` reaching `TEST PASSED
+CHECKS` against a stable Earlgrey-PROD-M6 release — is recorded in
+[2026-09-15_opentitan_xbar_smoke_patched.md](session_logs/2026-09-15_opentitan_xbar_smoke_patched.md).
+**It is a patched-release result** (one OpenTitan source file corrected for a
+nonstandard `foreach` spelling), not an unmodified-source pass; do not cite it
+as satisfying application objective 5 without that caveat.
