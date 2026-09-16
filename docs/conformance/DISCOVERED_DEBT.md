@@ -2132,3 +2132,88 @@ fix, since they share one root cause); add a functional permanent
 regression; re-run the full six-gate suite. Status: recorded, not
 selected — high priority given it single-handedly unblocks
 `caliptra_top`.
+
+### DD-037 — Crash: `ivl` segfaults on `top_{earlgrey,darjeeling}_chip_sim` (both `uvm` and `runtime` lanes) after ~60 unrelated pre-existing errors (2026-09-16)
+
+Found in the same OpenTitan census scan that led to L127 while
+double-checking whether L127's fix also happened to cover this crash
+— **it does not; this remains open.** (An earlier verification pass
+this session incorrectly reported this as fixed by L127 based on
+checking only the first few `hard_errors` entries rather than the
+full list, which ends in the crash; corrected here.)
+
+`lowrisc:dv:top_earlgrey_chip_sim:0.1` and `top_darjeeling_chip_sim`
+(both the `uvm` and `runtime` lanes for each) segfault
+(`returncode: 139`, no `Assertion failed` message — a pure SIGSEGV,
+not a controlled `ivl_assert`/`assert()` abort like DD-038 below)
+after accumulating roughly 60 diagnostic lines covering many already-
+independently-known, unrelated feature gaps (SPI agent task-output
+queue/dynamic-array formal mismatches, `foreach` array-target
+resolution failures, container slice/index chains, streaming-
+concatenation width mismatches, `std::randomize() with` constraint
+forms, etc. — this full-chip integration target aggregates essentially
+every currently-open DV frontier item at once). The crash itself has
+**not been reduced to a minimal case** — with ~60 candidate error
+sites contributing to whatever state the crash depends on, isolating
+the actual trigger requires either bisecting by removing/stubbing
+error conditions one at a time from the real file set, or a targeted
+read of whatever code path runs immediately after the last printed
+diagnostic (`chip_scoreboard.sv:49`'s `foreach` target-resolution
+error) to look for an unguarded null-pointer use analogous to L127's,
+but this was not attempted this pass.
+
+**Closure requirements:** reduce to a minimal reproducer (start from
+the last diagnostic printed before the crash and work backward, or
+build a small file exercising just a `foreach` target-resolution
+failure inside a `chip_scoreboard`-shaped class hierarchy to see if
+that alone crashes); once reduced, apply the same discipline as
+L127 (check for an unguarded null dereference following a reported
+elaboration failure). Given the scale of unrelated pre-existing debt
+in the same file, this is likely NOT one afternoon's work — plan a
+dedicated session. Status: recorded, not selected.
+
+### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
+
+Found in the same scan as DD-037, also incorrectly reported fixed by
+L127 in an earlier pass of this session before the full `hard_errors`
+list was checked; corrected here — **this remains open.**
+
+`lowrisc:dv:spid_upload_sim:0.1` (`runtime` lane) aborts (SIGABRT, not
+SIGSEGV — a genuine, deliberate `assert()` firing, not a wild pointer
+dereference) with:
+```
+Assertion failed: (pform_cur_generate->scheme_type == PGenerate::GS_CASE_ITEM
+  || parent_generate->scheme_type != PGenerate::GS_CASE),
+  function pform_endgenerate, file pform.cc, line 2907.
+```
+after 82 accumulated diagnostic lines, the great majority genuine
+`syntax error`/`Invalid module item`/`Invalid module instantiation`
+cascades starting at `src/lowrisc_dv_spid_upload_sim_0.1/tb/
+spid_upload_tb.sv:186` — meaning this specific testbench file fails to
+parse almost entirely from a fairly early point onward, and the
+resulting cascade of malformed-parse recovery eventually leaves
+`pform_cur_generate`'s (or its parent's) `scheme_type` bookkeeping in a
+state the `pform_endgenerate` assertion doesn't expect. **Two possible
+distinct root causes, not yet distinguished:** (a) the very first
+`syntax error` at line 186 is itself a genuine, reducible Icarus gap
+(some construct this file uses that Icarus doesn't parse) whose
+downstream error-recovery is what corrupts the generate-scheme
+bookkeeping — in which case fixing the *first* error might make the
+whole cascade (and the eventual crash) disappear; or (b) the assertion
+in `pform_endgenerate` is reachable via a legitimate (if rare) parse-
+recovery path regardless of the root syntax error, and needs its own
+defensive fix (turning the crash into a diagnostic) independent of
+whatever triggered the first syntax error.
+
+**Closure requirements:** first look at `spid_upload_tb.sv:186`
+directly (not yet read this pass) to determine if the FIRST syntax
+error is itself a real, reducible gap — fixing it might make this
+whole chain moot. If the first error is itself a deep/upstream issue
+not worth chasing, treat `pform_endgenerate`'s assertion (`pform.cc`
+~line 2907) as its own defensive-robustness problem: understand what
+`scheme_type` invariant it's protecting and make the function
+tolerate an inconsistent state gracefully (a diagnostic + safe bail,
+not a crash) after any prior parse error, mirroring the general
+principle that once `error_count > 0`, later passes must degrade
+gracefully rather than assume a fully-consistent parse tree. Status:
+recorded, not selected.
