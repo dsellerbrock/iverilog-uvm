@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_local_outside_inline_fail.v:10: error: The `local::' qualifier is illegal outside an inline constraint block (IEEE 1800-2017/2023 18.7.1, footnote 43).
+1 error(s) during elaboration.

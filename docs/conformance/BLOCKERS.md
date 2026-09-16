@@ -2366,3 +2366,65 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   already two separate statements that already work today) is a real,
   separate feature, not touched by this fix. Nothing in this fix's scope
   claims that feature exists.
+
+### L119 — `local::` outside an inline constraint block silently resolved as an ordinary property
+
+- **Status:** CLOSED 2026-09-15. Found while probing `local::` (IEEE
+  1800-2017/2023 18.7.1) for a hypothesized "snapshot the caller's value"
+  defect. **The hypothesized defect did not exist** — `local::` works
+  correctly for its real semantics (confirmed against the LRM's own
+  worked example, §18.7.1: `function int F(C obj, integer x); F =
+  obj.randomize() with { x < local::x; }; endfunction` — `local::x`
+  binds to `F`'s own local argument, not a snapshot of `obj`'s property;
+  reproduced exactly, 20/20 iterations correct). The investigation is
+  recorded here anyway because it surfaced a real, different, narrower
+  defect along the way.
+- **Symptom:** `local::` used directly inside an ordinary CLASS-BODY
+  `constraint` declaration (not an inline `randomize() with {...}`
+  block) — e.g. `class c; rand integer x; constraint c1 { x <
+  local::x; } endclass` — compiled with ZERO diagnostics and silently
+  resolved `local::x` to the class's own (live, jointly-solved) property
+  `x`, making the constraint an always-true tautology (`x < x` is never
+  satisfiable, so in practice the constraint was effectively dropped/
+  ignored by whatever fallback made the call still succeed).
+- **LRM citation:** footnote 43 on the `constraint_block_item` production
+  (A.2.11 in both editions): "The `local::` qualifier shall only appear
+  within the scope of an inline constraint block." Confirmed independently:
+  slang rejects the identical class-body construct with `'local'
+  qualifier not allowed here`.
+- **Root cause:** `pexpr_to_constraint_ir` (elaborate.cc) already had a
+  correct, working handler for `local::` identifiers
+  (`if (local_qualified && value_slots) return
+  scope_randomize_value_slot_(...)`), gated on `value_slots` being
+  non-null — `value_slots` is only ever non-null for an inline
+  constraint's IR build (it's the argument-capture list an inline
+  `with{}` clause needs; a plain class-body constraint has no
+  randomize()-call-site scope to capture from, so it's built with
+  `value_slots == nullptr`). When `local_qualified` was true but
+  `value_slots` was null, there was no corresponding rejection — control
+  fell through to the ordinary property-lookup path a few lines below,
+  silently treating `local::x` as plain `x`.
+- **Fix:** added the missing `if (local_qualified && !value_slots)` branch
+  immediately after the existing (correct) inline-capture branch, emitting
+  a focused `error:` citing 18.7.1 footnote 43 and returning `""` (which
+  the existing dropped-constraint hard-error convention in this file
+  already turns into a compile failure, not a silently weakened solve).
+- **Scope:** the correct inline-`local::` path (already working, four
+  pre-existing `ivtest` files cover it:
+  `sv_constraint_function_argument_inline.v`,
+  `sv_constraint_handle_inline.v`, `sv_struct_member_constraint_paths.v`,
+  `sv_constraint_darray_size_local_scope.v`) is completely untouched —
+  verified all four still pass.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_constraint_local_outside_inline_fail.v` (CE, the
+  class-body-`local::` rejection), registered in `ivtest/regress-sv.list`.
+- **Validation:** focused 5/5 pass (new test plus the four existing
+  inline-`local::` tests). Full `.github/ivtest_gate.sh` legacy sweep:
+  `Total=5812, Passed=5807, Failed=0`, 0 unexplained. UVM regression: 357
+  passed, 0 failed, 0 skipped.
+- **Process note:** this is a repeat of the same discipline as L118 in
+  this same session — an initial hypothesis (here: "`local::` doesn't
+  snapshot correctly") was WRONG, caught by checking the LRM's own worked
+  example and slang before writing any fix, which also reframed what the
+  real, narrower, genuinely-broken case actually was. See
+  [[discovered-debt-hypothesis-is-not-diagnosis]] (memory).
