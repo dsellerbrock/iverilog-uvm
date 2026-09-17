@@ -21516,6 +21516,27 @@ static bool foreach_target_is_non_simple_(const pform_name_t&array_path)
       return true;
 }
 
+/* True iff the FINAL path component -- the one whose type actually
+   gets iterated -- itself carries a fixed selector index. An index on
+   an EARLIER component is an ordinary element select into a different
+   (non-iterated) array along the way, e.g. `successors[s].m_predecessors'
+   (`s' is a normal loop variable for `successors'; `m_predecessors' is
+   the real, unselected foreach target -- `pred' iterates it fine) or
+   the dotted rule's `paths[0].slices[i]' (the selector lands on `paths',
+   not on `slices'). Only `m_changed_sev[id]'-shaped targets, where the
+   selector is on the SAME component as the associative array being
+   iterated, hit the unthreaded-selector bug this guards against. Do not
+   broaden this to "any component" -- that misclassified plain dotted
+   class-property foreach targets as selector-prefixed and broke all of
+   UVM (uvm_phase.svh depends on the with_phase.m_predecessors[pred]
+   shape working). */
+static bool foreach_target_has_selector_prefix_(const pform_name_t&array_path)
+{
+      if (array_path.empty())
+	    return false;
+      return !array_path.back().index.empty();
+}
+
 static NetExpr* elaborate_foreach_target_expr_(Design*des,
 					       const LineInfo&li,
 					       unsigned lexical_pos,
@@ -21574,8 +21595,26 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(ptype)) {
-		  if (aq->assoc_compat())
-			return elaborate_assoc_array_(des, scope, array_expr);
+		  /* See the matching sorry: in elaborate_signal_array_() --
+		     this expression-route branch reaches an associative
+		     target when it does NOT resolve to a plain signal (a
+		     class property, a virtual-interface member). A plain
+		     dotted class-property target (`foreach (obj.assoc[i])',
+		     no selector on any path component) is legitimate and
+		     already works; only a genuine selector prefix (some
+		     component's index is non-empty) is unthreaded here, the
+		     same as the signal-route case. */
+		  if (aq->assoc_compat() && foreach_target_has_selector_prefix_(array_path_)) {
+			delete array_expr;
+			cerr << get_fileline() << ": sorry: a foreach "
+				"selector prefix (`" << array_path_
+			     << "') into an associative array does not yet "
+				"correctly select the sub-array; the loop "
+				"body is dropped rather than iterating the "
+				"wrong keys." << endl;
+			des->errors += 1;
+			return 0;
+		  }
 	    }
 
 	    if (const netsarray_t*atype = dynamic_cast<const netsarray_t*>(ptype)) {
@@ -21807,6 +21846,32 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
 {
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
 	    if (aq->assoc_compat()) {
+		    /* This method is reached either for a plain foreach with
+		       no selector (array_path_ has no index at all -- every
+		       dimension gets a real loop variable, handled correctly
+		       below) or, via PForeach::elaborate's hier_sig fast
+		       path, for a SELECTED prefix (`arr[sel][loop_vars]',
+		       IEEE 1800-2017/2023 12.7.3's "already declared in an
+		       enclosing scope" form). Wrapping the whole array_sig
+		       in a NetESignal here and handing it straight to
+		       elaborate_assoc_array_() drops that selector entirely
+		       -- confirmed with a real, discriminating-population
+		       runtime test (two outer keys with different inner key
+		       sets): the loop silently iterates the ARRAY'S OWN
+		       (outer) keys instead of the selected sub-array's, for
+		       both a literal constant selector and a variable one.
+		       Refuse rather than run wrong -- see DISCOVERED_DEBT.md
+		       DD-040. */
+		  if (foreach_target_has_selector_prefix_(array_path_)) {
+			cerr << get_fileline() << ": sorry: a foreach "
+				"selector prefix (`" << array_path_
+			     << "') into an associative array does not yet "
+				"correctly select the sub-array; the loop "
+				"body is dropped rather than iterating the "
+				"wrong keys." << endl;
+			des->errors += 1;
+			return 0;
+		  }
 		  NetESignal*array_expr = new NetESignal(array_sig);
 		  array_expr->set_line(*this);
 		  return elaborate_assoc_array_(des, scope, array_expr);

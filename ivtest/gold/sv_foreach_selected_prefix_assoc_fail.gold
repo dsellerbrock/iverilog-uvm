@@ -1,0 +1,2 @@
+./ivltests/sv_foreach_selected_prefix_assoc_fail.v:35: sorry: a foreach selector prefix (`m[id]') into an associative array does not yet correctly select the sub-array; the loop body is dropped rather than iterating the wrong keys.
+1 error(s) during elaboration.

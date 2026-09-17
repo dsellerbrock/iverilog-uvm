@@ -1255,6 +1255,23 @@ PWire*pform_get_wire_in_scope(perm_string name)
       return lexical_scope->wires_find(name);
 }
 
+/* IEEE 1800-2017/2023 12.7.3: "If a variable with a name matching one
+   of the loop_variables is already declared in a scope enclosing the
+   foreach statement, that array dimension is not iterated, but the
+   existing variable is used..." -- unlike pform_get_wire_in_scope's
+   single-level wires_find(), a foreach selector prefix can legally
+   name a variable declared in any ENCLOSING scope (e.g. the
+   function/task body, not just the implicit block the foreach header
+   itself is nested in), so this walks the parent chain. */
+bool pform_wire_visible_in_enclosing_scope(perm_string name)
+{
+      for (LexicalScope*scope = lexical_scope ; scope ; scope = scope->parent_scope()) {
+	    if (scope->wires_find(name))
+		  return true;
+      }
+      return false;
+}
+
 static void pform_put_wire_in_scope(perm_string name, PWire*net)
 {
       add_local_symbol(lexical_scope, name, net);

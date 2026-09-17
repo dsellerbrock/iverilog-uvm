@@ -1,0 +1,1 @@
+./ivltests/sv_foreach_undotted_selected_prefix_fail.v:17: error: 'k1' is not a declared variable in any enclosing scope; a foreach selector prefix (`array[k1][...]') must name one, not introduce a new loop variable here.
