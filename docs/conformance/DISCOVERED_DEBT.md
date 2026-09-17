@@ -2191,7 +2191,66 @@ it did NOT crash (5 ordinary errors, clean exit). The real construct
 has a 4th level the reducer didn't reproduce (`cfg.chip_vif.alerts_if.
 alerts_cb.alerts` — an extra virtual-interface-to-sub-interface hop
 before the clocking block), so this is inconclusive, not a
-disproof — the extra nesting level may be exactly what matters. Not
+disproof — the extra nesting level may be exactly what matters.
+
+**Second follow-up (2026-09-16, same pass): built the exact 4-level
+construct faithfully** (an `alerts_if` interface with a clocking
+block, nested as a named instance inside a `chip_if` interface,
+referenced through a class member's `virtual chip_if` handle — this is
+structurally identical to the real
+`hw/top_earlgrey/dv/env/chip_if.sv`/`alerts_if.sv` pair, not an
+approximation). This reproduces the **exact same error message** as
+the real file character-for-character (`Unable to resolve foreach
+target cfg.chip_vif.alerts_if.alerts_cb.alerts in scope ...`) — so the
+4-level nesting depth is confirmed NOT the missing ingredient; the
+`foreach`-resolution failure itself is fully, faithfully reproduced.
+**But it still does not crash alone** (1 clean error, ordinary exit).
+This rules out "nesting depth" as the missing piece and narrows the
+remaining candidate explanation to the one already suspected: the
+crash requires the *same* construct's failure to be processed a
+*second* time under a *different* (anonymous, auto-generated) scope —
+matching the real crash trace's duplicate error appearance
+(`chip_env_pkg.chip_scoreboard....` then `chip_env_pkg._ivl_1....`)
+— which single-instantiation reducers structurally cannot exhibit.
+Reproducing that would need two elaborated instances of a class
+containing this method (e.g. two UVM components both extending a
+common base that declares it, or some other path that elaborates the
+same method body twice under different scope identities) — not
+attempted this pass; this is a concrete, specific next step for
+whoever picks this up, not a vague "reduce further." Not pursued
+further this pass.
+
+**Third follow-up (2026-09-17): "two elaborated instances of a
+class" ruled out.** Extended the 4-level reducer to two `chip_if`
+instances (`u_chip_if0`, `u_chip_if1`) each driving its own
+`scoreboard` instance (`sb0`, `sb1`), both calling the same
+`process_alerts_for_cov()` method. Still does not crash, and — the
+decisive part — the `foreach`-resolution error is printed only
+**once**, not twice as in the real trace. A class method body
+elaborates once as shared code regardless of how many object
+instances call it; per-instance elaboration was never going to
+duplicate the error under a second scope, and it didn't. This closes
+the specific next step the previous follow-up recorded.
+
+Status of the two concrete leads this entry has recorded so far:
+- 4-level nesting depth: ruled out (second follow-up above).
+- Two elaborated instances of the same class: ruled out (this
+  follow-up).
+
+Remaining candidate explanation, unchanged and still untested:
+whatever construct actually causes the *same* method body to be
+re-elaborated a *second* time under a *different*, anonymous
+`_ivl_%d` scope (`net_scope.cc`'s generic anonymous-scope counter,
+not specific to `foreach` or any known retry mechanism). No third
+hypothesis has been formed — the candidates (`fork`, an unnamed
+`begin`, virtual/derived-class method dispatch, some other deferred-
+elaboration retry path) are unconfirmed guesses, not evidence-backed
+leads, and testing them blind risks burning a session without
+converging. Confirms the earlier assessment: this needs a dedicated
+session with a fresh angle (most likely: read the code path that runs
+immediately after `chip_scoreboard.sv:49`'s diagnostic in the real
+file, or trace what actually creates an `_ivl_%d`-named scope during
+class-method elaboration, rather than guessing at reducers). Not
 pursued further this pass.
 
 ### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
