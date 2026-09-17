@@ -2191,8 +2191,34 @@ it did NOT crash (5 ordinary errors, clean exit). The real construct
 has a 4th level the reducer didn't reproduce (`cfg.chip_vif.alerts_if.
 alerts_cb.alerts` — an extra virtual-interface-to-sub-interface hop
 before the clocking block), so this is inconclusive, not a
-disproof — the extra nesting level may be exactly what matters. Not
-pursued further this pass.
+disproof — the extra nesting level may be exactly what matters.
+
+**Second follow-up (2026-09-16, same pass): built the exact 4-level
+construct faithfully** (an `alerts_if` interface with a clocking
+block, nested as a named instance inside a `chip_if` interface,
+referenced through a class member's `virtual chip_if` handle — this is
+structurally identical to the real
+`hw/top_earlgrey/dv/env/chip_if.sv`/`alerts_if.sv` pair, not an
+approximation). This reproduces the **exact same error message** as
+the real file character-for-character (`Unable to resolve foreach
+target cfg.chip_vif.alerts_if.alerts_cb.alerts in scope ...`) — so the
+4-level nesting depth is confirmed NOT the missing ingredient; the
+`foreach`-resolution failure itself is fully, faithfully reproduced.
+**But it still does not crash alone** (1 clean error, ordinary exit).
+This rules out "nesting depth" as the missing piece and narrows the
+remaining candidate explanation to the one already suspected: the
+crash requires the *same* construct's failure to be processed a
+*second* time under a *different* (anonymous, auto-generated) scope —
+matching the real crash trace's duplicate error appearance
+(`chip_env_pkg.chip_scoreboard....` then `chip_env_pkg._ivl_1....`)
+— which single-instantiation reducers structurally cannot exhibit.
+Reproducing that would need two elaborated instances of a class
+containing this method (e.g. two UVM components both extending a
+common base that declares it, or some other path that elaborates the
+same method body twice under different scope identities) — not
+attempted this pass; this is a concrete, specific next step for
+whoever picks this up, not a vague "reduce further." Not pursued
+further this pass.
 
 ### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
 
