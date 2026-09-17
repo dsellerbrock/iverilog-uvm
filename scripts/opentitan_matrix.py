@@ -87,7 +87,42 @@ DEFAULT_TOPS = {
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
 }
 TOP_VARIANTS = (*DEFAULT_TOPS, "englishbreakfast")
-PRIM_MAPPING = "lowrisc:prim_generic:all:0.1"
+# Earlgrey-PROD-M6 (the pinned OpenTitan release, see opentitan-root) predates
+# the single umbrella "lowrisc:prim_generic:all" provider core that later
+# OpenTitan revisions ship: at M6 each technology-dependent prim is its own
+# separate core (hw/ip/prim_generic/prim_generic_*.core, no version suffix),
+# and the abstract "lowrisc:prim:X" VLNVs each need their own mapping entry.
+# This synthetic core supplies exactly that -- one entry per prim_generic
+# core that actually exists at this revision -- mirroring the
+# ENGLISHBREAKFAST_MAPPING_CORE pattern below rather than depending on a
+# provider core this revision doesn't have.
+PRIM_MAPPING = "local:matrix:prim_generic_all:0.1"
+PRIM_MAPPING_CORE = """CAPI=2:
+name: local:matrix:prim_generic_all:0.1
+description: Deterministic prim_generic provider mapping for Earlgrey-PROD-M6
+mapping:
+  "lowrisc:prim:and2": "lowrisc:prim_generic:and2"
+  "lowrisc:prim:buf": "lowrisc:prim_generic:buf"
+  "lowrisc:prim:clock_buf": "lowrisc:prim_generic:clock_buf"
+  "lowrisc:prim:clock_div": "lowrisc:prim_generic:clock_div"
+  "lowrisc:prim:clock_gating": "lowrisc:prim_generic:clock_gating"
+  "lowrisc:prim:clock_inv": "lowrisc:prim_generic:clock_inv"
+  "lowrisc:prim:clock_mux2": "lowrisc:prim_generic:clock_mux2"
+  "lowrisc:prim:flash": "lowrisc:prim_generic:flash"
+  "lowrisc:prim:flop": "lowrisc:prim_generic:flop"
+  "lowrisc:prim:flop_2sync": "lowrisc:prim_generic:flop_2sync"
+  "lowrisc:prim:flop_en": "lowrisc:prim_generic:flop_en"
+  "lowrisc:prim:otp": "lowrisc:prim_generic:otp"
+  "lowrisc:prim:pad_attr": "lowrisc:prim_generic:pad_attr"
+  "lowrisc:prim:pad_wrapper": "lowrisc:prim_generic:pad_wrapper"
+  "lowrisc:prim:ram_1p": "lowrisc:prim_generic:ram_1p"
+  "lowrisc:prim:ram_1r1w": "lowrisc:prim_generic:ram_1r1w"
+  "lowrisc:prim:ram_2p": "lowrisc:prim_generic:ram_2p"
+  "lowrisc:prim:rom": "lowrisc:prim_generic:rom"
+  "lowrisc:prim:usb_diff_rx": "lowrisc:prim_generic:usb_diff_rx"
+  "lowrisc:prim:xnor2": "lowrisc:prim_generic:xnor2"
+  "lowrisc:prim:xor2": "lowrisc:prim_generic:xor2"
+"""
 ENGLISHBREAKFAST_MAPPING = "local:matrix:top_englishbreakfast:0.1"
 ENGLISHBREAKFAST_MAPPING_CORE = """CAPI=2:
 name: local:matrix:top_englishbreakfast:0.1
@@ -1100,7 +1135,13 @@ from fusesoc.librarymanager import Library
 
 root = sys.argv[1]
 manager = CoreManager(Config())
-manager.add_library(Library("opentitan-matrix", root), [])
+# Earlgrey-PROD-M6's pinned fusesoc fork (ot-0.5.dev0) predates the second
+# add_library() argument later fusesoc versions added; try the modern
+# 2-arg form first so this probe still works against a newer revision.
+try:
+    manager.add_library(Library("opentitan-matrix", root), [])
+except TypeError:
+    manager.add_library(Library("opentitan-matrix", root))
 formal = []
 for name, core in manager.get_cores().items():
     try:
@@ -1157,7 +1198,10 @@ from fusesoc.librarymanager import Library
 
 root = Path(sys.argv[1]).resolve()
 manager = CoreManager(Config())
-manager.add_library(Library("opentitan-matrix", str(root)), [])
+try:
+    manager.add_library(Library("opentitan-matrix", str(root)), [])
+except TypeError:
+    manager.add_library(Library("opentitan-matrix", str(root)))
 cores = {str(name): core for name, core in manager.get_cores().items()}
 by_triple = {":".join(name.split(":")[:3]): name for name in cores}
 
@@ -1187,29 +1231,26 @@ def relative(path):
 core_metadata = {}
 for name, core in cores.items():
     fileset_metadata = {}
-    for fileset_name, fileset in core._capi_data.get("filesets", {}).items():
+    # Earlgrey-PROD-M6's fusesoc fork exposes each fileset/file as a typed
+    # Fileset/File object (attribute access) rather than the raw parsed-YAML
+    # dict a newer fusesoc's `_capi_data` holds -- read straight from the
+    # attributes instead of dict .get() calls.
+    for fileset_name, fileset in core.filesets.items():
         dependencies = set()
         hdl_text = []
         has_native = False
         has_dpi = False
-        for dependency in fileset.get("depend", []) or []:
+        for dependency in fileset.depend or []:
             resolved = resolve_dependency(dependency)
             if resolved:
                 dependencies.add(resolved)
-        default_type = str(fileset.get("file_type", ""))
-        for entry in fileset.get("files", []) or []:
-            attributes = {}
-            if isinstance(entry, dict):
-                source_name = next(iter(entry))
-                if isinstance(entry[source_name], dict):
-                    attributes = entry[source_name]
-            else:
-                source_name = str(entry)
-            source_name = normalize_reference(source_name)
+        default_type = str(fileset.file_type or "")
+        for entry in fileset.files or []:
+            source_name = normalize_reference(entry.name)
             source = Path(core.core_root) / source_name
             if not source.is_file():
                 continue
-            file_type = str(attributes.get("file_type", default_type)).casefold()
+            file_type = str(entry.file_type or default_type).casefold()
             suffix = source.suffix.casefold()
             native = (
                 "csource" in file_type
@@ -1232,16 +1273,16 @@ for name, core in cores.items():
 
 def selected_filesets(name, target_name):
     core = cores[name]
-    targets = core._capi_data.get("targets", {})
+    targets = core.targets
     target = targets.get(target_name)
-    if not isinstance(target, dict):
+    if target is None:
         target = targets.get("default")
     available = core_metadata[name]["filesets"]
-    if not isinstance(target, dict):
+    if target is None:
         return list(available)
     selected = [
         normalize_reference(fileset)
-        for fileset in target.get("filesets", []) or []
+        for fileset in target.filesets or []
     ]
     selected = [fileset for fileset in selected if fileset in available]
     return selected or list(available)
@@ -1476,15 +1517,15 @@ for config_path in sorted(root.rglob("*sim_cfg.hjson")):
 
 simulation_targets = []
 for name, core in cores.items():
-    target = core._capi_data.get("targets", {}).get("sim")
-    if not isinstance(target, dict):
+    target = core.targets.get("sim")
+    if target is None:
         continue
     closure, closure_text, native_cores, dpi_cores = source_closure(name)
     requires_uvm_library = bool(
         re.search(r"\bimport\s+uvm_pkg\s*::", closure_text)
         or re.search(r"[`\"]uvm_macros\.svh", closure_text)
     )
-    default_tool = str(target.get("default_tool", ""))
+    default_tool = str(target.default_tool or "")
     if default_tool == "verilator":
         category = "verilator"
     elif re.search(r"\brun_test\s*\(", closure_text):
@@ -1494,7 +1535,7 @@ for name, core in cores.items():
     else:
         category = "elaboration"
 
-    toplevels = target.get("toplevel", [])
+    toplevels = target.toplevel or []
     if isinstance(toplevels, str):
         toplevels = [toplevels]
     config = configs.get(name, {})
@@ -1716,6 +1757,12 @@ def prepare_matrix_core_root(build_root: Path) -> Path:
         or mapping_core.read_text() != ENGLISHBREAKFAST_MAPPING_CORE
     ):
         mapping_core.write_text(ENGLISHBREAKFAST_MAPPING_CORE)
+    prim_mapping_core = core_root / "prim_generic_all_mapping.core"
+    if (
+        not prim_mapping_core.is_file()
+        or prim_mapping_core.read_text() != PRIM_MAPPING_CORE
+    ):
+        prim_mapping_core.write_text(PRIM_MAPPING_CORE)
     return core_root
 
 
@@ -1961,6 +2008,22 @@ def setup_command(
     work_root: Path,
     requested_top: str,
 ) -> list[str]:
+    # Earlgrey-PROD-M6 (the pinned OpenTitan release) requires lowRISC's own
+    # fusesoc fork (python-requirements.txt pins "ot-0.5.dev0"), whose `run`
+    # subcommand predates both `--work-root` (it's `--build-root`, and nests
+    # output one level deeper as `<build-root>/<target>-<tool>/...` -- still
+    # found fine by parse_makefile()'s recursive rglob below) and the
+    # `--mapping` virtual-provider mechanism entirely (unrecognized argument,
+    # hard CLI error). Provider selection for prim_generic instead happens
+    # through each `lowrisc:prim:X` core's own `generate: {generator:
+    # primgen, ...}` block (hw/ip/prim/util/primgen.py), which queries
+    # fusesoc's own core database and defaults to the "generic"
+    # implementation automatically when no other --flag selects a specific
+    # technology -- so no explicit mapping is needed for the rtl/uvm/runtime/
+    # sva lanes this driver exercises. provider_mappings()/PRIM_MAPPING/
+    # ENGLISHBREAKFAST_MAPPING are kept (and still self-tested) as the
+    # mechanism a newer OpenTitan revision with the real fusesoc --mapping
+    # feature would need again, but are not applied to this command.
     command = [
         str(fusesoc),
         f"--cores-root={opentitan_root}",
@@ -1969,10 +2032,8 @@ def setup_command(
         f"--target={job.target}",
         "--tool=icarus",
         "--setup",
-        f"--work-root={work_root}",
+        f"--build-root={work_root}",
     ]
-    for mapping in provider_mappings(job, requested_top):
-        command.append(f"--mapping={mapping}")
     command.append(job.core.vlnv)
     return command
 
@@ -2973,6 +3034,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "matrix_provider_core_root": str(matrix_core_root),
         "englishbreakfast_mapping_sha256": hashlib.sha256(
             ENGLISHBREAKFAST_MAPPING_CORE.encode()
+        ).hexdigest(),
+        "prim_generic_mapping_sha256": hashlib.sha256(
+            PRIM_MAPPING_CORE.encode()
         ).hexdigest(),
     }
     if formal_targets is not None:
