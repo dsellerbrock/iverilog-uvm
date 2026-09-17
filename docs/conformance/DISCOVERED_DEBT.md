@@ -2576,3 +2576,109 @@ gold-verified), `sv_foreach_undotted_selected_prefix_fail.v`
 protection, real clocked runtime check with a discriminating population
 — two outer keys with disjoint inner key sets — not just a compile
 check).
+
+### DD-041 — Crash: `ivl_assert` failure evaluating a class-method `localparam` initialized from a bare-name outer-scope parameter (2026-09-17)
+
+Found via the same fresh OpenTitan census (Earlgrey-PROD-M6) that surfaced
+DD-040: `hw/dv/sv/entropy_src_xht_agent/seq_lib/entropy_src_xht_base_device_seq.sv:55`,
+`localparam int RngWordsPerByte = 8/RNG_BUS_WIDTH;` inside
+`test_cnt_hash()`, a method of class `entropy_src_xht_base_device_seq`.
+`RNG_BUS_WIDTH` is a plain `parameter int` declared in
+`entropy_src_pkg`, reaching this class body's scope via
+`entropy_src_xht_agent_pkg`'s package-level `import entropy_src_pkg::*;`
+(the class itself does not import anything — the earlier DD-035/DD-039
+session already established class-body `import` is correctly illegal,
+see [[class-body-import-is-illegal]]; this is a different construct
+entirely, an ordinary bare-name reference to an already-visible outer
+parameter). Compiling this file aborts:
+```
+entropy_src_xht_base_device_seq.sv:55: assert: net_design.cc:1518: failed assertion cur->second.ivl_type
+Abort trap: 6
+```
+Both `uvm` and `runtime` lanes of `lowrisc:dv:entropy_src_sim:0.1` hit
+this identically (2 census jobs), since the file is compiled into both.
+
+**Minimal standalone reproducer** (no OpenTitan/UVM dependency,
+confirmed with `-tnull`):
+```systemverilog
+package my_agent_pkg;
+  parameter int RNG_BUS_WIDTH = 4;
+  class C;
+    function void f();
+      localparam int X = RNG_BUS_WIDTH;
+      $display(X);
+    endfunction
+  endclass
+endpackage
+module t;
+  import my_agent_pkg::*;
+  initial begin C c = new; c.f(); end
+endmodule
+```
+
+**Bisection so far** (each variant isolates one ingredient; all other
+ingredients held at the shape above):
+- Replacing `RNG_BUS_WIDTH` with the fully qualified
+  `my_base_pkg::RNG_BUS_WIDTH` (a separate package, no wildcard
+  import) — **does not crash**, prints the correct value. So a bare
+  parameter name specifically, not a qualified one, is implicated.
+- Moving the exact same `localparam int X = RNG_BUS_WIDTH;` line into
+  an ordinary package-scope **function** (not a class method) — **does
+  not crash**, prints the correct value. So this is specific to a
+  class *method* body, not bare-name outer-parameter resolution in
+  general.
+- Removing the division (`8/RNG_BUS_WIDTH` → bare `RNG_BUS_WIDTH`) —
+  **still crashes**. The division/arithmetic is not required.
+- Removing the wildcard import entirely, declaring `RNG_BUS_WIDTH` and
+  the class in the *same* package (no cross-package reference at all,
+  the name is visible purely through ordinary lexical scoping) — **still
+  crashes**. So this is not specific to wildcard-import resolution
+  either; it reproduces for any bare-name reference from a class
+  method to a parameter declared in an *enclosing* (not class-local)
+  scope.
+- A bare-name reference to a parameter declared directly at *module*
+  scope (not package scope) from that module's own class does not
+  reach this crash — it instead hits a pre-existing, unrelated
+  "Unable to bind parameter" error (a separate, not-yet-investigated
+  gap; class-in-module bare-name outer-parameter visibility may simply
+  work differently or not be supported at all — not pursued this pass).
+
+**Root cause (not found — traced partway, stopped before guessing):**
+`NetScope::evaluate_parameter_` (`net_design.cc` ~line 1941-1949)
+elaborates `cur->second.val_type` into `cur->second.ivl_type` for
+every parameter exactly once, immediately before dispatching to
+`evaluate_parameter_logic_` (or the real/string/array variants) by
+`use_type`. For an explicitly-typed `localparam int X = ...`, `val_type`
+is always present, so `elaborate_type()` should always produce a
+non-null `ivl_type` before `evaluate_parameter_logic_` ever runs and
+checks it at line 1518. That it's null there for the class-method
+case, but not for the plain-function case with the identical
+declaration shape, means either: (a) class-method-local parameters
+reach `evaluate_parameter_logic_` through a different call path that
+skips this elaborate-type step, or (b) resolving the bare-name
+`val_expr` (`RNG_BUS_WIDTH`) during `elab_and_eval()` recursively
+touches parameter evaluation for the WRONG scope's `cur` iterator —
+e.g. a class-method-local parameter table entry that shares the name
+but was never given a `val_type` in the first place, as opposed to the
+outer package's correctly-typed entry. Distinguishing these (and
+finding why only the class-method path takes whichever route is
+wrong) needs tracing `evaluate_parameters()`'s scope-walk order and
+`elab_scope.cc`'s class-method scope construction directly, not
+further black-box bisection.
+
+**Closure requirements:** trace `NetScope::evaluate_parameters()`'s
+scope-walk order for a class method scope specifically (does it visit
+the method's own scope, or via a different path than plain
+function/package scopes?), and instrument (or step through) which
+`param_ref_t`/`cur` the crashing `ivl_assert` actually refers to when
+it fires — confirm whether it is genuinely the class-method-local
+entry for a name that was never locally declared (in which case the
+bug is likely a spurious/duplicate parameter-table entry created
+during class-method scope elaboration) or the correctly-shared outer
+entry (in which case the bug is in whatever clears `ivl_type` between
+the dispatcher and the logic evaluator). A real, discriminating
+regression test (two class methods each referencing a differently-typed
+outer parameter, or a runtime check on the correctly-elaborated value,
+not just "does it not crash") is required once a fix is attempted,
+per [[discovered-debt-hypothesis-is-not-diagnosis]] and this session's
+own DD-039/DD-040 near-misses. Status: recorded, not selected.
