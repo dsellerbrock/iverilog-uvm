@@ -3605,6 +3605,9 @@ sv_elab_task_fatal_undef_arg_fail CE,-g2012 ivltests gold=sv_elab_task_fatal_und
 sv_static_qualifier_module_task_fail CE,-g2012 ivltests gold=sv_static_qualifier_module_task_fail.gold
 sv_sva_match_item_partsel_lhs_fail CE,-g2012 ivltests gold=sv_sva_match_item_partsel_lhs_fail.gold
 
+# DD-039 chained leading cycle delay fix
+sv_sva_chained_leading_cycle_delay normal,-g2012 ivltests
+
 # L92 fixed multiclock assertion control
 sv_assert_multiclock_fixed_control_off normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_off_2023 normal,-g2023 ivltests

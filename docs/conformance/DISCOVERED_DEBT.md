@@ -2359,71 +2359,99 @@ recorded, not selected — the standalone single-file reducer
 (`hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`, no dependencies)
 significantly lowers the bar for a future session to pick this up.
 
-### DD-039 — Genuine `syntax error` on `##bare_identifier_cycle_delay` followed by a match-item assignment, in a parameterized property (2026-09-16)
+### DD-039 — `syntax error` on a chained, un-parenthesized leading cycle delay (`##N ##M seq`) (2026-09-16, fixed 2026-09-17)
 
-Found while validating a DD-035 partial fix (the part-select match-item
-LHS grammar addition below) against the real originally-failing
-Caliptra file (`src/ecc/formal/properties/fv_montmultiplier_glue.sv`)
-— **confirmed unrelated to that fix and to any other change this
-session**: reproduces identically with the part-select grammar
-addition reverted (`git stash` the change, rebuild, re-test), so this
-is a genuinely separate, pre-existing defect, not something introduced
-this pass.
+Found while validating a DD-035 partial fix against the real
+originally-failing Caliptra file (`src/ecc/formal/properties/
+fv_montmultiplier_glue.sv`) — **confirmed unrelated to that fix and to
+any other change this session** (reproduces identically with the
+part-select grammar addition reverted via a stashed rebuild-and-retest).
 
-Minimal-so-far reproducer (not yet reduced further; still has more
-ingredients than strictly necessary):
+The first reproducer found looked tangled up with parameterized
+properties, a bare-identifier cycle delay, and a match-item assignment
+whose RHS was a function call — but further bisection (removing one
+ingredient at a time and re-testing after each removal) showed every
+one of those was a red herring. The true minimal reproducer has none
+of them:
 ```systemverilog
 module t;
-  parameter DLY_CONCAT = 3;
-  parameter FULL_REG_SIZE = 32;
-  bit clk = 0, n_i = 0, start_i = 0, prime = 0;
+  bit clk = 0, b = 0;
   always #5 clk = ~clk;
   default clocking cb @(posedge clk); endclocking
-  function [FULL_REG_SIZE-1:0] reduction_prime(input [FULL_REG_SIZE-1:0] a, input b);
-    reduction_prime = a;
-  endfunction
-  property compare_p(prime,idx);
-    logic [FULL_REG_SIZE-1:0] fv_reg;
-    logic [FULL_REG_SIZE-1:0] fv_result;
-      ##0 n_i == prime
-      ##0 start_i
-      ##DLY_CONCAT
-      ##0 (1'b1, fv_result = reduction_prime(fv_reg, prime))
-      |=>
-      1'b1;
+  property p1;
+    ##3 ##0 b;      // syntax error
   endproperty
-  ap: assert property (compare_p(prime,0));
+  ap: assert property (p1);
 endmodule
 ```
-Produces a plain `syntax error` at the `fv_result = reduction_prime(...)`
-line — with **no part-select anywhere** in this reducer (a bare-
-identifier match-item LHS, the form that already worked before this
-session). Confirmed independently: this exact shape (parameterized
-property, `##bare_identifier` cycle delay, a match-item assignment
-whose RHS is a function call reading one of the property's own local
-variables as an argument) is exactly what real, unmodified
-`fv_montmultiplier_glue.sv` uses (`##DLY_CONCAT ... ##0 (1'b1,
-fv_result = reduction_prime(fv_reg, prime))`).
+The discriminating pair: `##3 ##0 b;` is a `syntax error`, while
+`##3 (##0 b);` (same delays, parens added around the second one)
+compiles cleanly. slang (`--std 1800-2017`) accepts `##3 ##0 b;` with
+0 errors, so this is not an upstream-invalid-syntax false alarm (see
+[[top-syntax-family-is-often-upstream-invalid]]) — it is a genuine
+Icarus grammar gap. Reproduces identically in every `sequence_expr`
+context tried: a bare `property`/`sequence` body, the consequent of
+`|=>`, and an inline `assert property (...)`. Not related to match-item
+assignments at all — the very first minimal-enough reducer already
+showed a bare boolean (`##3 ##0 b`) fails the same way a match-item
+form does.
 
-**Not yet minimally reduced**: a simpler standalone attempt (bare
-`##DLY` cycle delay, non-parameterized property, plain match-item
-function-call RHS, no preceding boolean atoms) did *not* reproduce —
-it correctly reached the existing, honest `sorry: this parameter-
-valued bounded cycle-delay composition is not supported` diagnostic
-instead of a syntax error. So the real trigger needs some combination
-of: the property being parameterized (`compare_p(prime,idx)`), the
-`##bare_identifier` delay being preceded by other plain-boolean atoms
-in the same chain (`##0 n_i == prime`, `##0 start_i`), and/or the
-function-call RHS reading a property-local variable as an argument —
-which specific combination is the minimal trigger was not isolated
-this pass.
+**Root cause:** in `parse.y`, `sva_seq_expr`'s
+leading-cycle-delay productions (e.g. `K_CYCLE_DELAY sva_cycle_delay_value
+sva_seq_atom` at parse.y:8369, and its bounded/unbounded-window siblings
+at 8372/8390/8404) all take a trailing `sva_seq_atom`, not a trailing
+`sva_seq_expr`. A second, unparenthesized `K_CYCLE_DELAY ...` only
+reduces to `sva_seq_expr` (there is no `sva_seq_atom` alternative that
+starts with `K_CYCLE_DELAY`), so it can't fill that trailing slot —
+only the explicit `'(' sva_seq_expr ')'` `sva_seq_atom` alternative can
+convert it back, which is why adding parens works around the gap.
+IEEE 1800-2017/2023's `sequence_expr ::= cycle_delay_range
+sequence_expr | ...` is right-recursive through the *full*
+`sequence_expr`, not just through a delay-atom subset, so the grammar
+needs a real production, not just this narrow write-up.
 
-**Closure requirements:** finish reducing to the true minimal case
-(bisect by removing the preceding boolean atoms, the parameterization,
-and the function-call RHS one at a time from the confirmed reproducer
-above); once minimal, trace the actual grammar/pform interaction
-(likely somewhere in the parameterized-property formal-argument-
-substitution machinery or the sequence-chain-building rules
-interacting with `sva_cycle_delay_value`/`delay_value_simple`'s
-bare-`IDENTIFIER` alternative) before writing a fix. Status: recorded,
-not selected.
+Runtime semantics of the already-accepted parenthesized form were
+checked before recording this (per [[discovered-debt-hypothesis-is-not-diagnosis]]):
+`pform.cc`'s `pform_sva_single_delay` accumulates (`step.delay_lo +=
+value`), not overwrites, and a real clocked runtime check confirmed
+`a |=> ##3 (##0 b)` and `a |=> ##5 b` fire identically — so the fix
+only needs to close the parse gap, not touch delay-accumulation
+semantics.
+
+**Fix:** added a new `sva_seq_lead_delay` nonterminal in `parse.y`
+(type `<sva_seq>`, alongside `sva_seq_expr`/`sva_seq_atom`) with ten
+alternatives: each of the five leading-delay shapes (`K_CYCLE_DELAY
+sva_cycle_delay_value`, the bounded window `[e:e]`, the unbounded
+window `[e:$]`, and the `[*]`/`[+]` shorthands), each with a trailing
+operand that is either a plain `sva_seq_atom` (base case, identical to
+the previous behavior) or another `sva_seq_lead_delay` (the new
+recursive case — right recursion through the delay productions
+specifically, not through the full `sva_seq_expr`, so `K_until`/
+`K_implies`/`K_iff`/`K_within`/`sva_seq_comb_concat` are not pulled
+into a leading delay's decision point and existing `##N a until
+b`-shaped bindings are untouched). `sva_seq_expr`'s five original
+leading-delay productions were replaced with a single `sva_seq_expr :
+sva_seq_lead_delay` pass-through, so there is exactly one derivation
+per input (no new reduce/reduce ambiguity). Each alternative's action
+is bodily identical to its former `sva_seq_expr` counterpart, applying
+the delay to the trailing operand's first step — `pform_sva_single_delay`
+and the inline window logic both accumulate into that step's existing
+`delay_lo`/`delay_hi` rather than overwrite, so a chain of N delays
+folds down correctly regardless of chain length, confirmed by the
+runtime check below.
+
+Verified via `bison --report=state`: shift/reduce and reduce/reduce
+conflict totals (562/1122) are byte-for-byte identical across
+`origin/main`, the DD-035 part-select commit, and this fix — zero new
+conflicts. All prior reducers in this entry (and their variants —
+literal delays, parameter-valued delays, chained-with-a-preceding-atom,
+match-item and plain-boolean trailing forms, every `sequence_expr`
+context) now compile cleanly; where a *different*, pre-existing
+unsupported-semantics diagnostic legitimately still applies (e.g. the
+parameter-valued bounded cycle-delay composition sorry), it is reached
+honestly instead of masked by a syntax error. Runtime-verified with a
+real clocked stimulus (not just `-tnull`) that `a |=> ##2 ##3 b`
+behaves identically to `a |=> ##5 b` — both pass or fail together
+against the same stimulus, proving the composed delay is exactly 5,
+not silently wrong in either direction. Permanent regression:
+`ivtest/ivltests/sv_sva_chained_leading_cycle_delay.v`. Status: fixed.

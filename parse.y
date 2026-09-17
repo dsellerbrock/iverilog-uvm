@@ -2193,7 +2193,7 @@ static Module::port_t *module_declare_port_continuation(
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_seq_comb_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
-%type <sva_seq>  sva_seq_expr sva_seq_atom
+%type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
 %type <sva_calls> sva_match_call_list
 %type <sva_mc_ext> sva_mc_tail sva_mc_tail_opt
@@ -8365,58 +8365,17 @@ sva_seq_expr
 	delete[] $2;
 	$$ = $4;
       }
-  /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. */
-  | K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
-      { pform_sva_single_delay(@2, (*$3)[0], $2);
-        $$ = $3; }
-  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-      { long lo = 0, hi = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if ((pform_sva_overridable_bound($3)
-	     || pform_sva_overridable_bound($5))
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = -5; f0.delay_hi = -5;
-	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
-	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
-	    && f0.delay_lo >= 0) {
-	      f0.delay_lo += lo;
-	      f0.delay_hi += hi;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	if (f0.delay_lo != -5) { delete $3; delete $5; }
-	$$ = $7; }
-  /* Unbounded window ##[m:$] — weak eventually (16.9.2). */
-  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
-      { long lo = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if (pform_sva_const_long($3, lo)
-	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = lo;
-	      f0.delay_hi = -1;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	delete $3;
-	$$ = $7; }
-  /* IEEE 1800-2017 16.9.2 delay-control shorthands:
-       ##[*] == ##[0:$], ##[+] == ##[1:$]. */
-  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
-      { sva_seq_step_t&f0 = (*$4)[0];
-	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = 0; f0.delay_hi = -1;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	$$ = $4; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
-      { sva_seq_step_t&f0 = (*$5)[0];
-	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = 1; f0.delay_hi = -1;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	$$ = $5; }
+  /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. DD-039: the
+     trailing operand is `sva_seq_lead_delay', not `sva_seq_atom'
+     directly, so a second unparenthesized leading delay chains here
+     too (`##3 ##0 b'), matching IEEE 1800-2017/2023's right-recursive
+     `sequence_expr ::= cycle_delay_range sequence_expr | ...'. Kept as
+     its own nonterminal rather than broadening straight to
+     `sva_seq_expr' so this recursion stays confined to further delay
+     prefixes and doesn't pull `until'/`implies'/`iff'/`within'/the
+     concat form into a leading delay's decision point. */
+  | sva_seq_lead_delay
+      { $$ = $1; }
   | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
       { pform_sva_single_delay(@3, (*$4)[0], $3);
         $1->insert($1->end(), $4->begin(), $4->end());
@@ -8475,6 +8434,183 @@ sva_seq_expr
 	$1->insert($1->end(), $6->begin(), $6->end());
 	delete $6;
 	$$ = $1; }
+  /* DD-039 (infix half): the same chained-leading-delay gap as
+     `sva_seq_lead_delay' above, but here the chain follows an
+     existing atom in a left-recursive `expr ##N atom' build-up
+     (`a ##0 b ##DLY_CONCAT ##0 (bool, v = rhs)' -- exactly the shape
+     real, unmodified Caliptra source uses in
+     fv_montmultiplier_glue.sv). Trailing operand is
+     `sva_seq_lead_delay' instead of `sva_seq_atom' so a delay that is
+     immediately followed by ANOTHER unparenthesized delay (no atom
+     between them) still has somewhere to reduce. */
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_seq_lead_delay
+      { pform_sva_single_delay(@3, (*$4)[0], $3);
+        $1->insert($1->end(), $4->begin(), $4->end());
+        delete $4;
+        $$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
+      { long lo = 0, hi = 0;
+	sva_seq_step_t&f0 = (*$8)[0];
+	if ((pform_sva_overridable_bound($4)
+	     || pform_sva_overridable_bound($6))
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -5; f0.delay_hi = -5;
+	      f0.delay_lo_expr = $4; f0.delay_hi_expr = $6;
+	} else if (pform_sva_const_long($4, lo) && pform_sva_const_long($6, hi)
+	    && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo;
+	      f0.delay_hi += hi;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	if (f0.delay_lo != -5) { delete $4; delete $6; }
+	$1->insert($1->end(), $8->begin(), $8->end());
+	delete $8;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_lead_delay
+      { long lo = 0;
+	sva_seq_step_t&f0 = (*$8)[0];
+	if (pform_sva_const_long($4, lo)
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo;
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $4;
+	$1->insert($1->end(), $8->begin(), $8->end());
+	delete $8;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY K_LBSTAR ']' sva_seq_lead_delay
+      { sva_seq_step_t&f0 = (*$5)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 0; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$1->insert($1->end(), $5->begin(), $5->end());
+	delete $5;
+	$$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+      { sva_seq_step_t&f0 = (*$6)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 1; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$1->insert($1->end(), $6->begin(), $6->end());
+	delete $6;
+	$$ = $1; }
+  ;
+
+/* DD-039: a leading cycle delay whose trailing operand is either a
+   plain atom (the base case, e.g. `##2 b') or another leading delay
+   with no atom between them (`##3 ##0 b', `##[1:2] ##1 b', ...). Each
+   alternative's action is identical to its `sva_seq_expr' counterpart
+   above -- apply this delay to the first step of whatever the trailing
+   operand already produced -- so a chain of N delays folds down to a
+   single step exactly like the single-delay case, just applied N times
+   from the outside in. `pform_sva_single_delay' and the inline window
+   logic below both accumulate into the target step's existing
+   delay_lo/delay_hi rather than overwrite them, so this composes
+   correctly regardless of chain length. */
+sva_seq_lead_delay
+  : K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
+      { pform_sva_single_delay(@2, (*$3)[0], $2);
+        $$ = $3; }
+  | K_CYCLE_DELAY sva_cycle_delay_value sva_seq_lead_delay
+      { pform_sva_single_delay(@2, (*$3)[0], $2);
+        $$ = $3; }
+  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+      { long lo = 0, hi = 0;
+	sva_seq_step_t&f0 = (*$7)[0];
+	if ((pform_sva_overridable_bound($3)
+	     || pform_sva_overridable_bound($5))
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -5; f0.delay_hi = -5;
+	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
+	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
+	    && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo;
+	      f0.delay_hi += hi;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	if (f0.delay_lo != -5) { delete $3; delete $5; }
+	$$ = $7; }
+  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
+      { long lo = 0, hi = 0;
+	sva_seq_step_t&f0 = (*$7)[0];
+	if ((pform_sva_overridable_bound($3)
+	     || pform_sva_overridable_bound($5))
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = -5; f0.delay_hi = -5;
+	      f0.delay_lo_expr = $3; f0.delay_hi_expr = $5;
+	} else if (pform_sva_const_long($3, lo) && pform_sva_const_long($5, hi)
+	    && f0.delay_lo >= 0) {
+	      f0.delay_lo += lo;
+	      f0.delay_hi += hi;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	if (f0.delay_lo != -5) { delete $3; delete $5; }
+	$$ = $7; }
+  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+      { long lo = 0;
+	sva_seq_step_t&f0 = (*$7)[0];
+	if (pform_sva_const_long($3, lo)
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo;
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $3;
+	$$ = $7; }
+  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_lead_delay
+      { long lo = 0;
+	sva_seq_step_t&f0 = (*$7)[0];
+	if (pform_sva_const_long($3, lo)
+	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = lo;
+	      f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	delete $3;
+	$$ = $7; }
+  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$4)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 0; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$$ = $4; }
+  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_lead_delay
+      { sva_seq_step_t&f0 = (*$4)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 0; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$$ = $4; }
+  | K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$5)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 1; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$$ = $5; }
+  | K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+      { sva_seq_step_t&f0 = (*$5)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 1; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
+	$$ = $5; }
   ;
 
   /* The property_qualifier rule is as literally described in the LRM,
