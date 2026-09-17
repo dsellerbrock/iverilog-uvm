@@ -81,6 +81,14 @@ SVA_EXTRA_DEFINES = {
 # with SecVolatileRawUnlockEn = 0).
 UVM_EXTRA_DEFINES = {
     "lowrisc:dv:lc_ctrl_sim:0.1": ("-DSEC_VOLATILE_RAW_UNLOCK_EN=0",),
+    # aes_base_sim_cfg.hjson runs both EN_MASKING=0 and EN_MASKING=1
+    # variants; without either, hw/ip/aes/dv/sva/aes_bind.sv's `if
+    # (`EN_MASKING) begin : gen_prng_bind` sees the macro undefined
+    # (assumed null), producing `if ()` -- a raw syntax error that
+    # looks like a parser gap but is really a missing build define.
+    # Matches SVA_EXTRA_DEFINES's aes_sva entry above; picks the
+    # EN_MASKING=1 variant as the default, same as that one.
+    "lowrisc:dv:aes_sim:0.1": ("-DEN_MASKING=1",),
 }
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
