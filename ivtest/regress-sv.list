@@ -3602,6 +3602,7 @@ sv_class_enum_container_packed_select_ascending_2023 normal,-g2023 ivltests gold
 sv_class_member_shadows_unrelated_class_name normal,-g2012 ivltests
 sv_sequence_solo_ref_in_generate_block normal,-g2012 ivltests
 sv_elab_task_fatal_undef_arg_fail CE,-g2012 ivltests gold=sv_elab_task_fatal_undef_arg_fail.gold
+sv_static_qualifier_module_task_fail CE,-g2012 ivltests gold=sv_static_qualifier_module_task_fail.gold
 
 # L92 fixed multiclock assertion control
 sv_assert_multiclock_fixed_control_off normal,-g2017 ivltests

@@ -3240,3 +3240,98 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   identifier used as a format argument under `FPV_ON`) is a separate,
   likely-upstream concern outside this fix's scope; only the crash
   itself is closed.
+
+### L128 — Crash: `static`/`automatic` qualifier before `task`/`function` at module scope entered unrecoverable parser panic-mode, eventually corrupting generate-scheme state and aborting (closes DD-038)
+
+- **Status:** CLOSED 2026-09-16. Closes **DD-038**
+  (`lowrisc:dv:spid_upload_sim:0.1`, SIGABRT via an `ivl_assert`/
+  `assert()` failure in `pform_endgenerate`). Root-caused precisely
+  after DD-038's own follow-up investigations (same session) had
+  already identified the first syntax error's construct and the
+  grammar-level reason it produces a raw `syntax error` at all; this
+  entry implements and validates the fix.
+- **Symptom:** `static task host();` (a `static`/`automatic` qualifier
+  used as a *prefix* before `task`/`function`, the class-method-only
+  form) declared directly in a module body — not inside a class —
+  produced a raw, unhandled bison `syntax error` at the qualifier
+  token itself. On real files with several such declarations followed
+  by substantial unrelated content (e.g. a large procedural
+  `case (cmd) inside ... endcase` block), the resulting panic-mode
+  error recovery corrupted parser-internal generate-scheme bookkeeping
+  badly enough that a later, syntactically-unrelated construct crashed
+  the compiler outright (`Assertion failed:
+  (pform_cur_generate->scheme_type == PGenerate::GS_CASE_ITEM ||
+  parent_generate->scheme_type != PGenerate::GS_CASE), function
+  pform_endgenerate`). Confirmed independently: slang also rejects the
+  construct (`error: qualifiers are not allowed on out-of-block method
+  definitions`), confirming Icarus's *rejection* was already correct —
+  only the diagnostic's quality (opaque `syntax error`) and the crash
+  were real problems. Real, unmodified OpenTitan RTL
+  (`hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`) hits this directly:
+  four `static task` declarations at module scope
+  (`host()`/`sw()`/`read_sram()`/`read_sram_wrap()`, lines 186/293/624/
+  663).
+- **Empirically validated before implementing:** patched a local
+  scratch copy of the real file (never the tracked OpenTitan source),
+  removing just the word `static` from all four declarations, and
+  confirmed the crash disappeared entirely (clean, ordinary
+  diagnostics only) — direct evidence the `static`-triggered syntax
+  error, not something else in the file, was the true trigger, before
+  investing in a grammar change.
+- **Root cause:** `parse.y`'s qualifier-prefixed task/function forms
+  (`K_pure`/`K_extern`/`K_virtual`/`K_static`/`K_local`/`K_protected`
+  combinations) are reachable *only* from `class_item` — there is no
+  `module_item` alternative anywhere that accepts a qualifier keyword
+  before `K_task`/`K_function`. The ordinary module-scope form
+  (`K_task lifetime_opt IDENTIFIER ...`) puts the optional lifetime
+  keyword *after* `K_task` (`task automatic foo();`), not before. A
+  bare `K_static`/`K_automatic` token in `module_item` context
+  therefore matches no rule at all, forcing bison into genuine
+  panic-mode recovery from the very first token — a fundamentally
+  different (and far more disruptive) failure mode than an ordinary
+  semantic rejection.
+- **Fix:** added four new `module_item` alternatives —
+  `K_static task_declaration`, `K_static function_declaration`,
+  `K_automatic task_declaration`, `K_automatic function_declaration` —
+  that accept the illegal qualifier *syntactically* (reusing the
+  existing `task_declaration`/`function_declaration` nonterminals
+  wholesale, exactly as the already-working, already-correct
+  `class_item_qualifier_opt task_declaration` class-method form does)
+  and then report a specific, focused error in the trailing action
+  (`error_count += 1`). The construct is still rejected — not accepted
+  as valid — but through Icarus's ordinary error-reporting path
+  instead of bison's unmatched-token panic-mode recovery, so no
+  parser-state corruption occurs.
+- **Bison grammar-safety check:** shift/reduce conflicts rose from the
+  `main` baseline of 562 to 572 (+10, one pair of new alternatives per
+  qualifier/declaration-kind combination); reduce/reduce unchanged at
+  1122. Confirmed the three pre-existing "rule useless in parser due to
+  conflicts" warnings are identical before and after (same three
+  locations, unrelated to this change) — no new dead rule was
+  introduced. Validated the conflict increase is benign empirically
+  (per `[[parse-y-conflict-totals-are-insufficient]]`, totals alone are
+  not proof): the full six-gate suite is clean, and targeted reducers
+  confirm every legitimate qualifier form still works — class-scope
+  `static`/`virtual`/`local static` methods, and module-scope `task
+  automatic`/`function automatic` (lifetime *after* the keyword).
+- **Permanent regression:**
+  `ivtest/ivltests/sv_static_qualifier_module_task_fail.v` (CE — the
+  minimal illegal-construct case), registered in
+  `ivtest/regress-sv.list`.
+- **Validation:** focused 1/1 pass, plus the class/module legitimate-
+  usage reducers above (no dedicated ivtest entries needed — existing
+  suite coverage of ordinary class methods and `task automatic` already
+  exercises these paths, confirmed unaffected by the full sweep). Full
+  `.github/ivtest_gate.sh` sweep: `Total=5826, Passed=5821, Failed=0,
+  Not Implemented=2, Expected Fail=3`, name-diff gate clean (0
+  unexplained). Bundled VPI suite: 108/108. Negative suite: 148/148.
+  UVM regression: 357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-crashing
+  `lowrisc:dv:spid_upload_sim:0.1` (`runtime` lane, via the full
+  fusesoc/census pipeline, not just a standalone compile) no longer
+  crashes — exits with a normal nonzero status and exactly 4 clean,
+  specific diagnostics (one per `static task` declaration in the real
+  file), matching the number of real illegal constructs present. Not
+  claimed as closing this target to `PASS`; the file's own use of the
+  illegal construct is a genuine (if minor) upstream issue outside this
+  fix's scope — only the crash is closed.
