@@ -1,0 +1,2 @@
+./ivltests/sv_elab_task_fatal_undef_arg_fail.v:26: warning: Unable to bind wire/reg/memory `SomeAssertLabelNotAnIdentifier' in `main.genblk1' (compile-progress: unresolved reference).
+1 error(s) during elaboration.

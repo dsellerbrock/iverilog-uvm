@@ -24678,10 +24678,33 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			   * property later instead, so skip deferral and fall
 			   * straight through to the original, order-preserving
 			   * plain-identifier path for it, exactly as before this
-			   * fix existed. */
+			   * fix existed.
+			   *
+			   * Likewise guarded to names that are not ALREADY a known
+			   * SEQUENCE (`sva_module_sequences`, resolved with the
+			   * CURRENT, still-correct generate scope): `cover property
+			   * (s);' where `s' is a sequence (not a property) declared
+			   * earlier in the same generate block hits this same
+			   * unresolved-as-property shape, since it is never going to
+			   * appear in sva_module_properties at all. Deferring it
+			   * anyway used to "work" only by accident at plain module
+			   * scope (both the deferred retry's implicit generate scope
+			   * and a module-scope declaration's key are nullptr) and
+			   * silently failed inside any generate block, where the
+			   * retry runs after that block has closed and
+			   * pform_cur_generate no longer matches the declaration's
+			   * key -- rejected with "Unable to bind wire/reg/memory",
+			   * exactly as if the sequence were undefined. A name
+			   * already resolvable as a sequence right now is never
+			   * going to resolve as a property later instead, so skip
+			   * deferral and fall straight through to the ordinary
+			   * sequence-splicing path immediately, while the scope is
+			   * still correct. */
 			if (pit == sva_module_properties.end()
 			    && !sva_named_prop_retry_active_
 			    && !pform_get_wire_in_scope(
+				  id->path().name.front().name)
+			    && !sva_in_scope_(sva_module_sequences,
 				  id->path().name.front().name)) {
 			      sva_pending_named_property_t pend;
 			      pend.loc = loc;

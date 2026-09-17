@@ -2132,3 +2132,157 @@ fix, since they share one root cause); add a functional permanent
 regression; re-run the full six-gate suite. Status: recorded, not
 selected — high priority given it single-handedly unblocks
 `caliptra_top`.
+
+### DD-037 — Crash: `ivl` segfaults on `top_{earlgrey,darjeeling}_chip_sim` (both `uvm` and `runtime` lanes) after ~60 unrelated pre-existing errors (2026-09-16)
+
+Found in the same OpenTitan census scan that led to L127 while
+double-checking whether L127's fix also happened to cover this crash
+— **it does not; this remains open.** (An earlier verification pass
+this session incorrectly reported this as fixed by L127 based on
+checking only the first few `hard_errors` entries rather than the
+full list, which ends in the crash; corrected here.)
+
+`lowrisc:dv:top_earlgrey_chip_sim:0.1` and `top_darjeeling_chip_sim`
+(both the `uvm` and `runtime` lanes for each) segfault
+(`returncode: 139`, no `Assertion failed` message — a pure SIGSEGV,
+not a controlled `ivl_assert`/`assert()` abort like DD-038 below)
+after accumulating roughly 60 diagnostic lines covering many already-
+independently-known, unrelated feature gaps (SPI agent task-output
+queue/dynamic-array formal mismatches, `foreach` array-target
+resolution failures, container slice/index chains, streaming-
+concatenation width mismatches, `std::randomize() with` constraint
+forms, etc. — this full-chip integration target aggregates essentially
+every currently-open DV frontier item at once). The crash itself has
+**not been reduced to a minimal case** — with ~60 candidate error
+sites contributing to whatever state the crash depends on, isolating
+the actual trigger requires either bisecting by removing/stubbing
+error conditions one at a time from the real file set, or a targeted
+read of whatever code path runs immediately after the last printed
+diagnostic (`chip_scoreboard.sv:49`'s `foreach` target-resolution
+error) to look for an unguarded null-pointer use analogous to L127's,
+but this was not attempted this pass.
+
+**Closure requirements:** reduce to a minimal reproducer (start from
+the last diagnostic printed before the crash and work backward, or
+build a small file exercising just a `foreach` target-resolution
+failure inside a `chip_scoreboard`-shaped class hierarchy to see if
+that alone crashes); once reduced, apply the same discipline as
+L127 (check for an unguarded null dereference following a reported
+elaboration failure). Given the scale of unrelated pre-existing debt
+in the same file, this is likely NOT one afternoon's work — plan a
+dedicated session. Status: recorded, not selected.
+
+**Follow-up (2026-09-16, same pass, inconclusive):** the real file's
+crash trace shows the identical `foreach` target-resolution error
+(`chip_scoreboard.sv:49`) printed twice — once under the properly-
+named class scope (`chip_env_pkg.chip_scoreboard.process_alerts_for_
+cov.$ivl_foreach884`) and again immediately before the crash under an
+ANONYMOUS auto-generated scope name (`chip_env_pkg._ivl_1.process_
+alerts_for_cov.$ivl_foreach884`, `_ivl_%d` being the generic anonymous-
+scope-naming counter in `net_scope.cc` — not specific to `foreach` or
+any retry mechanism by itself). This double appearance, with the named
+class scope replaced by an anonymous one on the second occurrence,
+*resembles* the same "same construct re-processed under a different/
+wrong scope" shape as L121/L126 (both of which really were exactly
+that), so it was tried as a lead: built a 3-level reducer (`cfg.
+chip_vif.alerts_cb.alerts`, a class member holding a virtual-interface-
+handle-to-clocking-block, `foreach`'d from within a class method) —
+it did NOT crash (5 ordinary errors, clean exit). The real construct
+has a 4th level the reducer didn't reproduce (`cfg.chip_vif.alerts_if.
+alerts_cb.alerts` — an extra virtual-interface-to-sub-interface hop
+before the clocking block), so this is inconclusive, not a
+disproof — the extra nesting level may be exactly what matters. Not
+pursued further this pass.
+
+### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
+
+Found in the same scan as DD-037, also incorrectly reported fixed by
+L127 in an earlier pass of this session before the full `hard_errors`
+list was checked; corrected here — **this remains open.**
+
+`lowrisc:dv:spid_upload_sim:0.1` (`runtime` lane) aborts (SIGABRT, not
+SIGSEGV — a genuine, deliberate `assert()` firing, not a wild pointer
+dereference) with:
+```
+Assertion failed: (pform_cur_generate->scheme_type == PGenerate::GS_CASE_ITEM
+  || parent_generate->scheme_type != PGenerate::GS_CASE),
+  function pform_endgenerate, file pform.cc, line 2907.
+```
+after 82 accumulated diagnostic lines, the great majority genuine
+`syntax error`/`Invalid module item`/`Invalid module instantiation`
+cascades starting at `src/lowrisc_dv_spid_upload_sim_0.1/tb/
+spid_upload_tb.sv:186`.
+
+**Follow-up investigation (2026-09-16, same pass): the crash reproduces
+standalone from this one file alone**, no other dependencies needed
+(`iverilog -g2012 -t null hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`
+aborts directly) — a much smaller starting point than the full
+`spid_upload_sim` fusesoc target.
+
+**The first syntax error's root construct identified, and it is
+already-known-invalid, not a new gap:** line 186 is
+`static task host();` — a `static` qualifier on an ordinary task
+declared directly in a module body (not a class out-of-block method
+definition). Confirmed independently with slang: it also rejects this,
+with a far more specific diagnostic than Icarus's generic `syntax
+error` — `error: qualifiers are not allowed on out-of-block method
+definitions [-Wqualifiers-on-out-of-block]`. So Icarus's *rejection* is
+correct (matches
+[[top-syntax-family-is-often-upstream-invalid]]'s pattern exactly: a
+`static task` at module scope, named in that very memory as a
+construct worth disproving before assuming it's a real gap) — only the
+diagnostic's *quality* (opaque "syntax error" vs. a clear, specific
+message) and the *downstream crash* are real problems. `sw()` (line
+293) is a second, identical `static task` at module scope, and is what
+actually contains the `case (cmd) inside ... endcase` block
+(lines 312-375) whose nested `begin...end` case-item bodies are what
+the crash trace's line numbers (338-354) fall inside — i.e. the crash
+happens while processing *ordinary procedural case-item bodies*, not
+anything resembling a real `generate case`. This means the parser's
+error-recovery after the `static task sw();` syntax error somehow
+routes subsequent processing of this *procedural* `case (cmd) inside`
+construct through code paths that manipulate `pform_cur_generate`'s
+generate-scheme bookkeeping — plausibly a bison error-recovery state
+overlap between ordinary `case_item` and `generate_case_item`
+productions once the parser is off its normal path, but this was not
+traced past `pform_endgenerate()`'s consuming end (`pform.cc` ~line
+2881-2913) to find where a generate scheme's `GS_CASE`/`GS_CASE_ITEM`
+gets spuriously pushed in the first place.
+
+**Deliberately not attempted as a quick "guard the assert" patch:**
+`pform_endgenerate()`'s assertion at line 2906-2907 protects a real
+structural invariant (a generate-case item's containing generate must
+itself be tagged `GS_CASE`, or the current scheme must itself be
+`GS_CASE_ITEM`) that later code
+(`parent_generate->generate_schemes.push_back(pform_cur_generate)` and
+whatever eventually walks `generate_schemes`) may rely on. Silently
+disabling or loosely guarding this assertion when `error_count > 0`
+would stop *this* crash but risks pushing a genuinely-inconsistent
+scheme object that a *different*, unguarded downstream traversal then
+dereferences unsafely — trading one diagnosable crash for a harder-to-
+trace one, or worse, a silently-wrong internal structure that doesn't
+crash at all. That is exactly the kind of "manufactured non-crash"
+this project's correctness bar forbids trading for safety without
+first understanding the invariant fully.
+
+**Closure requirements:** trace the actual parser actions between the
+`static task sw();` syntax error's recovery and the crash to find
+where/why a `GS_CASE`/`GS_CASE_ITEM`-tagged `PGenerate` gets created
+for what is really just an ordinary procedural `case (cmd) inside`
+block — likely by adding targeted instrumentation (print
+`pform_cur_generate`'s scheme_type transitions) while re-running the
+minimal single-file reducer, or by reading the bison error-recovery
+states around the `case_item`/`generate_case_item` productions in
+`parse.y` directly. Once the actual mis-route is understood, the
+correct fix is almost certainly to prevent that mis-route from
+happening at all (so `pform_endgenerate()`'s invariant is never
+violated), not to weaken the invariant check itself. Separately (lower
+priority, since the underlying rejection is already correct): give
+`static`/`automatic` qualifiers on a non-class-scope task/function
+declaration their own specific diagnostic (matching slang's
+"qualifiers are not allowed on out-of-block method definitions")
+instead of a generic `syntax error`, improving diagnostic quality even
+though the construct stays correctly rejected either way. Status:
+recorded, not selected — the standalone single-file reducer
+(`hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`, no dependencies)
+significantly lowers the bar for a future session to pick this up.

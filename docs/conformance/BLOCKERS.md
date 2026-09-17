@@ -2961,3 +2961,282 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   **This closes the single defect that was blocking Icarus from
   compiling Caliptra's full-chip `caliptra_top` target at all** —
   directly serving mission objective 5.
+
+### L125 — Confirmed regression: object method call on a class member misresolved as a bare parameterized-class reference
+
+- **Status:** CLOSED 2026-09-16. Found via a full-corpus differential
+  OpenTitan census (`scripts/opentitan_matrix.py`, 530 jobs, unmodified
+  `opentitan-upstream` @ `7a3ad34b6`), run after the Caliptra `formal/`
+  corpus and the Caliptra full-integration census were both already
+  exhausted this session. **This is the first genuine regression found
+  this session** (L118-L124 were all pre-existing gaps in previously-
+  untested real corpus, not regressions) — root-caused with a proper
+  same-script, per-job diff against a freshly rebuilt pre-session
+  baseline before any fix was attempted, per
+  `[[verify-against-freshly-built-main-baseline]]`.
+- **Symptom:** `receiver.method()`, where `receiver` is an ordinary
+  class-member (or local) variable whose *declared type's name* happens
+  to coincide with an unrelated class's name declared elsewhere in the
+  design, was rejected with `error: Parameterized class 'name' requires
+  an explicit #(...) specialization before ::.` — even though the
+  actual source uses ordinary `.` member/method access, never `::`, and
+  `receiver` unambiguously names a variable, not a type. Reduced to a
+  20-line standalone case; confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors, 0
+  warnings.
+  Real, unmodified OpenTitan DV source hits this directly:
+  `hw/dv/sv/dv_base_reg/dv_base_reg_field.sv` declares `dv_base_mubi_cov
+  mubi_cov;` (a member variable) and calls `mubi_cov.create_cov(width)`;
+  `dv_base_mubi_cov.sv` (a sibling file in the same package) separately
+  declares an unrelated `class mubi_cov #(parameter int Width = 4, ...)`
+  — the name collision is between the *variable* and the *unrelated
+  class*, not a self-reference. `dv_base_reg_field.sv` is common DV
+  infrastructure; this broke compilation of `lowrisc:dv:tl_agent_sim`
+  and all eight `top_*_xbar_{main,peri}_sim` cores across all three
+  OpenTitan tops (earlgrey, darjeeling, englishbreakfast).
+- **Confirmed as a real regression, not a pre-existing gap newly
+  surfaced:** built the compiler at `631bba6e8` (PR #277, the last
+  reliably-documented clean baseline: "OpenTitan census ... PASS 203 |
+  FAIL 84 | ... RUNTIME_FAIL 23" exactly reproduced with today's
+  `scripts/opentitan_matrix.py`, confirming that script version is the
+  right comparison point) and ran the 20-line reducer directly: exit 0,
+  clean. The same reducer on current `main` (before this fix): rejected.
+  Bisected by building at each intervening squash-merge PR
+  (`d9bfbaeee`, `8346955a6`, `5c0f5588e`, `9c8f716b1`, `874e00680`,
+  `c45760199`, `34cd45c6b`, `5e0df21fd`) and re-testing the reducer at
+  each: first broken at `5c0f5588e` (PR #280, "L43-L64"), the squash
+  commit immediately after the clean `631bba6e8` baseline.
+- **Root cause:** `PCallTask::elaborate_usr()`'s dotted-call resolution
+  (`elaborate.cc`) added new machinery in PR #280 to support calling an
+  inherited static class method via a bare class-scoped name with
+  implicit `this` (`resolve_scoped_class_method_task_`, extended with
+  `deferred_type_parameter`/`illegal_nonstatic`/`use_implicit_this`
+  outputs). For a two-component dotted call (`receiver.method()`), this
+  new resolution path is tried and its "receiver is a bare, unspecialized
+  parameterized class name" diagnostic is acted on *before* checking
+  whether `receiver` already resolves as an ordinary variable in scope
+  — so a variable whose type happens to share a name with any
+  parameterized class anywhere in the design gets misidentified as a
+  reference to that unrelated class. The sibling call site for the
+  *expression-call* context (`PCallTask::elaborate_method_`, further
+  down in the same file) already had the correct guard
+  (`if (net == 0) { ... resolve_scoped_class_method_task_(...) ... }`
+  — only attempted when ordinary symbol resolution already failed to
+  find a net); only the statement-call site (`elaborate_usr`) was
+  missing it.
+- **Fix:** added the same "does the receiver already resolve as an
+  ordinary variable?" guard to the statement-call site: before invoking
+  `resolve_scoped_class_method_task_` for a two-component call, resolve
+  the single-component receiver via `symbol_search()`; if it finds an
+  ordinary net (`sr.net != nullptr`), skip the scoped-class-name
+  resolution entirely (`static_method` stays null) and fall through to
+  the existing, unchanged ordinary object-method dispatch
+  (`elaborate_method_`) below. Confirmed the already-correct sibling
+  call site needed no change.
+- **Verified the fix doesn't disturb what PR #280 added:** direct
+  reducers confirm (1) an inherited static task called via a bare name
+  with implicit `this` still resolves and runs correctly, (2) a
+  genuinely bare, unspecialized parameterized class reference (`gc::
+  hello();` with no shadowing variable) still correctly errors
+  unchanged, and (3) an explicit specialized scoped-static call
+  (`gc#(8)::hello();`) still works correctly.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_class_member_shadows_unrelated_class_name.v`
+  (normal — reproduces the exact real-world shape: an unrelated
+  parameterized class sharing a name with a plain class-member
+  variable, and a functional check that the method call actually ran,
+  not just that it compiled), registered in `ivtest/regress-sv.list`.
+- **Validation:** focused pass (this test, plus the three PR #280
+  behavior-preservation reducers above). Full `.github/ivtest_gate.sh`
+  sweep: `Total=5821, Passed=5816, Failed=0, Not Implemented=2, Expected
+  Fail=3`, name-diff gate clean (0 unexplained). Bundled VPI suite:
+  108/108. Negative suite: 148/148. UVM regression: 357 passed, 0
+  failed, 0 skipped.
+- **Real-world confirmation:** re-ran the full 530-job OpenTitan census
+  with the fixed compiler. `lowrisc:dv:tl_agent_sim:0.1` (`uvm` lane):
+  `FAIL -> PASS`. The `mubi_cov` error is confirmed completely gone from
+  every previously-affected `top_*_xbar_*_sim` core's `hard_errors` list
+  (checked directly, not inferred) — those cores do not flip all the way
+  to `PASS` because the compile now progresses further and reaches a
+  separate, deeper, pre-existing issue in `tlul_assert.sv` (`bind`-scope
+  signal binding inside a generated instance path, `tb.dut.
+  tlul_assert_host_rv_core_ibex__corei`), unrelated to this fix and out
+  of its scope — exactly the documented "a frontier fix usually ADVANCES
+  a core's first diagnostic rather than clearing it" pattern. Not
+  claimed as closing those cores; only the `mubi_cov` misresolution
+  itself is closed.
+
+### L126 — Regression: named sequence solo-referenced inside a generate block loses its scope on deferred retry (fixes the L125-uncovered `tlul_assert` frontier)
+
+- **Status:** CLOSED 2026-09-16. Found by chasing the exact deeper
+  frontier L125 uncovered (see L125's "real-world confirmation" —
+  `top_*_xbar_*_sim` advanced past `mubi_cov` to a `tlul_assert.sv`
+  "Unable to bind wire/reg/memory" error on a sequence name). **This is
+  a regression in this session's own L121 fix** (named-property
+  forward-reference deferral, merged in PR #289) — the second
+  self-introduced regression found and fixed this session, again via
+  same-script/same-corpus verification before and after, not assumed.
+- **Symptom:** a named sequence declared inside a conditional generate
+  block, referenced as the *entire* property expression of an
+  assert/cover statement in the *same* block (no forward reference —
+  the declaration is textually first), was rejected with `error:
+  Unable to bind wire/reg/memory 'name'` — as if the sequence name were
+  undefined, even though it is declared right above its use. Reduced to
+  a 10-line case; a named-sequence reference *inside a longer chain*
+  (`x ##1 seq_name ##1 y`) in the same generate block already worked
+  correctly — only the *solo* reference (the sequence IS the whole
+  property expression) was affected. Confirmed independently: slang
+  (`--std 1800-2017`) accepts the identical construct, 0 errors.
+  Real, unmodified OpenTitan RTL (`hw/ip/tlul/rtl/tlul_assert.sv`)
+  relies on exactly this shape: the `TLUL_D_CHAN_CONTENT_CHANGED_WO_
+  ACCEPTED`/`TLUL_COVER` macros declare a `sequence ..._S; ...
+  endsequence` inside `if (EndpointType == "Host") begin :
+  gen_host_cov`, referenced solo by a `cover property (...)` in the
+  same block — used by essentially every TL-UL-connected DV testbench.
+- **Root cause:** L121's deferral guard (`pform.cc`,
+  `pform_make_assertion`'s "named property instantiation" handling)
+  parks an unresolved bare single-identifier reference as a possible
+  forward-referenced *property*, retried at end-of-module — guarded to
+  skip deferral when the name is already resolvable as a known signal
+  (added when L121's first draft broke VPI attempt-callback ordering,
+  see L121's entry above). It did **not** also skip deferral when the
+  name was already resolvable as a known *sequence*
+  (`sva_module_sequences`) — and a solo sequence reference is never
+  going to appear in the *properties* map at all, so it unconditionally
+  looked exactly like an unresolved-property shape and always got
+  deferred. The deferred retry re-enters `pform_make_assertion` at
+  end-of-module, using `pform_cur_generate` (whatever generate block is
+  lexically active *at retry time*) to resolve the name — but by
+  end-of-module every generate block has already closed, so
+  `pform_cur_generate` no longer matches the `PGenerate*` the sequence
+  was actually declared under (`sva_scoped_name_t`'s key includes the
+  declaring generate block). This "worked" by pure accident at plain
+  module scope (both a module-scope declaration's key and the deferred
+  retry's implicit scope are `nullptr`) and failed only inside any
+  generate block — which is exactly why this was not caught by L121's
+  own validation (its reducers were all module-scope) and only surfaced
+  now via real corpus with generate-scoped sequences.
+- **Fix:** added a third deferral guard alongside the existing
+  not-already-a-signal check: also skip deferral when the name is
+  already resolvable as a known sequence in the *current* (still
+  correct) scope, via `sva_in_scope_(sva_module_sequences, name)`. Such
+  a reference falls straight through to the existing, unchanged ordinary
+  sequence-splicing path (`sva_splice_sequences_`, already scope-correct
+  since it runs immediately, not deferred) instead of being parked.
+- **Verified independently as a regression, not a pre-existing gap:**
+  built the compiler at `34cd45c6b` (L118, immediately before L119-
+  L123/L121 landed) and confirmed the reducer compiles clean there
+  (exit 0); the identical reducer on `main` before this fix (with L121
+  but not this fix) fails. Also confirmed the failing regression test
+  added for this fix genuinely fails when only L125's `elaborate.cc`
+  change is cherry-picked without this `pform.cc` change (isolating the
+  two fixes from each other).
+- **Permanent regression:**
+  `ivtest/ivltests/sv_sequence_solo_ref_in_generate_block.v` (normal —
+  exercises both the exact real-world shape, a `cover property` solo
+  reference, and a functional `assert property` implication using the
+  same solo reference, checked against a driven waveform, not just
+  compile success), registered in `ivtest/regress-sv.list`.
+- **Validation:** focused pass (this test, plus the chain-in-generate-
+  block reducer confirming no regression to the already-working case).
+  Full `.github/ivtest_gate.sh` sweep: `Total=5822, Passed=5817,
+  Failed=0, Not Implemented=2, Expected Fail=3`, name-diff gate clean (0
+  unexplained). Bundled VPI suite: 108/108 (re-confirms L121's own
+  attempt-callback-ordering regression stays fixed — this change adds a
+  guard to the same function). Negative suite: 148/148. UVM regression:
+  357 passed, 0 failed, 0 skipped.
+- **Real-world confirmation:** re-ran the full 530-job OpenTitan census
+  with the fixed compiler (on top of L125). `uvm`-lane result: **all
+  eight `top_*_xbar_{main,peri,mbx,dbg}_sim` cores across all three
+  OpenTitan tops (earlgrey, darjeeling, englishbreakfast) flip `FAIL ->
+  PASS`** — the full crossbar DV family now compiles clean. A further
+  ~13 `uvm`-lane cores (`adc_ctrl_sim`, `dma_sim`, `hmac_sim`,
+  `mbx_sim`, `pattgen_sim`, `rv_timer_sim`, `soc_dbg_ctrl_sim`,
+  `uart_sim`, `gpio_sim` across multiple tops, `rstmgr_sim`) advance
+  from a genuine Icarus compile `FAIL` to `DEBT`/`UPSTREAM_INVALID`
+  (i.e. Icarus itself no longer errors on them; whatever those
+  categories track is a separate, non-Icarus concern). `uvm`-lane PASS:
+  190 → 198.
+
+### L127 — Crash: elaboration-time `$fatal()`/`$error()`/`$warning()`/`$info()` segfaults on an unelaboratable argument
+
+- **Status:** CLOSED 2026-09-16. Found in the same OpenTitan `sva`-lane
+  census scan that led to L125/L126 — `lowrisc:{earlgrey,darjeeling}_dv:
+  otp_ctrl_sva:0.1` both showed a raw process crash (`Segmentation
+  fault: 11`, `hard_errors` truncated mid-message) rather than any
+  ordinary diagnostic. **A crash is categorically worse than a
+  diagnostic gap** — it produces no error message at all, violating the
+  project's bar that unsupported/invalid input must produce a focused
+  diagnostic, not silently (or violently) fail.
+- **Symptom:** an elaboration-time system-task call
+  (`$fatal`/`$error`/`$warning`/`$info`, IEEE 1800-2017/2023 clause
+  20.11) whose argument fails to elaborate as an expression (e.g. a
+  bare identifier that is not declared anywhere) crashed the compiler
+  with SIGSEGV instead of reporting a clean error. Real, unmodified
+  OpenTitan RTL (`hw/{top_earlgrey,top_darjeeling}/ip_autogen/otp_ctrl/
+  rtl/otp_ctrl.sv`) hits this directly via `hw/ip/prim/rtl/
+  prim_assert_standard_macros.svh`'s `` `ASSERT_INIT `` macro: under
+  `` `ifdef FPV_ON ``, it expands to `if (!(__prop)) $fatal(2, "...%s...
+  %s...", (__name), (__prop));` where `__name` is the assertion's own
+  bare label token (e.g. `ScrmblKeyNotAllZero_A2`) substituted
+  unquoted — an undefined identifier in this expression context, not a
+  string literal. Confirmed independently: slang (`--std 1800-2017`)
+  also rejects the reduced construct ("use of undeclared identifier"),
+  confirming a clean compile error is the correct response here, not a
+  crash — this is arguably an upstream macro issue for the `FPV_ON`
+  path, but that changes nothing about Icarus's obligation to fail
+  safely rather than crash on it.
+- **Root cause:** `PCallTask::elaborate_elab()` (`elaborate.cc`,
+  ~line 17789) calls `elab_sys_task_arg()` for each argument and, if the returned
+  `NetExpr*` fails `check_parm_is_const()`, prints a diagnostic
+  including the argument's current value (`*eparms[idx]`) — but never
+  checked whether `elab_sys_task_arg()` had returned `nullptr` (which
+  it does when an argument fails to elaborate at all, e.g. an
+  undefined identifier — already reported as a `warning: Unable to
+  bind wire/reg/memory` compile-progress message by that point).
+  `check_parm_is_const(nullptr)` itself is safe (a `dynamic_cast` on a
+  null pointer is well-defined and just returns false), but the
+  subsequent `cerr << ... << *eparms[idx] << ...` dereferences the null
+  pointer directly, crashing mid-print — explaining the exact
+  truncated error text captured in the census (`"Elaboration task
+  $fatal() parameter [3] '"` then nothing, then the shell's own
+  SIGSEGV report merged into the same output stream).
+- **Fix:** added an explicit null check on `eparms[idx]` before the
+  `check_parm_is_const()`/print step: when `elab_sys_task_arg()`
+  returns `nullptr`, count it as a non-constant parameter (advancing
+  `des->errors` and clearing `const_parms`, exactly as the existing
+  non-constant case does) without dereferencing anything, relying on
+  the earlier compile-progress warning already emitted by
+  `elab_sys_task_arg()` itself to explain why. No other behavior
+  changed — a fully-elaborable-but-non-constant argument still gets
+  the original, unchanged "is not constant" message with its value
+  printed.
+- **Verified the existing working cases are unaffected:** a single
+  fully-elaborable string-literal `$fatal` argument still prints its
+  message and fails elaboration exactly as before; a multi-argument
+  `$fatal` where every argument elaborates fine (just more than the
+  currently-supported single string) still hits the existing,
+  unrelated `sorry: Elaboration tasks currently only support a single
+  string argument` limitation, unchanged; a generate-`if` branch where
+  the `$fatal` guard condition is false (so the argument is never even
+  evaluated) still compiles clean, unchanged.
+- **Permanent regression:**
+  `ivtest/ivltests/sv_elab_task_fatal_undef_arg_fail.v` (CE — the exact
+  crash-triggering shape, confirmed the harness's captured stderr
+  matches on the first attempt, no crash), registered in
+  `ivtest/regress-sv.list`.
+- **Validation:** focused 1/1 pass. Full `.github/ivtest_gate.sh`
+  sweep: `Total=5823, Passed=5818, Failed=0, Not Implemented=2, Expected
+  Fail=3`, name-diff gate clean (0 unexplained). Bundled VPI suite:
+  108/108. Negative suite: 148/148. UVM regression: 357 passed, 0
+  failed, 0 skipped.
+- **Real-world confirmation:** the exact originally-crashing
+  `lowrisc:{earlgrey,darjeeling}_dv:otp_ctrl_sva:0.1` `sva`-lane targets
+  no longer crash — both now exit with a normal nonzero status and a
+  clean list of 11 `warning: Unable to bind wire/reg/memory` compile-
+  progress diagnostics (one per affected `` `ASSERT_INIT `` use), not a
+  signal-based abnormal termination. Not claimed as closing those two
+  targets to `PASS` — the underlying macro issue (an undefined
+  identifier used as a format argument under `FPV_ON`) is a separate,
+  likely-upstream concern outside this fix's scope; only the crash
+  itself is closed.
