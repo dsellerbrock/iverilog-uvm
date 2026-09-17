@@ -2196,6 +2196,19 @@ pursued further this pass.
 
 ### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
 
+**CLOSED 2026-09-16, superseded by [L128](BLOCKERS.md).** The
+grammar-level root cause identified in this entry's own follow-up
+(qualifier-prefixed task/function forms only reachable from
+`class_item`, forcing bison panic-mode recovery for the unmatched
+`K_static` token at module scope) was confirmed as the true trigger by
+empirically patching a local scratch copy of the real file (removing
+just the word `static`, crash disappeared entirely) before
+implementing the fix. Full root cause, fix, bison-conflict validation,
+and real-corpus confirmation (the exact originally-crashing
+`spid_upload_sim` target no longer crashes) are in L128's
+`BLOCKERS.md` entry. Left below verbatim as the original finding
+record.
+
 Found in the same scan as DD-037, also incorrectly reported fixed by
 L127 in an earlier pass of this session before the full `hard_errors`
 list was checked; corrected here — **this remains open.**

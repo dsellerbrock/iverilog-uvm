@@ -15065,6 +15065,52 @@ module_item
 
   | scoped_function_declaration
 
+    /* `static'/`automatic' as a prefix qualifier (rather than
+       `lifetime_opt' following `task'/`function', IEEE 1800-2017/2023
+       A.2.7's ordinary module-scope form) belongs only to a class-body
+       method declaration (`class_item_qualifier_opt task_declaration'
+       above uses exactly this shape) or an out-of-block method
+       definition -- never an ordinary module-scope task/function.
+       Accepting it here syntactically (reusing task_declaration/
+       function_declaration wholesale, exactly as the class_item
+       qualifier forms already do) avoids entering bison's normal
+       unmatched-token error recovery for the *entire* task/function
+       body that follows: an unhandled `static' here previously forced
+       panic-mode recovery from the very first token, corrupting
+       farther-reaching parser state until a later, unrelated construct
+       crashed (see DISCOVERED_DEBT.md DD-038). The construct is still
+       rejected -- with a clear, specific diagnostic instead of a raw
+       `syntax error' -- not accepted as valid. */
+  | K_static task_declaration
+      { cerr << @1 << ": error: A `static' qualifier is not allowed "
+	        "on an ordinary module-scope task declaration (only on "
+	        "a class method)." << endl;
+	error_count += 1;
+      }
+
+  | K_static function_declaration
+      { cerr << @1 << ": error: A `static' qualifier is not allowed "
+	        "on an ordinary module-scope function declaration (only "
+	        "on a class method)." << endl;
+	error_count += 1;
+      }
+
+  | K_automatic task_declaration
+      { cerr << @1 << ": error: An `automatic' qualifier is not "
+	        "allowed before `task' on an ordinary module-scope task "
+	        "declaration (only on a class method); write `task "
+	        "automatic name(...);' instead." << endl;
+	error_count += 1;
+      }
+
+  | K_automatic function_declaration
+      { cerr << @1 << ": error: An `automatic' qualifier is not "
+	        "allowed before `function' on an ordinary module-scope "
+	        "function declaration (only on a class method); write "
+	        "`function automatic ... name(...);' instead." << endl;
+	error_count += 1;
+      }
+
   | dpi_import_export_declaration
 
   /* A generate region can contain further module items. Actually, it
