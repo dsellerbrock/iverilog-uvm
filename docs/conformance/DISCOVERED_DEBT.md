@@ -2358,3 +2358,72 @@ though the construct stays correctly rejected either way. Status:
 recorded, not selected — the standalone single-file reducer
 (`hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`, no dependencies)
 significantly lowers the bar for a future session to pick this up.
+
+### DD-039 — Genuine `syntax error` on `##bare_identifier_cycle_delay` followed by a match-item assignment, in a parameterized property (2026-09-16)
+
+Found while validating a DD-035 partial fix (the part-select match-item
+LHS grammar addition below) against the real originally-failing
+Caliptra file (`src/ecc/formal/properties/fv_montmultiplier_glue.sv`)
+— **confirmed unrelated to that fix and to any other change this
+session**: reproduces identically with the part-select grammar
+addition reverted (`git stash` the change, rebuild, re-test), so this
+is a genuinely separate, pre-existing defect, not something introduced
+this pass.
+
+Minimal-so-far reproducer (not yet reduced further; still has more
+ingredients than strictly necessary):
+```systemverilog
+module t;
+  parameter DLY_CONCAT = 3;
+  parameter FULL_REG_SIZE = 32;
+  bit clk = 0, n_i = 0, start_i = 0, prime = 0;
+  always #5 clk = ~clk;
+  default clocking cb @(posedge clk); endclocking
+  function [FULL_REG_SIZE-1:0] reduction_prime(input [FULL_REG_SIZE-1:0] a, input b);
+    reduction_prime = a;
+  endfunction
+  property compare_p(prime,idx);
+    logic [FULL_REG_SIZE-1:0] fv_reg;
+    logic [FULL_REG_SIZE-1:0] fv_result;
+      ##0 n_i == prime
+      ##0 start_i
+      ##DLY_CONCAT
+      ##0 (1'b1, fv_result = reduction_prime(fv_reg, prime))
+      |=>
+      1'b1;
+  endproperty
+  ap: assert property (compare_p(prime,0));
+endmodule
+```
+Produces a plain `syntax error` at the `fv_result = reduction_prime(...)`
+line — with **no part-select anywhere** in this reducer (a bare-
+identifier match-item LHS, the form that already worked before this
+session). Confirmed independently: this exact shape (parameterized
+property, `##bare_identifier` cycle delay, a match-item assignment
+whose RHS is a function call reading one of the property's own local
+variables as an argument) is exactly what real, unmodified
+`fv_montmultiplier_glue.sv` uses (`##DLY_CONCAT ... ##0 (1'b1,
+fv_result = reduction_prime(fv_reg, prime))`).
+
+**Not yet minimally reduced**: a simpler standalone attempt (bare
+`##DLY` cycle delay, non-parameterized property, plain match-item
+function-call RHS, no preceding boolean atoms) did *not* reproduce —
+it correctly reached the existing, honest `sorry: this parameter-
+valued bounded cycle-delay composition is not supported` diagnostic
+instead of a syntax error. So the real trigger needs some combination
+of: the property being parameterized (`compare_p(prime,idx)`), the
+`##bare_identifier` delay being preceded by other plain-boolean atoms
+in the same chain (`##0 n_i == prime`, `##0 start_i`), and/or the
+function-call RHS reading a property-local variable as an argument —
+which specific combination is the minimal trigger was not isolated
+this pass.
+
+**Closure requirements:** finish reducing to the true minimal case
+(bisect by removing the preceding boolean atoms, the parameterization,
+and the function-call RHS one at a time from the confirmed reproducer
+above); once minimal, trace the actual grammar/pform interaction
+(likely somewhere in the parameterized-property formal-argument-
+substitution machinery or the sequence-chain-building rules
+interacting with `sva_cycle_delay_value`/`delay_value_simple`'s
+bare-`IDENTIFIER` alternative) before writing a fix. Status: recorded,
+not selected.

@@ -8261,6 +8261,57 @@ sva_seq_atom
 	delete $8;
 	steps->push_back(st);
 	$$ = steps; }
+  /* IEEE 1800-2017/2023 A.2.10 `sequence_match_item' is an ordinary
+     `operator_assignment', whose `variable_lvalue' includes an
+     indexed/part-selected target like any other assignment -- not
+     just a bare identifier. Real, unmodified Caliptra formal-
+     verification source relies on this shape (src/ecc/formal/
+     properties/fv_montmultiplier_glue.sv builds up a wide local
+     register RADIX bits at a time, one part-select write per match
+     step: `(1'b1, fv_reg[RADIX-1:0] = ...)'). Accept the syntax here
+     (avoiding a raw, unhandled `syntax error') but do not attempt to
+     lower it: correctly assigning to only part of an assertion-local
+     variable needs a real read-modify-write blend against the
+     variable's other, unwritten bits, which the local-variable model
+     this engine already has (whole-value-only, keyed by name) does
+     not support -- see DISCOVERED_DEBT.md DD-035 for the full
+     analysis of why a naive lowering here would silently produce
+     wrong values instead of a real fix. Report the gap honestly and
+     keep just the step's boolean gate, matching the plain
+     `sva_bool_atom' shape with no local-variable side effect --
+     exactly what actually happens when the (dropped) assignment is
+     skipped. */
+  | '(' expression ',' IDENTIFIER '[' expression ':' expression ']' '=' expression ')'
+      { cerr << @4 << ": sorry: a part-select match-item assignment "
+	        "target (`" << $4 << "[...]') is not yet supported by "
+	        "the assertion engine; the assignment is dropped, but "
+	        "the step's boolean condition is preserved." << endl;
+	error_count += 1;
+	delete[] $4;
+	delete $6;
+	delete $8;
+	delete $11;
+	std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	steps->push_back(st);
+	$$ = steps; }
+
+  | '(' expression ',' IDENTIFIER '[' expression ']' '=' expression ')'
+      { cerr << @4 << ": sorry: a bit-select match-item assignment "
+	        "target (`" << $4 << "[...]') is not yet supported by "
+	        "the assertion engine; the assignment is dropped, but "
+	        "the step's boolean condition is preserved." << endl;
+	error_count += 1;
+	delete[] $4;
+	delete $6;
+	delete $9;
+	std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
+	sva_seq_step_t st;
+	st.expr = $2;
+	steps->push_back(st);
+	$$ = steps; }
+
   /* 16.9.9: in match-existence positions first_match(s) has a match
      iff s does — transparent for standalone/single-length forms. The
      wrapped steps are flagged so a COMPOSED multi-length first_match
