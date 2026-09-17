@@ -1,0 +1,2 @@
+./ivltests/sv_sva_match_item_partsel_lhs_fail.v:32: sorry: a part-select match-item assignment target (`fv_reg[...]') is not yet supported by the assertion engine; the assignment is dropped, but the step's boolean condition is preserved.
+./ivltests/sv_sva_match_item_partsel_lhs_fail.v:38: sorry: a bit-select match-item assignment target (`fv_reg2[...]') is not yet supported by the assertion engine; the assignment is dropped, but the step's boolean condition is preserved.
