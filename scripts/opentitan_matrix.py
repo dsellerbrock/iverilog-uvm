@@ -1144,11 +1144,21 @@ except TypeError:
     manager.add_library(Library("opentitan-matrix", root))
 formal = []
 for name, core in manager.get_cores().items():
+    # Earlgrey-PROD-M6's fusesoc fork does not raise for a target name
+    # that doesn't exist on this core -- get_flags("formal") silently
+    # returns {} instead, so the target dict itself is the only reliable
+    # signal here. (Guard both ways: a `formal` key is unambiguous, and
+    # falling back to a non-empty get_flags() result preserves the
+    # newer-fusesoc RuntimeError-based behavior this probe was
+    # originally written against, in case a future revision restores it.)
+    if "formal" in core.targets:
+        formal.append(str(name))
+        continue
     try:
-        core.get_flags("formal")
+        if core.get_flags("formal"):
+            formal.append(str(name))
     except RuntimeError:
         continue
-    formal.append(str(name))
 print("FUSESOC_FORMAL_TARGETS_JSON=" + json.dumps(sorted(formal)))
 """
     result = command_result(
