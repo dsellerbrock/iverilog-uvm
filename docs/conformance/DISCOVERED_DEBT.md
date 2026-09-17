@@ -2682,3 +2682,94 @@ outer parameter, or a runtime check on the correctly-elaborated value,
 not just "does it not crash") is required once a fix is attempted,
 per [[discovered-debt-hypothesis-is-not-diagnosis]] and this session's
 own DD-039/DD-040 near-misses. Status: recorded, not selected.
+
+### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17)
+
+Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
+real corpus files hit a raw `syntax error` on a cross-body `ignore_bins`
+whose selector combines `binsof()` with a `with (...)` predicate:
+
+`hw/ip/csrng/dv/cov/csrng_cov_if.sv:78-80`:
+```systemverilog
+ignore_bins not_full_and_not_ready = !binsof(cp_hw0_cmd_depth) intersect {2}
+                                     with (!hw0_cmd_rdy);
+ignore_bins full_and_ready = binsof(cp_hw0_cmd_depth) intersect {2} with (hw0_cmd_rdy);
+```
+
+`hw/ip/pwm/dv/env/pwm_env_cov.sv:99-101`:
+```systemverilog
+ignore_bins undefined_state = (binsof(blink_en_cp) && binsof(htbt_en_cp))
+                                with ((blink_en_cp == 0) && (htbt_en_cp == 1));
+```
+
+**Confirmed via the LRM, not just slang, before touching the grammar**
+(per [[top-syntax-family-is-often-upstream-invalid]]): IEEE 1800-2023
+A.2.10 (clause 19.6.1) gives
+```
+select_expression ::=
+    select_condition
+  | ! select_condition
+  | select_expression && select_expression
+  | select_expression || select_expression
+  | ( select_expression )
+  | select_expression with ( with_covergroup_expression ) [ matches ... ]
+  | cross_identifier
+  | cross_set_expression [ matches ... ]
+select_condition ::= binsof ( bins_expression ) [ intersect { covergroup_range_list } ]
+```
+— `with (...)` is a suffix on the **general, recursive** `select_expression`
+production (so it can follow `!`/`&&`/`||`/parens/`binsof(...)
+intersect {...}` just as well as a bare name), not something bound
+only to `cross_identifier`. 19.6.1.2's prose confirms the semantics:
+"the `with` clause specifies that only those bin tuples in the
+**subordinate select_expression**... are selected" — `cross_identifier`
+is explicitly called out as just ONE alternative select_expression
+that happens to select all tuples, not the only thing `with` can
+attach to. Confirmed independently: slang (`--std 1800-2017`) accepts
+both real-file forms above, 0 errors.
+
+**Root cause:** `parse.y`'s `cross_body_opt` already has a general,
+recursive `cross_bins_expr` nonterminal (`binsof(...)`,
+`binsof(...) intersect {...}`, `!`, presumably `&&`/`||` — the
+IEEE 1800-2017 M11-3 comment above it says so) used for the plain
+`ignore_bins X = cross_bins_expr ;` form. But the THREE `K_with`
+productions (`illegal_bins`/`ignore_bins`/`bins` at parse.y ~4724-4742)
+hardcode a bare `bins_name` (`IDENTIFIER`) as the operand before
+`K_with`, not `cross_bins_expr` — so `with` only works after a plain
+name, matching just the `cross_identifier` alternative of
+`select_expression`, not the `binsof`/`&&`/`||`/paren alternatives the
+LRM also allows before `with`.
+
+**Why this isn't a small parse.y-only fix:** the pform-level struct
+these productions populate (`class_type_t::pform_cross_t::cross_bin_t`,
+`PClass.h` or wherever it's declared) has a `with_cross` field typed
+as a bare `perm_string` (a cross/bins *name*), consumed downstream in
+`elaborate.cc` (at minimum lines ~33715, 33802, 34476, 34704, 34725,
+34734 as of this session) including a same-cross-name identity check
+(`cb.with_cross == cross.label`, ~line 34706) that only makes sense
+when the pre-`with` operand really is a name. Generalizing the grammar
+to accept a full `cross_bins_expr` before `with` means either widening
+`with_cross` to hold a full select-tree (like the existing `select`
+field already does for the non-`with` bins forms) and updating every
+elaboration consumer to handle both shapes, or adding a parallel field
+— a real struct-and-multi-site change, not a grammar-only accept-and-
+sorry patch. Given this session's own DD-039/DD-040 near-misses from
+touching shared elaboration code under time pressure, this was
+diagnosed precisely (LRM-confirmed root cause, both real reproducers
+in hand) and then deliberately NOT attempted blind.
+
+**Closure requirements:** generalize `cross_bin_t`'s `with_cross`
+(or add an alternative field) to carry a full `cross_bins_expr` select
+tree instead of a bare name; update parse.y's three `K_with`
+productions to accept `cross_bins_expr K_with '(' expression ')' ';'`
+in addition to (not instead of — `cross_identifier` remains a valid
+LRM alternative) the existing `bins_name K_with (...)` form; update
+every `elaborate.cc` consumer of `with_cross` to evaluate the select
+tree against the candidate bin tuple instead of doing a name-equality
+check, preserving the existing self-reference-only restriction ("Only
+the cross_identifier of the enclosing cross may be used" per 19.6.1.2)
+for the `cross_identifier` case specifically. A real regression test
+needs runtime coverage verification (does the ignore_bins actually
+suppress the correct tuples, not just parse), not a compile-only
+check, per this session's own established discipline. Status:
+recorded, not selected.
