@@ -126,6 +126,11 @@ extern bool pform_in_interface(void);
  */
 extern PWire* pform_get_wire_in_scope(perm_string name);
 
+/* Like pform_get_wire_in_scope(), but walks every enclosing lexical
+ * scope (not just the current one) -- see the definition for why a
+ * foreach selector prefix needs this and a plain wire lookup doesn't. */
+extern bool pform_wire_visible_in_enclosing_scope(perm_string name);
+
 extern PWire* pform_get_make_wire_in_scope(const struct vlltype&li,
                                            perm_string name,
                                            NetNet::Type net_type,

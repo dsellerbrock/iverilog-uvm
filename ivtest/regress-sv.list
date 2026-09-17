@@ -3608,6 +3608,11 @@ sv_sva_match_item_partsel_lhs_fail CE,-g2012 ivltests gold=sv_sva_match_item_par
 # DD-039 chained leading cycle delay fix
 sv_sva_chained_leading_cycle_delay normal,-g2012 ivltests
 
+# DD-040 foreach selected-prefix into an associative array
+sv_foreach_selected_prefix_assoc_fail CE,-g2012 ivltests gold=sv_foreach_selected_prefix_assoc_fail.gold
+sv_foreach_undotted_selected_prefix_fail CE,-g2012 ivltests gold=sv_foreach_undotted_selected_prefix_fail.gold
+sv_foreach_nested_assoc_no_selector normal,-g2012 ivltests
+
 # L92 fixed multiclock assertion control
 sv_assert_multiclock_fixed_control_off normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_off_2023 normal,-g2023 ivltests

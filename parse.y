@@ -6238,6 +6238,94 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	$$ = tmp_blk;
       }
 
+      // The undotted counterpart of the selected-prefix rule just above:
+      // `foreach (arr[id][msg])' where `arr' is a nested associative/
+      // unpacked array and `id' already denotes a value in an enclosing
+      // scope, selecting one nested sub-array rather than declaring a
+      // fresh loop variable (IEEE 1800-2017/2023 12.7.3: "It shall be an
+      // error for any loop variable to have the same identifier as the
+      // array" implies an outer-scope identifier reused here is a
+      // selector, not a redeclaration). The bare identifier still
+      // reduces through `loop_variables' for the same 1-token-lookahead
+      // reason the dotted form's comment explains; there is just no `.
+      // foreach_array_identifier' between the two bracket groups here.
+      // Real, unmodified OpenTitan DV source relies on exactly this
+      // shape (hw/dv/sv/dv_utils/dv_report_catcher.sv: `foreach
+      // (m_changed_sev[id][msg])' over a `uvm_severity
+      // m_changed_sev[string][string]' where `id' is already a local
+      // variable). Confirmed independently: slang (--std 1800-2017)
+      // accepts it, 0 errors.
+  | K_foreach '(' foreach_array_identifier '[' loop_variables ']' '['
+    loop_variables ']' ')'
+      {
+	char for_block_name[64];
+	snprintf(for_block_name, sizeof for_block_name, "$ivl_foreach%u", foreach_block_counter);
+	foreach_block_counter += 1;
+
+	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
+	current_block_stack.push(tmp);
+
+	  /* The shape check alone (single non-nil identifier) cannot tell a
+	     genuine selector from a plain typo'd/undeclared second loop
+	     variable -- both look identical to the parser. IEEE 1800-2017/
+	     2023 12.7.3 draws the line by whether that identifier is
+	     "already declared in a scope enclosing the foreach statement";
+	     check that now, while `id' is still just a name and before
+	     anything downstream can quietly treat an unresolved reference
+	     as a valid (if degraded) index expression. */
+        bool shape_ok = $5->size() == 1 && !$5->front().nil();
+        bool declared_ok = shape_ok
+              && pform_wire_visible_in_enclosing_scope($5->front());
+        if (shape_ok && !declared_ok) {
+              cerr << @5 << ": error: '" << $5->front() << "' is not a "
+                      "declared variable in any enclosing scope; a "
+                      "foreach selector prefix (`array[" << $5->front()
+                   << "][...]') must name one, not introduce a new loop "
+                      "variable here." << endl;
+              error_count += 1;
+        }
+        if (declared_ok) {
+              index_component_t itmp;
+              itmp.sel = index_component_t::SEL_BIT;
+              itmp.msb = new PEIdent($5->front(), @5.lexical_pos);
+              FILE_NAME(itmp.msb, @5);
+              itmp.lsb = nullptr;
+              $3->back().index.push_back(itmp);
+              pform_make_foreach_declarations(@1, $3, $8);
+        } else {
+              pform_make_foreach_declarations(@1, nullptr, $8);
+        }
+      }
+    statement_or_null
+      { bool shape_ok = $5->size() == 1 && !$5->front().nil();
+        bool declared_ok = shape_ok
+              && pform_wire_visible_in_enclosing_scope($5->front());
+        if (!shape_ok)
+              yyerror(@1, "error: A selected foreach prefix requires one index expression.");
+        // The undeclared-identifier case already reported its own,
+        // more specific error in the mid-rule action above.
+
+	PForeach*tmp_for = 0;
+	if (declared_ok) {
+	      tmp_for = pform_make_foreach(@1, *$3, $8, $12);
+	} else {
+	      delete $8;
+	      delete $12;
+	}
+	delete $5;
+	delete $3;
+
+	pform_pop_scope();
+	PBlock*tmp_blk = current_block_stack.top();
+	current_block_stack.pop();
+	if (tmp_for) {
+	      vector<Statement*>tmp_for_list(1);
+	      tmp_for_list[0] = tmp_for;
+	      tmp_blk->set_statement(tmp_for_list);
+	}
+	$$ = tmp_blk;
+      }
+
   /* Error forms for loop statements. */
 
   /* These recover from a malformed loop header. They must spell the shared

@@ -2455,3 +2455,124 @@ behaves identically to `a |=> ##5 b` — both pass or fail together
 against the same stimulus, proving the composed delay is exactly 5,
 not silently wrong in either direction. Permanent regression:
 `ivtest/ivltests/sv_sva_chained_leading_cycle_delay.v`. Status: fixed.
+
+### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17)
+
+Found via a fresh OpenTitan census against the corrected release pin
+(Earlgrey-PROD-M6): `hw/dv/sv/dv_utils/dv_report_catcher.sv:19`,
+`foreach (m_changed_sev[id][msg])` over `uvm_severity
+m_changed_sev[string][string]`, where `id` is already a local
+variable — a `foreach` **selected prefix** (IEEE 1800-2017/2023
+12.7.3: an index-bracket identifier already declared in an enclosing
+scope acts as a fixed selector, not a fresh loop variable). This form
+had never been supported for the UNDOTTED double-bracket shape
+(`arr[id][msg]`, no `.member` between the brackets) — only the
+DOTTED form (`obj.key[0].member[i]`) had a grammar production. Fixing
+the grammar gap surfaced a far more serious, PRE-EXISTING bug in the
+shared elaboration path.
+
+**Grammar fix:** added a new `parse.y` alternative to the `foreach`
+statement's production list, mirroring the already-existing dotted
+"selected-prefix" rule (`K_foreach '(' foreach_array_identifier '[' loop_variables ']'
+'.' foreach_array_identifier '[' loop_variables ']' ')'`), minus the
+`.foreach_array_identifier` in between. A bare identifier in the first
+bracket reduces through `loop_variables` for the same 1-token-lookahead
+reason the existing dotted rule's own comment documents (bison cannot
+distinguish a length-1 `loop_variables` list from an `expression` with
+one token of lookahead). Verified via `bison --report=state`: shift/
+reduce and reduce/reduce conflict totals unchanged from baseline — zero
+new conflicts.
+
+**Correctness gate added (parse.y, before treating the identifier as a
+selector):** the LRM's "already declared in an enclosing scope" clause
+is the dividing line between a legal selector and an accidental fresh
+loop variable, so a new `pform_wire_visible_in_enclosing_scope()`
+helper (`pform.cc`/`pform.h`, walks `LexicalScope::wires_find()` up the
+full parent chain — the existing `pform_get_wire_in_scope()` only
+checks one level, insufficient here since the selector can be declared
+in any scope enclosing the `foreach`, not just the innermost one) now
+checks this at parse time. An undeclared identifier in that position
+(`foreach (m[k1][k2])` with fresh `k1`) is a real, focused elaboration
+error, not a silent pass — confirmed independently: slang
+(`--std 1800-2017`) also rejects it, as "use of undeclared identifier
+'k1'". Before this gate, Icarus silently accepted it with only a soft
+"Unable to bind" warning and undefined runtime behavior.
+
+**The deeper bug (why this stays a `sorry:`, not a real fix):** with
+the grammar and undeclared-selector gate both correct, a real
+clocked/discriminating-population runtime test (NOT just a compile
+check — see [[discovered-debt-hypothesis-is-not-diagnosis]] and
+[[parse-y-conflict-totals-are-insufficient]], the same "verify past
+the first coincidental pass" discipline) showed that `foreach
+(m[id][msg])` — for EITHER a literal constant selector (`m["a"][msg]`)
+or a variable one, and regardless of the associative array's key
+type — never actually applies the selector at all. Root cause:
+`PForeach::elaborate`'s `hier_sig` fast path (`elaborate.cc`) finds
+`m` as a plain signal via `des->find_signal()` (which matches on the
+base name alone, ignoring the appended selector index entirely) and
+calls `elaborate_signal_array_()`, which wraps the WHOLE outer array
+in a bare `NetESignal` and hands it straight to
+`elaborate_assoc_array_()` — the selector index is simply never
+consulted. Confirmed the identical bug is reachable through the
+ALREADY-MERGED, previously-shipped "fixed expression" rule too
+(`parse.y`'s `'[' expression ']' '[' loop_variables ']'` production,
+landed earlier this session under a different item) — this is not a
+defect introduced by the new grammar rule, it is a latent gap the new
+rule made reachable from a second angle, exactly like DD-039's
+chained-delay discovery. Failure mode varies by shape (a string-keyed
+outer array with a variable selector iterates the OUTER array's own
+keys into the inner loop variable; other combinations silently
+iterate zero times) — all wrong, none diagnosed, until this fix.
+
+**Fix scope (deliberately narrow — refuse, don't attempt to
+lower):** added a `foreach_target_has_selector_prefix_()` check
+(`elaborate.cc`) gating both reachable dispatch sites
+(`elaborate_signal_array_` and the parallel `elaborate_foreach_target_expr_`-based
+expression route) to refuse with an honest `sorry:` whenever the
+**final** path component being iterated carries a non-empty selector
+index, rather than attempt the real fix (threading a runtime-evaluated
+key expression through `elaborate_assoc_array_`, which `PForeach`'s
+current interface does not support and is out of scope for this
+session).
+
+**A near-miss worth recording as its own lesson:** the first version
+of this gate checked whether ANY component of the target path had a
+non-empty index, not just the final one. That misclassified plain,
+already-correct dotted class-property `foreach` targets — where an
+EARLIER component's index is an ordinary element select (e.g. the
+outer foreach's own loop variable indexing into a different, non-target
+array along the way) rather than a selector on the array actually
+being iterated — as selector-prefixed, and refused them too. UVM's own
+`uvm-core/src/base/uvm_phase.svh:1551` uses exactly this shape
+(`foreach (successors[s].m_predecessors[pred])` nested inside `foreach
+(successors[s])`, where `s` is the outer loop's own variable and
+`m_predecessors` — the real target — carries no selector of its own).
+The overly-broad gate took UVM regression from 357/0/0 to 0/357/0 in
+one local run, since `uvm_phase.svh` is a mandatory dependency of
+every UVM test — caught before landing by re-running the full UVM
+gate specifically because the mission's local six-gate bar treats any
+regression there as disqualifying, not by code review alone. Narrowed
+the check to `array_path.back().index` (the component whose type is
+actually iterated) before landing; UVM regression is 357/0/0 with the
+corrected gate. See `sv_foreach_nested_assoc_no_selector.v` for the
+permanent regression protecting this exact shape.
+
+**Closure requirements:** thread a runtime-evaluated selector key
+expression through `elaborate_assoc_array_()` so the correct sub-array
+is looked up on every loop entry (not baked in once at elaboration
+time, since the selector's value can change between separate `foreach`
+executions or — per the near-miss case above — across outer-loop
+iterations). This does not by itself unblock the OpenTitan UVM/runtime
+census jobs that hit `dv_report_catcher.sv`: a `sorry:` still
+increments `error_count`, so those cores remain `FAIL`, just with an
+honest, specific diagnostic instead of a raw `syntax error`. Status:
+recorded, not selected.
+
+Tests: `ivtest/ivltests/sv_foreach_selected_prefix_assoc_fail.v`
+(undotted selector into a nested associative array, `sorry:`,
+gold-verified), `sv_foreach_undotted_selected_prefix_fail.v`
+(undeclared selector identifier, real elaboration error, gold-verified),
+`sv_foreach_nested_assoc_no_selector.v` (the UVM-shaped false-positive
+protection, real clocked runtime check with a discriminating population
+— two outer keys with disjoint inner key sets — not just a compile
+check).
