@@ -2773,3 +2773,41 @@ needs runtime coverage verification (does the ignore_bins actually
 suppress the correct tuples, not just parse), not a compile-only
 check, per this session's own established discipline. Status:
 recorded, not selected.
+
+### DD-043 — Constraint `foreach`: no undotted selected-prefix form (`foreach (arr[fixed][loop])`), only plain and dotted-member forms exist (2026-09-17)
+
+Found via the fresh OpenTitan census (Earlgrey-PROD-M6):
+`hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:118-122`:
+```systemverilog
+foreach (filter_cfg[channel]) {
+  foreach (filter_cfg[channel][filter]) {
+    soft filter_cfg[channel][filter] == FILTER_CFG_DEFAULTS[filter];
+  }
+}
+```
+`filter_cfg` is `rand int filter_cfg[NumAdcFilters][ADC_CTRL_NUM_CHANNELS]` — a plain 2D unpacked array, no class/struct member involved anywhere. The inner `foreach (filter_cfg[channel][filter])` hits a raw `syntax error`. This is the exact same construct class as DD-040 (a `foreach` selected-prefix, IEEE 1800-2017/2023 12.7.3: `channel` is already declared by the enclosing `foreach`, so it selects a fixed index rather than introducing a second loop variable) — but here inside a `constraint` block's iterative-constraint form (18.5.7.1) rather than an ordinary statement.
+
+**Confirmed independently: slang (`--std 1800-2017`) accepts this exact reducer, 0 errors** (minimal standalone reproducer, no OpenTitan/UVM dependency):
+```systemverilog
+class C;
+  rand int filter_cfg[3][4];
+  int FILTER_CFG_DEFAULTS[4];
+  constraint c1 {
+    foreach (filter_cfg[channel]) {
+      foreach (filter_cfg[channel][filter]) {
+        filter_cfg[channel][filter] == FILTER_CFG_DEFAULTS[filter];
+      }
+    }
+  }
+endclass
+module t;
+  initial begin C c = new; void'(c.randomize()); end
+endmodule
+```
+(`soft` and the nested-`foreach`-ness are both incidental: a single-level `foreach (arr[i]) { soft arr[i] == ...; }` already works fine today, confirming `soft` is not implicated; a 2D array with two *plain* foreach loop variables via the comma form, e.g. `foreach (filter_cfg[channel, filter])`, was not tried this pass but is expected to already work since it doesn't touch the selected-prefix grammar path at all.)
+
+**Root cause:** `parse.y`'s `constraint_expression` nonterminal (IEEE 1800-2017/2023 18.5.7.1) has exactly two `K_foreach` alternatives: a plain single-bracket form (`K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set`) and a DOTTED selected-prefix form for a hierarchical/member target (`K_foreach '(' IDENTIFIER '[' loop_variables ']' '.' IDENTIFIER '[' loop_variables ']' ')' constraint_set`, already correctly implementing the "prefix_names select an already-declared value, not a fresh loop variable" semantics — the same ambiguity `parse.y` documents for the plain-statement foreach in ledger G65). There is no UNDOTTED sibling (`IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'`, no `.member` in between) — exactly the gap DD-040 closed for ordinary statement `foreach`, but never added on the constraint side.
+
+**Why this is not the same quick fix as DD-040:** on the statement side, `pform_make_foreach`/`PForeach::elaborate` provided a natural place to add the new grammar alternative and its guard. On the constraint side, `PEConstraintForeach` already has a distinct "hierarchical target" constructor and code path (`constraint_foreach_source_type_` in `elaborate.cc`, plus consumers at ~23974/27468/28856/30745) that assumes a real `.member_name` follows the prefix — after consuming `prefix_names().size()` array dimensions, it looks up `member_name` as a **class property or struct member** (`constraint_class_component_type_`/`record->member_index()`). An undotted selected-prefix (`arr[fixed][loop]`, plain array, no member) does not fit that shape: there is no member to look up, only "continue iterating the same array's own remaining dimension." Naively reusing the hierarchical constructor with `member_name == array_name` would make the elaborator try (and fail) a class/struct member lookup that was never supposed to happen. A correct fix needs either a third `PEConstraintForeach` shape (prefix-into-same-array, no member) or generalizing the hierarchical path to recognize "no member, self-referential continuation" as a distinct case, and updating every one of `constraint_foreach_source_type_`'s downstream consumers to handle it. Given this session's own DD-039/DD-040/DD-042 near-misses from touching shared, multi-site elaboration code under time pressure, this was diagnosed precisely (LRM/G65-pattern-confirmed root cause, minimal reproducer, slang-verified) and then deliberately not attempted blind.
+
+**Closure requirements:** add the undotted grammar alternative to `constraint_expression` (mirroring DD-040's parse.y pattern, including the `pform_wire_visible_in_enclosing_scope`-style undeclared-selector guard — an undeclared identifier in the constraint-foreach selector position should be a real error here too, not silently accepted); extend `PEConstraintForeach` and `constraint_foreach_source_type_` (and its ~4 known consumers) to handle "prefix into the same array, no member" as its own case rather than misrouting through the class/struct member-lookup path. A real regression test needs actual constraint-solver output verification (does `randomize()` actually respect the fixed-selector semantics — a discriminating population, e.g. two different `channel` values producing correctly different constrained results — not just "does it parse"), per this session's own established discipline. Status: recorded, not selected.
