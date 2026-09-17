@@ -2220,6 +2220,39 @@ attempted this pass; this is a concrete, specific next step for
 whoever picks this up, not a vague "reduce further." Not pursued
 further this pass.
 
+**Third follow-up (2026-09-17): "two elaborated instances of a
+class" ruled out.** Extended the 4-level reducer to two `chip_if`
+instances (`u_chip_if0`, `u_chip_if1`) each driving its own
+`scoreboard` instance (`sb0`, `sb1`), both calling the same
+`process_alerts_for_cov()` method. Still does not crash, and — the
+decisive part — the `foreach`-resolution error is printed only
+**once**, not twice as in the real trace. A class method body
+elaborates once as shared code regardless of how many object
+instances call it; per-instance elaboration was never going to
+duplicate the error under a second scope, and it didn't. This closes
+the specific next step the previous follow-up recorded.
+
+Status of the two concrete leads this entry has recorded so far:
+- 4-level nesting depth: ruled out (second follow-up above).
+- Two elaborated instances of the same class: ruled out (this
+  follow-up).
+
+Remaining candidate explanation, unchanged and still untested:
+whatever construct actually causes the *same* method body to be
+re-elaborated a *second* time under a *different*, anonymous
+`_ivl_%d` scope (`net_scope.cc`'s generic anonymous-scope counter,
+not specific to `foreach` or any known retry mechanism). No third
+hypothesis has been formed — the candidates (`fork`, an unnamed
+`begin`, virtual/derived-class method dispatch, some other deferred-
+elaboration retry path) are unconfirmed guesses, not evidence-backed
+leads, and testing them blind risks burning a session without
+converging. Confirms the earlier assessment: this needs a dedicated
+session with a fresh angle (most likely: read the code path that runs
+immediately after `chip_scoreboard.sv:49`'s diagnostic in the real
+file, or trace what actually creates an `_ivl_%d`-named scope during
+class-method elaboration, rather than guessing at reducers). Not
+pursued further this pass.
+
 ### DD-038 — Crash: `ivl` aborts (`ivl_assert`/`assert()` failure in `pform_endgenerate`) on `spid_upload_sim` after cascading syntax errors (2026-09-16)
 
 Found in the same scan as DD-037, also incorrectly reported fixed by
