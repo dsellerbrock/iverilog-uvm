@@ -2282,7 +2282,45 @@ priority, since the underlying rejection is already correct): give
 declaration their own specific diagnostic (matching slang's
 "qualifiers are not allowed on out-of-block method definitions")
 instead of a generic `syntax error`, improving diagnostic quality even
-though the construct stays correctly rejected either way. Status:
+though the construct stays correctly rejected either way.
+
+**Follow-up (2026-09-16, same pass): traced exactly why the raw
+grammar-level `syntax error` happens at all, as a candidate alternate
+fix angle to the "trace the mis-route" approach above** — a fix here
+might make the whole downstream cascade (and crash) moot without
+needing to understand the `case`/`generate_case` mis-route itself.
+`parse.y`'s qualifier-prefixed task/function forms (`K_pure`/
+`K_extern`/`K_virtual`/`K_static`-style productions, roughly lines
+3248-3649) are *only* reachable from `class_item` — there is no
+`module_item`/`generate_item` alternative anywhere that starts with
+`K_static`/`K_virtual`/etc. before `K_task`/`K_function`. The ordinary
+module-scope task-declaration production (`K_task lifetime_opt
+IDENTIFIER ...`, ~line 8743) puts the optional lifetime keyword
+*after* `K_task`, matching `task automatic foo();`, not `static task
+foo();`. So when the parser is in module-item context and sees a bare
+`static` token, no grammar rule matches at all — bison enters
+genuine panic-mode error recovery from the very first token of the
+construct, which is presumably a real contributor to the badly-
+corrupted recovery state that eventually reaches
+`pform_endgenerate()`'s violated invariant.
+
+A clean fix along this angle would add a new `module_item`-level (or
+wherever ordinary task/function declarations live) alternative that
+accepts the illegal `K_static`/`K_virtual`/etc. prefix syntactically
+(so bison never needs panic-mode recovery for it at all), reports the
+specific semantic error immediately (matching slang's wording), and
+then parses the rest of the task/function body using the *same*
+existing sub-rules as the ordinary production (to avoid duplicating
+the whole task-body grammar). **Not attempted this pass**: doing this
+safely requires checking for new shift/reduce or reduce/reduce
+conflicts against the *existing* `class_item` qualifier productions
+(since `K_static`/`K_virtual` already start valid rules in that
+context — a nested-class-in-module edge case, or any context where
+both `module_item` and `class_item` alternatives could apply at the
+same parser state, needs checking) — genuine grammar surgery with a
+real conflict-verification burden, not a quick patch, per this
+session's own `bison -y -d --report=state` discipline applied
+throughout L118-L127. Status:
 recorded, not selected — the standalone single-file reducer
 (`hw/ip/spi_device/pre_dv/tb/spid_upload_tb.sv`, no dependencies)
 significantly lowers the bar for a future session to pick this up.
