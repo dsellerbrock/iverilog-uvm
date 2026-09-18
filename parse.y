@@ -6121,22 +6121,29 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 	PBlock*tmp = pform_push_block_scope(@1, for_block_name, PBlock::BL_SEQ);
 	current_block_stack.push(tmp);
 
-	/* The selected target cannot use the declaration-time dimension
-	   lookup helper, so its loop variables use the standard int index
-	   type. Bounds still come from the selected expression at elaboration. */
-	pform_make_foreach_declarations(@1, nullptr, $8);
-      }
-    statement_or_null
-      { pform_name_t*tmp_name = $3;
-	name_component_t&tail = tmp_name->back();
+	/* Attach the fixed-selector index onto the array name NOW (not in
+	   the final action below, after the body is parsed) so
+	   pform_make_foreach_declarations sees a properly-indexed
+	   array_name and can resolve the trailing loop variable's real
+	   declared type (e.g. `string' for a string-keyed associative
+	   array) through foreach_index_type_t's "selected" branch, the
+	   same helper the undotted selected-prefix rule above uses. A
+	   bare `int' fallback here silently mistypes the loop variable for
+	   any non-int-keyed associative target, which the vvp code
+	   generator's %aa/first/str vs. %aa/first/sv opcode choice depends
+	   on -- getting this wrong doesn't fail loudly, it just iterates
+	   zero elements (confirmed with a real runtime check, not just a
+	   compile check; see DD-040). */
 	index_component_t itmp;
 	itmp.sel = index_component_t::SEL_BIT;
 	itmp.msb = $5;
 	itmp.lsb = nullptr;
-	tail.index.push_back(itmp);
-
-	PForeach*tmp_for = pform_make_foreach(@1, *tmp_name, $8, $12);
-	delete tmp_name;
+	$3->back().index.push_back(itmp);
+	pform_make_foreach_declarations(@1, $3, $8);
+      }
+    statement_or_null
+      { PForeach*tmp_for = pform_make_foreach(@1, *$3, $8, $12);
+	delete $3;
 
 	pform_pop_scope();
 	PBlock*tmp_blk = current_block_stack.top();
