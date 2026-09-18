@@ -34739,29 +34739,52 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      xbin_t&cb = cross.bins[ub];
 				      int m = -1;
 				      if (cb.with_expr) {
-					    bool exact_tuple = !cross.label.nil()
-						  && cb.with_cross == cross.label;
-					    std::map<perm_string,int64_t> tuple_values;
-					    for (size_t k = 0;
-						 exact_tuple && k < idx.size(); k++) {
-						  const xbin_desc_t&d =
-							cp_value_bins[cp_indexes[k]][idx[k]];
-						  if (d.ranges.size() != 1
-						      || d.ranges[0].first != d.ranges[0].second
-						      || d.transition_prop >= 0
-						      || d.transition_family >= 0
-						      || d.dyn_family >= 0) {
-							exact_tuple = false;
-							break;
+					      /* IEEE 1800-2023 19.6.1: `with' suffixes the
+						 general, recursive select_expression -- not
+						 only the bare cross_identifier alternative.
+						 `cb.select' carries that general expression's
+						 tree when the grammar built one (M11-3's
+						 existing evaluator below handles it exactly
+						 like the non-`with' bins forms); its absence
+						 means the source used the bare-name form,
+						 which is restricted to naming the enclosing
+						 cross itself (a no-op selector: the whole
+						 product still applies). Either way, `with'
+						 additionally filters by evaluating the
+						 predicate over this tuple's concrete
+						 per-coverpoint values, which still requires
+						 every contributing bin to be a singleton
+						 integral value. */
+					    int sel_m = cb.select
+						  ? eval_sel(cb.select, idx)
+						  : ((!cross.label.nil()
+						      && cb.with_cross == cross.label) ? 1 : -1);
+					    if (sel_m <= 0) {
+						  m = sel_m;
+					    } else {
+						  bool exact_tuple = true;
+						  std::map<perm_string,int64_t> tuple_values;
+						  for (size_t k = 0;
+						       exact_tuple && k < idx.size(); k++) {
+							const xbin_desc_t&d =
+							      cp_value_bins[cp_indexes[k]][idx[k]];
+							if (d.ranges.size() != 1
+							    || d.ranges[0].first != d.ranges[0].second
+							    || d.transition_prop >= 0
+							    || d.transition_family >= 0
+							    || d.dyn_family >= 0) {
+							      exact_tuple = false;
+							      break;
+							}
+							tuple_values[cross.cp_labels[k]] =
+							      (int64_t)d.ranges[0].first;
 						  }
-						  tuple_values[cross.cp_labels[k]] =
-							(int64_t)d.ranges[0].first;
+						  int64_t result = 0;
+						  if (exact_tuple
+						      && cov_named_eval_(cb.with_expr,
+								       tuple_values, result) >= 0)
+							m = result != 0;
 					    }
-					    int64_t result = 0;
-					    if (exact_tuple
-						&& cov_named_eval_(cb.with_expr,
-								 tuple_values, result) >= 0)
-						  m = result != 0;
 				      } else {
 					    m = eval_sel(cb.select, idx);
 				      }
