@@ -4170,6 +4170,55 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	delete[] $8;
 	$$ = tmp;
       }
+  /* DD-043: the undotted counterpart of the hierarchical-target rule just
+     above -- `foreach (arr[id][loopvars])' where `arr' is a plain (not
+     class/struct-member) multi-dimensional array and `id' already denotes
+     a value in an enclosing scope, selecting one element of `arr' along
+     that dimension and continuing to iterate `arr's OWN remaining
+     dimension(s), rather than declaring a fresh second loop variable
+     (IEEE 1800-2017/2023 12.7.3 -- the identical rule DD-040 applied to
+     the plain-statement foreach of this same shape). Reuses the existing
+     hierarchical PEConstraintForeach constructor with a NIL member_name:
+     elaborate.cc's consumers already distinguish "has_hierarchical_target()
+     with a real member_name" (a dotted class/struct member, unchanged)
+     from "has_hierarchical_target() with a nil member_name" (this case:
+     self-referential continuation into the same array, no member lookup
+     at all). Confirmed independently: slang (--std 1800-2017) accepts
+     this shape, 0 errors; real, unmodified OpenTitan DV source relies on
+     it (hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:118-122).
+
+     Unlike the plain-statement foreach's undotted form (DD-040), this
+     does NOT check the selector identifier against a parse-time symbol
+     table: a constraint foreach's own loop variables are not declared as
+     real wires (they exist only as PEConstraintForeach::loop_vars_,
+     resolved through a runtime loop_env at elaboration, not the pform
+     wire table pform_wire_visible_in_enclosing_scope() checks) -- so
+     there is no parse-time table to check the selector against here,
+     matching the already-shipped DOTTED constraint-foreach rule just
+     above, which accepts its own prefix_names the same way. An
+     undeclared/misspelled selector fails to resolve at elaboration
+     instead (the array-index reference inside the constraint body can't
+     find it in loop_env), consistent with that existing form's own
+     behavior. */
+  | K_foreach '(' IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'
+    ')' constraint_set
+      { PEConstraintForeach*tmp = nullptr;
+	if ($5->size() == 1 && !$5->front().nil()) {
+	      std::list<perm_string>*prefix = new std::list<perm_string>();
+	      prefix->push_back($5->front());
+	      tmp = new PEConstraintForeach(lex_strings.make($3), prefix,
+					    perm_string(), $8, $11);
+	      FILE_NAME(tmp, @1);
+	} else {
+	      yyerror(@1, "error: A selected foreach prefix requires one index expression.");
+	      delete $8;
+	      for (PExpr*item : *$11) delete item;
+	      delete $11;
+	}
+	delete[] $3;
+	delete $5;
+	$$ = tmp;
+      }
   /* I4 (Phase 62c): soft constraint — wrap in PESoft so the IR emitter
      marks it for Z3_optimize_assert_soft (default weight 1).  Other
      contexts (non-constraint elaboration) delegate through to the inner

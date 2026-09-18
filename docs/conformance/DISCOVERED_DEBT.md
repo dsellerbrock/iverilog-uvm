@@ -2895,3 +2895,46 @@ that would otherwise depend on them — see
 `ivtest/ivltests/sv_covergroup_cross_with_select_expr.v`. Local
 six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI
 108/0, negative 148/0, runtime invariants 15/15). Status: fixed.
+
+### DD-043 — Constraint `foreach`: no undotted selected-prefix form (`foreach (arr[fixed][loop])`), only plain and dotted-member forms exist (2026-09-17, FIXED)
+
+Found via the fresh OpenTitan census (Earlgrey-PROD-M6):
+`hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:118-122`:
+```systemverilog
+foreach (filter_cfg[channel]) {
+  foreach (filter_cfg[channel][filter]) {
+    soft filter_cfg[channel][filter] == FILTER_CFG_DEFAULTS[filter];
+  }
+}
+```
+`filter_cfg` is `rand int filter_cfg[NumAdcFilters][ADC_CTRL_NUM_CHANNELS]` — a plain 2D unpacked array, no class/struct member involved anywhere. The inner `foreach (filter_cfg[channel][filter])` hit a raw `syntax error`. This is the exact same construct class as DD-040 (a `foreach` selected-prefix, IEEE 1800-2017/2023 12.7.3: `channel` is already declared by the enclosing `foreach`, so it selects a fixed index rather than introducing a second loop variable) — but here inside a `constraint` block's iterative-constraint form (18.5.7.1) rather than an ordinary statement.
+
+**Confirmed independently: slang (`--std 1800-2017`) accepts this exact reducer, 0 errors** (minimal standalone reproducer, no OpenTitan/UVM dependency):
+```systemverilog
+class C;
+  rand int filter_cfg[3][4];
+  int FILTER_CFG_DEFAULTS[4];
+  constraint c1 {
+    foreach (filter_cfg[channel]) {
+      foreach (filter_cfg[channel][filter]) {
+        filter_cfg[channel][filter] == FILTER_CFG_DEFAULTS[filter];
+      }
+    }
+  }
+endclass
+module t;
+  initial begin C c = new; void'(c.randomize()); end
+endmodule
+```
+
+**Root cause:** `parse.y`'s `constraint_expression` nonterminal (IEEE 1800-2017/2023 18.5.7.1) had exactly two `K_foreach` alternatives: a plain single-bracket form and a DOTTED selected-prefix form for a hierarchical/member target (`K_foreach '(' IDENTIFIER '[' loop_variables ']' '.' IDENTIFIER '[' loop_variables ']' ')' constraint_set`). There was no UNDOTTED sibling (`IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'`, no `.member` in between) — exactly the gap DD-040 closed for ordinary statement `foreach`, but never added on the constraint side.
+
+**Why this needed more than a grammar rule:** `PEConstraintForeach`'s hierarchical-target code path (`constraint_foreach_source_type_` in `elaborate.cc`, plus the emission dispatcher's `has_hierarchical_target()` branch) assumed a real `.member_name` always followed the prefix — after consuming `prefix_names().size()` array dimensions, it looked up `member_name` as a class property or struct member and, at emission time, routed through the `qforeach` runtime-queue machinery (which requires a DYNAMIC array/queue element type, not a static one). An undotted selected-prefix has no member to look up and is not a queue: it needs to continue iterating the SAME array's own remaining STATIC dimension(s), unrolled at elaboration time like the plain form already does.
+
+**Fix:** the new grammar alternative reuses the EXISTING hierarchical `PEConstraintForeach` constructor, passing a NIL `member_name` to mark "no member, self-referential continuation into the same array" — no new field or third constructor shape needed. Two `elaborate.cc` sites were updated to recognize this marker:
+- `constraint_foreach_source_type_`: when `member_name()` is nil, return the array type as already reduced by consuming `prefix_names().size()` dimensions (the remaining-dimension array type) directly, instead of falling into the member-lookup path that assumes the prefix fully consumed every dimension.
+- The constraint-IR emission dispatcher: a nil `member_name()` now skips the `qforeach`/dotted-member branch entirely (that branch's own guard was narrowed to `has_hierarchical_target() && !member_name().nil()`) and falls through to the existing plain-static-array unroll loop, which was extended to offset past `prefix_names().size()` LEADING dimensions — those are already fixed by an outer, already-bound variable (present in the incoming `loop_env`, seeded by the enclosing foreach's own unroll), not re-iterated here — so the trailing loop variables unroll the array's REMAINING dimensions instead of restarting at dimension 0.
+
+Unlike DD-040's plain-statement form, this grammar rule does not check the selector identifier against a parse-time symbol table: a constraint foreach's own loop variables are not declared as real wires (they exist only as `PEConstraintForeach::loop_vars_`, resolved through a runtime `loop_env` at elaboration), so there is no parse-time table to check the selector against — matching the already-shipped DOTTED constraint-foreach rule, which accepts its own `prefix_names` the same way, without a declared-check either. An undeclared/misspelled selector fails to resolve at elaboration instead (the array-index reference inside the constraint body can't find it in `loop_env`), consistent with that existing form's own behavior.
+
+**Verified:** `bison --report=state` conflict totals and per-state conflict-shape multiset unchanged from the origin/main baseline (572 shift/reduce, 1122 reduce/reduce, 209 conflicting states, same shapes) — zero new conflicts. A real discriminating-population runtime check (not just "does it compile"): the constraint value depends on BOTH the prefix-selected outer variable and the freshly-iterated inner variable, producing 12 distinct correctly-constrained values across a 3x4 array — see `ivtest/ivltests/sv_constraint_foreach_undotted_selected_prefix.v`. Confirmed the pre-existing plain single-bracket, comma multi-dimensional, and dotted hierarchical-member forms are all unaffected. Local six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI 108/0, negative 148/0, runtime invariants 15/15). Status: fixed.
