@@ -2683,7 +2683,7 @@ not just "does it not crash") is required once a fix is attempted,
 per [[discovered-debt-hypothesis-is-not-diagnosis]] and this session's
 own DD-039/DD-040 near-misses. Status: recorded, not selected.
 
-### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17)
+### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, FIXED)
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
 real corpus files hit a raw `syntax error` on a cross-body `ignore_bins`
@@ -2740,36 +2740,58 @@ name, matching just the `cross_identifier` alternative of
 `select_expression`, not the `binsof`/`&&`/`||`/paren alternatives the
 LRM also allows before `with`.
 
-**Why this isn't a small parse.y-only fix:** the pform-level struct
+**Why this wasn't a small parse.y-only fix:** the pform-level struct
 these productions populate (`class_type_t::pform_cross_t::cross_bin_t`,
-`PClass.h` or wherever it's declared) has a `with_cross` field typed
-as a bare `perm_string` (a cross/bins *name*), consumed downstream in
-`elaborate.cc` (at minimum lines ~33715, 33802, 34476, 34704, 34725,
-34734 as of this session) including a same-cross-name identity check
-(`cb.with_cross == cross.label`, ~line 34706) that only makes sense
-when the pre-`with` operand really is a name. Generalizing the grammar
-to accept a full `cross_bins_expr` before `with` means either widening
-`with_cross` to hold a full select-tree (like the existing `select`
-field already does for the non-`with` bins forms) and updating every
-elaboration consumer to handle both shapes, or adding a parallel field
-— a real struct-and-multi-site change, not a grammar-only accept-and-
-sorry patch. Given this session's own DD-039/DD-040 near-misses from
-touching shared elaboration code under time pressure, this was
-diagnosed precisely (LRM-confirmed root cause, both real reproducers
-in hand) and then deliberately NOT attempted blind.
+`pform_types.h`) has a `with_cross` field typed as a bare `perm_string`
+(a cross/bins *name*), consumed downstream in `elaborate.cc` including
+a same-cross-name identity check (`cb.with_cross == cross.label`) that
+only makes sense when the pre-`with` operand really is a name.
+Generalizing the grammar to accept a full `cross_bins_expr` before
+`with` needed the existing `select` field (the SAME select-tree
+`cross_bins_expr` already builds for the non-`with` bins forms — no
+new field type required) to carry it, and every `elaborate.cc`
+consumer of the with-dispatch updated to handle both shapes.
 
-**Closure requirements:** generalize `cross_bin_t`'s `with_cross`
-(or add an alternative field) to carry a full `cross_bins_expr` select
-tree instead of a bare name; update parse.y's three `K_with`
-productions to accept `cross_bins_expr K_with '(' expression ')' ';'`
-in addition to (not instead of — `cross_identifier` remains a valid
-LRM alternative) the existing `bins_name K_with (...)` form; update
-every `elaborate.cc` consumer of `with_cross` to evaluate the select
-tree against the candidate bin tuple instead of doing a name-equality
-check, preserving the existing self-reference-only restriction ("Only
-the cross_identifier of the enclosing cross may be used" per 19.6.1.2)
-for the `cross_identifier` case specifically. A real regression test
-needs runtime coverage verification (does the ignore_bins actually
-suppress the correct tuples, not just parse), not a compile-only
-check, per this session's own established discipline. Status:
-recorded, not selected.
+**Fix:** `parse.y` gained three new `cross_body_opt` alternatives
+(`illegal_bins`/`ignore_bins`/`bins`, each mirroring its existing
+`bins_name K_with (...)` sibling) accepting
+`cross_bins_expr K_with '(' expression ')' ';'` and storing the parsed
+select tree into `cb.select` (the SAME field the non-`with` forms
+already populate) alongside `cb.with_expr`. `cross_bins_expr` never
+reduces from a bare IDENTIFIER alone (every alternative requires
+`binsof`/`!`/`&&`/`||`/parens), so this cannot collide with the
+existing bare-name `bins_name K_with` form — confirmed via
+`bison --report=state`: shift/reduce and reduce/reduce conflict
+totals AND the full per-state conflict-shape multiset (count+type per
+conflicting state, ignoring state numbers that shift when new states
+are inserted — see [[parse-y-conflict-totals-are-insufficient]]) are
+byte-for-byte identical to the origin/main baseline (572 shift/reduce,
+1122 reduce/reduce, 209 conflicting states, same shapes) — zero new
+conflicts.
+
+`elaborate.cc`'s with-dispatch (the loop building each cross's product
+tuples) now branches on whether `cb.select` is set: when it is (the
+new general-expression form), the tuple is first filtered through the
+SAME `eval_sel()` tree-evaluator the non-`with` bins forms already
+use; only a tuple that survives that filter is then ALSO checked
+against the `with` predicate (still requiring every contributing
+coverpoint bin in the tuple to be a singleton integral value, per
+19.6.1.2, unchanged from before). When `cb.select` is null (the
+existing bare-name form), the original `cb.with_cross == cross.label`
+self-reference check runs exactly as before — that path is untouched.
+
+**Verified:** both real OpenTitan shapes (csrng's `!binsof(...)
+intersect {...} with (...)` / `binsof(...) intersect {...} with
+(...)` complementary pair, and pwm's `(binsof(a) && binsof(b)) with
+(...)`) now parse AND elaborate correctly — checked against
+`cov.get_inst_coverage()`, not just compile success: a general-select
+`with`-filtered construct produces IDENTICAL coverage percentages to
+a hand-verified, already-working bare-name `with` construct filtering
+the logically equivalent tuple (27.7778% and 34.4444% on a matched
+3x2 cross, both forms agreeing exactly), and a real
+discriminating-population test explicitly samples the tuples the
+`with`-predicate SHOULD exclude and confirms they don't move coverage
+that would otherwise depend on them — see
+`ivtest/ivltests/sv_covergroup_cross_with_select_expr.v`. Local
+six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI
+108/0, negative 148/0, runtime invariants 15/15). Status: fixed.
