@@ -4745,6 +4745,39 @@ cross_body_opt
 	cb.with_expr = $8;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
+  /* IEEE 1800-2017/2023 19.6.1 (A.2.10): `with' suffixes the general,
+     recursive select_expression, not only the bare cross_identifier
+     alternative -- `!binsof(cp) intersect {...} with (...)' and
+     `(binsof(a) && binsof(b)) with (...)' are both legal (DD-042; both
+     forms confirmed against real, unmodified OpenTitan DV source:
+     hw/ip/csrng/dv/cov/csrng_cov_if.sv and hw/ip/pwm/dv/env/pwm_env_cov.sv).
+     cross_bins_expr never reduces from a bare IDENTIFIER alone (every
+     alternative requires `binsof'/`!'/`&&'/`||'/parens), so this cannot
+     collide with the bins_name K_with form just above. */
+  | cross_body_opt K_illegal_bins bins_name '=' cross_bins_expr K_with '(' expression ')' ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
+	cb.select = $5;
+	cb.with_expr = $8;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
+  | cross_body_opt K_ignore_bins bins_name '=' cross_bins_expr K_with '(' expression ')' ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
+	cb.select = $5;
+	cb.with_expr = $8;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
+  | cross_body_opt K_bins bins_name '=' cross_bins_expr K_with '(' expression ')' ';'
+      { class_type_t::pform_cross_t::cross_bin_t cb;
+	cb.name = lex_strings.make($3);
+	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
+	cb.select = $5;
+	cb.with_expr = $8;
+	pending_cross_bins_.push_back(cb);
+	delete[] $3; }
   | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
       { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
   | cross_body_opt error ';'
