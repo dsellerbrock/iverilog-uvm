@@ -5,6 +5,13 @@ Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
 `fdbb8f34a` and local sync `3ab991187`. This page points to recorded evidence; it does not claim a fresh
 run on every later checkout.
 
+## September 20 integration review
+
+The [PR review and repair record](session_logs/2026-09-20_pr_review_repairs.md)
+identifies the merged-main candidate and the three reproduced defects in
+pending PRs. The combined local candidate is unqualified. Resumption and
+validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
+
 ## Latest recorded compiler qualification
 
 The [L96–L105 qualification record](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json)

@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_foreach_selector_type.v:5: error: Constraint foreach selector `selected' must name an existing integral value.
+1 error(s) during elaboration.

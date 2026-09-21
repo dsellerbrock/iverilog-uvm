@@ -4195,11 +4195,9 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
      wire table pform_wire_visible_in_enclosing_scope() checks) -- so
      there is no parse-time table to check the selector against here,
      matching the already-shipped DOTTED constraint-foreach rule just
-     above, which accepts its own prefix_names the same way. An
-     undeclared/misspelled selector fails to resolve at elaboration
-     instead (the array-index reference inside the constraint body can't
-     find it in loop_env), consistent with that existing form's own
-     behavior. */
+     above, which accepts its own prefix_names the same way. Elaboration
+     validates each undotted selector independently of references in the
+     body, before binding the new loop variables. */
   | K_foreach '(' IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'
     ')' constraint_set
       { PEConstraintForeach*tmp = nullptr;

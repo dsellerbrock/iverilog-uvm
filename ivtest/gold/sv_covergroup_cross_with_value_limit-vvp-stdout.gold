@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_covergroup_cross_with_value_limit.v:18: $finish called at 0 (1s)

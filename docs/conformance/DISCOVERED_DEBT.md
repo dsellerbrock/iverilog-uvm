@@ -2456,7 +2456,10 @@ against the same stimulus, proving the composed delay is exactly 5,
 not silently wrong in either direction. Permanent regression:
 `ivtest/ivltests/sv_sva_chained_leading_cycle_delay.v`. Status: fixed.
 
-### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17, FIXED)
+### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17, REOPENED by 2026-09-20 review)
+
+Current review: PR integration is unqualified; see [the September 20 repair record](session_logs/2026-09-20_pr_review_repairs.md). Earlier test results below retain their original revision scope.
+
 
 Found via a fresh OpenTitan census against the corrected release pin
 (Earlgrey-PROD-M6): `hw/dv/sv/dv_utils/dv_report_catcher.sv:19`,
@@ -2783,7 +2786,10 @@ bind parameter" diagnostic path) was confirmed NOT to be the same
 mechanism and remains unpursued — genuinely out of scope for this fix.
 Status: fixed.
 
-### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, FIXED)
+### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, REOPENED by 2026-09-20 review)
+
+Current review: PR integration is unqualified; see [the September 20 repair record](session_logs/2026-09-20_pr_review_repairs.md). Earlier test results below retain their original revision scope.
+
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
 real corpus files hit a raw `syntax error` on a cross-body `ignore_bins`
@@ -2896,7 +2902,10 @@ that would otherwise depend on them — see
 six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI
 108/0, negative 148/0, runtime invariants 15/15). Status: fixed.
 
-### DD-043 — Constraint `foreach`: no undotted selected-prefix form (`foreach (arr[fixed][loop])`), only plain and dotted-member forms exist (2026-09-17, FIXED)
+### DD-043 — Constraint `foreach`: no undotted selected-prefix form (`foreach (arr[fixed][loop])`), only plain and dotted-member forms exist (2026-09-17, REOPENED by 2026-09-20 review)
+
+Current review: PR integration is unqualified; see [the September 20 repair record](session_logs/2026-09-20_pr_review_repairs.md). Earlier test results below retain their original revision scope.
+
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6):
 `hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:118-122`:
@@ -2938,3 +2947,21 @@ endmodule
 Unlike DD-040's plain-statement form, this grammar rule does not check the selector identifier against a parse-time symbol table: a constraint foreach's own loop variables are not declared as real wires (they exist only as `PEConstraintForeach::loop_vars_`, resolved through a runtime `loop_env` at elaboration), so there is no parse-time table to check the selector against — matching the already-shipped DOTTED constraint-foreach rule, which accepts its own `prefix_names` the same way, without a declared-check either. An undeclared/misspelled selector fails to resolve at elaboration instead (the array-index reference inside the constraint body can't find it in `loop_env`), consistent with that existing form's own behavior.
 
 **Verified:** `bison --report=state` conflict totals and per-state conflict-shape multiset unchanged from the origin/main baseline (572 shift/reduce, 1122 reduce/reduce, 209 conflicting states, same shapes) — zero new conflicts. A real discriminating-population runtime check (not just "does it compile"): the constraint value depends on BOTH the prefix-selected outer variable and the freshly-iterated inner variable, producing 12 distinct correctly-constrained values across a 3x4 array — see `ivtest/ivltests/sv_constraint_foreach_undotted_selected_prefix.v`. Confirmed the pre-existing plain single-bracket, comma multi-dimensional, and dotted hierarchical-member forms are all unaffected. Local six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI 108/0, negative 148/0, runtime invariants 15/15). Status: fixed.
+
+### DD-044 — Class-state array indices in constraint foreach bodies can drop an entire constraint (2026-09-20)
+
+Observed while repairing DD-043 selector validation on local integration
+`0133287ec` using the unchanged `104541cde` compiler. A declared integral
+class-state selector resolves, but the body `a[selected][j] == 10 + j`
+in `foreach (a[selected][j])` is warned as unrepresentable and ignored.
+The compiler returns success. This is not valid constraint implementation.
+
+Root observation: `netclass_t::elaborate`, the empty-IR declaration-constraint
+fallback in `elaborate.cc`, emits a warning without incrementing the error
+count. Applicable semantics: IEEE 1800-2017 18.5.8.1 / 2023 18.5.7.1;
+state variables retain their values under constraint solving (18.3).
+Evidence: `evidence/review-20260920/sv_constraint_foreach_selector_declared-before.log`.
+The first reducer had redundant constraints, so its PASSED banner does not
+prove the dropped constraint. A discriminating unsatisfiable reducer and a
+root-cause fix remain required. Recorded, not selected; do not count the
+warning as successful support.

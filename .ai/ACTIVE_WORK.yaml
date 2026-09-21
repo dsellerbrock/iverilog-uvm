@@ -1,37 +1,59 @@
-id: PARALLEL-L104-L105
-title: Constant comparison sizing and nonlocal constant-function legality
-status: LOCALLY_QUALIFIED_AWAITING_PUBLICATION
-base_revision: eb5eb6ebb
-authority: User authorizes two existing cheaper implementation agents, independent mechanisms and focused validation before broad gates near ten fixes.
-coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Main manifests, Documentation, Integration and review]
+id: PR302-305-CORRECTNESS-REPAIR
+status: FOCUSED_TESTED_BROAD_PENDING
+base_revision: 0133287ec092a6e36d1e6fe18db28835af13e127
+merged_main_baseline: 0991f15d338f73137b416af46f6ca664a74a3d03
+authority: User requests review and merge of all PRs while preserving compiler correctness; goal continuation authorizes fixing identified blockers.
+coordinator_owns: [tracked source integration, shared builds, installations, manifests, documentation, PR publication]
 lanes:
-  - id: L104-CONSTANT-MIXED-EQUALITY
-    agent: /root/constraint_abi
-    status: REGRESSION_TESTED
-    standards: IEEE1800-2017 and2023 5.9, Table11-21,11.8.2
-    reproducer: evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md
-    actual: Constant function comparing integer97 with packed literal a fails evaluation in both editions; runtime equivalent returns true.
-    expected: Apply standard common integral operand sizing and signedness; preserve four-state results and true string equality.
-    owns: [eval_tree.cc, elab_expr.cc]
-    test_prefix: sv_const_mixed_equality
-    dependencies: Existing comparison folders and contextual sizing; independent of nonlocal signal lookup.
-    scope: Trace comparison callers and fix the common sizing mechanism for integral equality, including related equality operators where affected. No net_func_eval.cc edits; report if that file is necessary before proceeding.
-    acceptance: Both editions operand order, unequal widths, signed/unsigned and X/Z, ==/!=/===/!== and wildcard neighbors, literals and explicit casts, true string variables, constant/runtime parity and illegal-type diagnostic control.
-  - id: L105-NONLOCAL-CONSTANT-FALLBACK
-    agent: /root/constraint_wide
-    status: REGRESSION_TESTED
-    standards: IEEE1800-2017 and2023 13.4.3
-    reproducer: evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md
-    actual: Reading mutable package state initialized to7 silently yields constant0 in both editions.
-    expected: Nonlocal mutable variables cannot supply constant-function values; legal package parameters and local values remain valid and ordinary runtime reads retain state.
-    owns: [net_func_eval.cc, net_design.cc]
-    test_prefix: sv_const_nonlocal_static
-    dependencies: Existing NetESignal local context lookup; L101 integrated at7ef17f630. Independent of comparison sizing.
-    scope: Remove fabricated default fallback for nonlocal package/class static reads, preserve legal local evaluation and focused diagnostics. The string parameter branch in net_design.cc must reject an unreduced expression before target lowering, matching existing real/integral checks; direct L105 string reducers otherwise abort in t-dll.cc. No elab_expr.cc or eval_tree.cc edits.
-    acceptance: Both editions initialized/uninitialized mutable package scalar and string values reject, class-static controls reject, legal parameter/local/automatic-frame constants pass, runtime package and static reads observe actual state. Check constant string/array neighbors; no compilation-only success claim.
-file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
-focused_features_completed_in_batch: 10
-integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
-last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
-prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml
+  - id: DD040-SELECTOR-EVALUATION
+    agent: /root/review_foreach
+    owns: [evidence/review-20260920/foreach-patch]
+    scope: Prepare isolated patch for PForeach static selector validation and once-per-loop evaluation; do not edit shared tracked files.
+    standards: IEEE1800-2017 and2023 12.7.3 and expression evaluation
+    reproducer: evidence/review-20260920/selector_effect.sv
+    expected: Evaluate valid selector expressions once and diagnose unresolved names without skipping required effects.
+    acceptance: Positive side effects, repeated invocations, boundary bounds and negative unresolved selector; existing associative and static loops preserved in both editions.
+  - id: DD042-CROSS-WITH-VALUE-TUPLES
+    agent: /root/review_cross
+    owns: [evidence/review-20260920/cross-patch]
+    scope: Prepare isolated evaluator patch for cross with range and multi-value bins using existing mechanisms; no shared tracked edits.
+    standards: IEEE1800-2017 and2023 19.6.1.2
+    reproducer: evidence/review-20260920/cross_range.sv
+    expected: Evaluate the with predicate over bin value tuples with default matches one; never discard requested selection and report success.
+    acceptance: Range and multi-value bins, true and false predicates, partial coverage denominators, singleton neighbors and explicit unsupported boundaries.
+coordinator_item:
+  id: DD043-UNRESOLVED-SELECTOR
+  reproducer: evidence/review-20260920/unknown_selector.sv
+  scope: Validate selected-prefix constraint names before unrolling even when body does not reference them.
+  acceptance: Declared selectors preserved; undefined or ill-typed selectors diagnosed in both editions; no constraint weakening.
+file_conflict_policy: Agents write only private patch artifacts. Coordinator applies nonoverlapping hunks sequentially and owns all tracked compiler edits.
+prior_handoff: evidence/review-20260920/prior-ACTIVE_WORK.yaml
 stop_after_completion: false
+
+registration_lane:
+  agent: /root/register_coverage_tests
+  model: gpt-5.6-luna
+  effort: low
+  status: SELECTED
+  scope: Mechanical registration of three already runtime-verified coverage repair fixtures in both editions.
+  owns: [ivtest/regress-sv.list, ivtest/regress-vvp.list, ivtest/regress-pr-coverage-repairs-legacy.list, ivtest/regress-pr-coverage-repairs-vvp.list, coverage repair JSON/gold/edition wrapper files]
+  evidence: evidence/review-20260920/cross-repairs-results.json
+  forbidden: Compiler edits, substantive test changes, shared harness execution, builds and installation.
+  acceptance: Exact legacy and JSON outputs and diagnostics, no duplicate main-manifest registration.
+
+pr_integration_lane:
+  agent: /root/merge_remaining_prs
+  model: gpt-5.6-terra
+  effort: medium
+  status: PREPARING
+  authority: User explicitly requests agent merge remaining PRs, resolve conflicts and fix CI failures.
+  owns: [evidence/review-20260920/pr-integration]
+  initial_scope: Inspect live PR302/304/305 and prepare corresponding repair publication; no source/index/branch/remote changes before coordinator frozen checkpoint.
+  completion: Publish corresponding reviewed fixes, resolve conflicts, require green gates, then merge only with coordinator correctness clearance.
+  safeguards: No admin bypass, new clones, worktrees or subagents; preserve user AGENTS changes and original stashed adapter.
+
+focused_checkpoint:
+  selectors: Both editions pass exact positive/negative/boundary checks; paired legacy and JSON gates each pass12 tests.
+  coverage: Both editions pass range, signed-zero-crossing, overlapping/disjoint values, false predicates, exact resource boundary and rejection beyond bound; paired harness pending.
+  neighbors: Existing112 legacy foreach/cross neighbors all pass.
+  publication: No repair published or merged until qualification and final review.

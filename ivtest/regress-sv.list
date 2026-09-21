@@ -3921,3 +3921,25 @@ sv_const_nonlocal_static_legal_locals_parameters normal,-g2017 ivltests gold=sv_
 sv_const_nonlocal_static_legal_locals_parameters_2023 normal,-g2023 ivltests gold=sv_const_nonlocal_static_legal_locals_parameters_2023.gold
 sv_const_nonlocal_static_runtime_state normal,-g2017 ivltests gold=sv_const_nonlocal_static_runtime_state.gold
 sv_const_nonlocal_static_runtime_state_2023 normal,-g2023 ivltests gold=sv_const_nonlocal_static_runtime_state_2023.gold
+
+# September20 cross-with repairs
+sv_covergroup_cross_with_range_values normal,-g2017 ivltests gold=sv_covergroup_cross_with_range_values.gold
+sv_covergroup_cross_with_range_values_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_with_range_values.gold
+sv_covergroup_cross_with_value_limit normal,-g2017 ivltests gold=sv_covergroup_cross_with_value_limit.gold
+sv_covergroup_cross_with_value_limit_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_with_value_limit.gold
+sv_covergroup_cross_with_value_limit_fail CE,-g2017 ivltests gold=sv_covergroup_cross_with_value_limit_fail.gold
+sv_covergroup_cross_with_value_limit_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_cross_with_value_limit_fail.gold
+
+# September20 selected-prefix validation and evaluation
+sv_constraint_foreach_selector_unknown CE,-g2017,-s,main ivltests gold=sv_constraint_foreach_selector_unknown.gold
+sv_constraint_foreach_selector_unknown_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_foreach_selector_unknown.gold
+sv_constraint_foreach_selector_type CE,-g2017,-s,main ivltests gold=sv_constraint_foreach_selector_type.gold
+sv_constraint_foreach_selector_type_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_foreach_selector_type.gold
+sv_constraint_foreach_selector_declared normal,-g2017,-s,main ivltests gold=sv_constraint_foreach_selector_declared.gold
+sv_constraint_foreach_selector_declared_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_foreach_selector_declared.gold
+sv_foreach_selector_evaluation normal,-g2017,-s,main ivltests gold=sv_foreach_selector_evaluation.gold
+sv_foreach_selector_evaluation_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_selector_evaluation.gold
+sv_foreach_selector_unresolved CE,-g2017,-s,main ivltests gold=sv_foreach_selector_unresolved.gold
+sv_foreach_selector_unresolved_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_selector_unresolved.gold
+sv_foreach_selector_real CE,-g2017,-s,main ivltests gold=sv_foreach_selector_real.gold
+sv_foreach_selector_real_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_selector_real.gold

@@ -1,0 +1,2 @@
+PASSED
+ivltests/sv_constraint_foreach_selector_declared.v:22: $finish called at 0 (1s)

@@ -21558,6 +21558,66 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
       return target_expr;
 }
 
+/* Evaluate a fixed selector in a static-array foreach target exactly once on
+ * entry to the foreach statement. The selected value does not change the
+ * bounds of the remaining dimensions, but evaluating it is still required to
+ * resolve names/types and preserve expression side effects. */
+static NetProc* prepend_foreach_selector_evaluation_(Design*des,
+                                                     NetScope*scope,
+                                                     const LineInfo&loc,
+                                                     const pform_name_t&path,
+                                                     NetProc*loop)
+{
+      if (!loop || path.empty() || path.back().index.empty()) return loop;
+      NetBlock*block = nullptr;
+      for (const index_component_t&select : path.back().index) {
+            if (select.sel != index_component_t::SEL_BIT || !select.msb
+                || select.lsb) {
+                  cerr << loc.get_fileline() << ": error: foreach selector prefix "
+                       << "must contain element-select expressions." << endl;
+                  des->errors += 1;
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+
+            NetExpr*expr = elab_and_eval(des, scope, select.msb, -1, false);
+            if (!expr) {
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+            if (expr->expr_type() != IVL_VT_BOOL
+                && expr->expr_type() != IVL_VT_LOGIC) {
+                  cerr << loc.get_fileline() << ": error: foreach selector prefix "
+                       << "expression must be integral." << endl;
+                  des->errors += 1;
+                  delete expr;
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+
+            unsigned width = expr->expr_width();
+            if (width == 0) width = 1;
+            const netvector_t*type = new netvector_t(
+                  expr->expr_type(), width-1, 0, expr->has_sign());
+            NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+                                    NetNet::REG, type);
+            tmp->local_flag(true);
+            tmp->set_line(loc);
+            NetAssign*eval = new NetAssign(new NetAssign_(tmp), expr);
+            eval->set_line(loc);
+            if (!block) block = new NetBlock(NetBlock::SEQU, nullptr);
+            block->append(eval);
+      }
+
+      if (!block) return loop;
+      block->append(loop);
+      block->set_line(loc);
+      return block;
+}
+
 /*
  * The foreach statement can be written as a for statement like so:
  *
@@ -21902,21 +21962,9 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
             dims.insert(dims.end(), array_sig->packed_dims().begin(), array_sig->packed_dims().end());
       }
 
-	/* A selector prefix (`arr[sel][loop_vars]') fixes the LEADING
-	   selector_count dimensions before any loop variable is bound (IEEE
-	   1800-2017/2023 12.7.3). Only the selector's INDEX COUNT matters
-	   here, never its value -- the value (constant or variable) is
-	   evaluated wherever the selector expression itself is used; the
-	   loop bounds for the REMAINING dimensions are the same regardless
-	   of which slice the selector picks. Drop the selected leading
-	   dimensions so the positional dims[idx_idx] <-> index_vars_[idx_idx]
-	   correspondence below the loop variables against the remaining
-	   dimensions instead of silently reusing the selected-away leading
-	   ones (DD-040: this previously silently iterated the WRONG,
-	   already-fixed dimension for a plain static array selector prefix
-	   -- the same class of "drop the selector" bug the associative-array
-	   fix in the caller addresses, just for a signal instead of a
-	   queue). */
+	/* A selected prefix consumes leading dimensions. The remaining
+           fixed bounds do not depend on its value; evaluate the selector
+           once at loop entry below to preserve diagnostics and effects. */
       if (foreach_target_has_selector_prefix_(array_path_)) {
 	    size_t selector_count = array_path_.back().index.size();
 	    if (selector_count > dims.size()) {
@@ -21930,12 +21978,11 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
       }
 
 	// Classic arrays are processed this way.
-      if (array_sig->data_type()==IVL_VT_BOOL)
-	    return elaborate_static_array_(des, scope, dims);
-      if (array_sig->data_type()==IVL_VT_LOGIC)
-	    return elaborate_static_array_(des, scope, dims);
-      if (dims.size() >= index_vars_.size())
-	    return elaborate_static_array_(des, scope, dims);
+      if (array_sig->data_type() == IVL_VT_BOOL
+          || array_sig->data_type() == IVL_VT_LOGIC
+          || dims.size() >= index_vars_.size())
+            return prepend_foreach_selector_evaluation_(des, scope, *this,
+                  array_path_, elaborate_static_array_(des, scope, dims));
 
 	// At this point, we know that the array is dynamic so we
 	// handle that slightly differently, using run-time tests.
@@ -31052,6 +31099,28 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cfe->loop_vars().empty())
 		  return "";
 
+            // Selected-prefix names designate existing values, not new
+            // iterators. Validate them even when the body never uses them.
+            if (cfe->has_hierarchical_target() && cfe->member_name().nil()) {
+                  for (perm_string name : cfe->prefix_names()) {
+                        if (loop_env && loop_env->count(name)) continue;
+                        PEIdent selector(name, UINT_MAX);
+                        selector.set_line(*cfe);
+                        constraint_source_type_t type = constraint_source_expr_type_(
+                              &selector, cls, value_slots, scope);
+                        if (!type.type || type.unpacked_dimensions
+                            || !type.type->packed()
+                            || (type.type->base_type() != IVL_VT_BOOL
+                                && type.type->base_type() != IVL_VT_LOGIC)) {
+                              cerr << cfe->get_fileline() << ": error: Constraint foreach selector `"
+                                   << name << "' must name an existing integral value." << endl;
+                              if (constraint_ir_design_ctx_)
+                                    constraint_ir_design_ctx_->errors += 1;
+                              return "";
+                        }
+                  }
+            }
+
             /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: capture
              * the full caller-state collection, never just its root array.
              * Target-member roots and selectors need target-first resolution
@@ -32338,6 +32407,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  unsigned guard_idx = netclass_t::COVGRP_NO_GUARD;
 		    };
 		    std::vector<std::vector<xbin_desc_t>> cp_value_bins;
+		    std::vector<unsigned> cp_value_widths;
+		    std::vector<bool> cp_value_signedness;
 
 		      // A non-ref covergroup constructor formal (19.3) and an enclosing
 		      // enclosing global or instance constant (19.5) is immutable state
@@ -33200,6 +33271,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_value_signed = false;
 			  bool cp_value_supported = coverpoint_effective_shape(
 				cp.expr, cp_value_width, cp_value_signed);
+			  cp_value_widths.push_back(cp_value_width);
+			  cp_value_signedness.push_back(cp_value_signed);
 			  int parent_prop = -1;
 			  if (!cg_standalone)
 			  if (const PEIdent* pe = dynamic_cast<const PEIdent*>(cp.expr)) {
@@ -34772,22 +34845,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      xbin_t&cb = cross.bins[ub];
 				      int m = -1;
 				      if (cb.with_expr) {
-					      /* IEEE 1800-2023 19.6.1: `with' suffixes the
-						 general, recursive select_expression -- not
-						 only the bare cross_identifier alternative.
-						 `cb.select' carries that general expression's
-						 tree when the grammar built one (M11-3's
-						 existing evaluator below handles it exactly
-						 like the non-`with' bins forms); its absence
-						 means the source used the bare-name form,
-						 which is restricted to naming the enclosing
-						 cross itself (a no-op selector: the whole
-						 product still applies). Either way, `with'
-						 additionally filters by evaluating the
-						 predicate over this tuple's concrete
-						 per-coverpoint values, which still requires
-						 every contributing bin to be a singleton
-						 integral value. */
+					      /* IEEE 1800-2017/2023 19.6.1.2: apply a
+						 top-level `with' only to tuples selected by
+						 its subordinate select_expression. With no
+						 `matches' clause, one satisfying value tuple
+						 selects the candidate bin tuple. */
 					    int sel_m = cb.select
 						  ? eval_sel(cb.select, idx)
 						  : ((!cross.label.nil()
@@ -34795,45 +34857,138 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    if (sel_m <= 0) {
 						  m = sel_m;
 					    } else {
-						  bool exact_tuple = true;
-						  std::map<perm_string,int64_t> tuple_values;
-						  for (size_t k = 0;
-						       exact_tuple && k < idx.size(); k++) {
+						  const uint64_t with_value_tuple_limit = cross_bin_limit;
+						  std::vector<std::vector<uint64_t>> dimension_values(
+							idx.size());
+						  uint64_t value_tuple_count = 1;
+						  bool values_ok = true;
+						  bool value_product_too_large = false;
+						  for (size_t k = 0; k < idx.size(); k++) {
 							const xbin_desc_t&d =
 							      cp_value_bins[cp_indexes[k]][idx[k]];
-							if (d.ranges.size() != 1
-							    || d.ranges[0].first != d.ranges[0].second
+							if (d.ranges.empty() || d.wildcard
 							    || d.transition_prop >= 0
 							    || d.transition_family >= 0
 							    || d.dyn_family >= 0) {
-							      exact_tuple = false;
+							      values_ok = false;
 							      break;
 							}
-							tuple_values[cross.cp_labels[k]] =
-							      (int64_t)d.ranges[0].first;
+							std::set<uint64_t> unique_values;
+							unsigned cp_index = cp_indexes[k];
+							unsigned width = cp_value_widths[cp_index];
+							if (width == 0 || width > 64) {
+							      values_ok = false;
+							      break;
+							}
+							uint64_t mask = width >= 64 ? UINT64_MAX
+							      : (((uint64_t)1 << width) - 1);
+							uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
+							for (const auto&r : d.ranges) {
+							      uint64_t first = r.first & mask;
+							      uint64_t last = r.second & mask;
+							      bool crosses_zero = cp_value_signedness[cp_index]
+								    && !(first & sign) && (last & sign);
+							      if (!crosses_zero && last < first) {
+								values_ok = false;
+								break;
+							      }
+							      uint64_t count = crosses_zero
+								    ? (mask-last+1) + (first+1)
+								    : last-first+1;
+							      if (count == 0 || count > with_value_tuple_limit) {
+								value_product_too_large = true;
+								break;
+							      }
+							      uint64_t value = crosses_zero ? last : first;
+							      for (uint64_t n = 0; n < count; n++) {
+								unique_values.insert(value);
+								if (unique_values.size() > with_value_tuple_limit) {
+								      value_product_too_large = true;
+								      break;
+								}
+								if (crosses_zero && value == mask)
+								      value = 0;
+								else
+								      value += 1;
+							      }
+							      if (value_product_too_large) break;
+							}
+							dimension_values[k].assign(unique_values.begin(),
+									   unique_values.end());
+							if (value_product_too_large
+							    || dimension_values[k].empty()
+							    || value_tuple_count >
+							       with_value_tuple_limit / dimension_values[k].size()) {
+							      value_product_too_large = true;
+							      break;
+							}
+							value_tuple_count *= dimension_values[k].size();
 						  }
-						  int64_t result = 0;
-						  if (exact_tuple
-						      && cov_named_eval_(cb.with_expr,
-								       tuple_values, result) >= 0)
-							m = result != 0;
+						  if (value_product_too_large) {
+							cerr << cb.with_expr->get_fileline()
+							     << ": error: cross bin '" << cb.name
+							     << "' `with' predicate requires more than "
+							     << with_value_tuple_limit
+							     << " value tuples to evaluate." << endl;
+							des->errors += 1;
+							ubin_sorried[ub] = true;
+							m = -1;
+						  } else if (values_ok) {
+							m = 0;
+							std::vector<uint64_t> value_idx(idx.size(), 0);
+							for (uint64_t t = 0;
+							     t < value_tuple_count && m == 0; t++) {
+							      std::map<perm_string,int64_t> tuple_values;
+							      for (size_t k = 0; k < idx.size(); k++) {
+								    uint64_t value = dimension_values[k][value_idx[k]];
+								    unsigned cp_index = cp_indexes[k];
+								    unsigned width = cp_value_widths[cp_index];
+								    uint64_t mask = width >= 64 ? UINT64_MAX
+									  : (((uint64_t)1 << width) - 1);
+								    uint64_t sign = (uint64_t)1 << (width-1);
+								    if (cp_value_signedness[cp_index]
+									&& width < 64 && (value & sign))
+									  value |= ~mask;
+								    tuple_values[cross.cp_labels[k]] =
+									  (int64_t)value;
+							      }
+							      int64_t result = 0;
+							      if (cov_named_eval_(cb.with_expr,
+									       tuple_values, result) < 0) {
+								    m = -1;
+								    break;
+							      }
+							      if (result != 0) {
+								    m = 1;
+								    break;
+							      }
+							      for (size_t k = 0; k < value_idx.size(); k++) {
+								    if (++value_idx[k] < dimension_values[k].size())
+									  break;
+								    value_idx[k] = 0;
+							      }
+							}
+						  }
 					    }
 				      } else {
 					    m = eval_sel(cb.select, idx);
 				      }
 				      if (m < 0) {
 					    if (!ubin_sorried[ub]) {
-						  cerr << "sorry: cross bin '" << cb.name;
-						  if (cb.with_expr)
-							cerr << "' uses a 'with' predicate that "
-							     << "requires singleton integral "
-							     << "contributing bins and the name of "
-							     << "its enclosing cross";
-						  else
-							cerr << "' uses a binsof select form that "
-							     << "could not be evaluated";
-						  cerr << "; the bin selects nothing."
-						       << endl;
+							  if (cb.with_expr) {
+								cerr << pclass->get_fileline()
+								     << ": error: cross bin '" << cb.name
+								     << "' uses a 'with' predicate that "
+								     << "cannot be evaluated for its "
+								     << "contributing bins; compilation cannot "
+									"continue." << endl;
+								des->errors += 1;
+							  } else {
+								cerr << "sorry: cross bin '" << cb.name
+								     << "' uses a binsof select form that "
+								     << "could not be evaluated; the bin "
+									"selects nothing." << endl;
+							  }
 						  ubin_sorried[ub] = true;
 					    }
 					    continue;
