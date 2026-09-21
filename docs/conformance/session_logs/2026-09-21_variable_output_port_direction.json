@@ -1,0 +1,164 @@
+{
+  "date": "2026-09-21",
+  "head": "37bde6c02",
+  "blocker": "VARIABLE-OUTPUT-PORT-DIRECTION",
+  "status": "REPRODUCED_SPEC_GROUNDED_ROOT_TRACE",
+  "standards": {
+    "2017": "23.2.2.3 (explicit output data type defaults variable),23.3.3 and23.3.3.2 (directional assignment; external net permits multiple drivers)",
+    "2023": "23.2.2.3,23.3.3,23.3.3.2; corresponding clauses inspected"
+  },
+  "expected": "External resolved wire can be X from opposing drivers while internal output variable retains its own driven10. Explicit output wire is bidirectional net-collapse control and may observe externalX.",
+  "runtime_red": [
+    {
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface-direction-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface_resolved_ports.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface_resolved_ports.sv:5: vvp.tgt warning: uwire \"response\" has 2 drivers (compile-progress: treated as wire).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface_resolved_ports.sv:24: external resolution leaked into variable output: xx xx\n       Time: 2  Scope: test\n"
+    },
+    {
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface-direction-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface_resolved_ports.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface_resolved_ports.sv:5: vvp.tgt warning: uwire \"response\" has 2 drivers (compile-progress: treated as wire).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/interface_resolved_ports.sv:24: external resolution leaked into variable output: xx xx\n       Time: 2  Scope: test\n"
+    }
+  ],
+  "boundary_results": [
+    {
+      "kind": "logic_vector",
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/logic_vector-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_logic_vector.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_logic_vector.sv:5: vvp.tgt warning: uwire \"response\" has 2 drivers (compile-progress: treated as wire).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_logic_vector.sv:24: external resolution leaked into variable output: xx xx\n       Time: 2  Scope: test\n"
+    },
+    {
+      "kind": "logic_vector",
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/logic_vector-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_logic_vector.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_logic_vector.sv:5: vvp.tgt warning: uwire \"response\" has 2 drivers (compile-progress: treated as wire).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_logic_vector.sv:24: external resolution leaked into variable output: xx xx\n       Time: 2  Scope: test\n"
+    },
+    {
+      "kind": "explicit_wire",
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/explicit_wire-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_explicit_wire.sv"
+      ],
+      "compile": 0,
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED resolved interface ports\n"
+    },
+    {
+      "kind": "explicit_wire",
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/explicit_wire-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_explicit_wire.sv"
+      ],
+      "compile": 0,
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED resolved interface ports\n"
+    },
+    {
+      "kind": "procedural_struct",
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/procedural_struct-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_procedural_struct.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_procedural_struct.sv:5: vvp.tgt warning: uwire \"response\" has 2 drivers (compile-progress: treated as wire).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_procedural_struct.sv:24: external resolution leaked into variable output: 10 xx\n       Time: 2  Scope: test\n"
+    },
+    {
+      "kind": "procedural_struct",
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/procedural_struct-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_procedural_struct.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_procedural_struct.sv:5: vvp.tgt warning: uwire \"response\" has 2 drivers (compile-progress: treated as wire).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/port_procedural_struct.sv:24: external resolution leaked into variable output: 10 xx\n       Time: 2  Scope: test\n"
+    }
+  ],
+  "root_trace": [
+    "NetNet::type preserves coerced_to_uwire_ when variable lowered to unresolvedwire",
+    "PGModule::elaborate_mod_ single-whole-port connection near elaborate.cc6228 applies net dominance and otherwise directly connects nexuses",
+    "connect_dominated_wire_port near4278 considers current/declared net type; unresolved variable origin is not checked",
+    "Changing diagnostics would not repair demonstrated external-value feedback into internal variable"
+  ],
+  "application_link": "Pwrmgr warnings have DUT and interface tristate mux drivers; this reducer matches intentional resolved external net topology without modifying application sources.",
+  "selection": "Ready for future selection; not an additional concurrent implementation because elaborate.cc belongs to active event worker.",
+  "sources": {
+    "port_logic_vector.sv": "89b4265b468d2327b9812ba4b58ca2ec41cd5f1a08c5353bbf0bf392642bab3f",
+    "interface_resolved_ports.sv": "d730954b2d5793b458a1d270ee2175b684d28698d44580a727a832c764c41da8",
+    "port_explicit_wire.sv": "6b774c17a1e236bb387be919fdaa43daa568856b156d54a012465bfd56a13ac9",
+    "struct_ports.sv": "cd8ebeab84ce9afa5e7d0193e6bb4fe9aad64f2af8c835c3c8b1226c4ea73470",
+    "port_procedural_struct.sv": "73f9eea2247cd107523c229732fff2ea0f41c283a649c2628379c658054aeefe"
+  }
+}

@@ -39,3 +39,5 @@ event_pulse_boundary: docs/conformance/session_logs/2026-09-21_vif_event_pulse_b
 structural_event_lane: Terra authorized private structural VIF proxy implementation; coordinator owns shared target/parser glue, disjoint from Sol private VPI edits.
 
 active_workers: constraint_guard_semantics (Sol medium packed VPI) and vif_proxy_implementation (Sol medium structural events); previous Terra worker stopped after repeated plan-only responses.
+
+ready_after_active_lanes: VARIABLE-OUTPUT-PORT-DIRECTION; paired failing runtime and explicit-wire control in docs/conformance/session_logs/2026-09-21_variable_output_port_direction.json. Do not concurrently edit event-owned elaborate.cc.

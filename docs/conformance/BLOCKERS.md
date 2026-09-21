@@ -3367,3 +3367,5 @@ ENUM-NAME-BARE-CONCAT-TYPE has [focused paired evidence](session_logs/2026-09-21
 SELF-PACKAGE-TYPE-CAST and SIGNED-COVER-BINS-CROSS-ZERO are focused-tested, with required batch gates pending. The [self-package cast repair](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range repair](session_logs/2026-09-21_signed_cover_range_resolution.json) have paired focused evidence. Required broad batch gates remain pending.
 
 The [pwrmgr follow-up reducers](session_logs/2026-09-21_pwrmgr_followup_blockers.json) confirm missing indexed packed VPI handles and skipped compound virtual-interface edge waits. These remain open; current selection and ownership are in ACTIVE_WORK.
+
+VARIABLE-OUTPUT-PORT-DIRECTION is reproduced in both editions: external net resolution feeds back into an output variable across a collapsed port. See the [runtime reducer and net/variable controls](session_logs/2026-09-21_variable_output_port_direction.json). This is awaiting selection; removing the pwrmgr warning alone would not fix the demonstrated semantics.
