@@ -1,122 +1,50 @@
 id: SV-UVM-NEXT-BATCH-20260921
-status: NEXT_BLOCKER_IMPLEMENTATION
-objective: Repair scope solver UNKNOWN failure semantics and OpenTitan long fixed antecedent lowering, preserving the full compiler/UVM mission.
-authority: Coordinator-selected work under the user-authorized continuous campaign.
+status: PARALLEL_BLOCKER_SELECTION
+objective: Full IEEE1800-2017/2023 compiler semantics and independent UVM compatibility; unmodified stable OpenTitan and Caliptra applications.
+authority: User-authorized continuous campaign; coordinator selects implementation only after reducer/spec/root cause.
 branch: agent/scope-sva-next-20260921
-base: 319178ffdd3709016e0a2d76cf1f33453c75761f
-history: evidence/review-20260920/next-batch-20260921/before-ACTIVE_WORK.yaml
-prior_batch:
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
-  state: MERGED
-  semantic_revision: 8ab943352
-  qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
-  frozen: Remote PR307 head remains unchanged; next-batch source changes belong on the new branch.
-standards:
-  references: [evidence/dd018-assessment/1800-2017.txt, evidence/dd018-assessment/1800-2023.txt]
-  editions: Separate2017 and2023 evidence; UVM separate, preserve1364, defer1801.
+head_checkpoint: e42f114cd
+history: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/before-ACTIVE_WORK.yaml
+completed_focused_subsets:
+  - SCOPE-RANDOMIZE-UNKNOWN (25653fdc0)
+  - OT-PWRMGR-LONG-FIXED-ANTECEDENT (acb786965)
+  - CONSTRAINT-OBJECT-METHOD-RECEIVER (346b48f68)
+  - ENUM-NAME-BARE-CONCAT-TYPE (c8e6cb97c)
+  - SELF-PACKAGE-TYPE-CAST (e42f114cd)
+  - SIGNED-COVER-BINS-CROSS-ZERO (e42f114cd)
+validation: Focused evidence linked by docs/conformance/CURRENT_WORK.md; required broad batch gates pending near10fixes or earlier for concrete risk. No completed-clause/full-application claim.
 coordination:
-  owner: Coordinator owns source integration, shared builds/install, review and test manifests.
-  workers: Two disjoint private patch lanes; no shared source edits or new worktrees.
-  user_work: Preserve AGENTS.md uncommitted and all unique evidence.
-  tests: Focused positive, negative, boundary and semantic runtime tests per fix; broad required gates near10fixes or earlier for concrete risk.
-  discovery: Unrelated findings recorded only; next items require coordinator selection.
-latest_release_retest: docs/conformance/session_logs/2026-09-21_published_candidate_release_retest.json
-next_action: Integrate and test the selected object-method receiver patch, continue enum context assessment and inspect remaining merged-PR307 CI.
-parallel_preparation:
-  authority: Coordinator selection under continuous campaign; prior batch all local gates passed and PR307 frozen awaiting CI.
-  supersedes: Prior prohibition on new implementation applies to the published shared source; isolated patches for these two selected blockers are now authorized.
-  integration_rule: Workers submit private patches; coordinator may integrate reviewed changes on current next-batch branch. No shared edits, index writes, builds or installs by workers.
-  lanes:
-    scope_unknown:
-      id: SCOPE-RANDOMIZE-UNKNOWN
-      owner: caliptra_next_blocker, Luna low, mechanical repair after established root cause
-      status: IMPLEMENTED_FOCUSED_TESTED
-      revision: 25653fdc0
-      standard: IEEE1800-2017 and2023 18.12; return success only for valid randomized values
-      root_cause: vvp_z3_randomize_scope copies random targets and returns true on Z3 UNKNOWN
-      scope: Private vvp/vvp_z3.cc patch and private positive, UNSAT, UNKNOWN value/RNG rollback fixtures
-      evidence: evidence/review-20260920/scope-unknown-assessment
-      acceptance: Both editions SAT legal values; UNSAT and injected UNKNOWN fail atomically with focused diagnostic; preserve class solver and all constraint semantics
-    long_antecedent:
-      id: OT-PWRMGR-LONG-FIXED-ANTECEDENT
-      owner: synthesis_nba_completion, Sol medium, sequence semantic tracing
-      status: IMPLEMENTED_FOCUSED_TESTED
-      revision: acb786965
-      standard: IEEE1800-2017 and2023 16.9.2 consecutive repetition plus implication scheduling
-      root_cause_hypothesis: Fixed antecedent expansion imposes an implementation length cap
-      scope: Private pform.cc and directly implicated SVA lowering patch, private assertion regression fixtures; report additional file needs before editing
-      forbidden: Arbitrarily larger cap, bounded attempt loss, weakened assertions, application edits
-      evidence: evidence/review-20260920/pwrmgr-current-assessment
-      acceptance: Both editions runtime checks for138 and larger repeats, passing/failing consequent, overlapping attempts and disable; exact unmodified pwrmgr compile; relevant SVA neighbors
-
-merge_record: docs/conformance/session_logs/2026-09-21_pr307_merge.json
-next_selection: Reduce one of the newly exposed exact-release pwrmgr enum-cast or constraint-call failures; no additional implementation authorized yet.
-
-current_assessment:
-  enum_cast: Self-package context reproduced; independent parser implementation selected below.
-  constraint_call: Assessment complete; implementation selected below.
-  signed_cover: Coordinator reproduced signed zero-crossing bin failure in both editions with passing negative-only and positive controls; candidate root is unsigned endpoint swap in elaborate.cc.
-  dependencies: Coverage and constraint repairs may overlap elaborate.cc; select disjoint file ownership before implementing either.
-
-completed_receiver_implementation:
-  id: CONSTRAINT-OBJECT-METHOD-RECEIVER
-  status: IMPLEMENTED_FOCUSED_TESTED
-  owner: constraint_guard_semantics, Sol medium
-  standard: IEEE1800-2017 18.5.12 and2023 18.5.11
-  reproducer: evidence/review-20260920/next-constraint-method-assessment/method_receiver_fail.sv
-  evidence: evidence/review-20260920/next-constraint-method-assessment/RESULTS.md
-  expected: Pure integral-result calls through state object properties resolve and execute through existing pre-solve state capture, preserving dependency and rollback semantics.
-  root_cause: pexpr_to_constraint_ir resolves unqualified or lexical method scopes but not flattened property receivers before state-call capture.
-  allowed: Private elaborate.cc patch using existing receiver walker and capture wrapper plus focused fixtures.
-  forbidden: Source application changes, dropped purity/dependency checks, random-variable substitution, unsupported virtual/null paths silently accepted, unrelated coverage changes.
-  dependencies: Exclusive elaborate.cc ownership; signed-cover repair queued, not concurrent even in disjoint hunks.
-  acceptance: Paired direct/nested receivers, default string argument and64bit return, state changes and pre_randomize ordering, purity negatives, virtual/null/rollback boundaries; exact pwrmgr diagnostics rechecked by coordinator.
-  integration: Worker private patch only; coordinator owns shared build/install/index/tests.
-
-independent_selected_implementation:
-  id: SELF-PACKAGE-TYPE-CAST
-  status: IMPLEMENTED_FOCUSED_TESTED
-  owner: package_enum_context, Terra medium
-  standard: IEEE1800-2017/2023 6.19 enum typing,6.24 casts and26 package qualification; verify specific package rule before fix.
-  reproducer: evidence/review-20260920/next-package-enum-context/repro_self_pkg_no_include.sv
-  edition_evidence: Coordinator real-g2017 repro exits7; worker g2023 repro fails. Never label g2012 as2017.
-  root_hypothesis: Package is registered only after parsing its body, so self-qualified type cast is misparsed as a size cast of a hierarchical expression.
-  allowed: Private parse.y and pform_package.cc/h changes only if necessary for current-package type resolution; focused fixtures.
-  forbidden: Concurrent elaborate.cc edits, accepting unknown types, converting arbitrary hierarchical sizes to type casts, application changes, new grammar conflicts without reviewed explanation.
-  acceptance: Paired self/external package casts, included body and classconstructor context, enum-name runtime semantics, valid integral size casts unchanged, invalid names/implicit enum conversion remain rejected; parser conflict provenance required.
-  integration: Worker private patch only; coordinator owns parser generation, shared builds/tests and final review.
+  owner: Coordinator owns selection, source integration, shared build/install, tests and final review.
+  workers: At most2implementation agents with disjoint file ownership; private patches only.
+  preservation: External AGENTS.md and unique evidence remain untouched; no new worktrees.
+  forbidden: Dropped semantics, fabricated outputs, application changes to conceal compiler defects, weakened tests.
+assessments:
+  packed_vpi:
+    owner: constraint_guard_semantics, Sol medium
+    state: REPRODUCED_ROOT_TRACE
+    evidence: evidence/review-20260920/next-pwrmgr-hdl-path-assessment
+    observation: Packed multidimensional element paths do not resolve; by_index returns one bit instead of whole element. Actual pwrmgr cnt_q root44bits exists, element paths absent.
+    scope: Trace declaration metadata, VPI lookup/index/select handles and get/put/force/release semantics; proposal before implementation.
+    standards: IEEE1800-2017/2023 VPI packed array model and38.21 handle_by_name; verify corresponding index clauses.
+  vif_event:
+    owner: package_enum_context, Terra medium
+    state: APPLICATION_REDUCTION
+    evidence: evidence/review-20260920/next-pwrmgr-event-assessment
+    observation: pwrmgr scoreboard compound virtual-interface edge expressions are skipped with compile-progress warnings.
+    scope: Reproduce exact edge semantics and trace existing event lowering; proposal before implementation.
+    acceptance_basis: Observe expression transitions, not every operand change; no skipped waits.
+next_action: Review both bounded root-cause proposals, select independent implementation scopes, then run cheap runtime regressions.
 
 selected_implementation:
-  id: SIGNED-COVER-BINS-CROSS-ZERO
-  status: IMPLEMENTED_FOCUSED_TESTED
-  owner: constraint_guard_semantics, Sol medium
-  standard: IEEE1800-2017 and2023 19.5.1 and19.5.7
-  reproducer: evidence/review-20260920/next-signed-cover-assessment/distinct_bin_oracle.sv
-  expected: Signed effective coverpoint [-4:4] has nine distinct automatic bins; each unique sample increments coverage by1/9, duplicates and default do not enlarge denominator.
-  root_cause: eval_ranges casts signed endpoints to unsigned then swaps order, turning zero-crossing range into a huge complement and dropping bins at the implementation limit.
-  allowed: Private elaborate.cc range resolution/bin expansion patch and private tests. Inspect shared callers and reuse effective-domain conversion; propose other files before editing.
-  forbidden: Raising counter cap, dropping bins, fake auto coverage, application edits, ignoring19.5.7 clipping/XZ/exclusion rules.
-  dependencies: Receiver repair committed346b48f68 and frozen; exclusive elaborate.cc ownership. Package lane owns pform_package.cc and private tests.
-  acceptance: Paired signed negative/positive/crosszero ranges; per-sample partial coverage and denominator; overlaps/duplicates, default, ignore/illegal; narrow effective widths, casts/clipping, existing coverage neighbors.
-  integration: Private patch only; coordinator owns shared builds/install/test output and registration.
-
-package_shadow_regression:
-  evidence: evidence/review-20260920/next-self-package-cast-fix/shadow-regression
-  finding: Unconditional current-package lexical classification breaks local variable with same package name; prior baseline log had cast errors only, not declaration syntax errors.
-  action: Hold uncommitted package patch; Terra proposes contextual recognition repair; retain permanent shadow test.
-
-coordinator_direct_small_fix:
-  id: ENUM-NAME-BARE-CONCAT-TYPE
-  status: IMPLEMENTED_FOCUSED_TESTED
-  owner: Coordinator; tiny existing type mapping, no additional agent
-  standard: IEEE1800-2017 and2023 5.13 optional built-in method parentheses;6.19 enum name result
-  evidence: evidence/review-20260920/next-enum-name-concat-assessment
-  root_cause: resolve_type_ enum branch omits name string result; lowering already supports it.
-  allowed: elab_expr.cc existing enum type mapping and focused regressions
-  forbidden: Application edits, new lowering, unrelated methods, dropping string semantics
-  acceptance: Paired bare/parenthesized concatenation, direct/local/class enum receivers, invalid enum value empty name, unrelated integral enum methods unchanged.
-  dependencies: Disjoint from Sol elaborate.cc and Terra package/parser files; coordinator shared build ownership.
-
-coverage_cap_completion: Coordinator authorized focused compilation rejection at unchanged open/fixed counter caps; never accept a dropped requested family as successful compilation.
-
-latest_resolution: Package shadow regression corrected by parse-only recovery; both selected lanes focused-tested and frozen pending broad batch gates.
+  id: COMPOUND-VIF-EDGE-EVENTS
+  status: REPRODUCED_SPEC_GROUNDED
+  owner: package_enum_context, Terra medium
+  standard: IEEE1800-2017/2023 9.4.2 event expression and edge transitions
+  reproducer: evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv
+  red: Both editions compile0 but fail at time1 because reduction/equality/selected-bit waits were skipped.
+  expected: Wait until the complete expression has the requested edge; operand changes alone do not imply an edge.
+  root: PEventStatement::elaborate_st compound class-to-VIF expressions fall through static synthesis and are skipped.
+  scope: Private elaborate.cc patch reusing existing dynamic VIF descriptors/evaluation machinery; propose dependent files before expansion.
+  acceptance: Paired runtime edge counts, no early execution, predicate unchanged on operand mutation, rearming, packed field/select,4state transitions, rebind semantics grounded in LRM, real-edge rejection.
+  forbidden: Remove warnings without semantics, broaden sensitivity to all operands, skip waits, modify application sources.
+  dependencies: Disjoint from VPI declaration/runtime proposal; coordinator shared build/install/tests.

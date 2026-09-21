@@ -1,97 +1,33 @@
-status: active
-phase: two_next_batch_fixes_focused_tested
-objective: Full IEEE1800-2017/2023 compiler, UVM and SVA mission remains incomplete; no full application qualification.
-worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
+mission: Full standards-correct compiler/UVM campaign remains active; formal backend separate, preserve1364, defer1801.
 branch: agent/scope-sva-next-20260921
-main_baseline: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
-local_main_integration: 933093510957fc65052b9f229ae4296e96ccb46a
-selected_work: .ai/ACTIVE_WORK.yaml
-preservation:
-  user_file: AGENTS.md remains dirty, uncommitted and untouched.
-  history: evidence/review-20260920/next-batch-20260921/pre-merge-consolidation-CAMPAIGN.yaml
-  worktrees: No new tree; active/dirty/divergent trees retained.
-publication:
-  merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
-  record: docs/conformance/session_logs/2026-09-21_pr307_merge.json
-  exact_head_green_job: Ubuntu24.04 at319178ffdd3709016e0a2d76cf1f33453c75761f
-  remaining_ci: Run35588718454 had5other jobs running at merge; inspect terminal results and repair any failures in follow-up PR.
-  prior_batch_fixes: 11
+head_checkpoint: e42f114cd
+history: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/before-CAMPAIGN.yaml
+merged_baseline:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
+  main: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
+  qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
+  ci_run: 35588718454
+  last_observed: Ubuntu22.04 and24.04 pass; macOS and3Windows jobs still running. No failure observed.
 next_batch:
   integrated_fixes: 6
-  revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c]
-  scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
-  sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
-  validation: Focused paired runtime checks and relevant neighbors pass; broad gates pending near10integrated fixes or sooner for concrete risk.
-  processes: Application retest completed; no shared build running. Sol receiver correction and Terra permanent regression preparation active.
-  binaries: Installed compiler/runtime contain both fixes; prior broad qualification is for8ab943352 only.
+  revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c, e42f114cd]
+  evidence_index: docs/conformance/CURRENT_WORK.md
+  pending: Required broad gates near10fixes, then coherent PR; no next-batch PR yet.
+  processes: No shared build or test active; two read-only worker assessments active.
 applications:
-  latest_retest: docs/conformance/session_logs/2026-09-21_published_candidate_release_retest.json
-  pins: Clean Earlgrey-PROD-M6 and Caliptrav2.1.2 with AdamsBridgev2.0.3; no source modifications.
-  latest_pwrmgr: Long antecedent diagnostic removed; compile exits13 on separate enumcast/constraint-call/coverage blockers, recorded in DISCOVERED_DEBT.
-graph:
-  shared: /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json
-  refresh: Canonical main checkout restored at3d3f8086b; AST graph updated from it and shared pointer retained; see evidence/review-20260920/canonical-graph-restore/result.json.
+  pins: OpenTitan Earlgrey-PROD-M6; Caliptra v2.1.2 and AdamsBridgev2.0.3. Sources unchanged.
+  release_replay: docs/conformance/session_logs/2026-09-21_next_candidate_release_retest.json
+  release_limits: Bounded earlier candidate replay; crossbar UVM354items and Caliptra2048vectors pass, GPIO fails. Not current whole-app qualification.
+  latest_pwrmgr: docs/conformance/session_logs/2026-09-21_pwrmgr_startup.json
+  pwrmgr_state: Compiles but semantic fallback warnings exclude qualification; startup UVM_FATAL on indexed packed HDL path, despite process exit0.
+  live_path_probe: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/application-probe.json
+workspace:
+  user_changes: AGENTS.md remains dirty and untouched.
+  graph: Shared canonical graph refreshed from main3d3f8086b; feature worktree must not update graph.
+  cleanup: docs/conformance/session_logs/2026-09-21_canonical_graph_cleanup.json
 resume:
-  first: Inspect remaining PR307 CI by gh run view35588718454.
-  next: Reduce exact-release pwrmgr enum-cast and constraint-call failures; select independent concrete blockers before implementation.
-  ownership: Coordinator integrates/reviews/builds; explicit lower-model workers own disjoint private patches.
-  cadence: Approximately10fixes per broad-gated PR; never weaken semantics or application sources.
+  next: Review VPI packed-element and compound virtual-interface event proposals; update ACTIVE_WORK before new implementation.
+  exact_check: git status --short --branch
+  ownership: Coordinator shared integration/builds; lower-model workers private disjoint patches.
 
-selected_next_lane: CONSTRAINT-OBJECT-METHOD-RECEIVER; Sol medium private elaborate.cc implementation authorized in ACTIVE_WORK.
-queued_reproduced_lane: Signed cover bins crossing zero; samefile elaborate.cc so wait until methodlane integrates.
-independent_assessment: Terra medium is reducing package-enum include/selfpackage context before a disjoint implementation selection.
-
-second_selected_lane: SELF-PACKAGE-TYPE-CAST; Terra medium private parser/package ownership, disjoint from Sol elaborate.cc.
-
-current_receiver_candidate:
-  state: UNCOMMITTED_BOUNDARY_FAILURES
-  scope: elaborate.cc receiver resolution candidate integrated for testing; no completed feature claim.
-  build: Session55347 passed; install/acceptance89245 completed. No shared build running.
-  tests: 8of12acceptance cases pass; inactiveX and active-null boundaries fail both editions.
-  evidence: evidence/review-20260920/next-constraint-method-fix/acceptance.log
-  next: Sol authorized private elaborate.cc null-receiver correction; internal-if X expectation corrected against active-constraint function-call semantics.
-cleanup_checkpoint: Retired clean ancestor scoped-class-shadow worktree after helper dry-run; branch preserved. Canonical main graph tree restored, total registered tree count unchanged.
-ci_checkpoint: Both Ubuntu22.04 and24.04 PR307 jobs now green; remaining4jobs running.
-
-self_package_candidate:
-  state: UNCOMMITTED_FOCUSED_TESTED
-  scope: pform_package.cc current open package lookup
-  evidence: evidence/review-20260920/next-self-package-cast-fix/green/results.json
-  results: Paired2017/2023 four positive runtime controls pass; implicit enum and unknown type reject; bare name concatenation remains separate failure.
-  pending: Permanent tests and focused neighbor validation.
-application_retest_checkpoint: docs/conformance/session_logs/2026-09-21_next_candidate_release_retest.json; crossbar354items and Caliptra2048cases pass, GPIO20errors/1fatal; clean release pins.
-
-receiver_integrated_checkpoint:
-  state: IMPLEMENTED_FOCUSED_TESTED
-  evidence: docs/conformance/session_logs/2026-09-21_constraint_object_method_receiver.json
-  pending: Broad batch gates; no full application qualification.
-  worker: Frozen; elaborate.cc may be reassigned after coordinator checkpoint.
-
-selected_coverage_lane: SIGNED-COVER-BINS-CROSS-ZERO; Sol medium private elaborate.cc repair authorized, receiver patch frozen.
-
-current_checkpoint:
-  committed_receiver: 346b48f68;14private acceptance cases and6permanent cases per harness,206neighbors per harness pass.
-  package_candidate: Held uncommitted; self-package cast works but same-name local variable syntax regressed; retained failing regression.
-  active_lanes: Sol medium signed coverage range; Terra medium package lexical-context correction, private patches only.
-  shared_processes: No active shared build or test.
-  next: Review package contextual recognition proposal and signed range patch; no next-batch PR until coherent validated batch.
-
-enum_name_checkpoint: Focused-tested shared type mapping; evidence docs/conformance/session_logs/2026-09-21_enum_bare_name_type.json. Broad gates pending.
-
-latest_checkpoint:
-  committed: c8e6cb97c enum bare-name string type mapping; four focused cases per harness and120enum-neighbor cases pass.
-  signed_cover: Private patch ready but held for review of inside-expression conversions vs19.5.7 bin conversions, default-bin denominator oracle and cap-failure behavior.
-  package: Terra authorized exact scoped self-package typedef recovery at existing cast action, revert unconditional package lexer classification; preserve shadow test.
-  processes: No shared build or test active.
-  preserved: Package candidate and failing permanent shadow regression remain uncommitted; external AGENTS.md unchanged.
-
-validated_lanes_checkpoint:
-  package: docs/conformance/session_logs/2026-09-21_self_package_type_cast.json
-  coverage: docs/conformance/session_logs/2026-09-21_signed_cover_range_resolution.json
-  next: Inspect exact pwrmgr compile replay, then select next concrete independent blockers.
-
-pwrmgr_checkpoint:
-  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_startup.json
-  result: Compile0, runtime UVM_FATAL at0 on uvm_hdl_check_path; not PASS despite process exit0.
-  assessment: Luna low read-only exact HDL path analysis, no implementation selected yet.
-  pending: Broad required batch gates near10fixes;6focused fixes now integrated.
+selected_event_lane: COMPOUND-VIF-EDGE-EVENTS; Terra medium private elaborate.cc fix authorized after paired failing reducer. VPI packed-element assessment remains with Sol medium.
