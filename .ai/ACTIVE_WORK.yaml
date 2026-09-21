@@ -37,7 +37,7 @@ next_action: Review both bounded root-cause proposals, select independent implem
 
 selected_implementation:
   id: COMPOUND-VIF-EDGE-EVENTS
-  status: REPRODUCED_SPEC_GROUNDED
+  status: ARCHITECTURE_REQUIRED
   owner: package_enum_context, Terra medium
   standard: IEEE1800-2017/2023 9.4.2 event expression and edge transitions
   reproducer: evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv
@@ -66,3 +66,8 @@ selected_vpi_implementation:
   boundary: Integral packed selection via by-name and by-index; no full VPI object-model qualification or multi-index API completion claim.
 
   scope_refinement: IEEE chapter37 requires packed prefix handles retain net/variable type, not part-select type. vpi_callback.cc is authorized solely to route these real selected handles through existing filtered signal/array callback machinery.
+
+event_scope_review:
+  evidence: docs/conformance/session_logs/2026-09-21_vif_event_pulse_boundary.json
+  rejected: Procedural post-wake filter loses same-timeslot pulses; private exploratory patch remains unapplied.
+  next: Read-only trace of synchronous dynamic expression capture and exact runtime scope proposal before further edits.

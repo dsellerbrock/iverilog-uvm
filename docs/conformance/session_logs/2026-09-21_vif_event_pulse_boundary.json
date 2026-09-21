@@ -1,0 +1,85 @@
+{
+  "date": "2026-09-21",
+  "head": "11359739b",
+  "blocker": "COMPOUND-VIF-EDGE-EVENTS",
+  "state": "ARCHITECTURE_REQUIRED",
+  "violated_invariant": "An event expression must retain an observed edge even if its value returns before the awakened process runs.",
+  "experiment": [
+    {
+      "kind": "static",
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse-static-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_static.sv"
+      ],
+      "compile": 0,
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED captured same-slot pulse\n"
+    },
+    {
+      "kind": "static",
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse-static-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_static.sv"
+      ],
+      "compile": 0,
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED captured same-slot pulse\n"
+    },
+    {
+      "kind": "dynamic",
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse-dynamic-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_dynamic.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_dynamic.sv:7: warning: Failed to synthesize event expression (compile-progress: event skipped).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_dynamic.sv:9: same-slot pulse lost hits=0\n       Time: 3  Scope: test\n"
+    },
+    {
+      "kind": "dynamic",
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse-dynamic-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_dynamic.sv"
+      ],
+      "compile": 0,
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_dynamic.sv:7: warning: Failed to synthesize event expression (compile-progress: event skipped).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/pulse_dynamic.sv:9: same-slot pulse lost hits=0\n       Time: 3  Scope: test\n"
+    }
+  ],
+  "result": "Static compound expression captures same-active-process0->1->0 in both editions; dynamic form fails. Procedural post-wake expression filtering cannot preserve all transitions.",
+  "rejected_approach": {
+    "path": "evidence/review-20260920/next-compound-vif-edge-fix/compound-vif-edge.patch",
+    "sha256": "de6fd7d9162fa0ba300e8f51f52d20a285e5bbd71b939a03ab763f0db9383d55",
+    "status": "Frozen exploratory private patch; not applied or claimed tested."
+  },
+  "next": "Worker traces existing synchronous capture/evaluation machinery and proposes exact runtime scope before editing beyond elaborate.cc. No recursive VM entry or invented evaluator accepted without review.",
+  "preservation": "Existing six integrated fixes unchanged; shared source/build untouched; VPI independent implementation continues."
+}
