@@ -115,3 +115,11 @@ parallel_next_items:
 grouped_clocked_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-20_grouped_clocked_consequent.md
   next_action: Review updated private DD044 patch and variable-row patch; keep shared integration sequential.
+
+private_patch_review_checkpoint:
+  evidence: evidence/review-20260920/patch-review.json
+  DD044: Revision requested for wide state words and random-selector X/Z semantics.
+  variable_row: Revision requested for four-state index snapshots and invalid-access behavior.
+  masked_memory: Revision requested for prior nexus and bit-mask composition; worker shared edit preserved/reversed before build.
+  shared_build: None active; only focused-validated grouped property and recursive coverage fixes installed.
+  next_action: Integrate only revised reviewed candidates, then coordinator-owned focused runtime gates.
