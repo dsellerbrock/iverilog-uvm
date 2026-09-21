@@ -442,6 +442,7 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
 
       vvp_object_t get_object() const override;
       vvp_object_t peek_object() const override;
+      vvp_object_t peek_object(vvp_context_t context) const;
       vvp_net_t* get_root_net() const override;
       vvp_object_t get_root_object() const override;
       void set_root_provenance(vvp_net_t*root_net, const vvp_object_t&root_obj,

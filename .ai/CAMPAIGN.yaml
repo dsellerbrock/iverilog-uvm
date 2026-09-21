@@ -1,6 +1,6 @@
 campaign: IEEE1800-UVM-continuous
 mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV and eventual formal foundation; preserve1364, UPF deferred.
-branch: agent/constraint-dependency-kind-repair-20260921
+branch: agent/opentitan-vif-dist-20260921
 history: docs/conformance/session_logs/2026-09-21_pre_spi_host_publication_CAMPAIGN.yaml
 baseline:
   main: 5e4bd136c, PR311 externally merged at9444f3c55 before repair b5bc2864f; repair cherry-picked as0b1aeaee6 on new branch.
@@ -107,3 +107,39 @@ local_qualification_complete:
   status: Required local gates pass; no active shared build/test process. PR312 CI queued at last read.
   next_selection: OpenTitan descendant automatic VIF context and exact large-range distribution; independent event/signal versusZ3 source ownership. Select explicitly before implementation; no compiler edits yet.
   preservation: External87-line AGENTS.md addition remains untouched.
+
+parallel_implementation_selection:
+  branch: agent/opentitan-vif-dist-20260921
+  base: 1222ba7ca, preserved readyPR312; all local gates pass, CI stillpending.
+  active_work: .ai/ACTIVE_WORK.yaml now authorizes two independent OpenTitan compiler mechanisms.
+  sol: OT-PWRMGR-DESCENDANT-VIF-CONTEXT; event.cc andvvp_net_sig.h/cc, private/new uniquely named tests only.
+  terra: OT-GPIO-EXACT-LARGE-DIST-RANGES; vvp_z3.cc, private/new uniquely named tests only.
+  coordinator: All builds/installations/sharedtestoutputs/globalmanifests/documentation/integration; no new worktrees.
+  no_active_gate: Previous integrated/JSON/NFA/UVM/frontend/makecheck handles areterminalpass. Do not restart them without sourcechange.
+  next: Review agent patches and build coherent shared source once ready; focused checks first, then pinned application replays. PR312 CI merge remains separate.
+
+pr312_merge_checkpoint:
+  observed: PR312 externally merged at1222ba7ca while CI jobs queued; origin/main9b3ba770a.
+  synchronization: Fetched and merged origin/main into active branch; source tree of merge identical to validated1222ba7ca. Agent patches preserved.
+  graph: Canonical graph remains cb6f35b56 and is stale for PR311/312. Extra Luna maintenance spawn refused by agent thread limit; reuse a completed lane for safe canonical refresh when available. No new graph/worktree created.
+
+vif_candidate_checkpoint:
+  build: Session75803 terminal0 for vvpbuild/install; captured sourcepatch andhashes in evidence/review-20260920/opentitan-vif-dist-build.
+  focus: vif-focus1/results.json18/18pass; vif-adjacent1/results.json all4suitespass with9VIFand16class-eventcases perharness.
+  application: pwrmgr-vif1/result.json; freshcleanM6/UVM1.2 run removes2false-null errors andadvancesfrom0to1msPH_TIMEOUT. RemainsRUNTIME_FAIL anddistdebt.
+  source: VIFthreefilepatch frozen; vvp_z3.cc nochanges.
+  agents: Sol doingcanonicalgraphpr312maintenance before specificdistributionescalation; Terra preparingboundedpermanentVIFtests after inability toproducecoherentZ3patch.
+  next: Integrate permanentVIFtests andrunfocusedlegacyJSON; receivegraphcheckpoint; resume completeexactrangeimplementation onSol usingpreservedreducers andcorrectedstate-substitutionproof.
+
+vif_permanent_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json
+  registration: Coordinator normalized9testnames, created exactlegacygold andactualmanifestentries; permanentfocus9/9ineachedition and18/18JSONpass.
+  scope: FOCUSED_TESTED; broadgatespending, no fullDVqualification.
+
+current_parallel_checkpoint:
+  graph: Canonicalmain9b3ba770a safe stagedASTrefresh complete;51223nodes94147edges and0badendpoints. Root independentlyverifiedhash andnodecount.
+  graph_evidence: evidence/review-20260920/canonical-graph-pr312/result.json
+  graph_limits: ASTonly;23partiallyparsedfiles; changednonASTdocs maybestale; noHTML.
+  sol: Exactlarge-dist implementation nowauthorized after graphcompletion; vvp_z3.cc only plusprivatetests. Specificescalation fromTerra inability toproducecoherentpatch.
+  terra: Readonly pwrmgrphase-timeout prerequisite assessment; privateevidence only.
+  coordinator: Review/integration/sharedbuilds/tests. VIFcommitfaaa17687 focusedpass, broadqualificationpending coherentbatch.

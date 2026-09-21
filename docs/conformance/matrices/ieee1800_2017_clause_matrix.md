@@ -1623,3 +1623,7 @@ The [event runtime repair checkpoint](../session_logs/2026-09-21_event_runtime_r
 ### September 21 fixed struct-member array constraints
 
 The [focused implementation evidence](../session_logs/2026-09-21_spi_host_member_array_focus.json) covers one-dimensional fixed integral member-array leaves, declared-bound foreach (18.5.8.1), state and activation (18.3/18.8), and cyclic history/rollback (18.4.2). The enclosing requirements remain PARTIAL; broader qualification and unsupported aggregate paths remain open.
+
+## September 21 descendant automatic VIF event initialization
+
+2017 §§6.21,8.6,9.3.2: the evidenced descendant-event subset now reads the exact retained ancestor receiver during proxy initialization. Concurrent/recursive activations, rebinding, detached lifetime, reuse and true-null negatives have [paired focused evidence](../session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json). Broader automatic/VIF semantics remain PARTIAL; required broad gates are pending.

@@ -2336,7 +2336,14 @@ class vvp_fun_vif_proxy_aa : public vvp_fun_vif_proxy,
 
       void initialize_instance(vvp_context_t context) override
       {
-            bind(get_state_(context), default_root_, context);
+            vvp_object_t root = default_root_;
+            if (root_net_) {
+                  vvp_fun_signal_object_aa*automatic_root =
+                        dynamic_cast<vvp_fun_signal_object_aa*>(root_net_->fun);
+                  if (automatic_root)
+                        root = automatic_root->peek_object(context);
+            }
+            bind(get_state_(context), root, context);
       }
 
       void reset_instance(vvp_context_t context) override

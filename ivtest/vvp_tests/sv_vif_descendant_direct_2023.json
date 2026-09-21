@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_vif_descendant_direct.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_vif_descendant_direct"
+}
