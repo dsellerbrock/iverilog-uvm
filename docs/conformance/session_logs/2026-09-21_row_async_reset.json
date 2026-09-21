@@ -1,0 +1,54 @@
+{
+  "blocker": "IBEX-ROW-ASYNC-RESET-SYNTHESIS",
+  "status": "Focused and neighboring validation passed; batch integrated gates pending",
+  "base_revision": "7d463b8f5607cfbb8895d2e8f8245291e1aea5c5",
+  "standards": {
+    "2017": [
+      "9.2",
+      "10.4",
+      "7.6"
+    ],
+    "2023": [
+      "9.2",
+      "10.4",
+      "7.6"
+    ]
+  },
+  "root_cause": "Compiler-generated row-index snapshots lost their constant loop values before following word stores, leaving decoder enables dynamic in async-reset synthesis.",
+  "fix": "Explicit compiler snapshot metadata with scoped constant bindings; fold the existing checked-index canonicalizer only for constant arguments. No general user-assignment cache or relaxed asynchronous-load guard.",
+  "validation": {
+    "legacy": {
+      "total": 8,
+      "failed": 0
+    },
+    "json": {
+      "total": 8,
+      "failed": 0
+    },
+    "synthesis_neighbors": {
+      "total": 160,
+      "failed": 0
+    },
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "runtime": [
+      "Off-clock reset of all four words, clocked shifts, disabled hold",
+      "Nested valid loops/blocks",
+      "Invalid and X selectors preserve distinct existing words"
+    ],
+    "negative": "Genuine asynchronous data load rejects with expected synthesis diagnostic in both editions"
+  },
+  "raw_evidence": "evidence/review-20260920/retest-20260921",
+  "scope_limits": [
+    "Behavior proven for direct fixed-array row lowering; not full application qualification.",
+    "Ordinary conditional blocking-index synthesis remains separate recorded debt.",
+    "Installed compiler also contains uncommitted constraint cast and distribution candidates; not counted as completed."
+  ],
+  "source_sha256": {
+    "synth2.cc": "33a320881683ee6066ee426c34c8dba4fca8064da07a66ed5e25d655077d2b9b",
+    "netlist.h": "0d172f00cc6141d8ddd73288d2153662e847ec467e0e3552cb120235d7d60831",
+    "elaborate.cc": "004938e207b4638aab8fe572b0706a5b5f18979cd2d668ccd9c8fffde0b992a1"
+  }
+}

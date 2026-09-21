@@ -29,6 +29,7 @@
 # include  <memory>
 # include  <unordered_map>
 # include  <climits>
+# include  <cstring>
 
 using namespace std;
 
@@ -986,6 +987,19 @@ static bool synth_context_constant(const NetExpr*expr,
 		&& synth_context_constant(ternary->true_expr(), context)
 		&& synth_context_constant(ternary->false_expr(), context);
 
+	// Dynamic fixed-array row lowering uses this compiler-owned canonicalizer
+	// around a procedural loop index. It is pure when every argument is
+	// contextually constant; treating other system functions as constants
+	// would hide real asynchronous data loads.
+      if (const NetESFunc*func = dynamic_cast<const NetESFunc*>(expr)) {
+	    if (strcmp(func->name(), "$ivl_checked_property_index") != 0)
+		  return false;
+	    for (unsigned idx = 0; idx < func->nparms(); idx += 1)
+		  if (!synth_context_constant(func->parm(idx), context))
+			return false;
+	    return true;
+      }
+
       return false;
 }
 
@@ -1795,8 +1809,17 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 	    }
       }
 
-      unsigned errors_before = des->errors;
-      NetNet*rsig = rval_->synthesize(des, scope, rval_);
+	unique_ptr<NetExpr> folded_rval;
+	NetExpr*synthesis_rval = rval_;
+	if (!dynamic_cast<NetEConst*>(rval_)
+	    && synth_context_constant(rval_, scope->loop_index_values_tmp)) {
+	      folded_rval.reset(rval_->evaluate_function(
+		    *this, scope->loop_index_tmp));
+	      if (folded_rval)
+		    synthesis_rval = folded_rval.get();
+	}
+	unsigned errors_before = des->errors;
+	NetNet*rsig = synthesis_rval->synthesize(des, scope, synthesis_rval);
       if (!rsig) {
 	    if (des->errors == errors_before) {
 		  cerr << get_fileline() << ": error: Unable to synthesize "
@@ -2645,17 +2668,56 @@ bool NetBlock::synth_async(Design*des, NetScope*scope,
 	    return true;
       }
 
+      // Row lowering saves a checked dynamic base in a compiler-marked
+      // immutable blocking temporary before emitting its element stores.
+      // Bind only that explicit IR marker for this block; user assignments
+      // and ordinary control-flow never enter this constant environment.
+      map<NetNet*,LocalVar> saved_snapshot_context =
+            scope->loop_index_values_tmp;
+      vector<unique_ptr<NetExpr> > snapshot_values;
+
       bool flag = true;
       NetProc*cur = last_;
       do {
 	    cur = cur->next_;
 
+	    NetAssign*snapshot = dynamic_cast<NetAssign*>(cur);
+	    NetNet*snapshot_sig = 0;
+	    if (snapshot && snapshot->has_synth_generated_snapshot()) {
+		  ivl_assert(*snapshot, snapshot->assign_operator() == 0);
+		  ivl_assert(*snapshot, snapshot->l_val_count() == 1);
+		  NetAssign_*lval = snapshot->l_val(0);
+		  ivl_assert(*snapshot, !lval->more && !lval->nest()
+			     && !lval->word() && !lval->get_base());
+		  snapshot_sig = lval->sig();
+		  ivl_assert(*snapshot, snapshot_sig);
+	    }
+
 	    bool sub_flag = synth_async_block_substatement_(des, scope, nex_map, nex_out,
 							    enables, bitmasks, cur);
 	    flag = flag && sub_flag;
 
+	    if (sub_flag && snapshot_sig) {
+		  NexusSet snapshot_output;
+		  snapshot->nex_output(snapshot_output);
+		  ivl_assert(*snapshot, snapshot_output.size() == 1);
+		  unsigned ptr = nex_map.find_nexus(snapshot_output[0]);
+		  ivl_assert(*snapshot, ptr < nex_out.pin_count());
+		  const Nexus*value_nexus = nex_out.pin(ptr).nexus();
+		  if (value_nexus->drivers_constant()) {
+			NetEConst*value = new NetEConst(value_nexus->driven_vector());
+			value->set_line(*snapshot);
+			LocalVar local;
+			local.nwords = 0;
+			local.value = value;
+			scope->loop_index_values_tmp[snapshot_sig] = local;
+			snapshot_values.emplace_back(value);
+		  }
+	    }
+
       } while (cur != last_);
 
+      scope->loop_index_values_tmp = saved_snapshot_context;
       return flag;
 }
 

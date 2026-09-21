@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "synth_row_invalid_reset.v",
+  "iverilog-args": [
+    "-S",
+    "-g2017",
+    "-s",
+    "nested_invalid_x_row_reset_tb"
+  ],
+  "gold": "synth_row_invalid_reset"
+}

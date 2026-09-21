@@ -1,0 +1,5 @@
+./ivltests/synth_row_invalid_reset.v:17: warning: ignoring undefined value array access.
+./ivltests/synth_row_invalid_reset.v:34: warning: Process not synthesized.
+./ivltests/synth_row_invalid_reset.v:32: warning: Process not synthesized.
+./ivltests/synth_row_invalid_reset.v:27: warning: Process not synthesized.
+PASSED

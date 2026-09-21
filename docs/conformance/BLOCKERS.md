@@ -3349,3 +3349,5 @@ The [restored baseline qualification](session_logs/2026-09-20_restored_baseline_
 The [recursive cross-with implementation](session_logs/2026-09-20_recursive_cross_with.md) has focused validation pending its batch gate; explicit matches remains unsupported;
 DD-044 separately records constraint-body translation that drops a requested
 constraint and is not closed by selector validation.
+
+IBEX-ROW-ASYNC-RESET-SYNTHESIS has [focused and neighboring runtime evidence](session_logs/2026-09-21_row_async_reset.json); required batch gates remain pending. Ordinary blocking-index dataflow is separate recorded debt.

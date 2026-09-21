@@ -1538,3 +1538,7 @@ qualification remains pending; this is not general randomization qualification.
 ### September 21 reset-only synthesis
 
 The [paired record](../session_logs/2026-09-21_reset_only_synthesis.json) adds runtime evidence for reset-only flip-flop hold behavior under9.2/10.4. Synthesis remains PARTIAL, including the separate asynchronous row-reset blocker.
+
+### September 21 fixed-array row asynchronous reset
+
+The [paired runtime evidence](../session_logs/2026-09-21_row_async_reset.json) covers generated row-index snapshots through asynchronous reset synthesis, including nested blocks and invalid selectors. Synthesis remains PARTIAL; batch qualification is pending.

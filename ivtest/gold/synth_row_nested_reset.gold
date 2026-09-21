@@ -1,0 +1,4 @@
+./ivltests/synth_row_nested_reset.v:29: warning: Process not synthesized.
+./ivltests/synth_row_nested_reset.v:27: warning: Process not synthesized.
+./ivltests/synth_row_nested_reset.v:22: warning: Process not synthesized.
+PASSED

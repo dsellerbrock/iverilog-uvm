@@ -213,3 +213,8 @@ release_retest_checkpoint_20260921:
   focused: Synthesized four-word row reset runtime and Small signed range pass both editions; full cast acceptance still fails compilation and context-sizing audit.
   pending: Sol private cast context correction and foreach translation diagnosis; Terra nested row fixture; coordinator integration and required batch gates.
   cleanup: Removed empty unregistered campaign-20260914 directory using rmdir; all registered worktrees preserved.
+
+row_async_reset_integration_checkpoint:
+  integrated_fixes: 7
+  evidence: docs/conformance/session_logs/2026-09-21_row_async_reset.json
+  remaining: Joint distributions and cast prerequisites still uncommitted; Sol runtime sizing and Terra foreach-emitter diagnosis active.

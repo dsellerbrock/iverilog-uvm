@@ -8133,9 +8133,11 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	block->set_line(loc);
 	NetAssign*save_dst = new NetAssign(new NetAssign_(dst_snapshot), dst_base);
 	save_dst->set_line(loc);
+	save_dst->synth_generated_snapshot();
 	block->append(save_dst);
 	NetAssign*save_src = new NetAssign(new NetAssign_(src_snapshot), src_base);
 	save_src->set_line(loc);
+	save_src->synth_generated_snapshot();
 	block->append(save_src);
 
 	if (nonblocking) {
@@ -8350,6 +8352,7 @@ static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
 	    NetAssign*save_base = new NetAssign(new NetAssign_(base_snapshot),
 					       wrd->dup_expr());
 	    save_base->set_line(loc);
+	save_base->synth_generated_snapshot();
 	    blk->append(save_base);
 	}
 
@@ -8418,6 +8421,7 @@ static NetProc* make_uarray_pattern_blocking_(NetScope*scope,
 	base->set_line(loc);
 	NetAssign*save_base = new NetAssign(new NetAssign_(base), wrd->dup_expr());
 	save_base->set_line(loc);
+	save_base->synth_generated_snapshot();
 	block->append(save_base);
 
 	netranges_t dims;

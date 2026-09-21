@@ -3651,6 +3651,14 @@ class NetAssign : public NetAssignBase {
 
       inline char assign_operator(void) const { return op_; }
 
+      // Elaboration marks compiler-generated, immutable blocking snapshots
+      // whose per-iteration value may be used while lowering the enclosing
+      // synthesized block. User assignments never receive this marker.
+      void synth_generated_snapshot(bool flag = true)
+      { synth_generated_snapshot_ = flag; }
+      bool has_synth_generated_snapshot() const
+      { return synth_generated_snapshot_; }
+
       bool synth_async(Design*des, NetScope*scope,
 		       NexusSet&nex_map, NetBus&nex_out,
 		       NetBus&enables, std::vector<mask_t>&bitmasks) override;
@@ -3669,6 +3677,7 @@ class NetAssign : public NetAssignBase {
 			   const NetAssign_*lval, NetExpr*rval_result) const;
 
       char op_;
+      bool synth_generated_snapshot_ = false;
 };
 
 class NetAssignNB  : public NetAssignBase {
