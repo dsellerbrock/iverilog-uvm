@@ -2999,3 +2999,14 @@ commands live in `evidence/review-20260920/next-uvm-regex/confirmed-attribution.
 This is an application/UVM API compatibility boundary, not an established
 compiler defect. Other platform behavior remains unverified. Preserve failure;
 do not rewrite patterns or suppress diagnostics to obtain a passing test.
+
+### 2026-09-21 wide inside-container value transport
+
+During CONSTRAINT-INTEGRAL-CAST-IR, review found that the class `q:` and
+scope `qv:` emitters replaced element widths above 64 with 32. This loses the
+declared type required by inside common-type evaluation and can misrepresent
+membership. The candidate now rejects those containers explicitly; it does
+not implement their wide value transport. Full-width element capture and
+comparison remain UNSUPPORTED, separate from scalar integral casts.
+IEEE 1800-2017/2023 11.4.13 and 11.8.2; producer and paired diagnostic evidence:
+`evidence/review-20260920/next-joint-distributions/patch-type-inside/`.

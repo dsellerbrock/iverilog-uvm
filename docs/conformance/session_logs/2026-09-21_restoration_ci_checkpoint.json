@@ -42,14 +42,14 @@
     "completed_success": [
       "Ubuntu22.04",
       "Ubuntu24.04",
-      "CLANG64"
+      "CLANG64",
+      "UCRT64",
+      "MINGW64"
     ],
     "in_progress": [
-      "UCRT64",
-      "MINGW64",
       "macOS"
     ],
-    "open_pull_requests": [],
-    "qualification_scope": "Restoration PR306 exacthead only, not current compiler batch"
+    "observed_utc": "2026-09-21T08:00:57.757801+00:00",
+    "qualification_scope": "Restoration PR306 exacthead only; not current compiler batch"
   }
 }

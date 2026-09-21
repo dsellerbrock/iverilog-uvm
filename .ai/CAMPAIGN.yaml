@@ -289,3 +289,27 @@ joint_distribution_permanent_checkpoint:
   remaining: Cast inside prerequisite, full constraint neighbors, complete B/P synthesis, broad batch gates and PR.
   next_command: Review private inside patch against current shared vvp/vvp_z3.cc before applying; coordinator rebuild and rerun paired focus.
   processes: No shared build or test process remains live; two private implementation agents active.
+
+synthesis_nba_escalation:
+  owner: synthesis_nba_completion (gpt-5.6-sol medium)
+  reason: Terra twice returned incomplete NetCase P merge; escalate only this unresolved compiler mechanism, preserving draft and evidence.
+  private_scope: evidence/review-20260920/next-blocking-index/patch; no shared builds or edits.
+  review_additions: Partial B writes must appear in subsequent RHS reads; perbit pending enables must preserve disjoint conditional writes.
+  acceptance: Five additional fixtures in next-blocking-index/fixtures; all ten behavioral cases pass, partial blocking read fails synthesis in both editions, eight synthesis guards pass.
+  secondary_worker: Terra completed fixture-only task; implementation draft ownership transferred to Sol.
+
+inside_container_producer_guard:
+  status: COORDINATOR_AUTHORIZED_AND_FOCUSED_TESTED
+  root_cause: q/qv producer replaced element widths above64 with32, preventing correct common-type inference.
+  scope: Reject unrepresentable container widths at both existing elaborate.cc producers; wide value transport remains unsupported debt.
+  evidence: evidence/review-20260920/next-joint-distributions/patch-type-inside/wide-producer-candidate.json
+  acceptance: Class and scope diagnostic cases in both editions, included among six inside permanent tests passing both harnesses.
+  portability: Cast size validation uses existing as_ulong64 instead of platform-width as_ulong; zero/negative/oversized diagnostics checked.
+
+inside_common_type_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_inside_common_type_checkpoint.json
+  status: FOCUSED_TESTED_NOT_CLOSED
+  remaining: Typed inside queue X/Z values currently collapse to zero; Sol repairs state validation and guard/rollback semantics.
+  synthesis: Escalated Sol private patch now handles case merges but nested packed P write boundary requires completion or focused rejection.
+  shared_processes: No shared build or test remains live; prior JSON neighbor session1849 and combinedfocus18980 completed successfully.
+  next: Review inside X/Z patch and synthesis nested select update before next shared build; repeat affected focused tests and constraint neighbors for actual code changes.
