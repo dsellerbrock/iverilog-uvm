@@ -39,6 +39,11 @@ records retain their original revisions and limits.
 
 ## Application evidence
 
+The [type-first candidate release retest](session_logs/2026-09-21_typed_candidate_release_retest.json)
+records the later candidate fingerprints, fresh unmodified release runtime results,
+remaining GPIO failure, and cleanup disposition. This bounded run does not qualify
+the pending compiler batch.
+
 The [September 21 bounded release retest](session_logs/2026-09-21_stable_release_retest.json)
 records fresh compiler/runtime fingerprints, unmodified Caliptra unit and OpenTitan
 peripheral-crossbar results, GPIO failure, and cleanup. It covers the recorded
