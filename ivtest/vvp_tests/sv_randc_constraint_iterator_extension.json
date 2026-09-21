@@ -1,6 +1,8 @@
 {
-    "type"          : "normal",
-    "source"        : "sv_randc_constraint_iterator_extension.v",
-    "iverilog-args" : [ "-g2012" ],
-    "gold"          : "sv_randc_constraint_iterator_extension"
+    "type": "CE",
+    "source": "sv_randc_constraint_iterator_extension.v",
+    "iverilog-args": [
+        "-g2012"
+    ],
+    "gold": "sv_randc_constraint_iterator_extension"
 }
