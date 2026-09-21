@@ -8047,6 +8047,127 @@ static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
       return block;
 }
 
+/* Copy a fixed one-dimensional prefix whose source and/or destination base
+ * is selected at run time.  The prefix selectors are evaluated once into
+ * locals before the per-word lowering.  That is essential for `a[i] <=
+ * a[j]': every NBA word must retain the same selected rows and the RHS values
+ * seen when the statement was scheduled.  Blocking copies first materialize
+ * the complete RHS row, which also makes a dynamically overlapping self-copy
+ * a single aggregate assignment rather than an order-dependent word loop. */
+static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
+						  const NetNet*base,
+						  const NetNet*ordinal,
+						  unsigned long count,
+						  bool reverse)
+{
+	NetESignal*base_read = new NetESignal(const_cast<NetNet*>(base));
+	base_read->set_line(loc);
+	NetESignal*ordinal_read = new NetESignal(const_cast<NetNet*>(ordinal));
+	ordinal_read->set_line(loc);
+	NetExpr*offset = ordinal_read;
+	if (reverse) {
+	    NetEConst*last = make_const_val_s((long)count - 1);
+	    last->set_line(loc);
+	    NetEBAdd*reversed = new NetEBAdd('-', last, ordinal_read, 32, true);
+	    reversed->set_line(loc);
+	    offset = reversed;
+	}
+	NetEBAdd*word = new NetEBAdd('+', base_read,
+              pad_to_width(offset, 64, loc), 64, true);
+	word->set_line(loc);
+	return word;
+}
+
+static NetProc* make_uarray_dynamic_prefix_copy_loop_(
+	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
+	      const NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
+	      unsigned long count, bool reverse_src, bool nonblocking)
+{
+	NetNet*ordinal = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   &netvector_t::atom2s32);
+	ordinal->local_flag(true);
+	ordinal->set_line(loc);
+
+	NetEConst*init = make_const_val_s(0);
+	init->set_line(loc);
+	NetESignal*ordinal_read = new NetESignal(ordinal);
+	ordinal_read->set_line(loc);
+	NetEConst*limit = make_const_val_s(count);
+	limit->set_line(loc);
+	NetEBComp*cond = new NetEBComp('<', ordinal_read, limit);
+	cond->set_line(loc);
+	NetAssign*step = new NetAssign(new NetAssign_(ordinal), '+',
+					 make_const_val_s(1));
+	step->set_line(loc);
+
+	NetAssign_*word_lval = new NetAssign_(dst_sig);
+	word_lval->set_word(make_uarray_dynamic_prefix_word_(
+	      loc, dst_base, ordinal, count, false));
+	NetESignal*word_rval = new NetESignal(src_sig,
+	      make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
+						 reverse_src));
+	word_rval->set_line(loc);
+	NetProc*body = nonblocking
+	      ? static_cast<NetProc*>(new NetAssignNB(word_lval, word_rval, 0, 0))
+	      : static_cast<NetProc*>(new NetAssign(word_lval, word_rval));
+	body->set_line(loc);
+	NetForLoop*loop = new NetForLoop(ordinal, init, cond, body, step);
+	loop->set_line(loc);
+	return loop;
+}
+
+static NetProc* make_uarray_dynamic_prefix_copy_(
+	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig, NetExpr*dst_base,
+	      NetNet*src_sig, NetExpr*src_base, unsigned long count,
+	      bool reverse_src, bool nonblocking)
+{
+	NetNet*dst_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	dst_snapshot->local_flag(true);
+	dst_snapshot->set_line(loc);
+	NetNet*src_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	src_snapshot->local_flag(true);
+	src_snapshot->set_line(loc);
+	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	block->set_line(loc);
+	NetAssign*save_dst = new NetAssign(new NetAssign_(dst_snapshot), dst_base);
+	save_dst->set_line(loc);
+	block->append(save_dst);
+	NetAssign*save_src = new NetAssign(new NetAssign_(src_snapshot), src_base);
+	save_src->set_line(loc);
+	block->append(save_src);
+
+	if (nonblocking) {
+	    block->append(make_uarray_dynamic_prefix_copy_loop_(
+		  scope, loc, dst_sig, dst_snapshot, src_sig, src_snapshot, count,
+		  reverse_src, true));
+	    return block;
+	}
+
+	netranges_t dims;
+	dims.push_back(netrange_t((long)count - 1, 0));
+	NetNet*rhs_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					  dims, src_sig->net_type());
+	rhs_snapshot->local_flag(true);
+	rhs_snapshot->set_line(loc);
+	if (scope->is_auto()) rhs_snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
+	NetNet*zero_base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					 &netvector_t::atom2s32);
+	zero_base->local_flag(true);
+	zero_base->set_line(loc);
+	NetAssign*zero = new NetAssign(new NetAssign_(zero_base), make_const_val_s(0));
+	zero->set_line(loc);
+	block->append(zero);
+	block->append(make_uarray_dynamic_prefix_copy_loop_(
+	      scope, loc, rhs_snapshot, zero_base, src_sig, src_snapshot, count,
+	      reverse_src, false));
+	block->append(make_uarray_dynamic_prefix_copy_loop_(
+	      scope, loc, dst_sig, dst_snapshot, rhs_snapshot, zero_base, count,
+	      false, false));
+	return block;
+}
+
 /* Copy a contiguous run of canonical words between two fixed unpacked
  * array signals. This is the aggregate equivalent of the scalar copy loop
  * above, with explicit source and destination bases so a subroutine actual
@@ -8178,7 +8299,7 @@ static bool uarray_pattern_flatten_(const NetEArrayPattern*pat,
       return true;
 }
 
-static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
+static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
 					NetAssign_*lv,
 					const NetEArrayPattern*pat,
 					const NetExpr*delay)
@@ -8191,12 +8312,11 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
 
 	/* The word index of the first element written. A whole-array
 	   l-value starts at 0; a slice carries its flat base word. */
-      long base = 0;
-      if (const NetExpr*wrd = lv->word()) {
-	    const NetEConst*wcon = dynamic_cast<const NetEConst*>(wrd);
-	    if (wcon == 0) return 0;
-	    base = wcon->value().as_long();
-      }
+	long base = 0;
+	const NetExpr*wrd = lv->word();
+	const NetEConst*wcon = wrd ? dynamic_cast<const NetEConst*>(wrd) : 0;
+	bool dynamic_base = wrd && (!wcon || !wcon->value().is_defined());
+	if (wcon && !dynamic_base) base = wcon->value().as_long();
 
 	/* The pattern must cover exactly the words being written --
 	   never a partial fill, which is what the broken path did. */
@@ -8205,7 +8325,8 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
       for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
 	    want *= dims[idx].width();
       if (want == 0) return 0;
-      if (base < 0 || (unsigned long)base + want > sig->unpacked_count())
+	if (!dynamic_base
+	    && (base < 0 || (unsigned long)base + want > sig->unpacked_count()))
 	    return 0;
 
       ivl_type_t elem = ua->element_type();
@@ -8219,12 +8340,35 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
 
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(loc);
+	NetNet*base_snapshot = 0;
+	if (dynamic_base) {
+	    base_snapshot = new NetNet(scope, scope->local_symbol(),
+				       NetNet::REG,
+				       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	    base_snapshot->local_flag(true);
+	    base_snapshot->set_line(loc);
+	    NetAssign*save_base = new NetAssign(new NetAssign_(base_snapshot),
+					       wrd->dup_expr());
+	    save_base->set_line(loc);
+	    blk->append(save_base);
+	}
 
       for (size_t idx = 0 ; idx < items.size() ; idx += 1) {
 	    NetAssign_*wlv = new NetAssign_(sig);
-	    NetEConst*widx = make_const_val_s(base + (long)idx);
-	    widx->set_line(loc);
-	    wlv->set_word(widx);
+	    if (dynamic_base) {
+		  NetESignal*base_read = new NetESignal(base_snapshot);
+		  base_read->set_line(loc);
+		  NetEConst*offset = make_const_val_s(idx);
+		  offset->set_line(loc);
+		  NetEBAdd*widx = new NetEBAdd('+', base_read,
+                    pad_to_width(offset, 64, loc), 64, true);
+		  widx->set_line(loc);
+		  wlv->set_word(widx);
+	    } else {
+		  NetEConst*widx = make_const_val_s(base + (long)idx);
+		  widx->set_line(loc);
+		  wlv->set_word(widx);
+	    }
 
 	    NetAssignNB*nb = new NetAssignNB(wlv, items[idx]->dup_expr(), 0, 0);
 	    nb->set_line(loc);
@@ -8237,6 +8381,81 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
       }
 
       return blk;
+}
+
+/* The vvp array-pattern emitter requires a constant slice base. Lower the
+ * dynamic blocking row form before it reaches that backend path. Evaluate the
+ * selector once, materialize every pattern word, then write the destination
+ * row. The materialization is required for `a[i] = '{a[i][0], ...}` and also
+ * guarantees RHS effects occur even when an invalid selector suppresses every
+ * destination store. */
+static NetProc* make_uarray_pattern_blocking_(NetScope*scope,
+					      const LineInfo&loc, NetAssign_*lv,
+					      const NetEArrayPattern*pat)
+{
+	NetNet*sig = lv->sig();
+	if (!sig || !lv->is_array_slice()) return 0;
+	const NetExpr*wrd = lv->word();
+	const NetEConst*wcon = wrd ? dynamic_cast<const NetEConst*>(wrd) : 0;
+	if (!wrd || (wcon && wcon->value().is_defined())) return 0;
+	const netuarray_t*ua = dynamic_cast<const netuarray_t*>(lv->net_type());
+	if (!ua) return 0;
+
+	unsigned long want = 1;
+	for (const netrange_t&dim : ua->static_dimensions()) want *= dim.width();
+	if (!want) return 0;
+	std::vector<const NetExpr*> items;
+	items.reserve(want);
+	ivl_type_t elem = ua->element_type();
+	if (!uarray_pattern_flatten_(pat, elem && elem->packed(), want, items)
+	    || items.size() != want) return 0;
+
+	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	block->set_line(loc);
+	NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				    new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	base->local_flag(true);
+	base->set_line(loc);
+	NetAssign*save_base = new NetAssign(new NetAssign_(base), wrd->dup_expr());
+	save_base->set_line(loc);
+	block->append(save_base);
+
+	netranges_t dims;
+	dims.push_back(netrange_t((long)want - 1, 0));
+	NetNet*rhs = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				  dims, sig->net_type());
+	rhs->local_flag(true);
+	rhs->set_line(loc);
+	if (scope->is_auto()) rhs->lifetime_override(IVL_VLT_AUTOMATIC);
+	for (size_t idx = 0; idx < items.size(); ++idx) {
+	    NetAssign_*tmp_lval = new NetAssign_(rhs);
+	    NetEConst*tmp_word = make_const_val_s(idx);
+	    tmp_word->set_line(loc);
+	    tmp_lval->set_word(tmp_word);
+	    NetAssign*save_rhs = new NetAssign(tmp_lval, items[idx]->dup_expr());
+	    save_rhs->set_line(loc);
+	    block->append(save_rhs);
+	}
+
+	for (size_t idx = 0; idx < items.size(); ++idx) {
+	    NetAssign_*dst_lval = new NetAssign_(sig);
+	    NetESignal*base_read = new NetESignal(base);
+	    base_read->set_line(loc);
+	    NetEConst*offset = make_const_val_s(idx);
+	    offset->set_line(loc);
+	    NetEBAdd*dst_word = new NetEBAdd('+', base_read,
+					       pad_to_width(offset, 64, loc), 64, true);
+	    dst_word->set_line(loc);
+	    dst_lval->set_word(dst_word);
+	    NetEConst*rhs_word = make_const_val_s(idx);
+	    rhs_word->set_line(loc);
+	    NetESignal*rhs_read = new NetESignal(rhs, rhs_word);
+	    rhs_read->set_line(loc);
+	    NetAssign*store = new NetAssign(dst_lval, rhs_read);
+	    store->set_line(loc);
+	    block->append(store);
+	}
+	return block;
 }
 
 /*
@@ -8314,10 +8533,14 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
 struct uarray_prefix_source_t {
       NetNet*sig = nullptr;          // Borrowed from the design.
       long canonical_base = 0;
+	// Non-null for a run-time selected prefix. Ownership stays with this
+	// decode record until the copy lowering adopts it.
+	NetExpr*canonical_base_expr = nullptr;
       unsigned long count = 0;
       netranges_t remaining_dims;
       ivl_type_t element_type = nullptr; // Borrowed from sig.
       bool range_slice = false;
+	~uarray_prefix_source_t() { delete canonical_base_expr; }
 };
 
 /* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
@@ -8376,45 +8599,38 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 	    }
       }
 
-      list<NetExpr*>index_exprs;
-      list<long>index_consts;
-      indices_flags flags;
-      indices_to_expressions(des, scope, &loc, indices, used_dims, false,
-			     flags, index_exprs, index_consts);
-      for (NetExpr*idx : index_exprs)
-	    delete idx;
-
-      if (flags.invalid)
-	    return -1;
-      if (flags.variable || flags.undefined) {
-	    cerr << loc.get_fileline() << ": sorry: a run-time selected"
-		 << " procedural unpacked subarray is not yet supported."
-		 << endl;
-	    des->errors += 1;
-	    return -1;
+	const netranges_t&dims = sr.net->unpacked_dims();
+	netranges_t prefix_dims;
+	for (size_t dim = 0; dim < used_dims; dim += 1)
+	    prefix_dims.push_back(dims[dim]);
+	netuarray_t prefix_type(prefix_dims, sr.net->net_type());
+	NetExpr*base_expr = make_checked_canonical_property_index(
+	      des, scope, &loc, indices, &prefix_type, false);
+	if (!base_expr) return -1;
+	netranges_t remaining_dims;
+	for (size_t dim = used_dims; dim < dims.size(); dim += 1)
+	    remaining_dims.push_back(dims[dim]);
+	unsigned long row_words = netrange_width(remaining_dims);
+	base_expr = scale_index_to_bits(base_expr, row_words, loc);
+	eval_expr(base_expr);
+	base_expr->set_line(loc);
+	if (const NetEConst*base_const = dynamic_cast<const NetEConst*>(base_expr)) {
+	if (!base_const->value().is_defined()) {
+		  out.canonical_base_expr = base_expr;
+	    } else {
+		  out.canonical_base = base_const->value().as_long();
+		  delete base_expr;
       }
-
-      NetExpr*base_expr = normalize_variable_unpacked(sr.net, index_consts);
-      const NetEConst*base_const = dynamic_cast<const NetEConst*>(base_expr);
-      if (!base_const || !base_const->value().is_defined()) {
-	    cerr << loc.get_fileline() << ": error: unpacked-subarray prefix is"
-		 << " outside the declared array bounds." << endl;
-	    des->errors += 1;
-	    delete base_expr;
-	    return -1;
-      }
-
-      out.canonical_base = base_const->value().as_long();
-      delete base_expr;
-      const netranges_t&dims = sr.net->unpacked_dims();
-      for (size_t dim = used_dims; dim < dims.size(); dim += 1)
-	    out.remaining_dims.push_back(dims[dim]);
+	} else {
+	    out.canonical_base_expr = base_expr;
+	}
+	out.remaining_dims = remaining_dims;
       out.count = netrange_width(out.remaining_dims);
-      if (out.canonical_base < 0
-	  || out.canonical_base >= (long)sr.net->pin_count()
-	  || out.count == 0
-	  || out.count > sr.net->pin_count()
-			  - (unsigned long)out.canonical_base) {
+	if (!out.canonical_base_expr && (out.canonical_base < 0
+	    || out.canonical_base >= (long)sr.net->pin_count()
+	    || out.count == 0
+	    || out.count > sr.net->pin_count()
+			  - (unsigned long)out.canonical_base)) {
 	    cerr << loc.get_fileline() << ": error: unpacked-subarray prefix is"
 		 << " outside the declared array bounds." << endl;
 	    des->errors += 1;
@@ -8424,6 +8640,41 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
       out.sig = sr.net;
       out.element_type = sr.net->net_type();
       return 1;
+}
+
+/* Adopt the decoded source base and the slice l-value base.  Constant rows
+ * retain the compact existing lowering; either run-time selector uses the
+ * snapshotting lowering above. */
+static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
+					 NetAssign_*lv,
+					 uarray_prefix_source_t&src,
+					 bool reverse_src, bool nonblocking)
+{
+	NetNet*dst_sig = lv->sig();
+	NetExpr*dst_base_expr = lv->word()
+	      ? lv->word()->dup_expr() : make_const_val_s(0);
+	NetExpr*src_base_expr = src.canonical_base_expr
+	      ? src.canonical_base_expr : make_const_val_s(src.canonical_base);
+	src.canonical_base_expr = nullptr;
+	long dst_base = 0, src_base = 0;
+        const NetEConst*dst_constant = dynamic_cast<const NetEConst*>(dst_base_expr);
+        const NetEConst*src_constant = dynamic_cast<const NetEConst*>(src_base_expr);
+        bool constant_bases = dst_constant && src_constant
+              && dst_constant->value().is_defined() && src_constant->value().is_defined()
+              && eval_as_long(dst_base, dst_base_expr)
+              && eval_as_long(src_base, src_base_expr);
+	if (!constant_bases) {
+	    delete lv;
+	    return make_uarray_dynamic_prefix_copy_(
+		  scope, loc, dst_sig, dst_base_expr, src.sig, src_base_expr,
+		  src.count, reverse_src, nonblocking);
+	}
+	delete dst_base_expr;
+	delete src_base_expr;
+	delete lv;
+	return make_uarray_signal_range_copy_(scope, loc, dst_sig, dst_base,
+				      src.sig, src_base, src.count, reverse_src,
+				      nonblocking);
 }
 
 static bool uarray_ranges_need_reverse_(const netrange_t&dst,
@@ -9042,22 +9293,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 			bool reverse_src = uarray_ranges_need_reverse_(
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
-			long dst_base = 0;
-			NetNet*dst_sig = lv->sig();
-			if (lv->is_array_slice()) {
-			      if (!eval_as_long(dst_base, lv->word())) {
-				    cerr << get_fileline() << ": error:"
-					 << " invalid fixed subarray l-value base."
-					 << endl;
-				    des->errors += 1;
-				    delete lv;
-				    return 0;
-			      }
-			}
-			delete lv;
-			return make_uarray_signal_range_copy_(
-			      scope, *this, dst_sig, dst_base, src.sig,
-			      src.canonical_base, src.count, reverse_src, false);
+			return make_uarray_prefix_copy_(scope, *this, lv, src,
+						 reverse_src, false);
 		  }
 
 		  // A whole one-dimensional signal can also feed a fixed destination
@@ -9096,23 +9333,14 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 					  delete lv;
 					  return 0;
 				    }
-				    long dst_base = 0;
-				    if (!eval_as_long(dst_base, lv->word())) {
-					  cerr << get_fileline() << ": error: invalid"
-					       << " fixed subarray l-value base." << endl;
-					  des->errors += 1;
-					  delete lv;
-					  return 0;
-				    }
-				    bool reverse_src = uarray_ranges_need_reverse_(
-					  lv_uarray->static_dimensions()[0],
-					  src_type->static_dimensions()[0]);
-				    NetNet*dst_sig = lv->sig();
-				    unsigned long count = sr.net->unpacked_count();
-				    delete lv;
-				    return make_uarray_signal_range_copy_(
-					  scope, *this, dst_sig, dst_base, sr.net, 0,
-					  count, reverse_src, false);
+                                    bool reverse_src = uarray_ranges_need_reverse_(
+                                          lv_uarray->static_dimensions()[0],
+                                          src_type->static_dimensions()[0]);
+                                    uarray_prefix_source_t whole;
+                                    whole.sig = sr.net;
+                                    whole.count = sr.net->unpacked_count();
+                                    return make_uarray_prefix_copy_(
+                                          scope, *this, lv, whole, reverse_src, false);
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -9158,6 +9386,23 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  delete lv;
 		  delete rv;
 		  return 0;
+	    }
+
+	    /* A dynamic fixed-array row with a blocking assignment pattern cannot
+	     * reach tgt-vvp's constant-base draw_array_pattern path. Lower the
+	     * simple procedural form into ordinary word stores instead. */
+	    if (delay_ == 0 && event_ == 0 && count_ == 0
+		&& lv->more == 0 && lv->is_array_slice()) {
+		  if (const NetEArrayPattern*pat =
+			  dynamic_cast<const NetEArrayPattern*>(rv)) {
+			NetProc*blk = make_uarray_pattern_blocking_(scope, *this,
+							     lv, pat);
+			if (blk) {
+			      delete lv;
+			      delete rv;
+			      return blk;
+			}
+		  }
 	    }
 
 	      // Whole static-array copy from a class property source
@@ -10038,22 +10283,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			bool reverse_src = uarray_ranges_need_reverse_(
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
-			long dst_base = 0;
-			NetNet*dst_sig = lv->sig();
-			if (lv->is_array_slice()) {
-			      if (!eval_as_long(dst_base, lv->word())) {
-				    cerr << get_fileline() << ": error:"
-					 << " invalid fixed subarray l-value base."
-					 << endl;
-				    des->errors += 1;
-				    delete lv;
-				    return 0;
-			      }
-			}
-			delete lv;
-			return make_uarray_signal_range_copy_(
-			      scope, *this, dst_sig, dst_base, src.sig,
-			      src.canonical_base, src.count, reverse_src, true);
+			return make_uarray_prefix_copy_(scope, *this, lv, src,
+						 reverse_src, true);
 		  }
 
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
@@ -10089,23 +10320,14 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 					  delete lv;
 					  return 0;
 				    }
-				    long dst_base = 0;
-				    if (!eval_as_long(dst_base, lv->word())) {
-					  cerr << get_fileline() << ": error: invalid"
-					       << " fixed subarray l-value base." << endl;
-					  des->errors += 1;
-					  delete lv;
-					  return 0;
-				    }
-				    bool reverse_src = uarray_ranges_need_reverse_(
-					  lv_uarray->static_dimensions()[0],
-					  src_type->static_dimensions()[0]);
-				    NetNet*dst_sig = lv->sig();
-				    unsigned long count = sr.net->unpacked_count();
-				    delete lv;
-				    return make_uarray_signal_range_copy_(
-					  scope, *this, dst_sig, dst_base, sr.net, 0,
-					  count, reverse_src, true);
+                                    bool reverse_src = uarray_ranges_need_reverse_(
+                                          lv_uarray->static_dimensions()[0],
+                                          src_type->static_dimensions()[0]);
+                                    uarray_prefix_source_t whole;
+                                    whole.sig = sr.net;
+                                    whole.count = sr.net->unpacked_count();
+                                    return make_uarray_prefix_copy_(
+                                          scope, *this, lv, whole, reverse_src, true);
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -10182,7 +10404,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  NetExpr*pat_delay = 0;
 		  if (delay_ != 0)
 			pat_delay = elaborate_delay_expr(delay_, des, scope);
-		  NetProc*blk = make_uarray_pattern_nb_(*this, lv, pat,
+		  NetProc*blk = make_uarray_pattern_nb_(scope, *this, lv, pat,
 							pat_delay);
 		  delete pat_delay;
 		  if (blk) {

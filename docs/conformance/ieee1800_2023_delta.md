@@ -252,3 +252,5 @@ Grouped clocked implication consequents follow the shared 16.13 / Annex A.2.10
 rules; [paired evidence](session_logs/2026-09-20_grouped_clocked_consequent.md) records both editions.
 
 Masked runtime memory writes follow the shared 7.4.6, 11.5 and 10.4 rules; [paired evidence](session_logs/2026-09-20_masked_memory_synthesis.json) records both editions.
+
+Variable fixed-array row assignments use shared 7.4.6, 7.6 and 10.4 rules; [paired evidence](session_logs/2026-09-20_variable_row_assignment.json) records the edition runs and limits.

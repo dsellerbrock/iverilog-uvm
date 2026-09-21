@@ -1,0 +1,50 @@
+{
+  "base_revision": "0e7a07354",
+  "scope": "Fixed-array procedural row copies and assignment patterns; focused validation, not broad qualification",
+  "standards": {
+    "2017": [
+      "7.4.6",
+      "7.6",
+      "10.4"
+    ],
+    "2023": [
+      "7.4.6",
+      "7.6",
+      "10.4"
+    ]
+  },
+  "editions": [
+    "2017",
+    "2023"
+  ],
+  "focused_legacy": {
+    "run": 12,
+    "passed": 12
+  },
+  "focused_json": {
+    "run": 12,
+    "passed": 12
+  },
+  "array_pattern_neighbors": {
+    "run": 31,
+    "passed": 31
+  },
+  "behavior": [
+    "Blocking and NBA row copies, including whole one-dimensional array sources",
+    "Once-only selector capture, NBA source value capture, and opposite declared range directions",
+    "Four-state index snapshots and per-dimension bounds checks; invalid destination does not write",
+    "Invalid source element defaults; static X/Z, lower and upper out-of-range destinations",
+    "Blocking patterns snapshot RHS before writes and retain RHS effects for invalid destinations",
+    "NBA default patterns retain target selection and reject unequal row shape"
+  ],
+  "sources": {
+    "elab_lval.cc": "2998f283a41d257f38d83fa037d1bf5dc6308ec551e213fab325bc1a16609c28",
+    "elaborate.cc": "fd1ab7bb4563917b26b46e9508233a9b23c67a9569f8ebfbb36ea3efaf05cd29"
+  },
+  "raw_evidence": "evidence/review-20260920/next-variable-row",
+  "application": "Original M6 Ibex row-elaboration diagnostics removed; synthesis still rejects asynchronous row reset. Separate selected lane owns that blocker. No application runtime pass claimed.",
+  "limits": [
+    "Direct fixed-array signal copies with one remaining unpacked dimension; does not establish arbitrary aggregate/function/delayed row assignment support.",
+    "Broader compiler/UVM qualification deferred to batch gate."
+  ]
+}

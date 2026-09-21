@@ -3957,3 +3957,17 @@ sv_covergroup_cross_recursive_with_unsupported_2023 CE,-g2023 ivltests gold=sv_c
 # Grouped explicitly clocked implication consequents.
 sv_assert_grouped_clocked_consequent normal,-g2017 ivltests gold=sv_assert_grouped_clocked_consequent.gold
 sv_assert_grouped_clocked_consequent_2023 normal,-g2023 ivltests gold=sv_assert_grouped_clocked_consequent.gold
+
+# Variable row assignment: snapshots and invalid indices.
+sv_variable_row_assignment normal,-g2017 ivltests gold=sv_variable_row_assignment.gold
+sv_variable_row_assignment_2023 normal,-g2023 ivltests gold=sv_variable_row_assignment.gold
+sv_variable_row_whole_source normal,-g2017 ivltests gold=sv_variable_row_whole_source.gold
+sv_variable_row_whole_source_2023 normal,-g2023 ivltests gold=sv_variable_row_whole_source.gold
+sv_variable_row_invalid normal,-g2017 ivltests gold=sv_variable_row_invalid.gold
+sv_variable_row_invalid_2023 normal,-g2023 ivltests gold=sv_variable_row_invalid.gold
+sv_variable_row_pattern normal,-g2017 ivltests gold=sv_variable_row_pattern.gold
+sv_variable_row_pattern_2023 normal,-g2023 ivltests gold=sv_variable_row_pattern.gold
+sv_variable_row_loop normal,-g2017 ivltests gold=sv_variable_row_loop.gold
+sv_variable_row_loop_2023 normal,-g2023 ivltests gold=sv_variable_row_loop.gold
+sv_variable_row_shape_fail CE,-g2017 ivltests gold=sv_variable_row_shape_fail.gold
+sv_variable_row_shape_fail_2023 CE,-g2023 ivltests gold=sv_variable_row_shape_fail.gold

@@ -1518,3 +1518,11 @@ now preserves unwritten bits and decoded word enables (7.4.6, 11.5, 10.4).
 covers constant/variable packed indices, masks and invalid addresses. Packed
 multidimensional carrier subselects remain explicitly unsupported in this path;
 synthesis support overall remains PARTIAL.
+
+### September 20 variable fixed-array rows
+
+The [paired row-assignment record](../session_logs/2026-09-20_variable_row_assignment.json)
+adds procedural direct-signal row copies and patterns to the 7.4.6/7.6/10.4
+PARTIAL implementation: selector and RHS snapshots, invalid-index behavior,
+and NBA updates have runtime evidence. It does not qualify arbitrary
+aggregate/function/delayed row assignments or the remaining synthesis reset path.

@@ -102,8 +102,8 @@ application_replay_completion:
   next_action: Integrate corrected reviewed private compiler patches and run focused acceptance tests.
 
 next_batch_checkpoint:
-  focused_validated_fixes: 3
-  items: [DD042 recursive cross-with, grouped clocked implication consequent, masked runtime memory synthesis]
+  focused_validated_fixes: 4
+  items: [DD042 recursive cross-with, grouped clocked implication consequent, masked runtime memory synthesis, variable row assignment]
   evidence: docs/conformance/session_logs/2026-09-20_recursive_cross_with.md
   active_lane: constraint_guard_semantics (gpt-5.6-sol, medium), bounded DD044 diagnostic escalation
   broad_gate_cadence: Approximately ten integrated fixes; prior baseline evidence remains revision-scoped.
@@ -142,3 +142,10 @@ variable_row_integration_checkpoint:
 row_async_reset_selection:
   evidence: evidence/review-20260920/next-row-async-reset/red.log
   relation: Next independently owned synthesis mechanism exposed by current Ibex row elaboration candidate.
+
+variable_row_completed_checkpoint:
+  status: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-20_variable_row_assignment.json
+  supersedes: variable_row_integration_checkpoint blocking-pattern crash, now resolved and tested.
+  next_action: Review final DD044 guarded-error patch; async-row reset worker owns separate synthesis blocker.
+  shared_processes: None active.

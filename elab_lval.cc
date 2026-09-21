@@ -1553,33 +1553,27 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
       if (full_arr && nidx < full_arr->static_dimensions().size()) {
 	    const netranges_t&dims = full_arr->static_dimensions();
 
-	    list<NetExpr*> idx_exprs;
-	    list<long> idx_consts;
-	    indices_flags flags;
-	    indices_to_expressions(des, scope, this, name_tail.index, nidx,
-				   false, flags, idx_exprs, idx_consts);
-
-	    if (flags.variable || flags.undefined || flags.invalid) {
-		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
-			  " array slice with a non-constant index is not yet"
-			  " supported." << endl;
-		  des->errors += 1;
-		  return 0;
-	    }
-
-	    NetExpr*base = normalize_variable_unpacked(reg, idx_consts);
-	    if (base == 0) {
-		  cerr << get_fileline() << ": warning: ignoring out of bounds"
-			  " l-value array slice access " << reg->name()
-			 << "." << endl;
-		  return 0;
-	    }
-	    base->set_line(*this);
-
 	      // The slice presents the remaining dimensions as its type.
 	    netranges_t sub_dims;
 	    for (size_t d = nidx ; d < dims.size() ; d += 1)
 		  sub_dims.push_back(dims[d]);
+	    netranges_t prefix_dims;
+	    for (size_t d = 0 ; d < nidx ; d += 1)
+		  prefix_dims.push_back(dims[d]);
+	    netuarray_t prefix_type(prefix_dims, full_arr->element_type());
+
+	    // Check every selected dimension before flattening it. A flat
+	    // arithmetic address alone aliases e.g. m[0][row_width] to m[1][0].
+	    // The checked canonicalizer retains X/Z as an invalid word address,
+	    // so the ordinary l-value store performs no operation while its RHS
+	    // still evaluates.
+	    NetExpr*base = make_checked_canonical_property_index(
+		  des, scope, this, name_tail.index, &prefix_type, false);
+	    if (!base) return 0;
+	    unsigned long row_words = netrange_width(sub_dims);
+	    base = scale_index_to_bits(base, row_words, *this);
+	    eval_expr(base);
+	    base->set_line(*this);
 	    ivl_type_t slice_type =
 		  new netuarray_t(sub_dims, full_arr->element_type());
 

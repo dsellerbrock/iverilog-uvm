@@ -1,5 +1,5 @@
 id: PR302-305-CORRECTNESS-REPAIR
-status: NEXT_BATCH_THREE_FIXES_FOCUSED_VALIDATED
+status: NEXT_BATCH_FOUR_FIXES_FOCUSED_VALIDATED
 base_revision: 0133287ec092a6e36d1e6fe18db28835af13e127
 merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 authority: User requests review and merge of all PRs while preserving compiler correctness; goal continuation authorizes fixing identified blockers.
@@ -111,8 +111,9 @@ current_integration:
 
 variable_row_assignment_lane:
   id: IBEX-VARIABLE-ROW-ASSIGNMENT
+  evidence: docs/conformance/session_logs/2026-09-20_variable_row_assignment.json
   agent: recursive_cross_with (reused gpt-5.6-terra, medium)
-  status: REPRODUCED_BOTH_EDITIONS
+  status: FOCUSED_TESTED
   source: Clean OpenTitan M6 ibex_lockstep.sv row reset and row shift at lines250-257.
   reproducer: evidence/review-20260920/next-variable-row/repro.sv
   standards: IEEE1800-2017/2023 7.4.6,7.6,10.4 and NBA scheduling9.4.
