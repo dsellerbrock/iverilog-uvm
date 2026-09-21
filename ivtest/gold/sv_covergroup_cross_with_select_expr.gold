@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sv_covergroup_cross_with_select_expr.v:61: $finish called at 0 (1s)
