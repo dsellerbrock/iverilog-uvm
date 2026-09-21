@@ -394,3 +394,12 @@ nba_wide_boundary_checkpoint:
   elaboration_prerequisite: Prevent widepositive constant word truncation; row_async_reset owns private elab_lval.cc patch via existing checked helper.
   shared_processes: No build or test running.
   next: Integrate disjoint fixes and run positive/negativewide boundaries plus28focus before synthesis neighbors and broad gates.
+
+synthesis_neighbor_regression_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_synthesis_neighbor_regressions.json
+  status: BASE28_AND_WIDE_BOUNDARIES_PASS_SIX_NEIGHBOR_REGRESSIONS
+  synthesis_owner: synthesis_nba_completion handles br993a/br993b and packed_struct/mixed_outputs asyncreset runtime failures.
+  index_owner: row_async_reset traces runtime_memory_word/output_set failures against changed index canonicalization.
+  constraints: Preserve all expected values; no gold weakening; both lanes private, coordinator sharedbuild/testing.
+  shared_processes: No build/test running.
+  next: Integrate regression repairs, repeat affectedfocus and160neighbors, then required broad batch gates.
