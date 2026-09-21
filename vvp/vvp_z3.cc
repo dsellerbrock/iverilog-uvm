@@ -950,6 +950,7 @@ struct Z3Builder {
 	    std::vector<DistBranch> branches;
 	    std::vector<SoftAssert> fallback;
 	    bool exact_supported;
+            bool requires_large_exact;
             bool state_weights;
 	    bool disableable;
       };
@@ -4042,6 +4043,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    dspec.refs = subject_refs;
 	    dspec.disable_refs.clear();
 	    dspec.exact_supported = false;
+            dspec.requires_large_exact = false;
             dspec.state_weights = true;
 	    dspec.disableable = b.soft_keyword_depth != 0;
 	    bool exact_supported = true;
@@ -4303,6 +4305,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    soft_weight = weight * (unsigned)span;
 			}
 			if (weight != 0 && bounds_ok) {
+			      if (hi_coord >= lo_coord) {
+			            uint64_t exact_span = hi_coord - lo_coord + 1;
+			            if (exact_span == 0 || exact_span > 256)
+			                  dspec.requires_large_exact = true;
+			      }
 			      Z3Builder::DistBranch db = {
 				    weight, true, range_weight_per_value,
 				    rw, lo_order_signed, lo_coord, hi_coord
@@ -6130,6 +6137,130 @@ static bool z3_enumerate_domain_single_var_fast_(Z3_context ctx,
       return !out.empty();
 }
 
+static bool z3_direct_constant_(Z3_context ctx, Z3_ast value)
+{
+      if (!value || Z3_get_ast_kind(ctx, value) != Z3_APP_AST) return false;
+      Z3_app app = Z3_to_app(ctx, value);
+      return Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app))
+                  == Z3_OP_UNINTERPRETED
+            && Z3_get_app_num_args(ctx, app) == 0;
+}
+
+static bool z3_collect_constants_(Z3_context ctx, Z3_ast value,
+                                  set<Z3_ast>&constants)
+{
+      vector<Z3_ast> pending(1, value);
+      set<Z3_ast> visited;
+      while (!pending.empty()) {
+            Z3_ast node = pending.back();
+            pending.pop_back();
+            if (!visited.insert(node).second) continue;
+            Z3_ast_kind kind = Z3_get_ast_kind(ctx, node);
+            if (kind == Z3_NUMERAL_AST) continue;
+            if (kind != Z3_APP_AST) return false;
+            Z3_app app = Z3_to_app(ctx, node);
+            unsigned count = Z3_get_app_num_args(ctx, app);
+            if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app))
+                  == Z3_OP_UNINTERPRETED) {
+                  if (count != 0) return false;
+                  constants.insert(node);
+                  continue;
+            }
+            for (unsigned idx = 0; idx < count; ++idx)
+                  pending.push_back(Z3_get_app_arg(ctx, app, idx));
+      }
+      return true;
+}
+
+static void z3_flatten_conjunction_(Z3_context ctx, Z3_ast value,
+                                    vector<Z3_ast>&clauses)
+{
+      if (value && Z3_get_ast_kind(ctx, value) == Z3_APP_AST) {
+            Z3_app app = Z3_to_app(ctx, value);
+            if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) == Z3_OP_AND) {
+                  for (unsigned idx = 0; idx < Z3_get_app_num_args(ctx, app); ++idx)
+                        z3_flatten_conjunction_(ctx,
+                              Z3_get_app_arg(ctx, app, idx), clauses);
+                  return;
+            }
+      }
+      clauses.push_back(value);
+}
+
+/* Build the exact hard factor for one direct distribution subject. State and
+ * earlier-stage pins are usable only when the solver contains a direct
+ * equality that proves their ground value. Substitute those equalities to a
+ * fixed point before selecting the subject clauses. A retained subject clause
+ * with any other free constant is a coupled factor and is outside this exact
+ * sampler; in particular, merely marking a property inactive is not proof that
+ * it remains fixed under the negated-factor queries below. */
+static bool z3_isolated_subject_factor_(Z3_context ctx, Z3_solver base,
+                                        Z3_ast subject, Z3_ast&factor)
+{
+      if (!z3_direct_constant_(ctx, subject)) return false;
+
+      vector<Z3_ast> clauses;
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      for (unsigned idx = 0; idx < Z3_ast_vector_size(ctx, assertions); ++idx)
+            z3_flatten_conjunction_(ctx,
+                  Z3_ast_vector_get(ctx, assertions, idx), clauses);
+      Z3_ast_vector_dec_ref(ctx, assertions);
+
+      vector<Z3_ast> from;
+      vector<Z3_ast> to;
+      bool changed = true;
+      while (changed) {
+            changed = false;
+            for (Z3_ast original : clauses) {
+                  Z3_ast clause = original;
+                  if (!from.empty())
+                        clause = Z3_substitute(ctx, clause, (unsigned)from.size(),
+                                               from.data(), to.data());
+                  clause = Z3_simplify(ctx, clause);
+                  if (Z3_get_ast_kind(ctx, clause) != Z3_APP_AST) continue;
+                  Z3_app app = Z3_to_app(ctx, clause);
+                  if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) != Z3_OP_EQ
+                      || Z3_get_app_num_args(ctx, app) != 2)
+                        continue;
+                  Z3_ast sides[2] = {Z3_get_app_arg(ctx, app, 0),
+                                     Z3_get_app_arg(ctx, app, 1)};
+                  for (unsigned side = 0; side < 2; ++side) {
+                        Z3_ast var = sides[side];
+                        Z3_ast value = Z3_simplify(ctx, sides[1 - side]);
+                        if (var == subject || !z3_direct_constant_(ctx, var)
+                            || find(from.begin(), from.end(), var) != from.end())
+                              continue;
+                        set<Z3_ast> constants;
+                        if (!z3_collect_constants_(ctx, value, constants)
+                            || !constants.empty())
+                              continue;
+                        from.push_back(var);
+                        to.push_back(value);
+                        changed = true;
+                        break;
+                  }
+            }
+      }
+
+      vector<Z3_ast> local;
+      for (Z3_ast clause : clauses) {
+            if (!from.empty())
+                  clause = Z3_substitute(ctx, clause, (unsigned)from.size(),
+                                         from.data(), to.data());
+            clause = Z3_simplify(ctx, clause);
+            set<Z3_ast> constants;
+            if (!z3_collect_constants_(ctx, clause, constants)) return false;
+            if (!constants.count(subject)) continue;
+            if (constants.size() != 1) return false;
+            local.push_back(clause);
+      }
+      factor = local.empty() ? Z3_mk_true(ctx)
+            : local.size() == 1 ? local[0]
+            : Z3_mk_and(ctx, (unsigned)local.size(), local.data());
+      return true;
+}
+
 /* RANDOM-DIST fix #2 (IEEE 1800-2023 18.5.3; 2017 18.5.4): `dist`
  * selects an ITEM with probability proportional to that item's aggregate
  * weight, then chooses uniformly among the selected item's feasible member
@@ -6139,11 +6270,14 @@ static bool z3_enumerate_domain_single_var_fast_(Z3_context ctx,
  * item as the sampling unit also makes overlapping items additive instead of
  * merging their equal values prematurely.
  *
- * Ranges are expanded up to RANGE_EXPAND_CAP so their feasible members can be
- * identified before item selection; a larger range leaves the caller on the
- * documented hard-union + soft-weight fallback. On success the winning value
- * is pinned as a hard equality into both `base` (so later enumerations/dist
- * picks see it) and `opt` (so the final model reports it). */
+ * Ranges up to RANGE_EXPAND_CAP retain the bounded enumerator. Larger ranges
+ * use exact interval discovery after proving either that the direct subject's
+ * local hard factor contains no other free constant or that a compound subject
+ * has exactly one value in the complete hard-constraint solution set.
+ * Unsupported large-range
+ * shapes fail explicitly instead of silently using the probability-inexact
+ * weighted-soft fallback. On success the winning value is pinned as a hard
+ * equality into both `base` and `opt`. */
 static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                                    Z3_optimize opt,
                                    const Z3Builder::DistSpec& spec,
@@ -6178,6 +6312,242 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 				       Z3_mk_bv_sort(ctx, vw));
 	    return Z3_mk_eq(ctx, sx, cv);
       };
+
+      if (spec.requires_large_exact) {
+            auto unsupported = [&]() -> bool {
+                  if (indeterminate) *indeterminate = true;
+                  return false;
+            };
+            if (!spec.exact_supported || spec.width == 0 || spec.width > 64)
+                  return unsupported();
+            Z3_lbool full = Z3_solver_check(ctx, base);
+            if (full == Z3_L_UNDEF) return unsupported();
+            if (full == Z3_L_FALSE) return false;
+
+            Z3_ast sampling_subject = spec.subject;
+            Z3_ast factor = nullptr;
+            if (z3_direct_constant_(ctx, spec.subject)) {
+                  if (!z3_isolated_subject_factor_(ctx, base, spec.subject,
+                                                   factor))
+                        return unsupported();
+            } else {
+                  Z3_sort subject_sort = Z3_get_sort(ctx, spec.subject);
+                  if (Z3_get_sort_kind(ctx, subject_sort) != Z3_BV_SORT
+                      || Z3_get_bv_sort_size(ctx, subject_sort) > 64)
+                        return unsupported();
+                  Z3_model model = Z3_solver_get_model(ctx, base);
+                  Z3_model_inc_ref(ctx, model);
+                  uint64_t singleton_value = 0;
+                  bool value_ok = z3_eval_uint64(ctx, model, spec.subject,
+                                                 singleton_value);
+                  Z3_model_dec_ref(ctx, model);
+                  if (!value_ok) return unsupported();
+                  Z3_ast value = Z3_mk_unsigned_int64(ctx, singleton_value,
+                                                      subject_sort);
+                  Z3_ast different = Z3_mk_not(ctx,
+                        Z3_mk_eq(ctx, spec.subject, value));
+                  Z3_solver_push(ctx, base);
+                  Z3_solver_assert(ctx, base, different);
+                  Z3_lbool another = Z3_solver_check(ctx, base);
+                  Z3_solver_pop(ctx, base, 1);
+                  if (another != Z3_L_FALSE) return unsupported();
+
+                  sampling_subject = Z3_mk_fresh_const(ctx,
+                        "dist_singleton_subject", subject_sort);
+                  factor = Z3_mk_eq(ctx, sampling_subject, value);
+            }
+
+            Z3_solver positive = Z3_mk_simple_solver(ctx);
+            Z3_solver_inc_ref(ctx, positive);
+            Z3_solver negative = Z3_mk_simple_solver(ctx);
+            Z3_solver_inc_ref(ctx, negative);
+            Z3_solver_assert(ctx, positive, factor);
+            Z3_solver_assert(ctx, negative, Z3_mk_not(ctx, factor));
+            unsigned physical_width = Z3_get_bv_sort_size(ctx,
+                  Z3_get_sort(ctx, sampling_subject));
+            auto finish = [&](bool result) -> bool {
+                  Z3_solver_dec_ref(ctx, negative);
+                  Z3_solver_dec_ref(ctx, positive);
+                  return result;
+            };
+            auto subject_coordinate = [&](const Z3Builder::DistBranch&br)
+                  -> Z3_ast {
+                  Z3_ast sx = sampling_subject;
+                  if (physical_width < br.value_width)
+                        sx = br.comparison_signed
+                              ? Z3_mk_sign_ext(ctx,
+                                    br.value_width - physical_width, sx)
+                              : Z3_mk_zero_ext(ctx,
+                                    br.value_width - physical_width, sx);
+                  if (br.comparison_signed) {
+                        uint64_t sign = (uint64_t)1 << (br.value_width - 1);
+                        Z3_ast sign_ast = Z3_mk_unsigned_int64(ctx, sign,
+                              Z3_mk_bv_sort(ctx, br.value_width));
+                        sx = Z3_mk_bvxor(ctx, sx, sign_ast);
+                  }
+                  return sx;
+            };
+            auto exists_in = [&](Z3_solver solver,
+                                 const Z3Builder::DistBranch&br,
+                                 uint64_t lo, uint64_t hi) -> Z3_lbool {
+                  if (lo > hi) return Z3_L_FALSE;
+                  Z3_ast sx = subject_coordinate(br);
+                  Z3_sort sort = Z3_mk_bv_sort(ctx, br.value_width);
+                  Z3_ast low = Z3_mk_unsigned_int64(ctx, lo, sort);
+                  Z3_ast high = Z3_mk_unsigned_int64(ctx, hi, sort);
+                  Z3_ast bounds[2] = {Z3_mk_bvuge(ctx, sx, low),
+                                      Z3_mk_bvule(ctx, sx, high)};
+                  Z3_ast range = Z3_mk_and(ctx, 2, bounds);
+                  Z3_solver_push(ctx, solver);
+                  Z3_solver_assert(ctx, solver, range);
+                  Z3_lbool result = Z3_solver_check(ctx, solver);
+                  Z3_solver_pop(ctx, solver, 1);
+                  return result;
+            };
+
+            struct ExactInterval { uint64_t lo, hi; };
+            struct ExactItem {
+                  uint64_t aggregate_weight;
+                  uint64_t feasible_count;
+                  unsigned value_width;
+                  bool comparison_signed;
+                  vector<ExactInterval> intervals;
+            };
+            vector<ExactItem> items;
+            static const unsigned MAX_EXACT_INTERVALS = 64;
+            for (const auto&br : spec.branches) {
+                  if (br.value_width == 0 || br.value_width > 64)
+                        return finish(unsupported());
+                  if (!br.weight) continue;
+                  if (physical_width > br.value_width)
+                        return finish(unsupported());
+                  uint64_t declared_span = 1;
+                  if (br.is_range) {
+                        if (br.hi < br.lo) continue;
+                        declared_span = br.hi - br.lo + 1;
+                        if (declared_span == 0) return finish(unsupported());
+                  }
+                  ExactItem item = {(uint64_t)br.weight, 0,
+                                    br.value_width, br.comparison_signed, {}};
+                  if (br.range_weight_per_value) {
+                        if (declared_span > UINT64_MAX / item.aggregate_weight)
+                              return finish(unsupported());
+                        item.aggregate_weight *= declared_span;
+                  }
+
+                  uint64_t first = br.lo;
+                  if (!br.is_range && br.comparison_signed)
+                        first ^= (uint64_t)1 << (br.value_width - 1);
+                  uint64_t image_lo = 0;
+                  uint64_t image_hi;
+                  if (br.comparison_signed) {
+                        uint64_t center = (uint64_t)1
+                              << (br.value_width - 1);
+                        uint64_t half = (uint64_t)1
+                              << (physical_width - 1);
+                        image_lo = center - half;
+                        image_hi = center + half - 1;
+                  } else {
+                        image_hi = physical_width == 64 ? UINT64_MAX
+                              : ((uint64_t)1 << physical_width) - 1;
+                  }
+                  uint64_t last = br.is_range ? br.hi : first;
+                  if (first < image_lo) first = image_lo;
+                  if (last > image_hi) last = image_hi;
+                  if (first > last) continue;
+                  uint64_t cur = first;
+                  for (;;) {
+                        Z3_lbool any = exists_in(positive, br, cur, last);
+                        if (any == Z3_L_UNDEF) return finish(unsupported());
+                        if (any == Z3_L_FALSE) break;
+
+                        uint64_t left = cur, right = last;
+                        while (left < right) {
+                              uint64_t mid = left + (right - left) / 2;
+                              Z3_lbool found = exists_in(positive, br, cur, mid);
+                              if (found == Z3_L_UNDEF) return finish(unsupported());
+                              if (found == Z3_L_TRUE) right = mid;
+                              else left = mid + 1;
+                        }
+                        uint64_t start = left;
+                        uint64_t end = last;
+                        Z3_lbool gap = exists_in(negative, br, start, last);
+                        if (gap == Z3_L_UNDEF) return finish(unsupported());
+                        if (gap == Z3_L_TRUE) {
+                              left = start;
+                              right = last;
+                              while (left < right) {
+                                    uint64_t mid = left + (right - left) / 2;
+                                    Z3_lbool found = exists_in(negative, br,
+                                                                start, mid);
+                                    if (found == Z3_L_UNDEF)
+                                          return finish(unsupported());
+                                    if (found == Z3_L_TRUE) right = mid;
+                                    else left = mid + 1;
+                              }
+                              if (left == start) return finish(unsupported());
+                              end = left - 1;
+                        }
+                        if (item.intervals.size() == MAX_EXACT_INTERVALS)
+                              return finish(unsupported());
+                        uint64_t count = end - start + 1;
+                        if (count == 0
+                            || item.feasible_count > UINT64_MAX - count)
+                              return finish(unsupported());
+                        item.intervals.push_back({start, end});
+                        item.feasible_count += count;
+                        if (end == last) break;
+                        cur = end + 1;
+                  }
+                  if (require_complete_ranges && br.is_range
+                      && item.feasible_count != declared_span)
+                        return finish(false);
+                  if (item.feasible_count && item.aggregate_weight)
+                        items.push_back(std::move(item));
+            }
+            if (items.empty()) return finish(false);
+
+            uint64_t total_weight = 0;
+            for (const auto&item : items) {
+                  if (total_weight > UINT64_MAX - item.aggregate_weight)
+                        return finish(unsupported());
+                  total_weight += item.aggregate_weight;
+            }
+            if (!total_weight) return finish(false);
+            if (validate_only) return finish(true);
+
+            uint64_t item_ticket = rng.uniform_u64(total_weight);
+            const ExactItem*selected = &items.back();
+            for (const auto&item : items) {
+                  if (item_ticket < item.aggregate_weight) {
+                        selected = &item;
+                        break;
+                  }
+                  item_ticket -= item.aggregate_weight;
+            }
+            uint64_t value_ticket = selected->feasible_count == 1
+                  ? 0 : rng.uniform_u64(selected->feasible_count);
+            uint64_t coordinate = selected->intervals.back().hi;
+            for (const auto&interval : selected->intervals) {
+                  uint64_t count = interval.hi - interval.lo + 1;
+                  if (value_ticket < count) {
+                        coordinate = interval.lo + value_ticket;
+                        break;
+                  }
+                  value_ticket -= count;
+            }
+            uint64_t value = coordinate;
+            if (selected->comparison_signed)
+                  value ^= (uint64_t)1 << (selected->value_width - 1);
+            if (selected->value_width < 64)
+                  value &= ((uint64_t)1 << selected->value_width) - 1;
+            Z3_ast pin = candidate_pin(value, selected->value_width,
+                                       selected->comparison_signed);
+            Z3_solver_assert(ctx, base, pin);
+            Z3_optimize_assert(ctx, opt, pin);
+            chosen = value;
+            return finish(true);
+      }
 
       struct FeasibleItem {
 	    uint64_t aggregate_weight;
@@ -7170,22 +7540,33 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       std::set<Z3_ast> dist_resolved_vars;
       std::set<Z3_ast> dist_fallback_vars;
       std::set<Z3Builder::VarRef> dist_fallback_refs;
-      auto resolve_dist = [&](size_t spec_index) {
+      auto resolve_dist = [&](size_t spec_index) -> bool {
             // Joint draws occur only after complete component proofs, and never
             // in the preliminary pass before dynamic foreach expansion.
-            if (exact_joint) return;
-	    if (dist_handled.count(spec_index)) return;
+            if (exact_joint) return true;
+	    if (dist_handled.count(spec_index)) return true;
 	    dist_handled.insert(spec_index);
 	    const Z3Builder::DistSpec&spec = builder.dist_specs[spec_index];
-	    if (dist_disabled(spec) || !dist_active(spec)) return;
+	    if (dist_disabled(spec) || !dist_active(spec)) return true;
 
 	    bool resolved = false;
-	    if (spec.exact_supported
+	    bool indeterminate = false;
+	    if (spec.requires_large_exact
+	        && dist_resolved_vars.count(spec.subject))
+		  indeterminate = true;
+	    if ((spec.exact_supported || spec.requires_large_exact)
 		&& !dist_resolved_vars.count(spec.subject)) {
 		  uint64_t chosen = 0;
 		  resolved = z3_resolve_dist_exact(ctx, base, opt, spec, owner_rng(spec.rng_owner),
-						 chosen);
+						 chosen, false, false,
+						 &indeterminate);
 		  if (resolved) dist_resolved_vars.insert(spec.subject);
+	    }
+	    if (!resolved && spec.requires_large_exact && indeterminate) {
+		  fprintf(stderr, "ERROR: exact dist sampling failed: a large range "
+			  "requires one direct or provably singleton <=64-bit "
+			  "subject with an isolated ground hard-constraint factor.\n");
+		  return false;
 	    }
 	    if (!resolved) {
 		  dist_fallback_active.insert(spec_index);
@@ -7193,6 +7574,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  dist_fallback_refs.insert(spec.refs.begin(), spec.refs.end());
 		  install_dist_fallback(opt, spec_index);
 	    }
+	    return true;
       };
 	  auto fallback_ref = [&](Z3Builder::VarRef::Kind kind, unsigned idx,
 			     unsigned leaf, unsigned subleaf = 0) -> bool {
@@ -8062,7 +8444,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			     spec_index < builder.dist_specs.size(); ++spec_index)
 			      if (dist_effective_rank(
 				    builder.dist_specs[spec_index]) == r)
-				    resolve_dist(spec_index);
+				    if (!resolve_dist(spec_index))
+					  return fail_joint(nullptr);
 			Z3_optimize stage_opt = make_stage_optimize();
 			for (const auto&ranked : rank) {
 			      if (ranked.second != r) continue;
@@ -8204,7 +8587,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // could be biased by a future-ranked objective.
       for (size_t spec_index = 0;
 	   spec_index < builder.dist_specs.size(); ++spec_index)
-	    resolve_dist(spec_index);
+	    if (!resolve_dist(spec_index))
+		  return fail_joint(nullptr);
 
       // RANDOM-DIST fix #1 (also serves #4, randc): for every remaining
       // rand scalar property, enumerate its actual feasible set (subject

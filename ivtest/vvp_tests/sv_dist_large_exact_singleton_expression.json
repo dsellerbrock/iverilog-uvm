@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_dist_large_exact_singleton_expression.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_dist_large_exact_singleton_expression"
+}

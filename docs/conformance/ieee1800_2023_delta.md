@@ -303,3 +303,7 @@ The [shared event runtime repair record](session_logs/2026-09-21_event_runtime_r
 The [shared fixed struct-member array checkpoint](matrices/ieee1800_2017_clause_matrix.md#september-21-fixed-struct-member-array-constraints) includes separate 2023 runs; iterative constraints are 18.5.7.1 in this edition. No edition-specific semantic difference or full-clause qualification is asserted.
 
 The [descendant automatic VIF event checkpoint](matrices/ieee1800_2017_clause_matrix.md#september-21-descendant-automatic-vif-event-initialization) includes paired 2023 runtime and negative tests under §§6.21,8.6,9.3.2. No edition difference is asserted; broader qualification remains pending.
+
+#### 2026-09-21: §18.5.3 large distribution range evidence
+
+The paired large-range tests retain original declared range mass after hard exclusions, as specified explicitly in 2023. See [shared revision-scoped evidence](session_logs/2026-09-21_exact_large_dist_focus.json) for implementation boundaries and passing local gates; the 2017 record does not assume identical normative wording.
