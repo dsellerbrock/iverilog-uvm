@@ -1596,3 +1596,6 @@ Clause18.5.12 class constraints now capture pure integral state-object method
 calls, including nested receivers and virtual dispatch, with null/X rejection
 and transactional failure. Indexed receivers remain unsupported. See the
 [paired-edition focused evidence](../session_logs/2026-09-21_constraint_object_method_receiver.json); broad qualification remains pending.
+
+Clauses5.13/6.19: enum `name` without parentheses now resolves to string in
+concatenations through the shared type walker. See [paired focused evidence](../session_logs/2026-09-21_enum_bare_name_type.json); broad gates remain pending.

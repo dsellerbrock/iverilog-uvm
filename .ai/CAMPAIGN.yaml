@@ -17,7 +17,7 @@ publication:
   remaining_ci: Run35588718454 had5other jobs running at merge; inspect terminal results and repair any failures in follow-up PR.
   prior_batch_fixes: 11
 next_batch:
-  integrated_fixes: 3
+  integrated_fixes: 4
   revisions: [25653fdc0, acb786965, 346b48f68]
   scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
   sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
@@ -75,3 +75,5 @@ current_checkpoint:
   active_lanes: Sol medium signed coverage range; Terra medium package lexical-context correction, private patches only.
   shared_processes: No active shared build or test.
   next: Review package contextual recognition proposal and signed range patch; no next-batch PR until coherent validated batch.
+
+enum_name_checkpoint: Focused-tested shared type mapping; evidence docs/conformance/session_logs/2026-09-21_enum_bare_name_type.json. Broad gates pending.

@@ -28,6 +28,8 @@ The [scope solver UNKNOWN repair](session_logs/2026-09-21_scope_solver_unknown_f
 
 The [constraint object-method repair](session_logs/2026-09-21_constraint_object_method_receiver.json) has paired focused and neighboring regression evidence; broad batch gates remain pending.
 
+The [bare enum-name repair](session_logs/2026-09-21_enum_bare_name_type.json) has paired focused and enum-neighbor evidence, pending broad batch gates.
+
 ## Latest recorded compiler qualification
 
 The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on the experimental worktree, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.

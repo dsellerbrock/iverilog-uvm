@@ -19686,7 +19686,9 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 		  else
 			return nullptr;
 	    } else if (auto netenum = dynamic_cast<const netenum_t*>(type)) {
-		  if (name == "num")
+		  if (name == "name")
+			type = &netstring_t::type_string;
+		  else if (name == "num")
 			type = &netvector_t::atom2s32;
 		  else if ((name == "first") || (name == "last") ||
 			   (name == "next") || (name == "prev"))

@@ -104,3 +104,15 @@ package_shadow_regression:
   evidence: evidence/review-20260920/next-self-package-cast-fix/shadow-regression
   finding: Unconditional current-package lexical classification breaks local variable with same package name; prior baseline log had cast errors only, not declaration syntax errors.
   action: Hold uncommitted package patch; Terra proposes contextual recognition repair; retain permanent shadow test.
+
+coordinator_direct_small_fix:
+  id: ENUM-NAME-BARE-CONCAT-TYPE
+  status: IMPLEMENTED_FOCUSED_TESTED
+  owner: Coordinator; tiny existing type mapping, no additional agent
+  standard: IEEE1800-2017 and2023 5.13 optional built-in method parentheses;6.19 enum name result
+  evidence: evidence/review-20260920/next-enum-name-concat-assessment
+  root_cause: resolve_type_ enum branch omits name string result; lowering already supports it.
+  allowed: elab_expr.cc existing enum type mapping and focused regressions
+  forbidden: Application edits, new lowering, unrelated methods, dropping string semantics
+  acceptance: Paired bare/parenthesized concatenation, direct/local/class enum receivers, invalid enum value empty name, unrelated integral enum methods unchanged.
+  dependencies: Disjoint from Sol elaborate.cc and Terra package/parser files; coordinator shared build ownership.
