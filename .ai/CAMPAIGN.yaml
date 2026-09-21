@@ -255,3 +255,20 @@ blocking_index_ordering_checkpoint:
   invariant: NBA RHS sees prior blocking state; final NBA overlay can override subsequent blocking writes.
   next: Terra proposes minimal separate read-state and pending-NBA masks using existing branch bus machinery; no shared implementation yet.
   cast_lane: Sol pure typepass implementation active privately; root acceptance runner ready at patch-cast/run_acceptance.py.
+
+blocking_index_dual_state_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  design: evidence/review-20260920/next-blocking-index/ROOT_CAUSE.md (latest pending-NBA overlay section)
+  invariant: B is blocking-visible procedural state; P carries captured pendingNBA values with enables/write masks; final output overlays P over B.
+  allowed_scope: synth2.cc assignment/block/conditional/case/loop/process lowering, expr_synth.cc procedural reads, netlist.h only required context plumbing. Private patches only.
+  restrictions: Never expose pendingNBA writes to later reads or flush at arbitrary nestedblock exits. Preserve RHS/index capture, selected-bit masks, disabled/OOB/X no-write and async-reset semantics; no user constant cache.
+  acceptance: Original packed/unpacked indices; four blocking/NBA ordercases; conditional/case/loop ordering and masksoverlap; previous row/reset and synthesisneighbor tests in both editions.
+  ownership: Terra private files, coordinator shared integration/build; disjoint from Sol vvp_z3.cc and root elaborate.cc.
+
+cast_index_and_distribution_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_cast_index_and_distribution_regressions.json
+  status: PARTIAL_FOCUSED_TESTED_NOT_CLOSED
+  cast: 18 of 18 permanent tests pass in each harness; fixed index retains exact typing within self-determined boundary.
+  distributions: Four obsolete rejection tests updated with successful coupled values and contradictory rollback; both harnesses pass, other negative cases preserved.
+  pending: Inside common operand sizing review; joint permanent packaging; B/P synthesis lane; complete neighbor and broad batch gates.
+  next: Review Sol inside normative assessment before changing consumer; integrate frozen distribution fixtures and verify.
