@@ -1,5 +1,5 @@
 {
-  "scope": "Release replay checkpoint; static Caliptra census complete, OpenTitan and Caliptra runtime qualification pending",
+  "scope": "Stable-release checkpoint: Caliptra static census and power2round unit runtime complete; OpenTitan running; full-chip qualification incomplete",
   "compiler_semantic_revision": "e90059a07708cf2a3022255bfce640808178a418",
   "merged_main": "0998f058a4a549b9e988f5a1784bdfbbec1246a8",
   "caliptra": {
@@ -31,7 +31,61 @@
     "generation": "2012 (census invocation)",
     "interpretation": "Zero exit is static compile only. Legacy DEBT combines Icarus and Slang warnings; its generic reason misattributes some Slang warnings to Icarus. caliptra_top and caliptra_top_ss_mode have zero Icarus errors/warnings.",
     "evidence": "evidence/review-20260920/application-replay/caliptra/caliptra-static-census.json",
-    "per_tool_diagnostics": "evidence/review-20260920/application-replay/caliptra/per-tool-diagnostics.json"
+    "per_tool_diagnostics": "evidence/review-20260920/application-replay/caliptra/per-tool-diagnostics.json",
+    "unit_runtime": {
+      "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+      "source_modified": false,
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-gassertions",
+            "-s",
+            "power2round_tb",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/caliptra/power2round-runtime/power2round_tb.vvp",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.07371997833251953
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/caliptra/power2round-runtime/power2round_tb.vvp"
+          ],
+          "exit": 0,
+          "elapsed": 0.26447606086730957
+        }
+      },
+      "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "generator_sha256": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+      "pass_marker": true,
+      "failure_marker": false,
+      "passed": true,
+      "vector_files": {
+        "coeff_low.hex": "4f8e93886fed896f27d6c0f685e494c0a9ee8c1e7cb4226e111563a8acec938c",
+        "coeff_input.hex": "b42c579c73ffaae535a9af29534aa2fdf186894f8a774e55e60283cb12a1829b",
+        "coeff_high.hex": "e24ad5e61fbd6bf66149000aacb4a51c393d9a0145437012fe84321c9d40746f"
+      },
+      "compile_warning_count": 5,
+      "all_2048_completed": true,
+      "source_clean_after": true,
+      "scope": "Unmodified release submodule unit test with upstream generated vectors; runtime pass with compile warnings, not full-chip/UVM qualification",
+      "artifacts": {
+        "local-install/bin/vvp": "161e2a3ad86b22fa6c71daa377fd3dcab67a11d190aa3c86914ff000185c4f5c",
+        "local-install/lib/ivl/ivl": "f54298837efc11974d9e16f96dbb26e910048650973b55e6d159b6a4185452f6",
+        "evidence/review-20260920/application-replay/caliptra/power2round-runtime/compile.log": "614fb651f2de76518b6dbe7770f6d7f827756158e589ee1535a4b281b32e89d9",
+        "evidence/review-20260920/application-replay/caliptra/power2round-runtime/runtime.log": "a669a9f80ef4e151b8a717ff689f6609c421f2125ca87674d513719efecf6d15"
+      }
+    },
+    "full_testbench_blockers": [
+      "Native JTAG DPI bundle and durable Icarus full-TB command/manifest missing",
+      "Firmware images and test-dependent generator inputs required",
+      "External ARM AXI4PC source required by upstream full-TB configuration"
+    ]
   },
   "opentitan": {
     "tag": "Earlgrey-PROD-M6",
@@ -64,7 +118,7 @@
   "limitations": [
     "No new application source modifications",
     "No full IEEE or UVM compliance claim",
-    "Caliptra full-testbench/runtime setup under review",
-    "Initial OpenTitan bundled-UVM attempt abandoned; excluded from result claims"
+    "Initial OpenTitan bundled-UVM attempt abandoned; excluded from result claims",
+    "Caliptra full-testbench setup prerequisites recorded separately from unit pass"
   ]
 }
