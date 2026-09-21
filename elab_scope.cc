@@ -4555,6 +4555,25 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 	    cerr << "}" << endl;
       }
 
+	/* Method (task/function) scopes, including any of their own
+	 * declarations such as a class-method-local `localparam', are now
+	 * fully in place. Mark the class ready the same way
+	 * complete_class_scope_in_place_() does at the end of its own,
+	 * narrower completion pass -- leaving this unset made EVERY
+	 * subsequent lookup of this same class (even a trivial
+	 * self-reference from inside one of its own methods, reached via
+	 * ensure_visible_class_type()'s "incomplete, elaborate it again"
+	 * branch) re-run complete_class_scope_in_place_() from scratch on
+	 * the SAME, already-elaborated method scopes. That re-declared
+	 * each method-local parameter via NetScope::set_parameter(), which
+	 * unconditionally resets `ivl_type' to null -- silently clobbering
+	 * an in-flight NetScope::evaluate_parameters() pass on that exact
+	 * scope entry if the re-entrant lookup happened (as it commonly
+	 * does) while resolving one class-method-local parameter's own
+	 * value expression, which is exactly the class of "assert:
+	 * net_design.cc: failed assertion cur->second.ivl_type" crash this
+	 * fixes (DD-041). */
+      use_class->set_scope_ready(true);
       classes_being_scope_elaborated_.erase(pclass);
 }
 

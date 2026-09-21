@@ -21558,6 +21558,66 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
       return target_expr;
 }
 
+/* Evaluate a fixed selector in a static-array foreach target exactly once on
+ * entry to the foreach statement. The selected value does not change the
+ * bounds of the remaining dimensions, but evaluating it is still required to
+ * resolve names/types and preserve expression side effects. */
+static NetProc* prepend_foreach_selector_evaluation_(Design*des,
+                                                     NetScope*scope,
+                                                     const LineInfo&loc,
+                                                     const pform_name_t&path,
+                                                     NetProc*loop)
+{
+      if (!loop || path.empty() || path.back().index.empty()) return loop;
+      NetBlock*block = nullptr;
+      for (const index_component_t&select : path.back().index) {
+            if (select.sel != index_component_t::SEL_BIT || !select.msb
+                || select.lsb) {
+                  cerr << loc.get_fileline() << ": error: foreach selector prefix "
+                       << "must contain element-select expressions." << endl;
+                  des->errors += 1;
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+
+            NetExpr*expr = elab_and_eval(des, scope, select.msb, -1, false);
+            if (!expr) {
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+            if (expr->expr_type() != IVL_VT_BOOL
+                && expr->expr_type() != IVL_VT_LOGIC) {
+                  cerr << loc.get_fileline() << ": error: foreach selector prefix "
+                       << "expression must be integral." << endl;
+                  des->errors += 1;
+                  delete expr;
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+
+            unsigned width = expr->expr_width();
+            if (width == 0) width = 1;
+            const netvector_t*type = new netvector_t(
+                  expr->expr_type(), width-1, 0, expr->has_sign());
+            NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+                                    NetNet::REG, type);
+            tmp->local_flag(true);
+            tmp->set_line(loc);
+            NetAssign*eval = new NetAssign(new NetAssign_(tmp), expr);
+            eval->set_line(loc);
+            if (!block) block = new NetBlock(NetBlock::SEQU, nullptr);
+            block->append(eval);
+      }
+
+      if (!block) return loop;
+      block->append(loop);
+      block->set_line(loc);
+      return block;
+}
+
 /*
  * The foreach statement can be written as a for statement like so:
  *
@@ -21902,21 +21962,9 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
             dims.insert(dims.end(), array_sig->packed_dims().begin(), array_sig->packed_dims().end());
       }
 
-	/* A selector prefix (`arr[sel][loop_vars]') fixes the LEADING
-	   selector_count dimensions before any loop variable is bound (IEEE
-	   1800-2017/2023 12.7.3). Only the selector's INDEX COUNT matters
-	   here, never its value -- the value (constant or variable) is
-	   evaluated wherever the selector expression itself is used; the
-	   loop bounds for the REMAINING dimensions are the same regardless
-	   of which slice the selector picks. Drop the selected leading
-	   dimensions so the positional dims[idx_idx] <-> index_vars_[idx_idx]
-	   correspondence below the loop variables against the remaining
-	   dimensions instead of silently reusing the selected-away leading
-	   ones (DD-040: this previously silently iterated the WRONG,
-	   already-fixed dimension for a plain static array selector prefix
-	   -- the same class of "drop the selector" bug the associative-array
-	   fix in the caller addresses, just for a signal instead of a
-	   queue). */
+	/* A selected prefix consumes leading dimensions. The remaining
+           fixed bounds do not depend on its value; evaluate the selector
+           once at loop entry below to preserve diagnostics and effects. */
       if (foreach_target_has_selector_prefix_(array_path_)) {
 	    size_t selector_count = array_path_.back().index.size();
 	    if (selector_count > dims.size()) {
@@ -21930,12 +21978,11 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
       }
 
 	// Classic arrays are processed this way.
-      if (array_sig->data_type()==IVL_VT_BOOL)
-	    return elaborate_static_array_(des, scope, dims);
-      if (array_sig->data_type()==IVL_VT_LOGIC)
-	    return elaborate_static_array_(des, scope, dims);
-      if (dims.size() >= index_vars_.size())
-	    return elaborate_static_array_(des, scope, dims);
+      if (array_sig->data_type() == IVL_VT_BOOL
+          || array_sig->data_type() == IVL_VT_LOGIC
+          || dims.size() >= index_vars_.size())
+            return prepend_foreach_selector_evaluation_(des, scope, *this,
+                  array_path_, elaborate_static_array_(des, scope, dims));
 
 	// At this point, we know that the array is dynamic so we
 	// handle that slightly differently, using run-time tests.
