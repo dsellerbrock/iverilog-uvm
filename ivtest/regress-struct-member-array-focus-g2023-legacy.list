@@ -10,3 +10,9 @@ sv_struct_array_constraint_4state normal,-g2023 ivltests gold=sv_struct_array_co
 sv_struct_array_rand_mode_query_fail CE,-g2023 ivltests gold=sv_struct_array_rand_mode_query_fail.gold
 sv_struct_array_constraint_shape_fail CE,-g2023 ivltests gold=sv_struct_array_constraint_shape_fail.gold
 sv_struct_array_randc_subset normal,-g2023 ivltests gold=sv_struct_array_randc_subset.gold
+
+# Preserve pre-existing typed function dependency kind identities.
+sv_constraint_function_typed_element_ref_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_typed_element_ref.gold
+sv_constraint_function_dynamic_size_mode_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_dynamic_size_mode.gold
+sv_constraint_function_dynamic_array_input_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_dynamic_array_input.gold
+sv_constraint_function_static_dynamic_element_const_ref_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_function_static_dynamic_element_const_ref.gold

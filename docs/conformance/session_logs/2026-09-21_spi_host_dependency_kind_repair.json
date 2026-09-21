@@ -1,0 +1,113 @@
+{
+  "date": "2026-09-21",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/311",
+  "base_commit": "9444f3c55d0cf2ae8dc54512ac9a35a984ca8903",
+  "status": "FOCUSED_REPAIR_PASS_BROAD_RERUN_PENDING",
+  "initial_integrated": {
+    "total": 6138,
+    "passed": 6091,
+    "failed": 42,
+    "not_implemented": 2,
+    "expected_fail": 3,
+    "vpi_passed": 126,
+    "negative_passed": 148,
+    "runtime_invariants_passed": 15,
+    "evidence": "evidence/review-20260920/spi-host-qualification/integrated.run.json"
+  },
+  "root": "MEMBER_ELEM insertion shifted ELEM/SIZE values while typed constraint-function dependency metadata retained numeric kinds0..3.",
+  "fix": "Alias VarRef existing kinds to class_type metadata, append new kind, and alias OrderRef to VarRef. No test expectation waiver.",
+  "focused": [
+    {
+      "label": "failed42",
+      "argv": [
+        "perl",
+        "vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/spi-host-qualification/enum-regression/regress-failed42.list"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "member2017",
+      "argv": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-struct-member-array-focus-legacy.list"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "member2023",
+      "argv": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-struct-member-array-focus-g2023-legacy.list"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "member-json",
+      "argv": [
+        "python3",
+        "vvp_reg.py",
+        "regress-struct-member-array-focus-vvp.list"
+      ],
+      "exit": 0
+    }
+  ],
+  "counts": {
+    "previous_failures_passed": 42,
+    "member_focus_2017": 16,
+    "member_focus_2023": 16,
+    "member_focus_json_paired": 32
+  },
+  "failed_cases": [
+    "sv_constraint_function_dynamic_array_const_ref",
+    "sv_constraint_function_dynamic_array_const_ref_2023",
+    "sv_constraint_function_dynamic_array_input",
+    "sv_constraint_function_dynamic_array_input_2023",
+    "sv_constraint_function_dynamic_foreach_argument",
+    "sv_constraint_function_dynamic_foreach_argument_2023",
+    "sv_constraint_function_dynamic_foreach_future_ref",
+    "sv_constraint_function_dynamic_foreach_future_ref_2023",
+    "sv_constraint_function_dynamic_foreach_lower_ref",
+    "sv_constraint_function_dynamic_foreach_lower_ref_2023",
+    "sv_constraint_function_dynamic_foreach_multiple_args",
+    "sv_constraint_function_dynamic_foreach_multiple_args_2023",
+    "sv_constraint_function_dynamic_foreach_repeat",
+    "sv_constraint_function_dynamic_foreach_repeat_2023",
+    "sv_constraint_function_dynamic_queue_element",
+    "sv_constraint_function_dynamic_queue_element_2023",
+    "sv_constraint_function_dynamic_randc_neighbor",
+    "sv_constraint_function_dynamic_randc_neighbor_2023",
+    "sv_constraint_function_dynamic_size_mode",
+    "sv_constraint_function_dynamic_size_mode_2023",
+    "sv_constraint_function_dynamic_size_priority",
+    "sv_constraint_function_dynamic_size_priority_2023",
+    "sv_constraint_function_dynamic_size_zero",
+    "sv_constraint_function_dynamic_size_zero_2023",
+    "sv_constraint_function_dynamic_unordered_peers",
+    "sv_constraint_function_dynamic_unordered_peers_2023",
+    "sv_constraint_function_dynamic_unrelated_foreach",
+    "sv_constraint_function_dynamic_unrelated_foreach_2023",
+    "sv_constraint_function_static_dynamic_element_const_ref",
+    "sv_constraint_function_static_dynamic_element_const_ref_2023",
+    "sv_constraint_function_static_dynamic_element_input",
+    "sv_constraint_function_static_dynamic_element_input_2023",
+    "sv_constraint_function_static_dynamic_size",
+    "sv_constraint_function_static_dynamic_size_2023",
+    "sv_constraint_function_typed_element_input",
+    "sv_constraint_function_typed_element_input_2023",
+    "sv_constraint_function_typed_element_ref",
+    "sv_constraint_function_typed_element_ref_2023",
+    "sv_constraint_function_typed_static_element_input",
+    "sv_constraint_function_typed_static_element_input_2023",
+    "sv_constraint_function_typed_static_element_ref",
+    "sv_constraint_function_typed_static_element_ref_2023"
+  ],
+  "runtime_source_sha256": "ac9c084058183dd1256715ef25240bb2b16c14cc3a581c8f91a1ff9dcdf86d5a",
+  "installed_sha256": {
+    "local-install/bin/vvp": "6b426d817610c12171fa364fe82407948cf0ab7369fc6c0f0c677a12e5c58677",
+    "local-install/lib/ivl/ivl": "46e9dd4f0c0c4e34efcdeb3fb7e53bb47609ec071ab017138d00ded1299ab7df"
+  },
+  "limits": "No broad qualification claim until rerun and remaining gates finish."
+}

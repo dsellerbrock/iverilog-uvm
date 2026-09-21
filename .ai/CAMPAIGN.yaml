@@ -1,9 +1,9 @@
 campaign: IEEE1800-UVM-continuous
 mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV and eventual formal foundation; preserve1364, UPF deferred.
-branch: agent/opentitan-dv-priority-20260921
+branch: agent/constraint-dependency-kind-repair-20260921
 history: docs/conformance/session_logs/2026-09-21_pre_spi_host_publication_CAMPAIGN.yaml
 baseline:
-  main: 9e3fa4bea, merged PR310 evidence after PR309 compiler merge cb6f35b56.
+  main: 5e4bd136c, PR311 externally merged at9444f3c55 before repair b5bc2864f; repair cherry-picked as0b1aeaee6 on new branch.
   qualified_compiler: 09316da3d48f2d0e24e710a47bc63e19f94a586a
   evidence: docs/conformance/session_logs/2026-09-21_pr309_local_qualification.json
   ci: Run35633277441 Ubuntu24/22 success; macOS andthreeWindows still running at latest check. Inspect existing run, do not restart it. Later failures require follow-up PR.
@@ -14,8 +14,8 @@ current_batch:
   focus: docs/conformance/session_logs/2026-09-21_spi_host_member_array_focus.json
   bison: 572 shift/reduce,1122 reduce/reduce; same counts as baseline, report hashes preserved.
   risk: HIGH shared constraint IR/element randomization; broader required checks before promotion.
-  current_gate: Integrated ivtest/VPI/negative/runtime, session88117, evidence/review-20260920/spi-host-qualification/integrated.log.
-  next_command: python3 evidence/review-20260920/spi-host-qualification/run_gate.py json
+  current_gate: None; all required local gates passed, including real-DPI UVM358/0/0, frontend andmakecheck.
+  next_command: Inspect PR312 CI before merge; all required local gates are terminalpass.
   ordering: First confirm integrated session terminal and inspect result. Stop escalation on real failures. Shared compiler/install frozen; no UVM batches concurrently.
   remaining: JSON, applicable UVM groups/smoke/full UVM, NFA, frontend and makecheck; CI. No broad qualification claim yet.
 application:
@@ -47,3 +47,63 @@ resumption:
   previous_turn: Concrete compiler/harness changes and new paired runtime/application evidence; progress.
   preservation: AGENTS.md external87-line addition remains unstaged. No new worktree; nine retained trees, no removal authorized without clean/ancestor audit.
   next: Verify live integrated gate, inspect/continue exact handle; publish review PR; next OpenTitan priorities are exact wide dist semantics and pwrmgr null-VIF root cause after bounded assessment.
+publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/311
+  published_head: 9444f3c55
+  state: EXTERNALLY_MERGED_BEFORE_REPAIR
+  delivered: One compiler capability plus two upstream configuration corrections; no full-clause or full-DV qualification claim.
+  next_agents: Terra medium read-only GPIO exact-distribution assessment; Sol medium read-only pwrmgr null-VIF event assessment. Ownership recorded in ACTIVE_WORK; no shared compiler changes while gates run.
+  merge_boundary: Required local gates and user-authorized green-CI boundary before promotion; do not merge the current draft merely because publication succeeded.
+
+qualification_regression_checkpoint:
+  session88117: Terminal exit1, do not poll or restart old handle.
+  results: Legacy6138total6091pass42fail2NI3EF; VPI126/126,negative148/148,runtime15/15 pass.
+  source_freeze: Released for selected coordinator enum compatibility repair only; shared install not yet changed.
+  root: New VarRef kind shifted numeric dependency identities consumed from class_type metadata; OrderRef casts depend on same mapping.
+  evidence: evidence/review-20260920/spi-host-qualification/enum-regression/names.json
+  next: Build/install repair; exact42failure list andmember-arraypackage first, then newoutputdirectory integratedgate. PR311 remainsdraft.
+
+enum_repair_focus_complete:
+  result: All42regressions pass, expandedfocus16peredition and32pairedJSON pass.
+  evidence: docs/conformance/session_logs/2026-09-21_spi_host_dependency_kind_repair.json
+  state: Sharedsource frozen again after metadata-kind alias repair; next integratedrun uses spi-host-repaired-qualification directory.
+  source_provenance: Old installed/compiler focus evidence retained, newruntime hashes recorded. No broadpass claim yet.
+repaired_live_gate:
+  source: b5bc2864f, pushed to PR311
+  session: 42301
+  command: python3 evidence/review-20260920/spi-host-repaired-qualification/run_gate.py integrated
+  evidence: evidence/review-20260920/spi-host-repaired-qualification/integrated.log
+  state: Terminal exit0 with stable tool fingerprints; legacy6133pass0fail2NI3EF, VPI126pass, negative148pass, runtime15pass.
+  next: All repaired local gates terminalpass; CI pending. FPGA target installed before JSON.
+
+followup_after_external_merge:
+  branch: agent/constraint-dependency-kind-repair-20260921
+  repair: 0b1aeaee6 cherry-picks b5bc2864f onto refreshed origin/main5e4bd136c. Compiler and test sources unchanged against qualified integrated input.
+  preservation: External AGENTS.md unchanged; campaign patch restored; safety stash retained. No new worktree.
+  pwrmgr_assessment: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/ASSESSMENT.md; nested automatic proxy contexts miss ancestor receiver publication; paired red and direct control verified by Sol. No implementation selected yet.
+  gpio_assessment: Terra medium read-only dependency isolation and interval-sampling design; no source or shared build ownership.
+
+current_publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/312
+  published_head: daf1a2159
+  status: Required local gates passed; ready for review, CI pending.
+  source_freeze: Shared compiler/runtime and installation remain frozen.
+  agent_work: Sol medium preparing private nested VIF activation tests using retained context; Terra medium completed closed-factor distribution design assessment.
+
+qualification_checkpoint_after_json:
+  evidence: evidence/review-20260920/spi-host-repaired-qualification
+  completed: Integrated6133pass0fail2NI3EF; JSON3060ran0failed; NFA58pass0failed. All captured tool hashes stable.
+  active: None. UVM84025 terminal0 with358pass0fail0skip andrealDPI; frontend91377 andmakecheck terminal0.
+  coverage_plan: uvm-coverage-plan.json proves all mapped subsystem and15smoke tests included in358full-suite sources; no redundant subset runs required for identical inputs.
+  next: CI gate before merge; local qualification complete.
+
+next_item_preparation:
+  pwrmgr: Sol completed16paired fixture compiles; direct controls2pass, descendant positives12false-null, genuine-null negatives2expectedfatal. LIFETIME_MATRIX.md in opentitan-pwrmgr-null-vif-next records clauses6.21/8.6/9.3.2 for both editions.
+  pwrmgr_proposal: Reuse exact existing automatic object slot through explicit-context peek accessor; event.cc andvvp_net_sig.h/cc only. No extra root-history store required. Implementation still deferred until current required local gates finish.
+  gpio: Terra prepared paired large-item constraints and closed-component design; coordinator requested stricter statistical false-rejection bounds before permanent test selection. No implementation selected.
+
+local_qualification_complete:
+  evidence: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
+  status: Required local gates pass; no active shared build/test process. PR312 CI queued at last read.
+  next_selection: OpenTitan descendant automatic VIF context and exact large-range distribution; independent event/signal versusZ3 source ownership. Select explicitly before implementation; no compiler edits yet.
+  preservation: External87-line AGENTS.md addition remains untouched.

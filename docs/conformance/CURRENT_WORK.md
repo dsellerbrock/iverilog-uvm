@@ -1,5 +1,7 @@
 # Current evidence and work
 
+Latest compiler qualification: [PR312 required local gates](session_logs/2026-09-21_pr312_local_qualification.json) pass on repair source `0b1aeaee6`, identical to `b5bc2864f` for compiler/test inputs. CI remains pending. This supersedes pending local-gate statements below; application outcomes retain their recorded provenance.
+
 Latest PR309 evidence: [required local qualification](session_logs/2026-09-21_pr309_local_qualification.json) passes on `09316da3d`; PR309 merged as `cb6f35b56` while CI was still running. This supersedes the earlier pending-local-gate notes below without changing their historical results or claiming full application qualification.
 
 Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
@@ -193,3 +195,7 @@ The [PR309 CI checkpoint](session_logs/2026-09-21_pr309_ci_checkpoint.json) reco
 Latest SPI Host compiler checkpoint: [fixed member-array constraint evidence](session_logs/2026-09-21_spi_host_member_array_focus.json). Required broader checks and application blockers remain explicit in the record.
 
 The [OpenTitan configuration correction and replay](session_logs/2026-09-21_opentitan_regex_configuration.json) supersedes the earlier no-configuration-mismatch conclusion. Application qualification remains limited as recorded there.
+
+[Dependency-kind regression repair](session_logs/2026-09-21_spi_host_dependency_kind_repair.json) records the broad-gate failures and focused recovery for PR311; broader requalification remains pending.
+
+PR #311 merged externally before the dependency-kind repair. The [follow-up integrated record](session_logs/2026-09-21_dependency_kind_integrated_followup.json) records the repaired source and passing integrated gate; remaining qualification is tracked in CAMPAIGN.

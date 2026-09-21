@@ -1,9 +1,9 @@
 id: OPENTITAN-DV-PRIORITY-20260921
-status: FOCUSED_TESTED_BROAD_QUALIFICATION_ACTIVE
+status: REQUIRED_LOCAL_GATES_PASS_CI_PENDING
 objective: Full IEEE1800-2017 and2023 independently, IEEE1800.2/UVM separately, ordinary RTL and standards-correct SVA/formal frontend, unmodified stable OpenTitan/Caliptra.
 authority: User-authorized continuous campaign; coordinator selects standards-grounded reproduced blockers and preserves all semantics.
-branch: agent/opentitan-dv-priority-20260921
-head_checkpoint: 1c18cd83c
+branch: agent/constraint-dependency-kind-repair-20260921
+head_checkpoint: 0b1aeaee6c42e2d8fdc783aa86c112b9afa91027
 history: docs/conformance/session_logs/2026-09-21_pre_spi_host_publication_ACTIVE_WORK.yaml
 coordination:
   coordinator: Selection, hard semantic reasoning, integration, shared build/install/test directories, final review and publication.
@@ -44,7 +44,32 @@ qualification:
   risk: HIGH because shared constraint IR and element sampling changed.
   focused: New12cases pass legacy in2017 and2023 and24pairedJSON; declaration15, array-mode8 andtransaction29perharness pass.
   expectation_reconciliation: b04404191 reconciles four stale focus-only extension golds; unsupported iterator remains a compile-negative, all randc-soft rejections preserved. Audit is source-history based, not exact-baseline binary replay.
-  active_gate: Integrated ivtest/VPI/negative/runtime via evidence/review-20260920/spi-host-qualification/run_gate.py integrated, session88117.
-  pending_gates: Full JSON, mapped UVM/smoke/full UVM, NFA, frontend and makecheck according to risk; CI before promotion.
+  active_gate: None; integrated42301, JSON99700, NFA70296, UVM84025, frontend91377 and makecheck all terminal0.
+  pending_gates: CI green-check boundary before merge. Required local qualification recorded in2026-09-21_pr312_local_qualification.json.
   source_freeze: No shared compiler/runtime edits or installation during gates; assess next blockers read-only.
-next_action: Publish coherent review PR with focused evidence and explicit pending broad gates; finish gates and select next reproduced OpenTitan blocker through coordinator.
+next_action: Publish dependency-kind repair follow-up because PR311 merged before repair; finish existing required gates before next implementation selection.
+assessments_during_qualification:
+  gpio_dist:
+    owner: Retained Terra medium, read-only compiler/app navigation and private reducers.
+    observation: Correctly configured GPIO smoke reaches finish but emits dist range exceeds256-member exact-sampling cap and weighted-soft fallback.
+    scope: Trace exact application dist directive and runtime warning path, produce smallest positive/negative/boundary reducer and exact-semantics proposal. No shared source/build/install or application edits.
+    evidence: evidence/review-20260920/opentitan-regex-config-replay/result.json
+  pwrmgr_vif:
+    owner: Retained Sol medium, read-only compiler/app navigation and private reducers.
+    observation: Correctly configured pwrmgr reaches time0 null virtual-interface event errors and TL outstanding assertion.
+    scope: Root assessed; Sol medium prepares private paired activation/isolation/rebind/lifetime/negative tests and considers existing signal accessor reuse. No shared source/build/install or application edits; no null suppression or constant substitution.
+    evidence: evidence/review-20260920/opentitan-regex-config-replay/result.json
+
+qualification_enum_regression:
+  owner: Coordinator, vvp/vvp_z3.cc VarRef/OrderRef kind values only
+  status: FOCUSED_TESTED_SOURCE_FROZEN
+  evidence: evidence/review-20260920/spi-host-qualification/integrated.run.json and enum-regression/names.json
+  failure: Legacy6138cases has42new constraint-function failures; VPI126,negatives148,runtime15 pass. No expectation waiver.
+  root: Inserting MEMBER_ELEM before ELEM/SIZE shifted numeric values, but class_type constraint dependency metadata still encodes PROP0/MEMBER1/ELEM2/SIZE3 and is cast into VarRef kinds.
+  fix: Explicitly alias existing VarRef kinds to metadata values, append MEMBER_ELEM, and alias OrderRef kinds to VarRef. Existing42tests directly cover the compatibility invariant.
+  acceptance: All42failedcases, newmember-arraypairedpackage and adjacentfunctions; then rerun integrated gate because installedruntime changed.
+
+repair_validation:
+  evidence: docs/conformance/session_logs/2026-09-21_spi_host_dependency_kind_repair.json
+  results: All42priorfailures pass; expandedmemberfocus16peredition and32pairedJSON pass.
+  next: Required local gates all pass; CI pending. Coordinator may select next independent implementation from preserved locally validated repair baseline.
