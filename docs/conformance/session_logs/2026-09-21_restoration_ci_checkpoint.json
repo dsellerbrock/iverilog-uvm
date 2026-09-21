@@ -36,5 +36,20 @@
   "status": "in_progress",
   "observed_utc": "2026-09-21T06:28:41.771132+00:00",
   "run_url": "https://github.com/dsellerbrock/iverilog-uvm/actions/runs/35560995954",
-  "scope": "Restoration PR306 exact head; does not cover subsequent six-fix batch."
+  "scope": "Restoration PR306 exact head; does not cover subsequent six-fix batch.",
+  "latest_observation": {
+    "run": 35560995954,
+    "completed_success": [
+      "Ubuntu22.04",
+      "Ubuntu24.04",
+      "CLANG64"
+    ],
+    "in_progress": [
+      "UCRT64",
+      "MINGW64",
+      "macOS"
+    ],
+    "open_pull_requests": [],
+    "qualification_scope": "Restoration PR306 exacthead only, not current compiler batch"
+  }
 }

@@ -255,3 +255,26 @@ cast_context_validation_checkpoint:
   invariant: IEEE11.8.2 propagates common width and signedness before operand evaluation; width-only incremental is incomplete.
   next: Sol private type-before-value design assessment; root reviews scope before implementation. Terra validates supported object-owned foreach shape; direct package queue recorded separately.
   build: Candidate rebuilt installed; no shared build/test process live at checkpoint.
+
+blocking_index_synthesis_lane:
+  id: BLOCKING-INDEX-SYNTHESIS-DATAFLOW
+  status: COORDINATOR_SELECTED_REPRODUCED_ASSESSMENT
+  agent: row_async_reset (reused Terra medium)
+  reproducer: evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv
+  standards: IEEE1800-2017/2023 9.2 and10.4; blocking assignment updates must precede subsequent indexed writes.
+  expected: Synthesized runtime matches behavioral word writes through conditional overwrite and self-increment, invalid index does not write.
+  scope: Trace existing synth2.cc prior-value/address lowering; private patch proposal only until root cause reviewed.
+  owns: evidence/review-20260920/next-blocking-index; proposed synth2.cc and focused fixtures only.
+  dependencies: Independent of cast elaborate.cc/vvp_z3.cc; coordinator alone builds installs and integrates.
+  acceptance: Packed/unpacked destinations, conditional overwrite, self-increment, sequential writes, OOB/X no-write, both editions.
+  forbidden: Shared edits/builds, general stale constant caches, dropped writes, weakening async-load checks or application edits.
+
+cast_type_before_value_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  violated_invariant: Parent common width/sign must reach context-determined operands before their values are constructed (IEEE11.8.2).
+  why_local_fix_fails: Shift-only provenance does not propagate through intervening unary bitwise ternary arithmetic operators; current headroom can alter later division.
+  design: evidence/review-20260920/next-joint-distributions/patch-cast/TYPE_BEFORE_VALUE.md
+  allowed: Private vvp_z3.cc pure copied-IR width/sign inference plus scoped value-building context within integral cast evaluation; reuse existing identities and aliases.
+  boundaries: No inference AST creation, state reads, graph mutation, reference/error registration or RNG use; real value pass alone owns those effects. No new fallback values or dropped constraints.
+  acceptance: Core and signed/nestedcontext reducers, typed qfield foreach, fourstate and rollback, exactwidth intermediate overflow/division, selfdetermined fences, mixed original/cast identity; paired editions and constraint neighbors.
+  build_owner: Coordinator; compiler emitter unchanged unless a concrete producer defect is separately reviewed.

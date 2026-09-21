@@ -94,5 +94,35 @@
     }
   ],
   "joint_results": "evidence/review-20260920/next-joint-distributions/shared-context-joint-results.json",
-  "next": "Design and review type-before-value propagation required by11.8.2, preserve solver side effects and typed identity. Direct package-state foreach is separate unsupported boundary."
+  "next": "Design and review type-before-value propagation required by11.8.2, preserve solver side effects and typed identity. Direct package-state foreach is separate unsupported boundary.",
+  "exact_intermediate_width_baseline": [
+    {
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_cast_exact_width_solver.sv:34: sum cast constraints failed\n       Time: 0  Scope: sv_cast_exact_width_solver\n"
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_cast_exact_width_solver.sv:34: sum cast constraints failed\n       Time: 0  Scope: sv_cast_exact_width_solver\n"
+    }
+  ],
+  "ordinary_exact_width_control": "Both2017/2023 pass; patch-cast/exact-width-control-{edition}.log",
+  "authorized_design": "Pure copied-IR width/sign inference followed by context-aware value construction; TYPE_BEFORE_VALUE.md; implementation active privately",
+  "supported_foreach_cast": [
+    {
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    }
+  ]
 }
