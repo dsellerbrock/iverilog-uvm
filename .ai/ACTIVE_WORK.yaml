@@ -108,3 +108,15 @@ current_integration:
   compiler_patch: Built and installed after completed stable-release replay.
   validation: Both focused harnesses pass8; old coverage6 and legacy neighbors112 pass. See recursive-cross session record.
   constraint_patch: Not applied; focused 4-state diagnostic review still active.
+
+variable_row_assignment_lane:
+  id: IBEX-VARIABLE-ROW-ASSIGNMENT
+  agent: recursive_cross_with (reused gpt-5.6-terra, medium)
+  status: REPRODUCED_BOTH_EDITIONS
+  source: Clean OpenTitan M6 ibex_lockstep.sv row reset and row shift at lines250-257.
+  reproducer: evidence/review-20260920/next-variable-row/repro.sv
+  standards: IEEE1800-2017/2023 7.4.6,7.6,10.4 and NBA scheduling9.4.
+  owns: evidence/review-20260920/next-variable-row/patch; proposed elab_lval.cc and required assignment runtime support only.
+  dependency: Disjoint from constraint lane; coordinator alone integrates tracked files and builds.
+  acceptance: Blocking and NBA row copies, distinct values, selected-index and RHS capture, nonzero/descending bounds, invalid index no writes, shape errors, constant-row neighbors; both editions.
+  forbidden: Shared edits/builds, application changes, scalarized source workarounds, dropped assignments.

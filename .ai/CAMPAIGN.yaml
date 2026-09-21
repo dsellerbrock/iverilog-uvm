@@ -107,3 +107,7 @@ next_batch_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-20_recursive_cross_with.md
   active_lane: constraint_guard_semantics (gpt-5.6-sol, medium), bounded DD044 diagnostic escalation
   broad_gate_cadence: Approximately ten integrated fixes; prior baseline evidence remains revision-scoped.
+
+parallel_next_items:
+  lanes: [DD044 guarded state selection, IBEX variable row assignment]
+  ownership: Separate private artifact directories; coordinator shared build and tracked integration.
