@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_unowned_unpacked_word_initialization_synth.v",
+  "iverilog-args": [
+    "-g2023",
+    "-S"
+  ],
+  "gold": "sv_unowned_unpacked_word_initialization_synth"
+}

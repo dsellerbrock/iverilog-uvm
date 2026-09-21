@@ -1548,20 +1548,27 @@ NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	    return tmp;
       }
 
+      /* A preceding blocking assignment in this process is visible to the
+       * RHS and to following indexed assignments. Keep this distinct from
+       * loop-index constant folding: it is a structural carrier, not a
+       * compile-time value. Array words remain structural selectors, but
+       * their selector expression recursively observes this carrier. */
+      NetNet*procedural_net = word_ ? 0
+            : synth_blocking_read_signal(des, scope, net_);
+      NetNet*read_net = procedural_net ? procedural_net : net_;
+
       if (word_ == 0) {
-	    if (net_->get_signed() == has_sign())
-		  return net_;
+            if (read_net->get_signed() == has_sign())
+                  return read_net;
 
-	      // If the signal has been cast to a different type, we
-	      // need to add an intermediate signal to reflect that.
-
-	    auto tmp_vec = new netvector_t(net_->data_type(), net_->vector_width() - 1, 0);
-	    NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::IMPLICIT,
-				    tmp_vec);
-	    tmp->set_line(*this);
-	    tmp->local_flag(true);
-	    connect(net_->pin(0), tmp->pin(0));
-	    return tmp;
+            auto tmp_vec = new netvector_t(read_net->data_type(),
+                                             read_net->vector_width()-1, 0);
+            NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+                                    NetNet::IMPLICIT, tmp_vec);
+            tmp->set_line(*this);
+            tmp->local_flag(true);
+            connect(read_net->pin(0), tmp->pin(0));
+            return tmp;
       }
 
       const netvector_t*tmp_vec = new netvector_t(net_->data_type(),

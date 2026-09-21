@@ -1,0 +1,45 @@
+{
+  "status": "FOCUSED_TESTED_PENDING_BROAD_GATES",
+  "date": "2026-09-21",
+  "scope": [
+    "Blocking-visible procedural values and separately captured nonblocking data/enables through branches, loops, partial writes and asynchronous reset synthesis",
+    "Oversized constant fixed-array lvalue indexing preserves full width and reuses evaluated expressions",
+    "Untouched synthesized unpacked logic/bit words preserve initial X/0"
+  ],
+  "standards": [
+    "IEEE1800-2017/2023 procedural blocking and nonblocking assignment semantics",
+    "IEEE1800-2017 7.4.6; IEEE1800-2023 7.4.5 invalid array index writes have no effect"
+  ],
+  "tests": {
+    "legacy46": {
+      "log": "evidence/review-20260920/next-blocking-index/final-focus-legacy46.log",
+      "sha256": "cd3b542eafd468e10e6154ca5c59912868784abc90bfffb5a02a0aebd6cfbb0f",
+      "summary": "  Total=46, Passed=46, Failed=0, Not Implemented=0, Expected Fail=0"
+    },
+    "json46": {
+      "log": "evidence/review-20260920/next-blocking-index/verified-json46.log",
+      "sha256": "ae58665a5260808c740df8108112cf6f7c5278d381cfa14b651244092d999717",
+      "summary": "Test results: Ran 46, Failed 0."
+    },
+    "synthesis_neighbors160": {
+      "log": "evidence/review-20260920/next-blocking-index/verified-neighbors160.log",
+      "sha256": "aeeaaea144db44ca56fb9acf1688ad7b59322afb69dd849a0c07134316b978ed",
+      "summary": "  Total=160, Passed=160, Failed=0, Not Implemented=0, Expected Fail=0"
+    }
+  },
+  "limits": "Broad integrated gates pending; no full synthesis or application qualification claimed. Dynamic signal index path retained. Existing warning for unused truncated host cache remains, but canonical selection uses full-width constants.",
+  "implementation_files": [
+    "elab_lval.cc",
+    "expr_synth.cc",
+    "link_const.cc",
+    "netlist.h",
+    "netmisc.cc",
+    "netmisc.h",
+    "synth2.cc"
+  ],
+  "binaries": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+    "local-install/lib/ivl/ivl": "e165b3f5fb0fddf409e843186051d75d0a9b6a44dc2fb2d686b892a89175998a"
+  }
+}

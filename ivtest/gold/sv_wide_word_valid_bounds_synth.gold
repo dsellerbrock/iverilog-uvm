@@ -1,0 +1,3 @@
+./ivltests/sv_wide_word_valid_bounds_synth.v:8: warning: Process not synthesized.
+./ivltests/sv_wide_word_valid_bounds_synth.v:6: warning: Process not synthesized.
+PASS

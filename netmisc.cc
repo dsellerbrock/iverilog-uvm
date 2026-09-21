@@ -1394,18 +1394,10 @@ static NetEConst* make_i64_index_constant_(int64_t value,
 }
 
 static NetExpr* make_checked_canonical_index_(
-      Design*des, NetScope*scope, const LineInfo*loc,
-      const list<index_component_t>&src, const netranges_t&dims,
-      bool need_const)
+      Design*des, const LineInfo*loc, list<NetExpr*>&indices_expr,
+      const indices_flags&flags, const netranges_t&dims)
 {
       ivl_assert(*loc, !dims.empty());
-      ivl_assert(*loc, src.size() == dims.size());
-
-      list<long> indices_const;
-      list<NetExpr*> indices_expr;
-      indices_flags flags;
-      indices_to_expressions(des, scope, loc, src, src.size(), need_const,
-			     flags, indices_expr, indices_const);
 
       if (flags.invalid) {
 	    delete_index_expressions_(indices_expr);
@@ -1524,6 +1516,29 @@ static NetExpr* make_checked_canonical_index_(
       }
       indices_expr.clear();
       return checked;
+}
+
+static NetExpr* make_checked_canonical_index_(
+      Design*des, NetScope*scope, const LineInfo*loc,
+      const list<index_component_t>&src, const netranges_t&dims,
+      bool need_const)
+{
+      ivl_assert(*loc, src.size() == dims.size());
+      list<long> indices_const;
+      list<NetExpr*> indices_expr;
+      indices_flags flags;
+      indices_to_expressions(des, scope, loc, src, src.size(), need_const,
+                            flags, indices_expr, indices_const);
+      return make_checked_canonical_index_(des, loc, indices_expr, flags, dims);
+}
+
+NetExpr* make_checked_canonical_property_index(
+      Design*des, const LineInfo*loc, list<NetExpr*>&indices_expr,
+      const indices_flags&flags, const netsarray_t*stype)
+{
+      ivl_assert(*loc, indices_expr.size() == stype->static_dimensions().size());
+      return make_checked_canonical_index_(des, loc, indices_expr, flags,
+                                           stype->static_dimensions());
 }
 
 NetExpr* make_checked_canonical_property_index(

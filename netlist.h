@@ -79,6 +79,10 @@ class NetTaskDef;
 class NetEvTrig;
 class NetEvNBTrig;
 
+/* Return the current blocking-visible procedural carrier for a signal while
+ * synth2 lowers an ordered process, or nullptr outside that context. */
+NetNet* synth_blocking_read_signal(Design*, NetScope*, NetNet*);
+
 /* During target emission, converted procedure trees are consumed and
  * released while their shared NetEvent objects remain available to later
  * procedures. The compiler is single-threaded and emits one design at a
@@ -3687,6 +3691,9 @@ class NetAssignNB  : public NetAssignBase {
       ~NetAssignNB() override;
 
 
+      bool synth_async(Design*des, NetScope*scope,
+                       NexusSet&nex_map, NetBus&nex_out,
+                       NetBus&enables, std::vector<mask_t>&bitmasks) override;
       virtual bool emit_proc(struct target_t*) const override;
       virtual int match_proc(struct proc_match_t*) override;
       virtual void dump(std::ostream&, unsigned ind) const override;

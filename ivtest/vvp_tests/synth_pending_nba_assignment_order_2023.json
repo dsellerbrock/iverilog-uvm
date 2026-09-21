@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "synth_pending_nba_assignment_order.v",
+  "iverilog-args": [
+    "-g2023",
+    "-S"
+  ],
+  "gold": "synth_pending_nba_assignment_order"
+}

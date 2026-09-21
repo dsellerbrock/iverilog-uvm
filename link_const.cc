@@ -202,7 +202,11 @@ bool Nexus::drivers_constant() const
 
 	    const NetSubstitute*ps = dynamic_cast<const NetSubstitute*>(cur->get_obj());
 	    if (ps) {
-		  if (ps->pin(1).nexus()->drivers_constant() &&
+		  /* driven_vector() only evaluates fixed-base substitutes. A
+		   * variable-base node is therefore not a foldable constant even
+		   * when its selector happens to be driven by a constant net. */
+		  if (!ps->has_variable_base()
+		      && ps->pin(1).nexus()->drivers_constant() &&
 		      ps->pin(2).nexus()->drivers_constant() ) {
 			constant_drivers += 1;
 			continue;

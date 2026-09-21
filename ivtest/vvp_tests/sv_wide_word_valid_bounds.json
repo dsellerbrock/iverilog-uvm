@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_wide_word_valid_bounds.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_wide_word_valid_bounds"
+}

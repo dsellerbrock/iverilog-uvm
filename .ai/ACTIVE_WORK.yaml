@@ -452,3 +452,17 @@ release_retest_and_cleanup_checkpoint:
   application_state: Pinned clean releases retested; crossbar and power2round pass, GPIO remains failing.
   processes: Retest and neighbor sessions complete; no shared build running.
   next: Resolve duplicate index diagnostic path or exact gold differences, run both focused harnesses, then broad batch gates before PR.
+
+constant_index_single_evaluation_completion:
+  authority: Coordinator-authorized completion of OVERSIZED-CONSTANT-ARRAY-WORD.
+  root_cause: Hybrid constant branch elaborates indices twice; reuse evaluated expressions in existing full-width checked helper.
+  owner: row_async_reset, retained Terra medium, private patch only.
+  scope: elab_lval.cc and directly implicated netmisc.cc/netmisc.h helper; preserve dynamic signal path and required diagnostics.
+  acceptance: Both46case focused harnesses and160synthesis neighbors; no runtime or expected-value weakening.
+  next: Review private patch, coordinator rebuild, focused tests, broad seven-gate batch.
+
+compiler_batch_focused_checkpoint:
+  status: FOCUSED_TESTED_PENDING_BROAD_GATES
+  evidence: docs/conformance/session_logs/2026-09-21_synthesis_and_wide_index_focus.json
+  implementation: Blocking-visible and pending NBA synthesis plus full-width constant array indexing.
+  next: Run seven broad batch gates serially; stop and repair real regressions before publication.

@@ -1,0 +1,3 @@
+./ivltests/synth_pending_nba_compact_old_read.v:33: warning: Process not synthesized.
+./ivltests/synth_pending_nba_compact_old_read.v:20: warning: Process not synthesized.
+PASS

@@ -123,3 +123,5 @@ records focused and neighboring regression evidence for `969853350`, pending bro
 The [September 21 candidate release retest and cleanup](session_logs/2026-09-21_candidate_release_retest_and_cleanup.json)
 records fresh pinned-release application results and disposable binary removal.
 It does not qualify the current uncommitted compiler candidate.
+
+The [synthesis and wide-index focused checkpoint](session_logs/2026-09-21_synthesis_and_wide_index_focus.json) records paired-edition runtime and neighboring-test evidence. Required broad batch gates remain pending.

@@ -1,0 +1,4 @@
+./ivltests/synth_pending_nba_conditional_blocking_read.v:15: warning: Process not synthesized.
+./ivltests/synth_pending_nba_conditional_blocking_read.v:10: warning: Process not synthesized.
+./ivltests/synth_pending_nba_conditional_blocking_read.v:8: warning: Process not synthesized.
+PASS

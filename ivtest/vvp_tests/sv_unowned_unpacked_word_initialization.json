@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_unowned_unpacked_word_initialization.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_unowned_unpacked_word_initialization"
+}

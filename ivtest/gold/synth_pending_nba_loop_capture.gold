@@ -1,0 +1,4 @@
+./ivltests/synth_pending_nba_loop_capture.v:13: warning: Process not synthesized.
+./ivltests/synth_pending_nba_loop_capture.v:12: warning: Process not synthesized.
+./ivltests/synth_pending_nba_loop_capture.v:10: warning: Process not synthesized.
+PASS

@@ -1,0 +1,3 @@
+ivltests/synth_pending_nba_conditional_disjoint.v:17: warning: Process not synthesized.
+ivltests/synth_pending_nba_conditional_disjoint.v:13: warning: Process not synthesized.
+ivltests/synth_pending_nba_conditional_disjoint.v:11: warning: Process not synthesized.

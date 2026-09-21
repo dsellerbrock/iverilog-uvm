@@ -1717,8 +1717,8 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	      // Evaluate all the index expressions into an "unpacked_indices"
 	      // array for ordinary signal-backed fixed arrays.
 	    indices_to_expressions(des, scope, this,
-			   name_tail.index, reg->unpacked_dimensions(), false,
-			   flags, unpacked_indices, unpacked_indices_const);
+		   name_tail.index, reg->unpacked_dimensions(), false,
+		   flags, unpacked_indices, unpacked_indices_const);
 
 	    if (flags.invalid) {
 		  // Nothing to do.
@@ -1735,13 +1735,20 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 			return 0;
 		  }
 		  ivl_assert(*this, unpacked_indices.size()
-				     == reg->unpacked_dimensions());
+			     == reg->unpacked_dimensions());
 		  canon_index = normalize_variable_unpacked(reg, unpacked_indices);
 	    } else {
 		  ivl_assert(*this, unpacked_indices_const.size()
-				     == reg->unpacked_dimensions());
-		  canon_index = normalize_variable_unpacked(
-			reg, unpacked_indices_const);
+			     == reg->unpacked_dimensions());
+                  const netsarray_t*fixed_type =
+                        dynamic_cast<const netsarray_t*>(reg->array_type());
+                  if (fixed_type) {
+                        canon_index = make_checked_canonical_property_index(
+                              des, this, unpacked_indices, flags, fixed_type);
+                  } else {
+                        canon_index = normalize_variable_unpacked(
+                              reg, unpacked_indices_const);
+                  }
 		  if (canon_index == 0) {
 			cerr << get_fileline() << ": warning: "
 			     << "ignoring out of bounds l-value array access "
