@@ -126,6 +126,7 @@ bool vvp_z3_randomize_scope(const std::string&ir,
 			    const std::vector<unsigned>&widths,
 			    const std::vector<uint64_t>&slot_vals,
 			    const std::vector<std::vector<uint64_t> >&object_vals,
+			    const std::vector<std::vector<bool> >&object_known,
 			    std::vector<std::string>&values);
 
 #endif /* IVL_vvp_z3_H */

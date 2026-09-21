@@ -1,0 +1,24 @@
+{
+  "status": "Implementation active; no new fix closure",
+  "scope_queue_x": "evidence/review-20260920/next-joint-distributions/patch-type-inside/scope-queue-x-assessment.json",
+  "queue_prerequisite": "Preserve per-element validity from of_STD_RANDOMIZE_WITH through vvp_z3_randomize_scope; guard-aware failure and rollback, not unconditional rejection of inactive reads.",
+  "synthesis_new_baselines": [
+    "evidence/review-20260920/next-blocking-index/fixtures/concat-and-word-part-baseline.json",
+    "evidence/review-20260920/next-blocking-index/assignment-order-async-baseline.json",
+    "evidence/review-20260920/next-blocking-index/fixtures/conditional-blocking-hold-baseline.json"
+  ],
+  "review_findings": [
+    "Concatenated NBA destinations must all update pending bit enables.",
+    "Unpacked-word packed-part NBA must enable only written bits.",
+    "Reset-only context guard must end before clocked else lowering.",
+    "Pure NBA outputs require valid hold data and process write metadata.",
+    "Conditional blocking enables must remain effective when pending NBA data is overlaid."
+  ],
+  "source_state": "Synthesis repair remains private; queue transport remains private. No shared build/test running.",
+  "workers": {
+    "constraint_guard_semantics": "Queue X/Z validation and scope transport",
+    "synthesis_nba_completion": "NBA per-bit enable and hold correctness"
+  },
+  "integrated_fixes": 7,
+  "remaining_gates": "Review and runtime validation of candidates, affected neighbor suites, required broad batch gates, PR publication"
+}

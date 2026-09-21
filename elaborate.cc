@@ -8047,6 +8047,129 @@ static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
       return block;
 }
 
+/* Copy a fixed one-dimensional prefix whose source and/or destination base
+ * is selected at run time.  The prefix selectors are evaluated once into
+ * locals before the per-word lowering.  That is essential for `a[i] <=
+ * a[j]': every NBA word must retain the same selected rows and the RHS values
+ * seen when the statement was scheduled.  Blocking copies first materialize
+ * the complete RHS row, which also makes a dynamically overlapping self-copy
+ * a single aggregate assignment rather than an order-dependent word loop. */
+static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
+						  const NetNet*base,
+						  const NetNet*ordinal,
+						  unsigned long count,
+						  bool reverse)
+{
+	NetESignal*base_read = new NetESignal(const_cast<NetNet*>(base));
+	base_read->set_line(loc);
+	NetESignal*ordinal_read = new NetESignal(const_cast<NetNet*>(ordinal));
+	ordinal_read->set_line(loc);
+	NetExpr*offset = ordinal_read;
+	if (reverse) {
+	    NetEConst*last = make_const_val_s((long)count - 1);
+	    last->set_line(loc);
+	    NetEBAdd*reversed = new NetEBAdd('-', last, ordinal_read, 32, true);
+	    reversed->set_line(loc);
+	    offset = reversed;
+	}
+	NetEBAdd*word = new NetEBAdd('+', base_read,
+              pad_to_width(offset, 64, loc), 64, true);
+	word->set_line(loc);
+	return word;
+}
+
+static NetProc* make_uarray_dynamic_prefix_copy_loop_(
+	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
+	      const NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
+	      unsigned long count, bool reverse_src, bool nonblocking)
+{
+	NetNet*ordinal = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   &netvector_t::atom2s32);
+	ordinal->local_flag(true);
+	ordinal->set_line(loc);
+
+	NetEConst*init = make_const_val_s(0);
+	init->set_line(loc);
+	NetESignal*ordinal_read = new NetESignal(ordinal);
+	ordinal_read->set_line(loc);
+	NetEConst*limit = make_const_val_s(count);
+	limit->set_line(loc);
+	NetEBComp*cond = new NetEBComp('<', ordinal_read, limit);
+	cond->set_line(loc);
+	NetAssign*step = new NetAssign(new NetAssign_(ordinal), '+',
+					 make_const_val_s(1));
+	step->set_line(loc);
+
+	NetAssign_*word_lval = new NetAssign_(dst_sig);
+	word_lval->set_word(make_uarray_dynamic_prefix_word_(
+	      loc, dst_base, ordinal, count, false));
+	NetESignal*word_rval = new NetESignal(src_sig,
+	      make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
+						 reverse_src));
+	word_rval->set_line(loc);
+	NetProc*body = nonblocking
+	      ? static_cast<NetProc*>(new NetAssignNB(word_lval, word_rval, 0, 0))
+	      : static_cast<NetProc*>(new NetAssign(word_lval, word_rval));
+	body->set_line(loc);
+	NetForLoop*loop = new NetForLoop(ordinal, init, cond, body, step);
+	loop->set_line(loc);
+	return loop;
+}
+
+static NetProc* make_uarray_dynamic_prefix_copy_(
+	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig, NetExpr*dst_base,
+	      NetNet*src_sig, NetExpr*src_base, unsigned long count,
+	      bool reverse_src, bool nonblocking)
+{
+	NetNet*dst_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	dst_snapshot->local_flag(true);
+	dst_snapshot->set_line(loc);
+	NetNet*src_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	src_snapshot->local_flag(true);
+	src_snapshot->set_line(loc);
+	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	block->set_line(loc);
+	NetAssign*save_dst = new NetAssign(new NetAssign_(dst_snapshot), dst_base);
+	save_dst->set_line(loc);
+	save_dst->synth_generated_snapshot();
+	block->append(save_dst);
+	NetAssign*save_src = new NetAssign(new NetAssign_(src_snapshot), src_base);
+	save_src->set_line(loc);
+	save_src->synth_generated_snapshot();
+	block->append(save_src);
+
+	if (nonblocking) {
+	    block->append(make_uarray_dynamic_prefix_copy_loop_(
+		  scope, loc, dst_sig, dst_snapshot, src_sig, src_snapshot, count,
+		  reverse_src, true));
+	    return block;
+	}
+
+	netranges_t dims;
+	dims.push_back(netrange_t((long)count - 1, 0));
+	NetNet*rhs_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					  dims, src_sig->net_type());
+	rhs_snapshot->local_flag(true);
+	rhs_snapshot->set_line(loc);
+	if (scope->is_auto()) rhs_snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
+	NetNet*zero_base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					 &netvector_t::atom2s32);
+	zero_base->local_flag(true);
+	zero_base->set_line(loc);
+	NetAssign*zero = new NetAssign(new NetAssign_(zero_base), make_const_val_s(0));
+	zero->set_line(loc);
+	block->append(zero);
+	block->append(make_uarray_dynamic_prefix_copy_loop_(
+	      scope, loc, rhs_snapshot, zero_base, src_sig, src_snapshot, count,
+	      reverse_src, false));
+	block->append(make_uarray_dynamic_prefix_copy_loop_(
+	      scope, loc, dst_sig, dst_snapshot, rhs_snapshot, zero_base, count,
+	      false, false));
+	return block;
+}
+
 /* Copy a contiguous run of canonical words between two fixed unpacked
  * array signals. This is the aggregate equivalent of the scalar copy loop
  * above, with explicit source and destination bases so a subroutine actual
@@ -8178,7 +8301,7 @@ static bool uarray_pattern_flatten_(const NetEArrayPattern*pat,
       return true;
 }
 
-static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
+static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
 					NetAssign_*lv,
 					const NetEArrayPattern*pat,
 					const NetExpr*delay)
@@ -8191,12 +8314,11 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
 
 	/* The word index of the first element written. A whole-array
 	   l-value starts at 0; a slice carries its flat base word. */
-      long base = 0;
-      if (const NetExpr*wrd = lv->word()) {
-	    const NetEConst*wcon = dynamic_cast<const NetEConst*>(wrd);
-	    if (wcon == 0) return 0;
-	    base = wcon->value().as_long();
-      }
+	long base = 0;
+	const NetExpr*wrd = lv->word();
+	const NetEConst*wcon = wrd ? dynamic_cast<const NetEConst*>(wrd) : 0;
+	bool dynamic_base = wrd && (!wcon || !wcon->value().is_defined());
+	if (wcon && !dynamic_base) base = wcon->value().as_long();
 
 	/* The pattern must cover exactly the words being written --
 	   never a partial fill, which is what the broken path did. */
@@ -8205,7 +8327,8 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
       for (size_t idx = 0 ; idx < dims.size() ; idx += 1)
 	    want *= dims[idx].width();
       if (want == 0) return 0;
-      if (base < 0 || (unsigned long)base + want > sig->unpacked_count())
+	if (!dynamic_base
+	    && (base < 0 || (unsigned long)base + want > sig->unpacked_count()))
 	    return 0;
 
       ivl_type_t elem = ua->element_type();
@@ -8219,12 +8342,36 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
 
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(loc);
+	NetNet*base_snapshot = 0;
+	if (dynamic_base) {
+	    base_snapshot = new NetNet(scope, scope->local_symbol(),
+				       NetNet::REG,
+				       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	    base_snapshot->local_flag(true);
+	    base_snapshot->set_line(loc);
+	    NetAssign*save_base = new NetAssign(new NetAssign_(base_snapshot),
+					       wrd->dup_expr());
+	    save_base->set_line(loc);
+	save_base->synth_generated_snapshot();
+	    blk->append(save_base);
+	}
 
       for (size_t idx = 0 ; idx < items.size() ; idx += 1) {
 	    NetAssign_*wlv = new NetAssign_(sig);
-	    NetEConst*widx = make_const_val_s(base + (long)idx);
-	    widx->set_line(loc);
-	    wlv->set_word(widx);
+	    if (dynamic_base) {
+		  NetESignal*base_read = new NetESignal(base_snapshot);
+		  base_read->set_line(loc);
+		  NetEConst*offset = make_const_val_s(idx);
+		  offset->set_line(loc);
+		  NetEBAdd*widx = new NetEBAdd('+', base_read,
+                    pad_to_width(offset, 64, loc), 64, true);
+		  widx->set_line(loc);
+		  wlv->set_word(widx);
+	    } else {
+		  NetEConst*widx = make_const_val_s(base + (long)idx);
+		  widx->set_line(loc);
+		  wlv->set_word(widx);
+	    }
 
 	    NetAssignNB*nb = new NetAssignNB(wlv, items[idx]->dup_expr(), 0, 0);
 	    nb->set_line(loc);
@@ -8237,6 +8384,82 @@ static NetProc* make_uarray_pattern_nb_(const LineInfo&loc,
       }
 
       return blk;
+}
+
+/* The vvp array-pattern emitter requires a constant slice base. Lower the
+ * dynamic blocking row form before it reaches that backend path. Evaluate the
+ * selector once, materialize every pattern word, then write the destination
+ * row. The materialization is required for `a[i] = '{a[i][0], ...}` and also
+ * guarantees RHS effects occur even when an invalid selector suppresses every
+ * destination store. */
+static NetProc* make_uarray_pattern_blocking_(NetScope*scope,
+					      const LineInfo&loc, NetAssign_*lv,
+					      const NetEArrayPattern*pat)
+{
+	NetNet*sig = lv->sig();
+	if (!sig || !lv->is_array_slice()) return 0;
+	const NetExpr*wrd = lv->word();
+	const NetEConst*wcon = wrd ? dynamic_cast<const NetEConst*>(wrd) : 0;
+	if (!wrd || (wcon && wcon->value().is_defined())) return 0;
+	const netuarray_t*ua = dynamic_cast<const netuarray_t*>(lv->net_type());
+	if (!ua) return 0;
+
+	unsigned long want = 1;
+	for (const netrange_t&dim : ua->static_dimensions()) want *= dim.width();
+	if (!want) return 0;
+	std::vector<const NetExpr*> items;
+	items.reserve(want);
+	ivl_type_t elem = ua->element_type();
+	if (!uarray_pattern_flatten_(pat, elem && elem->packed(), want, items)
+	    || items.size() != want) return 0;
+
+	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	block->set_line(loc);
+	NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				    new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	base->local_flag(true);
+	base->set_line(loc);
+	NetAssign*save_base = new NetAssign(new NetAssign_(base), wrd->dup_expr());
+	save_base->set_line(loc);
+	save_base->synth_generated_snapshot();
+	block->append(save_base);
+
+	netranges_t dims;
+	dims.push_back(netrange_t((long)want - 1, 0));
+	NetNet*rhs = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				  dims, sig->net_type());
+	rhs->local_flag(true);
+	rhs->set_line(loc);
+	if (scope->is_auto()) rhs->lifetime_override(IVL_VLT_AUTOMATIC);
+	for (size_t idx = 0; idx < items.size(); ++idx) {
+	    NetAssign_*tmp_lval = new NetAssign_(rhs);
+	    NetEConst*tmp_word = make_const_val_s(idx);
+	    tmp_word->set_line(loc);
+	    tmp_lval->set_word(tmp_word);
+	    NetAssign*save_rhs = new NetAssign(tmp_lval, items[idx]->dup_expr());
+	    save_rhs->set_line(loc);
+	    block->append(save_rhs);
+	}
+
+	for (size_t idx = 0; idx < items.size(); ++idx) {
+	    NetAssign_*dst_lval = new NetAssign_(sig);
+	    NetESignal*base_read = new NetESignal(base);
+	    base_read->set_line(loc);
+	    NetEConst*offset = make_const_val_s(idx);
+	    offset->set_line(loc);
+	    NetEBAdd*dst_word = new NetEBAdd('+', base_read,
+					       pad_to_width(offset, 64, loc), 64, true);
+	    dst_word->set_line(loc);
+	    dst_lval->set_word(dst_word);
+	    NetEConst*rhs_word = make_const_val_s(idx);
+	    rhs_word->set_line(loc);
+	    NetESignal*rhs_read = new NetESignal(rhs, rhs_word);
+	    rhs_read->set_line(loc);
+	    NetAssign*store = new NetAssign(dst_lval, rhs_read);
+	    store->set_line(loc);
+	    block->append(store);
+	}
+	return block;
 }
 
 /*
@@ -8314,10 +8537,14 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
 struct uarray_prefix_source_t {
       NetNet*sig = nullptr;          // Borrowed from the design.
       long canonical_base = 0;
+	// Non-null for a run-time selected prefix. Ownership stays with this
+	// decode record until the copy lowering adopts it.
+	NetExpr*canonical_base_expr = nullptr;
       unsigned long count = 0;
       netranges_t remaining_dims;
       ivl_type_t element_type = nullptr; // Borrowed from sig.
       bool range_slice = false;
+	~uarray_prefix_source_t() { delete canonical_base_expr; }
 };
 
 /* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
@@ -8376,45 +8603,38 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 	    }
       }
 
-      list<NetExpr*>index_exprs;
-      list<long>index_consts;
-      indices_flags flags;
-      indices_to_expressions(des, scope, &loc, indices, used_dims, false,
-			     flags, index_exprs, index_consts);
-      for (NetExpr*idx : index_exprs)
-	    delete idx;
-
-      if (flags.invalid)
-	    return -1;
-      if (flags.variable || flags.undefined) {
-	    cerr << loc.get_fileline() << ": sorry: a run-time selected"
-		 << " procedural unpacked subarray is not yet supported."
-		 << endl;
-	    des->errors += 1;
-	    return -1;
+	const netranges_t&dims = sr.net->unpacked_dims();
+	netranges_t prefix_dims;
+	for (size_t dim = 0; dim < used_dims; dim += 1)
+	    prefix_dims.push_back(dims[dim]);
+	netuarray_t prefix_type(prefix_dims, sr.net->net_type());
+	NetExpr*base_expr = make_checked_canonical_property_index(
+	      des, scope, &loc, indices, &prefix_type, false);
+	if (!base_expr) return -1;
+	netranges_t remaining_dims;
+	for (size_t dim = used_dims; dim < dims.size(); dim += 1)
+	    remaining_dims.push_back(dims[dim]);
+	unsigned long row_words = netrange_width(remaining_dims);
+	base_expr = scale_index_to_bits(base_expr, row_words, loc);
+	eval_expr(base_expr);
+	base_expr->set_line(loc);
+	if (const NetEConst*base_const = dynamic_cast<const NetEConst*>(base_expr)) {
+	if (!base_const->value().is_defined()) {
+		  out.canonical_base_expr = base_expr;
+	    } else {
+		  out.canonical_base = base_const->value().as_long();
+		  delete base_expr;
       }
-
-      NetExpr*base_expr = normalize_variable_unpacked(sr.net, index_consts);
-      const NetEConst*base_const = dynamic_cast<const NetEConst*>(base_expr);
-      if (!base_const || !base_const->value().is_defined()) {
-	    cerr << loc.get_fileline() << ": error: unpacked-subarray prefix is"
-		 << " outside the declared array bounds." << endl;
-	    des->errors += 1;
-	    delete base_expr;
-	    return -1;
-      }
-
-      out.canonical_base = base_const->value().as_long();
-      delete base_expr;
-      const netranges_t&dims = sr.net->unpacked_dims();
-      for (size_t dim = used_dims; dim < dims.size(); dim += 1)
-	    out.remaining_dims.push_back(dims[dim]);
+	} else {
+	    out.canonical_base_expr = base_expr;
+	}
+	out.remaining_dims = remaining_dims;
       out.count = netrange_width(out.remaining_dims);
-      if (out.canonical_base < 0
-	  || out.canonical_base >= (long)sr.net->pin_count()
-	  || out.count == 0
-	  || out.count > sr.net->pin_count()
-			  - (unsigned long)out.canonical_base) {
+	if (!out.canonical_base_expr && (out.canonical_base < 0
+	    || out.canonical_base >= (long)sr.net->pin_count()
+	    || out.count == 0
+	    || out.count > sr.net->pin_count()
+			  - (unsigned long)out.canonical_base)) {
 	    cerr << loc.get_fileline() << ": error: unpacked-subarray prefix is"
 		 << " outside the declared array bounds." << endl;
 	    des->errors += 1;
@@ -8424,6 +8644,41 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
       out.sig = sr.net;
       out.element_type = sr.net->net_type();
       return 1;
+}
+
+/* Adopt the decoded source base and the slice l-value base.  Constant rows
+ * retain the compact existing lowering; either run-time selector uses the
+ * snapshotting lowering above. */
+static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
+					 NetAssign_*lv,
+					 uarray_prefix_source_t&src,
+					 bool reverse_src, bool nonblocking)
+{
+	NetNet*dst_sig = lv->sig();
+	NetExpr*dst_base_expr = lv->word()
+	      ? lv->word()->dup_expr() : make_const_val_s(0);
+	NetExpr*src_base_expr = src.canonical_base_expr
+	      ? src.canonical_base_expr : make_const_val_s(src.canonical_base);
+	src.canonical_base_expr = nullptr;
+	long dst_base = 0, src_base = 0;
+        const NetEConst*dst_constant = dynamic_cast<const NetEConst*>(dst_base_expr);
+        const NetEConst*src_constant = dynamic_cast<const NetEConst*>(src_base_expr);
+        bool constant_bases = dst_constant && src_constant
+              && dst_constant->value().is_defined() && src_constant->value().is_defined()
+              && eval_as_long(dst_base, dst_base_expr)
+              && eval_as_long(src_base, src_base_expr);
+	if (!constant_bases) {
+	    delete lv;
+	    return make_uarray_dynamic_prefix_copy_(
+		  scope, loc, dst_sig, dst_base_expr, src.sig, src_base_expr,
+		  src.count, reverse_src, nonblocking);
+	}
+	delete dst_base_expr;
+	delete src_base_expr;
+	delete lv;
+	return make_uarray_signal_range_copy_(scope, loc, dst_sig, dst_base,
+				      src.sig, src_base, src.count, reverse_src,
+				      nonblocking);
 }
 
 static bool uarray_ranges_need_reverse_(const netrange_t&dst,
@@ -9042,22 +9297,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 			bool reverse_src = uarray_ranges_need_reverse_(
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
-			long dst_base = 0;
-			NetNet*dst_sig = lv->sig();
-			if (lv->is_array_slice()) {
-			      if (!eval_as_long(dst_base, lv->word())) {
-				    cerr << get_fileline() << ": error:"
-					 << " invalid fixed subarray l-value base."
-					 << endl;
-				    des->errors += 1;
-				    delete lv;
-				    return 0;
-			      }
-			}
-			delete lv;
-			return make_uarray_signal_range_copy_(
-			      scope, *this, dst_sig, dst_base, src.sig,
-			      src.canonical_base, src.count, reverse_src, false);
+			return make_uarray_prefix_copy_(scope, *this, lv, src,
+						 reverse_src, false);
 		  }
 
 		  // A whole one-dimensional signal can also feed a fixed destination
@@ -9096,23 +9337,14 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 					  delete lv;
 					  return 0;
 				    }
-				    long dst_base = 0;
-				    if (!eval_as_long(dst_base, lv->word())) {
-					  cerr << get_fileline() << ": error: invalid"
-					       << " fixed subarray l-value base." << endl;
-					  des->errors += 1;
-					  delete lv;
-					  return 0;
-				    }
-				    bool reverse_src = uarray_ranges_need_reverse_(
-					  lv_uarray->static_dimensions()[0],
-					  src_type->static_dimensions()[0]);
-				    NetNet*dst_sig = lv->sig();
-				    unsigned long count = sr.net->unpacked_count();
-				    delete lv;
-				    return make_uarray_signal_range_copy_(
-					  scope, *this, dst_sig, dst_base, sr.net, 0,
-					  count, reverse_src, false);
+                                    bool reverse_src = uarray_ranges_need_reverse_(
+                                          lv_uarray->static_dimensions()[0],
+                                          src_type->static_dimensions()[0]);
+                                    uarray_prefix_source_t whole;
+                                    whole.sig = sr.net;
+                                    whole.count = sr.net->unpacked_count();
+                                    return make_uarray_prefix_copy_(
+                                          scope, *this, lv, whole, reverse_src, false);
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -9158,6 +9390,23 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  delete lv;
 		  delete rv;
 		  return 0;
+	    }
+
+	    /* A dynamic fixed-array row with a blocking assignment pattern cannot
+	     * reach tgt-vvp's constant-base draw_array_pattern path. Lower the
+	     * simple procedural form into ordinary word stores instead. */
+	    if (delay_ == 0 && event_ == 0 && count_ == 0
+		&& lv->more == 0 && lv->is_array_slice()) {
+		  if (const NetEArrayPattern*pat =
+			  dynamic_cast<const NetEArrayPattern*>(rv)) {
+			NetProc*blk = make_uarray_pattern_blocking_(scope, *this,
+							     lv, pat);
+			if (blk) {
+			      delete lv;
+			      delete rv;
+			      return blk;
+			}
+		  }
 	    }
 
 	      // Whole static-array copy from a class property source
@@ -10038,22 +10287,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			bool reverse_src = uarray_ranges_need_reverse_(
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
-			long dst_base = 0;
-			NetNet*dst_sig = lv->sig();
-			if (lv->is_array_slice()) {
-			      if (!eval_as_long(dst_base, lv->word())) {
-				    cerr << get_fileline() << ": error:"
-					 << " invalid fixed subarray l-value base."
-					 << endl;
-				    des->errors += 1;
-				    delete lv;
-				    return 0;
-			      }
-			}
-			delete lv;
-			return make_uarray_signal_range_copy_(
-			      scope, *this, dst_sig, dst_base, src.sig,
-			      src.canonical_base, src.count, reverse_src, true);
+			return make_uarray_prefix_copy_(scope, *this, lv, src,
+						 reverse_src, true);
 		  }
 
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
@@ -10089,23 +10324,14 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 					  delete lv;
 					  return 0;
 				    }
-				    long dst_base = 0;
-				    if (!eval_as_long(dst_base, lv->word())) {
-					  cerr << get_fileline() << ": error: invalid"
-					       << " fixed subarray l-value base." << endl;
-					  des->errors += 1;
-					  delete lv;
-					  return 0;
-				    }
-				    bool reverse_src = uarray_ranges_need_reverse_(
-					  lv_uarray->static_dimensions()[0],
-					  src_type->static_dimensions()[0]);
-				    NetNet*dst_sig = lv->sig();
-				    unsigned long count = sr.net->unpacked_count();
-				    delete lv;
-				    return make_uarray_signal_range_copy_(
-					  scope, *this, dst_sig, dst_base, sr.net, 0,
-					  count, reverse_src, true);
+                                    bool reverse_src = uarray_ranges_need_reverse_(
+                                          lv_uarray->static_dimensions()[0],
+                                          src_type->static_dimensions()[0]);
+                                    uarray_prefix_source_t whole;
+                                    whole.sig = sr.net;
+                                    whole.count = sr.net->unpacked_count();
+                                    return make_uarray_prefix_copy_(
+                                          scope, *this, lv, whole, reverse_src, true);
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -10182,7 +10408,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  NetExpr*pat_delay = 0;
 		  if (delay_ != 0)
 			pat_delay = elaborate_delay_expr(delay_, des, scope);
-		  NetProc*blk = make_uarray_pattern_nb_(*this, lv, pat,
+		  NetProc*blk = make_uarray_pattern_nb_(scope, *this, lv, pat,
 							pat_delay);
 		  delete pat_delay;
 		  if (blk) {
@@ -27398,6 +27624,27 @@ static string scope_randomize_select_ir_(
       return "";
 }
 
+/* A fixed unpacked array has finitely many e: leaves. Preserve a symbolic
+ * state index by passing its declared dimensions to the solver, which selects
+ * a matching leaf or applies the element type's invalid-read semantics. */
+static string constraint_fixed_array_select_ir_(
+      unsigned property, unsigned width, bool is_signed, bool two_state,
+      const netranges_t&dims, const vector<string>&indices)
+{
+      if (dims.empty() || dims.size() != indices.size()) return "";
+      string header = to_string(property) + ":" + to_string(width)
+            + (is_signed ? ":s" : "");
+      string result = "(fsel " + header + " c:" + to_string(dims.size())
+            + " c:" + to_string(two_state ? 1 : 0);
+      for (const netrange_t&dim : dims) {
+            if (dim.width() == 0) return "";
+            result += " " + to_string(min(dim.get_msb(), dim.get_lsb()))
+                  + ":" + to_string(dim.width());
+      }
+      for (const string&index : indices) result += " " + index;
+      return result + ")";
+}
+
 struct constraint_const_ir_t {
       uint64_t value = 0;
       unsigned width = 32;
@@ -27445,6 +27692,30 @@ static uint64_t constraint_resize_const_bits_(
 	    bits |= ~((UINT64_C(1) << value.width) - 1);
       if (width < 64) bits &= (UINT64_C(1) << width) - 1;
       return bits;
+}
+
+/* Convert an integral constant index to its mathematical offset from a
+ * signed fixed-array lower bound. Keep unsigned values nonnegative: modular
+ * uint64 subtraction would otherwise make unsigned MAX alias declared -1. */
+static bool constraint_fixed_index_offset_(
+      const constraint_const_ir_t&value, int64_t low, uint64_t span,
+      uint64_t&offset)
+{
+      uint64_t bits = constraint_resize_const_bits_(
+            value, 64, value.is_signed);
+      if (value.is_signed) {
+            int64_t signed_value = (int64_t)bits;
+            if (signed_value < low) return false;
+            offset = (uint64_t)signed_value - (uint64_t)low;
+      } else if (low >= 0) {
+            if (bits < (uint64_t)low) return false;
+            offset = bits - (uint64_t)low;
+      } else {
+            uint64_t magnitude = (uint64_t)(-(low + 1)) + 1;
+            if (bits > UINT64_MAX - magnitude) return false;
+            offset = bits + magnitude;
+      }
+      return offset < span;
 }
 
 /* An unbased unsized literal (`'0 or `'1) takes the width of its expression
@@ -29336,12 +29607,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      constraint_const_ir_t index;
 			      if (!constraint_parse_const_ir_(index_ir, index)
 				  || index.width > 64) return "";
-			      uint64_t digit = constraint_resize_const_bits_(
-				    index, 64, index.is_signed);
 			      long low = std::min((*dims)[dim].get_msb(),
 				    (*dims)[dim].get_lsb());
-			      digit -= (uint64_t)low;
-			      if (digit >= (*dims)[dim].width()) return "";
+			      uint64_t digit = 0;
+			      if (!constraint_fixed_index_offset_(index, (int64_t)low,
+			            (*dims)[dim].width(), digit)) return "";
 			      word = word * (*dims)[dim].width() + digit;
 			      ++dim;
 			}
@@ -29919,8 +30189,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			const netranges_t&dims = ua->static_dimensions();
 			if (dims.size() != id->path().back().index.size())
 			      return "";
+			vector<string> index_irs;
 			uint64_t elem = 0;
 			size_t dim = 0;
+			bool constant = true;
 			for (const index_component_t&ic :
 			     id->path().back().index) {
 			      if (!ic.msb || ic.lsb
@@ -29928,25 +30200,33 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    return "";
 			      string idx_ir = pexpr_to_constraint_ir(
 				    ic.msb, cls, value_slots, scope, loop_env);
+			      if (idx_ir.empty()) return "";
+			      index_irs.push_back(idx_ir);
 			      constraint_const_ir_t index_const;
 			      if (!constraint_parse_const_ir_(idx_ir, index_const)
-				  || index_const.width > 64)
-				    return "";
-			      uint64_t digit = constraint_resize_const_bits_(
-				    index_const, 64, index_const.is_signed);
+				  || index_const.width > 64) {
+				    constant = false;
+				    ++dim;
+				    continue;
+			      }
 			      long range_lo = std::min(
 				    dims[dim].get_msb(), dims[dim].get_lsb());
-			      digit -= (uint64_t)range_lo;
-			      if (digit >= dims[dim].width()) return "";
-			      elem = elem * dims[dim].width() + digit;
+			      uint64_t digit = 0;
+			      if (!constraint_fixed_index_offset_(index_const,
+			            (int64_t)range_lo, dims[dim].width(), digit))
+				    constant = false;
+			      else if (constant) elem = elem * dims[dim].width() + digit;
 			      ++dim;
 			}
 			ivl_type_t etype = ua->element_type();
 			unsigned ewid = etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
-			string esfx = (etype && etype->get_signed()) ? ":s" : "";
-			return "e:" + to_string(idx) + ":" + to_string(ewid)
-			      + ":" + to_string(elem) + esfx;
+			if (constant) return "e:" + to_string(idx) + ":"
+			      + to_string(ewid) + ":" + to_string(elem)
+			      + (etype && etype->get_signed() ? ":s" : "");
+			return constraint_fixed_array_select_ir_(idx, ewid,
+			      etype && etype->get_signed(),
+			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
 		  }
 
 		  unsigned wid = 0;
@@ -30010,26 +30290,64 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "";
       }
 
-      /* Integral casts around caller values are evaluated at the
-         randomize() call site, preserving the cast's truncation/extension,
-         then supplied as an ordinary value slot. For solver properties the
-         current IR has no separate cast node; retaining the inner property
-         is still more accurate than dropping the entire constraint. */
+      /* Caller-value casts are evaluated before solving. Solver expressions
+       * retain an explicit integral cast, including self-determined width and
+       * signedness, rather than silently reusing the uncast operand. */
       auto cast_to_constraint_ir = [&](const PExpr*base) -> string {
-	    size_t before = value_slots ? value_slots->size() : 0;
-	    string ir = pexpr_to_constraint_ir(base, cls, value_slots,
-					 scope, loop_env);
-	    if (value_slots && ir.compare(0, 2, "v:") == 0
-		&& value_slots->size() == before + 1)
-		  value_slots->back() = expr;
-	    return ir;
+            size_t before = value_slots ? value_slots->size() : 0;
+            string ir = pexpr_to_constraint_ir(base, cls, value_slots,
+                                             scope, loop_env);
+            if (ir.empty()) return ir;
+            if (value_slots && ir.compare(0, 2, "v:") == 0
+                && value_slots->size() == before + 1) {
+                  value_slots->back() = expr;
+                  return ir;
+            }
+            Design*des = constraint_ir_design_ctx_;
+            NetScope*cast_scope = const_cast<NetScope*>(scope
+                  ? scope : cls ? cls->class_scope() : nullptr);
+            if (!des || !cast_scope) return "";
+            unsigned width = 0;
+            unsigned sign = 2; // inherit for a size cast
+            if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+                  ivl_type_t type = cast->resolve_target_type(des, cast_scope);
+                  if (!type) return "";
+                  if (!type->packed() || !type_is_vectorable(type->base_type())) {
+                        cerr << expr->get_fileline()
+                             << ": error: Non-integral solver casts are not supported in constraints."
+                             << endl;
+                        des->errors += 1;
+                        return "";
+                  }
+                  width = type->packed_width();
+                  sign = type->get_signed() ? 1 : 0;
+            } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+                  unique_ptr<NetExpr>size(elab_and_eval(
+                        des, cast_scope, cast->cast_size(), -1, true));
+                  const NetEConst*constant = dynamic_cast<const NetEConst*>(size.get());
+                  if (!constant || !constant->value().is_defined()
+                      || constant->value().is_negative()
+                      || constant->value().as_ulong64() == 0
+                      || constant->value().as_ulong64() > UINT_MAX) {
+                        cerr << expr->get_fileline()
+                             << ": error: Constraint cast size must be a positive representable constant."
+                             << endl;
+                        des->errors += 1;
+                        return "";
+                  }
+                  width = constant->value().as_ulong64();
+            } else {
+                  sign = expr->has_sign() ? 1 : 0;
+            }
+            return "(cast c:" + to_string(width) + " c:" + to_string(sign)
+                  + " " + ir + ")";
       };
       if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
-	    return cast_to_constraint_ir(cast->cast_base());
+            return cast_to_constraint_ir(cast->cast_base());
       if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
-	    return cast_to_constraint_ir(cast->cast_base());
+            return cast_to_constraint_ir(cast->cast_base());
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
-	    return cast_to_constraint_ir(cast->cast_base());
+            return cast_to_constraint_ir(cast->cast_base());
 
       // I4 (Phase 62c): soft constraint wrapper.  Emit `(soft <expr>)`
       // so the Z3 backend applies the inner expression via
@@ -30978,12 +31296,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			constraint_const_ir_t value;
 			if (!constraint_parse_const_ir_(index_ir, value)
 			    || value.width > 64) return;
-			uint64_t digit = constraint_resize_const_bits_(
-			      value, 64, value.is_signed);
 			const netrange_t&range = array->static_dimensions()[dim++];
-			digit -= (uint64_t)std::min(
-			      range.get_msb(), range.get_lsb());
-			if (digit < range.width()) continue;
+			uint64_t digit = 0;
+			if (constraint_fixed_index_offset_(value,
+			      (int64_t)std::min(range.get_msb(), range.get_lsb()),
+			      range.width(), digit)) continue;
 			if (constraint_ir_design_ctx_
 			    && constraint_ir_design_ctx_
 			         ->mark_constraint_order_diagnostic(item)) {
@@ -31001,7 +31318,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
-			if (s.empty()) diagnose_fixed_oob(item);
+			diagnose_fixed_oob(item);
 			if (s.compare(0, 7, "(delem ") == 0) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
 			      if (!id || !cls || id->path().package
@@ -31626,7 +31943,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    if (et && (eb == IVL_VT_BOOL
 					       || eb == IVL_VT_LOGIC)) {
 					  unsigned ew = et->packed_width();
-					  if (ew == 0 || ew > 64) ew = 32;
+					  if (ew == 0 || ew > 64) {
+                                                cerr << r.hi->get_fileline()
+                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
+                                                     << endl;
+                                                if (scope_randomize_design_ctx_) scope_randomize_design_ctx_->errors += 1;
+                                                return "";
+                                          }
 					  NetExpr*object_expr = elab_and_eval(
 						scope_randomize_design_ctx_,
 						const_cast<NetScope*>(scope),
@@ -31663,7 +31986,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    ? et->base_type() : IVL_VT_NO_TYPE;
 			      if (et && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
 				    unsigned ewid = et->packed_width();
-				    if (ewid == 0 || ewid > 64) ewid = 32;
+				    if (ewid == 0 || ewid > 64) {
+                                                cerr << r.hi->get_fileline()
+                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
+                                                     << endl;
+                                                if (constraint_ir_design_ctx_) constraint_ir_design_ctx_->errors += 1;
+                                                return "";
+                                          }
 				    range_ir = "q:" + to_string(cpi)
 					  + ":" + to_string(ewid)
 					  + (et->get_signed() ? ":s" : "");
@@ -34526,6 +34855,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				std::function<bool(sel_t*,std::string&)> compile_select;
 				compile_select = [&](sel_t*s, std::string&out) -> bool {
 				      if (!s) return false;
+				      if (s->op == sel_t::SEL_WITH) return false;
 				      switch (s->op) {
 					  case sel_t::SEL_AND:
 					  case sel_t::SEL_OR: {
@@ -34723,27 +35053,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  }
 				  if (!cross_props_ok) continue;
 
-			  std::function<int(sel_t*, const std::vector<unsigned>&)> eval_sel =
-			      [&](sel_t*s, const std::vector<unsigned>&tup) -> int {
+			  static const uint64_t cross_bin_limit = 65536;
+			  std::function<int(PExpr*, const std::vector<unsigned>&, size_t)> eval_with;
+			  std::function<bool(sel_t*)> select_has_with = [&](sel_t*s) {
+				  return s && (s->op == sel_t::SEL_WITH
+						|| select_has_with(s->a) || select_has_with(s->b));
+			  };
+			  std::function<int(sel_t*, const std::vector<unsigned>&, size_t)> eval_sel =
+			      [&](sel_t*s, const std::vector<unsigned>&tup, size_t ub) -> int {
 				if (!s) return -1;
 				switch (s->op) {
 				    case sel_t::SEL_AND: {
-					  int sa = eval_sel(s->a, tup);
-					  int sb = eval_sel(s->b, tup);
-					  if (sa < 0 || sb < 0) return -1;
-					  return (sa && sb) ? 1 : 0;
+				  int sa = eval_sel(s->a, tup, ub);
+				  int sb = eval_sel(s->b, tup, ub);
+				  if (sa < 0 || sb < 0) return -1;
+				  return (sa && sb) ? 1 : 0;
 				    }
 				    case sel_t::SEL_OR: {
-					  int sa = eval_sel(s->a, tup);
-					  int sb = eval_sel(s->b, tup);
-					  if (sa < 0 || sb < 0) return -1;
-					  return (sa || sb) ? 1 : 0;
+				  int sa = eval_sel(s->a, tup, ub);
+				  int sb = eval_sel(s->b, tup, ub);
+				  if (sa < 0 || sb < 0) return -1;
+				  return (sa || sb) ? 1 : 0;
 				    }
-				    case sel_t::SEL_NOT: {
-					  int sa = eval_sel(s->a, tup);
-					  if (sa < 0) return -1;
-					  return sa ? 0 : 1;
-				    }
+			    case sel_t::SEL_NOT: {
+				  int sa = eval_sel(s->a, tup, ub);
+				  if (sa < 0) return -1;
+				  return sa ? 0 : 1;
+			    }
+			    case sel_t::SEL_WITH: {
+				  int sa = eval_sel(s->a, tup, ub);
+				  if (sa <= 0) return sa;
+				  return eval_with(s->with_expr, tup, ub);
+			    }
 				    case sel_t::SEL_BINSOF: {
 					  int k = -1;
 					  for (size_t i = 0; i < cross.cp_labels.size(); i++)
@@ -34784,17 +35125,88 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						}
 						if (!overlap) return 0;
 					  }
-					  return 1;
+				  return 1;
 				    }
 				}
 				return -1;
 			  };
 
-			    // Product count check.  OpenTitan legitimately creates an
+			  eval_with = [&](PExpr*with_expr, const std::vector<unsigned>&idx, size_t ub) -> int {
+				  std::vector<std::vector<uint64_t>> dimension_values(idx.size());
+				  uint64_t value_tuple_count = 1;
+				  bool values_ok = true;
+				  bool value_product_too_large = false;
+				  for (size_t k = 0; k < idx.size(); k++) {
+					const xbin_desc_t&d = cp_value_bins[cp_indexes[k]][idx[k]];
+					if (d.ranges.empty() || d.wildcard || d.transition_prop >= 0
+					    || d.transition_family >= 0 || d.dyn_family >= 0) {
+					      values_ok = false; break;
+					}
+					std::set<uint64_t> unique_values;
+					unsigned cp_index = cp_indexes[k];
+					unsigned width = cp_value_widths[cp_index];
+					if (width == 0 || width > 64) { values_ok = false; break; }
+					uint64_t mask = width >= 64 ? UINT64_MAX : (((uint64_t)1 << width) - 1);
+					uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
+					for (const auto&r : d.ranges) {
+					      uint64_t first = r.first & mask, last = r.second & mask;
+					      bool crosses_zero = cp_value_signedness[cp_index]
+						    && !(first & sign) && (last & sign);
+					      if (!crosses_zero && last < first) { values_ok = false; break; }
+					      uint64_t count = crosses_zero ? (mask-last+1) + (first+1) : last-first+1;
+					      if (count == 0 || count > cross_bin_limit) { value_product_too_large = true; break; }
+					      uint64_t value = crosses_zero ? last : first;
+					      for (uint64_t n = 0; n < count; n++) {
+						    unique_values.insert(value);
+						    if (unique_values.size() > cross_bin_limit) { value_product_too_large = true; break; }
+						    if (crosses_zero && value == mask) value = 0; else value += 1;
+					      }
+					      if (value_product_too_large) break;
+					}
+					dimension_values[k].assign(unique_values.begin(), unique_values.end());
+					if (value_product_too_large || dimension_values[k].empty()
+					    || value_tuple_count > cross_bin_limit / dimension_values[k].size()) {
+					      value_product_too_large = true; break;
+					}
+					value_tuple_count *= dimension_values[k].size();
+				  }
+				  if (value_product_too_large) {
+					if (!ubin_sorried[ub]) {
+					      cerr << with_expr->get_fileline() << ": error: cross bin '"
+					           << cross.bins[ub].name << "' `with' predicate requires more than "
+					           << cross_bin_limit << " value tuples to evaluate." << endl;
+					      des->errors += 1;
+					      ubin_sorried[ub] = true;
+					}
+					return -1;
+				  }
+				  if (!values_ok) return -1;
+				  std::vector<uint64_t> value_idx(idx.size(), 0);
+				  for (uint64_t t = 0; t < value_tuple_count; t++) {
+					std::map<perm_string,int64_t> tuple_values;
+					for (size_t k = 0; k < idx.size(); k++) {
+					      uint64_t value = dimension_values[k][value_idx[k]];
+					      unsigned cp_index = cp_indexes[k], width = cp_value_widths[cp_index];
+					      uint64_t mask = width >= 64 ? UINT64_MAX : (((uint64_t)1 << width) - 1);
+					      uint64_t sign = (uint64_t)1 << (width-1);
+					      if (cp_value_signedness[cp_index] && width < 64 && (value & sign)) value |= ~mask;
+					      tuple_values[cross.cp_labels[k]] = (int64_t)value;
+					}
+					int64_t result = 0;
+					if (cov_named_eval_(with_expr, tuple_values, result) < 0) return -1;
+					if (result != 0) return 1;
+					for (size_t k = 0; k < value_idx.size(); k++) {
+					      if (++value_idx[k] < dimension_values[k].size()) break;
+					      value_idx[k] = 0;
+					}
+				  }
+				  return 0;
+			  };
+
+			  // Product count check.  OpenTitan legitimately creates an
 			    // 8192-bin cross; keep a guard against accidental explosive
 			    // products while allowing practical standards-compliant
 			    // crosses substantially larger than the historical 4096 cap.
-			  static const uint64_t cross_bin_limit = 65536;
 				  uint64_t nprod = 1;
 				  bool product_too_large = false;
 				  for (unsigned cpi : cp_indexes) {
@@ -34844,138 +35256,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
 				      int m = -1;
+				      bool has_with = cb.with_expr || select_has_with(cb.select);
 				      if (cb.with_expr) {
-					      /* IEEE 1800-2017/2023 19.6.1.2: apply a
-						 top-level `with' only to tuples selected by
-						 its subordinate select_expression. With no
-						 `matches' clause, one satisfying value tuple
-						 selects the candidate bin tuple. */
-					    int sel_m = cb.select
-						  ? eval_sel(cb.select, idx)
-						  : ((!cross.label.nil()
-						      && cb.with_cross == cross.label) ? 1 : -1);
-					    if (sel_m <= 0) {
-						  m = sel_m;
-					    } else {
-						  const uint64_t with_value_tuple_limit = cross_bin_limit;
-						  std::vector<std::vector<uint64_t>> dimension_values(
-							idx.size());
-						  uint64_t value_tuple_count = 1;
-						  bool values_ok = true;
-						  bool value_product_too_large = false;
-						  for (size_t k = 0; k < idx.size(); k++) {
-							const xbin_desc_t&d =
-							      cp_value_bins[cp_indexes[k]][idx[k]];
-							if (d.ranges.empty() || d.wildcard
-							    || d.transition_prop >= 0
-							    || d.transition_family >= 0
-							    || d.dyn_family >= 0) {
-							      values_ok = false;
-							      break;
-							}
-							std::set<uint64_t> unique_values;
-							unsigned cp_index = cp_indexes[k];
-							unsigned width = cp_value_widths[cp_index];
-							if (width == 0 || width > 64) {
-							      values_ok = false;
-							      break;
-							}
-							uint64_t mask = width >= 64 ? UINT64_MAX
-							      : (((uint64_t)1 << width) - 1);
-							uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
-							for (const auto&r : d.ranges) {
-							      uint64_t first = r.first & mask;
-							      uint64_t last = r.second & mask;
-							      bool crosses_zero = cp_value_signedness[cp_index]
-								    && !(first & sign) && (last & sign);
-							      if (!crosses_zero && last < first) {
-								values_ok = false;
-								break;
-							      }
-							      uint64_t count = crosses_zero
-								    ? (mask-last+1) + (first+1)
-								    : last-first+1;
-							      if (count == 0 || count > with_value_tuple_limit) {
-								value_product_too_large = true;
-								break;
-							      }
-							      uint64_t value = crosses_zero ? last : first;
-							      for (uint64_t n = 0; n < count; n++) {
-								unique_values.insert(value);
-								if (unique_values.size() > with_value_tuple_limit) {
-								      value_product_too_large = true;
-								      break;
-								}
-								if (crosses_zero && value == mask)
-								      value = 0;
-								else
-								      value += 1;
-							      }
-							      if (value_product_too_large) break;
-							}
-							dimension_values[k].assign(unique_values.begin(),
-									   unique_values.end());
-							if (value_product_too_large
-							    || dimension_values[k].empty()
-							    || value_tuple_count >
-							       with_value_tuple_limit / dimension_values[k].size()) {
-							      value_product_too_large = true;
-							      break;
-							}
-							value_tuple_count *= dimension_values[k].size();
-						  }
-						  if (value_product_too_large) {
-							cerr << cb.with_expr->get_fileline()
-							     << ": error: cross bin '" << cb.name
-							     << "' `with' predicate requires more than "
-							     << with_value_tuple_limit
-							     << " value tuples to evaluate." << endl;
-							des->errors += 1;
-							ubin_sorried[ub] = true;
-							m = -1;
-						  } else if (values_ok) {
-							m = 0;
-							std::vector<uint64_t> value_idx(idx.size(), 0);
-							for (uint64_t t = 0;
-							     t < value_tuple_count && m == 0; t++) {
-							      std::map<perm_string,int64_t> tuple_values;
-							      for (size_t k = 0; k < idx.size(); k++) {
-								    uint64_t value = dimension_values[k][value_idx[k]];
-								    unsigned cp_index = cp_indexes[k];
-								    unsigned width = cp_value_widths[cp_index];
-								    uint64_t mask = width >= 64 ? UINT64_MAX
-									  : (((uint64_t)1 << width) - 1);
-								    uint64_t sign = (uint64_t)1 << (width-1);
-								    if (cp_value_signedness[cp_index]
-									&& width < 64 && (value & sign))
-									  value |= ~mask;
-								    tuple_values[cross.cp_labels[k]] =
-									  (int64_t)value;
-							      }
-							      int64_t result = 0;
-							      if (cov_named_eval_(cb.with_expr,
-									       tuple_values, result) < 0) {
-								    m = -1;
-								    break;
-							      }
-							      if (result != 0) {
-								    m = 1;
-								    break;
-							      }
-							      for (size_t k = 0; k < value_idx.size(); k++) {
-								    if (++value_idx[k] < dimension_values[k].size())
-									  break;
-								    value_idx[k] = 0;
-							      }
-							}
-						  }
-					    }
+					int sel_m = cb.select
+					      ? eval_sel(cb.select, idx, ub)
+					      : ((!cross.label.nil() && cb.with_cross == cross.label) ? 1 : -1);
+					m = sel_m <= 0 ? sel_m : eval_with(cb.with_expr, idx, ub);
 				      } else {
-					    m = eval_sel(cb.select, idx);
+					m = eval_sel(cb.select, idx, ub);
 				      }
 				      if (m < 0) {
 					    if (!ubin_sorried[ub]) {
-							  if (cb.with_expr) {
+						  if (has_with) {
 								cerr << pclass->get_fileline()
 								     << ": error: cross bin '" << cb.name
 								     << "' uses a 'with' predicate that "

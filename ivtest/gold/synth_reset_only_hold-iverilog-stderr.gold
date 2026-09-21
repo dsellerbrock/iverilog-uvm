@@ -1,0 +1,3 @@
+ivltests/synth_reset_only_hold.v:17: warning: Process not synthesized.
+ivltests/synth_reset_only_hold.v:12: warning: Process not synthesized.
+ivltests/synth_reset_only_hold.v:6: warning: Process not synthesized.

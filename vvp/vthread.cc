@@ -117,6 +117,8 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
 	   earlier in this file than that definition. */
 static void thread_rng_srandom_(vthread_t thr, int32_t seed);
 static uint32_t thread_rng_next_(vthread_t thr);
+static std::string thread_rng_get_state_(vthread_t thr);
+static bool thread_rng_set_state_(vthread_t thr, const std::string&state);
 static vthread_t logical_process_thread_(vthread_t thr);
 static set<vthread_t> live_threads_registry_;
 
@@ -6057,6 +6059,7 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       const unsigned n_objs = code->bit_idx[1] >> 16;
 
       vector<vector<uint64_t> > object_vals(n_objs);
+      vector<vector<bool> > object_known(n_objs);
       for (unsigned i = n_objs ; i > 0 ; i -= 1) {
 	    vvp_object_t obj;
 	    thr->pop_object(obj);
@@ -6083,6 +6086,7 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    }
 	    size_t count = da->get_size();
 	    object_vals[i - 1].reserve(count);
+	    object_known[i - 1].reserve(count);
 	    for (size_t elem = 0 ; elem < count ; elem += 1) {
 		  vvp_vector4_t word;
 		  if (field_pid >= 0) {
@@ -6094,10 +6098,16 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 			da->get_word((unsigned)elem, word);
 		  }
 		  uint64_t bits = 0;
+		  bool known = word.size() != 0 && word.size() <= 64;
 		  unsigned wid = word.size() > 64 ? 64 : word.size();
-		  for (unsigned b = 0 ; b < wid ; b += 1)
-			if (word.value(b) == BIT4_1) bits |= UINT64_C(1) << b;
+		  for (unsigned b = 0 ; b < wid ; b += 1) {
+			if (word.value(b) == BIT4_1)
+			      bits |= UINT64_C(1) << b;
+			else if (word.value(b) != BIT4_0)
+			      known = false;
+		  }
 		  object_vals[i - 1].push_back(bits);
+		  object_known[i - 1].push_back(known);
 	    }
       }
       vector<uint64_t> slot_vals(n_vals);
@@ -6120,6 +6130,7 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	// object, so its diversity targets draw from the calling thread's
 	// own (logical-process) generator rather than a raw global rand().
       vthread_t rng_owner = logical_process_thread_(thr);
+      string rng_state = thread_rng_get_state_(rng_owner);
       for (unsigned i = 0 ; i < n_rand ; i += 1) {
 	    string bits(widths[i], '0');
 	    for (unsigned b = 0 ; b < widths[i] ; b += 1)
@@ -6131,7 +6142,10 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vector<string> model;
       bool ok = vvp_z3_randomize_scope(code->text ? code->text : "",
 				       targets, widths, slot_vals, object_vals,
+				       object_known,
 				       model);
+      if (!ok)
+	    (void)thread_rng_set_state_(rng_owner, rng_state);
       thr->std_randomize_results.clear();
       if (ok) {
 	    thr->std_randomize_results.resize(n_rand);

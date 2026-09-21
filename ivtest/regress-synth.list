@@ -205,7 +205,6 @@ synth_dead_declaration_initializer normal,-g2012	ivltests
 synth_initial_unobservable_side_effect normal,-S,-g2012,-ssynth_initial_unobservable_side_effect	ivltests gold=synth_initial_unobservable_side_effect.gold
 synth_runtime_for_bound normal,-g2012	ivltests
 synth_runtime_memory_output_set normal,-g2012	ivltests
-synth_runtime_memory_partial_reject CE,-g2012	ivltests
 synth_runtime_memory_word normal,-g2012	ivltests
 synth_scalar_part_select_dff normal,-g2012	ivltests
 synth_sequential_async_control_reject CE,-g2012	ivltests gold=synth_sequential_async_control_reject.gold
@@ -226,3 +225,23 @@ synth_parameterized_interface_member normal,-g2012,-ssynth_parameterized_interfa
 synth_parameterized_interface_member_array normal,-g2012,-ssynth_parameterized_interface_member_array ivltests gold=synth_parameterized_interface_member_array.gold
 synth_parameterized_interface_selected_instance normal,-g2012,-ssynth_parameterized_interface_selected_instance ivltests gold=synth_parameterized_interface_selected_instance.gold
 synth_forwarded_parameterized_interface_array normal,-g2012,-ssynth_forwarded_parameterized_interface_array ivltests gold=synth_forwarded_parameterized_interface_array.gold
+
+# Runtime masked word writes: behavioral verdicts after synthesis.
+synth_runtime_memory_partial normal,-S,-g2017 ivltests gold=synth_runtime_memory_partial.gold
+synth_runtime_memory_partial_2023 normal,-S,-g2023 ivltests gold=synth_runtime_memory_partial.gold
+synth_runtime_memory_mask_loop normal,-S,-g2017 ivltests gold=synth_runtime_memory_mask_loop.gold
+synth_runtime_memory_mask_loop_2023 normal,-S,-g2023 ivltests gold=synth_runtime_memory_mask_loop.gold
+synth_runtime_memory_part_boundaries normal,-S,-g2017 ivltests gold=synth_runtime_memory_part_boundaries.gold
+synth_runtime_memory_part_boundaries_2023 normal,-S,-g2023 ivltests gold=synth_runtime_memory_part_boundaries.gold
+
+synth_reset_only_hold normal,-S,-g2017 ivltests gold=synth_reset_only_hold.gold
+synth_reset_only_hold_2023 normal,-S,-g2023 ivltests gold=synth_reset_only_hold.gold
+synth_reset_only_async_load_fail CE,-S,-g2017 ivltests gold=synth_reset_only_async_load_fail.gold
+synth_reset_only_async_load_fail_2023 CE,-S,-g2023 ivltests gold=synth_reset_only_async_load_fail.gold
+
+synth_row_async_reset normal,-S,-g2017,-s,row_async_reset_tb ivltests gold=synth_row_async_reset.gold
+synth_row_async_reset_2023 normal,-S,-g2023,-s,row_async_reset_tb ivltests gold=synth_row_async_reset.gold
+synth_row_invalid_reset normal,-S,-g2017,-s,nested_invalid_x_row_reset_tb ivltests gold=synth_row_invalid_reset.gold
+synth_row_invalid_reset_2023 normal,-S,-g2023,-s,nested_invalid_x_row_reset_tb ivltests gold=synth_row_invalid_reset.gold
+synth_row_nested_reset normal,-S,-g2017,-s,row_async_reset_tb ivltests gold=synth_row_nested_reset.gold
+synth_row_nested_reset_2023 normal,-S,-g2023,-s,row_async_reset_tb ivltests gold=synth_row_nested_reset.gold

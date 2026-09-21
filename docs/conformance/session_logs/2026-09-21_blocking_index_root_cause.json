@@ -1,0 +1,78 @@
+{
+  "blocker": "BLOCKING-INDEX-SYNTHESIS-DATAFLOW",
+  "status": "Root cause expanded; implementation awaiting reviewed design",
+  "revision": "85a99b9423ee4396d5d968f952eec30114625dcd",
+  "baseline": [
+    {
+      "name": "boundary-2017-behavior",
+      "compile": 0,
+      "runtime": 0
+    },
+    {
+      "name": "boundary-2017-synth",
+      "compile": 0,
+      "runtime": 1
+    },
+    {
+      "name": "packed-boundary-2017-behavior",
+      "compile": 0,
+      "runtime": 0
+    },
+    {
+      "name": "packed-boundary-2017-synth",
+      "compile": 0,
+      "runtime": 1
+    },
+    {
+      "name": "boundary-2023-behavior",
+      "compile": 0,
+      "runtime": 0
+    },
+    {
+      "name": "boundary-2023-synth",
+      "compile": 0,
+      "runtime": 1
+    },
+    {
+      "name": "packed-boundary-2023-behavior",
+      "compile": 0,
+      "runtime": 0
+    },
+    {
+      "name": "packed-boundary-2023-synth",
+      "compile": 0,
+      "runtime": 1
+    }
+  ],
+  "ordering": [
+    {
+      "name": "assignment-order-reset-2017-behavior",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "name": "assignment-order-reset-2017-synth",
+      "compile": 0,
+      "runtime": 1,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/assignment_order.sv:18: warning: Process not synthesized.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/assignment_order.sv:11: warning: Process not synthesized.\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/assignment_order.sv:21: order values 01 00 01 00 02 00 01 00\n       Time: 4  Scope: test\n"
+    },
+    {
+      "name": "assignment-order-reset-2023-behavior",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "name": "assignment-order-reset-2023-synth",
+      "compile": 0,
+      "runtime": 1,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/assignment_order.sv:18: warning: Process not synthesized.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/assignment_order.sv:11: warning: Process not synthesized.\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/assignment_order.sv:21: order values 01 00 01 00 02 00 01 00\n       Time: 4  Scope: test\n"
+    }
+  ],
+  "invariant": "Blocking assignments update subsequent reads immediately. NBA operands evaluate at statement execution; queued NBA writes apply later and may override later blocking writes.",
+  "rejected_design": "Do not disable procedural forwarding for NBA RHS. Do not use a source-order combined output bus as either visible read state or final scheduled state.",
+  "required_design": "Separate blocking-visible state and pending NBA values/write masks, including conditional merges and last-enabled-NBA priority; scope proposal pending.",
+  "standards": "IEEE1800-2017/2023 10.4 and stratified event semantics",
+  "raw_evidence": "evidence/review-20260920/next-blocking-index"
+}

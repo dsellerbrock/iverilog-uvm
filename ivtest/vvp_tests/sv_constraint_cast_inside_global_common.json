@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_cast_inside_global_common.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_constraint_cast_inside_global_common"
+}

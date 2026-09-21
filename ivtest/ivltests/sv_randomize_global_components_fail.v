@@ -45,8 +45,16 @@ endclass
 class coupled_dist;
   rand leaf child;
   rand bit value;
+  int posts;
+  bit impossible;
   function new(); child=new; endfunction
-  constraint c { child.value==value; value dist {0:=1,1:=2}; child.value dist {0:=2,1:=1}; }
+  function void post_randomize(); posts++; endfunction
+  constraint c {
+    child.value==value;
+    value dist {0:=1,1:=2};
+    child.value dist {0:=2,1:=1};
+    if (impossible) { value == 0; value == 1; }
+  }
 endclass
 module main;
   coupled c=new;
@@ -55,6 +63,10 @@ module main;
   soft_dist s=new;
   partial_range p=new;
   coupled_dist d=new;
+  bit old_value;
+  bit [9:0] old_child;
+  int old_posts;
+  string root_state, child_state;
   initial begin
     if (c.randomize() || c.value!=1 || c.child.value!=13 || c.posts)
       $fatal(1,"coupled OR limit split or rollback lost");
@@ -65,7 +77,15 @@ module main;
     if (x.randomize() || x.value!=1 || x.posts) $fatal(1,"inactive subject hid X weight");
     if (s.randomize()) $fatal(1,"discarded soft dist silently sampled");
     if (p.randomize()) $fatal(1,"unproved range-exclusion policy admitted");
-    if (d.randomize()) $fatal(1,"coupled distributions independently sampled");
+    if (!d.randomize() || d.child.value != d.value || d.posts != 1)
+      $fatal(1,"coupled distributions did not solve jointly");
+    old_value=d.value; old_child=d.child.value; old_posts=d.posts;
+    root_state=d.get_randstate(); child_state=d.child.get_randstate();
+    d.impossible=1;
+    if (d.randomize()) $fatal(1,"coupled contradiction succeeded");
+    if (d.value !== old_value || d.child.value !== old_child || d.posts != old_posts
+        || d.get_randstate()!=root_state || d.child.get_randstate()!=child_state)
+      $fatal(1,"coupled failure did not roll back atomically");
     $display("PASSED");
   end
 endmodule

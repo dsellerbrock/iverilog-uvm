@@ -1,0 +1,3 @@
+ivltests/synth_pending_nba_partial_blocking.v:15: warning: Process not synthesized.
+ivltests/synth_pending_nba_partial_blocking.v:14: warning: Process not synthesized.
+ivltests/synth_pending_nba_partial_blocking.v:12: warning: Process not synthesized.

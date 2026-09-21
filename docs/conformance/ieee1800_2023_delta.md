@@ -247,3 +247,30 @@ L104 shares the equality sizing rules; [paired evidence](session_logs/2026-09-15
 L105 shares the constant-function locality restriction; [paired evidence](session_logs/2026-09-15_nonlocal_constant_function_values_validation.json) records both editions.
 
 L96–L105 share the [local qualification checkpoint](matrices/ieee1800_2017_clause_matrix.md#l96l105-local-qualification-checkpoint). Paired focused evidence remains edition-specific; the full UVM gate used its existing2012 mode.
+
+Grouped clocked implication consequents follow the shared 16.13 / Annex A.2.10
+rules; [paired evidence](session_logs/2026-09-20_grouped_clocked_consequent.md) records both editions.
+
+Masked runtime memory writes follow the shared 7.4.6, 11.5 and 10.4 rules; [paired evidence](session_logs/2026-09-20_masked_memory_synthesis.json) records both editions.
+
+Variable fixed-array row assignments use shared 7.4.6, 7.6 and 10.4 rules; [paired evidence](session_logs/2026-09-20_variable_row_assignment.json) records the edition runs and limits.
+
+State-selected fixed-array constraint evidence is [shared here](session_logs/2026-09-21_state_selected_fixed_array_constraints.json).
+Indexing/slicing and Table 7-1 move from 2017 7.4.6 to 2023 7.4.5;
+constraint guards move from 18.5.13 to 18.5.12. Earlier records citing
+7.4.6 for both editions should be read with that clause-number correction.
+
+Reset-only synthesis follows the shared9.2/10.4 semantics; [paired evidence](session_logs/2026-09-21_reset_only_synthesis.json) records both editions and remaining scope.
+
+Integral constraint casts use shared 6.24, 11.6, 11.8.2 and 18.3 semantics;
+[shared scope and evidence](matrices/ieee1800_2017_clause_matrix.md#september-21-integral-constraint-casts-and-coupled-distributions)
+records separate 2017/2023 runs. Distribution and solve-before references
+move from 2017 18.5.4/18.5.10 to 2023 18.5.3/18.5.9. No broader edition
+qualification is implied by the focused checkpoint.
+
+Procedural assignment synthesis follows shared clause 10.4 semantics;
+invalid fixed-array indexing uses 2023 7.4.5 versus 2017 7.4.6.
+[Shared scope and paired-edition evidence](matrices/ieee1800_2017_clause_matrix.md#september-21-procedural-synthesis-and-full-width-array-indices)
+records the current PARTIAL implementation and pending broad qualification.
+
+The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.

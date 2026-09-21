@@ -1,0 +1,9 @@
+# Recursive cross with predicates — focused implementation
+
+IEEE 1800-2017/2023 §19.6.1.2 and Annex A.2.10 permit recursively composed select expressions. The parser now retains each with suffix in its own selection node; union, intersection, complement and repeated suffixes preserve the child selection. Nested and outer predicates share the existing distinct-value evaluator and its 65,536-value-product bound. Failed nested evaluation produces a compile error instead of silently selecting nothing. Existing resource-limit diagnostics remain unchanged and occur once per bin.
+
+Permanent fixtures cover partial aggregate coverage, retained automatic bins, ignored tuples, intersection, repeated suffixes, range-bin default matches-one behavior, a runtime illegal-bin hit with explicit stderr verification, and compile failures for unsupported wildcard evaluation and explicit matches syntax. Coverage assertions account for the coverpoints as well as the cross; no compilation-only case is counted as runtime implementation.
+
+Focused validation: eight edition-paired cases pass in each legacy and JSON harness. Six existing range/value-limit JSON cases and 112 neighboring legacy foreach/cross cases pass. Bison 3.8.2 retains the baseline 572 shift/reduce and 1122 reduce/reduce conflicts. Raw evidence is in `evidence/review-20260920/next-cross-recursive/`, including `focus-legacy.log`, `focus-json.log`, `old-coverage-json-fixed.log` and `neighbors.log`.
+
+This is fix one of the next approximately ten-fix batch. No new broad qualification is claimed. The previously qualified restored baseline and stable application replay retain their earlier semantic revision; they do not qualify this newer compiler. Explicit matches thresholds, dynamic-family nested predicates, unsupported wildcard/transition value evaluation, and products exceeding the stated bound remain outside this implementation.

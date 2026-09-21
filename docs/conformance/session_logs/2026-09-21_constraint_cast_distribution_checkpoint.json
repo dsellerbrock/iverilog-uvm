@@ -1,0 +1,74 @@
+{
+  "checkpoint": "type-inside-x queue state transport",
+  "sources": {
+    "assessment": "ASSESSMENT.md",
+    "runtime_results": "runtime-verification/results.json",
+    "permanent_results": [
+      "legacy.log",
+      "json.log"
+    ]
+  },
+  "permanent_tests": {
+    "count": 8,
+    "status": "passed in both legacy and JSON harnesses",
+    "tests": [
+      "sv_constraint_cast_inside_queue_state (2017, 2023)",
+      "sv_constraint_inside_queue_state (2017, 2023)",
+      "sv_constraint_cast_inside_scope_queue_state (2017, 2023)",
+      "sv_constraint_inside_scope_queue_state (2017, 2023)"
+    ]
+  },
+  "diagnostics": {
+    "count": 3,
+    "fixture": "sv_constraint_cast_inside_queue_state",
+    "expected": [
+      "direct X element",
+      "direct Z element",
+      "model-active guarded X element"
+    ],
+    "meaning": "four-state queue/dynamic-array element used by an active constraint is an evaluation error, never numeric zero.",
+    "other_fixture_count": 2
+  },
+  "semantics": {
+    "class_property_queue": "q: elements retain vec4 state; known elements convert to uint64; unknown active elements produce a guard-aware failing StateCheck.",
+    "std_randomize_scope_queue": "qv: transport carries a known flag beside uint64 payload; unknown active elements use the same StateCheck path.",
+    "rollback": "active failures preserve pre-randomize rand values; class cases also preserve object RNG and suppress post_randomize. Scope cases also preserve logical process RNG."
+  },
+  "limitations": {
+    "qfield": "qfield substitution state semantics are outside this change and remain unsupported/unrepaired.",
+    "wide_container": "Container elements wider than 64 bits are explicitly unsupported; this does not limit scalar cast subject width."
+  },
+  "pending_revalidation": {
+    "broad_batch_gates": "required before publication"
+  },
+  "ieee_references": {
+    "1800-2017": "18.3 (constraint expressions use two-state values); 18.5.4 and 18.5.10 (distribution semantics, as recorded in frozen fixture).",
+    "1800-2023": "18.3 (constraint expressions use two-state values); 18.5.3 and 18.5.9 (distribution semantics, as recorded in frozen fixture)."
+  },
+  "scope": "evidence checkpoint only; no compiler, manifest, or shared test changes",
+  "post_queue_validation": {
+    "combined_legacy": {
+      "total": 36,
+      "failed": 0,
+      "log": "evidence/review-20260920/next-joint-distributions/patch-type-inside-x/combined-legacy.log"
+    },
+    "combined_json": {
+      "total": 36,
+      "failed": 0,
+      "log": "evidence/review-20260920/next-joint-distributions/patch-type-inside-x/combined-json.log"
+    },
+    "constraint_neighbors": {
+      "total": 400,
+      "failed": 0,
+      "log": "evidence/review-20260920/next-joint-distributions/patch-type-inside-x/constraint-neighbors.log"
+    }
+  },
+  "compiler_fingerprints": {
+    "local-install/lib/ivl/ivl": "c2276eb46094fbd66c870a43bedcb06284bceaf56e69fd1f342a20e5a72f4829",
+    "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+    "elaborate.cc": "8614c7826d58465714102842e67cb0e7b5cf62518248946dc06cfe9f2ee5660a",
+    "vvp/vvp_z3.cc": "8a845a2ed3c484a4e46f5694c8c7188aec9d6cc86c2c00d76988e093997ed66d",
+    "vvp/vthread.cc": "67a82822843e37782634199a53d303bf7d6bf9bbdb996aceda51aa9c1a7c3678"
+  },
+  "status": "FOCUSED_AND_NEIGHBOR_TESTED_NOT_BROAD_QUALIFIED"
+}

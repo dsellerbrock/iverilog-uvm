@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_inside_wide_class_fail.v:1: sorry: Constraint inside container elements must be integral values of 1 to 64 bits.
+1 error(s) during elaboration.

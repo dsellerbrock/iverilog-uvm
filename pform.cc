@@ -15533,6 +15533,9 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	  && !conseq->clk_evt && !conseq->disable_iff_expr) {
 	    conseq->antecedent = ante;
 	    conseq->op_type = op_type;
+	    if (conseq->seq_clk_evt && !conseq->mc_prefix
+		&& conseq->mc_boundary == -1)
+		  conseq->mc_boundary = (op_type == 2) ? 1 : 0;
 	    return conseq;
       }
 

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_variable_row_loop.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_variable_row_loop"
+}

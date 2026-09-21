@@ -255,8 +255,10 @@ from `blocker_inventory.json` as if still open:
 - "Joint parent/child constraints entirely missing" — PR #258 implements a
   bounded joint route; only its residual contract (Z01 above, and the
   other Z02–Z14 rows in the fuller audit) remains open.
-- "Solver UNKNOWN accepted as a successful model" — `vvp_z3.cc` returns
-  failure and rolls back on UNKNOWN; an old lenient-UNKNOWN note is stale.
+- "Solver UNKNOWN accepted as a successful model" — the class route rejects
+  UNKNOWN, but the scope route still accepts unconstrained targets. The
+  September 21 source finding in [discovered debt](DISCOVERED_DEBT.md) corrects
+  the earlier blanket exclusion; scope runtime reproduction remains pending.
 
 See `blocker_inventory.json` / `iverilog_uvm_blocker_audit.md` (as supplied
 to the governance-bootstrap session) for the full 134-row inventory this
@@ -3337,7 +3339,7 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   fix's scope — only the crash is closed.
 
 
-## September 20 PR review repairs — awaiting regression qualification
+## September 20 review baseline and next compiler batch
 
 DD-040, DD-042 and DD-043 were reopened after their positive-only PR tests
 missed selector evaluation, coverage value-tuple, and selector-resolution
@@ -3345,7 +3347,13 @@ failures. Selected local repairs and regression fixtures are described in
 the [revision-scoped review record](session_logs/2026-09-20_pr_review_repairs.md).
 The operational phases, pending gates and publication state remain in
 [ACTIVE_WORK](../../.ai/ACTIVE_WORK.yaml) and [CAMPAIGN](../../.ai/CAMPAIGN.yaml).
-Do not treat the local combined PR candidate as a qualified baseline.
-Recursive inner cross-with and explicit matches remain unsupported;
+The [restored baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json) records completed local gates.
+The [recursive cross-with implementation](session_logs/2026-09-20_recursive_cross_with.md) has focused validation pending its batch gate; explicit matches remains unsupported;
 DD-044 separately records constraint-body translation that drops a requested
 constraint and is not closed by selector validation.
+
+IBEX-ROW-ASYNC-RESET-SYNTHESIS has [focused and neighboring runtime evidence](session_logs/2026-09-21_row_async_reset.json); required batch gates remain pending. Ordinary blocking-index dataflow is separate recorded debt.
+
+The [synthesis and wide-index focused checkpoint](session_logs/2026-09-21_synthesis_and_wide_index_focus.json) records paired-edition runtime and neighboring-test evidence. Required broad batch gates remain pending.
+
+The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.

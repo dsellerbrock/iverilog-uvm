@@ -5,5 +5,4 @@ Warning: dist weight expression could not be evaluated at randomize time; its br
 ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
 ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
 ERROR: global constraint sampling failed: a joint distribution has an excluded range member or could not be sampled exactly.
-ERROR: global constraint sampling failed: multiple distributions in a coupled component are not yet supported.
 PASSED

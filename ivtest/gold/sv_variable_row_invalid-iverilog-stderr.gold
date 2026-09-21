@@ -1,0 +1,3 @@
+ivltests/sv_variable_row_invalid.v:7: warning: ignoring undefined value array access.
+ivltests/sv_variable_row_invalid.v:7: warning: ignoring undefined value array access.
+ivltests/sv_variable_row_invalid.v:10: warning: ignoring undefined value array access.

@@ -1,0 +1,19 @@
+{
+  "finding": "Both memory neighbor regressions persist with committed HEAD elab_lval.cc and current synthesis edits. New array-index canonicalization is not necessary to reproduce them.",
+  "experiments": [
+    {
+      "variant": "current candidate hybrid (originaldynamicpath restored)",
+      "failed": 2,
+      "log": "evidence/review-20260920/next-wide-constant-word/hybrid-memory-neighbors.log"
+    },
+    {
+      "variant": "committed HEAD elaborator plus synthesis candidate",
+      "failed": 2,
+      "evidence": "evidence/review-20260920/next-wide-constant-word/elab-isolation/result.json"
+    }
+  ],
+  "corrected_prior_claim": "Source-only dynamic checked-index attribution was unproven and contradicted by controlled build evidence.",
+  "source_state": "Candidate hybrid elab_lval.cc restored after test.",
+  "installed_state": "Isolation variant still installed; next shared build must restore source/binary agreement before qualification.",
+  "next": "Terra private runtime/netlist trace; Sol owns synthesis code repair for all six neighbor failures."
+}

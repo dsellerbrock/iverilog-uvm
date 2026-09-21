@@ -1498,8 +1498,87 @@ The [review/repair record](../session_logs/2026-09-20_pr_review_repairs.md)
 reopens DD-040/042/043. Fixed-array foreach selector evaluation (§12.7.3),
 constraint prefix resolution (§18.5.8.1), and static range-bin cross-with
 value-tuple selection (§19.6.1.2) have local focused repair evidence.
-The combined candidate still requires regression qualification. General
-recursive select-expression predicates, explicit matches and arbitrary-sized
-value products are not qualified by this bounded evidence. The independent
+The [restored candidate](../session_logs/2026-09-20_restored_baseline_qualification.json) passed local qualification.
+The subsequent [recursive select-expression fix](../session_logs/2026-09-20_recursive_cross_with.md) has focused evidence pending batch qualification.
+Explicit matches and arbitrary-sized value products remain outside that scope. The independent
 2023 goal remains separate; paired generation-mode tests are recorded in
 the linked evidence and do not establish full-edition support.
+
+### September 20 grouped clocked implication consequent
+
+Clause 16.13 / Annex A.2.10 remains PARTIAL overall. Grouping an explicitly
+clocked sequence consequent now preserves the implication clock boundary; see
+[paired focused evidence](../session_logs/2026-09-20_grouped_clocked_consequent.md).
+
+### September 20 masked runtime memory synthesis
+
+Synthesized simulation of runtime word selection with flat packed bit/part writes
+now preserves unwritten bits and decoded word enables (7.4.6, 11.5, 10.4).
+[Focused paired evidence](../session_logs/2026-09-20_masked_memory_synthesis.json)
+covers constant/variable packed indices, masks and invalid addresses. Packed
+multidimensional carrier subselects remain explicitly unsupported in this path;
+synthesis support overall remains PARTIAL.
+
+### September 20 variable fixed-array rows
+
+The [paired row-assignment record](../session_logs/2026-09-20_variable_row_assignment.json)
+adds procedural direct-signal row copies and patterns to the 7.4.6/7.6/10.4
+PARTIAL implementation: selector and RHS snapshots, invalid-index behavior,
+and NBA updates have runtime evidence. It does not qualify arbitrary
+aggregate/function/delayed row assignments or the remaining synthesis reset path.
+
+### September 21 state-selected fixed-array constraints
+
+The [paired constraint record](../session_logs/2026-09-21_state_selected_fixed_array_constraints.json)
+extends the PARTIAL 7.4.6/18.3/18.5 implementation to symbolic selections
+of fixed integral class arrays. It records bounds, state errors, guard sifting,
+wide state leaves, rollback, and negative solve-before evidence. Full batch
+qualification remains pending; this is not general randomization qualification.
+
+### September 21 reset-only synthesis
+
+The [paired record](../session_logs/2026-09-21_reset_only_synthesis.json) adds runtime evidence for reset-only flip-flop hold behavior under9.2/10.4. Synthesis remains PARTIAL, including the separate asynchronous row-reset blocker.
+
+### September 21 fixed-array row asynchronous reset
+
+The [paired runtime evidence](../session_logs/2026-09-21_row_async_reset.json) covers generated row-index snapshots through asynchronous reset synthesis, including nested blocks and invalid selectors. Synthesis remains PARTIAL; batch qualification is pending.
+
+### September 21 integral constraint casts and coupled distributions
+
+Revision `969853350` extends the PARTIAL constraint implementation under
+6.24, 11.6, 11.8.2 and clause 18 with integral cast IR and width/sign
+evaluation through nested arithmetic, shifts, comparisons, fixed-array
+indices and the tested inside expressions. Cast-context inside comparisons
+use the common operand type; this is not a claim that all ordinary inside
+contexts are repaired. Active X/Z queue elements fail with guarded state
+validation and value/RNG rollback under 18.3; inactive guards remain legal.
+Container elements wider than 64 bits are explicitly unsupported, and
+queue-field state transport remains outside this repair.
+
+The bounded coupled-distribution route extends the 18.5.4/18.5.10 subset
+with exact staged projections, declared solve-before ordering and atomic
+failure rollback. The projection bound remains 1024; requests beyond the
+supported domain are rejected rather than sampled from a truncated prefix.
+This does not establish all distribution, soft-constraint or probability
+families. The [focused checkpoint](../session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json)
+owns paired-edition test evidence. Broad batch qualification is pending.
+
+### September 21 procedural synthesis and full-width array indices
+
+Revision `f5928785b` extends the PARTIAL procedural synthesis implementation
+under clause 10.4: blocking assignments update the value seen by subsequent
+expressions, while nonblocking assignments capture data and per-bit enables
+for the later update. The exercised subset covers ordered assignments,
+conditional/case paths, loops, partial writes, and asynchronous reset.
+Dedicated memory-write ports preserve their write enables and old-value reads.
+Untouched synthesized unpacked words preserve logic X and bit zero initial values.
+
+Under 7.4.6, oversized constant fixed-array lvalue indices are checked at their
+full width before canonical selection; invalid indices perform no write.
+The existing checked-index helper consumes already-elaborated expressions.
+The ordinary dynamic signal-index path remains unchanged.
+The [focused checkpoint](../session_logs/2026-09-21_synthesis_and_wide_index_focus.json)
+owns test scope and limitations. Required broad qualification remains pending;
+this does not establish complete procedural synthesis or array support.
+
+The [September 21 local batch qualification](../session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.

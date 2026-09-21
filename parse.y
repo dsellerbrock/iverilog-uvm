@@ -2340,7 +2340,8 @@ static Module::port_t *module_declare_port_continuation(
 %type <cov_trans_term> transition_term
 %type <cov_trans_seq> transition_list
 %type <cov_seqs>    transition_seq_list
-%type <cross_sel>   cross_bins_expr
+%type <cross_sel>   cross_bins_expr cross_bins_or cross_bins_and cross_bins_with
+%type <cross_sel>   cross_bins_unary cross_bins_primary
 
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
@@ -4792,39 +4793,6 @@ cross_body_opt
 	cb.with_expr = $8;
 	pending_cross_bins_.push_back(cb);
 	delete[] $3; delete[] $5; }
-  /* IEEE 1800-2017/2023 19.6.1 (A.2.10): `with' suffixes the general,
-     recursive select_expression, not only the bare cross_identifier
-     alternative -- `!binsof(cp) intersect {...} with (...)' and
-     `(binsof(a) && binsof(b)) with (...)' are both legal (DD-042; both
-     forms confirmed against real, unmodified OpenTitan DV source:
-     hw/ip/csrng/dv/cov/csrng_cov_if.sv and hw/ip/pwm/dv/env/pwm_env_cov.sv).
-     cross_bins_expr never reduces from a bare IDENTIFIER alone (every
-     alternative requires `binsof'/`!'/`&&'/`||'/parens), so this cannot
-     collide with the bins_name K_with form just above. */
-  | cross_body_opt K_illegal_bins bins_name '=' cross_bins_expr K_with '(' expression ')' ';'
-      { class_type_t::pform_cross_t::cross_bin_t cb;
-	cb.name = lex_strings.make($3);
-	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_ILLEGAL;
-	cb.select = $5;
-	cb.with_expr = $8;
-	pending_cross_bins_.push_back(cb);
-	delete[] $3; }
-  | cross_body_opt K_ignore_bins bins_name '=' cross_bins_expr K_with '(' expression ')' ';'
-      { class_type_t::pform_cross_t::cross_bin_t cb;
-	cb.name = lex_strings.make($3);
-	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_IGNORE;
-	cb.select = $5;
-	cb.with_expr = $8;
-	pending_cross_bins_.push_back(cb);
-	delete[] $3; }
-  | cross_body_opt K_bins bins_name '=' cross_bins_expr K_with '(' expression ')' ';'
-      { class_type_t::pform_cross_t::cross_bin_t cb;
-	cb.name = lex_strings.make($3);
-	cb.kind = class_type_t::pform_cross_t::cross_bin_t::BIN_NORMAL;
-	cb.select = $5;
-	cb.with_expr = $8;
-	pending_cross_bins_.push_back(cb);
-	delete[] $3; }
   | cross_body_opt IDENTIFIER '.' IDENTIFIER '=' expression ';'
       { cov_option_set_(pending_cp_options_, @2, $2, $4, $6); }
   | cross_body_opt error ';'
@@ -4834,9 +4802,45 @@ cross_body_opt
   ;
 
 /* cross_bins_expr: binsof-based set expression for cross body items.
-   M11-3: builds a select tree.  binsof(cp) or binsof(cp.bin), with
-   optional intersect value filters, combined with && / || / !. */
+   Keep suffix binding explicit: with wraps one subtree before && or
+   || combines it, so repeated suffixes cannot overwrite one another. */
 cross_bins_expr
+  : cross_bins_or { $$ = $1; }
+  ;
+
+cross_bins_or
+  : cross_bins_or K_LOR cross_bins_and
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_OR;
+	s->a = $1; s->b = $3; $$ = s; }
+  | cross_bins_and { $$ = $1; }
+  ;
+
+cross_bins_and
+  : cross_bins_and K_LAND cross_bins_with
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_AND;
+	s->a = $1; s->b = $3; $$ = s; }
+  | cross_bins_with { $$ = $1; }
+  ;
+
+cross_bins_with
+  : cross_bins_with K_with '(' expression ')'
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_WITH;
+	s->a = $1; s->with_expr = $4; $$ = s; }
+  | cross_bins_unary { $$ = $1; }
+  ;
+
+cross_bins_unary
+  : '!' cross_bins_unary %prec UNARY_PREC
+      { auto*s = new class_type_t::pform_cross_t::select_t();
+	s->op = class_type_t::pform_cross_t::select_t::SEL_NOT;
+	s->a = $2; $$ = s; }
+  | cross_bins_primary { $$ = $1; }
+  ;
+
+cross_bins_primary
   : K_binsof '(' IDENTIFIER ')'
       { auto*s = new class_type_t::pform_cross_t::select_t();
 	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
@@ -4885,24 +4889,10 @@ cross_bins_expr
 	}
 	delete[] $3; delete[] $5;
 	$$ = s; }
-  | '!' cross_bins_expr %prec UNARY_PREC
-      { auto*s = new class_type_t::pform_cross_t::select_t();
-	s->op = class_type_t::pform_cross_t::select_t::SEL_NOT;
-	s->a = $2;
-	$$ = s; }
-  | cross_bins_expr K_LAND cross_bins_expr
-      { auto*s = new class_type_t::pform_cross_t::select_t();
-	s->op = class_type_t::pform_cross_t::select_t::SEL_AND;
-	s->a = $1; s->b = $3;
-	$$ = s; }
-  | cross_bins_expr K_LOR cross_bins_expr
-      { auto*s = new class_type_t::pform_cross_t::select_t();
-	s->op = class_type_t::pform_cross_t::select_t::SEL_OR;
-	s->a = $1; s->b = $3;
-	$$ = s; }
   | '(' cross_bins_expr ')'
       { $$ = $2; }
   ;
+
 
 /* transition_seq_list: one or more transition sequences (v=>v), ... .
    Keep each term's value-set alternatives and repetition metadata intact;
@@ -8071,6 +8061,15 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      such as an implication. */
   | '(' property_expr ')'
       { $$ = $2; }
+  /* A clocked sequence property may itself be grouped. Preserve the
+     explicit consequent clock until an enclosing implication supplies
+     its overlapping/nonoverlapping clock-flow boundary (16.13). */
+  | '(' event_control sva_seq_expr sva_mc_tail_opt ')'
+      { sva_property_t*p = new sva_property_t;
+        p->seq = $3;
+        p->seq_clk_evt = $2;
+        p->mc_more = $4;
+        $$ = p; }
   /* A grouping pair around a complete composite sequence is transparent,
      including when that sequence continues through a cycle delay.  Keep the
      grouped prefix exact: a global `sva_seq_comb ## ...' alternative would

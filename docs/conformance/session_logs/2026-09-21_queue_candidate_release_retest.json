@@ -1,0 +1,133 @@
+{
+  "date": "2026-09-21",
+  "head": "93ce7507ab97bfbf64eaee9c7f9d9e602eddb152",
+  "qualification": "Scoped runtime retest of dirty candidate; not full application or batch qualification",
+  "evidence": "evidence/review-20260920/retest-20260921-queue-validity",
+  "pins": [
+    {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+      "release": "Earlgrey-PROD-M6",
+      "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "head_exit": 0,
+      "tag": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "tag_exit": 0,
+      "status": "",
+      "status_exit": 0,
+      "submodules": "",
+      "submodules_exit": 0
+    },
+    {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+      "release": "v2.1.2",
+      "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "head_exit": 0,
+      "tag": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "tag_exit": 0,
+      "status": "",
+      "status_exit": 0,
+      "submodules": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0 submodules/adams-bridge (v2.0.3)",
+      "submodules_exit": 0
+    }
+  ],
+  "fingerprints": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+    "elaborate.cc": "8614c7826d58465714102842e67cb0e7b5cf62518248946dc06cfe9f2ee5660a",
+    "synth2.cc": "deb17cf4d66e2ea245e6c004383d1bc1e64acc0d613d7a3652bf6d1bd8384dbb",
+    "vvp/vvp_z3.cc": "8a845a2ed3c484a4e46f5694c8c7188aec9d6cc86c2c00d76988e093997ed66d",
+    "vvp/vthread.cc": "67a82822843e37782634199a53d303bf7d6bf9bbdb996aceda51aa9c1a7c3678"
+  },
+  "applications": [
+    {
+      "core": "lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1",
+      "passed": true,
+      "exit": 0,
+      "severity_summaries": [
+        "UVM_WARNING :    0",
+        "UVM_ERROR :    0",
+        "UVM_FATAL :    0"
+      ],
+      "regex_error_occurrences": 0,
+      "scoreboard": [
+        "UVM_INFO @  11997673 ps: (scoreboard.sv:160) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Totally 354 items processed"
+      ],
+      "post_summary_assertions": 0
+    },
+    {
+      "core": "lowrisc:dv:gpio_sim:0.1",
+      "passed": false,
+      "exit": 0,
+      "severity_summaries": [
+        "UVM_WARNING :    0",
+        "UVM_ERROR :   20",
+        "UVM_FATAL :    1"
+      ],
+      "regex_error_occurrences": 20,
+      "scoreboard": [],
+      "post_summary_assertions": 256
+    },
+    {
+      "core": "Caliptra power2round",
+      "result": {
+        "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+        "source_modified": false,
+        "commands": {
+          "compile": {
+            "argv": [
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+              "-g2012",
+              "-gassertions",
+              "-s",
+              "power2round_tb",
+              "-o",
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-queue-validity/power2round-runtime/power2round_tb.vvp",
+              "-f",
+              "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+            ],
+            "exit": 0,
+            "elapsed": 0.09287786483764648
+          },
+          "runtime": {
+            "argv": [
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-queue-validity/power2round-runtime/power2round_tb.vvp"
+            ],
+            "exit": 0,
+            "elapsed": 0.20044398307800293
+          }
+        },
+        "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "generator_sha256": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+        "pass_marker": true,
+        "failure_marker": false,
+        "passed": true,
+        "vector_files": {
+          "coeff_low.hex": "8c1becd96d1cd03c0e4ce73569d23aa35b39839b12712b37b22034633c7f392d",
+          "coeff_input.hex": "2085508db200e0ddb1cb6bb5d2113f1de24cd612db9818a717fc9a1793f2a856",
+          "coeff_high.hex": "6affb095f83bf7097ad88f2fa914b22946e455f216b55ce3cdee49f9080c029b"
+        }
+      },
+      "checked_vectors": 2048
+    }
+  ],
+  "cleanup": {
+    "new_deletions": [],
+    "reason": "No additional safe candidate; all nine registered worktrees protected, dirty or divergent. Prior empty unregistered tree already removed. Generated build/svtests-final-parity and proof/build not established unused."
+  },
+  "queue_regressions": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "legacy": {
+      "total": 8,
+      "failed": 0
+    },
+    "json": {
+      "total": 8,
+      "failed": 0
+    },
+    "evidence": "evidence/review-20260920/next-joint-distributions/patch-type-inside-x",
+    "diagnostics": "Cast class fixture checks three active failures; other fixtures two. Exact stderr verified. Initial malformed JSON list failed before execution; corrected and all eight passed."
+  }
+}

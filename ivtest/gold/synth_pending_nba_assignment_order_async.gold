@@ -1,0 +1,3 @@
+./ivltests/synth_pending_nba_assignment_order_async.v:18: warning: Process not synthesized.
+./ivltests/synth_pending_nba_assignment_order_async.v:11: warning: Process not synthesized.
+PASSED

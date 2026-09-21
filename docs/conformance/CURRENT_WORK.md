@@ -9,22 +9,28 @@ run on every later checkout.
 
 The [restoration record](session_logs/2026-09-20_merged_baseline_restoration.md)
 identifies source/test changes missing after the three PR merges and the
-reviewed checkpoint used to restore them. Broad qualification is pending.
+reviewed checkpoint used to restore them. The local qualification is linked below.
 
 ## September 20 integration review
 
 The [PR review and repair record](session_logs/2026-09-20_pr_review_repairs.md)
-identifies the merged-main candidate and the three reproduced defects in
-pending PRs. The combined local candidate is unqualified. Resumption and
+identifies the three reproduced defects and their repairs. PR306 restored
+the reviewed compiler/test tree to main. Resumption and
 validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
 ## Latest recorded compiler qualification
 
-The [L96–L105 qualification record](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json)
-records the passing seven-gate candidate `053e07d37`, with semantic source
-`366ef2bf1`. The [batch session](session_logs/2026-09-15_compiler_batch_l96_l105.md)
-links the ten bounded fixes and the preserved first-gate correction. Counts,
-commands, source and artifact fingerprints live in the JSON record.
+The [September 21 batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records all seven local gates passing for semantic revision `8ab943352`. It supersedes the earlier batch checkpoints below for local compiler validation; GitHub CI and application revision limits remain separate.
+
+The [restored-baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json)
+records all seven local gates passing for semantic revision `e90059a07`,
+whose compiler/test tree matches merged main `0998f058a`. Counts, commands,
+artifact fingerprints and edition limits live in that record. GitHub CI
+remains separate from this local evidence.
+
+The earlier [L96–L105 qualification](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json)
+and [batch session](session_logs/2026-09-15_compiler_batch_l96_l105.md)
+retain their revision-scoped results.
 
 This qualifies that local candidate, not full IEEE, UVM or whole-application
 support. Earlier [L85–L95](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json),
@@ -34,6 +40,22 @@ and [L64](session_logs/2026-09-14_constraint_function_presolve_qualification.jso
 records retain their original revisions and limits.
 
 ## Application evidence
+
+The [type-first candidate release retest](session_logs/2026-09-21_typed_candidate_release_retest.json)
+records the later candidate fingerprints, fresh unmodified release runtime results,
+remaining GPIO failure, and cleanup disposition. This bounded run does not qualify
+the pending compiler batch.
+
+The [September 21 bounded release retest](session_logs/2026-09-21_stable_release_retest.json)
+records fresh compiler/runtime fingerprints, unmodified Caliptra unit and OpenTitan
+peripheral-crossbar results, GPIO failure, and cleanup. It covers the recorded
+uncommitted candidate; it does not qualify the pending compiler batch.
+
+The [September 20 stable-release replay checkpoint](session_logs/2026-09-20_stable_release_replay.json)
+records the fresh Caliptra static census and unmodified power2round unit-runtime
+pass with warnings, unmodified OpenTitan TL-agent and Earlgrey xbar UVM test
+verdicts with a runtime warning, the completed census, and audited cleanup. These bounded
+results do not establish full-chip or complete application qualification.
 
 The [September 15 OpenTitan `xbar_smoke` UVM pass](session_logs/2026-09-15_opentitan_xbar_smoke_patched.md)
 is the first UVM test to reach `TEST PASSED CHECKS` against a stable OpenTitan
@@ -82,3 +104,30 @@ The former continuation narrative is preserved in the
 Earlier checkpoints and failed attempts remain in the
 [session logs](session_logs/README.md). Keep historical results revision-scoped;
 update these pointers when new evidence is committed.
+
+The [grouped clocked consequent record](session_logs/2026-09-20_grouped_clocked_consequent.md) provides focused paired-edition evidence pending the next batch qualification.
+
+The [masked memory synthesis record](session_logs/2026-09-20_masked_memory_synthesis.json) contains the next paired focused checkpoint, pending batch qualification.
+
+The [variable-row assignment record](session_logs/2026-09-20_variable_row_assignment.json) contains paired focused evidence and the remaining Ibex synthesis boundary.
+
+The [state-selected constraint record](session_logs/2026-09-21_state_selected_fixed_array_constraints.json) tracks the next paired focused candidate and its validation status.
+
+The [reset-only synthesis record](session_logs/2026-09-21_reset_only_synthesis.json) records the next paired runtime checkpoint.
+
+The [restoration CI checkpoint](session_logs/2026-09-21_restoration_ci_checkpoint.json) records live exact-head platform status for PR306, independently of the current batch.
+
+Latest bounded application retest: [queue-validity candidate release evidence](session_logs/2026-09-21_queue_candidate_release_retest.json). This does not supersede full compiler qualification.
+
+The [constraint cast/distribution checkpoint](session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json)
+records focused and neighboring regression evidence for `969853350`, pending broad batch qualification.
+
+The [September 21 candidate release retest and cleanup](session_logs/2026-09-21_candidate_release_retest_and_cleanup.json)
+records fresh pinned-release application results and disposable binary removal.
+It does not qualify the current uncommitted compiler candidate.
+
+The [synthesis and wide-index focused checkpoint](session_logs/2026-09-21_synthesis_and_wide_index_focus.json) records paired-edition runtime and neighboring-test evidence. Required broad batch gates remain pending.
+
+The [repaired-candidate release retest](session_logs/2026-09-21_repaired_candidate_release_retest.json) supersedes the earlier application snapshot for the latest elaboration repairs. Full batch qualification remains pending.
+
+The [empty-branch enable repair](session_logs/2026-09-21_empty_branch_enable_repair.json) records the JSON-discovered synthesis regression and focused recovery; the final broad run is tracked in CAMPAIGN.

@@ -437,6 +437,10 @@ extern NetExpr*make_checked_canonical_property_index(
 				    const std::list<index_component_t>&src,
 				    const netsarray_t*stype,
       bool need_const);
+/* Consumes already-elaborated indices, preserving their full constant width. */
+extern NetExpr*make_checked_canonical_property_index(
+      Design*des, const LineInfo*loc, std::list<NetExpr*>&indices_expr,
+      const indices_flags&flags, const netsarray_t*stype);
 extern NetExpr*make_checked_canonical_packed_prefix(
       Design*des, NetScope*scope, const LineInfo*loc,
       const std::list<index_component_t>&src, const netranges_t&dims,

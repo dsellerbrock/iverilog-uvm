@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_two_state_x_index_error.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_constraint_two_state_x_index_error"
+}

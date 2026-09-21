@@ -2326,7 +2326,7 @@ static void draw_lpm_ff(ivl_lpm_t net)
 	    assert(width_of_nexus(nex) == 1);
 	    e_in = draw_net_input(nex);
       } else {
-	    e_in = ", C4<1>";
+	    e_in = "C4<1>";
       }
 
       nex = ivl_lpm_async_clr(net);

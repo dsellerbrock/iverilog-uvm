@@ -2788,7 +2788,7 @@ Status: fixed.
 
 ### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, REOPENED by 2026-09-20 review)
 
-Current review: PR integration is unqualified; see [the September 20 repair record](session_logs/2026-09-20_pr_review_repairs.md). Earlier test results below retain their original revision scope.
+Current status: the [restored baseline](session_logs/2026-09-20_restored_baseline_qualification.json) passed local qualification. The subsequent [recursive predicate fix](session_logs/2026-09-20_recursive_cross_with.md) has focused paired-edition evidence, with broad batch qualification pending. Explicit matches and the listed value-source/resource boundaries remain open. Earlier results below retain their original revision scope.
 
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
@@ -2965,3 +2965,59 @@ The first reducer had redundant constraints, so its PASSED banner does not
 prove the dropped constraint. A discriminating unsatisfiable reducer and a
 root-cause fix remain required. Recorded, not selected; do not count the
 warning as successful support.
+
+### 2026-09-21 blocking-index memory synthesis control
+
+Discovered while reviewing IBEX-ROW-ASYNC-RESET-SYNTHESIS. The control assigns
+an ordinary integer index with blocking assignments before a clocked memory
+NBA, including conditional overwrite and self-increment. Ordinary simulation
+passes; current synthesized simulation leaves both output words X on the first
+clock in both editions. This predates the rejected generic block-cache proposal.
+The source and failed evidence are in
+`evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv`
+and `blocking-overwrite-baseline.json`; the2023 behavioral/control pair was also
+run. Candidate source includes the original context-fold proposal, but no new
+blocking-value cache. Possible scope: synthesis of procedural blocking dataflow
+into compact memory address ports, IEEE1800-2017/2023 10.4 and9.2.
+
+Status: REPRODUCED, root cause unconfirmed, record-only during the immutable
+row-snapshot fix. Do not claim this control passing or suppress its failure.
+
+### 2026-09-21 direct package-state foreach and GPIO regex boundaries
+
+During CONSTRAINT-INTEGRAL-CAST-IR, the package-global queue foreach fails
+translation even without a cast. `PEConstraintForeach` takes the plain property
+lookup path and cannot capture the caller container; the cast is not the cause.
+Paired failing reducers are under
+`evidence/review-20260920/next-joint-distributions/foreach-cast/`.
+IEEE 1800-2017 18.5.8.1 / 2023 18.5.7.1; reproduced, separate record-only debt.
+
+The GPIO diagnostic DPI trace identifies twenty direct `uvm_re_match` calls
+with `*_shadowed`, rejected by native POSIX regex compilation. Pinned UVM1.2
+uses the same direct `regcomp(REG_EXTENDED)` path. Attribution and exact
+commands live in `evidence/review-20260920/next-uvm-regex/confirmed-attribution.json`.
+This is an application/UVM API compatibility boundary, not an established
+compiler defect. Other platform behavior remains unverified. Preserve failure;
+do not rewrite patterns or suppress diagnostics to obtain a passing test.
+
+### 2026-09-21 wide inside-container value transport
+
+During CONSTRAINT-INTEGRAL-CAST-IR, review found that the class `q:` and
+scope `qv:` emitters replaced element widths above 64 with 32. This loses the
+declared type required by inside common-type evaluation and can misrepresent
+membership. The candidate now rejects those containers explicitly; it does
+not implement their wide value transport. Full-width element capture and
+comparison remain UNSUPPORTED, separate from scalar integral casts.
+IEEE 1800-2017/2023 11.4.13 and 11.8.2; producer and paired diagnostic evidence:
+`evidence/review-20260920/next-joint-distributions/patch-type-inside/`.
+
+### 2026-09-21 scope solver UNKNOWN still accepts random targets
+
+During CONSTRAINT-INTEGRAL-CAST-IR review, `vvp_z3_randomize_scope` in
+`vvp/vvp_z3.cc` was found to return success with unconstrained targets when
+`Z3_optimize_check` returns UNKNOWN. This branch also exists in committed
+`93ce7507a`; it is not introduced by the queue-state patch. The BLOCKERS
+exclusion for solver UNKNOWN was too broad: class and scope routes differ.
+IEEE 1800-2017/2023 clause 18 constraint satisfaction remains required; a
+warning cannot establish a legal solution. Source-confirmed, runtime UNKNOWN
+reproducer not yet established, record-only pending separate selection.

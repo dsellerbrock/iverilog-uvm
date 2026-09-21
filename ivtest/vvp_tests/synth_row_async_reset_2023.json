@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "synth_row_async_reset.v",
+  "iverilog-args": [
+    "-S",
+    "-g2023",
+    "-s",
+    "row_async_reset_tb"
+  ],
+  "gold": "synth_row_async_reset"
+}

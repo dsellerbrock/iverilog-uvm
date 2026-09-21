@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "dffsynth4.v",
+  "iverilog-args": [
+    "-S",
+    "-g2023"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_wide_word_positive_oob_synth.v",
+  "iverilog-args": [
+    "-g2017",
+    "-S"
+  ],
+  "gold": "sv_wide_word_positive_oob_synth"
+}

@@ -1,0 +1,55 @@
+{
+  "status": "INCOMPLETE",
+  "evidence": "evidence/review-20260920/next-blocking-index/candidate-overlay-incremental-2/results.json",
+  "compiler_sha256": "d0bd66a5f55a1eb906efdb32d94c59c083598c8f2fda0caf6986350c15fd81ee",
+  "passed": 24,
+  "total": 26,
+  "remaining": [
+    {
+      "source": "evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv",
+      "edition": "2017",
+      "compile": 134,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental-2/pending_nba_unpacked_dynamic_part-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv"
+      ],
+      "source_sha256": "c368c792f8b2a243440addacfca6413493a5d5105d484c09675a291353cbaec6",
+      "passed": false
+    },
+    {
+      "source": "evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv",
+      "edition": "2023",
+      "compile": 134,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental-2/pending_nba_unpacked_dynamic_part-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv"
+      ],
+      "source_sha256": "c368c792f8b2a243440addacfca6413493a5d5105d484c09675a291353cbaec6",
+      "passed": false
+    }
+  ],
+  "additional_old_read": [
+    {
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "passed": true
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "passed": true
+    }
+  ],
+  "shared_not_built": "incremental-3 precise sensitivity guard applied after tests; awaits next build",
+  "next": "Resolve nested-array map assertion using actual map contents, build, rerun expanded28case focus and synthesis neighbors"
+}

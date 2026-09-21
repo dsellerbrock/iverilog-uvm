@@ -1,0 +1,54 @@
+{
+  "base_revision": "5ee075f64",
+  "status": "FOCUSED_AND_NEIGHBOR_TESTED; batch qualification pending",
+  "scope": "Reset-only synthesized flip-flop outputs hold Q across clocks after asynchronous reset release; implicit enable emits valid VVP.",
+  "standards": {
+    "2017": [
+      "9.2",
+      "10.4"
+    ],
+    "2023": [
+      "9.2",
+      "10.4"
+    ]
+  },
+  "red": "reset-only scalar crashed139; Qfeedback alone exposed double comma in implicit-enable VVP instruction. Both original failures retained.",
+  "implementation": [
+    "Reuse existing Q carrier as D when D expression is absent and an asynchronous control exists.",
+    "Remove duplicate comma from target default enable string."
+  ],
+  "validation": {
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "legacy": {
+      "total": 4,
+      "failed": 0
+    },
+    "json": {
+      "total": 4,
+      "failed": 0
+    },
+    "synthesis_neighbors": {
+      "total": 156,
+      "failed": 0
+    },
+    "runtime": [
+      "Initial four-state X",
+      "Off-clock clear, all-ones set and mixed constant set",
+      "Release, repeated clocks and reassertion preserve reset-only state"
+    ],
+    "negative": "Genuine asynchronous data load still rejects in both editions."
+  },
+  "raw_evidence": "evidence/review-20260920/next-row-async-reset",
+  "limitations": [
+    "Generated testbench stimulus produces retained Process not synthesized warnings.",
+    "General asynchronous row-reset blocker remains unresolved; original context-fold proposal is uncommitted and excluded from this fix.",
+    "Installed candidate includes that uncommitted proposal; exact source hashes capture the tested candidate."
+  ],
+  "source_sha256": {
+    "synth2.cc": "4c9a4c0d7ad64c7a7d131d1d1e0ebc8403865d87049daf733593062cb7829aa7",
+    "tgt-vvp/vvp_scope.c": "30c509339308383071821d9ed0fb3d644bdb93c5dba198a3f99eb5817c98a181"
+  }
+}

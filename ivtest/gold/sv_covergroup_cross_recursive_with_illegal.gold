@@ -1,0 +1,4 @@
+EXPECT_ILLEGAL_BEGIN
+ERROR: covergroup illegal_bin matched (prop_idx=12)
+EXPECT_ILLEGAL_END
+PASSED

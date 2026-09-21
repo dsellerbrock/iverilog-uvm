@@ -1,0 +1,52 @@
+{
+  "status": "REGRESSIONS_UNDER_REPAIR",
+  "compiler_sha256": "1efe514b3edaf7f22ef01449b347d227f2a7571b6147278e023e65a39645eaf6",
+  "source_fingerprints": {
+    "synth2.cc": "f7033276eca4e56908712da7899ad7e426c88ba2148b96aa3fcef6878788124b",
+    "expr_synth.cc": "d29a9dadb483ce40be9dd0b1db4a39a53c369a8de485e246a030a64d4096f989",
+    "link_const.cc": "e19ea49aa1e41fc28dbea01410735b737cdc149f7690fa24b5aa81bc6af510ae",
+    "elab_lval.cc": "27b58d555ceddea6efd96fb2b056560a2f18eb686e0e413cffb811dc7e54ccb3",
+    "netlist.h": "9b6266243429ac67ee695ec5ae943546562a647d96ae6dc959c0f18a0ce983fe"
+  },
+  "focus": {
+    "total": 28,
+    "passed": 28,
+    "evidence": "evidence/review-20260920/next-blocking-index/candidate-wide-and-filler/results.json"
+  },
+  "wide_original_and_initial_fixture_cases": {
+    "passed": 20,
+    "note": "All initial3fixture and2originalreproducer cases pass both editions in behavior and synthesis. Rawcandidate file also includes laterfixtures before root corrected malformednegative literals and wrong initialnibble expectation."
+  },
+  "corrected_boundary_cases": {
+    "total": 10,
+    "passed": 10,
+    "evidence": "evidence/review-20260920/next-wide-constant-word/boundary-corrections/results.json",
+    "behavioral_only": "dynamic_word_part_selector_once_behavioral; no synthesis claim"
+  },
+  "new_permanent_wide_tests": {
+    "legacy": 18,
+    "json": 18,
+    "failed": 0,
+    "evidence": "evidence/review-20260920/next-wide-constant-word/permanent"
+  },
+  "synthesis_neighbors": {
+    "total": 160,
+    "passed": 154,
+    "failed": 6,
+    "evidence": "evidence/review-20260920/next-blocking-index/synth-neighbors-wide-candidate.log",
+    "failed_tests": [
+      "br993a",
+      "br993b",
+      "synth_packed_struct_async_reset",
+      "synth_mixed_async_reset_outputs",
+      "synth_runtime_memory_output_set",
+      "synth_runtime_memory_word"
+    ],
+    "logs": "evidence/review-20260920/next-blocking-index/neighbor-failures"
+  },
+  "ownership": {
+    "synthesis_nba_completion": "Four scalar/asynchronous failures; existing synthesis files",
+    "row_async_reset": "Two memory failures, index canonicalization route; private elab_lval scope"
+  },
+  "next": "Diagnose/fix neighbor regressions without changing expected results; repeat relevantfocus and neighbor suites, then broad gates."
+}

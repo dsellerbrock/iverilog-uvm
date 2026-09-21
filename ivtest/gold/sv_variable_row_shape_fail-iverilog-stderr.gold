@@ -1,0 +1,2 @@
+ivltests/sv_variable_row_shape_fail.v:7: error: unpacked subarray types are not equivalent in assignment.
+1 error(s) during elaboration.

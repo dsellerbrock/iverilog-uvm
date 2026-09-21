@@ -1553,33 +1553,27 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
       if (full_arr && nidx < full_arr->static_dimensions().size()) {
 	    const netranges_t&dims = full_arr->static_dimensions();
 
-	    list<NetExpr*> idx_exprs;
-	    list<long> idx_consts;
-	    indices_flags flags;
-	    indices_to_expressions(des, scope, this, name_tail.index, nidx,
-				   false, flags, idx_exprs, idx_consts);
-
-	    if (flags.variable || flags.undefined || flags.invalid) {
-		  cerr << get_fileline() << ": sorry: assignment to an unpacked"
-			  " array slice with a non-constant index is not yet"
-			  " supported." << endl;
-		  des->errors += 1;
-		  return 0;
-	    }
-
-	    NetExpr*base = normalize_variable_unpacked(reg, idx_consts);
-	    if (base == 0) {
-		  cerr << get_fileline() << ": warning: ignoring out of bounds"
-			  " l-value array slice access " << reg->name()
-			 << "." << endl;
-		  return 0;
-	    }
-	    base->set_line(*this);
-
 	      // The slice presents the remaining dimensions as its type.
 	    netranges_t sub_dims;
 	    for (size_t d = nidx ; d < dims.size() ; d += 1)
 		  sub_dims.push_back(dims[d]);
+	    netranges_t prefix_dims;
+	    for (size_t d = 0 ; d < nidx ; d += 1)
+		  prefix_dims.push_back(dims[d]);
+	    netuarray_t prefix_type(prefix_dims, full_arr->element_type());
+
+	    // Check every selected dimension before flattening it. A flat
+	    // arithmetic address alone aliases e.g. m[0][row_width] to m[1][0].
+	    // The checked canonicalizer retains X/Z as an invalid word address,
+	    // so the ordinary l-value store performs no operation while its RHS
+	    // still evaluates.
+	    NetExpr*base = make_checked_canonical_property_index(
+		  des, scope, this, name_tail.index, &prefix_type, false);
+	    if (!base) return 0;
+	    unsigned long row_words = netrange_width(sub_dims);
+	    base = scale_index_to_bits(base, row_words, *this);
+	    eval_expr(base);
+	    base->set_line(*this);
 	    ivl_type_t slice_type =
 		  new netuarray_t(sub_dims, full_arr->element_type());
 
@@ -1587,9 +1581,14 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  ivl_assert(*this, reg->coerced_to_uwire());
 		  long first_word = 0;
 		  bool have_base = eval_as_long(first_word, base);
+		  const NetEConst*base_const = dynamic_cast<const NetEConst*>(base);
+		  bool invalid_constant_base = base_const
+			&& !base_const->value().is_defined();
 		  unsigned long word_count = netrange_width(sub_dims);
-		  bool overlap = !have_base || first_word < 0 || word_count == 0;
-		  for (unsigned long word = 0; !overlap && word < word_count;
+		  bool overlap = !invalid_constant_base
+			&& (!have_base || first_word < 0 || word_count == 0);
+		  for (unsigned long word = 0;
+		       !invalid_constant_base && !overlap && word < word_count;
 		       word += 1) {
 			if (reg->test_part_driven(reg->vector_width()-1, 0,
 					  first_word + word))
@@ -1699,6 +1698,7 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       NetExpr*canon_index = 0;
       list<NetExpr*>unpacked_indices;
       list<long>unpacked_indices_const;
+      string unpacked_indices_text;
       indices_flags flags;
 	if (fixed_container_leaf) {
 	      const netsarray_t*fixed_type =
@@ -1723,8 +1723,14 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	      // Evaluate all the index expressions into an "unpacked_indices"
 	      // array for ordinary signal-backed fixed arrays.
 	    indices_to_expressions(des, scope, this,
-			   name_tail.index, reg->unpacked_dimensions(), false,
-			   flags, unpacked_indices, unpacked_indices_const);
+		   name_tail.index, reg->unpacked_dimensions(), false,
+		   flags, unpacked_indices, unpacked_indices_const);
+
+            // Checked canonicalization consumes the expressions. Preserve
+            // their spelling for later scalar-select diagnostics.
+            ostringstream index_text;
+            index_text << as_indices(unpacked_indices);
+            unpacked_indices_text = index_text.str();
 
 	    if (flags.invalid) {
 		  // Nothing to do.
@@ -1741,18 +1747,40 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 			return 0;
 		  }
 		  ivl_assert(*this, unpacked_indices.size()
-				     == reg->unpacked_dimensions());
+			     == reg->unpacked_dimensions());
 		  canon_index = normalize_variable_unpacked(reg, unpacked_indices);
 	    } else {
 		  ivl_assert(*this, unpacked_indices_const.size()
-				     == reg->unpacked_dimensions());
-		  canon_index = normalize_variable_unpacked(
-			reg, unpacked_indices_const);
+			     == reg->unpacked_dimensions());
+                  const netsarray_t*fixed_type =
+                        dynamic_cast<const netsarray_t*>(reg->array_type());
+                  bool wide_index = false;
+                  for (NetExpr*index : unpacked_indices) {
+                        const NetEConst*constant = dynamic_cast<const NetEConst*>(index);
+                        if (constant && constant->value().len() > sizeof(long)*8)
+                              wide_index = true;
+                  }
+                  if (fixed_type) {
+                        canon_index = make_checked_canonical_property_index(
+                              des, this, unpacked_indices, flags, fixed_type);
+                        const NetEConst*constant = dynamic_cast<const NetEConst*>(canon_index);
+                        if (constant && !constant->value().is_defined()) {
+                              delete canon_index;
+                              canon_index = nullptr;
+                        }
+                  } else {
+                        canon_index = normalize_variable_unpacked(
+                              reg, unpacked_indices_const);
+                  }
 		  if (canon_index == 0) {
 			cerr << get_fileline() << ": warning: "
 			     << "ignoring out of bounds l-value array access "
-			     << reg->name() << as_indices(unpacked_indices_const)
-			     << "." << endl;
+                             << reg->name();
+                        if (wide_index)
+                              cerr << unpacked_indices_text;
+                        else
+                              cerr << as_indices(unpacked_indices_const);
+                        cerr << "." << endl;
 		  }
 	    }
       }
@@ -1909,7 +1937,7 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	    if (reg->data_type() == IVL_VT_REAL) cerr << "real";
 	    else cerr << "scalar";
 	    cerr << " array word: " << reg->name()
-	         << as_indices(unpacked_indices) << endl;
+	         << unpacked_indices_text << endl;
 	    des->errors += 1;
 	    return 0;
       }

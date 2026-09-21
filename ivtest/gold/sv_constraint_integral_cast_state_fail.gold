@@ -1,0 +1,2 @@
+ERROR: constraint state read: unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).
+PASSED

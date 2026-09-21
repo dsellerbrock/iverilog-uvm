@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_word_part_selector_once.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_word_part_selector_once"
+}

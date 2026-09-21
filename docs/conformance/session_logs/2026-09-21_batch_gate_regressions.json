@@ -1,0 +1,70 @@
+{
+  "status": "REGRESSION_GATE_FAILED_REPAIR_REQUIRED",
+  "semantic_revision": "f5928785b",
+  "gate": {
+    "command": [
+      "bash",
+      ".github/ivtest_gate.sh"
+    ],
+    "start": 1789982842.3586822,
+    "end": 1789983228.739396,
+    "exit": 1,
+    "installed_before": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+      "local-install/lib/ivl/ivl": "e165b3f5fb0fddf409e843186051d75d0a9b6a44dc2fb2d686b892a89175998a",
+      "local-install/lib/ivl/vvp.tgt": "4a843e0c71f052db4f5db954db0b12369f4350377963ab5aa5e6c15f28987df7",
+      "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "installed_after": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+      "local-install/lib/ivl/ivl": "e165b3f5fb0fddf409e843186051d75d0a9b6a44dc2fb2d686b892a89175998a",
+      "local-install/lib/ivl/vvp.tgt": "4a843e0c71f052db4f5db954db0b12369f4350377963ab5aa5e6c15f28987df7",
+      "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "stable": true
+  },
+  "legacy": {
+    "total": 5978,
+    "passed": 5967,
+    "failed": 6,
+    "not_implemented": 2,
+    "expected_fail": 3
+  },
+  "failures": {
+    "pr1833024": "Scalar-select index diagnostic lost when checked canonicalizer consumed expression list.",
+    "sv_array_packed_select_incdec_bounds": "Runtime PASSED; expected invalid lvalue warning absent.",
+    "sv_array_packed_select_incdec_bounds_2023": "Runtime PASSED; expected invalid lvalue warning absent.",
+    "sv_dynamic_packed_prefix_shapes": "Runtime PASSED; expected invalid lvalue warning absent.",
+    "sv_runtime_array_static_invalid_incdec": "Runtime PASSED; expected invalid lvalue warning absent.",
+    "sv_uarray_partial_index_oob": "Out-of-bounds row write rejected as mixed continuous/procedural driver."
+  },
+  "passing_subgates": {
+    "vpi": 108,
+    "negative": 148,
+    "runtime_invariants": 15,
+    "coverage_exports": 66,
+    "copyout_checks": 6
+  },
+  "pending": [
+    "repaired integrated",
+    "json",
+    "uvm",
+    "nfa",
+    "releases",
+    "frontend",
+    "makecheck"
+  ],
+  "source_state": "Coordinator diagnostic repair being rebuilt; Terra traces private row-OOB fix. No expected-failure additions authorized.",
+  "raw_evidence": "evidence/review-20260920/batch-20260921",
+  "diagnostic_repair": {
+    "status": "FOCUSED_TESTED",
+    "five_original_regressions": "5/5 exact original expectations pass",
+    "new_cluster": "46/46 legacy and46/46 JSON pass; new wide-index gold adds full-width OOB warnings only",
+    "evidence": "evidence/review-20260920/batch-20260921/first-regressions",
+    "remaining": "sv_uarray_partial_index_oob false mixeddriver rejection; broad rerun pending"
+  }
+}

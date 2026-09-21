@@ -1,0 +1,2 @@
+ivltests/sv_covergroup_cross_recursive_with_matches_unsupported.v:7: syntax error
+ivltests/sv_covergroup_cross_recursive_with_matches_unsupported.v:7: sorry: unsupported cross body item was ignored.

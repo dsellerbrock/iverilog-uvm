@@ -1,0 +1,128 @@
+{
+  "status": "Candidate under validation; not integrated or qualified",
+  "base_revision": "3eb48ac90af945ecdfd41d2e65855d34679a0c98",
+  "source_sha256": {
+    "elaborate.cc": "004938e207b4638aab8fe572b0706a5b5f18979cd2d668ccd9c8fffde0b992a1",
+    "vvp/vvp_z3.cc": "818547f34320f98a407a609c3c1fc7c89fe1144ff5e0547a064bb165b96098ac"
+  },
+  "cast_results": [
+    {
+      "name": "sv_constraint_integral_cast_core",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_state_fail",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\nERROR: constraint state read: unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast",
+      "edition": "2017",
+      "compile": 1,
+      "runtime": null,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_constraint_integral_cast.v:84: error: constraint `foreach (values[...]) { ... }' could not be translated and the randomize call cannot be compiled.\n1 error(s) during elaboration.\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_core",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_state_fail",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\nERROR: constraint state read: unsupported width or X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast",
+      "edition": "2023",
+      "compile": 1,
+      "runtime": null,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_constraint_integral_cast.v:84: error: constraint `foreach (values[...]) { ... }' could not be translated and the randomize call cannot be compiled.\n1 error(s) during elaboration.\n"
+    }
+  ],
+  "signed_context_failures": [
+    {
+      "name": "sv_integral_cast_shift_context_control",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_shift_context",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_constraint_integral_cast_shift_context.v:13: mixed unsigned context did not reach arithmetic shift\n       Time: 0  Scope: main\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_signed_ops",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_constraint_integral_cast_signed_ops.v:46: nested signed cast operators failed\n       Time: 0  Scope: main\n"
+    },
+    {
+      "name": "sv_integral_cast_shift_context_control",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_shift_context",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_constraint_integral_cast_shift_context.v:13: mixed unsigned context did not reach arithmetic shift\n       Time: 0  Scope: main\n"
+    },
+    {
+      "name": "sv_constraint_integral_cast_signed_ops",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_constraint_integral_cast_signed_ops.v:46: nested signed cast operators failed\n       Time: 0  Scope: main\n"
+    }
+  ],
+  "joint_results": "evidence/review-20260920/next-joint-distributions/shared-context-joint-results.json",
+  "next": "Design and review type-before-value propagation required by11.8.2, preserve solver side effects and typed identity. Direct package-state foreach is separate unsupported boundary.",
+  "exact_intermediate_width_baseline": [
+    {
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_cast_exact_width_solver.sv:34: sum cast constraints failed\n       Time: 0  Scope: sv_cast_exact_width_solver\n"
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-joint-distributions/patch-cast/fixtures/sv_cast_exact_width_solver.sv:34: sum cast constraints failed\n       Time: 0  Scope: sv_cast_exact_width_solver\n"
+    }
+  ],
+  "ordinary_exact_width_control": "Both2017/2023 pass; patch-cast/exact-width-control-{edition}.log",
+  "authorized_design": "Pure copied-IR width/sign inference followed by context-aware value construction; TYPE_BEFORE_VALUE.md; implementation active privately",
+  "supported_foreach_cast": [
+    {
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PASSED\n"
+    }
+  ]
+}

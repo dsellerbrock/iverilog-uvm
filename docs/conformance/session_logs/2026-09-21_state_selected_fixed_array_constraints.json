@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-21",
+  "ticket": "DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT",
+  "base_revision": "d10883f1bf74485c57adf0c1e79c08ab72a9dadd",
+  "status": "FOCUSED_AND_NEIGHBOR_TESTED; broad batch qualification pending",
+  "source_sha256": {
+    "elaborate.cc": "72089f44444b75e77c79ed79a2c61b0a3acc7a9f056c3399044f58fccf721b60",
+    "vvp/vvp_z3.cc": "2c49b1a5c388f7b0df85a6c91fab27e8597eceb317df582b261d6aa5962a3e38",
+    "synth2.cc": "5f4d2a095a4e2f98445415dd2183bf05fcce33513b0c882e2289330e97555e80"
+  },
+  "installed_artifact_sha256": {
+    "local-install/lib/ivl/ivl": "0c0ded5364e05c831ad9f3bf9e9e8c0cee2813f3b49fecc2762ae517e1f1470a",
+    "local-install/bin/vvp": "051c6970da28a683b9cf5d9f7c061cdba8c3e80ac7edc8f9573f799563248d34"
+  },
+  "standards": {
+    "2017": [
+      "7.4.6",
+      "18.3",
+      "18.5",
+      "18.5.13"
+    ],
+    "2023": [
+      "7.4.5",
+      "18.3",
+      "18.5",
+      "18.5.12"
+    ]
+  },
+  "scope": "Fixed integral class-array selections in constraints; preserve current state selectors, element type, dimensions, signed numeric bounds and all bits of inactive wide elements. Constant valid selection retains existing leaf path.",
+  "behavior": [
+    "Two-state OOB reads use zero; selected four-state invalid/X/Z reads diagnose and fail randomization.",
+    "Constraint X/Z selectors remain errors under18.3; ordinary two-state array reads still use zero. Guarded inactive errors are sifted according to constraint guard rules.",
+    "Random selectors use guarded validity predicates; successful solves exclude invalid reads. A relaxed diagnostic-only solve distinguishes error-dependent failure from ordinary contradiction and cannot write back values.",
+    "Solve-before constant OOB operands remain compile errors; unsigned MAX cannot alias a negative signed bound."
+  ],
+  "tests": {
+    "focused_legacy": {
+      "total": 6,
+      "failed": 0
+    },
+    "focused_json": {
+      "total": 6,
+      "failed": 0
+    },
+    "neighbors": {
+      "total": 400,
+      "failed": 0,
+      "completed_session": 80982
+    }
+  },
+  "raw_evidence": "evidence/review-20260920/next-dd044",
+  "limits": [
+    "Focused evidence only; full batch qualification pending.",
+    "Installed binary also contains an uncommitted async-reset proposal that does not fix its reproducer; that proposal is not part of this feature patch.",
+    "Ticket short name DD044 is campaign-local; unrelated historical registry entry retains its original meaning."
+  ]
+}

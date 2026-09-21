@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_integral_cast_state_fail.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_constraint_integral_cast_state_fail"
+}

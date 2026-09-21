@@ -1,37 +1,84 @@
-id: PARALLEL-L104-L105
-title: Constant comparison sizing and nonlocal constant-function legality
-status: LOCALLY_QUALIFIED_AWAITING_PUBLICATION
-base_revision: eb5eb6ebb
-authority: User authorizes two existing cheaper implementation agents, independent mechanisms and focused validation before broad gates near ten fixes.
-coordinator_owns: [Shared builds, Installation, Shared harnesses and outputs, Main manifests, Documentation, Integration and review]
-lanes:
-  - id: L104-CONSTANT-MIXED-EQUALITY
-    agent: /root/constraint_abi
-    status: REGRESSION_TESTED
-    standards: IEEE1800-2017 and2023 5.9, Table11-21,11.8.2
-    reproducer: evidence/batch-20260915-after-l95/next-mixed-constant-equality-assessment/assessment.md
-    actual: Constant function comparing integer97 with packed literal a fails evaluation in both editions; runtime equivalent returns true.
-    expected: Apply standard common integral operand sizing and signedness; preserve four-state results and true string equality.
-    owns: [eval_tree.cc, elab_expr.cc]
-    test_prefix: sv_const_mixed_equality
-    dependencies: Existing comparison folders and contextual sizing; independent of nonlocal signal lookup.
-    scope: Trace comparison callers and fix the common sizing mechanism for integral equality, including related equality operators where affected. No net_func_eval.cc edits; report if that file is necessary before proceeding.
-    acceptance: Both editions operand order, unequal widths, signed/unsigned and X/Z, ==/!=/===/!== and wildcard neighbors, literals and explicit casts, true string variables, constant/runtime parity and illegal-type diagnostic control.
-  - id: L105-NONLOCAL-CONSTANT-FALLBACK
-    agent: /root/constraint_wide
-    status: REGRESSION_TESTED
-    standards: IEEE1800-2017 and2023 13.4.3
-    reproducer: evidence/batch-20260915-after-l95/next-static-constant-fallback-assessment/assessment.md
-    actual: Reading mutable package state initialized to7 silently yields constant0 in both editions.
-    expected: Nonlocal mutable variables cannot supply constant-function values; legal package parameters and local values remain valid and ordinary runtime reads retain state.
-    owns: [net_func_eval.cc, net_design.cc]
-    test_prefix: sv_const_nonlocal_static
-    dependencies: Existing NetESignal local context lookup; L101 integrated at7ef17f630. Independent of comparison sizing.
-    scope: Remove fabricated default fallback for nonlocal package/class static reads, preserve legal local evaluation and focused diagnostics. The string parameter branch in net_design.cc must reject an unreduced expression before target lowering, matching existing real/integral checks; direct L105 string reducers otherwise abort in t-dll.cc. No elab_expr.cc or eval_tree.cc edits.
-    acceptance: Both editions initialized/uninitialized mutable package scalar and string values reject, class-static controls reject, legal parameter/local/automatic-frame constants pass, runtime package and static reads observe actual state. Check constant string/array neighbors; no compilation-only success claim.
-file_conflict_policy: Disjoint source and fixture ownership. No agent commits, shared builds/installations or shared harnesses. Submit patch and evidence then freeze for coordinator integration.
-focused_features_completed_in_batch: 10
-integrated_revisions: [c681f81a5, fc296ee07, a49ee5d3e, 34b1cc24c, 450c63f00, 0efbf81c5, 7ef17f630, eb5eb6ebb, c26384d29, 366ef2bf1]
-last_broad_qualification: docs/conformance/session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json
-prior_work: docs/conformance/session_logs/2026-09-15_l101_l103_active_work_archive.yaml
-stop_after_completion: false
+id: SV-UVM-BATCH-20260921
+status: LOCAL_QUALIFIED_CI_PENDING
+objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
+authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
+semantic_revision: 8ab943352
+branch: agent/reviewed-main-baseline-20260920
+history: docs/conformance/session_logs/2026-09-21_prevalidation_ACTIVE_WORK.yaml
+
+scope:
+  integrated_items:
+    - DD042-RECURSIVE-WITH
+    - SVA-GROUPED-CLOCKED-CONSEQUENT
+    - OT-MASKED-RUNTIME-MEMORY-WRITE
+    - IBEX-VARIABLE-ROW-ASSIGNMENT
+    - DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
+    - RESET-ONLY-SYNTHESIS
+    - IBEX-ROW-ASYNC-RESET-SYNTHESIS
+    - CONSTRAINT-INTEGRAL-CAST-IR
+    - JOINT-MULTIPLE-DISTRIBUTIONS
+    - BLOCKING-INDEX-SYNTHESIS-DATAFLOW
+    - OVERSIZED-CONSTANT-ARRAY-WORD
+  implementation_state: All seven local gates passed; GitHub CI pending.
+  allowed: Diagnose concrete gate failures, record root cause and repair scope, validate and document fixes; publish coherent PR after required gates.
+  frozen: Compiler source and installed binaries frozen for the next broad validation run.
+  forbidden: Application source edits, weakened tests, invented passing evidence, silent semantic fallback, unrelated feature implementation.
+  discoveries: Record unrelated findings in DISCOVERED_DEBT; select next independent blockers only after this batch is validated.
+
+standards:
+  authority: Applicable licensed IEEE edition; independent simulators are differential evidence only.
+  references: [evidence/dd018-assessment/1800-2017.txt, evidence/dd018-assessment/1800-2023.txt]
+  edition_scope: Track2017 and2023 separately; IEEE1800.2 separately; preserve1364, defer1801.
+  invalid_array_index: IEEE1800-2017 7.4.6 and IEEE1800-2023 7.4.5; invalid writes have no effect.
+  procedural_assignments: Clause10.4; preserve blocking-visible values and captured NBA data/enables.
+  constraints: Clauses6.24,11.6,11.8.2,18.3; distribution and solve-before2017 18.5.4/18.5.10 versus2023 18.5.3/18.5.9.
+
+ownership:
+  coordinator: Selection, difficult reasoning, integration, shared build/install/test directories, final review and PR.
+  workers: No active implementation assignments; dffsynth4 repair focused-tested.
+  reusable_agents:
+    row_async_reset: Terra medium; array elaboration and bounded fixtures; completed latest repair.
+    synthesis_nba_completion: Sol medium; synthesis mechanism; completed dffsynth4 repair.
+    constraint_guard_semantics: Sol medium; cast and distribution solver; completed.
+  routing: Explicit cheapest capable worker model and effort; compact handoff; reuse existing agents and disjoint file ownership.
+
+validation:
+  prior_integrated: PASS before latest enable repair; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
+  completed_session: 40936
+  current_passed_gates: [json, integrated, uvm, nfa, releases, frontend, makecheck]
+  json_evidence: evidence/review-20260920/batch-20260921-conditional-enable/json.run.json
+  directory: evidence/review-20260920/batch-20260921-conditional-enable
+  order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
+  rule: Inspect actual status/run.json/log; driver stops at first nonzero gate. Never restart a live process.
+  focused_evidence:
+    - docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
+    - docs/conformance/session_logs/2026-09-21_synthesis_and_wide_index_focus.json
+    - docs/conformance/session_logs/2026-09-21_batch_gate_regressions.json
+    - docs/conformance/session_logs/2026-09-21_row_oob_regression_repair.json
+  applications: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
+  limits: Integrated gate and application subset passes are not full language/UVM/application qualification.
+
+next_action: Publish coherent batch PR with final evidence, then inspect exact-head CI and follow user merge authority.
+completion: Required gates, source review, docs and exact revision evidence; qualified batch does not complete the full mission.
+
+active_regression:
+  id: SYNTHESIS-EMPTY-TRUE-NBA-ELSE
+  test: ivtest/ivltests/dffsynth4.v
+  reproducer: local-install/bin/iverilog -S -o evidence/review-20260920/next-blocking-index/dffsynth4-repair/test.vvp ivtest/ivltests/dffsynth4.v
+  original_failure: Compiler asserted at t-dll.cc1924 missing logic nexus t_cookie.
+  expected: Else-only NBA captures D when ce is false and holds Q when ce is true.
+  owner: Coordinator integrated reviewed Sol patch; focused tests pass, broad gates running.
+  scope: Trace directly implicated synth2.cc branch-enable/netlist connectivity; preserve all B/P semantics.
+  evidence: evidence/review-20260920/next-blocking-index/dffsynth4-repair
+  acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.
+
+empty_branch_repair_evidence: docs/conformance/session_logs/2026-09-21_empty_branch_enable_repair.json
+
+read_only_assessment:
+  objective: Identify at most2 next Caliptra compiler blockers from exact pinned-release evidence.
+  owner: caliptra_next_blocker; Luna low; independent evidence extraction only.
+  scope: Existing logs, manifests and corpus revision attribution; one compact private report.
+  forbidden: Compiler/application edits, new builds or broad sweeps, shared test directories, feature activation before current batch validation.
+  output: evidence/review-20260920/caliptra-next-assessment
+
+local_qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json

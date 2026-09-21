@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_variable_row_assignment.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_variable_row_assignment"
+}

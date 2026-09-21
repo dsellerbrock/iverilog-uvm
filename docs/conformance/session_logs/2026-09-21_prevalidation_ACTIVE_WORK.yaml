@@ -1,0 +1,510 @@
+id: PR302-305-CORRECTNESS-REPAIR
+status: NEXT_BATCH_CONSTRAINT_CANDIDATES_VALIDATED_SYNTHESIS_IN_PROGRESS
+base_revision: 0133287ec092a6e36d1e6fe18db28835af13e127
+merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
+authority: User requests review and merge of all PRs while preserving compiler correctness; goal continuation authorizes fixing identified blockers.
+coordinator_owns: [tracked source integration, shared builds, installations, manifests, documentation, PR publication]
+lanes:
+  - id: DD040-SELECTOR-EVALUATION
+    agent: /root/review_foreach
+    owns: [evidence/review-20260920/foreach-patch]
+    scope: Prepare isolated patch for PForeach static selector validation and once-per-loop evaluation; do not edit shared tracked files.
+    standards: IEEE1800-2017 and2023 12.7.3 and expression evaluation
+    reproducer: evidence/review-20260920/selector_effect.sv
+    expected: Evaluate valid selector expressions once and diagnose unresolved names without skipping required effects.
+    acceptance: Positive side effects, repeated invocations, boundary bounds and negative unresolved selector; existing associative and static loops preserved in both editions.
+  - id: DD042-CROSS-WITH-VALUE-TUPLES
+    agent: /root/review_cross
+    owns: [evidence/review-20260920/cross-patch]
+    scope: Prepare isolated evaluator patch for cross with range and multi-value bins using existing mechanisms; no shared tracked edits.
+    standards: IEEE1800-2017 and2023 19.6.1.2
+    reproducer: evidence/review-20260920/cross_range.sv
+    expected: Evaluate the with predicate over bin value tuples with default matches one; never discard requested selection and report success.
+    acceptance: Range and multi-value bins, true and false predicates, partial coverage denominators, singleton neighbors and explicit unsupported boundaries.
+coordinator_item:
+  id: DD043-UNRESOLVED-SELECTOR
+  reproducer: evidence/review-20260920/unknown_selector.sv
+  scope: Validate selected-prefix constraint names before unrolling even when body does not reference them.
+  acceptance: Declared selectors preserved; undefined or ill-typed selectors diagnosed in both editions; no constraint weakening.
+file_conflict_policy: Agents write only private patch artifacts. Coordinator applies nonoverlapping hunks sequentially and owns all tracked compiler edits.
+prior_handoff: evidence/review-20260920/prior-ACTIVE_WORK.yaml
+stop_after_completion: false
+
+registration_lane:
+  agent: /root/register_coverage_tests
+  model: gpt-5.6-luna
+  effort: low
+  status: SELECTED
+  scope: Mechanical registration of three already runtime-verified coverage repair fixtures in both editions.
+  owns: [ivtest/regress-sv.list, ivtest/regress-vvp.list, ivtest/regress-pr-coverage-repairs-legacy.list, ivtest/regress-pr-coverage-repairs-vvp.list, coverage repair JSON/gold/edition wrapper files]
+  evidence: evidence/review-20260920/cross-repairs-results.json
+  forbidden: Compiler edits, substantive test changes, shared harness execution, builds and installation.
+  acceptance: Exact legacy and JSON outputs and diagnostics, no duplicate main-manifest registration.
+
+pr_integration_lane:
+  agent: /root/merge_remaining_prs
+  model: gpt-5.6-terra
+  effort: medium
+  status: STOPPED_BY_USER
+  authority: User explicitly requests agent merge remaining PRs, resolve conflicts and fix CI failures.
+  owns: [evidence/review-20260920/pr-integration]
+  initial_scope: Inspect live PR302/304/305 and prepare corresponding repair publication; no source/index/branch/remote changes before coordinator frozen checkpoint.
+  completion: Publish corresponding reviewed fixes, resolve conflicts, require green gates, then merge only with coordinator correctness clearance.
+  safeguards: No admin bypass, new clones, worktrees or subagents; preserve user AGENTS changes and original stashed adapter.
+
+focused_checkpoint:
+  selectors: Both editions pass exact positive/negative/boundary checks; paired legacy and JSON gates each pass12 tests.
+  coverage: Both editions pass range, signed-zero-crossing, overlapping/disjoint values, false predicates, exact resource boundary and rejection beyond bound; paired legacy and JSON harnesses each passed six tests.
+  neighbors: Existing112 legacy foreach/cross neighbors all pass.
+  publication: Repairs restored through user-merged PR306; seven local gates passed. CI remains separate.
+
+latest_user_execution_policy:
+  authority: User instruction after frozen repair checkpoint, 2026-09-20.
+  batch_cadence: Approximately ten implemented fixes per coherent PR, with focused validation per fix and required broad suites at batch checkpoints.
+  merge_threshold: Coordinator-reviewed local validation plus one completed successful full CI job on the exact published candidate; remaining platform jobs may finish after merge.
+  later_ci_failures: Diagnose and publish follow-up fix PRs; preserve failed evidence and distinguish infrastructure failures from compiler regressions.
+  correctness: No known semantic defect is waived; a single CI success does not imply complete cross-platform or standards qualification.
+  worker_usage: At least five implementation workers across a feature batch, with explicit model/effort and bounded disjoint ownership.
+  concurrency: Runtime exposes four total slots, so at most three workers alongside coordinator; rotate completed workers to reach batch allocation.
+  model_policy: Keep selected coordinator unchanged; use cheapest capable explicit model/effort and escalate only a concrete unresolved problem.
+  existing_pr_exception: Finish the three already-open PR302/304/305 before applying ten-fix publication cadence to new batches.
+
+next_batch_isolated_lane:
+  id: DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
+  agent: /root/constraint_selected_array
+  model: gpt-5.6-terra
+  effort: medium
+  status: REPRODUCED
+  reproducer: evidence/review-20260920/next-dd044/selected_constraint.sv
+  actual: Compiler warns and discards a state-indexed fixed-array constraint; contradictory request randomizes successfully in both editions.
+  expected: Preserve the selected array element constraint using the current value of state selectors; contradictions must fail randomization without value mutation.
+  standards: IEEE1800-2017 and2023 18.3,18.5 and7.4.6; iterative clauses2017 18.5.8.1 and2023 18.5.7.1.
+  root_cause_hypothesis: Fixed-array constraint IR lowering handles unrolled constant indices but loses class-state index expressions before solver emission.
+  owns: [evidence/review-20260920/next-dd044/patch]
+  allowed_scope: Private proposed patch to fixed-array selection lowering and existing solver indexed-element machinery, plus positive/negative/boundary fixtures.
+  forbidden: Tracked shared source edits, shared builds, application edits, warning-only fallback, replacing correct semantics with refusal solely to pass tests.
+  dependency: Uses existing comma-foreach syntax, independent of pending selected-prefix repairs; integrate only after frozen batch qualification and coordinator review.
+  acceptance: Two distinct selector values, satisfying and contradictory constraints, ascending/descending/nonzero bounds, selector changes between calls, rollback on failure and neighboring constant-index constraints.
+
+next_batch_recursive_cross_lane:
+  id: DD042-RECURSIVE-WITH
+  agent: /root/recursive_cross_with
+  model: gpt-5.6-terra
+  effort: medium
+  status: REPRODUCED
+  reproducer: evidence/review-20260920/next-cross-recursive/recursive_with.sv
+  actual: Legal recursively nested with predicates cause syntax errors in2017 and2023.
+  expected: Each select-expression subtree retains its own with predicate and combines selected bin tuples correctly under boolean set operators.
+  standards: IEEE1800-2017 and2023 19.6.1.2 andAnnexA.2.10.
+  root_cause_hypothesis: Grammar stores with only on top-level cross_bin_t, not recursive select tree nodes.
+  owns: [evidence/review-20260920/next-cross-recursive/patch]
+  allowed_scope: Private proposed parse.y/select-tree/evaluator patch and fixtures; preserve existing range-value evaluator and expression semantics.
+  forbidden: Tracked source edits, shared builds, unbounded architecture rewrite, flattened or dropped predicates, changed application sources.
+  dependency: Prepare isolated artifacts now; integrate only after frozen baseline qualifies.
+  acceptance: Distinct per-subtree predicates under union/intersection/complement and parentheses, range-valued bins, partial coverage denominator, ignore/illegal/normal bin behavior, existing top-level predicates and no unexplained parser conflicts.
+
+current_integration:
+  item: DD042-RECURSIVE-WITH
+  compiler_patch: Built and installed after completed stable-release replay.
+  validation: Both focused harnesses pass8; old coverage6 and legacy neighbors112 pass. See recursive-cross session record.
+  constraint_patch: Applied DD044 candidate and 64-bit bounds correction; runtime focused tests pass, two solve-before OOB negative regressions under repair.
+
+variable_row_assignment_lane:
+  id: IBEX-VARIABLE-ROW-ASSIGNMENT
+  evidence: docs/conformance/session_logs/2026-09-20_variable_row_assignment.json
+  agent: recursive_cross_with (reused gpt-5.6-terra, medium)
+  status: FOCUSED_TESTED
+  source: Clean OpenTitan M6 ibex_lockstep.sv row reset and row shift at lines250-257.
+  reproducer: evidence/review-20260920/next-variable-row/repro.sv
+  standards: IEEE1800-2017/2023 7.4.6,7.6,10.4 and NBA scheduling9.4.
+  owns: evidence/review-20260920/next-variable-row/patch; proposed elab_lval.cc and required assignment runtime support only.
+  dependency: Disjoint from constraint lane; coordinator alone integrates tracked files and builds.
+  acceptance: Blocking and NBA row copies, distinct values, selected-index and RHS capture, nonzero/descending bounds, invalid index no writes, shape errors, constant-row neighbors; both editions.
+  forbidden: Shared edits/builds, application changes, scalarized source workarounds, dropped assignments.
+
+clocked_property_group_lane:
+  id: SVA-GROUPED-CLOCKED-CONSEQUENT
+  status: FOCUSED_TESTED
+  coordinator: Integrated parser/helper fix; both focused harnesses pass2 and multiclock JSON neighbors pass252.
+  evidence: docs/conformance/session_logs/2026-09-20_grouped_clocked_consequent.md
+  reproducer: evidence/review-20260920/next-clocked-property/repro.sv
+  control: Unparenthesized form compiles; grouped consequent fails syntax.
+  standards: IEEE1800-2017/2023 AnnexA.2.10 and16.13 clock flow.
+  owns: evidence/review-20260920/next-clocked-property/patch; proposed parse.y and parser property helpers only.
+  acceptance: Equivalent grouped/ungrouped multiclock implication verdicts, distinct and coincident clocks, nonoverlap boundary, failing consequent, disable iff, nested groups; both editions.
+  exclusions: No changes to shared source/builds, constraint solver or row-assignment lane files; coordinator applies private patch.
+
+masked_memory_synthesis_lane:
+  id: OT-MASKED-RUNTIME-MEMORY-WRITE
+  status: FOCUSED_TESTED
+  integration: Coordinator corrected prior nexus ordering, write masks and write-footprint metadata; private worker proposal alone was not accepted.
+  evidence: docs/conformance/session_logs/2026-09-20_masked_memory_synthesis.json
+  agent: cleanup_audit (reused gpt-5.6-luna, low)
+  source: Clean OpenTitan M6 prim_generic_ram_1p.sv and ram_2p.sv masked word writes.
+  reproducer: evidence/review-20260920/next-masked-memory/repro.sv
+  standards: IEEE1800-2017/2023 7.4.6,11.5 and10.4; synthesized simulation must preserve selected-bit NBA behavior.
+  root_cause: synth2.cc runtime word-write lowering supports whole words only and rejects packed selects before decoded per-word enables.
+  owns: evidence/review-20260920/next-masked-memory/patch; proposed synth2.cc only plus private fixtures.
+  dependency: Independent compiler mechanism and source file from row-assignment and constraint lanes; root owns shared build.
+  acceptance: Synthesized runtime preserves unselected bits and other words, per-byte masks and disabled write, OOB and X address no-write, descending/nonzero ranges, both editions and whole-word neighbors.
+  forbidden: Shared edits/builds, app edits, dropped writes, zero fill of unselected bits, whole-word enable substituting selected-bit preservation.
+
+row_async_reset_lane:
+  id: IBEX-ROW-ASYNC-RESET-SYNTHESIS
+  status: REPRODUCED_ON_ROW_CANDIDATE
+  reproducer: evidence/review-20260920/next-row-async-reset/repro.sv
+  application: Unmodified M6 rv_core_ibex now passes row elaboration but rejects lockstep asynchronous reset during synthesis.
+  standards: IEEE1800-2017/2023 9.2,10.4,7.6; synthesized simulation must preserve asynchronous reset and clocked updates.
+  owns: evidence/review-20260920/next-row-async-reset/patch; proposed synthesis analysis only (synth2.cc and synth.cc if required).
+  dependency: Current coordinator row elaboration candidate; do not edit its files or snapshots.
+  acceptance: Assert/deassert reset away from clock, initialize every row, enabled and disabled clocked data shifts, both editions, no blanket acceptance of genuine asynchronous data loads.
+  forbidden: Shared edits/builds, app changes, silently dropping reset, diagnostic-only suppression.
+
+review_checkpoint_20260921:
+  integrated_fixes: 4
+  constraint_lane: Reused constraint_guard_semantics (gpt-5.6-sol, medium); private correction for two solve-before OOB negative regressions.
+  synthesis_lane: Reused row_async_reset (gpt-5.6-terra, medium); private constant-loop crash diagnosis and complete async reset boundary tests.
+  shared_candidate: DD044 plus bounds correction in elaborate.cc/vvp_z3.cc; async reset proposal in synth2.cc, all uncommitted.
+  tests: DD044 focused runtime passes both editions with nine expected diagnostics each; bounds runtime passes both editions; 398 of 400 neighbors pass.
+  pending: Resolve two compile-error regressions before counting DD044; build and validate async reset proposal and its crash boundary.
+  build_owner: Coordinator only.
+
+constraint_completed_checkpoint_20260921:
+  id: DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
+  status: FOCUSED_AND_NEIGHBOR_TESTED
+  evidence: docs/conformance/session_logs/2026-09-21_state_selected_fixed_array_constraints.json
+  supersedes: Earlier DD044 review and pending regression notes above.
+  next: Coordinator selects next independent mechanism; async reset lane remains active and uncommitted.
+
+joint_distribution_assessment_lane:
+  status: ASSESSMENT_ONLY
+  agent: constraint_guard_semantics (reused gpt-5.6-sol, medium)
+  source: Stable M6 gpio/hmac/pattgen/rv_timer cfg.randomize rejects multiple distributions in one coupled component.
+  owns: evidence/review-20260920/next-joint-distributions
+  standards: IEEE1800-2017 18.5.4 and2023 18.5.3; verify multiple-distribution probability semantics before proposing code.
+  task: Cheap reproducer, normative interpretation, current component-sampler root cause, smallest complete implementation proposal and acceptance tests.
+  forbidden: Compiler edits, shared builds/install, distribution approximations, application edits; implementation awaits coordinator selection.
+
+reset_only_prerequisite:
+  status: ROOT_CAUSED_PATCHED
+  reproducer: evidence/review-20260920/next-row-async-reset/reset-only-boundary.sv
+  scope: synth2.cc NetProcTop::synth_sync creates Q feedback for reset-only output; tgt-vvp/vvp_scope.c default FF enable serialization removes duplicate comma.
+  authority: Coordinator expansion within selected async-reset mechanism; runtime evidence requires valid FF serialization as well as crash repair.
+  acceptance: Initial four-state X, off-clock reset-to-constant, release and repeated hold clocks; genuine async load still rejects, both editions.
+
+reset_only_completed_checkpoint:
+  status: FOCUSED_AND_NEIGHBOR_TESTED
+  evidence: docs/conformance/session_logs/2026-09-21_reset_only_synthesis.json
+  remaining: Original row async-reset blocker is still active; reset-only prerequisite is complete.
+
+joint_distribution_implementation_lane:
+  id: JOINT-MULTIPLE-DISTRIBUTIONS
+  status: SPEC_GROUNDED_ROOT_CAUSED
+  agent: constraint_guard_semantics (reused gpt-5.6-sol, medium)
+  owns: evidence/review-20260920/next-joint-distributions/patch; proposed vvp/vvp_z3.cc only plus fixtures.
+  assessment: evidence/review-20260920/next-joint-distributions/ASSESSMENT.md
+  reproducer: evidence/review-20260920/next-joint-distributions/fixtures/sv_randomize_joint_multiple_dist_positive.sv
+  expected: Satisfiable coupled distributions randomize successfully, respecting memberships, solve-before, edition-specific item weights, RNG ownership and transactional rollback.
+  scope: Reuse exact distribution resolver with symbolic staged conditioning for multiple distributions; preserve existing zero/one-distribution component paths.
+  acceptance: Actual M6 clock-configuration reducer beyond1024 complete tuples; ordered marginal, identical/opposing coupled distributions, hard UNSAT, invalid weights, deterministic replay and rollback; both editions.
+  restrictions: Never uniformly pin weighted stage subjects before weighting; no prefix-dependent unsupported-domain failures, cap increases, product-weight claim, approximate fallbacks or application edits.
+  preflight: Prove bounded global stage projections or static domain bounds before draws so every conditioned fiber is representable.
+  dependencies: Disjoint from active async-reset synthesis files; coordinator alone applies patches and builds.
+
+row_snapshot_metadata_prerequisite:
+  status: COORDINATOR_AUTHORIZED
+  root_cause: Generated immutable index snapshot folds its RHS but later word writes cannot see the value, creating decoder enables that remain structurally dynamic during reset checks.
+  scope: Minimal compiler-only snapshot flag on NetAssign in netlist.h, set only by row-index snapshot lowering in elaborate.cc, consumed with scoped context binding in synth2.cc; net_assign.cc only if initialization requires it.
+  constraints: No name/local-flag heuristic, general blocking-assignment cache or new SSA framework. Evaluate RHS before replacing binding; restore context at block exit. Preserve genuine dynamic enable/load rejection.
+  acceptance: Row reset and shift runtime, nested loops/blocks, ordinary conditional overwrite and self-increment index controls; both editions.
+  parallel_ownership: Row lane owns these private patch files; distribution lane remains vvp/vvp_z3.cc only.
+
+uvm_regex_assessment_lane:
+  status: ASSESSMENT_ONLY
+  agent: cleanup_audit (reused gpt-5.6-luna, low)
+  source: Original M6 GPIO runtime gets past cfg.randomize with staged sampler candidate, then reports UVM/DPI/REGEX_INV and BUILDERR at time0.
+  evidence: evidence/review-20260920/next-joint-distributions/gpio-original-runtime.json
+  owns: evidence/review-20260920/next-uvm-regex
+  scope: Read-only regex implementation/callsite/provenance diagnosis and cheap reproducer plan; no source modification or error suppression.
+
+constraint_integral_cast_prerequisite:
+  id: CONSTRAINT-INTEGRAL-CAST-IR
+  status: SPEC_GROUNDED_ROOT_CAUSED
+  reproducer: evidence/review-20260920/next-joint-distributions/signed-small-control.sv
+  root_cause: Constraint lowering returns the inner expression for integral casts, discarding signedness and width; signed cross-zero inside range becomes UNSAT.
+  standards: IEEE1800-2017/2023 6.24 integral casting,11 expression sizing,18.3 constraints.
+  ownership: Coordinator elaborate.cc emitter; constraint_guard_semantics private vvp/vvp_z3.cc consumer and fixtures. Row-snapshot elaborate.cc metadata hunks integrated first by coordinator.
+  acceptance: Signed unsigned-difference range, unsigned negative cast, width truncation and extension, nested casts and metadata isolation, contradictory rollback; paired editions and exact OpenTitan Small relation.
+  constraints: Preserve caller value-slot evaluation; no signedness-only workaround in inside; do not erase requested non-integral cast semantics.
+
+release_retest_checkpoint_20260921:
+  evidence: docs/conformance/session_logs/2026-09-21_stable_release_retest.json
+  build: Combined cast consumer and row snapshot candidate built and installed successfully.
+  focused: Synthesized four-word row reset runtime and Small signed range pass both editions; full cast acceptance still fails compilation and context-sizing audit.
+  pending: Sol private cast context correction and foreach translation diagnosis; Terra nested row fixture; coordinator integration and required batch gates.
+  cleanup: Removed empty unregistered campaign-20260914 directory using rmdir; all registered worktrees preserved.
+
+row_async_reset_completed_checkpoint:
+  status: FOCUSED_AND_NEIGHBOR_TESTED
+  evidence: docs/conformance/session_logs/2026-09-21_row_async_reset.json
+  pending: Required integrated batch gates; no full application qualification claim.
+
+cast_context_validation_checkpoint:
+  status: ROOT_CAUSE_REFINED_NOT_INTEGRATED
+  evidence: docs/conformance/session_logs/2026-09-21_cast_context_checkpoint.json
+  invariant: IEEE11.8.2 propagates common width and signedness before operand evaluation; width-only incremental is incomplete.
+  next: Sol private type-before-value design assessment; root reviews scope before implementation. Terra validates supported object-owned foreach shape; direct package queue recorded separately.
+  build: Candidate rebuilt installed; no shared build/test process live at checkpoint.
+
+blocking_index_synthesis_lane:
+  id: BLOCKING-INDEX-SYNTHESIS-DATAFLOW
+  status: COORDINATOR_SELECTED_REPRODUCED_ASSESSMENT
+  agent: row_async_reset (reused Terra medium)
+  reproducer: evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv
+  standards: IEEE1800-2017/2023 9.2 and10.4; blocking assignment updates must precede subsequent indexed writes.
+  expected: Synthesized runtime matches behavioral word writes through conditional overwrite and self-increment, invalid index does not write.
+  scope: Trace existing synth2.cc prior-value/address lowering; private patch proposal only until root cause reviewed.
+  owns: evidence/review-20260920/next-blocking-index; proposed synth2.cc and focused fixtures only.
+  dependencies: Independent of cast elaborate.cc/vvp_z3.cc; coordinator alone builds installs and integrates.
+  acceptance: Packed/unpacked destinations, conditional overwrite, self-increment, sequential writes, OOB/X no-write, both editions.
+  forbidden: Shared edits/builds, general stale constant caches, dropped writes, weakening async-load checks or application edits.
+
+cast_type_before_value_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  violated_invariant: Parent common width/sign must reach context-determined operands before their values are constructed (IEEE11.8.2).
+  why_local_fix_fails: Shift-only provenance does not propagate through intervening unary bitwise ternary arithmetic operators; current headroom can alter later division.
+  design: evidence/review-20260920/next-joint-distributions/patch-cast/TYPE_BEFORE_VALUE.md
+  allowed: Private vvp_z3.cc pure copied-IR width/sign inference plus scoped value-building context within integral cast evaluation; reuse existing identities and aliases.
+  boundaries: No inference AST creation, state reads, graph mutation, reference/error registration or RNG use; real value pass alone owns those effects. No new fallback values or dropped constraints.
+  acceptance: Core and signed/nestedcontext reducers, typed qfield foreach, fourstate and rollback, exactwidth intermediate overflow/division, selfdetermined fences, mixed original/cast identity; paired editions and constraint neighbors.
+  build_owner: Coordinator; compiler emitter unchanged unless a concrete producer defect is separately reviewed.
+
+blocking_index_ordering_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_blocking_index_root_cause.json
+  status: ROOT_CAUSE_EXPANDED_DESIGN_REVIEW
+  invariant: NBA RHS sees prior blocking state; final NBA overlay can override subsequent blocking writes.
+  next: Terra proposes minimal separate read-state and pending-NBA masks using existing branch bus machinery; no shared implementation yet.
+  cast_lane: Sol pure typepass implementation active privately; root acceptance runner ready at patch-cast/run_acceptance.py.
+
+blocking_index_dual_state_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  design: evidence/review-20260920/next-blocking-index/ROOT_CAUSE.md (latest pending-NBA overlay section)
+  invariant: B is blocking-visible procedural state; P carries captured pendingNBA values with enables/write masks; final output overlays P over B.
+  allowed_scope: synth2.cc assignment/block/conditional/case/loop/process lowering, expr_synth.cc procedural reads, netlist.h only required context plumbing. Private patches only.
+  restrictions: Never expose pendingNBA writes to later reads or flush at arbitrary nestedblock exits. Preserve RHS/index capture, selected-bit masks, disabled/OOB/X no-write and async-reset semantics; no user constant cache.
+  acceptance: Original packed/unpacked indices; four blocking/NBA ordercases; conditional/case/loop ordering and masksoverlap; previous row/reset and synthesisneighbor tests in both editions.
+  ownership: Terra private files, coordinator shared integration/build; disjoint from Sol vvp_z3.cc and root elaborate.cc.
+
+cast_index_and_distribution_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_cast_index_and_distribution_regressions.json
+  status: PARTIAL_FOCUSED_TESTED_NOT_CLOSED
+  cast: 18 of 18 permanent tests pass in each harness; fixed index retains exact typing within self-determined boundary.
+  distributions: Four obsolete rejection tests updated with successful coupled values and contradictory rollback; both harnesses pass, other negative cases preserved.
+  pending: Inside common operand sizing review; joint permanent packaging; B/P synthesis lane; complete neighbor and broad batch gates.
+  next: Review Sol inside normative assessment before changing consumer; integrate frozen distribution fixtures and verify.
+
+inside_common_type_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  parent: CONSTRAINT-INTEGRAL-CAST-IR
+  evidence: evidence/review-20260920/next-joint-distributions/patch-type-inside-assessment/ASSESSMENT.md
+  invariant: Inside result is self-determined; membership operands use one common type before value construction, with no repeated state/reference effects.
+  authority: IEEE2017/2023 11.4.13 wildcard comparison and 11.8.2 sizing; all-member aggregation is an acknowledged wording ambiguity resolved with documented independent Slang evidence.
+  scope: Private vvp_z3.cc pure payload scan and existing occurrence-local coercion in typed inside descendants; no per-member replay or new AST.
+  acceptance: Wide and mixed members, narrow overflow, range bounds, common unsigned shift, container element typing, negative rollback and existing cast/distribution neighbors in both editions.
+  constraints: Preserve all state/reference/error effects once; reject unsupported typed payload instead of legacy sizing fallback or omitted members.
+
+joint_distribution_permanent_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_joint_distribution_permanent_focus.json
+  focused: Four permanent cases pass both legacy and JSON harnesses; frozen fixtures unchanged.
+  remaining: Cast inside prerequisite, full constraint neighbors, complete B/P synthesis, broad batch gates and PR.
+  next_command: Review private inside patch against current shared vvp/vvp_z3.cc before applying; coordinator rebuild and rerun paired focus.
+  processes: No shared build or test process remains live; two private implementation agents active.
+
+synthesis_nba_escalation:
+  owner: synthesis_nba_completion (gpt-5.6-sol medium)
+  reason: Terra twice returned incomplete NetCase P merge; escalate only this unresolved compiler mechanism, preserving draft and evidence.
+  private_scope: evidence/review-20260920/next-blocking-index/patch; no shared builds or edits.
+  review_additions: Partial B writes must appear in subsequent RHS reads; perbit pending enables must preserve disjoint conditional writes.
+  acceptance: Five additional fixtures in next-blocking-index/fixtures; all ten behavioral cases pass, partial blocking read fails synthesis in both editions, eight synthesis guards pass.
+  secondary_worker: Terra completed fixture-only task; implementation draft ownership transferred to Sol.
+
+inside_container_producer_guard:
+  status: COORDINATOR_AUTHORIZED_AND_FOCUSED_TESTED
+  root_cause: q/qv producer replaced element widths above64 with32, preventing correct common-type inference.
+  scope: Reject unrepresentable container widths at both existing elaborate.cc producers; wide value transport remains unsupported debt.
+  evidence: evidence/review-20260920/next-joint-distributions/patch-type-inside/wide-producer-candidate.json
+  acceptance: Class and scope diagnostic cases in both editions, included among six inside permanent tests passing both harnesses.
+  portability: Cast size validation uses existing as_ulong64 instead of platform-width as_ulong; zero/negative/oversized diagnostics checked.
+
+inside_common_type_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_inside_common_type_checkpoint.json
+  status: FOCUSED_TESTED_NOT_CLOSED
+  remaining: Typed inside queue X/Z values currently collapse to zero; Sol repairs state validation and guard/rollback semantics.
+  synthesis: Escalated Sol private patch now handles case merges but nested packed P write boundary requires completion or focused rejection.
+  shared_processes: No shared build or test remains live; prior JSON neighbor session1849 and combinedfocus18980 completed successfully.
+  next: Review inside X/Z patch and synthesis nested select update before next shared build; repeat affected focused tests and constraint neighbors for actual code changes.
+
+inside_queue_state_transport_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  parent: CONSTRAINT-INTEGRAL-CAST-IR
+  invariant: X/Z values in active constraint operands must error under IEEE1800-2017/2023 18.3; inactive guarded reads must not fail.
+  root_cause: Class q reads and of_STD_RANDOMIZE_WITH scope queue capture collapse X/Z to uint64 zero before constraint state validation.
+  scope: Private vvp/vthread.cc producer, vvp/vvp_z3.h scope API, vvp/vvp_z3.cc consumer; parallel per-element validity metadata for qv, existing guarded StateCheck for invalid q/qv reads.
+  constraints: Preserve declared element width/sign, state/ref effects once, value/RNG/callback rollback; invalid numeric placeholder cannot reach successful active solution. Do not claim qfield or wide-container semantics repaired.
+  evidence: evidence/review-20260920/next-joint-distributions/patch-type-inside/{queue-x-assessment.json,scope-queue-x-assessment.json}
+  acceptance: Known fourstate containers, active X and Z rejection with rollback, inactive guards pass, both class/scope and both editions; all cast/distribution and constraint neighbors remain required.
+  owner: constraint_guard_semantics private patch; coordinator alone integrates/builds.
+
+queue_state_and_nba_review_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_queue_state_and_nba_review.json
+  next: Review frozen queue transport and NBA enable/hold patches, then coordinator build and targeted paired runtime checks.
+  shared_processes: No build/test live; private implementation agents remain active.
+
+nba_overlay_incremental_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_nba_overlay_incremental_checkpoint.json
+  status: INCOMPLETE_20_OF_26_RUNTIME_CASES_PASS
+  remaining: Dynamic unpacked word mapping assertion and incorrect packed/unpacked blocking-selector results, both editions.
+  owner: synthesis_nba_completion private incremental repair; coordinator shared integration and tests.
+  next: Review next private patch, rebuild and run paired synthesis focus before synthesis neighbors.
+
+constraint_post_queue_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
+  status: FOCUSED_AND_NEIGHBOR_TESTED_NOT_BROAD_QUALIFIED
+  next: Preserve cast/distribution integration; complete active synthesis repair, then mandatory broad batch gates.
+
+nba_overlay_output_and_constant_scope:
+  authority: Coordinator-authorized prerequisite for the existing blocking/NBA synthesis repair.
+  invariant: Variable-base substitutes cannot be folded as fixed constants; a dynamic nested unpacked write must expose all reachable words.
+  added_files: [link_const.cc, net_nex_output.cc]
+  reason: Paired failing synthesis acceptance traces root causes to constant-driver classification and output nexus discovery, outside synth2.cc.
+  acceptance: Existing 26 runtime cases plus memory read-after-NBA ordering and synthesis neighbors.
+  next: Integrate frozen incremental-2 patch and coordinator build.
+
+nba_overlay_incremental2_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_nba_overlay_incremental2_checkpoint.json
+  status: INCOMPLETE_24_OF_26_PLUS_TWO_OLD_READ_PASSES
+  remaining: Nested unpacked dynamic part write output map assertion in both editions.
+  shared_unbuilt: Incremental3 limits nested root resolution to non-precise output discovery, preserving always_comb sensitivity subtraction.
+  next: Integrate mapped root-cause repair, build and run expanded28case focus, then synthesis neighbors.
+
+nba_permanent_registration_lane:
+  agent: row_async_reset
+  model: gpt-5.6-terra
+  effort: medium
+  scope: Prepare private permanent registrations for the fourteen existing synthesis acceptance sources, without changing assertions or expected values.
+  owns: [evidence/review-20260920/next-blocking-index/permanent-staging]
+  forbidden: Shared source, manifests, index, builds, tests and invented warning golds.
+  dependency: Coordinator captures exact outputs after all focus cases pass; candidate remains incomplete.
+
+nba_constant_word_bounds_prerequisite:
+  authority: Coordinator-authorized completion of constant-word map handling.
+  scope: Use existing width-independent verinum_signed_magnitude in pending-map, per-word and compact address checks in synth2.cc.
+  invariant: IEEE1800-2017 7.4.6 and2023 7.4.5 invalid array indices perform no write; host-long truncation cannot select another word.
+  acceptance: Negative and oversized positive constant indices plus current28focused cases; preserve positive failing reducer even if behavioral engine is wrong.
+  discovery: Behavioral elaboration reportedly truncates positive wider-than64-bit index; record separately with actual evidence rather than using it as the oracle.
+
+wide_constant_word_elaboration_lane:
+  id: OVERSIZED-CONSTANT-ARRAY-WORD
+  status: REPRODUCED_COORDINATOR_AUTHORIZED
+  agent: row_async_reset
+  model: gpt-5.6-terra
+  effort: medium
+  scope: Private smallest complete elaboration fix preserving oversized constant array index invalidity before host-long conversion.
+  owns: [evidence/review-20260920/next-wide-constant-word]
+  implementation_files: elab_lval.cc and directly implicated existing index canonicalization helper only, after source trace.
+  forbidden: synth2.cc, expr_synth.cc, link_const.cc, netlist.h, shared edits/builds/install/manifests, application source changes.
+  standards: IEEE1800-2017 7.4.6; IEEE1800-2023 7.4.5, invalid index writes have no effect.
+  reproducer: evidence/review-20260920/next-blocking-index/patch/pending_nba_wide_positive_oob.sv
+  actual: Both behavioral editions truncate80-bit index to zero and overwrite mem[0].
+  expected: Preserve both array words; no fabricated in-range index.
+  acceptance: Paired behavioral and synthesis positivewide/negativewide OOB no-write, valid index, X/Z boundary; ordinary indexing neighbors preserved.
+  dependency: Independent compiler-stage prerequisite exposed during synthesis constant-word review.
+
+nba_wide_boundary_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_nba_focused_and_wide_boundary_checkpoint.json
+  status: BASE28PASS_WIDE_BOUNDARIES_FAIL
+  synthesis_prerequisite: Preserve initial X for untouched4state unpacked words; synthesis_nba_completion owns existing synthesis files.
+  elaboration_prerequisite: Prevent widepositive constant word truncation; row_async_reset owns private elab_lval.cc patch via existing checked helper.
+  shared_processes: No build or test running.
+  next: Integrate disjoint fixes and run positive/negativewide boundaries plus28focus before synthesis neighbors and broad gates.
+
+synthesis_neighbor_regression_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_synthesis_neighbor_regressions.json
+  status: BASE28_AND_WIDE_BOUNDARIES_PASS_SIX_NEIGHBOR_REGRESSIONS
+  synthesis_owner: synthesis_nba_completion handles br993a/br993b and packed_struct/mixed_outputs asyncreset runtime failures.
+  index_owner: row_async_reset traces runtime_memory_word/output_set failures against changed index canonicalization.
+  constraints: Preserve all expected values; no gold weakening; both lanes private, coordinator sharedbuild/testing.
+  shared_processes: No build/test running.
+  next: Integrate regression repairs, repeat affectedfocus and160neighbors, then required broad batch gates.
+
+memory_regression_controlled_attribution:
+  evidence: docs/conformance/session_logs/2026-09-21_memory_regression_attribution.json
+  conclusion: Bothmemoryfailures persist with committed elaborator; checkedindex change notnecessary to reproduce.
+  source_state: Candidatehybrid elab_lval.cc restored.
+  installed_state: Baselineelaborator isolation variant; rebuild candidate before qualification.
+  ownership: Sol owns synthesiscode for allsix failures; Terra private memoryport runtime/netlisttrace only, no implementationedits.
+  next: Integrate concrete synthesisrepair, rebuild candidate, rerun sixfailures plusfocused/wide suites.
+
+release_retest_and_cleanup_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_candidate_release_retest_and_cleanup.json
+  installed_state: Full current candidate rebuilt after restoring elab_lval.cc timestamp; binary hashes verified after retests.
+  focused_state: 160 synthesis neighbors pass; 46 legacy cases have 38 passes and eight duplicate-warning gold mismatches, runtime assertions pass.
+  application_state: Pinned clean releases retested; crossbar and power2round pass, GPIO remains failing.
+  processes: Retest and neighbor sessions complete; no shared build running.
+  next: Resolve duplicate index diagnostic path or exact gold differences, run both focused harnesses, then broad batch gates before PR.
+
+constant_index_single_evaluation_completion:
+  authority: Coordinator-authorized completion of OVERSIZED-CONSTANT-ARRAY-WORD.
+  root_cause: Hybrid constant branch elaborates indices twice; reuse evaluated expressions in existing full-width checked helper.
+  owner: row_async_reset, retained Terra medium, private patch only.
+  scope: elab_lval.cc and directly implicated netmisc.cc/netmisc.h helper; preserve dynamic signal path and required diagnostics.
+  acceptance: Both46case focused harnesses and160synthesis neighbors; no runtime or expected-value weakening.
+  next: Review private patch, coordinator rebuild, focused tests, broad seven-gate batch.
+
+compiler_batch_focused_checkpoint:
+  status: FOCUSED_TESTED_PENDING_BROAD_GATES
+  evidence: docs/conformance/session_logs/2026-09-21_synthesis_and_wide_index_focus.json
+  implementation: Blocking-visible and pending NBA synthesis plus full-width constant array indexing.
+  next: Run seven broad batch gates serially; stop and repair real regressions before publication.
+
+current_broad_gate_run:
+  semantic_revision: f5928785b
+  session: 12410
+  runner: evidence/review-20260920/batch-20260921/run_gate.py
+  order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
+  source_state: Frozen; all46focus cases pass both harnesses and160synthesis neighbors pass.
+  next: Poll session12410; inspect per-gate run.json/status/log. Do not restart a live process. Stop serial driver on first nonzero gate.
+  qualification: Pending; fresh application evidence predates only the constant-index single-evaluation cleanup.
+
+broad_gate_elaboration_regressions:
+  status: REPRODUCED_UNDER_REPAIR_PRIVATE_ONLY
+  source_revision: f5928785b
+  regressions: [pr1833024, sv_uarray_partial_index_oob]
+  evidence: evidence/review-20260920/batch-20260921/first-regressions
+  diagnostic_owner: Coordinator; consumed expression list loses scalar-word index error detail in elab_lval.cc.
+  row_owner: row_async_reset, Terra medium, private patch for false OOB row mixed-driver rejection in elab_lval.cc.
+  shared_scope: No shared source edits/builds until live gate12410 completes; integrate both private fixes sequentially.
+  acceptance: Existing negative diagnostic exact output and invalid-row no-write runtime; valid row/mixed-driver rejection and current46case focus.
+
+batch_gate_completed_with_regressions:
+  evidence: docs/conformance/session_logs/2026-09-21_batch_gate_regressions.json
+  session12410: Completed; integrated failed with6legacy regressions, later gates notrun.
+  next: Repair diagnostic preservation and invalid-row driver check; focusedvalidation before fresh broadgate directory.
+
+row_oob_repair_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_row_oob_regression_repair.json
+  status: Allsix initial broadgate failures now repaired with focused evidence.
+  next: Rerun seven broad gates using batch-20260921-repaired; retain original failed gate evidence.
+
+repaired_broad_gate_run:
+  semantic_revision: bbb3a9d30
+  session: 22845
+  directory: evidence/review-20260920/batch-20260921-repaired
+  order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
+  next: Poll session22845; inspect statuses and logs; do not restart a live gate or mutate installed binaries.
+  previous_run: batch-20260921 integrated failed, six regressions repaired; never count it as qualified.
+
+repaired_integrated_gate_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
+  status: IntegratedPASS; JSONsuite running in same session22845.
+  next: Poll existing session; remaining gatespending, do notpublish qualification yet.

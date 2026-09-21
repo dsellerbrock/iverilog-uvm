@@ -1,0 +1,10 @@
+{
+  "status": "OPERATIONAL_RESUMPTION_CONSOLIDATION_NO_NEW_QUALIFICATION",
+  "preserved_sha256": {
+    "2026-09-21_prevalidation_ACTIVE_WORK.yaml": "dc088c04aa8b4c1c2c9814fa7d6d99d777b458a6cbbece476a6b40763e89ccb2",
+    "2026-09-21_prevalidation_CAMPAIGN.yaml": "9582964327e3c44aeff2357f611f0a23a1737ac4552791203a257a4aa5c20004"
+  },
+  "reason": "Replace stale active merge/implementation directives with one current validation state; original records preserved byte-for-byte as historical evidence.",
+  "active_semantic_revision": "bbb3a9d30",
+  "live_session": 22845
+}

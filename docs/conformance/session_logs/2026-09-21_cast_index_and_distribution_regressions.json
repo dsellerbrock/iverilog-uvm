@@ -1,0 +1,27 @@
+{
+  "head": "398ca32a089e8168fddb731b92d198d9a299690b",
+  "status": "Candidate not closed; inside operand sizing review remains required",
+  "runtime_sha256": "8acca382c3634256c22802366a87453db76310252190bdeded5d9b864585c55d",
+  "cast_permanent": {
+    "tests": 18,
+    "legacy_pass": 18,
+    "json_pass": 18,
+    "evidence": "evidence/review-20260920/next-joint-distributions/patch-cast/permanent/verification/",
+    "scope": "Nine cases in both editions; fixed index includes exact intermediate width, two-state invalid read, contradiction and RNG/value rollback."
+  },
+  "fixed_index_root_cause": "Self-determined index clears outer width/sign but must retain exact SV arithmetic within its expression; removed three typed-mode disable/restore lines.",
+  "fixed_index_baseline": "evidence/review-20260920/next-joint-distributions/patch-type-fence/baseline.json",
+  "fixed_index_candidate": "evidence/review-20260920/next-joint-distributions/patch-type-fence/candidate-boundaries.json",
+  "updated_distribution_neighbors": {
+    "legacy_pass": 4,
+    "json_pass": 4,
+    "evidence": "evidence/review-20260920/next-joint-distributions/updated-neighbors/",
+    "scope": "Replaced only obsolete coupled-distribution rejection with joint success and contradictory rollback; all other unsupported cases and weights preserved."
+  },
+  "pending": [
+    "Inside common sizing reviewed against IEEE and independent Slang binding evidence; no per-member replay authorized.",
+    "Joint distribution permanent packaging pending.",
+    "Synthesis blocking/NBA dual state private lane incomplete; do not integrate draft.",
+    "Current compiler/tests uncommitted; seven integrated fixes, broad batch gates and PR pending."
+  ]
+}

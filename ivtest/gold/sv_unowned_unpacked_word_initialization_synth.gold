@@ -1,0 +1,3 @@
+./ivltests/sv_unowned_unpacked_word_initialization_synth.v:42: warning: Process not synthesized.
+./ivltests/sv_unowned_unpacked_word_initialization_synth.v:28: warning: Process not synthesized.
+PASS

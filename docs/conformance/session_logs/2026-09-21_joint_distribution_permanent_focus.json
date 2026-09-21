@@ -1,0 +1,21 @@
+{
+  "status": "Focused permanent regressions passed; candidate remains uncommitted pending cast dependency and neighbor/batch gates",
+  "legacy": {
+    "total": 4,
+    "failed": 0,
+    "log": "evidence/review-20260920/next-joint-distributions/permanent/verification/legacy.log"
+  },
+  "json": {
+    "total": 4,
+    "failed": 0,
+    "log": "evidence/review-20260920/next-joint-distributions/permanent/verification/json.log"
+  },
+  "runtime_sha256": "8acca382c3634256c22802366a87453db76310252190bdeded5d9b864585c55d",
+  "sources": {
+    "sv_randomize_joint_multiple_dist.v": "a522bf6a86ef8f0ed2a391a16a737a59d762503fce453f76a67776558d7335df",
+    "sv_randomize_joint_multiple_dist_fail.v": "ddf6adc183c8e03392ada14c26fd28521b037d9d9f3297f0086125dc6ed36b91"
+  },
+  "inside_baseline": "evidence/review-20260920/next-joint-distributions/patch-type-inside-assessment/baseline.json",
+  "inside_disposition": "Common-type inference authorized; IEEE wildcard/context clauses plus independently recorded Slang evidence resolve all-member sizing ambiguity. Private implementation active.",
+  "synthesis_disposition": "Private B/P draft is not integration-ready; NetCase branch merge still being implemented."
+}

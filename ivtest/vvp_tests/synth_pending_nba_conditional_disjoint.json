@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "synth_pending_nba_conditional_disjoint.v",
+  "iverilog-args": [
+    "-g2017",
+    "-S"
+  ],
+  "gold": "synth_pending_nba_conditional_disjoint"
+}

@@ -1,0 +1,37 @@
+{
+  "head": "d1f79e07aa213fa6913aaafc17eefd683bdbf327",
+  "status": "FOCUSED_TESTED; NOT CLOSED: inside X/Z queue state boundary still fails",
+  "cast_and_distribution_focus": {
+    "legacy_total": 28,
+    "legacy_failed": 0,
+    "json_total": 28,
+    "json_failed": 0,
+    "evidence": "evidence/review-20260920/next-joint-distributions/combined-focus"
+  },
+  "constraint_neighbors": {
+    "json_total": 400,
+    "failed": 0,
+    "log": "evidence/review-20260920/next-joint-distributions/patch-type-inside/constraint-neighbors.log",
+    "invalid_attempt": "wrong-harness-neighbors.log records the earlier legacy runner invocation of a JSON manifest; no tests executed in that attempt"
+  },
+  "artifacts": {
+    "local-install/lib/ivl/ivl": "c19b89a93b5ec46a401e81f6c50331ab7f89d87795aa9c9888ea21f8a434c133",
+    "local-install/bin/vvp": "0f97fbbc9ce0b4008f66de459ac2d9f301c9c45441e72ee8b4f3fa9b9f667d5e"
+  },
+  "remaining_inside": {
+    "evidence": "evidence/review-20260920/next-joint-distributions/patch-type-inside/queue-x-assessment.json",
+    "actual": "X-valued state queue membership succeeds after X bits become zero",
+    "expected": "IEEE1800-2017/2023 18.3 evaluation error with rollback",
+    "owner": "constraint_guard_semantics private repair"
+  },
+  "synthesis": {
+    "evidence": "evidence/review-20260920/next-blocking-index/fixtures",
+    "behavioral_pass": 10,
+    "synth_pass": 8,
+    "synth_fail": 2,
+    "failure": "Prior blocking partial write missing from later NBA RHS read",
+    "owner": "synthesis_nba_completion private implementation; nested dynamic packed P handling must be completed or explicitly rejected before integration"
+  },
+  "integrated_fixes": 7,
+  "broad_batch_gates": "Pending, not waived"
+}
