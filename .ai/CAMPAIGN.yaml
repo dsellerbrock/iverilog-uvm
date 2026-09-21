@@ -85,3 +85,13 @@ completed_qualification:
   session: 25490
   status: Completed successfully; do not poll or restart.
   next_batch_review: evidence/review-20260920/next-batch-review.md
+
+release_application_replay:
+  authority: User requests fresh stable-release OpenTitan and Caliptra tests and workspace cleanup.
+  compiler: Frozen qualified e90059a07 semantic tree; do not reinstall during replay.
+  opentitan: Earlgrey-PROD-M6, clean sources, explicitly pinned UVM1.2, native pinned Python313.
+  opentitan_session: 55045
+  caliptra: v2.1.2, clean sources and pinned Adams Bridge submodule; 106-job static census complete.
+  evidence: evidence/review-20260920/application-replay
+  runtime_scope: Static compilation is not simulation; Caliptra runtime setup audit pending.
+  cleanup: evidence/review-20260920/cleanup.json records two unused generated trees removed; divergent worktrees retained.
