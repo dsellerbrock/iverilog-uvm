@@ -89,6 +89,12 @@ UVM_EXTRA_DEFINES = {
     # Matches SVA_EXTRA_DEFINES's aes_sva entry above; picks the
     # EN_MASKING=1 variant as the default, same as that one.
     "lowrisc:dv:aes_sim:0.1": ("-DEN_MASKING=1",),
+    # spi_device_sim.core has no SRAM mode; its bare target represents the
+    # documented RTL default. The separate 2p HJSON configuration is not
+    # covered by this row.
+    "lowrisc:dv:spi_device_sim:0.1": (
+        "-DSRAM_TYPE=spi_device_pkg::SramType1r1w",
+    ),
 }
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
@@ -2640,6 +2646,25 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     )
     assert "-uvm" in uvm_runtime_compile
     assert "-DUVM" in uvm_runtime_compile
+    assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in uvm_runtime_compile
+    spi_device_core = Core("lowrisc:dv:spi_device_sim:0.1", "")
+    for lane in ("uvm", "runtime"):
+        spi_device_compile = compile_command(
+            Job(lane, spi_device_core, uvm_target),
+            Path("iverilog"),
+            Path("spi-device.scr"),
+            [],
+            Path("spi-device.vvp"),
+        )
+        assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" in spi_device_compile
+    spi_device_rtl_compile = compile_command(
+        Job("rtl", spi_device_core),
+        Path("iverilog"),
+        Path("spi-device-rtl.scr"),
+        [],
+        Path("spi-device-rtl.vvp"),
+    )
+    assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in spi_device_rtl_compile
     directed_runtime_compile = compile_command(
         Job("runtime", directed_core, directed_target),
         Path("iverilog"),

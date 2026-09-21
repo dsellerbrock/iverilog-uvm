@@ -150,6 +150,22 @@ The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.
 
+## Per-core simulation setup
+
+FuseSoC literal `sim` targets do not carry every build option that OpenTitan
+dvsim configuration files apply.  The UVM/runtime command builder therefore
+supplies a small, explicit per-core define table only when a bare target needs
+one to represent its documented default RTL configuration.
+
+`lowrisc:dv:spi_device_sim:0.1` receives
+`-DSRAM_TYPE=spi_device_pkg::SramType1r1w`. Its core target has no SRAM-mode
+parameter, while `spi_device_pkg::DefaultSramType` is `SramType1r1w`. This
+selects the documented default DUT configuration for the bare-core row.
+OpenTitan also defines a distinct `spi_device_2p_sim_cfg.hjson`
+configuration with
+`SRAM_TYPE=spi_device_pkg::SramType2p`; that variant is not covered or claimed
+by the bare-core matrix row. It requires a future variant-aware matrix entry.
+
 ## Historical checkpoints
 
 The following first-run results are retained evidence. For newer compiler and

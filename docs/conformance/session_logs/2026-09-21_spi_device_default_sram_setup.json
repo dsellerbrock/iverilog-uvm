@@ -1,0 +1,45 @@
+{
+  "argv": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+    "-g2012",
+    "-stb",
+    "-ssec_cm_prim_count_bind",
+    "-ssec_cm_prim_double_lfsr_bind",
+    "-ssec_cm_prim_onehot_check_bind",
+    "-ssec_cm_prim_sparse_fsm_flop_bind",
+    "-sspi_device_bind",
+    "-uvm",
+    "-DUVM",
+    "-DUVM_NO_DEPRECATED",
+    "-DUVM_REG_ADDR_WIDTH=32",
+    "-DUVM_REG_DATA_WIDTH=32",
+    "-DUVM_REG_BYTENABLE_WIDTH=4",
+    "-DSIMULATION",
+    "-DDUT_HIER=tb.dut",
+    "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-priority-spi-device/coordinator-check/spi-device.vvp",
+    "-c",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/uvm/lowrisc_dv_spi_device_sim_0.1/matrix-iverilog.scr",
+    "-DSRAM_TYPE=spi_device_pkg::SramType1r1w"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/uvm/lowrisc_dv_spi_device_sim_0.1/sim-icarus",
+  "exit": 3,
+  "log_sha256": "30f59c90a6e2e1747adb45510d12dff9faccb4b140f845649b88af5d7a19d53e",
+  "compiler_sha256": "a32de7b56af15d867daaa451d0aafc5edd31713778940dd7d0efaba4f74a9425",
+  "scope": "setup-only advancement, not compiler or DV pass",
+  "date": "2026-09-21",
+  "blocker": "OT-SPI-DEVICE-DEFAULT-SRAM-CONFIG",
+  "status": "HARNESS_FIX_FOCUSED_TESTED",
+  "authority": [
+    "hw/ip/spi_device/dv/spi_device_1r1w_sim_cfg.hjson",
+    "hw/ip/spi_device/rtl/spi_device_pkg.sv DefaultSramType"
+  ],
+  "change": "Existing UVM_EXTRA_DEFINES supplies exact default1r1w macro to bare UVM/runtime rows; RTL and unrelated rows unaffected.",
+  "validation": "Coordinator independently ran existing matrix --self-test PASS and pinned UVM1.2 compile. SRAM_TYPE diagnostics absent; syntax failure at spi_device_pass_base_vseq.sv281 remains.",
+  "limits": [
+    "Not a compiler feature gain or DV pass.",
+    "Separate2p configuration not covered by bare default row.",
+    "Later parse error root remains under assessment; locator unsupported reducer alone does not explain a syntax error."
+  ]
+}
