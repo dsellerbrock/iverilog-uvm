@@ -1,0 +1,2 @@
+ivltests/sv_foreach_selector_real.v:4: error: foreach selector prefix expression must be integral.
+1 error(s) during elaboration.

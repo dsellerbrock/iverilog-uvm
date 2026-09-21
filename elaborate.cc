@@ -21558,6 +21558,66 @@ static NetExpr* elaborate_foreach_target_expr_(Design*des,
       return target_expr;
 }
 
+/* Evaluate a fixed selector in a static-array foreach target exactly once on
+ * entry to the foreach statement. The selected value does not change the
+ * bounds of the remaining dimensions, but evaluating it is still required to
+ * resolve names/types and preserve expression side effects. */
+static NetProc* prepend_foreach_selector_evaluation_(Design*des,
+                                                     NetScope*scope,
+                                                     const LineInfo&loc,
+                                                     const pform_name_t&path,
+                                                     NetProc*loop)
+{
+      if (!loop || path.empty() || path.back().index.empty()) return loop;
+      NetBlock*block = nullptr;
+      for (const index_component_t&select : path.back().index) {
+            if (select.sel != index_component_t::SEL_BIT || !select.msb
+                || select.lsb) {
+                  cerr << loc.get_fileline() << ": error: foreach selector prefix "
+                       << "must contain element-select expressions." << endl;
+                  des->errors += 1;
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+
+            NetExpr*expr = elab_and_eval(des, scope, select.msb, -1, false);
+            if (!expr) {
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+            if (expr->expr_type() != IVL_VT_BOOL
+                && expr->expr_type() != IVL_VT_LOGIC) {
+                  cerr << loc.get_fileline() << ": error: foreach selector prefix "
+                       << "expression must be integral." << endl;
+                  des->errors += 1;
+                  delete expr;
+                  delete block;
+                  delete loop;
+                  return nullptr;
+            }
+
+            unsigned width = expr->expr_width();
+            if (width == 0) width = 1;
+            const netvector_t*type = new netvector_t(
+                  expr->expr_type(), width-1, 0, expr->has_sign());
+            NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+                                    NetNet::REG, type);
+            tmp->local_flag(true);
+            tmp->set_line(loc);
+            NetAssign*eval = new NetAssign(new NetAssign_(tmp), expr);
+            eval->set_line(loc);
+            if (!block) block = new NetBlock(NetBlock::SEQU, nullptr);
+            block->append(eval);
+      }
+
+      if (!block) return loop;
+      block->append(loop);
+      block->set_line(loc);
+      return block;
+}
+
 /*
  * The foreach statement can be written as a for statement like so:
  *
@@ -21577,9 +21637,35 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 		 does NOT resolve to a signal (a class property, a
 		 virtual-interface member) needs the expression route
 		 below, which cannot yield a whole unpacked array for a
-		 hierarchical name. */
-	    if (NetNet*hier_sig = des->find_signal(scope, array_path_))
-		  return elaborate_signal_array_(des, scope, hier_sig);
+		 hierarchical name. EXCEPT: a genuine selector prefix
+		 (array_path_.back().index non-empty) into an ASSOCIATIVE
+		 array must always take the expression route below, even
+		 when the base name also resolves as a plain signal --
+		 find_signal() matches on the base name alone and ignores
+		 the appended selector index entirely, so this shortcut
+		 would otherwise silently hand the WHOLE array to
+		 elaborate_signal_array_(), dropping the selector (see
+		 DD-040). The expression route's PEIdent::elaborate_expr()
+		 runs the selector index through the ordinary
+		 elab_assoc_index()-based associative lookup machinery every
+		 other indexed reference to an associative array uses, so it
+		 re-evaluates the selector at runtime and yields the
+		 correctly-selected sub-array -- but that same machinery
+		 refuses ANY partial index into a plain static/dynamic array
+		 signal (PEIdent::elaborate_expr_net_word_ demands a
+		 complete, element-addressing index count), so a
+		 selector-prefixed target into a NON-associative signal must
+		 still take the signal fast path; elaborate_signal_array_()
+		 below is what actually knows how to drop the selected
+		 leading dimensions for that case. */
+	    if (NetNet*hier_sig = des->find_signal(scope, array_path_)) {
+		  bool selector_prefix = foreach_target_has_selector_prefix_(array_path_);
+		  const netqueue_t*hier_aq = selector_prefix
+			? dynamic_cast<const netqueue_t*>(hier_sig->net_type()) : nullptr;
+		  bool hier_is_assoc = hier_aq && hier_aq->assoc_compat();
+		  if (!selector_prefix || !hier_is_assoc)
+			return elaborate_signal_array_(des, scope, hier_sig);
+	    }
 
 	    ivl_type_t ptype = 0;
 	    NetExpr*array_expr = elaborate_foreach_target_expr_(
@@ -21595,26 +21681,24 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(ptype)) {
-		  /* See the matching sorry: in elaborate_signal_array_() --
-		     this expression-route branch reaches an associative
-		     target when it does NOT resolve to a plain signal (a
-		     class property, a virtual-interface member). A plain
-		     dotted class-property target (`foreach (obj.assoc[i])',
-		     no selector on any path component) is legitimate and
-		     already works; only a genuine selector prefix (some
-		     component's index is non-empty) is unthreaded here, the
-		     same as the signal-route case. */
-		  if (aq->assoc_compat() && foreach_target_has_selector_prefix_(array_path_)) {
-			delete array_expr;
-			cerr << get_fileline() << ": sorry: a foreach "
-				"selector prefix (`" << array_path_
-			     << "') into an associative array does not yet "
-				"correctly select the sub-array; the loop "
-				"body is dropped rather than iterating the "
-				"wrong keys." << endl;
-			des->errors += 1;
-			return 0;
-		  }
+		  /* A selector-prefixed target into an associative array
+		     (a class property/virtual-interface member that
+		     find_signal() can't resolve as a plain NetNet, or --
+		     since the hier_sig bypass above now routes ANY
+		     selector-prefixed target here, plain-signal ones too)
+		     dispatches the same as any other associative foreach.
+		     array_expr already came from PEIdent::elaborate_expr()
+		     above, which runs the selector through the ordinary
+		     elab_assoc_index()-based lookup machinery every other
+		     indexed reference to an associative array uses -- it
+		     re-evaluates the selector at runtime and yields the
+		     correctly-selected sub-array (DD-040; runtime-verified
+		     with a real discriminating-population test, not just a
+		     compile check -- two outer keys with disjoint inner key
+		     sets, confirming the fixed selector actually narrows the
+		     iteration rather than silently iterating everything). */
+		  if (aq->assoc_compat())
+			return elaborate_assoc_array_(des, scope, array_expr);
 	    }
 
 	    if (const netsarray_t*atype = dynamic_cast<const netsarray_t*>(ptype)) {
@@ -21846,32 +21930,18 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
 {
       if (const netqueue_t*aq = dynamic_cast<const netqueue_t*>(array_sig->net_type())) {
 	    if (aq->assoc_compat()) {
-		    /* This method is reached either for a plain foreach with
-		       no selector (array_path_ has no index at all -- every
-		       dimension gets a real loop variable, handled correctly
-		       below) or, via PForeach::elaborate's hier_sig fast
-		       path, for a SELECTED prefix (`arr[sel][loop_vars]',
+		    /* This method is only reached for a plain foreach with
+		       no selector prefix: PForeach::elaborate's hier_sig
+		       fast path (above it in the caller) now routes any
+		       genuinely selector-prefixed target (`arr[sel][loop_vars]',
 		       IEEE 1800-2017/2023 12.7.3's "already declared in an
-		       enclosing scope" form). Wrapping the whole array_sig
-		       in a NetESignal here and handing it straight to
-		       elaborate_assoc_array_() drops that selector entirely
-		       -- confirmed with a real, discriminating-population
-		       runtime test (two outer keys with different inner key
-		       sets): the loop silently iterates the ARRAY'S OWN
-		       (outer) keys instead of the selected sub-array's, for
-		       both a literal constant selector and a variable one.
-		       Refuse rather than run wrong -- see DISCOVERED_DEBT.md
-		       DD-040. */
-		  if (foreach_target_has_selector_prefix_(array_path_)) {
-			cerr << get_fileline() << ": sorry: a foreach "
-				"selector prefix (`" << array_path_
-			     << "') into an associative array does not yet "
-				"correctly select the sub-array; the loop "
-				"body is dropped rather than iterating the "
-				"wrong keys." << endl;
-			des->errors += 1;
-			return 0;
-		  }
+		       enclosing scope" form) through the expression route
+		       instead, so array_path_ here is guaranteed to have no
+		       index at all (DD-040). Wrapping the whole array_sig in
+		       a NetESignal and handing it straight to
+		       elaborate_assoc_array_() is therefore correct: every
+		       dimension gets a real loop variable, nothing is
+		       selected away. */
 		  NetESignal*array_expr = new NetESignal(array_sig);
 		  array_expr->set_line(*this);
 		  return elaborate_assoc_array_(des, scope, array_expr);
@@ -21892,13 +21962,27 @@ NetProc* PForeach::elaborate_signal_array_(Design*des, NetScope*scope,
             dims.insert(dims.end(), array_sig->packed_dims().begin(), array_sig->packed_dims().end());
       }
 
+	/* A selected prefix consumes leading dimensions. The remaining
+           fixed bounds do not depend on its value; evaluate the selector
+           once at loop entry below to preserve diagnostics and effects. */
+      if (foreach_target_has_selector_prefix_(array_path_)) {
+	    size_t selector_count = array_path_.back().index.size();
+	    if (selector_count > dims.size()) {
+		  cerr << get_fileline() << ": error: Array " << array_path_
+		       << " needs " << selector_count << " indices to select,"
+		       << " but only has " << dims.size() << " dimensions." << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+	    dims.erase(dims.begin(), dims.begin() + (long)selector_count);
+      }
+
 	// Classic arrays are processed this way.
-      if (array_sig->data_type()==IVL_VT_BOOL)
-	    return elaborate_static_array_(des, scope, dims);
-      if (array_sig->data_type()==IVL_VT_LOGIC)
-	    return elaborate_static_array_(des, scope, dims);
-      if (array_sig->unpacked_dimensions() >= index_vars_.size())
-	    return elaborate_static_array_(des, scope, dims);
+      if (array_sig->data_type() == IVL_VT_BOOL
+          || array_sig->data_type() == IVL_VT_LOGIC
+          || dims.size() >= index_vars_.size())
+            return prepend_foreach_selector_evaluation_(des, scope, *this,
+                  array_path_, elaborate_static_array_(des, scope, dims));
 
 	// At this point, we know that the array is dynamic so we
 	// handle that slightly differently, using run-time tests.
