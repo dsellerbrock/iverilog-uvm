@@ -1,7 +1,7 @@
 id: PR302-305-CORRECTNESS-REPAIR
 status: FOCUSED_TESTED_BROAD_PENDING
 base_revision: 0133287ec092a6e36d1e6fe18db28835af13e127
-merged_main_baseline: 0991f15d338f73137b416af46f6ca664a74a3d03
+merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 authority: User requests review and merge of all PRs while preserving compiler correctness; goal continuation authorizes fixing identified blockers.
 coordinator_owns: [tracked source integration, shared builds, installations, manifests, documentation, PR publication]
 lanes:
@@ -45,7 +45,7 @@ pr_integration_lane:
   agent: /root/merge_remaining_prs
   model: gpt-5.6-terra
   effort: medium
-  status: PREPARING
+  status: STOPPED_BY_USER
   authority: User explicitly requests agent merge remaining PRs, resolve conflicts and fix CI failures.
   owns: [evidence/review-20260920/pr-integration]
   initial_scope: Inspect live PR302/304/305 and prepare corresponding repair publication; no source/index/branch/remote changes before coordinator frozen checkpoint.
@@ -54,9 +54,9 @@ pr_integration_lane:
 
 focused_checkpoint:
   selectors: Both editions pass exact positive/negative/boundary checks; paired legacy and JSON gates each pass12 tests.
-  coverage: Both editions pass range, signed-zero-crossing, overlapping/disjoint values, false predicates, exact resource boundary and rejection beyond bound; paired harness pending.
+  coverage: Both editions pass range, signed-zero-crossing, overlapping/disjoint values, false predicates, exact resource boundary and rejection beyond bound; paired legacy and JSON harnesses each passed six tests.
   neighbors: Existing112 legacy foreach/cross neighbors all pass.
-  publication: No repair published or merged until qualification and final review.
+  publication: Repairs restored through user-merged PR306; broad qualification remains pending.
 
 latest_user_execution_policy:
   authority: User instruction after frozen repair checkpoint, 2026-09-20.

@@ -1,17 +1,17 @@
 status: active
-phase: focused_repairs_passed_preparing_broad_validation
+phase: merged_baseline_broad_validation_running
 branch: agent/reviewed-main-baseline-20260920
-merged_main_baseline: 0991f15d338f73137b416af46f6ca664a74a3d03
+merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 local_unqualified_integration: 0133287ec092a6e36d1e6fe18db28835af13e127
 selected_work: .ai/ACTIVE_WORK.yaml
-merged_prs: [301, 303]
-blocked_prs: [302, 304, 305]
+merged_prs: [301, 302, 303, 304, 305, 306]
+blocked_prs: []
 review_evidence: evidence/review-20260920/baseline-review.json
 previous_handoff: evidence/review-20260920/prior-CAMPAIGN.yaml
 preserved_original_patch: evidence/review-20260920/preserved-opentitan-matrix.patch
 preservation: Original adapter also retained in named git stash; all original untracked evidence retained.
-shared_process: No local build or test running at selection; main CI run35559014092 verified in_progress.
-next_action: Prepare isolated fixes, integrate sequentially, rebuild in current worktree, run focused tests then required broad qualification before publication or merging.
+shared_process: Existing qualification session25490 verified live; integrated and JSON gates passed, UVM running.
+next_action: Finish existing qualification without restarting; review isolated next-batch patches before integration.
 qualification: Pending; combined candidate is not a qualified baseline. Earlier seven-gate evidence is revision-scoped and unchanged.
 
 agent_audit:
@@ -56,7 +56,7 @@ latest_user_execution_policy:
 
 next_batch_preparation:
   lanes: [DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT, DD042-RECURSIVE-WITH]
-  active_workers: [constraint_selected_array, recursive_cross_with, merge_remaining_prs]
+  active_workers: [constraint_selected_array, recursive_cross_with]
   isolation: Disjoint private patch-artifact directories; no shared source edits or builds.
   integration_prerequisite: Existing frozen repair qualification and coordinator review.
 
@@ -69,4 +69,13 @@ post_user_merge:
   restoration_head: cec75d034ea7c5ef23c6e7420b89fedff166a07d
   restoration_verification: Compiler/test tree exactly matches focused-tested e90059a07; integrated gate passed, remaining broad gates and CI pending.
   active_qualification_session: 25490
-  next_action: Poll existing qualification and PR306 CI; merge restored candidate after local required validation and one full CI job pass; no duplicate shared runs.
+  next_action: PR306 user-merged; poll existing qualification and CI, then integrate reviewed next-batch patches. No duplicate shared runs.
+
+restored_baseline_verification:
+  main: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
+  pr: 306
+  merged_by: dsellerbrock
+  merged_at: 2026-09-21T04:29:08Z
+  source_test_equivalence: git diff against frozen e90059a07 is empty excluding docs, .ai and AGENTS.md.
+  qualification: Integrated and JSON status files are zero; UVM live; remaining gates pending.
+  ci: All six PR306 jobs queued at verification; merge is not evidence of CI qualification.
