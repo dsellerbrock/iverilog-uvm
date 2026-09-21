@@ -236,3 +236,15 @@ packed_metadata_synthesis_regression:
   scope: Private trace and minimal repair of integrated packed-metadata emission/resolution; tgt-vvp/vvp_scope.c, vvp/words.cc, tests. Propose other files before editing.
   acceptance: Original synthesis runtime reducer, matching nonsynthesis control, paired 2017/2023 packed VPI controls, exact metadata widths and alias handling; no metadata omission to conceal unsupported semantics.
   coordination: Multidist patch frozen pending integration; this is its replacement lane. Shared broad process60589 terminated on JSON failure; coordinator owns build/install and validation.
+
+selected_strict_uvm_regex:
+  id: UVM-STRICT-REGEX-GLOB-FALLBACK
+  status: PRIVATE_FOCUSED_TESTED_AWAITING_NEXT_BATCH_INTEGRATION
+  owner: caliptra_next_blocker, retained Luna low for bounded removal after coordinator root-cause proof
+  objective: Honor explicit strict/deglob mode in the real UVM DPI API without application-specific fallback.
+  scope: Private copy of uvm_dpi/uvm_dpi_iverilog.cc and focused tests only. No shared source/build/install modifications during qualification.
+  standard_boundary: Pinned UVM API behavior; IEEE1800.2 clause mapping unassessed, no IEEE1800 language qualification claim.
+  evidence: evidence/review-20260920/next-uvm-regex-assessment/current-results.json
+  root: regcomp wrapper retries invalid strict expressions as globs despite deglob=0.
+  acceptance: Invalid strict pattern returns null; same pattern explicitly deglobbed succeeds; valid regex matching/nonmatching, slash-bracket behavior, bounds, legacy strict behavior remain unchanged; paired real DPI.
+  dependencies: Event, multidist and rootseed patches frozen; this is the only active implementation lane. Coordinator alone builds private DPI candidate after review.

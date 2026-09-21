@@ -3107,3 +3107,12 @@ byte-for-byte with the pinned clean release sources; provenance is retained in
 ### 2026-09-21 VPI force callback object fidelity
 
 Review under VPI-PACKED-ELEMENT-ACCESS confirmed IEEE1800-2017/2023 38.36.1 requires statement objects for compiled force/release callbacks and prohibits variable-bit registrations. New packed variable leaves reject registration; inherited legacy variable-bit acceptance and compiled statement-object fidelity remain record-only debt. VPI-origin forces have no SV statement; selected-object callback behavior is an Icarus policy. See [scoped evidence](session_logs/2026-09-21_packed_vpi_integration.json).
+
+## UVM-STRICT-REGEX-GLOB-FALLBACK — 2026-09-21
+
+- Active work: nine-fix batch qualification; read-only GPIO DPI assessment.
+- Observation: the modern Icarus UVM DPI wrapper retries invalid strict regular expressions as globs even when the caller passes deglob=0. A paired 2017/2023 direct-DPI reducer fails because `uvm_re_comp("*_shadowed", 0)` returns a compiled handle. Explicit deglob=1 and valid strict `.*_shadowed` controls succeed.
+- Root: `uvm_dpi/uvm_dpi_iverilog.cc::uvm_ivl_regcomp` fallback overrides the explicit mode passed through the unmodified upstream UVM regex API.
+- Authority: pinned `uvm-core/src/dpi/uvm_regex.{svh,cc}` explicitly distinguishes strict matching from requested glob conversion; this is a UVM-library semantic issue, not an IEEE1800 language-feature count. Exact IEEE1800.2 clause mapping remains unassessed.
+- Evidence: `evidence/review-20260920/next-uvm-regex-assessment/current-results.json` and `strict_regex.sv`; installed binary, real DPI, no corpus edits.
+- Triage: reproduced, suitable for a bounded removal of the fallback with strict-invalid, valid regex, explicit glob, bracket and length/error controls. Keep legacy API strict. GPIO's observed legacy errors need independent classification and are not fixed by loosening regex semantics.

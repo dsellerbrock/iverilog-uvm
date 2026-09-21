@@ -7,13 +7,13 @@ merged_baseline:
   ci: All six jobs passed; docs/conformance/session_logs/2026-09-21_pr307_final_ci.json
 current_batch:
   integrated_fixes: 9
-  semantic_revision: dba0473b6
-  test_revision: 81ea0fab5
+  semantic_revision: c1635efe9
+  test_revision: c1635efe9
   state: BROAD_RERUN_AFTER_PACKED_METADATA_REPAIR
   cadence: Approximately ten fixes; full-UVM policy also triggers after eight stable changes. Private next-batch work is excluded.
-  evidence: evidence/review-20260920/batch-nine-20260921
-  live_exec_session: none; session60589 terminated on JSON failure
-  command: Repair VPI-PACKED-ELEMENT-ACCESS-SYNTH-REGRESSION, validate focused synthesis/runtime controls, rebuild only affected artifacts, then resume broad gates with new fingerprints.
+  evidence: evidence/review-20260920/batch-nine-20260921-repaired
+  live_exec_session: 60450; prior session60589 terminated on JSON failure
+  command: Resume write_stdin session60450; inspect batch-nine-20260921-repaired/gates-status.json. Source frozen; do not restart a live gate on observation timeout.
   serial_gates: integrated legacy/VPI/negative/runtime, JSON, NFA, frontend, full real-DPI UVM, release matrix, makecheck
   first_failure: Two old tests required ordered randc rejection. Now require real constrained cycles, retaining cyclic-order negative. Six focused cases pass in each harness; integrated rerun passed; JSON then failed synth_interface_member_transfer-S packed metadata binding.
   first_failure_evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_legacy_expectation.json
@@ -61,3 +61,10 @@ resumption:
   last_turn: Progress; reviewed private solver, established fresh rootseed red, corrected obsolete regression oracle and resumed required broad gate.
   next_action: Resume new serial broad gate run; private event nested-callback audit passed. No further source/build mutations until gates terminate.
   historical_state: Prior chronological CAMPAIGN preserved in git81ea0fab5 and earlier commits; historical session records unchanged.
+
+private_regex_checkpoint:
+  blocker: UVM-STRICT-REGEX-GLOB-FALLBACK
+  state: Private patch reviewed and real-DPI focused-tested; installed bundle unchanged.
+  worker: Retained Luna low completed bounded deletion; coordinator built private bundle and corrected portable reducer.
+  evidence: docs/conformance/session_logs/2026-09-21_strict_uvm_regex_private.json
+  next: Permanent registration and next-batch integration after current frozen qualification/publication. Not part of nine integrated fixes.
