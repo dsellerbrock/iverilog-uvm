@@ -1,0 +1,29 @@
+{
+  "batch_semantic_revision": "dba0473b6",
+  "gate": "integrated",
+  "failure": "Two old mixed positive/negative tests still required supported ordered randc to fail.",
+  "cases": [
+    "sv_randomize_global_ordered_fail",
+    "sv_randomize_global_ordered_fail_2023"
+  ],
+  "classification": "Obsolete unsupported-feature expectation, not removal of valid negative coverage.",
+  "repair": "Require successful constrained values and complete nonrepeating2value cyclic history; retain illegal cyclic ordering diagnostic and selected-array ordering checks. Add both cases to permanent ordered-randc focus lists.",
+  "binary_unchanged": true,
+  "earlier_passing_subgates": {
+    "vpi": 116,
+    "negative": 148,
+    "runtime_invariants": 15
+  },
+  "evidence": "evidence/review-20260920/batch-nine-20260921/first-failure",
+  "rerun": "Focused legacy/JSON then integrated gate and remaining required batch suites.",
+  "focused_result": {
+    "legacy": {
+      "passed": 6,
+      "failed": 0
+    },
+    "json": {
+      "passed": 6,
+      "failed": 0
+    }
+  }
+}

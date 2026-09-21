@@ -194,3 +194,35 @@ batch_qualification:
   integrated_fixes: 9
   reason: Approximately-ten cadence and full-UVM policy threshold; event patch stays private until acceptance passes.
   coordinator: Owns serial broad suites and PR preparation; no source integration/build/install until gates terminate.
+
+selected_runtime_root_seed:
+  id: DV-RUNTIME-ROOT-SEED
+  status: PRIVATE_PATCH_PREPARED_AWAITING_COORDINATOR_VALIDATION
+  owner: caliptra_next_blocker, retained Luna low for mechanical historical-patch rebase; coordinator owns semantic review and runtime validation.
+  objective: Restore application-selectable runtime root seeding without changing default streams or hierarchical random stability.
+  standard_boundary: IEEE1800-2017/2023 random stability and explicit seeding are invariants; +ntb_random_seed syntax is a vendor-compatible DV extension, not a normative IEEE option.
+  red: evidence/review-20260920/rootseed-baseline-audit/current-runtime.json shows seed1 and seed2 produce identical four random words in both editions; option parser absent.
+  root: Historical a8b831496 feature was not integrated in current main lineage; do not blindly cherry-pick unrelated files or cite old qualification.
+  scope: Private mechanical rebase of vvp/compile.cc, vvp/vthread.cc, vvp/vthread.h and root-seed regressions from a8b831496; no shared source/build/install changes during qualification.
+  acceptance: Compare actual random payloads, not echoed seed labels; same-seed replay, different-seed variation, default compatibility, hierarchy/sibling stability, explicit overrides, numeric boundaries and focused invalid-option errors before simulation; both editions.
+  dependencies: Disjoint from event worker files; integration after frozen batch qualification. No new worktree.
+
+selected_ordered_randc_multidist:
+  id: JOINT-ORDERED-RANDC-MULTIDIST
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_PRIVATE_IMPLEMENTATION
+  owner: constraint_guard_semantics, retained Sol medium
+  standards: Both editions18.4.2; 2017 18.5.4/18.5.10 and2023 18.5.3/18.5.9.
+  reproducer: evidence/review-20260920/next-constraint-ordered-randc-multidist-assessment/joint_ordered_randc_multiple_dist.sv
+  root: Multi-distribution preflight omits implicit cyclic and intermediate weighted prefixes; current implementation rejects this valid combination before drawing.
+  scope: Private vvp/vvp_z3.cc patch and focused regressions only. No shared edits/build/install during frozen batch qualification.
+  design: Reuse exact distribution resolver, expose nonmutating positive support and prove existing-cap complete component prefix tree before any draw; then reuse transactional cyclic and ordinary staged sampling.
+  policy: Conflicting statistical weights may follow existing documented priority under the full IEEE exceptions; all hard domains and zero-weight exclusions remain mandatory. No mandated-product or cross-vendor-identical probability claim.
+  acceptance: Paired weighted/cyclic/order interactions, zero/excluded fibers, caps, replay and complete value/RNG/history/callback rollback; preserve edition-specific range rules and single-dist marginal tests.
+  forbidden: Drop hard constraints, silently fallback, increase caps, choose only successful unsupported prefixes, alter shared frozen source.
+  dependencies: Rootseed mechanical rebase is complete and waiting; only event and this solver lane actively implement.
+
+event_callback_replay_scope:
+  state: PRIVATE_REVIEW_PENDING
+  files: vvp/vvp_net.h and vvp/vvp_net_sig.cc in addition to existing event/logic/part ownership.
+  purpose: Source transaction boundaries and ordered callback-origin marked-cone replay preserve parent atomicity and separate nested source pulses while ordinary storage/callback execution stays synchronous.
+  acceptance: Parent-fanout low/high/reordered callback taps, automatic context liveness/recycling and active-null negatives; no shared integration before full focused matrix and coordinator review.

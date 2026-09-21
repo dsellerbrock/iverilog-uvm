@@ -190,3 +190,23 @@ batch_nine_qualification:
   shared_state: No builds/install/source mutations during gates; workers private only.
   evidence: evidence/review-20260920/batch-nine-20260921
   next: Run existing rootseed, integrated legacy/VPI/negative/runtime, JSON, NFA, frontend, full real-DPI UVM, release matrix and make-check gates serially; stop on failure.
+
+rootseed_rebase_selection:
+  evidence: evidence/review-20260920/rootseed-baseline-audit/current-runtime.json
+  result: Actual random payload identical for distinct root-seed options in both editions; historical parser absent.
+  next: Retained Luna mechanically rebases historical implementation/tests privately. Coordinator will strengthen echoed-label variation oracle and validate semantics before integration in following batch.
+  qualification_boundary: Current nine-fix shared source remains frozen; missing rootseed command is not reported as a passing gate.
+multidist_monotonicity_review:
+  evidence: evidence/review-20260920/next-constraint-multidist-monotonic-assessment/RESULTS.md
+  result: Both editions ignore later positive weights in equality-coupled ordinary distributions;1000same-seeded draws identical after1:1-to1:9 change.
+  next: Full-clause review permits prioritizing conflicting statistical weights while retaining hard domains; equality-conflict reducer does not establish a conformance defect. Preserve the documented policy and verify cyclic-prefix preflight before any future extension. No implementation authorized yet.
+
+batch_first_failure:
+  evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_legacy_expectation.json
+  state: Integrated gate stopped on two obsolete ordered-randc rejection expectations; VPI116/116,negative148/148,invariants15/15 passed.
+  action: Replace unsupported expectation with actual cycle/constraint assertions and retain true cyclic-order negative; add to focused manifests, rerun gates. Source/runtime remain unchanged.
+
+next_batch_private_lanes:
+  rootseed: Mechanical rebase prepared by Luna; coordinator validation/integration waits for frozen batch completion.
+  solver: JOINT-ORDERED-RANDC-MULTIDIST private implementation authorized after full-clause interpretation review; existing priority permitted for incompatible statistical requests, hard-domain obligations unchanged.
+  event: Worker reports atomic/pulse/callback/table/rebind controls pass both editions; latest liveness/full matrix and review pending. Private only.

@@ -2,3 +2,5 @@ sv_randomize_joint_ordered_randc normal,-g2017 ivltests gold=sv_randomize_joint_
 sv_randomize_joint_ordered_randc_2023 normal,-g2023 ivltests gold=sv_randomize_joint_ordered_randc.gold
 sv_randomize_joint_ordered_randc_fail normal,-g2017 ivltests gold=sv_randomize_joint_ordered_randc_fail.gold
 sv_randomize_joint_ordered_randc_fail_2023 normal,-g2023 ivltests gold=sv_randomize_joint_ordered_randc_fail.gold
+sv_randomize_global_ordered_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
+sv_randomize_global_ordered_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
