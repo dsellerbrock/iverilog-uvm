@@ -9027,6 +9027,14 @@ bool vvp_z3_randomize_scope(const string&ir,
 	    return false;
       }
 
+      if (result == Z3_L_UNDEF) {
+            fprintf(stderr, "ERROR: scope randomization solver returned UNKNOWN; "
+                    "no valid randomized result was produced.\n");
+            Z3_optimize_dec_ref(ctx, opt);
+            Z3_del_context(ctx);
+            return false;
+      }
+
       values = targets;
       if (result == Z3_L_TRUE) {
 	    Z3_model model = Z3_optimize_get_model(ctx, opt);
@@ -9050,14 +9058,6 @@ bool vvp_z3_randomize_scope(const string&ir,
 		  }
 	    }
 	    Z3_model_dec_ref(ctx, model);
-      } else {
-	    static bool warned_unknown = false;
-	    if (!warned_unknown) {
-		  fprintf(stderr, "Warning: scope randomization solver returned "
-			  "UNKNOWN; unconstrained random targets are used "
-			  "(further similar warnings suppressed).\n");
-		  warned_unknown = true;
-	    }
       }
 
       Z3_optimize_dec_ref(ctx, opt);
