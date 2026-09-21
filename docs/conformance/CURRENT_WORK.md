@@ -193,3 +193,5 @@ The [PR309 CI checkpoint](session_logs/2026-09-21_pr309_ci_checkpoint.json) reco
 Latest SPI Host compiler checkpoint: [fixed member-array constraint evidence](session_logs/2026-09-21_spi_host_member_array_focus.json). Required broader checks and application blockers remain explicit in the record.
 
 The [OpenTitan configuration correction and replay](session_logs/2026-09-21_opentitan_regex_configuration.json) supersedes the earlier no-configuration-mismatch conclusion. Application qualification remains limited as recorded there.
+
+[Dependency-kind regression repair](session_logs/2026-09-21_spi_host_dependency_kind_repair.json) records the broad-gate failures and focused recovery for PR311; broader requalification remains pending.
