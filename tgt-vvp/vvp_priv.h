@@ -276,6 +276,9 @@ extern uint64_t get_number_immediate64(ivl_expr_t ex);
  */
 extern void draw_eval_vec4(ivl_expr_t ex);
 extern void resize_vec4_wid(ivl_expr_t expr, unsigned wid);
+extern void event_expr_capture_vec4_result(ivl_expr_t ex);
+extern void event_expr_capture_object_result(ivl_expr_t ex);
+extern int event_expr_capture_active(ivl_expr_t ex);
 
 /*
  * draw_eval_real evaluates real value expressions. The result of the

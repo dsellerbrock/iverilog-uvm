@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_mixed_event_program_queued_writer_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_mixed_event_program_queued_writer"
+  ],
+  "gold": "sv_mixed_event_program_queued_writer_2023"
+}

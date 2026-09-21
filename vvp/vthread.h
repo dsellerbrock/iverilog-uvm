@@ -150,6 +150,10 @@ extern void vthread_schedule_event_waiters(vthread_t&thr);
 extern bool vthread_schedule_non_pure_comb_waiters(vthread_t&thr);
 extern void vthread_schedule_pure_comb_waiters(vthread_t&thr);
 extern void vthread_schedule_mutation_waiter(vthread_t thr);
+/* Retain a waiter snapshot while one member's synchronous expression recipe
+ * may disable or reap another member of that same snapshot. */
+extern void vthread_pin(vthread_t thr);
+extern void vthread_unpin(vthread_t thr);
 /* Insert THR at the intrusive wait-list HEAD and remember the exact link that
  * owns it. This makes an ordinary event wait cancellable in O(1) when a
  * disabled fork kills the waiting branch. */

@@ -307,3 +307,7 @@ The [descendant automatic VIF event checkpoint](matrices/ieee1800_2017_clause_ma
 #### 2026-09-21: §18.5.3 large distribution range evidence
 
 The paired large-range tests retain original declared range mass after hard exclusions, as specified explicitly in 2023. See [shared revision-scoped evidence](session_logs/2026-09-21_exact_large_dist_focus.json) for implementation boundaries and passing local gates; the 2017 record does not assume identical normative wording.
+
+#### 2026-09-21: §9.4.2 synchronous mixed event evidence
+
+The [shared mixed-event subset](matrices/ieee1800_2017_clause_matrix.md#september-21-synchronous-mixed-event-dependencies) has separate 2023 semantic and cancellation regressions. No edition-specific difference or full-clause qualification is asserted; required local gates pass in the linked revision-scoped evidence.

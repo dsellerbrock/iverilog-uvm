@@ -370,6 +370,11 @@ static const struct opcode_table_s opcode_table[] = {
       { "%evctl/i",of_EVCTLI, 2,  {OA_FUNC_PTR, OA_BIT1,     OA_NONE} },
       { "%evctl/s",of_EVCTLS, 2,  {OA_FUNC_PTR, OA_BIT1,     OA_NONE} },
       { "%event",    of_EVENT,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
+      { "%event/expr/load/o",of_EVENT_EXPR_LOAD_OBJECT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%event/expr/load/v",of_EVENT_EXPR_LOAD_VEC4,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
+      { "%event/expr/return",of_EVENT_EXPR_RETURN,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%event/expr/save/o",of_EVENT_EXPR_SAVE_OBJECT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%event/expr/save/v",of_EVENT_EXPR_SAVE_VEC4,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%event/nb", of_EVENT_NB, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },
       { "%evt/arr",   of_EVT_ARR,    2, {OA_NUMBER, OA_BIT1, OA_NONE} },
       { "%evt/arr/nb",of_EVT_ARR_NB, 3, {OA_NUMBER, OA_BIT1, OA_BIT2} },
@@ -787,6 +792,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/arr",of_WAIT_ARR,2,{OA_NUMBER,  OA_BIT1,     OA_NONE} },
       { "%wait/fork",of_WAIT_FORK,0,{OA_NONE,   OA_NONE,     OA_NONE} },
       { "%wait/obj",of_WAIT_OBJ,1,{OA_NUMBER,  OA_NONE,     OA_NONE} },
+      { "%wait/obj/expr",of_WAIT_OBJ_EXPR,2,{OA_FUNC_PTR,OA_CODE_PTR2,OA_NONE} },
       { "%wait/obj/mutation",of_WAIT_OBJ_MUTATION,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/obj/mutation/filtered",of_WAIT_OBJ_MUTATION_FILTERED,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%wait/obj/mutation/filtered/multi",of_WAIT_OBJ_MUTATION_FILTERED_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
@@ -3043,6 +3049,15 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 			opa->argv[idx].symb.text, mnem);
 		  break;
 	    }
+      }
+
+      if (op->opcode == of_EVENT_EXPR_RETURN && code->number == 0) {
+            yyerror("%event/expr/return path count must be nonzero");
+            compile_errors += 1;
+      }
+      if (op->opcode == of_EVENT_EXPR_LOAD_VEC4 && code->bit_idx[0] == 0) {
+            yyerror("%event/expr/load/v width must be nonzero");
+            compile_errors += 1;
       }
 
       free(opa);

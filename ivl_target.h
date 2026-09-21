@@ -884,6 +884,7 @@ extern ivl_expr_t  ivl_event_obj_mutation_property_word_expr(ivl_event_t net, un
 extern unsigned    ivl_event_obj_mutation_property_bit(ivl_event_t net, unsigned idx);
 extern ivl_expr_t  ivl_event_obj_mutation_property_bit_expr(ivl_event_t net, unsigned idx);
 extern ivl_expr_t  ivl_event_obj_mutation_owner_expr(ivl_event_t net, unsigned idx);
+extern ivl_expr_t  ivl_event_observer_expr(ivl_event_t net);
 
 extern const char*ivl_event_file(ivl_event_t net);
 extern unsigned ivl_event_lineno(ivl_event_t net);

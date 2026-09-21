@@ -1,19 +1,20 @@
 campaign: IEEE1800-UVM-continuous
-mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra
-  RTL/DV and eventual formal foundation; preserve1364, UPF deferred.
-branch: agent/opentitan-exact-dist-20260921
+mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV
+  and eventual formal foundation; preserve1364, UPF deferred.
+branch: agent/opentitan-mixed-event-20260921
 history: docs/conformance/session_logs/2026-09-21_before_exact_dist_qualification_CAMPAIGN.yaml
 baseline:
-  main: 7e726f52192ebcfed78a2edbf92af33890e72184
-  last_broad_qualification: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
+  main: e2f804f0d816e6feb9e2402f761129ffffb69abd
+  last_broad_qualification: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
   vif_dependency: PR313 externally merged; this batch also qualifies the VIF runtime fix.
 active: .ai/ACTIVE_WORK.yaml
 source:
-  source_patch_sha256: 949fdb1e68a1cdafb4075a2600f4f7207ab3119c17989d1ab0ab80bcd9b5fef4
-  runtime_sha256: 75d7efb0aba206648e3dd0fb23777cf8490339962f7938a5db7da1ea7dbe273a
-  evidence: docs/conformance/session_logs/2026-09-21_exact_large_dist_focus.json
-  compiler_edits: Frozen until qualification finishes or a concrete regression requires correction.
-  gates: Allrequiredlocalgatespassed; see revision-scoped evidence. CI pendingpublication.
+  head: e2f804f0d816e6feb9e2402f761129ffffb69abd
+  source_patch_sha256: 77051d66fe5870a466750b07dc14048f10055b8d54b5908d9c30a55307dfc1b7
+  runtime_sha256: 4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0
+  evidence: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
+  compiler_edits: Observer-build3 frozen; unpublished superseded opcode removed; no unbuilt compiler edits.
+  gates: All seven local gates passed; exact counts and hashes in source.evidence.
 live_sessions: {}
 terminal_sessions:
   integrated_first:
@@ -59,25 +60,126 @@ terminal_sessions:
     negative: 148
     runtime: 15
     stable_hashes: true
+  mixed_event_build:
+    id: 99277
+    build_exit: 0
+    install_exit: 0
+  mixed_event_focus:
+    id: 40468
+    exit: 0
+    passed: 28
+  pwrmgr_candidate1:
+    id: 7219
+    wrapper_exit: 0
+    matrix_exit: 1
+    reason: DEBT from11compilewarnings; runtime0,zeroerrors/fatals,normalfinish; completed traffic audit in
+      pwrmgr-traffic1.
+  adjacent1:
+    id: 12572
+    exit: 0
+    passed: 96
+  pwrmgr_traffic1:
+    id: 68641
+    exit: 0
+    audit: Completed:25A/Dpairs,2genericreadcompares plus dedicated checks and drain; see durable mixed-event
+      focus record.
+  broad_chain:
+    id: 36196
+    exit: 0
+    NFA: 58
+    UVM_real_DPI: 358
+    frontend: ALL_SCENARIOS_PASSED
+    makecheck: 0
+  integrated_interference:
+    id: 2524
+    exit: 1
+    evidence: evidence/review-20260920/opentitan-mixed-wait-qualification/interference.json
+  pwrmgr_extra_seeds:
+    id: 41760
+    seed2: normalfinish zeroerrors/fatals
+    seed3: EscClkStopEscTimeout_A at26220918ps;1UVMerror,notpass
+  mixed_event_integrated_json_rerun:
+    id: 58901
+    exit: 0
+    legacy_passed: 6180
+    legacy_failed: 0
+    not_implemented: 2
+    expected_fail: 3
+    vpi: 126
+    negative: 148
+    json_ran: 3116
+    json_failed: 0
+    evidence: evidence/review-20260920/opentitan-mixed-wait-qualification/integrated-rerun/
+  observer_build1:
+    id: 36174
+    exit: 2
+    reason: vvp_vector4_t lacks operator!=; coordinator replaced with !eeq for exact4state comparison. No install
+      occurred.
+  observer_build2:
+    id: 16696
+    exit: 0
+  observer_build3:
+    id: 66418
+    exit: 0
+  observer_focus2:
+    id: 28636
+    exit: 0
+    private_passed: 52
+    legacy: 44
+    json: 44
+    abi: 7
+  pwrmgr_observer1:
+    id: 78171
+    compile_exit: 0
+    seed1: normalfinish zeroerrors/fatals
+    seed3: FAIL1UVMerror EscClkStopEscTimeout_A
+  observer_qualification:
+    id: 80067
+    exit: 0
+  observer_final_apps:
+    id: 63087
+    exit: 0
+    limitation: Application failures assessed from logs, not process status.
 applications:
   opentitan: Clean Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127 / Accellera UVM1.2; application
     generation modeg2012, paired reducersg2017/g2023.
   gpio: Finalruntime510matchedA/D, nooutstanding,314scoreboardwrites196reads,zeroUVMerrors/fatals,no distributionfallback.
     Ten sourcewarnings assessed separately; nofullsuiteclaim.
-  caliptra: 'Clean v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e / AdamsBridgev2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0:
-    power2round2048pass; rej_bounded8failuresin10cases persists.'
-  pwrmgr: 'Priorfalse-nullfixed; PH_TIMEOUT persists. New pairedred: localvector sensitivity dropped withclasspropertyindex.
-    Designcomplete, implementationpendingcurrentqualification.'
+  caliptra: 'Observer-build3 fresh compile/runtime: power2round2048 pass; rej_bounded10 cases8 errors. Clean
+    stable v2.1.2/ABv2.0.3.'
+  pwrmgr: 'Observer-build3 stable M6 replay: seed1 normal completion, seed3 EscClkStopEscTimeout_A remains.
+    Final traffic audit confirms25 matched/drained A/D and zero UVM errors/fatals for seed1; no full DV claim.'
 next:
-- Commit/push/openPR with all localgate evidence; captureURL andCI.
-- Select/authorizepwrmgr mixed-event fix after finalarmingreview; preserve distributionpatch.
+- Final traffic audit passed; explicitly stage owning documentation, commit and publish event-expression
+  PR.
+- Merge after one CI pass with all required local gates passed; then refresh canonical main graph and select
+  next OpenTitan blocker.
 agents:
-  canonical_graph_refresh: 'Terra medium: private pwrmgr mixed-eventboundaryreducers.'
-  vif_proxy_implementation: 'Sol medium: readonlystableCaliptrarej_boundedfirstqueueunderflowassessment.'
-graph: Canonical9b3ba770a; one VIFpatch behindmain, verify currentcode. Refreshcanonicalafternewmerge,
-  nofeaturegraph.
-publication: Reviewedexplicitpaths staged; readycommit/push/PR. ExternalAGENTS excluded.
-preservation: External87-lineAGENTS.md patch and unrelated evidence unchanged; nineexistingworktrees,
-  no newclones or cleanup.
-vcs_quirks: Check officialvendoroptions/differential evidence whenblockers suggest them; IEEE remains
-  normative, applications unmodified.
+  canonical_graph_refresh: 'Terra medium: target recipe with in-order frame-local selector/owner captures;
+    exact files ACTIVE_WORK.'
+  vif_proxy_implementation: 'Sol medium: authorized synchronous observer runtime; exact files ACTIVE_WORK.'
+graph: Canonical checkout and shared graph e2f804f0d; validated51337nodes94263edges, atomiccutover and oldgeneratedartifact
+  retired. AST-only limitations and23partialparses in evidence/review-20260920/opentitan-mixed-wait-implementation/graph-refresh.json.
+publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/314
+  head: bb94b59b7
+  state: MERGED_EXTERNALLY
+  ci_run: 35654962546
+  ci_status: PR314 Ubuntu24.04 SUCCESS; other jobs pending at last observation.
+  local_validation: Allrequiredgatespassed
+  merge_authority: User authorizes merge afteroneCIpass with requiredlocalgatespassed; inspectfreshchecks beforemerge,
+    laterfailures followup.
+preservation: External87-lineAGENTS.md patch and unrelated evidence unchanged; nineexistingworktrees, no newclones
+  or cleanup.
+vcs_quirks:
+  trigger: When a reduced OpenTitan or Caliptra blocker suggests simulator-dependent behavior, investigate
+    official VCS documentation and available differential evidence.
+  evidence: Record simulator version, command-line options, pinned corpus revision, seed, reducer and observed
+    behavior; distinguish documented extensions, permitted IEEE scheduling differences, application races and
+    Icarus defects.
+  boundary: IEEE remains normative; retain unmodified release sources and never infer a VCS quirk from an Icarus
+    failure alone.
+  candidate: Caliptra rej_bounded Active-region race is a comparison candidate, not a confirmed VCS dependency;
+    see evidence/review-20260920/caliptra-rej-underflow-next/ASSESSMENT.md.
+exact_next_tool: Read final pwrmgr-audit.json; validate source hashes; explicitly stage own docs and commit/push/open
+  PR using prepared body.

@@ -316,11 +316,17 @@ void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
          from every sibling object, preventing duplicate scheduling later. */
       vvp_object_t keep_self(this);
       for (std::set<vthread_t>::const_iterator cur = waiters.begin();
+           cur != waiters.end(); ++cur)
+            vthread_pin(*cur);
+      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur) {
             vthread_t thread = *cur;
             remove_mutation_waiter_(thread);
             vthread_schedule_mutation_waiter(thread);
       }
+      for (std::set<vthread_t>::const_iterator cur = waiters.begin();
+           cur != waiters.end(); ++cur)
+            vthread_unpin(*cur);
 }
 
 vvp_object::~vvp_object()

@@ -1,78 +1,144 @@
-id: OT-GPIO-EXACT-LARGE-DIST-RANGES
-status: REGRESSION_TESTED_DOCUMENTED_READY_TO_PUBLISH
-objective: Full IEEE1800-2017 and2023 separately; IEEE1800.2/UVM; unmodified OpenTitan/Caliptra RTL/DV
-  and standards-correct SVA/formal frontend.
-branch: agent/opentitan-exact-dist-20260921
+id: OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT
+status: DOCUMENTED_PENDING_PUBLICATION
+branch: agent/opentitan-mixed-event-20260921
 baseline:
-  main: 7e726f52192ebcfed78a2edbf92af33890e72184
-  last_broad_qualification: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
-  vif_dependency: PR313 externally merged; this batch also qualifies the VIF runtime fix.
-history: docs/conformance/session_logs/2026-09-21_before_exact_dist_qualification_ACTIVE_WORK.yaml
-authority: User-authorized continuous campaign; coordinator owns selected implementation scope and all
-  qualification. Two retained agents perform bounded independent read-only assessments during source freeze.
+  main: e2f804f0d816e6feb9e2402f761129ffffb69abd
+  qualification: docs/conformance/session_logs/2026-09-21_exact_large_dist_focus.json
+  ci: PR314 merged; Ubuntu24.04 SUCCESS, remaining jobs pending at latest observation.
+objective: Full IEEE1800-2017 and2023 separately; IEEE1800.2/UVM; unmodified OpenTitan/Caliptra RTL/DV and
+  standards-correct SVA/formal frontend.
+authority: User-authorized continuous campaign. Candidate1 patch/evidence preserved. Coordinator authorizes
+  synchronous observer runtime and frontend lowering within listed files. Source checkpoint is coherent and
+  installed as observer-build3; required serial qualification is running.
 coordination:
   coordinator: Selection, normative interpretation, integration, all shared builds/installations/test-output
     directories, registration manifests, documentation and final review.
   agent_limit: Two retained cheaper agents, disjoint private evidence ownership; no newworktrees.
-  preservation: External87-line AGENTS.md addition and unrelated artifacts untouched. Explicit staging
-    only.
-  builds: Agents submit patches and private reducers; coordinator builds after coherent source checkpoint.
-    No simultaneous edits outside owned files.
-  correctness: No app workarounds, null suppression, discarded constraints, fake values or probability
-    approximations. Unsupported requested behavior must fail explicitly.
-lanes:
-  distribution:
-    id: OT-GPIO-EXACT-LARGE-DIST-RANGES
-    owner: Coordinator qualification; Sol implementation complete
-    status: LOCALLY_REGRESSION_TESTED
-    clauses: 2017 18.5.4 and2023 18.5.3 distribution; preserve exact existing bounded item semantics.2023
-      explicitly retains full source-range weight under exclusions; do not invent2017 wording.
-    evidence: evidence/review-20260920/opentitan-gpio-dist-next/COMPONENT-DESIGN.md and LARGE-ITEM-TESTS.md
-    reproducer: evidence/review-20260920/opentitan-gpio-dist-next/dist_large_range_items.sv
-    expected: Exact weighted item selection and uniform feasible member selection for large ground integral
-      ranges; preserve signed bounds, overlap, exclusions, zero weights and deterministic RNG ownership.
-    root: Exact resolver expands every range and refuses above cap; fallback optimizes soft objectives
-      instead of sampling probability.
-    allowed_files: vvp/vvp_z3.cc; private evidence and uniquely named sv_dist_large_exact_* regression
-      source/gold/config files.
-    design: Reuse DistSpec, component traversal and RNG; prove isolated subject factor and construct its
-      local hard conjunction. Discover verified feasible intervals without enumerating members; select
-      using exact mass/cardinality. Never negate global conjunction with unrelated free variables.
-    boundaries: Direct isolated integral subject or proven singleton expression, <=64-bit, <=64 intervals/item,
-      checked counts and mass. UNKNOWN, coupled or non-singleton expressions fail explicitly.
-    excluded: Parser/API changes, app constraint rewrites, raising enumeration cap, approximate sampling,
-      joint-variable distributions or new broad solver architecture without coordinator reassessment.
-    acceptance: Paired probability/domain/reseed tests with combined false-rejection bound below1e-8,
-      subcap controls, exclusions/overlap/zero/empty ranges, signed and overflow boundaries, related constraint
-      suites, corrected pinned GPIO replay and required regression gates.
-    prior_behavior: Over256member ranges use weighted-soft fallback; paired reducers expose wrong probabilities
-      despite deterministic reseeding.
-    current: Exact selected subset passes paired focus/fullJSON/NFA/realDPIUVM; firstlegacy gate differs
-      only stalewarninggold nowcorrected. Finallegacy/frontend pending.
-completion:
-  per_fix: Implement smallest complete fix, root build and focused positive/negative/boundary/interaction
-    validation, permanent regressions and exact claims.
-  broad: HIGH runtime semantic risk; required broad gates at coherent batch checkpoint before promotion.
-    Prior qualification evidence remains immutable.
-  applications: No DV pass from process0 or banners alone; require real traffic/checking, drain and normal
-    completion without semantic-degradation diagnostics.
-  next: Agents submit source patches; coordinator review/build/tests then integrate. New discoveries are
-    record-only.
+  preservation: External87-line AGENTS.md addition and unrelated artifacts untouched. Explicit staging only.
+  builds: No live shared build/test. Observer-build3 frozen; all required gates passed.
+  correctness: No app workarounds, null suppression, discarded constraints, fake values or probability approximations.
+    Unsupported requested behavior must fail explicitly.
+clauses: IEEE1800-2017 and2023 9.4.2; preserve 9.3.2 join_none arming and 4.4 stratified regions.
+reproducer: evidence/review-20260920/opentitan-pwrmgr-timeout-next/mixed-event-acceptance/
+expected: Selected local-vector value changes and class selector mutations re-evaluate the same event expression;
+  only expression value changes resume the caller, exactly once.
 current:
-  source_patch_sha256: 949fdb1e68a1cdafb4075a2600f4f7207ab3119c17989d1ab0ab80bcd9b5fef4
-  runtime_sha256: 75d7efb0aba206648e3dd0fb23777cf8490339962f7938a5db7da1ea7dbe273a
-  evidence: docs/conformance/session_logs/2026-09-21_exact_large_dist_focus.json
-  compiler_edits: Frozen until qualification finishes or a concrete regression requires correction.
-  gates: Allrequiredlocalgatespassed; see revision-scoped evidence. CI pendingpublication.
-next_assessment:
-  id: OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT
-  status: PAIRED_REPRODUCED_ROOT_CAUSED_DESIGN_ONLY
-  owner: Terra read-only design; no implementation authorized yet
-  clauses: 2017/2023 9.4.2 event expression changes
-  evidence: evidence/review-20260920/opentitan-pwrmgr-timeout-next/REDUCER_ASSESSMENT.md
-  design: Reuse existing elaborate_wait mixed-family isolated join_any/cancellation plus expression filter.
-    Do not remove mixed-family rejection without correct subscriptions/cancellation.
-readonly_parallel:
-  pwrmgr: Terra paired boundary/cleanup reducers using approved mixed-eventdesign; private evidenceonly.
-  caliptra: Sol first queueunderflow rootcause fromstable rej_bounded10casereplay; no application/compiler
-    edits.
+  build: Observer-build3 build/install/FPGA exit0; snapshots/hash manifest preserved.
+  focus: 52paired private runs pass,44legacy+44JSON permanent tests pass,7recipe ABI checks pass;96adjacent
+    pass on observer-build2.
+  malformed: New recipe ABI compile/runtime rejection and valid recipe checks pass7/7; superseded unpublished
+    opcode removed.
+  pending: PR publication; final traffic audit passed.
+  adjacent: 96/96 legacy+JSON checks pass across property events, resource waits, VIF events, finish and statement
+    events.
+  application: 'Final observer-build3: pwrmgr seed1 normal completion, seed3 assertion persists; Caliptra power2round2048
+    pass, rej_bounded8 errors/10 cases.'
+  warnings: Pwrmgr2resolved-wire coercions legal;9generated assertion-template NBAs legal with delta-order
+    hazard; warnings retained, no separate compilerdefect proven.
+root: Existing NetEvent retains ordinary pins and mutation paths, but target emits mutation-only wait. Forked
+  helper rejected because it can delay subscription in Reactive processes.
+allowed_files:
+- elaborate.cc
+- tgt-vvp/vvp_process.c
+- vvp/vthread.cc
+- vvp/codes.h
+- vvp/compile.cc
+- private evidence and uniquely named permanent mixed-event tests
+- tests/vvp_runtime/mixed_wait_malformed.{vvp,stdout,stderr}
+- tests/vvp_runtime/mixed_wait_recipe_*.{vvp,stdout,stderr}
+- tests/vvp_runtime/run_mixed_wait_malformed.sh
+- .github/ivtest_gate.sh (register selected opcode negative test only)
+- netlist.h
+- net_event.cc
+- t-dll.h
+- t-dll.cc
+- t-dll-api.cc
+- ivl_target.h
+- vvp/vthread.h
+- vvp/event.cc
+- vvp/event.h
+- vvp/vvp_object.cc
+- vvp/vvp_object.h
+- tgt-vvp/eval_vec4.c
+- tgt-vvp/eval_object.c
+- tgt-vvp/eval_expr.c
+- tgt-vvp/vvp_priv.h
+- t-dll-expr.cc
+forbidden: No application edits, forked observer subscription, new expression interpreter, unrelated wait-family
+  changes, discarded function semantics or broad scheduler refactor. Existing unsupported mixed static/global
+  and separate-event-list diagnostics remain.
+lanes:
+  target:
+    owner: canonical_graph_refresh (Terra medium)
+    files:
+    - elaborate.cc
+    - netlist.h
+    - net_event.cc
+    - t-dll.h
+    - t-dll.cc
+    - t-dll-api.cc
+    - ivl_target.h
+    - tgt-vvp/vvp_process.c
+    - tgt-vvp/eval_vec4.c
+    - tgt-vvp/eval_object.c
+    - tgt-vvp/eval_expr.c
+    - tgt-vvp/vvp_priv.h
+    - t-dll-expr.cc
+    status: FROZEN_COORDINATOR_COMPLETED_TARGET_RECIPE
+  runtime:
+    owner: vif_proxy_implementation (Sol medium)
+    files:
+    - vvp/vthread.cc
+    - vvp/vthread.h
+    - vvp/codes.h
+    - vvp/compile.cc
+    - vvp/event.cc
+    - vvp/event.h
+    - vvp/vvp_object.cc
+    - vvp/vvp_object.h
+    status: FROZEN_RUNTIME_CHECKPOINT_PRIVATE_BYTECODE_FIXTURES_ONLY
+contract: Existing VVP dispatcher executes full-expression recipe synchronously before source publisher returns;
+  retain waiter context and process identity, separate expression sampling from normal-region body scheduling.
+  Refresh precise subscriptions on equal-value owner/selector changes. No delayed value-free occurrence FIFO,
+  no duplicate selector-function calls, no newly rejected accepted expression forms.
+acceptance:
+- Paired selected/unselected, selector-same/different, X/invalid, simultaneous changes, disable/reuse and Reactive
+  queued-writer cases.
+- Mixed multi-path, root replacement and automatic context isolation; malformed opcode checks as applicable.
+- Permanent paired legacy/JSON regressions and adjacent wait/cancellation suites.
+- Fresh unmodified pinned pwrmgr replay; no DV success from timeout/process status alone.
+- Required broad runtime gates before qualification.
+discovery_policy: Record unrelated defects only.
+stop_after_completion: Freeze completed patch, return to coordinator selection.
+evidence: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
+publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/314
+  head: bb94b59b7
+  state: MERGED_EXTERNALLY
+  ci_run: 35654962546
+  ci_status: Ubuntu24.04 in progress, five queued; no CI pass claimed.
+  local_validation: Allrequiredgatespassed
+  merge_authority: User authorizes merge afteroneCIpass with requiredlocalgatespassed; inspectfreshchecks beforemerge,
+    laterfailures followup.
+bytecode: '%wait/obj/expr E,T; %event/expr/return N; capture save/v or save/o slot, load/v slot,width and load/o
+  slot. Full vec4 plus precise descriptors, inline recipe skipped by original process continuation.'
+scope_review: Root review found cfg.bits[local_idx] also selects combined target but precise_direct currently
+  skips expression filter. Track ordinary non-root dependency and require none for precise_direct, reusing
+  existing value-filter for mixed dependencies. Prevent same-value selector changes from falsely resuming caller.
+violated_invariant: IEEE9.4.2 event occurrence must survive an expression pulse returning to armed value before
+  waiting thread runs. Existing deferred procedural filter misses same-slot selected-vector and selector pulses.
+boundary_evidence: evidence/review-20260920/opentitan-mixed-wait-design/frontend/final-boundary/
+why_local_fix_insufficient: Synchronous subscription fixes missing dependency but deferred NetDoWhile value
+  filter samples final value too late. Removing filter causes false wakes on unchanged selected values; a forked
+  evaluator delays arming. Need occurrence-time value evaluation and exact-once/cancellable wake.
+proposed_scope: Coordinator-authorized occurrence-time evaluation using existing dispatcher and retained contexts.
+  event/object hooks only as required for synchronous publication and cancellation; no unrelated scheduler
+  redesign.
+observer_frontend: NetEvProbe owns duplicated full expression for existing accepted integral compound class
+  event path; export via ivl_event_observer_expr after materializing input signals. Reuse existing mutation-probe
+  dedup isolation. Remove deferred filter only when observer target/runtime recipe is ready; no accepted expression
+  form silently narrowed.
+capture_contract: Capture original selector/owner nodes during existing full-expression evaluation into private
+  runtime frame slots; descriptors reuse captured values. No duplicate function execution, unconditional hoisting,
+  cross-activation temporaries or structural CSE. Unevaluated branch descriptors inactive. Exact mapping to
+  original nodes; frame slots valid only for that evaluation.

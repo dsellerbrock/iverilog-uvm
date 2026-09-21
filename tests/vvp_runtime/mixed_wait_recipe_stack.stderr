@@ -1,0 +1,4 @@
+error: malformed event expression recipe stack
+[CLEANUP-leak] stack_vec4 size=1 scope=top
+[CLEANUP-leak] stack_obj size=1 scope=top
+error: event expression recipe did not complete synchronously

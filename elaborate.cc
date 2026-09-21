@@ -20599,12 +20599,15 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                               }
                         }
                         bool mixed_dependency = false;
+                        bool has_ordinary_dependency = false;
                         for (unsigned pin = 0 ; pin < prop_set->size(); pin += 1) {
                               const Nexus*nexus = prop_set->at(pin).lnk.nexus();
-                              if (!allowed_obj_nexuses.count(nexus)
-                                  && !nexus_has_automatic_local_(nexus)) {
-                                    mixed_dependency = true;
-                                    break;
+                              if (!allowed_obj_nexuses.count(nexus)) {
+                                    has_ordinary_dependency = true;
+                                    if (!nexus_has_automatic_local_(nexus)) {
+                                          mixed_dependency = true;
+                                          break;
+                                    }
                               }
                         }
                         if (mixed_dependency) {
@@ -20647,7 +20650,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                               bool precise_direct =
                                     is_direct_class_property_event_expr_(tmp)
                                     && deps.size() == 1
-                                    && !deps.front().owner_expr;
+                                    && !deps.front().owner_expr
+                                    && !has_ordinary_dependency;
                               if (!precise_direct) {
                                     if (expr_.size() != 1
                                         || class_property_event_filter_expr) {
@@ -20665,7 +20669,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                                                << "an integral expression." << endl;
                                           des->errors += 1;
                                     } else {
-                                          class_property_event_filter_expr = tmp;
+                                          pr->set_event_observer_expr(tmp);
                                           tmp = nullptr;
                                     }
                               }

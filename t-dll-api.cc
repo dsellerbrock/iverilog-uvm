@@ -657,6 +657,12 @@ extern "C" ivl_expr_t ivl_event_obj_mutation_owner_expr(
       return net->obj_mutation_paths[idx].owner_expr;
 }
 
+extern "C" ivl_expr_t ivl_event_observer_expr(ivl_event_t net)
+{
+      assert(net);
+      return net->observer_expr;
+}
+
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
 {
       assert(net);

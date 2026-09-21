@@ -322,6 +322,45 @@ struct active_call_context_s {
  * inline captures, solving and post callbacks. Inline captures can themselves
  * randomize, so the caller owns a stack rather than one pending receiver. */
 struct randomize_staged_state_s;
+struct event_expr_path_s {
+      vvp_object_t object;
+      unsigned property;
+      unsigned word;
+      unsigned bit;
+      bool active;
+};
+
+struct event_expr_observer_s {
+      enum phase_t { ARMING, ARMED, EVALUATING, DONE };
+      vthread_t waiter;
+      vvp_net_t*source_net;
+      vvp_code_t recipe;
+      vvp_vector4_t last_value;
+      phase_t phase;
+      bool have_last;
+      unsigned refs;
+
+      event_expr_observer_s(vthread_t waiter, vvp_net_t*source_net,
+                            vvp_code_t recipe)
+      : waiter(waiter), source_net(source_net), recipe(recipe), phase(ARMING),
+        have_last(false), refs(1)
+      { }
+};
+static void cancel_event_expr_observer_(vthread_t thr);
+
+static void retain_event_expr_observer_(event_expr_observer_s*observer)
+{
+      assert(observer && observer->refs);
+      observer->refs += 1;
+}
+
+static void release_event_expr_observer_(event_expr_observer_s*observer)
+{
+      assert(observer && observer->refs);
+      observer->refs -= 1;
+      if (!observer->refs)
+            delete observer;
+}
 
 struct randomize_call_context_s {
       enum phase_t { PRE, READY, SOLVED, POST } phase = PRE;
@@ -946,6 +985,16 @@ struct vthread_s {
 	/* These are used to pass non-blocking event control information. */
       vvp_net_t*event;
       uint64_t ecount;
+	/* A selected class-property event keeps its source subscriptions on the
+	 * original process, but evaluates its value in a short-lived bytecode
+	 * frame at each source occurrence. */
+      event_expr_observer_s*event_expr_observer;
+      event_expr_observer_s*event_expr_recipe_observer;
+      std::map<unsigned,vvp_vector4_t>event_expr_vec_slots;
+      std::map<unsigned,vvp_object_t>event_expr_object_slots;
+      vvp_vector4_t event_expr_result;
+      std::vector<event_expr_path_s>event_expr_result_paths;
+      bool event_expr_recipe_complete;
 	/* Save the file/line information when available. */
     private:
       char *filenm_;
@@ -963,6 +1012,7 @@ struct vthread_s {
 		 pointer, and it must be cut loose before the storage goes
 		 away. */
 	    vthread_cancel_resource_wait(this);
+	    cancel_event_expr_observer_(this);
 	    vthread_cancel_event_wait(this);
 	    vthread_cancel_mutation_wait(this);
 	    delete force_pending;
@@ -1152,6 +1202,9 @@ inline vthread_s::vthread_s()
       pending_alloc_scope = 0;
       return_object_mirror_scope = 0;
       dynamic_dispatch_base_scope = 0;
+      event_expr_observer = 0;
+      event_expr_recipe_observer = 0;
+      event_expr_recipe_complete = false;
       last_pause_pc = 0;
 }
 
@@ -1163,6 +1216,7 @@ inline vthread_s::~vthread_s()
 	   cleanup(). Cancellation is idempotent, so the normal path -- where
 	   cleanup() already ran -- does nothing here. */
       vthread_cancel_resource_wait(this);
+      cancel_event_expr_observer_(this);
       vthread_cancel_event_wait(this);
       vthread_cancel_mutation_wait(this);
       delete force_pending;
@@ -6781,8 +6835,17 @@ static vthread_t logical_process_thread_(vthread_t thr)
       // (synchronous task calls) to reach the logical calling process.
       // Only explicit fork...join_none threads (is_fork_v_child=0,
       // is_callf_child=0) are their own logical process.
-      while (thr && (thr->is_callf_child || thr->is_fork_v_child) && thr->parent)
-	    thr = thr->parent;
+      while (thr) {
+            if (thr->event_expr_recipe_observer) {
+                  thr = thr->event_expr_recipe_observer->waiter;
+                  continue;
+            }
+            if ((thr->is_callf_child || thr->is_fork_v_child) && thr->parent) {
+                  thr = thr->parent;
+                  continue;
+            }
+            break;
+      }
       return thr;
 }
 
@@ -9598,7 +9661,8 @@ void contexts_delete(class __vpiScope*scope)
 /*
  * Create a new thread with the given start address.
  */
-vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
+static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
+                              bool seed_process_rng)
 {
       vthread_t thr = new struct vthread_s;
       thr->pc     = pc;
@@ -9622,7 +9686,8 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
 	// ancestor first.
       thr->rng_state = 0;
       thr->rng_seeded = false;
-      thread_rng_srandom_(thr, (int32_t)design_root_rng_next_());
+      if (seed_process_rng)
+            thread_rng_srandom_(thr, (int32_t)design_root_rng_next_());
 
       thr->i_am_joining  = 0;
       thr->i_am_detached = 0;
@@ -9686,6 +9751,11 @@ vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
       scope->threads .insert(thr);
       live_threads_registry_.insert(thr);
       return thr;
+}
+
+vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
+{
+      return vthread_new_(pc, scope, true);
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -10070,10 +10140,46 @@ vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head)
       return previous;
 }
 
+static bool event_expr_source_occurrence_(vthread_t thr);
+
+static void unlink_event_wait_only_(vthread_t thr)
+{
+      if (!thr->event_wait_link)
+            return;
+      vthread_t*link = thr->event_wait_link;
+      assert(*link == thr);
+      *link = thr->wait_next;
+      if (thr->wait_next)
+            thr->wait_next->event_wait_link = link;
+      thr->event_wait_link = 0;
+      thr->wait_next = 0;
+}
+
+static void cancel_event_expr_observer_(vthread_t thr)
+{
+      if (!(thr && thr->event_expr_observer))
+            return;
+
+      event_expr_observer_s*observer = thr->event_expr_observer;
+      thr->event_expr_observer = 0;
+      observer->phase = event_expr_observer_s::DONE;
+
+      unlink_event_wait_only_(thr);
+      vvp_object::cancel_mutation_waiter(thr);
+      thr->waiting_for_event = 0;
+      thr->post_finish_wait = 0;
+      release_event_expr_observer_(observer);
+}
+
 void vthread_cancel_event_wait(vthread_t thr)
 {
       if (!thr)
             return;
+
+      if (thr->event_expr_observer) {
+            cancel_event_expr_observer_(thr);
+            return;
+      }
 
       bool removed = false;
       if (thr->event_wait_link) {
@@ -10091,6 +10197,13 @@ void vthread_cancel_event_wait(vthread_t thr)
          intrusive wait_next list, so cancel that mutually exclusive family
          through its owner module as part of the same state transition. */
       if (vvp_cancel_multi_waiting_thread(thr))
+            removed = true;
+
+      /* A combined ordinary/object-mutation wait has one logical owner but
+         registrations in both runtime families. Event destruction, disable,
+         and reap all enter through this cancellation path, so remove the
+         mutation side before releasing the common wait state. */
+      if (vvp_object::cancel_mutation_waiter(thr))
             removed = true;
 
       if (removed) {
@@ -10189,6 +10302,11 @@ void vthread_cancel_mutation_wait(vthread_t thr)
 {
       if (!thr)
             return;
+      /* Standalone mutation waits have no intrusive event link. Combined
+         waits must enter vthread_cancel_event_wait() first; every lifecycle
+         caller below uses that order, and mutation wake claims the ordinary
+         link explicitly before scheduling. */
+      assert(thr->event_wait_link == 0);
       if (!vvp_object::cancel_mutation_waiter(thr))
             return;
 
@@ -10594,15 +10712,24 @@ bool of_CHUNK_LINK(vthread_t thr, vvp_code_t code)
  */
 void vthread_schedule_list(vthread_t thr)
 {
-      for (vthread_t cur = thr ;  cur ;  cur = cur->wait_next) {
-	    assert(cur->waiting_for_event);
-	    /* The waitable functor detached its whole head before calling us.
-	       Clear every intrusive backlink before scheduling can run any member
-	       and reuse wait_next as a scheduler-region chain. */
-	    cur->event_wait_link = 0;
-	    cur->waiting_for_event = 0;
-	    cur->post_finish_wait = 0;
-	    cur->deferred_assert_flush_on_run = 1;
+      std::vector<vthread_t>claimed;
+      for (vthread_t cur = thr; cur; cur = cur->wait_next) {
+            assert(cur->waiting_for_event);
+            vthread_run_pin_(cur);
+            claimed.push_back(cur);
+      }
+
+      /* Detach the complete list before any recipe runs. A recipe may disable
+         another waiter from this same source or re-arm itself into the event;
+         neither action may invalidate this traversal or append to it. */
+      for (std::vector<vthread_t>::iterator item = claimed.begin();
+           item != claimed.end(); ++item) {
+            vthread_t cur = *item;
+            vvp_object::cancel_mutation_waiter(cur);
+            cur->event_wait_link = 0;
+            cur->wait_next = 0;
+            cur->waiting_for_event = 0;
+            cur->post_finish_wait = 0;
       }
 
 	/* A single event functor can wake both design processes and
@@ -10612,9 +10739,22 @@ void vthread_schedule_list(vthread_t thr)
 	   each partition, and schedule the partitions separately. */
       vthread_t design_head = 0, design_tail = 0;
       vthread_t reactive_head = 0, reactive_tail = 0;
-      for (vthread_t cur = thr ;  cur ; ) {
-	    vthread_t next = cur->wait_next;
-	    cur->wait_next = 0;
+      std::vector<bool>wake(claimed.size(), true);
+      for (size_t idx = 0; idx < claimed.size(); ++idx)
+            if (claimed[idx]->event_expr_observer)
+                  wake[idx] = event_expr_source_occurrence_(claimed[idx]);
+
+      /* Recipes above may disable a different claimed waiter. Filter only
+         after every synchronous evaluation, while all snapshot entries are
+         still pinned, so an earlier ready entry cannot become stale in a
+         scheduler chain built too soon. */
+      size_t claimed_idx = 0;
+      for (std::vector<vthread_t>::iterator item = claimed.begin();
+           item != claimed.end(); ++item) {
+            vthread_t cur = *item;
+            if (!wake[claimed_idx++] || cur->i_was_disabled || cur->i_have_ended)
+                  continue;
+            cur->deferred_assert_flush_on_run = 1;
 	    if (cur->is_reactive_process) {
 		  if (reactive_tail) reactive_tail->wait_next = cur;
 		  else reactive_head = cur;
@@ -10624,13 +10764,16 @@ void vthread_schedule_list(vthread_t thr)
 		  else design_head = cur;
 		  design_tail = cur;
 	    }
-	    cur = next;
       }
 
       if (design_head)
 	    schedule_vthread(design_head, 0);
       if (reactive_head)
 	    schedule_vthread(reactive_head, 0);
+
+      for (std::vector<vthread_t>::iterator item = claimed.begin();
+           item != claimed.end(); ++item)
+            vthread_run_unpin_(*item);
 }
 
 /* Wake ordinary event waiters while honoring the $finish generation
@@ -10732,8 +10875,45 @@ void vthread_schedule_mutation_waiter(vthread_t thr)
 {
       if (!(thr && thr->waiting_for_event))
             return;
+
+      /* Waits armed after $finish remain blocked just like ordinary event
+         waits. vvp_object::touch() has already claimed the mutation side;
+         leave the ordinary subscription linked and cancellable. */
+      if (schedule_finished() && thr->post_finish_wait)
+            return;
+
+      if (thr->event_expr_observer) {
+            unlink_event_wait_only_(thr);
+            thr->waiting_for_event = 0;
+            thr->post_finish_wait = 0;
+            if (!event_expr_source_occurrence_(thr))
+                  return;
+            if (thr->i_was_disabled || thr->i_have_ended)
+                  return;
+            thr->waiting_for_event = 1;
+            thr->wait_next = 0;
+            vthread_schedule_list(thr);
+            return;
+      }
+
+      /* Mutation wake owns the thread now. Unlink a possible ordinary-event
+         sibling before queueing it so the event cannot schedule it again. */
+      vthread_cancel_event_wait(thr);
+      thr->waiting_for_event = 1;
       thr->wait_next = 0;
       vthread_schedule_list(thr);
+}
+
+void vthread_pin(vthread_t thr)
+{
+      if (thr)
+            vthread_run_pin_(thr);
+}
+
+void vthread_unpin(vthread_t thr)
+{
+      if (thr)
+            vthread_run_unpin_(thr);
 }
 
 static __vpiScope* resolve_context_scope(__vpiScope*scope);
@@ -31374,6 +31554,281 @@ static mutation_selector_t pop_mutation_selector_(vthread_t thr)
       if (result > UINT_MAX)
             return mutation_selector_t{UINT_MAX, false};
       return mutation_selector_t{static_cast<unsigned>(result), true};
+}
+
+static bool event_expr_runtime_error_(vthread_t thr, const char*message)
+{
+      fprintf(stderr, "%serror: %s\n", thr ? thr->get_fileline().c_str() : "",
+              message);
+      vpip_set_return_value(1);
+      schedule_finish(0);
+      return false;
+}
+
+bool of_EVENT_EXPR_SAVE_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->event_expr_recipe_observer)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/save/v executed outside an event recipe");
+      if (thr->vec4_stack_size() == 0)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/save/v has no value to capture");
+      thr->event_expr_vec_slots[cp->number] = thr->peek_vec4();
+      return true;
+}
+
+bool of_EVENT_EXPR_LOAD_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->event_expr_recipe_observer || cp->bit_idx[0] == 0)
+            return event_expr_runtime_error_(
+                  thr, "invalid %event/expr/load/v recipe operation");
+      const unsigned width = cp->bit_idx[0];
+      std::map<unsigned,vvp_vector4_t>::const_iterator found =
+            thr->event_expr_vec_slots.find(cp->number);
+      if (found == thr->event_expr_vec_slots.end()) {
+            thr->push_vec4(vvp_vector4_t(width, BIT4_X));
+            return true;
+      }
+      vvp_vector4_t value = found->second;
+      if (value.size() > width)
+            value = coerce_to_width(value, width);
+      else if (value.size() < width)
+            value.resize(width, BIT4_X);
+      thr->push_vec4(value);
+      return true;
+}
+
+bool of_EVENT_EXPR_SAVE_OBJECT(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->event_expr_recipe_observer)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/save/o executed outside an event recipe");
+      if (thr->object_stack_size() == 0)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/save/o has no object to capture");
+      thr->event_expr_object_slots[cp->number] = thr->peek_object();
+      return true;
+}
+
+bool of_EVENT_EXPR_LOAD_OBJECT(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->event_expr_recipe_observer)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/load/o executed outside an event recipe");
+      std::map<unsigned,vvp_object_t>::const_iterator found =
+            thr->event_expr_object_slots.find(cp->number);
+      if (found == thr->event_expr_object_slots.end())
+            thr->push_object(vvp_object_t());
+      else
+            thr->push_object(found->second);
+      return true;
+}
+
+bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->event_expr_recipe_observer) {
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/return executed outside an event recipe");
+      }
+      if (cp->number == 0 || cp->number > (SIZE_MAX-1)/4
+          || thr->vec4_stack_size() != 4*cp->number + 1
+          || thr->object_stack_size() != cp->number)
+            return event_expr_runtime_error_(
+                  thr, "malformed event expression recipe stack");
+
+      std::vector<event_expr_path_s> reverse_paths;
+      reverse_paths.reserve(cp->number);
+      for (unsigned idx = 0; idx < cp->number; ++idx) {
+            mutation_selector_t flags = pop_mutation_selector_(thr);
+            mutation_selector_t bit = pop_mutation_selector_(thr);
+            mutation_selector_t word = pop_mutation_selector_(thr);
+            mutation_selector_t property = pop_mutation_selector_(thr);
+            vvp_object_t object;
+            thr->pop_object(object);
+            const bool active = flags.valid && property.valid
+                  && (!(flags.value & 1U)
+                      || (word.valid && word.value != UINT_MAX))
+                  && (!(flags.value & 2U)
+                      || (bit.valid && bit.value != UINT_MAX));
+            event_expr_path_s path = {
+                  object, property.value, word.value, bit.value, active
+            };
+            reverse_paths.push_back(path);
+      }
+      thr->event_expr_result_paths.assign(reverse_paths.rbegin(),
+                                           reverse_paths.rend());
+      thr->event_expr_result = thr->pop_vec4();
+      thr->event_expr_recipe_complete = true;
+      return false;
+}
+
+static void register_event_expr_sources_(event_expr_observer_s*observer,
+                                         const std::vector<event_expr_path_s>&paths)
+{
+      vthread_t waiter = observer->waiter;
+      waiter->waiting_for_event = 1;
+      waiter->in_region_drain = 0;
+      waiter->wait_next = 0;
+      waiter->event_wait_link = 0;
+
+      for (std::vector<event_expr_path_s>::const_iterator path = paths.begin();
+           path != paths.end(); ++path) {
+            vvp_cobject*object = path->object.peek<vvp_cobject>();
+            if (object)
+                  object->add_mutation_waiter(waiter, path->property,
+                                              path->word, path->bit,
+                                              path->active);
+      }
+
+      waitable_hooks_s*event = dynamic_cast<waitable_hooks_s*>(
+            observer->source_net->fun);
+      assert(event);
+      vthread_t saved_running = running_thread;
+      running_thread = waiter;
+      waiter->wait_next = event->add_waiting_thread(waiter);
+      running_thread = saved_running;
+}
+
+static bool run_event_expr_recipe_(event_expr_observer_s*observer,
+                                   vvp_vector4_t&result,
+                                   std::vector<event_expr_path_s>&paths)
+{
+      vthread_t waiter = observer->waiter;
+      retain_event_expr_observer_(observer);
+      vthread_t eval = vthread_new_(observer->recipe, waiter->parent_scope,
+                                    false);
+      eval->rd_context = waiter->rd_context;
+      eval->wt_context = waiter->wt_context;
+      eval->is_reactive_process = waiter->is_reactive_process;
+      eval->event_expr_recipe_observer = observer;
+
+      vvp_context_t retained = waiter->owned_context
+            ? waiter->owned_context
+            : (waiter->rd_context ? waiter->rd_context : waiter->wt_context);
+      if (retained) {
+            retain_context_chain_(retained);
+            eval->owns_automatic_context = 1;
+            eval->owned_context_is_chain = 1;
+            eval->owned_context = retained;
+      }
+
+      vthread_t saved_running = running_thread;
+      std::vector<vthread_t> saved_trampoline_stack;
+      saved_trampoline_stack.swap(trampoline_call_stack);
+      vthread_t saved_trampoline_switch = trampoline_switch_to;
+      trampoline_switch_to = 0;
+      int saved_callf_depth = callf_depth;
+      callf_depth = 0;
+      std::vector<__vpiScope*>saved_callf_scopes;
+      saved_callf_scopes.swap(callf_scope_stack);
+
+      vthread_run_pin_(waiter);
+      vthread_run_pin_(eval);
+      eval->is_scheduled = 1;
+      vthread_run(eval);
+
+      bool complete = eval->event_expr_recipe_complete;
+      if (complete) {
+            result = eval->event_expr_result;
+            paths.swap(eval->event_expr_result_paths);
+      }
+
+      running_thread = saved_running;
+      assert(trampoline_switch_to == 0);
+      assert(trampoline_call_stack.empty());
+      trampoline_switch_to = saved_trampoline_switch;
+      trampoline_call_stack.swap(saved_trampoline_stack);
+      callf_depth = saved_callf_depth;
+      callf_scope_stack.swap(saved_callf_scopes);
+
+      bool eval_reaped = eval->reap_pending;
+      eval->event_expr_recipe_observer = 0;
+      release_owned_context_(eval);
+      eval->parent = 0;
+      vthread_run_unpin_(eval);
+      if (!eval_reaped)
+            vthread_reap(eval);
+
+      if (waiter->i_was_disabled || waiter->i_have_ended)
+            cancel_event_expr_observer_(waiter);
+      bool attached = waiter->event_expr_observer == observer;
+      vthread_run_unpin_(waiter);
+      release_event_expr_observer_(observer);
+      return complete && attached;
+}
+
+static bool event_expr_source_occurrence_(vthread_t thr)
+{
+      event_expr_observer_s*observer = thr ? thr->event_expr_observer : 0;
+      if (!observer || observer->phase == event_expr_observer_s::DONE)
+            return true;
+
+      /* The source owner detached both registration families before entering
+         here. Keep this observer unarmed while its own recipe executes: a
+         selector function that mutates its receiver is part of this one
+         evaluation, not a recursively armed second occurrence. Other armed
+         observers still run synchronously through their own source paths. */
+      observer->phase = event_expr_observer_s::EVALUATING;
+      vvp_vector4_t value;
+      std::vector<event_expr_path_s>paths;
+      if (!run_event_expr_recipe_(observer, value, paths)) {
+            if (thr->event_expr_observer == observer) {
+                  cancel_event_expr_observer_(thr);
+                  fprintf(stderr,
+                          "%serror: event expression recipe did not complete synchronously\n",
+                          thr->get_fileline().c_str());
+                  vpip_set_return_value(1);
+                  schedule_finish(0);
+            }
+            return false;
+      }
+      if (thr->event_expr_observer != observer)
+            return false;
+
+      bool changed = observer->have_last && !observer->last_value.eeq(value);
+      observer->last_value = value;
+      observer->have_last = true;
+      if (!changed) {
+            observer->phase = event_expr_observer_s::ARMED;
+            register_event_expr_sources_(observer, paths);
+            return false;
+      }
+
+      observer->phase = event_expr_observer_s::DONE;
+      thr->event_expr_observer = 0;
+      thr->waiting_for_event = 0;
+      thr->post_finish_wait = 0;
+      release_event_expr_observer_(observer);
+      return true;
+}
+
+bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t cp)
+{
+      assert(cp->net);
+      assert(cp->cptr2);
+      assert(!thr->event_expr_observer);
+      assert(!thr->waiting_for_event);
+
+      event_expr_observer_s*observer =
+            new event_expr_observer_s(thr, cp->net, cp->cptr2);
+      thr->event_expr_observer = observer;
+
+      vvp_vector4_t initial;
+      std::vector<event_expr_path_s>paths;
+      if (!run_event_expr_recipe_(observer, initial, paths)) {
+            cancel_event_expr_observer_(thr);
+            fprintf(stderr,
+                    "%serror: event expression recipe did not complete synchronously\n",
+                    thr->get_fileline().c_str());
+            vpip_set_return_value(1);
+            schedule_finish(0);
+            return false;
+      }
+      observer->last_value = initial;
+      observer->have_last = true;
+      observer->phase = event_expr_observer_s::ARMED;
+      register_event_expr_sources_(observer, paths);
+      return false;
 }
 
 /* Filtered class-property @ event. The target pushes pid, canonical unpacked
