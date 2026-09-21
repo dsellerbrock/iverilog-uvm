@@ -28,7 +28,9 @@ The [scope solver UNKNOWN repair](session_logs/2026-09-21_scope_solver_unknown_f
 
 ## Latest recorded compiler qualification
 
-The [published-candidate release retest](session_logs/2026-09-21_published_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on semantic revision `8ab943352`, with clean release pins and artifact cleanup. The September 20 static census remains separate historical evidence.
+The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on the experimental worktree, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.
+
+The [canonical graph and cleanup record](session_logs/2026-09-21_canonical_graph_cleanup.json) records the restored main checkout, shared graph refresh, retired worktree, preserved branch, and cleanup audit.
 
 The [September 21 batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records all seven local gates passing for semantic revision `8ab943352`. It supersedes the earlier batch checkpoints below for local compiler validation; GitHub CI and application revision limits remain separate.
 

@@ -22,7 +22,7 @@ next_batch:
   scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
   sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
   validation: Focused paired runtime checks and relevant neighbors pass; broad gates pending near10integrated fixes or sooner for concrete risk.
-  processes: No local build/test active; both workers completed.
+  processes: Application retest completed; no shared build running. Sol receiver correction and Terra permanent regression preparation active.
   binaries: Installed compiler/runtime contain both fixes; prior broad qualification is for8ab943352 only.
 applications:
   latest_retest: docs/conformance/session_logs/2026-09-21_published_candidate_release_retest.json
@@ -30,7 +30,7 @@ applications:
   latest_pwrmgr: Long antecedent diagnostic removed; compile exits13 on separate enumcast/constraint-call/coverage blockers, recorded in DISCOVERED_DEBT.
 graph:
   shared: /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json
-  refresh_pending: Mandated canonical checkout is absent; controlling checkout dirty on agent branch. Do not rebuild from feature tree or overwrite dirty work.
+  refresh: Canonical main checkout restored at3d3f8086b; AST graph updated from it and shared pointer retained; see evidence/review-20260920/canonical-graph-restore/result.json.
 resume:
   first: Inspect remaining PR307 CI by gh run view35588718454.
   next: Reduce exact-release pwrmgr enum-cast and constraint-call failures; select independent concrete blockers before implementation.
@@ -42,3 +42,21 @@ queued_reproduced_lane: Signed cover bins crossing zero; samefile elaborate.cc s
 independent_assessment: Terra medium is reducing package-enum include/selfpackage context before a disjoint implementation selection.
 
 second_selected_lane: SELF-PACKAGE-TYPE-CAST; Terra medium private parser/package ownership, disjoint from Sol elaborate.cc.
+
+current_receiver_candidate:
+  state: UNCOMMITTED_BOUNDARY_FAILURES
+  scope: elaborate.cc receiver resolution candidate integrated for testing; no completed feature claim.
+  build: Session55347 passed; install/acceptance89245 completed. No shared build running.
+  tests: 8of12acceptance cases pass; inactiveX and active-null boundaries fail both editions.
+  evidence: evidence/review-20260920/next-constraint-method-fix/acceptance.log
+  next: Sol authorized private elaborate.cc null-receiver correction; internal-if X expectation corrected against active-constraint function-call semantics.
+cleanup_checkpoint: Retired clean ancestor scoped-class-shadow worktree after helper dry-run; branch preserved. Canonical main graph tree restored, total registered tree count unchanged.
+ci_checkpoint: Both Ubuntu22.04 and24.04 PR307 jobs now green; remaining4jobs running.
+
+self_package_candidate:
+  state: UNCOMMITTED_FOCUSED_TESTED
+  scope: pform_package.cc current open package lookup
+  evidence: evidence/review-20260920/next-self-package-cast-fix/green/results.json
+  results: Paired2017/2023 four positive runtime controls pass; implicit enum and unknown type reject; bare name concatenation remains separate failure.
+  pending: Permanent tests and focused neighbor validation.
+application_retest_checkpoint: docs/conformance/session_logs/2026-09-21_next_candidate_release_retest.json; crossbar354items and Caliptra2048cases pass, GPIO20errors/1fatal; clean release pins.
