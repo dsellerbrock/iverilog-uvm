@@ -138,3 +138,7 @@ variable_row_integration_checkpoint:
   blocker: Original blocking row assignment pattern still reaches constant-only backend array_pattern_base_ assertion.
   next_action: Integrate worker incremental blocking-pattern elaboration fix over current source; repeat original red and focused acceptance before registration or commit.
   shared_processes: None active.
+
+row_async_reset_selection:
+  evidence: evidence/review-20260920/next-row-async-reset/red.log
+  relation: Next independently owned synthesis mechanism exposed by current Ibex row elaboration candidate.

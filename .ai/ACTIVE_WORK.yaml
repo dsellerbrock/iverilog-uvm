@@ -147,3 +147,14 @@ masked_memory_synthesis_lane:
   dependency: Independent compiler mechanism and source file from row-assignment and constraint lanes; root owns shared build.
   acceptance: Synthesized runtime preserves unselected bits and other words, per-byte masks and disabled write, OOB and X address no-write, descending/nonzero ranges, both editions and whole-word neighbors.
   forbidden: Shared edits/builds, app edits, dropped writes, zero fill of unselected bits, whole-word enable substituting selected-bit preservation.
+
+row_async_reset_lane:
+  id: IBEX-ROW-ASYNC-RESET-SYNTHESIS
+  status: REPRODUCED_ON_ROW_CANDIDATE
+  reproducer: evidence/review-20260920/next-row-async-reset/repro.sv
+  application: Unmodified M6 rv_core_ibex now passes row elaboration but rejects lockstep asynchronous reset during synthesis.
+  standards: IEEE1800-2017/2023 9.2,10.4,7.6; synthesized simulation must preserve asynchronous reset and clocked updates.
+  owns: evidence/review-20260920/next-row-async-reset/patch; proposed synthesis analysis only (synth2.cc and synth.cc if required).
+  dependency: Current coordinator row elaboration candidate; do not edit its files or snapshots.
+  acceptance: Assert/deassert reset away from clock, initialize every row, enabled and disabled clocked data shifts, both editions, no blanket acceptance of genuine asynchronous data loads.
+  forbidden: Shared edits/builds, app changes, silently dropping reset, diagnostic-only suppression.
