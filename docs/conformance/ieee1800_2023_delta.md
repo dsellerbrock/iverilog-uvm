@@ -250,3 +250,5 @@ L96–L105 share the [local qualification checkpoint](matrices/ieee1800_2017_cla
 
 Grouped clocked implication consequents follow the shared 16.13 / Annex A.2.10
 rules; [paired evidence](session_logs/2026-09-20_grouped_clocked_consequent.md) records both editions.
+
+Masked runtime memory writes follow the shared 7.4.6, 11.5 and 10.4 rules; [paired evidence](session_logs/2026-09-20_masked_memory_synthesis.json) records both editions.

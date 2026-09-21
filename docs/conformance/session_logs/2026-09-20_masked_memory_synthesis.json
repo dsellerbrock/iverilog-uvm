@@ -1,0 +1,35 @@
+{
+  "base_revision": "50757834e",
+  "scope": "focused masked memory synthesis validation; not broad or application qualification",
+  "compiler_sources": {
+    "synth2.cc": "2dd1f2b732944ce738eb0b6ef1e5eddc31fe3b1b418d04414f0a036237aa687b"
+  },
+  "editions": [
+    "2017",
+    "2023"
+  ],
+  "focused_legacy": {
+    "run": 6,
+    "passed": 6
+  },
+  "focused_json": {
+    "run": 6,
+    "passed": 6
+  },
+  "existing_synthesis_neighbors": {
+    "run": 150,
+    "passed": 150
+  },
+  "evidence": [
+    "focus-final.log",
+    "synth-neighbors.log",
+    "validated-results.json",
+    "i2c-source.json"
+  ],
+  "notes": [
+    "Initial six new legacy gold mismatches were the expected synthesis-off stimulus warning; final gold retains that diagnostic. All six pass final focused harness.",
+    "Earlier private fixtures mixed behavioral initialization with synthesized drivers and were rejected; replaced by initialization through DUT write path.",
+    "Unmodified M6 I2C compiles with upstream memory preload process warning; no new application runtime claim.",
+    "Packed multidimensional carrier subselects retain focused unsupported diagnostic."
+  ]
+}

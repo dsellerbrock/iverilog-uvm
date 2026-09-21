@@ -1509,3 +1509,12 @@ the linked evidence and do not establish full-edition support.
 Clause 16.13 / Annex A.2.10 remains PARTIAL overall. Grouping an explicitly
 clocked sequence consequent now preserves the implication clock boundary; see
 [paired focused evidence](../session_logs/2026-09-20_grouped_clocked_consequent.md).
+
+### September 20 masked runtime memory synthesis
+
+Synthesized simulation of runtime word selection with flat packed bit/part writes
+now preserves unwritten bits and decoded word enables (7.4.6, 11.5, 10.4).
+[Focused paired evidence](../session_logs/2026-09-20_masked_memory_synthesis.json)
+covers constant/variable packed indices, masks and invalid addresses. Packed
+multidimensional carrier subselects remain explicitly unsupported in this path;
+synthesis support overall remains PARTIAL.

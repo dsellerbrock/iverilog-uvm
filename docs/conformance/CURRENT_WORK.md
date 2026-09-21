@@ -94,3 +94,5 @@ Earlier checkpoints and failed attempts remain in the
 update these pointers when new evidence is committed.
 
 The [grouped clocked consequent record](session_logs/2026-09-20_grouped_clocked_consequent.md) provides focused paired-edition evidence pending the next batch qualification.
+
+The [masked memory synthesis record](session_logs/2026-09-20_masked_memory_synthesis.json) contains the next paired focused checkpoint, pending batch qualification.

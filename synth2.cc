@@ -2023,8 +2023,9 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 		  return true;
 	    }
 	    if (!constant_word) {
-		  if (lval_->get_base()
-		      || lval_->lwidth() != lsig->vector_width()) {
+		  if (lval_->has_part_carrier()
+		      || (lval_->lwidth() != lsig->vector_width()
+		          && !lval_->get_base())) {
 			cerr << get_fileline() << ": sorry: Assignment to a "
 				  "packed select of a run-time selected memory "
 				  "word is not currently supported in synthesis."
@@ -2056,18 +2057,63 @@ bool NetAssignBase::synth_async(Design*des, NetScope*scope,
 			ivl_assert(*this, ptr < enables.pin_count());
 			ivl_assert(*this, ptr < bitmasks.size());
 			ivl_assert(*this,
-				   nex_map[ptr].wid == word_nex->vector_width());
+			       nex_map[ptr].wid == word_nex->vector_width());
+			NetNet*prior = lval_->get_base()
+			  ? nex_out.pin(ptr).nexus()->pick_any_net() : 0;
 
 			NetNet*match = synthesize_array_word_match(
 			      des, scope, *this, word_select, word);
+			NetNet*updated_word = rsig;
+			if (lval_->get_base()) {
+			  if (!prior) {
+				const netvector_t*prior_type = new netvector_t(
+				      lsig->data_type(), word_nex->vector_width()-1, 0);
+				prior = new NetNet(scope, scope->local_symbol(),
+				      NetNet::WIRE, prior_type);
+				prior->local_flag(true);
+				prior->set_line(*this);
+				connect(prior->pin(0), nex_out.pin(ptr));
+			  }
+			  updated_word = synth_variable_part_update(
+				des, scope, *this, lval_->get_base(), prior, rsig,
+				word_nex->vector_width(), lval_->lwidth());
+			  if (!updated_word) {
+				des->errors += 1;
+				return false;
+			  }
+			}
 			nex_out.pin(ptr).unlink();
 			enables.pin(ptr).unlink();
-			connect(nex_out.pin(ptr), rsig->pin(0));
+			connect(nex_out.pin(ptr), updated_word->pin(0));
 			connect(enables.pin(ptr), match->pin(0));
-			bitmasks[ptr] = mask_t(word_nex->vector_width(), true);
-			record_synthesized_write(*this, word_nex, 0,
-						 word_nex->vector_width(),
-						 lsig->data_type());
+			if (lval_->get_base()) {
+			      mask_t&mask = bitmasks[ptr];
+			      unsigned write_base = 0;
+			      unsigned write_width = word_nex->vector_width();
+			      if (mask.empty())
+				    mask = mask_t(word_nex->vector_width(), false);
+			      const NetExpr*base = lval_->get_base();
+			      unique_ptr<NetExpr>folded;
+			      if (synth_context_constant(base, scope->loop_index_values_tmp)) {
+				    folded.reset(base->evaluate_function(*this, scope->loop_index_tmp));
+				    if (folded) base = folded.get();
+			      }
+			      if (const NetEConst*constant = dynamic_cast<const NetEConst*>(base)) {
+				    verinum_part_select_t overlap = verinum_part_select_overlap(
+					  constant->value(), lval_->lwidth(), word_nex->vector_width());
+				    write_base = overlap.destination_base;
+				    write_width = overlap.width;
+				    for (unsigned bit = 0; bit < overlap.width; ++bit)
+					  mask[overlap.destination_base + bit] = true;
+			      }
+			      if (write_width)
+				    record_synthesized_write(*this, word_nex,
+					  write_base, write_width, lsig->data_type());
+			} else {
+			      bitmasks[ptr] = mask_t(word_nex->vector_width(), true);
+			      record_synthesized_write(*this, word_nex, 0,
+				    word_nex->vector_width(), lsig->data_type());
+			}
 		  }
 
 		  lval_->turn_sig_to_wire_on_release();

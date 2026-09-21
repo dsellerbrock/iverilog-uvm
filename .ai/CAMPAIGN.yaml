@@ -102,8 +102,8 @@ application_replay_completion:
   next_action: Integrate corrected reviewed private compiler patches and run focused acceptance tests.
 
 next_batch_checkpoint:
-  focused_validated_fixes: 2
-  items: [DD042 recursive cross-with, grouped clocked implication consequent]
+  focused_validated_fixes: 3
+  items: [DD042 recursive cross-with, grouped clocked implication consequent, masked runtime memory synthesis]
   evidence: docs/conformance/session_logs/2026-09-20_recursive_cross_with.md
   active_lane: constraint_guard_semantics (gpt-5.6-sol, medium), bounded DD044 diagnostic escalation
   broad_gate_cadence: Approximately ten integrated fixes; prior baseline evidence remains revision-scoped.
@@ -123,3 +123,9 @@ private_patch_review_checkpoint:
   masked_memory: Revision requested for prior nexus and bit-mask composition; worker shared edit preserved/reversed before build.
   shared_build: None active; only focused-validated grouped property and recursive coverage fixes installed.
   next_action: Integrate only revised reviewed candidates, then coordinator-owned focused runtime gates.
+
+masked_memory_checkpoint:
+  status: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-20_masked_memory_synthesis.json
+  next_action: Review revised variable-row patch, integrate and run coordinator focused tests; DD044 worker still resolving wide/X state selections.
+  shared_processes: None active.

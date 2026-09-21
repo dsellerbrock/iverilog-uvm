@@ -1,0 +1,6 @@
+synth_runtime_memory_partial normal,-S,-g2017 ivltests gold=synth_runtime_memory_partial.gold
+synth_runtime_memory_partial_2023 normal,-S,-g2023 ivltests gold=synth_runtime_memory_partial.gold
+synth_runtime_memory_mask_loop normal,-S,-g2017 ivltests gold=synth_runtime_memory_mask_loop.gold
+synth_runtime_memory_mask_loop_2023 normal,-S,-g2023 ivltests gold=synth_runtime_memory_mask_loop.gold
+synth_runtime_memory_part_boundaries normal,-S,-g2017 ivltests gold=synth_runtime_memory_part_boundaries.gold
+synth_runtime_memory_part_boundaries_2023 normal,-S,-g2023 ivltests gold=synth_runtime_memory_part_boundaries.gold

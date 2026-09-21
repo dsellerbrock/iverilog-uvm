@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "synth_runtime_memory_partial.v",
+  "iverilog-args": [
+    "-S",
+    "-g2017"
+  ],
+  "gold": "synth_runtime_memory_partial"
+}
