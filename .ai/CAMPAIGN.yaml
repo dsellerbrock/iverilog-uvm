@@ -82,3 +82,10 @@ followup_after_external_merge:
   preservation: External AGENTS.md unchanged; campaign patch restored; safety stash retained. No new worktree.
   pwrmgr_assessment: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/ASSESSMENT.md; nested automatic proxy contexts miss ancestor receiver publication; paired red and direct control verified by Sol. No implementation selected yet.
   gpio_assessment: Terra medium read-only dependency isolation and interval-sampling design; no source or shared build ownership.
+
+current_publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/312
+  published_head: daf1a2159
+  status: Draft follow-up; integrated repair passed, full JSON session99700 running, other required local gates and CI pending.
+  source_freeze: Shared compiler/runtime and installation remain frozen.
+  agent_work: Sol medium preparing private nested VIF activation tests using retained context; Terra medium completed closed-factor distribution design assessment.

@@ -57,7 +57,7 @@ assessments_during_qualification:
   pwrmgr_vif:
     owner: Retained Sol medium, read-only compiler/app navigation and private reducers.
     observation: Correctly configured pwrmgr reaches time0 null virtual-interface event errors and TL outstanding assertion.
-    scope: Identify actual event/receiver/lifetime and first incorrect observable behavior using existing image and private diagnostic runs. No shared source/build/install or application edits; no null suppression or constant substitution.
+    scope: Root assessed; Sol medium prepares private paired activation/isolation/rebind/lifetime/negative tests and considers existing signal accessor reuse. No shared source/build/install or application edits; no null suppression or constant substitution.
     evidence: evidence/review-20260920/opentitan-regex-config-replay/result.json
 
 qualification_enum_regression:
