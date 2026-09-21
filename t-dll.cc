@@ -1532,6 +1532,12 @@ bool dll_target::finalize_event_pins_(const NetEvent*net)
 
       for (unsigned idx = 0; idx < net->nprobe(); idx += 1) {
 	    const NetEvProbe*probe = net->probe(idx);
+	    if (probe->vif_validity()) {
+		  const Nexus*validity = probe->vif_validity()->pin(0).nexus();
+		  event->vif_validity = validity ? validity->t_cookie() : 0;
+		  if (!event->vif_validity)
+			missing += 1;
+	    }
 	    unsigned base = 0;
 
 	    switch (probe->edge()) {
@@ -1685,6 +1691,7 @@ void dll_target::event(const NetEvent*net)
       obj->vif_member_word = UINT_MAX;
       obj->vif_pre_N = UINT_MAX;
       obj->vif_root_pin = 0;
+      obj->vif_validity = 0;
       obj->is_obj_mutation = false;
       obj->obj_N = UINT_MAX;
       obj->obj_pre_N = UINT_MAX;
@@ -1697,6 +1704,10 @@ void dll_target::event(const NetEvent*net)
 
 	    for (unsigned idx = 0 ;  idx < net->nprobe() ;  idx += 1) {
 		  const NetEvProbe*pr = net->probe(idx);
+		  if (pr->vif_validity()) {
+			const Nexus*nex = pr->vif_validity()->pin(0).nexus();
+			obj->vif_validity = nex ? nex->t_cookie() : 0;
+		  }
 		  if (pr->is_obj_mutation()) {
 			assert(pr->edge() == NetEvProbe::ANYEDGE);
 			for (unsigned pidx = 0 ; pidx < pr->obj_mutation_count();
@@ -1834,6 +1845,7 @@ void dll_target::logic(const NetLogic*net)
 
       obj->width_ = net->width();
       obj->is_port_buffer = 0;
+      obj->event_synchronous = net->event_synchronous();
 
       FILE_NAME(obj, net);
 
@@ -2054,6 +2066,41 @@ bool dll_target::sign_extend(const NetSignExtend*net)
 
       scope_add_lpm(obj->scope, obj);
 
+      return true;
+}
+
+bool dll_target::vif_proxy(const NetVifProxy*net)
+{
+      ivl_lpm_t obj = new struct ivl_lpm_s;
+      obj->type = IVL_LPM_VIF_PROXY;
+      obj->name = net->name();
+      obj->scope = find_scope(des_, net->scope());
+      assert(obj->scope);
+      FILE_NAME(obj, net);
+      obj->width = net->width();
+      obj->delay = 0;
+
+      obj->u_.vif_proxy.q = net->pin(0).nexus()->t_cookie();
+      obj->u_.vif_proxy.root = net->pin(1).nexus()->t_cookie();
+      const Nexus*valid_nexus = net->pin(2).nexus();
+      obj->u_.vif_proxy.valid = valid_nexus ? valid_nexus->t_cookie() : 0;
+      obj->u_.vif_proxy.root_word = net->root_word();
+      obj->u_.vif_proxy.member = net->member();
+      obj->u_.vif_proxy.word = net->word();
+      obj->u_.vif_proxy.path_count = net->path().size();
+      obj->u_.vif_proxy.path = obj->u_.vif_proxy.path_count
+            ? new unsigned[obj->u_.vif_proxy.path_count] : 0;
+      for (unsigned idx = 0; idx < obj->u_.vif_proxy.path_count; ++idx)
+            obj->u_.vif_proxy.path[idx] = net->path()[idx];
+
+      nexus_lpm_add(obj->u_.vif_proxy.q, obj, 0,
+                    IVL_DR_STRONG, IVL_DR_STRONG);
+      nexus_lpm_add(obj->u_.vif_proxy.root, obj, 1,
+                    IVL_DR_HiZ, IVL_DR_HiZ);
+      if (obj->u_.vif_proxy.valid)
+            nexus_lpm_add(obj->u_.vif_proxy.valid, obj, 2,
+                          IVL_DR_STRONG, IVL_DR_STRONG);
+      scope_add_lpm(obj->scope, obj);
       return true;
 }
 
@@ -3006,6 +3053,7 @@ void dll_target::lpm_mux(const NetMux*net)
       FILE_NAME(obj, net);
 
       obj->width = net->width();
+      obj->event_synchronous = net->event_synchronous();
       obj->u_.mux.size  = net->size();
       obj->u_.mux.swid  = net->sel_width();
 
@@ -3151,6 +3199,7 @@ bool dll_target::part_select(const NetPartSelect*net)
 
 	/* Choose the width of the part select. */
       obj->width = net->width();
+      obj->event_synchronous = net->event_synchronous();
       obj->u_.part.base  = net->base();
       obj->u_.part.s = 0;
 

@@ -347,6 +347,9 @@ int vvp_run(const char *design_path)
       }
       ++vvp_used;
 
+      if (!vthread_init_design_root_seed())
+            return 1;
+
       ret_cd = compile_design(design_path);
       destroy_lexor();
       print_vpi_call_errors();

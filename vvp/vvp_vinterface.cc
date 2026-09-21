@@ -184,6 +184,27 @@ bool vvp_vinterface::has_array_word(size_t pid, size_t word) const
       return arr && word < arr->get_size();
 }
 
+bool vvp_vinterface::get_vec4_source(size_t pid, size_t word,
+                                     vvp_net_t*&source,
+                                     vvp_vector4_t&value) const
+{
+      source = 0;
+      slot_t slot = get_slot_(pid);
+      if (slot.kind != SLOT_SIGNAL)
+            return false;
+
+      size_t index = word == static_cast<size_t>(-1) ? 0 : word;
+      __vpiSignal*sig = resolve_signal_index_(
+            dynamic_cast<__vpiSignal*>(slot.handle), index);
+      vvp_signal_value*signal = get_signal_value_(sig);
+      if (!sig || !sig->node || !signal)
+            return false;
+
+      signal->vec4_value(value);
+      source = sig->node;
+      return true;
+}
+
 void vvp_vinterface::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
       slot_t slot = get_slot_(pid);

@@ -1,0 +1,2 @@
+ivltests/sv_continuous_string_multi_driver.v:4: error: Variable 'sink' cannot have multiple continuous drivers.
+1 error(s) during elaboration.

@@ -417,6 +417,15 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 
       lpm = ivl_nexus_ptr_lpm(nptr);
       if (lpm) switch (ivl_lpm_type(lpm)) {
+          case IVL_LPM_VIF_PROXY:
+            if (ivl_lpm_q(lpm) == nex || ivl_lpm_vif_validity(lpm) == nex) {
+                  char tmp[128];
+                  snprintf(tmp, sizeof tmp, "L_%p%s", lpm,
+                           ivl_lpm_q(lpm) == nex ? "" : "/valid");
+                  return strdup(tmp);
+            }
+            break;
+
 
 	  case IVL_LPM_FF:
 	  case IVL_LPM_LATCH:

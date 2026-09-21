@@ -30,6 +30,7 @@
 class __vpiScope;
 class class_type;
 class vvp_vector4_t;
+class vvp_net_t;
 
 class vvp_vinterface : public vvp_object {
 
@@ -56,6 +57,8 @@ class vvp_vinterface : public vvp_object {
       vvp_fun_anyedge_sa* get_anyedge_functor(size_t M,
                                               size_t word = static_cast<size_t>(-1));
       bool has_array_word(size_t M, size_t word) const;
+      bool get_vec4_source(size_t M, size_t word, vvp_net_t*&source,
+                           vvp_vector4_t&value) const;
 
       void shallow_copy(const vvp_object*that) override;
       vvp_object* duplicate(void) const override;

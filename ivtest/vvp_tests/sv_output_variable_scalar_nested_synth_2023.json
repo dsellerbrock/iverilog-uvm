@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_output_variable_scalar_nested_synth_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "test",
+    "-S"
+  ],
+  "gold": "sv_output_variable_scalar_nested_synth_2023"
+}

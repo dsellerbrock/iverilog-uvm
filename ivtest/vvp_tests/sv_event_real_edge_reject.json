@@ -1,0 +1,8 @@
+{
+  "type": "CE",
+  "source": "sv_event_real_edge_reject.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_event_real_edge_reject"
+}

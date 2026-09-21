@@ -1509,7 +1509,8 @@ NetPartSelect::NetPartSelect(NetNet*sig, unsigned off, unsigned wid,
 			     NetPartSelect::dir_t dir__,
 			     bool signed_flag__)
 : NetNode(sig->scope(), sig->scope()->local_symbol(), 2),
-    off_(off), wid_(wid), dir_(dir__), signed_flag_(signed_flag__)
+  off_(off), wid_(wid), dir_(dir__), signed_flag_(signed_flag__),
+  event_synchronous_(net_expr_event_synchronous())
 {
       set_line(*sig);
 
@@ -1530,7 +1531,8 @@ NetPartSelect::NetPartSelect(NetNet*sig, unsigned off, unsigned wid,
 NetPartSelect::NetPartSelect(NetNet*sig, NetNet*sel,
 			     unsigned wid, bool signed_flag__)
 : NetNode(sig->scope(), sig->scope()->local_symbol(), 3),
-    off_(0), wid_(wid), dir_(VP), signed_flag_(signed_flag__)
+  off_(0), wid_(wid), dir_(VP), signed_flag_(signed_flag__),
+  event_synchronous_(net_expr_event_synchronous())
 {
       switch (dir_) {
 	  case NetPartSelect::VP:
@@ -1548,6 +1550,23 @@ NetPartSelect::NetPartSelect(NetNet*sig, NetNet*sel,
 }
 
 NetPartSelect::~NetPartSelect()
+{
+}
+
+NetVifProxy::NetVifProxy(NetScope*scope, unsigned width, NetNet*root,
+                         unsigned root_word,
+                         const std::vector<unsigned>&path,
+                         unsigned member, unsigned word)
+: NetNode(scope, scope->local_symbol(), 3), width_(width),
+  root_word_(root_word), path_(path), member_(member), word_(word)
+{
+      pin(0).set_dir(Link::OUTPUT);
+      pin(1).set_dir(Link::INPUT);
+      pin(2).set_dir(Link::OUTPUT);
+      connect(pin(1), root->pin(root_word));
+}
+
+NetVifProxy::~NetVifProxy()
 {
 }
 
@@ -2543,10 +2562,25 @@ const Link& NetPow::pin_DataB() const
  *    2+N -- Data[N]  (N is the size of the mux)
  */
 
+static bool net_expr_event_synchronous_flag = false;
+
+bool net_expr_event_synchronous(bool enable)
+{
+      bool previous = net_expr_event_synchronous_flag;
+      net_expr_event_synchronous_flag = enable;
+      return previous;
+}
+
+bool net_expr_event_synchronous()
+{
+      return net_expr_event_synchronous_flag;
+}
+
 NetMux::NetMux(NetScope*s, perm_string n,
 	       unsigned wi, unsigned si, unsigned sw)
 : NetNode(s, n, 2+si),
-  width_(wi), size_(si), swidth_(sw)
+  width_(wi), size_(si), swidth_(sw),
+  event_synchronous_(net_expr_event_synchronous())
 {
       pin(0).set_dir(Link::OUTPUT); // Q
       pin(1).set_dir(Link::INPUT);  // Sel
@@ -2573,6 +2607,11 @@ unsigned NetMux::size() const
 unsigned NetMux::sel_width() const
 {
       return swidth_;
+}
+
+bool NetMux::event_synchronous() const
+{
+      return event_synchronous_;
 }
 
 Link& NetMux::pin_Result()
@@ -3414,7 +3453,8 @@ ivl_variable_type_t NetECast::expr_type() const
 
 NetLogic::NetLogic(NetScope*s, perm_string n, unsigned pins,
 		   TYPE t, unsigned wid, bool is_cassign__)
-: NetNode(s, n, pins), type_(t), width_(wid), is_cassign_(is_cassign__)
+: NetNode(s, n, pins), type_(t), width_(wid), is_cassign_(is_cassign__),
+  event_synchronous_(net_expr_event_synchronous())
 {
       pin(0).set_dir(Link::OUTPUT);
       for (unsigned idx = 1 ;  idx < pins ;  idx += 1) {
@@ -3435,6 +3475,11 @@ unsigned NetLogic::width() const
 bool NetLogic::is_cassign() const
 {
       return is_cassign_;
+}
+
+bool NetLogic::event_synchronous() const
+{
+      return event_synchronous_;
 }
 
 NetUReduce::NetUReduce(NetScope*scope__, perm_string n,

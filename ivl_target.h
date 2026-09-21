@@ -353,7 +353,8 @@ typedef enum ivl_lpm_type_e {
       IVL_LPM_SUB    =  8,
       IVL_LPM_SUBSTITUTE=39,
       /* IVL_LPM_RAM =  9, / obsolete */
-      IVL_LPM_UFUNC  = 14
+      IVL_LPM_UFUNC  = 14,
+      IVL_LPM_VIF_PROXY = 43
 } ivl_lpm_type_t;
 
 /* The path edge type is the edge type used to select a specific
@@ -867,6 +868,7 @@ extern unsigned    ivl_event_vif_pre_N(ivl_event_t net); /* UINT_MAX = 2-level, 
 extern unsigned    ivl_event_vif_path_count(ivl_event_t net);
 extern unsigned    ivl_event_vif_path_index(ivl_event_t net, unsigned idx);
 extern unsigned    ivl_event_vif_root_pin(ivl_event_t net);
+extern ivl_nexus_t ivl_event_vif_validity(ivl_event_t net);
 extern int         ivl_event_is_obj_mutation(ivl_event_t net);
 extern unsigned    ivl_event_obj_N(ivl_event_t net); /* UINT_MAX = root object */
 extern unsigned    ivl_event_obj_pre_N(ivl_event_t net);
@@ -1250,6 +1252,7 @@ extern unsigned    ivl_logic_delay_is_whole_vector(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive0(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive1(ivl_net_logic_t net);
 extern unsigned    ivl_logic_width(ivl_net_logic_t net);
+extern unsigned    ivl_logic_event_synchronous(ivl_net_logic_t net);
 extern unsigned    ivl_logic_is_cassign(ivl_net_logic_t net);
 extern unsigned    ivl_logic_port_buffer(ivl_net_logic_t net);
 
@@ -1596,6 +1599,7 @@ extern ivl_scope_t    ivl_lpm_scope(ivl_lpm_t net);
 extern int            ivl_lpm_signed(ivl_lpm_t net);
 extern ivl_lpm_type_t ivl_lpm_type(ivl_lpm_t net);
 extern unsigned       ivl_lpm_width(ivl_lpm_t net);
+extern unsigned       ivl_lpm_event_synchronous(ivl_lpm_t net);
 extern ivl_event_t    ivl_lpm_trigger(ivl_lpm_t net);
 
   /* IVL_LPM_FF */
@@ -1641,6 +1645,13 @@ extern ivl_nexus_t ivl_lpm_select(ivl_lpm_t net);
 extern unsigned ivl_lpm_size(ivl_lpm_t net);
   /* IVL_LPM_SFUNC */
 extern const char*ivl_lpm_string(ivl_lpm_t net);
+  /* IVL_LPM_VIF_PROXY */
+extern unsigned ivl_lpm_vif_root_word(ivl_lpm_t net);
+extern ivl_nexus_t ivl_lpm_vif_validity(ivl_lpm_t net);
+extern unsigned ivl_lpm_vif_member(ivl_lpm_t net);
+extern unsigned ivl_lpm_vif_word(ivl_lpm_t net);
+extern unsigned ivl_lpm_vif_path_count(ivl_lpm_t net);
+extern unsigned ivl_lpm_vif_path(ivl_lpm_t net, unsigned idx);
 
 /* LVAL
  * The l-values of assignments are concatenation of ivl_lval_t

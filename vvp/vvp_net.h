@@ -58,6 +58,14 @@ class vvp_vector4_t;
 class vvp_vector8_t;
 class __vpiScope;
 
+extern void vvp_event_source_begin();
+extern void vvp_event_source_end();
+class vvp_event_source_guard_s {
+    public:
+      vvp_event_source_guard_s() { vvp_event_source_begin(); }
+      ~vvp_event_source_guard_s() { vvp_event_source_end(); }
+};
+
 /* Basic netlist types. */
 class  vvp_net_t;
 class  vvp_net_fun_t;
@@ -1719,6 +1727,7 @@ inline void vvp_send_vec8_pv(vvp_net_ptr_t ptr, const vvp_vector8_t&val,
 
 inline void vvp_net_t::send_vec4(const vvp_vector4_t&val, vvp_context_t context)
 {
+      vvp_event_source_guard_s event_source_guard;
       if (fil == 0) {
 	    vvp_send_vec4(out_, val, context);
 	    return;
@@ -1741,6 +1750,7 @@ inline void vvp_net_t::send_vec4_pv(const vvp_vector4_t&val,
 				    unsigned base, unsigned vwid,
 				    vvp_context_t context)
 {
+      vvp_event_source_guard_s event_source_guard;
       if (fil == 0) {
 	    vvp_send_vec4_pv(out_, val, base, vwid, context);
 	    return;
@@ -1820,6 +1830,7 @@ inline void vvp_net_t::send_string(const std::string&val, vvp_context_t context)
 
 inline void vvp_net_t::send_object(vvp_object_t val, vvp_context_t context)
 {
+      vvp_event_source_guard_s event_source_guard;
       if (fil && ! fil->filter_object(val))
 	    return;
 

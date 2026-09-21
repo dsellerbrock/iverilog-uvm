@@ -33,6 +33,8 @@
 
 using namespace std;
 
+static map<const NetEProperty*,NetNet*>*vif_validity_collector_ = 0;
+
 static NetNet* convert_to_real_const(Design*des, NetScope*scope, const NetEConst*expr)
 {
       verireal vrl(expr->value().as_double());
@@ -90,6 +92,123 @@ NetNet* NetExpr::synthesize(Design*des, NetScope*, NetExpr*)
       return 0;
 }
 
+struct vif_proxy_path_t {
+      NetNet*root = 0;
+      unsigned root_word = 0;
+      std::vector<unsigned> path;
+      unsigned member = UINT_MAX;
+      unsigned word = UINT_MAX;
+};
+
+static bool decode_vif_proxy_path_(const NetEProperty*leaf,
+                                   vif_proxy_path_t&out)
+{
+      std::vector<unsigned> leaf_to_root;
+      const NetEProperty*cur = leaf;
+      while (cur) {
+            leaf_to_root.push_back(cur->property_idx());
+            if (cur->get_sig()) {
+                  out.root = const_cast<NetNet*>(cur->get_sig());
+                  break;
+            }
+
+            const NetExpr*base = cur->get_base();
+            if (const NetEProperty*property =
+                  dynamic_cast<const NetEProperty*>(base)) {
+                  cur = property;
+                  continue;
+            }
+            if (const NetESignal*signal =
+                  dynamic_cast<const NetESignal*>(base)) {
+                  out.root = const_cast<NetNet*>(signal->sig());
+                  if (const NetExpr*word = signal->word_index()) {
+                        long value = -1;
+                        if (!eval_as_long(value, word) || value < 0
+                            || static_cast<unsigned long>(value) > UINT_MAX)
+                              return false;
+                        out.root_word = static_cast<unsigned>(value);
+                  }
+            }
+            break;
+      }
+
+      if (!out.root || out.root_word >= out.root->pin_count()
+          || leaf_to_root.empty())
+            return false;
+
+      const netclass_t*type =
+            dynamic_cast<const netclass_t*>(out.root->net_type());
+      if (!type)
+            return false;
+
+      for (std::vector<unsigned>::const_reverse_iterator cur_idx =
+                 leaf_to_root.rbegin();
+           cur_idx != leaf_to_root.rend() - 1; ++cur_idx) {
+            out.path.push_back(*cur_idx);
+            type = dynamic_cast<const netclass_t*>(
+                  type->get_prop_type(*cur_idx));
+            if (!type)
+                  return false;
+      }
+      if (!type->is_interface())
+            return false;
+
+      out.member = leaf_to_root.front();
+      if (const NetExpr*index = leaf->get_index()) {
+            long value = -1;
+            if (!eval_as_long(value, index) || value < 0
+                || static_cast<unsigned long>(value) > UINT_MAX)
+                  return false;
+            out.word = static_cast<unsigned>(value);
+      }
+      return true;
+}
+
+static NetNet* synthesize_vif_proxy_(const NetEProperty*leaf, Design*des,
+                                     NetScope*scope)
+{
+      if (leaf->expr_type() != IVL_VT_BOOL
+          && leaf->expr_type() != IVL_VT_LOGIC)
+            return 0;
+
+      vif_proxy_path_t path;
+      if (!decode_vif_proxy_path_(leaf, path))
+            return 0;
+
+      unsigned width = leaf->expr_width();
+      if (!width)
+            return 0;
+
+      netvector_t*type = new netvector_t(leaf->expr_type(), width - 1, 0);
+      type->set_signed(leaf->has_sign());
+      NetNet*out = new NetNet(scope, scope->local_symbol(),
+                              NetNet::IMPLICIT, type);
+      out->set_line(*leaf);
+      out->local_flag(true);
+
+      NetVifProxy*proxy = new NetVifProxy(scope, width, path.root,
+            path.root_word, path.path, path.member, path.word);
+      proxy->set_line(*leaf);
+      connect(out->pin(0), proxy->pin(0));
+      if (vif_validity_collector_) {
+            NetNet*valid = new NetNet(scope, scope->local_symbol(),
+                  NetNet::IMPLICIT, new netvector_t(IVL_VT_BOOL));
+            valid->set_line(*leaf);
+            valid->local_flag(true);
+            connect(valid->pin(0), proxy->pin(2));
+            (*vif_validity_collector_)[leaf] = valid;
+      }
+      des->add_node(proxy);
+      return out;
+}
+
+void NetEProperty::set_synthesis_vif_validity_collector(
+      map<const NetEProperty*,NetNet*>*collector)
+{
+      assert(!collector || !vif_validity_collector_);
+      vif_validity_collector_ = collector;
+}
+
 // Ordinary class-property accesses cannot be synthesized to a gate-level
 // net. An interface PORT uses the same expression node for simulation, but
 // elaboration also records its static binding to a concrete interface scope.
@@ -124,10 +243,12 @@ NetNet* NetEProperty::synthesize(Design*des, NetScope*scope, NetExpr*root)
       const netclass_t*interface_type = interface_port
             ? dynamic_cast<const netclass_t*>(interface_port->net_type()) : 0;
       if (!interface_type || !interface_type->is_interface())
-            return 0;
+            return synthesize_vif_proxy_(this, des, scope);
 
       NetNet*member = resolve_interface_member_signal();
       if (!member) {
+            if (NetNet*proxy = synthesize_vif_proxy_(this, des, scope))
+                  return proxy;
             cerr << get_fileline() << ": error: Interface member '"
                  << interface_type->get_prop_name(property_idx())
                  << "' cannot be synthesized because interface port '"

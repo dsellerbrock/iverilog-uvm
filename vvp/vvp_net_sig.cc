@@ -20,6 +20,7 @@
 # include  "config.h"
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
+# include  "event.h"
 # include  "statistics.h"
 # include  "schedule.h"
 # include  "vthread.h"
@@ -37,6 +38,14 @@
 # include  <iostream>
 
 using namespace std;
+
+namespace {
+class event_callback_boundary_s {
+    public:
+      event_callback_boundary_s() { vvp_event_callback_begin(); }
+      ~event_callback_boundary_s() { vvp_event_callback_end(); }
+};
+}
 
 vvp_object_t vvp_fun_signal_object::make_default_object() const
 {
@@ -270,14 +279,14 @@ template <class T> vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_(const T&val
 	    }
 
 	    if (propagate_flag) {
-		  run_vpi_callbacks();
+		  { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
 		  return REPL;
 	    } else {
 		  return STOP;
 	    }
 
       } else {
-	    run_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
 	    return PROP;
       }
 }
@@ -287,10 +296,10 @@ template <class T> vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_(T&val, T fo
 
       if (test_force_mask(0)) {
 	    val = force;
-	    run_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
 	    return REPL;
       }
-      run_vpi_callbacks();
+      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
       return PROP;
 }
 
@@ -2077,7 +2086,7 @@ void vvp_fun_signal_string_sa::recv_string(vvp_net_ptr_t ptr, const std::string&
 	    needs_init_ = false;
 
 	    ptr.ptr()->send_string(bit, 0);
-	    run_sv_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_sv_vpi_callbacks(); }
       }
 }
 
@@ -2340,7 +2349,7 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 	    needs_init_ = false;
 
 	    ptr.ptr()->send_object(bit, 0);
-	    run_sv_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_sv_vpi_callbacks(); }
       }
 }
 
@@ -2925,7 +2934,7 @@ void vvp_wire_vec4::force_fil_vec4(const vvp_vector4_t&val, const vvp_vector2_t&
 		  force4_.set_bit(idx, val.value(idx));
 	    }
       }
-      run_vpi_callbacks();
+      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
 }
 
 void vvp_wire_vec4::force_fil_vec8(const vvp_vector8_t&, const vvp_vector2_t&)
@@ -2946,7 +2955,7 @@ void vvp_wire_vec4::release(vvp_net_ptr_t ptr, bool net_flag)
             release_mask(mask);
 	    needs_init_ = ! force4_ .eeq(bits4_);
 	    ptr.ptr()->send_vec4(bits4_, 0);
-	    run_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
       } else {
 	      // Variables keep the current value.
 	    vvp_vector4_t res (bits4_.size());
@@ -2971,7 +2980,7 @@ void vvp_wire_vec4::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
 	    needs_init_ = ! force4_.subvalue(base,wid) .eeq(bits4_.subvalue(base,wid));
 	    ptr.ptr()->send_vec4_pv(bits4_.subvalue(base,wid),
 				    base, bits4_.size(), 0);
-	    run_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
       } else {
 	      // Variables keep the current value.
 	    vvp_vector4_t res (wid);
@@ -3135,7 +3144,7 @@ void vvp_wire_vec8::force_fil_vec8(const vvp_vector8_t&val, const vvp_vector2_t&
 		  force8_.set_bit(idx, val.value(idx));
 	    }
       }
-      run_vpi_callbacks();
+      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
 }
 
 void vvp_wire_vec8::force_fil_real(double, const vvp_vector2_t&)
@@ -3174,7 +3183,7 @@ void vvp_wire_vec8::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
 	    needs_init_ = !force8_.subvalue(base,wid) .eeq((bits8_.subvalue(base,wid)));
 	    ptr.ptr()->send_vec8_pv(bits8_.subvalue(base,wid),
 				    base, bits8_.size());
-	    run_vpi_callbacks();
+	    { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
       } else {
 	// Variable do not know about strength so this should not be able
 	// to happen. If for some reason it can then it should not be too
@@ -3288,7 +3297,7 @@ void vvp_wire_real::force_fil_real(double val, const vvp_vector2_t&mask)
       if (mask.value(0))
 	    force_ = val;
 
-      run_vpi_callbacks();
+      { event_callback_boundary_s callback_boundary; run_vpi_callbacks(); }
 }
 
 void vvp_wire_real::release(vvp_net_ptr_t ptr, bool net_flag)

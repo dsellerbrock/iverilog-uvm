@@ -2326,6 +2326,7 @@ class NetMux  : public NetNode {
       unsigned width() const;
       unsigned size() const;
       unsigned sel_width() const;
+      bool event_synchronous() const;
 
       Link& pin_Result();
       Link& pin_Data(unsigned si);
@@ -2343,6 +2344,7 @@ class NetMux  : public NetNode {
       unsigned width_;
       unsigned size_;
       unsigned swidth_;
+      bool event_synchronous_;
 };
 
 
@@ -2877,6 +2879,7 @@ class NetPartSelect  : public NetNode {
       unsigned base()  const;
       unsigned width() const;
       inline dir_t dir()   const { return dir_; }
+      bool event_synchronous() const { return event_synchronous_; }
 
 	/* Is the select signal signed? */
       inline bool signed_flag() const { return signed_flag_; }
@@ -2890,6 +2893,33 @@ class NetPartSelect  : public NetNode {
       unsigned wid_;
       dir_t    dir_;
       bool signed_flag_;
+      bool event_synchronous_;
+};
+
+/* A run-time-selected virtual-interface member presented as an ordinary
+ * structural vector source. Pin 0 is the vector output, pin 1 is the root
+ * class/interface object handle, and pin 2 is binding validity. */
+class NetVifProxy : public NetNode {
+    public:
+      NetVifProxy(NetScope*, unsigned width, NetNet*root,
+                  unsigned root_word, const std::vector<unsigned>&path,
+                  unsigned member, unsigned word);
+      ~NetVifProxy() override;
+
+      unsigned width() const { return width_; }
+      unsigned root_word() const { return root_word_; }
+      const std::vector<unsigned>& path() const { return path_; }
+      unsigned member() const { return member_; }
+      unsigned word() const { return word_; }
+
+      bool emit_node(struct target_t*) const override;
+
+    private:
+      unsigned width_;
+      unsigned root_word_;
+      std::vector<unsigned> path_;
+      unsigned member_;
+      unsigned word_;
 };
 
 /*
@@ -3105,6 +3135,7 @@ class NetLogic  : public NetNode {
       TYPE type() const;
       unsigned width() const;
       bool is_cassign() const;
+      bool event_synchronous() const;
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -3114,7 +3145,15 @@ class NetLogic  : public NetNode {
       TYPE type_;
       unsigned width_;
       bool is_cassign_;
+      bool event_synchronous_;
 };
+
+/* Mark combinational nodes built while synthesizing a procedural event
+   expression. These nodes must preserve every input transition because an
+   edge can be significant even when the expression returns to its old value
+   within one scheduler time slot. */
+extern bool net_expr_event_synchronous(bool enable);
+extern bool net_expr_event_synchronous();
 
 /*
  * This class represents a structural sign extension. The pin-0 is a
@@ -4495,6 +4534,9 @@ class NetEvProbe  : public NetNode {
       NetEvent* event();
       const NetEvent* event() const;
 
+      void set_vif_validity(NetNet*net) { vif_validity_ = net; }
+      NetNet* vif_validity() const { return vif_validity_; }
+
       void find_similar_probes(std::list<NetEvProbe*>&);
 
       // VIF edge support: @(posedge/negedge/edge vif.signal)
@@ -4580,6 +4622,7 @@ class NetEvProbe  : public NetNode {
       edge_t edge_;
 	// The NetEvent class uses this to list me.
       NetEvProbe*enext_;
+      NetNet*vif_validity_ = 0;
       bool is_vif_posedge_ = false;
       bool is_vif_negedge_ = false;
       bool is_vif_anyedge_ = false;
@@ -5698,6 +5741,9 @@ class NetEProperty : public NetExpr {
 
       virtual void dump(std::ostream&os) const override;
       virtual NetNet*synthesize(Design*, NetScope*scope, NetExpr*root) override;
+
+      static void set_synthesis_vif_validity_collector(
+            std::map<const NetEProperty*,NetNet*>*collector);
 
     private:
       NetNet*net_;

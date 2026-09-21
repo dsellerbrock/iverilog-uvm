@@ -5957,8 +5957,10 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 				   z3_rng_stream_t& rng,
                                    uint64_t& chosen,
                                    bool require_complete_ranges = false,
-                                   bool validate_only = false)
+                                   bool validate_only = false,
+                                   bool*indeterminate = nullptr)
 {
+      if (indeterminate) *indeterminate = false;
       static const uint64_t RANGE_EXPAND_CAP = 256;
       auto candidate_pin = [&](uint64_t v, unsigned vw,
 			       bool comparison_signed) -> Z3_ast {
@@ -6006,6 +6008,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 				      (unsigned long long)RANGE_EXPAND_CAP);
 			      warned_expand_cap = true;
 			}
+                        if (indeterminate) *indeterminate = true;
 			return false;
 		  }
 	    }
@@ -6036,8 +6039,10 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 		     * set when another candidate returned SAT. Abandon the exact
 		     * enumeration transactionally and let the caller use its
 		     * documented fallback instead. */
-		  if (feasible == Z3_L_UNDEF)
+		  if (feasible == Z3_L_UNDEF) {
+                        if (indeterminate) *indeterminate = true;
 			return false;
+                  }
 		  if (feasible == Z3_L_TRUE)
 			item.values.push_back(v);
 		  if (coord == UINT64_MAX) break;
@@ -6063,6 +6068,7 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 				"suppressed).\n");
 			warned_total_overflow = true;
 		  }
+                  if (indeterminate) *indeterminate = true;
 		  return false;
 	    }
 	    total += item.aggregate_weight;
@@ -7258,7 +7264,11 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // choosing a weighted value could otherwise bias successful calls.
             vector<vector<vector<uint64_t> > > tables(components.size());
             for (size_t ci = 0; ci < components.size(); ++ci) {
-                  if (distributions[ci].size() > 1) continue;
+                  bool component_has_randc = any_of(components[ci].begin(),
+                        components[ci].end(), active_randc_var);
+                  if (distributions[ci].size() > 1
+                      && !(defer_ordered_joint_randc
+                           && component_has_randc)) continue;
                   const char*reason = nullptr;
                   if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
                         return fail_joint(reason);
@@ -7375,10 +7385,119 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   // been proved. A cap or UNKNOWN therefore cannot make a
                   // successful call conditional on a randc draw.
                   for (size_t ci = 0; ci < components.size(); ++ci) {
-                        if (distributions[ci].size() <= 1) continue;
-                        if (any_of(components[ci].begin(), components[ci].end(),
-                              active_randc_var))
-                              return fail_joint("ordered randc with multiple coupled distributions is not yet supported");
+                        const auto&bindings = distributions[ci];
+                        if (bindings.size() <= 1) continue;
+                        const auto&component = components[ci];
+                        vector<size_t> randc_columns;
+                        for (size_t column = 0; column < component.size(); ++column)
+                              if (active_randc_var(component[column]))
+                                    randc_columns.push_back(column);
+                        if (randc_columns.empty()) continue;
+                        for (const auto&binding : bindings)
+                              if (active_randc_var(binding.spec->subject))
+                                    return fail_joint("a randc variable cannot be used as a distribution subject");
+
+                        // Traverse every possible prefix of the already-proved
+                        // complete table. This is a proof only: support queries
+                        // consume no RNG and install no pins. Weighted subjects
+                        // use stable IR order, matching the actual sampler.
+                        vector<vector<vector<uint64_t> > > fibers;
+                        map<vector<uint64_t>, vector<vector<uint64_t> > > by_randc;
+                        for (const auto&tuple : tables[ci]) {
+                              vector<uint64_t> prefix;
+                              for (size_t column : randc_columns)
+                                    prefix.push_back(tuple[column]);
+                              by_randc[prefix].push_back(tuple);
+                        }
+                        for (auto&entry : by_randc)
+                              fibers.push_back(std::move(entry.second));
+                        set<size_t> pinned_columns(randc_columns.begin(),
+                              randc_columns.end());
+                        set<Z3_ast> weighted;
+                        for (const auto&binding : bindings)
+                              weighted.insert(binding.spec->subject);
+
+                        for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                              for (const auto&binding : bindings) {
+                                    if (binding.stage != stage) continue;
+                                    vector<vector<vector<uint64_t> > > next;
+                                    for (const auto&fiber : fibers) {
+                                          if (fiber.empty())
+                                                return fail_joint("a coupled randc distribution has an empty proved prefix fiber");
+                                          size_t next_before = next.size();
+                                          map<uint64_t, vector<vector<uint64_t> > > candidates;
+                                          for (const auto&tuple : fiber)
+                                                candidates[tuple[binding.subject_column]]
+                                                      .push_back(tuple);
+                                          for (auto&candidate : candidates) {
+                                                Z3_solver_push(ctx, base);
+                                                for (size_t column : pinned_columns) {
+                                                      Z3_ast value = Z3_mk_unsigned_int64(ctx,
+                                                            fiber[0][column],
+                                                            Z3_get_sort(ctx, component[column]));
+                                                      Z3_solver_assert(ctx, base,
+                                                            Z3_mk_eq(ctx, component[column], value));
+                                                }
+                                                // Pin the complete physical subject value
+                                                // from the proved table, then ask the exact
+                                                // resolver whether any positive-weight item
+                                                // admits it. This reuses candidate_pin's
+                                                // exact sizing/sign rules and also represents
+                                                // narrow items that leave high subject bits
+                                                // unconstrained.
+                                                Z3_ast subject = Z3_mk_unsigned_int64(ctx,
+                                                      candidate.first,
+                                                      Z3_get_sort(ctx, component[
+                                                            binding.subject_column]));
+                                                Z3_solver_assert(ctx, base,
+                                                      Z3_mk_eq(ctx, component[
+                                                            binding.subject_column], subject));
+                                                uint64_t ignored = 0;
+                                                bool indeterminate = false;
+                                                bool valid = z3_resolve_dist_exact(ctx,
+                                                      base, opt, *binding.spec,
+                                                      owner_rng(binding.spec->rng_owner),
+                                                      ignored, false, true,
+                                                      &indeterminate);
+                                                Z3_solver_pop(ctx, base, 1);
+                                                if (indeterminate)
+                                                      return fail_joint("a coupled randc distribution prefix could not be proved exactly");
+                                                if (valid)
+                                                      next.push_back(std::move(candidate.second));
+                                          }
+                                          if (next.size() == next_before)
+                                                return fail_joint("a coupled randc distribution cannot be resolved for every proved prefix fiber");
+                                    }
+                                    fibers.swap(next);
+                                    pinned_columns.insert(binding.subject_column);
+                              }
+
+                              vector<size_t> columns;
+                              for (size_t column = 0; column < component.size(); ++column) {
+                                    unsigned due = final_stage;
+                                    auto found = stages.find(component[column]);
+                                    if (found != stages.end()) due = found->second;
+                                    if (due == stage
+                                        && !weighted.count(component[column])
+                                        && !pinned_columns.count(column))
+                                          columns.push_back(column);
+                              }
+                              if (columns.empty()) continue;
+                              vector<vector<vector<uint64_t> > > next;
+                              for (const auto&fiber : fibers) {
+                                    map<vector<uint64_t>, vector<vector<uint64_t> > > split;
+                                    for (const auto&tuple : fiber) {
+                                          vector<uint64_t> projection;
+                                          for (size_t column : columns)
+                                                projection.push_back(tuple[column]);
+                                          split[projection].push_back(tuple);
+                                    }
+                                    for (auto&entry : split)
+                                          next.push_back(std::move(entry.second));
+                              }
+                              fibers.swap(next);
+                              pinned_columns.insert(columns.begin(), columns.end());
+                        }
                   }
                   sample_scalars(true);
                   sample_elements(true);

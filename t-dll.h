@@ -139,6 +139,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       bool concat(const NetConcat*) override;
       bool part_select(const NetPartSelect*) override;
       bool replicate(const NetReplicate*) override;
+      bool vif_proxy(const NetVifProxy*) override;
       static void net_assign(const NetAssign_*);
       bool net_sysfunction(const NetSysFunc*) override;
       bool net_function(const NetUserFunc*) override;
@@ -327,6 +328,7 @@ struct ivl_event_s {
       unsigned vif_pre_N; // UINT_MAX = unused (2-level); set = extra prop hop (3-level)
       std::vector<unsigned> vif_path; // root-to-interface property indices
       unsigned vif_root_pin;
+      ivl_nexus_t vif_validity;
       bool is_obj_mutation;
       unsigned obj_N;
       unsigned obj_pre_N;
@@ -522,6 +524,7 @@ struct ivl_lpm_s {
       unsigned lineno;
 	// Value returned by ivl_lpm_width;
       unsigned width;
+      unsigned event_synchronous = 0;
       ivl_expr_t*delay;
 
       union {
@@ -617,6 +620,13 @@ struct ivl_lpm_s {
 		  ivl_nexus_t q, a, s, b;
 	    } substitute;
 
+	    struct ivl_lpm_vif_proxy_s {
+		  ivl_nexus_t q, root, valid;
+		  unsigned root_word, member, word;
+		  unsigned path_count;
+		  unsigned*path;
+	    } vif_proxy;
+
 	    struct ivl_lpm_ufunc_s {
 		  ivl_scope_t def;
 		  unsigned ports;
@@ -700,6 +710,7 @@ struct ivl_net_logic_s {
       unsigned width_;
       unsigned is_cassign;
       unsigned is_port_buffer;
+      unsigned event_synchronous;
       unsigned delay_is_per_bit = 0;
       unsigned delay_is_whole_vector = 0;
       ivl_udp_t udp;

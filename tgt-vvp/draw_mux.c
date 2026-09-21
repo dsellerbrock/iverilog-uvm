@@ -79,8 +79,8 @@ static void draw_lpm_mux_nest(ivl_lpm_t net, const char*muxz)
 
       select_input = strdup(draw_net_input(ivl_lpm_select(net)));
 
-      fprintf(vvp_out, "L_%p/0s .part %s, 0, 1; Bit 0 of the select\n",
-	      net, select_input);
+      fprintf(vvp_out, "L_%p/0s .part%s %s, 0, 1; Bit 0 of the select\n",
+	      net, ivl_lpm_event_synchronous(net) ? "/event" : "", select_input);
 
       for (idx = 0 ;  idx < ivl_lpm_size(net) ;  idx += 2) {
 	    fprintf(vvp_out, "L_%p/0/%u .functor %s %u",
@@ -91,8 +91,8 @@ static void draw_lpm_mux_nest(ivl_lpm_t net, const char*muxz)
       }
 
       for (level = 1 ;  level < swidth-1 ;  level += 1) {
-	    fprintf(vvp_out, "L_%p/%us .part %s, %u, 1; Bit %u of the select\n",
-		    net, level, select_input, level, level);
+	    fprintf(vvp_out, "L_%p/%us .part%s %s, %u, 1; Bit %u of the select\n",
+		    net, level, ivl_lpm_event_synchronous(net) ? "/event" : "", select_input, level, level);
 
 	    for (idx = 0 ;  idx < (ivl_lpm_size(net) >> level); idx += 2) {
 		  fprintf(vvp_out, "L_%p/%u/%u .functor %s %u",
@@ -106,8 +106,8 @@ static void draw_lpm_mux_nest(ivl_lpm_t net, const char*muxz)
       }
 
 
-      fprintf(vvp_out, "L_%p/%us .part %s, %u, 1; Bit %u of the select\n",
-	      net, swidth-1, select_input, swidth-1, swidth-1);
+      fprintf(vvp_out, "L_%p/%us .part%s %s, %u, 1; Bit %u of the select\n",
+	      net, swidth-1, ivl_lpm_event_synchronous(net) ? "/event" : "", select_input, swidth-1, swidth-1);
 
 
       fprintf(vvp_out, "L_%p .functor %s %u", net, muxz, width);
@@ -133,6 +133,12 @@ void draw_lpm_mux(ivl_lpm_t net)
 	  default:
 	    muxz = "MUXZ";
 	    break;
+      }
+
+      char event_type[32];
+      if (ivl_lpm_event_synchronous(net)) {
+            snprintf(event_type, sizeof event_type, "%s/event", muxz);
+            muxz = event_type;
       }
 
       if ((ivl_lpm_size(net) == 2) && (ivl_lpm_selects(net) == 1)) {

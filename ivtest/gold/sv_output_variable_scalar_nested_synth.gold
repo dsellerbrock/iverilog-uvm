@@ -1,0 +1,2 @@
+./ivltests/sv_output_variable_scalar_nested_synth.v:20: warning: Process not synthesized.
+PASS scalar nested output

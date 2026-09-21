@@ -44,6 +44,7 @@ class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s,
                      vvp_context_t) override;
 
       void bind_net(vvp_net_t*net) { output_ = net; }
+      void event_synchronous(bool flag) { event_synchronous_ = flag; }
       void alloc_instance(vvp_context_t) override;
       void reset_instance(vvp_context_t) override;
       void initialize_instance(vvp_context_t) override;
@@ -67,6 +68,7 @@ class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s,
       __vpiScope*scope_ = nullptr;
       unsigned context_idx_ = 0;
       scalar_event_history*history_ = nullptr;
+      bool event_synchronous_ = false;
 };
 
 class vvp_fun_and  : public vvp_fun_boolean_ {
@@ -192,9 +194,11 @@ class vvp_fun_muxz : public vvp_net_fun_t, private vvp_gen_event_s {
                      vvp_context_t) override;
       void recv_vec4_pv(vvp_net_ptr_t p, const vvp_vector4_t&bit,
 			unsigned base, unsigned vwid, vvp_context_t) override;
+      void event_synchronous(bool flag) { event_synchronous_ = flag; }
 
     private:
       void run_run() override;
+      void send_output(vvp_net_t*, vvp_context_t);
 
     private:
       vvp_vector4_t a_;
@@ -202,6 +206,7 @@ class vvp_fun_muxz : public vvp_net_fun_t, private vvp_gen_event_s {
       vvp_net_t*net_;
       sel_type select_;
       bool has_run_;
+      bool event_synchronous_ = false;
 };
 
 class vvp_fun_muxr : public vvp_net_fun_t, private vvp_gen_event_s {

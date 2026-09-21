@@ -48,7 +48,7 @@ class vvp_fun_part  : public vvp_net_fun_t {
 class vvp_fun_part_sa  : public vvp_fun_part, public vvp_gen_event_s {
 
     public:
-      vvp_fun_part_sa(unsigned base, unsigned wid);
+      vvp_fun_part_sa(unsigned base, unsigned wid, bool event_synchronous);
       ~vvp_fun_part_sa() override;
 
     public:
@@ -64,6 +64,7 @@ class vvp_fun_part_sa  : public vvp_fun_part, public vvp_gen_event_s {
     private:
       vvp_vector4_t val_;
       vvp_net_t*net_;
+      bool event_synchronous_;
 };
 
 /*
@@ -72,7 +73,7 @@ class vvp_fun_part_sa  : public vvp_fun_part, public vvp_gen_event_s {
 class vvp_fun_part_aa  : public vvp_fun_part, public automatic_hooks_s {
 
     public:
-      vvp_fun_part_aa(unsigned base, unsigned wid);
+      vvp_fun_part_aa(unsigned base, unsigned wid, bool event_synchronous);
       ~vvp_fun_part_aa() override;
 
     public:
@@ -91,6 +92,7 @@ class vvp_fun_part_aa  : public vvp_fun_part, public automatic_hooks_s {
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+      bool event_synchronous_;
 };
 
 /* vvp_fun_part_pv

@@ -68,6 +68,9 @@ typedef void (*vthread_resource_cancel_t)(void*owner, vthread_t thr);
  */
 extern vthread_t vthread_new(vvp_code_t sa, __vpiScope*scope);
 
+/* Apply the optional numeric DV root seed before any root thread exists. */
+extern bool vthread_init_design_root_seed(void);
+
 /*
  * This function marks the thread as scheduled. It is used only by the
  * schedule_vthread function.

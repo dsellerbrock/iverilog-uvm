@@ -220,6 +220,8 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".export"       { return K_EXPORT; }
 ".extend/s"     { return K_EXTEND_S; }
 ".functor"      { return K_FUNCTOR; }
+".vifproxy"     { return K_VIF_PROXY; }
+".eventvalid"   { return K_EVENT_VALID; }
 ".import"       { return K_IMPORT; }
 ".island"       { return K_ISLAND; }
 ".latch"        { return K_LATCH; }
@@ -237,6 +239,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".param/str"    { return K_PARAM_STR; }
 ".param/real"   { return K_PARAM_REAL; }
 ".part"         { return K_PART; }
+".part/event"   { return K_PART_EVENT; }
 ".part/pv"      { return K_PART_PV; }
 ".packed_dims"  { return K_PACKED_DIMS; }
 ".part/v"       { return K_PART_V; }

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_joint_unordered_randc_multiple_dist_large.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_randomize_joint_unordered_randc_multiple_dist_large"
+}

@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_string_constant_empty_concat.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "test"
+  ],
+  "gold": "sv_string_constant_empty_concat"
+}

@@ -45,28 +45,8 @@ static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
             vpi_printf("trace UVM regex: regcomp pattern=<%s> flags=%d\n",
                        pattern ? pattern : "<null>", flags);
 
-      int err = regcomp(preg, pattern, flags);
-
-      /* Some OpenTitan DV code passes glob expressions directly to
-       * uvm_re_match() without setting its deglob argument.  Preserve the
-       * IEEE UVM regular-expression behavior whenever the expression is
-       * valid.  If POSIX rejects it and it contains a glob metacharacter,
-       * retry the same conversion used by uvm_re_match(..., .deglob(1)).
-       * This accepts legacy leading-wildcard expressions such as
-       * "*_shadowed" without changing any valid regular expression. */
-      if (err != 0 && pattern != 0 && strpbrk(pattern, "*?+") != 0) {
-            const char*glob_re = uvm_re_deglobbed(pattern, 0);
-            if (glob_re != 0) {
-                  if (getenv("IVL_UVM_REGEX_TRACE"))
-                        vpi_printf("trace UVM regex: retry glob=<%s> as re=<%s>\n",
-                                   pattern, glob_re);
-                  int glob_err = regcomp(preg, glob_re, flags);
-                  if (glob_err == 0)
-                        return 0;
-            }
-      }
-
-      return err;
+      // Glob conversion is explicit in the upstream API, never a retry.
+      return regcomp(preg, pattern, flags);
 }
 
 #define regcomp uvm_ivl_regcomp
@@ -75,8 +55,7 @@ static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
 #include "uvm_svcmd_dpi.c"
 
 // UVM releases through 2020.1 import these C entry points directly. Newer
-// releases implement them in SV. Keep legacy matching strict: the modern
-// regcomp wrapper above deliberately retries some invalid patterns as globs.
+// releases implement them in SV. Keep matching strict in both APIs.
 static void uvm_ivl_legacy_regex_error(const char*id, const char*message)
 {
       // Older UVM (including 1.1d) prints native diagnostics and has no
@@ -91,7 +70,7 @@ static void uvm_ivl_legacy_regex_error(const char*id, const char*message)
 }
 
 // UVM 1.1/1.2 import the cached-regex API directly from C. Keep its
-// strict ERE compilation separate from the modern glob-retry wrapper.
+// strict ERE compilation separate from the modern API.
 regex_t*uvm_dpi_regcomp(const char*pattern)
 {
       if (!pattern) return nullptr;

@@ -1,0 +1,2 @@
+ivltests/sv_event_real_edge_reject_2023.v:15: error: 'posedge' cannot be used with real expressions 'cfg.vif.sample'.
+1 error(s) during elaboration.

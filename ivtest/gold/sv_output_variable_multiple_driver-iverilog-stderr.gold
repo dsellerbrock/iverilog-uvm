@@ -1,0 +1,4 @@
+ivltests/sv_output_variable_multiple_driver.v:8: error: Variable 'value' cannot have multiple drivers.
+ivltests/sv_output_variable_multiple_driver.v:8: error: Output port expression must support a continuous assignment.
+ivltests/sv_output_variable_multiple_driver.v:8:      : Port 1 (out) of source_one is connected to test.value
+2 error(s) during elaboration.

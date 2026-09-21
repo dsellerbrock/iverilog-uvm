@@ -2111,7 +2111,8 @@ static bool reads_interface_member_(const LineInfo*li, Design*des,
 static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 const LineInfo*li, PExpr*lval,
 						 PExpr*rval,
-						 NetNet*signal_lval)
+						 NetNet*signal_lval,
+						 bool continuous_lval = false)
 {
       if (signal_lval) {
 	    NetExpr*rv = elaborate_rval_expr(
@@ -2119,6 +2120,11 @@ static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 	    if (!rv)
 		  return 0;
 	    NetAssign_*lv = new NetAssign_(signal_lval);
+	    if (continuous_lval) {
+		  /* Keep this synthetic behavioral store out of the late query for
+		     real procedural writers of the continuously driven variable. */
+		  lv->mark_force_lval();
+	    }
 	    NetAssign*assignment = new NetAssign(lv, rv);
 	    assignment->set_line(*li);
 	    return assignment;
@@ -2138,11 +2144,12 @@ static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 					 const LineInfo*li, PExpr*lval,
 					 PExpr*rval,
-					 NetNet*signal_lval = 0)
+					 NetNet*signal_lval = 0,
+					 bool continuous_lval = false)
 {
       const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
       NetProc*cur0 = elaborate_vif_member_assignment_(
-	    des, scope, li, lval, rval, signal_lval);
+	    des, scope, li, lval, rval, signal_lval, continuous_lval);
       if (cur0 == 0) {
 	    cerr << li->get_fileline() << ": error: Unable to elaborate "
 		 << "continuous assignment involving an interface member";
@@ -2169,7 +2176,7 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 	 * collector also keeps dynamic interface-member watchers separate from the
 	 * ordinary static nexus event, so a mixed RHS re-arms every source. */
       NetProc*assignment = elaborate_vif_member_assignment_(
-	    des, scope, li, lval, rval, signal_lval);
+	    des, scope, li, lval, rval, signal_lval, continuous_lval);
       if (!assignment) {
 	    cerr << li->get_fileline() << ": error: Unable to elaborate "
 		 << "continuous assignment involving an interface member";
@@ -2249,6 +2256,22 @@ struct pending_interface_variable_continuous_driver_t {
 
 static vector<pending_interface_variable_continuous_driver_t>
       pending_interface_variable_continuous_drivers_;
+
+struct pending_string_variable_continuous_driver_t {
+      NetNet*signal;
+      const LineInfo*location;
+};
+
+static vector<pending_string_variable_continuous_driver_t>
+      pending_string_variable_continuous_drivers_;
+
+struct pending_output_variable_port_driver_t {
+      NetNet*signal;
+      const LineInfo*location;
+};
+
+static vector<pending_output_variable_port_driver_t>
+      pending_output_variable_port_drivers_;
 
 /* An ordinary net/variable driven from an interface-member expression keeps
  * normal continuous-assignment semantics through a structural BUFZ. A local
@@ -2531,6 +2554,32 @@ static void finalize_interface_continuous_drivers_(Design*des)
 	    ivl_assert(*pending.location, !overlap);
       }
       pending_interface_variable_continuous_drivers_.clear();
+
+      for (const pending_string_variable_continuous_driver_t&pending :
+	   pending_string_variable_continuous_drivers_) {
+	    unsigned msb = pending.signal->vector_width() - 1;
+	    if (pending.signal->test_part_procedurally_driven(msb, 0, 0)) {
+		  cerr << pending.location->get_fileline() << ": error: Variable '"
+		       << pending.signal->name()
+		       << "' cannot have continuous and procedural drivers on the "
+			  "same value." << endl;
+		  des->errors += 1;
+	    }
+      }
+      pending_string_variable_continuous_drivers_.clear();
+
+      for (const pending_output_variable_port_driver_t&pending :
+	   pending_output_variable_port_drivers_) {
+	    unsigned msb = pending.signal->vector_width() - 1;
+	    if (!pending.signal->test_part_procedurally_driven(msb, 0, 0))
+		  continue;
+	    cerr << pending.location->get_fileline() << ": error: Variable '"
+		 << pending.signal->name()
+		 << "' cannot be driven by an output port and a procedural "
+		    "assignment." << endl;
+	    des->errors += 1;
+      }
+      pending_output_variable_port_drivers_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -2572,6 +2621,140 @@ static bool diagnose_interconnect_value_reference_(Design*des,
       return true;
 }
 
+/* A string is variable-length storage, so it cannot use the structural
+   continuous-assignment path that promotes a variable to an unresolved
+   fixed-width net. Lower a direct whole-string assignment to the same
+   time-zero plus implicit-sensitivity processes used for behavioral
+   continuous interface-member stores. */
+static bool elaborate_string_variable_continuous_(
+      Design*des, NetScope*scope, const PGAssign*assignment,
+      NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+      bool default_strength)
+{
+      bool selected = false;
+      NetNet*signal = direct_identifier_net_(
+            assignment, des, scope, assignment->pin(0), selected);
+      if (!signal || ivl_type_base(signal->net_type()) != IVL_VT_STRING)
+            return false;
+
+      if (selected) {
+            cerr << assignment->get_fileline() << ": sorry: A continuous "
+                    "assignment to a selected string character is not "
+                    "currently supported." << endl;
+            des->errors += 1;
+            delete_unique_delays_(rise_time, fall_time, decay_time);
+            return true;
+      }
+
+      bool unsupported_delay = assignment->delay_count() > 0
+            && !(is_defined_zero_delay_(rise_time)
+                 && is_defined_zero_delay_(fall_time)
+                 && is_defined_zero_delay_(decay_time));
+      if (unsupported_delay || !default_strength) {
+            cerr << assignment->get_fileline() << ": sorry: Nonzero/dynamic "
+                    "delay and non-default drive strength on a continuous "
+                    "assignment to a string variable are not currently "
+                    "supported." << endl;
+            des->errors += 1;
+            delete_unique_delays_(rise_time, fall_time, decay_time);
+            return true;
+      }
+      delete_unique_delays_(rise_time, fall_time, decay_time);
+
+      extern bool synthesis;
+      if (synthesis) {
+            cerr << assignment->get_fileline() << ": sorry: A continuous "
+                    "assignment to a string variable is not currently "
+                    "supported in synthesis." << endl;
+            des->errors += 1;
+            return true;
+      }
+
+      if (signal->unpacked_dimensions() > 0 || signal->pin_count() != 1
+          || signal->type() != NetNet::REG) {
+            cerr << assignment->get_fileline() << ": sorry: A continuous "
+                    "assignment to string currently requires one direct, "
+                    "complete string variable." << endl;
+            des->errors += 1;
+            return true;
+      }
+
+      unsigned msb = signal->vector_width() - 1;
+      if (signal->test_part_driven(msb, 0, 0)) {
+            cerr << assignment->get_fileline() << ": error: Variable '"
+                 << signal->name()
+                 << "' cannot have multiple continuous drivers." << endl;
+            des->errors += 1;
+            return true;
+      }
+      if (signal->test_part_procedurally_driven(msb, 0, 0)) {
+            cerr << assignment->get_fileline() << ": error: Variable '"
+                 << signal->name()
+                 << "' cannot have continuous and procedural drivers on the "
+                    "same value." << endl;
+            des->errors += 1;
+            return true;
+      }
+      NetProc*initial_assignment = elaborate_vif_member_assignment_(
+            des, scope, assignment,
+            const_cast<PExpr*>(assignment->pin(0)),
+            const_cast<PExpr*>(assignment->pin(1)), signal, true);
+      if (!initial_assignment) {
+            cerr << assignment->get_fileline() << ": error: Unable to "
+                    "elaborate continuous assignment to string variable '"
+                 << signal->name() << "'." << endl;
+            des->errors += 1;
+            return true;
+      }
+
+      NetProc*watch = 0;
+      bool constant_rhs =
+            dynamic_cast<const PEString*>(assignment->pin(1)) != 0;
+      if (!constant_rhs) {
+            NetProc*update_assignment = elaborate_vif_member_assignment_(
+                  des, scope, assignment,
+                  const_cast<PExpr*>(assignment->pin(0)),
+                  const_cast<PExpr*>(assignment->pin(1)), signal, true);
+            if (update_assignment) {
+                  PEventStatement wait(true);
+                  wait.set_line(*assignment);
+                  watch = wait.elaborate_st(des, scope, update_assignment);
+                  if (!watch)
+                        delete update_assignment;
+            }
+            if (!watch) {
+                  delete initial_assignment;
+                  cerr << assignment->get_fileline() << ": error: Unable to "
+                          "derive sensitivity for continuous assignment to "
+                          "string variable '" << signal->name() << "'." << endl;
+                  des->errors += 1;
+                  return true;
+            }
+      }
+
+      bool overlap = signal->test_and_set_part_driver(msb, 0, 0);
+      ivl_assert(*assignment, !overlap);
+      pending_string_variable_continuous_driver_t pending = {
+            signal, assignment
+      };
+      pending_string_variable_continuous_drivers_.push_back(pending);
+
+      NetProcTop*initial = new NetProcTop(
+            scope, IVL_PR_INITIAL, initial_assignment);
+      initial->set_line(*assignment);
+      des->add_process(initial);
+
+      if (watch) {
+            NetProcTop*always = new NetProcTop(scope, IVL_PR_ALWAYS, watch);
+            always->set_line(*assignment);
+            always->attribute(
+                  perm_string::literal("_ivl_synthesis_transient"),
+                  verinum(1));
+            des->add_process(always);
+      }
+      return true;
+}
+
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -2588,6 +2771,11 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       ivl_assert(*this, pin(1));
 
       if (diagnose_interconnect_value_reference_(des, scope, pin(1)))
+            return;
+
+      if (elaborate_string_variable_continuous_(
+            des, scope, this, rise_time, fall_time, decay_time,
+            var_allowed_in_sv))
             return;
 
 	/* M5-if: a continuous assign whose l-value is a MEMBER of an
@@ -3935,6 +4123,18 @@ static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
 	    ivl_assert(*mod, 0);
 	    break;
       }
+}
+
+/* An explicit output data type declares a variable port. A continuous
+ * assignment inside the module may already have converted its storage to an
+ * unresolved wire, but coerced_to_uwire() retains the declaration kind. */
+static bool is_variable_output_port_(NetNet*port)
+{
+      if (!port || port->port_type() != NetNet::POUTPUT)
+	    return false;
+      return port->type() == NetNet::REG
+	    || port->type() == NetNet::IMPLICIT_REG
+	    || port->coerced_to_uwire();
 }
 
 enum port_net_dominance_t {
@@ -5743,6 +5943,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	      // that connects to the port.
 
 	    NetNet*sig = 0;
+	    NetNet*output_actual_variable = 0;
+	    NetNet::Type output_actual_variable_type = NetNet::NONE;
 	    NetNet::PortType ptype;
 	    if (prts.empty())
 		   ptype = NetNet::NOT_A_PORT;
@@ -6017,7 +6219,20 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		       assignment, as the port will continuous assign
 		       into the port. */
 
-		    // A module output port can drive a variable.
+		    /* A module output port can drive a variable. Let the ordinary
+		       continuous-lvalue path perform overlap checks and reserve its
+		       single driver, then restore the declared variable kind. The
+		       connection below inserts the implied one-way assignment. */
+		  bool selected_actual = false;
+		  output_actual_variable = direct_identifier_net_(
+			this, des, scope, pins[idx], selected_actual);
+		  if (selected_actual || !output_actual_variable
+		      || (output_actual_variable->type() != NetNet::REG
+			  && output_actual_variable->type() != NetNet::IMPLICIT_REG)) {
+			output_actual_variable = 0;
+		  } else {
+			output_actual_variable_type = output_actual_variable->type();
+		  }
 		  sig = pins[idx]->elaborate_lnet(des, scope, true);
 		  if (sig == 0) {
 			cerr << pins[idx]->get_fileline() << ": error: "
@@ -6029,6 +6244,36 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			     << scope_path(scope) << "." << *pins[idx] << endl;
 			des->errors += 1;
 			continue;
+		  }
+		  if (output_actual_variable && sig == output_actual_variable) {
+			sig->type(output_actual_variable_type);
+
+			/* A structural driver attached directly to a variable is
+			   resolved together with the variable's stored value, which
+			   feeds X/Z from the destination back into the implied port
+			   assignment. Drive an ordinary carrier from the child and
+			   copy that carrier into the variable with the established
+			   time-zero plus implicit-sensitivity lowering instead. */
+			NetNet*carrier = new NetNet(
+			      scope, scope->local_symbol(), NetNet::WIRE,
+			      output_actual_variable->net_type());
+			carrier->local_flag(true);
+			carrier->attribute(perm_string::literal(
+			      "_ivl_implicit_sensitivity"), verinum(1));
+			carrier->set_line(*pins[idx]);
+			unique_ptr<PEIdent>carrier_id(
+			      new PEIdent(carrier->name(), UINT_MAX, true));
+			carrier_id->set_line(*pins[idx]);
+			if (!elaborate_vif_member_assign_(
+			      des, scope, pins[idx],
+			      const_cast<PExpr*>(pins[idx]), carrier_id.get(),
+			      output_actual_variable, true))
+			      continue;
+			pending_output_variable_port_driver_t pending = {
+			      output_actual_variable, pins[idx]
+			};
+			pending_output_variable_port_drivers_.push_back(pending);
+			sig = carrier;
 		  }
 
 		    // If we have a real port driving a bit/vector signal
@@ -6106,7 +6351,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 #ifndef NDEBUG
 	    if ((! prts.empty())
-		&& (ptype != NetNet::PINPUT)) {
+		&& (ptype != NetNet::PINPUT)
+		&& !(ptype == NetNet::POUTPUT && output_actual_variable)) {
 		  ivl_assert(*this, sig->type() != NetNet::REG);
 	    }
 #endif
@@ -6229,7 +6475,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // that are a delay path destination, to avoid
 		    // the delay being applied to other drivers of
 		    // the external signal.
-		  if ((gn_dumpports_flag && ptype == NetNet::PINOUT) ||
+		  if ((ptype == NetNet::POUTPUT
+		       && (is_variable_output_port_(prts[0])
+			   || output_actual_variable)) ||
+		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
 			  // FIXME improve this for multiple module instances
@@ -6262,7 +6511,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // single instance of the port. In this case,
 		    // connect the sig to all the ports identically.
 		  for (unsigned ldx = 0 ;  ldx < prts.size() ;	ldx += 1) {
-			if (prts[ldx]->delay_paths() > 0) {
+			if ((ptype == NetNet::POUTPUT
+			     && (is_variable_output_port_(prts[ldx])
+				 || output_actual_variable))
+			    || prts[ldx]->delay_paths() > 0) {
 			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype);
 			} else {
 			      NetNet*formal = prts[ldx];
@@ -19480,6 +19732,131 @@ NetProc* PEventStatement::elaborate_conditional_(Design*des, NetScope*scope,
       return result;
 }
 
+static NetExpr*vif_valid_const_(bool value)
+{
+      return new NetEConst(verinum(value ? verinum::V1 : verinum::V0, 1));
+}
+
+class event_synchronous_synthesis_scope_ {
+    public:
+      event_synchronous_synthesis_scope_()
+      : previous_(net_expr_event_synchronous(true)) { }
+
+      ~event_synchronous_synthesis_scope_()
+      { net_expr_event_synchronous(previous_); }
+
+    private:
+      bool previous_;
+};
+
+static NetExpr*vif_valid_and_(NetExpr*left, NetExpr*right)
+{
+      return new NetEBLogic('a', left, right);
+}
+
+static NetExpr*vif_valid_or_(NetExpr*left, NetExpr*right)
+{
+      return new NetEBLogic('o', left, right);
+}
+
+static NetExpr*vif_definite_truth_(const NetExpr*expr, bool truth)
+{
+      NetExpr*boolean = new NetEUReduce('|', expr->dup_expr());
+      return new NetEBComp('E', boolean, vif_valid_const_(truth));
+}
+
+static NetExpr*build_vif_validity_expr_(
+      const NetExpr*expr,
+      const map<const NetEProperty*,NetNet*>&leaves,
+      bool&unsupported)
+{
+      if (const NetEProperty*prop = dynamic_cast<const NetEProperty*>(expr)) {
+            map<const NetEProperty*,NetNet*>::const_iterator found =
+                  leaves.find(prop);
+            if (found != leaves.end())
+                  return new NetESignal(found->second);
+            NetExpr*valid = prop->get_base()
+                  ? build_vif_validity_expr_(prop->get_base(), leaves,
+                                             unsupported)
+                  : vif_valid_const_(true);
+            if (prop->get_index())
+                  valid = vif_valid_and_(valid,
+                        build_vif_validity_expr_(prop->get_index(), leaves,
+                                                 unsupported));
+            return valid;
+      }
+
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr)) {
+            NetExpr*left = build_vif_validity_expr_(binary->left(), leaves,
+                                                    unsupported);
+            NetExpr*right = build_vif_validity_expr_(binary->right(), leaves,
+                                                     unsupported);
+            if (binary->op() == 'a' || binary->op() == 'o') {
+                  bool short_truth = binary->op() == 'o';
+                  NetExpr*need_right = vif_valid_or_(
+                        vif_definite_truth_(binary->left(), short_truth),
+                        right);
+                  return vif_valid_and_(left, need_right);
+            }
+            return vif_valid_and_(left, right);
+      }
+
+      if (const NetETernary*ternary =
+                dynamic_cast<const NetETernary*>(expr)) {
+            NetExpr*cond = build_vif_validity_expr_(ternary->cond_expr(),
+                                                    leaves, unsupported);
+            NetExpr*tru = build_vif_validity_expr_(ternary->true_expr(),
+                                                   leaves, unsupported);
+            NetExpr*fal = build_vif_validity_expr_(ternary->false_expr(),
+                                                   leaves, unsupported);
+            NetExpr*selected = new NetETernary(
+                  ternary->cond_expr()->dup_expr(), tru, fal, 1, false);
+            selected = new NetEBComp('E', selected, vif_valid_const_(true));
+            return vif_valid_and_(cond, selected);
+      }
+
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr))
+            return build_vif_validity_expr_(unary->expr(), leaves,
+                                            unsupported);
+
+      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr)) {
+            NetExpr*valid = build_vif_validity_expr_(select->sub_expr(),
+                                                     leaves, unsupported);
+            if (select->select())
+                  valid = vif_valid_and_(valid,
+                        build_vif_validity_expr_(select->select(), leaves,
+                                                 unsupported));
+            return valid;
+      }
+
+      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+            NetExpr*valid = vif_valid_const_(true);
+            for (unsigned idx = 0; idx < concat->nparms(); ++idx)
+                  if (concat->parm(idx))
+                        valid = vif_valid_and_(valid,
+                              build_vif_validity_expr_(concat->parm(idx),
+                                                       leaves, unsupported));
+            return valid;
+      }
+
+      if (const NetESignal*signal = dynamic_cast<const NetESignal*>(expr)) {
+            if (signal->word_index())
+                  return build_vif_validity_expr_(signal->word_index(), leaves,
+                                                  unsupported);
+            return vif_valid_const_(true);
+      }
+
+      if (dynamic_cast<const NetEConst*>(expr)
+          || dynamic_cast<const NetECReal*>(expr)
+          || dynamic_cast<const NetENull*>(expr))
+            return vif_valid_const_(true);
+
+      /* This event contains a dynamic VIF leaf, so treating an unknown
+       * expression kind as unconditionally valid would mask a null use. */
+      unsupported = true;
+      return vif_valid_const_(false);
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -19835,6 +20212,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       ev->set_line(*this);
       ev->local_flag(true);
       unsigned expr_count = 0;
+      NetNet*event_vif_validity = 0;
 
       NetEvWait*wa = new NetEvWait(enet);
       wa->set_line(*this);
@@ -20111,7 +20489,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                both loses signal sensitivity and creates broad spurious
                wakeups during UVM construction. */
             if (gn_system_verilog()
-                && expr_[idx]->type() == PEEvent::ANYEDGE) {
+                && expr_[idx]->type() == PEEvent::ANYEDGE
+                && dynamic_cast<NetEProperty*>(tmp)) {
 	                  std::vector<vif_member_path_t> vif_paths;
 	                  collect_vif_member_paths_(tmp, vif_paths);
 	                  std::vector<class_property_mutation_dep_t> object_deps;
@@ -20620,7 +20999,12 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	          expr_[idx]->type() == PEEvent::ANYEDGE
 	       && dynamic_cast<const NetESignal*>(tmp)
 	       && dynamic_cast<const netclass_t*>(tmp->net_type());
+	    event_synchronous_synthesis_scope_ event_synchronous_scope;
+	    map<const NetEProperty*,NetNet*> vif_validity_leaves;
+	    NetEProperty::set_synthesis_vif_validity_collector(
+	          &vif_validity_leaves);
 	    NetNet*expr = tmp->synthesize(des, scope, tmp);
+	    NetEProperty::set_synthesis_vif_validity_collector(nullptr);
 	    if (expr == 0) {
 		  if (gn_system_verilog()) {
 			// Compile-progress: SV expressions with class properties or
@@ -20635,6 +21019,40 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  continue;
 	    }
 	    ivl_assert(*this, expr);
+
+	    if (!vif_validity_leaves.empty()) {
+		  bool unsupported_validity = false;
+		  NetExpr*valid_expr = build_vif_validity_expr_(
+			tmp, vif_validity_leaves, unsupported_validity);
+		  if (unsupported_validity) {
+			cerr << tmp->get_fileline() << ": sorry: null-validity "
+			     << "tracking is not implemented for this compound "
+			     << "virtual-interface event expression." << endl;
+			des->errors += 1;
+			delete valid_expr;
+			delete tmp;
+			continue;
+		  }
+		  NetNet*valid_net = valid_expr->synthesize(
+			des, scope, valid_expr);
+		  delete valid_expr;
+		  if (!valid_net) {
+			cerr << tmp->get_fileline() << ": internal error: failed to "
+			     << "synthesize virtual-interface event validity." << endl;
+			des->errors += 1;
+			delete tmp;
+			continue;
+		  }
+		  if (event_vif_validity) {
+			NetExpr*both = new NetEBLogic('a',
+			      new NetESignal(event_vif_validity),
+			      new NetESignal(valid_net));
+			event_vif_validity = both->synthesize(des, scope, both);
+			delete both;
+		  } else {
+			event_vif_validity = valid_net;
+		  }
+	    }
 
 	    delete tmp;
 
@@ -20692,6 +21110,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	   expression (and not a named event) then add this
 	   event. Otherwise, we didn't use it so delete it. */
       if (expr_count > 0) {
+	    if (event_vif_validity && ev->nprobe())
+	          ev->probe(0)->set_vif_validity(event_vif_validity);
 	    scope->add_event(ev);
 	    wa->add_event(ev);
 	    if (implicit_vif_trigger_event) {
@@ -36766,6 +37186,9 @@ Design* elaborate(list<perm_string>roots)
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
       pending_interface_variable_continuous_drivers_.clear();
+      pending_string_variable_continuous_drivers_.clear();
+
+      pending_output_variable_port_drivers_.clear();
 
 	// Create NetScope objects for compilation units first so that
 	// unit_scopes is populated before packages are processed.

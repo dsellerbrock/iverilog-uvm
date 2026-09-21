@@ -551,6 +551,12 @@ extern "C" unsigned ivl_event_vif_root_pin(ivl_event_t net)
       return net->vif_root_pin;
 }
 
+extern "C" ivl_nexus_t ivl_event_vif_validity(ivl_event_t net)
+{
+      assert(net);
+      return net->vif_validity;
+}
+
 extern "C" int ivl_event_is_obj_mutation(ivl_event_t net)
 {
       assert(net);
@@ -1306,6 +1312,12 @@ extern "C" unsigned ivl_logic_width(ivl_net_logic_t net)
       return net->width_;
 }
 
+extern "C" unsigned ivl_logic_event_synchronous(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->event_synchronous;
+}
+
 extern "C" unsigned ivl_logic_port_buffer(ivl_net_logic_t net)
 {
       assert(net);
@@ -1646,6 +1658,10 @@ extern "C" ivl_nexus_t ivl_lpm_data(ivl_lpm_t net, unsigned idx)
 	    assert(idx == 0);
 	    return net->u_.repeat.a;
 
+	  case IVL_LPM_VIF_PROXY:
+	    assert(idx == 0);
+	    return net->u_.vif_proxy.root;
+
 	  case IVL_LPM_SFUNC:
 	      // Skip the return port.
 	    assert(idx < (net->u_.sfunc.ports-1));
@@ -1798,6 +1814,9 @@ extern "C" ivl_nexus_t ivl_lpm_q(ivl_lpm_t net)
 
 	  case IVL_LPM_ARRAY:
 	    return net->u_.array.q;
+
+	  case IVL_LPM_VIF_PROXY:
+	    return net->u_.vif_proxy.q;
 
 	  default:
 	    assert(0);
@@ -2013,6 +2032,49 @@ extern "C" unsigned ivl_lpm_width(ivl_lpm_t net)
 {
       assert(net);
       return net->width;
+}
+
+extern "C" unsigned ivl_lpm_event_synchronous(ivl_lpm_t net)
+{
+      assert(net);
+      return net->event_synchronous;
+}
+
+extern "C" unsigned ivl_lpm_vif_root_word(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.root_word;
+}
+
+extern "C" ivl_nexus_t ivl_lpm_vif_validity(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.valid;
+}
+
+extern "C" unsigned ivl_lpm_vif_member(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.member;
+}
+
+extern "C" unsigned ivl_lpm_vif_word(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.word;
+}
+
+extern "C" unsigned ivl_lpm_vif_path_count(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.path_count;
+}
+
+extern "C" unsigned ivl_lpm_vif_path(ivl_lpm_t net, unsigned idx)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      assert(idx < net->u_.vif_proxy.path_count);
+      return net->u_.vif_proxy.path[idx];
 }
 
 extern "C" ivl_event_t ivl_lpm_trigger(ivl_lpm_t net)

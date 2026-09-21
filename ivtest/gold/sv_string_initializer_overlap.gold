@@ -1,0 +1,2 @@
+./ivltests/sv_string_initializer_overlap.v:4: error: Variable 'sink' cannot have continuous and procedural drivers on the same value.
+1 error(s) during elaboration.

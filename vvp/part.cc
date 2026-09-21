@@ -20,6 +20,7 @@
 # define __STDC_LIMIT_MACROS
 # include  "compile.h"
 # include  "part.h"
+# include  "event.h"
 # include  <cstdlib>
 # include  <climits>
 # include  <stdint.h>
@@ -43,8 +44,9 @@ vvp_fun_part::~vvp_fun_part()
 {
 }
 
-vvp_fun_part_sa::vvp_fun_part_sa(unsigned base, unsigned wid)
-: vvp_fun_part(base, wid)
+vvp_fun_part_sa::vvp_fun_part_sa(unsigned base, unsigned wid,
+                                 bool event_synchronous)
+: vvp_fun_part(base, wid), event_synchronous_(event_synchronous)
 {
       net_ = 0;
 }
@@ -56,6 +58,11 @@ vvp_fun_part_sa::~vvp_fun_part_sa()
 void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t)
 {
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone([this, port, bit]() {
+                recv_vec4(port, bit, 0);
+          }))
+            return;
       assert(port.port() == 0);
 
       vvp_vector4_t tmp (bit, base_, wid_);
@@ -64,7 +71,12 @@ void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 
       val_ = tmp;
 
-      if (net_ == 0) {
+      if (event_synchronous_) {
+            vvp_net_t*out = port.ptr();
+            vvp_event_enqueue_comb(this, 0, [this, out]() {
+                  out->send_vec4(val_, 0);
+            });
+      } else if (net_ == 0) {
 	    net_ = port.ptr();
 	    schedule_functor(this);
       }
@@ -92,8 +104,9 @@ void vvp_fun_part_sa::run_run()
       ptr->send_vec4(val_, 0);
 }
 
-vvp_fun_part_aa::vvp_fun_part_aa(unsigned base, unsigned wid)
-: vvp_fun_part(base, wid)
+vvp_fun_part_aa::vvp_fun_part_aa(unsigned base, unsigned wid,
+                                 bool event_synchronous)
+: vvp_fun_part(base, wid), event_synchronous_(event_synchronous)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
@@ -128,6 +141,15 @@ void vvp_fun_part_aa::free_instance(vvp_context_t context)
 void vvp_fun_part_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone([this, port, bit, context]() {
+                if (context
+                    && !vthread_context_live_matches_scope(
+                          context, context_scope_))
+                      return;
+                recv_vec4(port, bit, context);
+          }))
+            return;
       if (context) {
             assert(port.port() == 0);
 
@@ -141,7 +163,22 @@ void vvp_fun_part_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
             }
             if (!val->eeq( tmp )) {
                   *val = tmp;
-                  port.ptr()->send_vec4(tmp, context);
+                  if (event_synchronous_) {
+                        vvp_net_t*out = port.ptr();
+                        vvp_event_enqueue_comb(this, context,
+                              [this, out, context]() {
+                                    if (!vthread_context_live_matches_scope(
+                                          context, context_scope_))
+                                          return;
+                                    const vvp_vector4_t*value =
+                                          static_cast<vvp_vector4_t*>(
+                                                vvp_get_context_item(
+                                                      context, context_idx_));
+                                    out->send_vec4(*value, context);
+                              });
+                  } else {
+                        port.ptr()->send_vec4(tmp, context);
+                  }
             }
       } else {
             context = context_scope_->live_contexts;
@@ -414,14 +451,14 @@ void link_node_1(char*label, char*source, vvp_net_fun_t*fun)
 }
 
 void compile_part_select(char*label, char*source,
-			 unsigned base, unsigned wid)
+			 unsigned base, unsigned wid, bool event_synchronous)
 {
       vvp_fun_part*fun = 0;
       __vpiScope*owner = vpip_peek_context_scope();
       if (owner && owner->has_automatic_context()) {
-            fun = new vvp_fun_part_aa(base, wid);
+            fun = new vvp_fun_part_aa(base, wid, event_synchronous);
       } else {
-            fun = new vvp_fun_part_sa(base, wid);
+            fun = new vvp_fun_part_sa(base, wid, event_synchronous);
       }
       link_node_1(label, source, fun);
 }

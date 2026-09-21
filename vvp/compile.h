@@ -140,6 +140,11 @@ extern void compile_vpi_time_precision(long pre);
  * of the functor. The compile should match those port parameters up
  * to existing functors to manage the linking.
  */
+extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
+                              char*root, unsigned root_word, unsigned member,
+                              unsigned word, unsigned path_count, long*path);
+extern void compile_event_valid(char*event_label, char*valid_label);
+
 extern void compile_functor(char*label, char*type, unsigned width,
 			    unsigned ostr0, unsigned ostr1,
 			    unsigned argc, struct symb_s*argv);
@@ -192,7 +197,8 @@ extern void compile_delay(char*label, unsigned width,
  * See the PART SELECT STATEMENT section in the README.txt
  */
 extern void compile_part_select(char*label, char*src,
-				unsigned base, unsigned wid);
+				unsigned base, unsigned wid,
+                                bool event_synchronous = false);
 extern void compile_part_select_pv(char*label, char*src,
 				   unsigned base, unsigned wid,
 				   unsigned vec_wid);

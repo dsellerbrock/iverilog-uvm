@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_joint_ordered_randc_multiple_dist_boundary_2023.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_randomize_joint_ordered_randc_multiple_dist_boundary_2023"
+}
