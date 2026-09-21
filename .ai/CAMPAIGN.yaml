@@ -18,7 +18,7 @@ publication:
   prior_batch_fixes: 11
 next_batch:
   integrated_fixes: 4
-  revisions: [25653fdc0, acb786965, 346b48f68]
+  revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c]
   scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
   sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
   validation: Focused paired runtime checks and relevant neighbors pass; broad gates pending near10integrated fixes or sooner for concrete risk.
@@ -77,3 +77,10 @@ current_checkpoint:
   next: Review package contextual recognition proposal and signed range patch; no next-batch PR until coherent validated batch.
 
 enum_name_checkpoint: Focused-tested shared type mapping; evidence docs/conformance/session_logs/2026-09-21_enum_bare_name_type.json. Broad gates pending.
+
+latest_checkpoint:
+  committed: c8e6cb97c enum bare-name string type mapping; four focused cases per harness and120enum-neighbor cases pass.
+  signed_cover: Private patch ready but held for review of inside-expression conversions vs19.5.7 bin conversions, default-bin denominator oracle and cap-failure behavior.
+  package: Terra authorized exact scoped self-package typedef recovery at existing cast action, revert unconditional package lexer classification; preserve shadow test.
+  processes: No shared build or test active.
+  preserved: Package candidate and failing permanent shadow regression remain uncommitted; external AGENTS.md unchanged.
