@@ -42,3 +42,14 @@ frozen_checkpoint:
   commands: python3 evidence/review-20260920/qualification/run_gate.py integrated
   pending_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
   publication_authority: PR integration agent may publish matching reviewed repairs after checkpoint, but may not merge without green CI and coordinator final clearance.
+
+latest_user_execution_policy:
+  authority: User instruction after frozen repair checkpoint, 2026-09-20.
+  batch_cadence: Approximately ten implemented fixes per coherent PR, with focused validation per fix and required broad suites at batch checkpoints.
+  merge_threshold: Coordinator-reviewed local validation plus one completed successful full CI job on the exact published candidate; remaining platform jobs may finish after merge.
+  later_ci_failures: Diagnose and publish follow-up fix PRs; preserve failed evidence and distinguish infrastructure failures from compiler regressions.
+  correctness: No known semantic defect is waived; a single CI success does not imply complete cross-platform or standards qualification.
+  worker_usage: At least five implementation workers across a feature batch, with explicit model/effort and bounded disjoint ownership.
+  concurrency: Runtime exposes four total slots, so at most three workers alongside coordinator; rotate completed workers to reach batch allocation.
+  model_policy: Keep selected coordinator unchanged; use cheapest capable explicit model/effort and escalate only a concrete unresolved problem.
+  existing_pr_exception: Finish the three already-open PR302/304/305 before applying ten-fix publication cadence to new batches.
