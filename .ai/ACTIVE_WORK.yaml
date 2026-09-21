@@ -71,3 +71,16 @@ event_scope_review:
   evidence: docs/conformance/session_logs/2026-09-21_vif_event_pulse_boundary.json
   rejected: Procedural post-wake filter loses same-timeslot pulses; private exploratory patch remains unapplied.
   next: Read-only trace of synchronous dynamic expression capture and exact runtime scope proposal before further edits.
+
+event_structural_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  reason: Procedural resampling loses intermediate edges; use synchronous structural proxy and existing expression/edge networks.
+  design: evidence/review-20260920/next-compound-vif-edge-fix/RUNTIME_SCOPE_PROPOSAL.md
+  worker: vif_proxy_implementation, Sol medium
+  worker_files: elaborate.cc, expr_synth.cc, netlist.h, netlist.cc, emit.cc, target.h, target.cc, t-dll.h, t-dll.cc, t-dll-api.cc, ivl_target.h, vvp/vvp_vinterface.h, vvp/vvp_vinterface.cc, vvp/event.h, vvp/event.cc
+  coordinator_glue: tgt-vvp/vvp_scope.c and VVP directive parser/compiler registration; worker must supply exact descriptor/API requirements, not edit Sol-owned files.
+  ownership: Sol remains sole private editor of shared packed-VPI file set; coordinator integrates common glue after reviewing both patches.
+  acceptance: Existing compound/table/pulse fixtures; simultaneous automatic activations; changed and unchanged handle rebind; alias mutation propagation; old-source unlink; scope teardown; no VM reentry; no side-effect or function semantics lost.
+  boundary: No general runtime interpreter or AST clone framework; preserve unsupported forms with focused diagnostics. Propose further files before editing.
+
+event_worker_escalation: Terra completed repeated planning-only turns with no structural source changes; replaced with Sol medium for the authorized cross-stage structural implementation. Existing findings and fixtures retained.

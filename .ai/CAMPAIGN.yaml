@@ -35,3 +35,7 @@ selected_event_lane: COMPOUND-VIF-EDGE-EVENTS; Terra medium private elaborate.cc
 parallel_boundary_evidence: docs/conformance/session_logs/2026-09-21_parallel_pwrmgr_boundaries.json
 
 event_pulse_boundary: docs/conformance/session_logs/2026-09-21_vif_event_pulse_boundary.json
+
+structural_event_lane: Terra authorized private structural VIF proxy implementation; coordinator owns shared target/parser glue, disjoint from Sol private VPI edits.
+
+active_workers: constraint_guard_semantics (Sol medium packed VPI) and vif_proxy_implementation (Sol medium structural events); previous Terra worker stopped after repeated plan-only responses.
