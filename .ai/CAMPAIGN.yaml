@@ -53,3 +53,20 @@ latest_user_execution_policy:
   concurrency: Runtime exposes four total slots, so at most three workers alongside coordinator; rotate completed workers to reach batch allocation.
   model_policy: Keep selected coordinator unchanged; use cheapest capable explicit model/effort and escalate only a concrete unresolved problem.
   existing_pr_exception: Finish the three already-open PR302/304/305 before applying ten-fix publication cadence to new batches.
+
+next_batch_preparation:
+  lanes: [DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT, DD042-RECURSIVE-WITH]
+  active_workers: [constraint_selected_array, recursive_cross_with, merge_remaining_prs]
+  isolation: Disjoint private patch-artifact directories; no shared source edits or builds.
+  integration_prerequisite: Existing frozen repair qualification and coordinator review.
+
+post_user_merge:
+  merged_main: 782d951145352ef9423ffb4f6a8957ce86ea625a
+  merged_prs: [302, 304, 305]
+  merge_agent: Stopped at explicit user request; do not restart.
+  discrepancy: PR302 merged original head without selector repair; generated integration also removed PR303 readiness fix and its regression.
+  restoration_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/306
+  restoration_head: cec75d034ea7c5ef23c6e7420b89fedff166a07d
+  restoration_verification: Compiler/test tree exactly matches focused-tested e90059a07; integrated gate passed, remaining broad gates and CI pending.
+  active_qualification_session: 25490
+  next_action: Poll existing qualification and PR306 CI; merge restored candidate after local required validation and one full CI job pass; no duplicate shared runs.

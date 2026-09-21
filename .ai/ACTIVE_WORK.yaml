@@ -68,3 +68,37 @@ latest_user_execution_policy:
   concurrency: Runtime exposes four total slots, so at most three workers alongside coordinator; rotate completed workers to reach batch allocation.
   model_policy: Keep selected coordinator unchanged; use cheapest capable explicit model/effort and escalate only a concrete unresolved problem.
   existing_pr_exception: Finish the three already-open PR302/304/305 before applying ten-fix publication cadence to new batches.
+
+next_batch_isolated_lane:
+  id: DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
+  agent: /root/constraint_selected_array
+  model: gpt-5.6-terra
+  effort: medium
+  status: REPRODUCED
+  reproducer: evidence/review-20260920/next-dd044/selected_constraint.sv
+  actual: Compiler warns and discards a state-indexed fixed-array constraint; contradictory request randomizes successfully in both editions.
+  expected: Preserve the selected array element constraint using the current value of state selectors; contradictions must fail randomization without value mutation.
+  standards: IEEE1800-2017 and2023 18.3,18.5 and7.4.6; iterative clauses2017 18.5.8.1 and2023 18.5.7.1.
+  root_cause_hypothesis: Fixed-array constraint IR lowering handles unrolled constant indices but loses class-state index expressions before solver emission.
+  owns: [evidence/review-20260920/next-dd044/patch]
+  allowed_scope: Private proposed patch to fixed-array selection lowering and existing solver indexed-element machinery, plus positive/negative/boundary fixtures.
+  forbidden: Tracked shared source edits, shared builds, application edits, warning-only fallback, replacing correct semantics with refusal solely to pass tests.
+  dependency: Uses existing comma-foreach syntax, independent of pending selected-prefix repairs; integrate only after frozen batch qualification and coordinator review.
+  acceptance: Two distinct selector values, satisfying and contradictory constraints, ascending/descending/nonzero bounds, selector changes between calls, rollback on failure and neighboring constant-index constraints.
+
+next_batch_recursive_cross_lane:
+  id: DD042-RECURSIVE-WITH
+  agent: /root/recursive_cross_with
+  model: gpt-5.6-terra
+  effort: medium
+  status: REPRODUCED
+  reproducer: evidence/review-20260920/next-cross-recursive/recursive_with.sv
+  actual: Legal recursively nested with predicates cause syntax errors in2017 and2023.
+  expected: Each select-expression subtree retains its own with predicate and combines selected bin tuples correctly under boolean set operators.
+  standards: IEEE1800-2017 and2023 19.6.1.2 andAnnexA.2.10.
+  root_cause_hypothesis: Grammar stores with only on top-level cross_bin_t, not recursive select tree nodes.
+  owns: [evidence/review-20260920/next-cross-recursive/patch]
+  allowed_scope: Private proposed parse.y/select-tree/evaluator patch and fixtures; preserve existing range-value evaluator and expression semantics.
+  forbidden: Tracked source edits, shared builds, unbounded architecture rewrite, flattened or dropped predicates, changed application sources.
+  dependency: Prepare isolated artifacts now; integrate only after frozen baseline qualifies.
+  acceptance: Distinct per-subtree predicates under union/intersection/complement and parentheses, range-valued bins, partial coverage denominator, ignore/illegal/normal bin behavior, existing top-level predicates and no unexplained parser conflicts.
