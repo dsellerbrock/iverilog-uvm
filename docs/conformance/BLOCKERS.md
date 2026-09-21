@@ -3397,3 +3397,7 @@ At `1d7e38ce5`, [runtime and startup repairs](session_logs/2026-09-21_event_runt
 The [private regex attribution](session_logs/2026-09-21_opentitan_regex_attribution.json) identifies the remaining GPIO/pwrmgr startup failure as a pinned application/API usage compatibility blocker. Keep application sources untouched and strict matching intact; no additional compiler implementation is selected from this observation.
 
 PR309 required local requalification now passes on `09316da3d`; see the [revision-scoped gate record](session_logs/2026-09-21_pr309_local_qualification.json). The six-fix batch and its regression repairs await exact-head CI. OpenTitan/Caliptra residual failures remain open; local regression completion does not close those application objectives.
+
+### September 21 descendant VIF event context
+
+OT-PWRMGR-DESCENDANT-VIF-CONTEXT is FOCUSED_TESTED, with permanent paired regressions and preserved genuine-null rejection. [Evidence](session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json) records removal of the unmodified power-manager time-zero false-null failure; its configured phase timeout and distribution debt remain open. Required broad gates are pending.

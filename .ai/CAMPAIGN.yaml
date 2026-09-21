@@ -117,3 +117,21 @@ parallel_implementation_selection:
   coordinator: All builds/installations/sharedtestoutputs/globalmanifests/documentation/integration; no new worktrees.
   no_active_gate: Previous integrated/JSON/NFA/UVM/frontend/makecheck handles areterminalpass. Do not restart them without sourcechange.
   next: Review agent patches and build coherent shared source once ready; focused checks first, then pinned application replays. PR312 CI merge remains separate.
+
+pr312_merge_checkpoint:
+  observed: PR312 externally merged at1222ba7ca while CI jobs queued; origin/main9b3ba770a.
+  synchronization: Fetched and merged origin/main into active branch; source tree of merge identical to validated1222ba7ca. Agent patches preserved.
+  graph: Canonical graph remains cb6f35b56 and is stale for PR311/312. Extra Luna maintenance spawn refused by agent thread limit; reuse a completed lane for safe canonical refresh when available. No new graph/worktree created.
+
+vif_candidate_checkpoint:
+  build: Session75803 terminal0 for vvpbuild/install; captured sourcepatch andhashes in evidence/review-20260920/opentitan-vif-dist-build.
+  focus: vif-focus1/results.json18/18pass; vif-adjacent1/results.json all4suitespass with9VIFand16class-eventcases perharness.
+  application: pwrmgr-vif1/result.json; freshcleanM6/UVM1.2 run removes2false-null errors andadvancesfrom0to1msPH_TIMEOUT. RemainsRUNTIME_FAIL anddistdebt.
+  source: VIFthreefilepatch frozen; vvp_z3.cc nochanges.
+  agents: Sol doingcanonicalgraphpr312maintenance before specificdistributionescalation; Terra preparingboundedpermanentVIFtests after inability toproducecoherentZ3patch.
+  next: Integrate permanentVIFtests andrunfocusedlegacyJSON; receivegraphcheckpoint; resume completeexactrangeimplementation onSol usingpreservedreducers andcorrectedstate-substitutionproof.
+
+vif_permanent_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json
+  registration: Coordinator normalized9testnames, created exactlegacygold andactualmanifestentries; permanentfocus9/9ineachedition and18/18JSONpass.
+  scope: FOCUSED_TESTED; broadgatespending, no fullDVqualification.

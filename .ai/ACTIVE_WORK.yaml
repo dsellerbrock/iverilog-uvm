@@ -5,7 +5,7 @@ branch: agent/opentitan-vif-dist-20260921
 baseline:
   source: 1222ba7caba3c1c27aa20843c7e2af25de72f996
   evidence: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
-  dependency: PR312 open and ready, all required local gates passed, CI pending. Do not conflate local validation with merge.
+  dependency: PR312 externally merged as9b3ba770a withCI stillqueued; refreshedmain merged into this branch without source differences. All required local gates passed.
 authority: User-authorized continuous campaign; coordinator-authorized two independent implementation lanes after prior required local qualification.
 coordination:
   coordinator: Selection, normative interpretation, integration, all shared builds/installations/test-output directories, registration manifests, documentation and final review.
@@ -16,8 +16,8 @@ coordination:
 lanes:
   pwrmgr_vif:
     id: OT-PWRMGR-DESCENDANT-VIF-CONTEXT
-    owner: vif_proxy_implementation, retained Sol medium
-    status: ROOT_CAUSED
+    owner: Sol medium implementation frozen; coordinator validation; Terra medium mechanical permanent tests
+    status: FOCUSED_TESTED_REGISTRATION_AND_BROAD_PENDING
     clauses: Both2017/2023 6.21 lifetime,8.6 automatic class methods,9.3.2 fork join_none.
     evidence: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/LIFETIME_MATRIX.md
     reproducer: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event.sv
@@ -30,7 +30,7 @@ lanes:
     acceptance: Paired existing16fixture matrix, recursive/concurrent identity and activation reuse, genuine-null negative, related VIF/scalar-event cases, unmodified pinned pwrmgr replay and required regression gates. Runtime correctness required.
   gpio_dist:
     id: OT-GPIO-EXACT-LARGE-DIST-RANGES
-    owner: canonical_graph_refresh, retained Terra medium
+    owner: Coordinator semantic review; pending retained Sol medium after safe graph checkpoint
     status: ROOT_CAUSED
     clauses: 2017 18.5.4 and2023 18.5.3 distribution; preserve exact existing bounded item semantics.2023 explicitly retains full source-range weight under exclusions; do not invent2017 wording.
     evidence: evidence/review-20260920/opentitan-gpio-dist-next/COMPONENT-DESIGN.md and LARGE-ITEM-TESTS.md
@@ -48,3 +48,10 @@ completion:
   broad: HIGH runtime semantic risk; required broad gates at coherent batch checkpoint before promotion. Prior qualification evidence remains immutable.
   applications: No DV pass from process0 or banners alone; require real traffic/checking, drain and normal completion without semantic-degradation diagnostics.
   next: Agents submit source patches; coordinator review/build/tests then integrate. New discoveries are record-only.
+
+latest_validation:
+  runtime: VIF-only serial build75803 andinstall terminal0; source/hash snapshot in evidence/review-20260920/opentitan-vif-dist-build/vif-build1-source.json.
+  focused: Paired18/18private VIFruns pass including16positive and2genuine-null negatives. ExistingVIF9andclass-event16pass inbothlegacyandJSON.
+  application: Fresh pinned unmodified pwrmgr replay59263 terminalclassifiedfailure; null-at-arm errorsgone, simulationreaches1ms configuredPH_TIMEOUT, distfallback remains. No DVpass.
+  registration: Terra may create onlynew sv_vif_descendant_* source/gold/JSON files andprivate registration snippets; coordinator owns sharedmanifests.
+  gpio_design_correction: Inactive state pins must be substituted or retained outside negativeconjunction; unique positivepins alone do not make notF sound. Terra returned no coherent patch; vvp_z3.cc unchanged.

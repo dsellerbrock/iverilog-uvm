@@ -2495,6 +2495,15 @@ vvp_object_t vvp_fun_signal_object_aa::peek_object() const
       return slot->value;
 }
 
+vvp_object_t vvp_fun_signal_object_aa::peek_object(vvp_context_t context) const
+{
+      context = vthread_recover_stacked_context_for_scope(context, context_scope_);
+      const signal_object_aa_slot*slot = context
+            ? signal_object_aa_slot_from_raw(
+                  vvp_get_context_item(context, context_idx_)) : 0;
+      return slot ? slot->value : vvp_object_t();
+}
+
 vvp_net_t* vvp_fun_signal_object_aa::get_root_net() const
 {
       const signal_object_aa_slot*slot =

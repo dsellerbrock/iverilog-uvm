@@ -1,0 +1,509 @@
+{
+  "date": "2026-09-21",
+  "id": "OT-PWRMGR-DESCENDANT-VIF-CONTEXT",
+  "status": "FOCUSED_TESTED_BROAD_PENDING",
+  "base": "80a445b3b23e908f550fa5b964ab4aa0eea8827d",
+  "standards": {
+    "2017": [
+      "6.21",
+      "8.6",
+      "9.3.2"
+    ],
+    "2023": [
+      "6.21",
+      "8.6",
+      "9.3.2"
+    ]
+  },
+  "root": "Nested automatic event proxies allocate after ancestor root publication and seeded default null instead of reading the exact retained ancestor object slot.",
+  "fix": "Explicit-context AA object peek recovers signal owner scope from child context; proxy initializer binds that value. Existing storage, ownership and real-null diagnostic retained.",
+  "source_sha256": {
+    "vvp/event.cc": "27f20622f7ac085367e99aa138ab5566041a38c34099fe989338a9b906b2eaab",
+    "vvp/vvp_net_sig.cc": "d0b48e26e56cabb0b1f8e5b00dafa6c9743ae86535a0698c844e1d0383fdf346",
+    "vvp/vvp_net_sig.h": "41434c7a5cc618e9f2b7d098179cb9b28acd5b12ef49d118b2c663c8830e8d56"
+  },
+  "focused": {
+    "runtime_sha256": "7b3c6ddd700beebbe55d414f3690aaa0a92202c8d5cc7c041a917759c394cd8a",
+    "results": [
+      {
+        "name": "detached_task_vif_event-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "detached_task_vif_event_retained-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event_retained-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event_retained.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event_retained-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "direct_task_vif_event-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/direct_task_vif_event-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/direct_task_vif_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/direct_task_vif_event-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "concurrent_parent_vif_events-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/concurrent_parent_vif_events-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/concurrent_parent_vif_events.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/concurrent_parent_vif_events-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "descendant_after_rebind-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/descendant_after_rebind-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/descendant_after_rebind.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/descendant_after_rebind-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "two_level_descendant_vif_event-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/two_level_descendant_vif_event-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/two_level_descendant_vif_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/two_level_descendant_vif_event-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "reused_descendant_activation-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/reused_descendant_activation-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/reused_descendant_activation.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/reused_descendant_activation-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "sv_vif_descendant_recursive_identity-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/sv_vif_descendant_recursive_identity-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/sv_vif_descendant_recursive_identity.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/sv_vif_descendant_recursive_identity-2017.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "genuine_null_descendant_event-2017",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/genuine_null_descendant_event-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/genuine_null_descendant_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/genuine_null_descendant_event-2017.vvp"
+        ],
+        "runtime_exit": 1,
+        "expected_negative": true,
+        "pass": true
+      },
+      {
+        "name": "detached_task_vif_event-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "detached_task_vif_event_retained-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event_retained-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event_retained.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/detached_task_vif_event_retained-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "direct_task_vif_event-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/direct_task_vif_event-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/direct_task_vif_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/direct_task_vif_event-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "concurrent_parent_vif_events-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/concurrent_parent_vif_events-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/concurrent_parent_vif_events.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/concurrent_parent_vif_events-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "descendant_after_rebind-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/descendant_after_rebind-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/descendant_after_rebind.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/descendant_after_rebind-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "two_level_descendant_vif_event-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/two_level_descendant_vif_event-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/two_level_descendant_vif_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/two_level_descendant_vif_event-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "reused_descendant_activation-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/reused_descendant_activation-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/reused_descendant_activation.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/reused_descendant_activation-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "sv_vif_descendant_recursive_identity-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/sv_vif_descendant_recursive_identity-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/sv_vif_descendant_recursive_identity.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/sv_vif_descendant_recursive_identity-2023.vvp"
+        ],
+        "runtime_exit": 0,
+        "expected_negative": false,
+        "pass": true
+      },
+      {
+        "name": "genuine_null_descendant_event-2023",
+        "compile": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/genuine_null_descendant_event-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-pwrmgr-null-vif-next/genuine_null_descendant_event.sv"
+        ],
+        "compile_exit": 0,
+        "runtime": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-vif-dist-build/vif-focus1/genuine_null_descendant_event-2023.vvp"
+        ],
+        "runtime_exit": 1,
+        "expected_negative": true,
+        "pass": true
+      }
+    ],
+    "passed": 18,
+    "total": 18
+  },
+  "permanent": {
+    "sources": 9,
+    "legacy_2017": 9,
+    "legacy_2023": 9,
+    "paired_json": 18,
+    "all_pass": true,
+    "runs": [
+      {
+        "name": "legacy2017",
+        "command": [
+          "perl",
+          "vvp_reg.pl",
+          "regress-vif-descendant-2017-legacy.list"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "legacy2023",
+        "command": [
+          "perl",
+          "vvp_reg.pl",
+          "regress-vif-descendant-2023-legacy.list"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "json",
+        "command": [
+          "python3",
+          "vvp_reg.py",
+          "regress-vif-descendant-vvp.list"
+        ],
+        "exit": 0
+      }
+    ]
+  },
+  "adjacent": [
+    {
+      "name": "vif-legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-vif-event-focus-legacy.list"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "vif-json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-vif-event-focus-vvp.list"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "class-event-legacy",
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "regress-class-property-event-focus-legacy.list"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "class-event-json",
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-class-property-event-focus-vvp.list"
+      ],
+      "exit": 0
+    }
+  ],
+  "application": {
+    "metadata": {
+      "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "opentitan_dirty": false,
+      "compiler_fingerprint": {
+        "components": {
+          "driver": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "sha256": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba"
+          },
+          "compiler_engine": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivl",
+            "sha256": "46e9dd4f0c0c4e34efcdeb3fb7e53bb47609ec071ab017138d00ded1299ab7df"
+          },
+          "vvp_target": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.tgt",
+            "sha256": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af"
+          },
+          "vvp_runtime": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "sha256": "7b3c6ddd700beebbe55d414f3690aaa0a92202c8d5cc7c041a917759c394cd8a"
+          },
+          "normal_config": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.conf",
+            "sha256": "29fb593ff99ce168ff0506c4f31d47fc01c542ec40d3933db59ff4e74fb9a2a4"
+          },
+          "synthesis_config": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp-s.conf",
+            "sha256": "877f307ec63d832b3126b04737855156c28155515828c92bff205bd7d0610cc5"
+          },
+          "uvm_dpi": {
+            "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/uvm_dpi.vpi",
+            "sha256": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb"
+          }
+        },
+        "uvm_sources": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+        }
+      }
+    },
+    "core": "lowrisc:dv:pwrmgr_sim:0.1",
+    "status": "RUNTIME_FAIL",
+    "compile_returncode": 0,
+    "runtime_returncode": 0,
+    "runtime_errors": [
+      "UVM_FATAL @ 1000000000 ps: (uvm_phase.svh:1508) [PH_TIMEOUT] Explicit timeout of 1000000000 ps hit, indicating a probable testbench issue",
+      "TEST FAILED CHECKS",
+      "OpenTitan runtime produced no `TEST PASSED [UVM_]CHECKS` banner"
+    ],
+    "runtime_debt": [
+      "Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed)."
+    ],
+    "evidence": "evidence/review-20260920/opentitan-vif-dist-build/pwrmgr-vif1/result.json",
+    "interpretation": "False null errors removed; reaches configured1ms PH_TIMEOUT. No DV pass or meaningful traffic qualification."
+  },
+  "pending": [
+    "required broad gates after coherent runtime batch",
+    "pwrmgr phase-timeout and distribution debt remain separate",
+    "formal/backend and full-edition/full-application completion not claimed"
+  ]
+}

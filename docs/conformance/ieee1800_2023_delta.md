@@ -301,3 +301,5 @@ The [shared implementation checkpoint](matrices/ieee1800_2017_clause_matrix.md#s
 The [shared event runtime repair record](session_logs/2026-09-21_event_runtime_regression_repair.json) includes separate 2023 runs for activation, NBA/Re-NBA, startup, and callback cases. No edition-specific semantic difference is asserted.
 
 The [shared fixed struct-member array checkpoint](matrices/ieee1800_2017_clause_matrix.md#september-21-fixed-struct-member-array-constraints) includes separate 2023 runs; iterative constraints are 18.5.7.1 in this edition. No edition-specific semantic difference or full-clause qualification is asserted.
+
+The [descendant automatic VIF event checkpoint](matrices/ieee1800_2017_clause_matrix.md#september-21-descendant-automatic-vif-event-initialization) includes paired 2023 runtime and negative tests under §§6.21,8.6,9.3.2. No edition difference is asserted; broader qualification remains pending.

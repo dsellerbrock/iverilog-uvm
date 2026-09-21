@@ -1,0 +1,8 @@
+{
+  "type": "EF",
+  "source": "sv_vif_descendant_null_fail.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_vif_descendant_null_fail"
+}
