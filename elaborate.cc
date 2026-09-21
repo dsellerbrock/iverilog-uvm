@@ -34526,6 +34526,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				std::function<bool(sel_t*,std::string&)> compile_select;
 				compile_select = [&](sel_t*s, std::string&out) -> bool {
 				      if (!s) return false;
+				      if (s->op == sel_t::SEL_WITH) return false;
 				      switch (s->op) {
 					  case sel_t::SEL_AND:
 					  case sel_t::SEL_OR: {
@@ -34723,27 +34724,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  }
 				  if (!cross_props_ok) continue;
 
-			  std::function<int(sel_t*, const std::vector<unsigned>&)> eval_sel =
-			      [&](sel_t*s, const std::vector<unsigned>&tup) -> int {
+			  static const uint64_t cross_bin_limit = 65536;
+			  std::function<int(PExpr*, const std::vector<unsigned>&, size_t)> eval_with;
+			  std::function<bool(sel_t*)> select_has_with = [&](sel_t*s) {
+				  return s && (s->op == sel_t::SEL_WITH
+						|| select_has_with(s->a) || select_has_with(s->b));
+			  };
+			  std::function<int(sel_t*, const std::vector<unsigned>&, size_t)> eval_sel =
+			      [&](sel_t*s, const std::vector<unsigned>&tup, size_t ub) -> int {
 				if (!s) return -1;
 				switch (s->op) {
 				    case sel_t::SEL_AND: {
-					  int sa = eval_sel(s->a, tup);
-					  int sb = eval_sel(s->b, tup);
-					  if (sa < 0 || sb < 0) return -1;
-					  return (sa && sb) ? 1 : 0;
+				  int sa = eval_sel(s->a, tup, ub);
+				  int sb = eval_sel(s->b, tup, ub);
+				  if (sa < 0 || sb < 0) return -1;
+				  return (sa && sb) ? 1 : 0;
 				    }
 				    case sel_t::SEL_OR: {
-					  int sa = eval_sel(s->a, tup);
-					  int sb = eval_sel(s->b, tup);
-					  if (sa < 0 || sb < 0) return -1;
-					  return (sa || sb) ? 1 : 0;
+				  int sa = eval_sel(s->a, tup, ub);
+				  int sb = eval_sel(s->b, tup, ub);
+				  if (sa < 0 || sb < 0) return -1;
+				  return (sa || sb) ? 1 : 0;
 				    }
-				    case sel_t::SEL_NOT: {
-					  int sa = eval_sel(s->a, tup);
-					  if (sa < 0) return -1;
-					  return sa ? 0 : 1;
-				    }
+			    case sel_t::SEL_NOT: {
+				  int sa = eval_sel(s->a, tup, ub);
+				  if (sa < 0) return -1;
+				  return sa ? 0 : 1;
+			    }
+			    case sel_t::SEL_WITH: {
+				  int sa = eval_sel(s->a, tup, ub);
+				  if (sa <= 0) return sa;
+				  return eval_with(s->with_expr, tup, ub);
+			    }
 				    case sel_t::SEL_BINSOF: {
 					  int k = -1;
 					  for (size_t i = 0; i < cross.cp_labels.size(); i++)
@@ -34784,17 +34796,88 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						}
 						if (!overlap) return 0;
 					  }
-					  return 1;
+				  return 1;
 				    }
 				}
 				return -1;
 			  };
 
-			    // Product count check.  OpenTitan legitimately creates an
+			  eval_with = [&](PExpr*with_expr, const std::vector<unsigned>&idx, size_t ub) -> int {
+				  std::vector<std::vector<uint64_t>> dimension_values(idx.size());
+				  uint64_t value_tuple_count = 1;
+				  bool values_ok = true;
+				  bool value_product_too_large = false;
+				  for (size_t k = 0; k < idx.size(); k++) {
+					const xbin_desc_t&d = cp_value_bins[cp_indexes[k]][idx[k]];
+					if (d.ranges.empty() || d.wildcard || d.transition_prop >= 0
+					    || d.transition_family >= 0 || d.dyn_family >= 0) {
+					      values_ok = false; break;
+					}
+					std::set<uint64_t> unique_values;
+					unsigned cp_index = cp_indexes[k];
+					unsigned width = cp_value_widths[cp_index];
+					if (width == 0 || width > 64) { values_ok = false; break; }
+					uint64_t mask = width >= 64 ? UINT64_MAX : (((uint64_t)1 << width) - 1);
+					uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
+					for (const auto&r : d.ranges) {
+					      uint64_t first = r.first & mask, last = r.second & mask;
+					      bool crosses_zero = cp_value_signedness[cp_index]
+						    && !(first & sign) && (last & sign);
+					      if (!crosses_zero && last < first) { values_ok = false; break; }
+					      uint64_t count = crosses_zero ? (mask-last+1) + (first+1) : last-first+1;
+					      if (count == 0 || count > cross_bin_limit) { value_product_too_large = true; break; }
+					      uint64_t value = crosses_zero ? last : first;
+					      for (uint64_t n = 0; n < count; n++) {
+						    unique_values.insert(value);
+						    if (unique_values.size() > cross_bin_limit) { value_product_too_large = true; break; }
+						    if (crosses_zero && value == mask) value = 0; else value += 1;
+					      }
+					      if (value_product_too_large) break;
+					}
+					dimension_values[k].assign(unique_values.begin(), unique_values.end());
+					if (value_product_too_large || dimension_values[k].empty()
+					    || value_tuple_count > cross_bin_limit / dimension_values[k].size()) {
+					      value_product_too_large = true; break;
+					}
+					value_tuple_count *= dimension_values[k].size();
+				  }
+				  if (value_product_too_large) {
+					if (!ubin_sorried[ub]) {
+					      cerr << with_expr->get_fileline() << ": error: cross bin '"
+					           << cross.bins[ub].name << "' `with' predicate requires more than "
+					           << cross_bin_limit << " value tuples to evaluate." << endl;
+					      des->errors += 1;
+					      ubin_sorried[ub] = true;
+					}
+					return -1;
+				  }
+				  if (!values_ok) return -1;
+				  std::vector<uint64_t> value_idx(idx.size(), 0);
+				  for (uint64_t t = 0; t < value_tuple_count; t++) {
+					std::map<perm_string,int64_t> tuple_values;
+					for (size_t k = 0; k < idx.size(); k++) {
+					      uint64_t value = dimension_values[k][value_idx[k]];
+					      unsigned cp_index = cp_indexes[k], width = cp_value_widths[cp_index];
+					      uint64_t mask = width >= 64 ? UINT64_MAX : (((uint64_t)1 << width) - 1);
+					      uint64_t sign = (uint64_t)1 << (width-1);
+					      if (cp_value_signedness[cp_index] && width < 64 && (value & sign)) value |= ~mask;
+					      tuple_values[cross.cp_labels[k]] = (int64_t)value;
+					}
+					int64_t result = 0;
+					if (cov_named_eval_(with_expr, tuple_values, result) < 0) return -1;
+					if (result != 0) return 1;
+					for (size_t k = 0; k < value_idx.size(); k++) {
+					      if (++value_idx[k] < dimension_values[k].size()) break;
+					      value_idx[k] = 0;
+					}
+				  }
+				  return 0;
+			  };
+
+			  // Product count check.  OpenTitan legitimately creates an
 			    // 8192-bin cross; keep a guard against accidental explosive
 			    // products while allowing practical standards-compliant
 			    // crosses substantially larger than the historical 4096 cap.
-			  static const uint64_t cross_bin_limit = 65536;
 				  uint64_t nprod = 1;
 				  bool product_too_large = false;
 				  for (unsigned cpi : cp_indexes) {
@@ -34844,138 +34927,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				for (size_t ub = 0; ub < cross.bins.size(); ub++) {
 				      xbin_t&cb = cross.bins[ub];
 				      int m = -1;
+				      bool has_with = cb.with_expr || select_has_with(cb.select);
 				      if (cb.with_expr) {
-					      /* IEEE 1800-2017/2023 19.6.1.2: apply a
-						 top-level `with' only to tuples selected by
-						 its subordinate select_expression. With no
-						 `matches' clause, one satisfying value tuple
-						 selects the candidate bin tuple. */
-					    int sel_m = cb.select
-						  ? eval_sel(cb.select, idx)
-						  : ((!cross.label.nil()
-						      && cb.with_cross == cross.label) ? 1 : -1);
-					    if (sel_m <= 0) {
-						  m = sel_m;
-					    } else {
-						  const uint64_t with_value_tuple_limit = cross_bin_limit;
-						  std::vector<std::vector<uint64_t>> dimension_values(
-							idx.size());
-						  uint64_t value_tuple_count = 1;
-						  bool values_ok = true;
-						  bool value_product_too_large = false;
-						  for (size_t k = 0; k < idx.size(); k++) {
-							const xbin_desc_t&d =
-							      cp_value_bins[cp_indexes[k]][idx[k]];
-							if (d.ranges.empty() || d.wildcard
-							    || d.transition_prop >= 0
-							    || d.transition_family >= 0
-							    || d.dyn_family >= 0) {
-							      values_ok = false;
-							      break;
-							}
-							std::set<uint64_t> unique_values;
-							unsigned cp_index = cp_indexes[k];
-							unsigned width = cp_value_widths[cp_index];
-							if (width == 0 || width > 64) {
-							      values_ok = false;
-							      break;
-							}
-							uint64_t mask = width >= 64 ? UINT64_MAX
-							      : (((uint64_t)1 << width) - 1);
-							uint64_t sign = width ? ((uint64_t)1 << (width-1)) : 0;
-							for (const auto&r : d.ranges) {
-							      uint64_t first = r.first & mask;
-							      uint64_t last = r.second & mask;
-							      bool crosses_zero = cp_value_signedness[cp_index]
-								    && !(first & sign) && (last & sign);
-							      if (!crosses_zero && last < first) {
-								values_ok = false;
-								break;
-							      }
-							      uint64_t count = crosses_zero
-								    ? (mask-last+1) + (first+1)
-								    : last-first+1;
-							      if (count == 0 || count > with_value_tuple_limit) {
-								value_product_too_large = true;
-								break;
-							      }
-							      uint64_t value = crosses_zero ? last : first;
-							      for (uint64_t n = 0; n < count; n++) {
-								unique_values.insert(value);
-								if (unique_values.size() > with_value_tuple_limit) {
-								      value_product_too_large = true;
-								      break;
-								}
-								if (crosses_zero && value == mask)
-								      value = 0;
-								else
-								      value += 1;
-							      }
-							      if (value_product_too_large) break;
-							}
-							dimension_values[k].assign(unique_values.begin(),
-									   unique_values.end());
-							if (value_product_too_large
-							    || dimension_values[k].empty()
-							    || value_tuple_count >
-							       with_value_tuple_limit / dimension_values[k].size()) {
-							      value_product_too_large = true;
-							      break;
-							}
-							value_tuple_count *= dimension_values[k].size();
-						  }
-						  if (value_product_too_large) {
-							cerr << cb.with_expr->get_fileline()
-							     << ": error: cross bin '" << cb.name
-							     << "' `with' predicate requires more than "
-							     << with_value_tuple_limit
-							     << " value tuples to evaluate." << endl;
-							des->errors += 1;
-							ubin_sorried[ub] = true;
-							m = -1;
-						  } else if (values_ok) {
-							m = 0;
-							std::vector<uint64_t> value_idx(idx.size(), 0);
-							for (uint64_t t = 0;
-							     t < value_tuple_count && m == 0; t++) {
-							      std::map<perm_string,int64_t> tuple_values;
-							      for (size_t k = 0; k < idx.size(); k++) {
-								    uint64_t value = dimension_values[k][value_idx[k]];
-								    unsigned cp_index = cp_indexes[k];
-								    unsigned width = cp_value_widths[cp_index];
-								    uint64_t mask = width >= 64 ? UINT64_MAX
-									  : (((uint64_t)1 << width) - 1);
-								    uint64_t sign = (uint64_t)1 << (width-1);
-								    if (cp_value_signedness[cp_index]
-									&& width < 64 && (value & sign))
-									  value |= ~mask;
-								    tuple_values[cross.cp_labels[k]] =
-									  (int64_t)value;
-							      }
-							      int64_t result = 0;
-							      if (cov_named_eval_(cb.with_expr,
-									       tuple_values, result) < 0) {
-								    m = -1;
-								    break;
-							      }
-							      if (result != 0) {
-								    m = 1;
-								    break;
-							      }
-							      for (size_t k = 0; k < value_idx.size(); k++) {
-								    if (++value_idx[k] < dimension_values[k].size())
-									  break;
-								    value_idx[k] = 0;
-							      }
-							}
-						  }
-					    }
+					int sel_m = cb.select
+					      ? eval_sel(cb.select, idx, ub)
+					      : ((!cross.label.nil() && cb.with_cross == cross.label) ? 1 : -1);
+					m = sel_m <= 0 ? sel_m : eval_with(cb.with_expr, idx, ub);
 				      } else {
-					    m = eval_sel(cb.select, idx);
+					m = eval_sel(cb.select, idx, ub);
 				      }
 				      if (m < 0) {
 					    if (!ubin_sorried[ub]) {
-							  if (cb.with_expr) {
+						  if (has_with) {
 								cerr << pclass->get_fileline()
 								     << ": error: cross bin '" << cb.name
 								     << "' uses a 'with' predicate that "

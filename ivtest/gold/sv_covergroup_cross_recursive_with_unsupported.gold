@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_cross_recursive_with_unsupported.v:3: error: cross bin 'x' uses a 'with' predicate that cannot be evaluated for its contributing bins; compilation cannot continue.
+1 error(s) during elaboration.

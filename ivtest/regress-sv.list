@@ -3943,3 +3943,13 @@ sv_foreach_selector_unresolved CE,-g2017,-s,main ivltests gold=sv_foreach_select
 sv_foreach_selector_unresolved_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_selector_unresolved.gold
 sv_foreach_selector_real CE,-g2017,-s,main ivltests gold=sv_foreach_selector_real.gold
 sv_foreach_selector_real_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_selector_real.gold
+
+# Recursive cross with predicates, IEEE 1800-2017 and 2023.
+sv_covergroup_cross_recursive_with normal,-g2017 ivltests gold=sv_covergroup_cross_recursive_with.gold
+sv_covergroup_cross_recursive_with_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_recursive_with.gold
+sv_covergroup_cross_recursive_with_illegal normal,-g2017 ivltests gold=sv_covergroup_cross_recursive_with_illegal.gold
+sv_covergroup_cross_recursive_with_illegal_2023 normal,-g2023 ivltests gold=sv_covergroup_cross_recursive_with_illegal.gold
+sv_covergroup_cross_recursive_with_matches_unsupported CE,-g2017 ivltests gold=sv_covergroup_cross_recursive_with_matches_unsupported.gold
+sv_covergroup_cross_recursive_with_matches_unsupported_2023 CE,-g2023 ivltests gold=sv_covergroup_cross_recursive_with_matches_unsupported.gold
+sv_covergroup_cross_recursive_with_unsupported CE,-g2017 ivltests gold=sv_covergroup_cross_recursive_with_unsupported.gold
+sv_covergroup_cross_recursive_with_unsupported_2023 CE,-g2023 ivltests gold=sv_covergroup_cross_recursive_with_unsupported.gold

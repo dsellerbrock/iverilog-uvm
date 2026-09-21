@@ -100,3 +100,10 @@ application_replay_completion:
   evidence: docs/conformance/session_logs/2026-09-20_stable_release_replay.json
   installed_candidate: No changes during replay.
   next_action: Integrate corrected reviewed private compiler patches and run focused acceptance tests.
+
+next_batch_checkpoint:
+  focused_validated_fixes: 1
+  item: DD042 recursive cross-with
+  evidence: docs/conformance/session_logs/2026-09-20_recursive_cross_with.md
+  active_lane: constraint_guard_semantics (gpt-5.6-sol, medium), bounded DD044 diagnostic escalation
+  broad_gate_cadence: Approximately ten integrated fixes; prior baseline evidence remains revision-scoped.

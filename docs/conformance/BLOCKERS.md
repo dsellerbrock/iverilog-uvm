@@ -3337,7 +3337,7 @@ L96–L105 share the [local qualification checkpoint](session_logs/2026-09-15_co
   fix's scope — only the crash is closed.
 
 
-## September 20 PR review repairs — awaiting regression qualification
+## September 20 review baseline and next compiler batch
 
 DD-040, DD-042 and DD-043 were reopened after their positive-only PR tests
 missed selector evaluation, coverage value-tuple, and selector-resolution
@@ -3345,7 +3345,7 @@ failures. Selected local repairs and regression fixtures are described in
 the [revision-scoped review record](session_logs/2026-09-20_pr_review_repairs.md).
 The operational phases, pending gates and publication state remain in
 [ACTIVE_WORK](../../.ai/ACTIVE_WORK.yaml) and [CAMPAIGN](../../.ai/CAMPAIGN.yaml).
-Do not treat the local combined PR candidate as a qualified baseline.
-Recursive inner cross-with and explicit matches remain unsupported;
+The [restored baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json) records completed local gates.
+The [recursive cross-with implementation](session_logs/2026-09-20_recursive_cross_with.md) has focused validation pending its batch gate; explicit matches remains unsupported;
 DD-044 separately records constraint-body translation that drops a requested
 constraint and is not closed by selector validation.

@@ -1498,8 +1498,8 @@ The [review/repair record](../session_logs/2026-09-20_pr_review_repairs.md)
 reopens DD-040/042/043. Fixed-array foreach selector evaluation (§12.7.3),
 constraint prefix resolution (§18.5.8.1), and static range-bin cross-with
 value-tuple selection (§19.6.1.2) have local focused repair evidence.
-The combined candidate still requires regression qualification. General
-recursive select-expression predicates, explicit matches and arbitrary-sized
-value products are not qualified by this bounded evidence. The independent
+The [restored candidate](../session_logs/2026-09-20_restored_baseline_qualification.json) passed local qualification.
+The subsequent [recursive select-expression fix](../session_logs/2026-09-20_recursive_cross_with.md) has focused evidence pending batch qualification.
+Explicit matches and arbitrary-sized value products remain outside that scope. The independent
 2023 goal remains separate; paired generation-mode tests are recorded in
 the linked evidence and do not establish full-edition support.

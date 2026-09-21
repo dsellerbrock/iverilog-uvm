@@ -2788,7 +2788,7 @@ Status: fixed.
 
 ### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, REOPENED by 2026-09-20 review)
 
-Current review: PR integration is unqualified; see [the September 20 repair record](session_logs/2026-09-20_pr_review_repairs.md). Earlier test results below retain their original revision scope.
+Current status: the [restored baseline](session_logs/2026-09-20_restored_baseline_qualification.json) passed local qualification. The subsequent [recursive predicate fix](session_logs/2026-09-20_recursive_cross_with.md) has focused paired-edition evidence, with broad batch qualification pending. Explicit matches and the listed value-source/resource boundaries remain open. Earlier results below retain their original revision scope.
 
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
