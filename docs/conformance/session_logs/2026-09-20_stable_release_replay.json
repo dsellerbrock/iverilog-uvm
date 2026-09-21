@@ -1,5 +1,5 @@
 {
-  "scope": "Stable release replay: Caliptra census and unit-runtime pass; OpenTitan TL-agent UVM test reports pass with runtime warning; overall OpenTitan census still running",
+  "scope": "Completed stable-release replay: bounded static/runtime results, not full application qualification",
   "compiler_semantic_revision": "e90059a07708cf2a3022255bfce640808178a418",
   "merged_main": "0998f058a4a549b9e988f5a1784bdfbbec1246a8",
   "caliptra": {
@@ -91,9 +91,9 @@
     "tag": "Earlgrey-PROD-M6",
     "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
     "uvm": "1.2",
-    "status": "358-job census running; no final result yet",
-    "session": 55045,
-    "evidence": "evidence/review-20260920/application-replay/opentitan-uvm12.log",
+    "status": "Completed all 358 jobs; matrix exit1 reflects remaining failures",
+    "session": null,
+    "evidence": "evidence/review-20260920/application-replay/opentitan-uvm12-matrix.json",
     "tl_agent_runtime": {
       "test": "tl_agent_base_test",
       "sequence": "tl_agent_base_vseq",
@@ -119,7 +119,128 @@
         "evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_tl_agent_sim_0.1/matrix-iverilog.scr": "0809af97c61950649fb6b385f735913d6ea79559cdb30123873e8a3515aef956"
       },
       "scoreboard_source": "hw/dv/sv/scoreboard/scoreboard.sv check_phase compares expected/actual counts, checks remaining queues and FIFOs"
-    }
+    },
+    "counts_by_lane": {
+      "rtl": {
+        "DEPENDENCY_ONLY": 119,
+        "DEBT": 34,
+        "SETUP_FAIL": 7,
+        "UPSTREAM_INVALID": 5,
+        "FAIL": 20
+      },
+      "sva": {
+        "FAIL": 9,
+        "DEBT": 72,
+        "UPSTREAM_INVALID": 7,
+        "DEPENDENCY_ONLY": 1
+      },
+      "uvm": {
+        "FAIL": 28,
+        "DEBT": 7
+      },
+      "runtime": {
+        "FAIL": 37,
+        "RUNTIME_FAIL": 7,
+        "DEBT": 4,
+        "RUNTIME_TIMEOUT": 1
+      }
+    },
+    "uvm_runtime_verdicts": [
+      {
+        "core": "lowrisc:dv:tl_agent_sim:0.1",
+        "verdict": "TEST PASSED CHECKS",
+        "scoreboard_items": 2614,
+        "matrix_status": "DEBT",
+        "semantic_debt": [],
+        "runtime_debt": [],
+        "runtime_benign_diagnostics": [
+          "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.",
+          "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored."
+        ],
+        "runtime_seconds": 130.815,
+        "runtime_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_tl_agent_sim_0.1/matrix-runtime.log",
+        "runtime_log_sha256": "63b7f5760be87f5e836a19cebdf9ef27ecd89e7c83a551d019e8fbb44f210efa",
+        "uvm_errors": 0,
+        "uvm_fatals": 0,
+        "uvm_warnings": 0,
+        "caught_or_demoted_reports": 0
+      },
+      {
+        "core": "lowrisc:dv:top_earlgrey_xbar_main_sim:0.1",
+        "verdict": "TEST PASSED CHECKS",
+        "scoreboard_items": 838,
+        "matrix_status": "DEBT",
+        "semantic_debt": [],
+        "runtime_debt": [],
+        "runtime_benign_diagnostics": [
+          "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.",
+          "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored."
+        ],
+        "runtime_seconds": 103.008,
+        "runtime_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_main_sim_0.1/matrix-runtime.log",
+        "runtime_log_sha256": "c48df7e50f4888185361a71f841fa36d14759e32bb226c5289f948b9c6852149",
+        "uvm_errors": 0,
+        "uvm_fatals": 0,
+        "uvm_warnings": 0,
+        "caught_or_demoted_reports": 0
+      },
+      {
+        "core": "lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1",
+        "verdict": "TEST PASSED CHECKS",
+        "scoreboard_items": 354,
+        "matrix_status": "DEBT",
+        "semantic_debt": [],
+        "runtime_debt": [],
+        "runtime_benign_diagnostics": [
+          "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.",
+          "../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored."
+        ],
+        "runtime_seconds": 42.117,
+        "runtime_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/matrix-runtime.log",
+        "runtime_log_sha256": "c053116312fa76406cd788af567ca0efd0babe8581884d62d5ab0f7ba24c41ac",
+        "uvm_errors": 0,
+        "uvm_fatals": 0,
+        "uvm_warnings": 0,
+        "caught_or_demoted_reports": 0
+      }
+    ],
+    "compiler_fingerprint": {
+      "components": {
+        "driver": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "sha256": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba"
+        },
+        "compiler_engine": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivl",
+          "sha256": "f54298837efc11974d9e16f96dbb26e910048650973b55e6d159b6a4185452f6"
+        },
+        "vvp_target": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.tgt",
+          "sha256": "e1f5b94ed0f678d46d2f7fbe708ffbb69c5f876cdd9a1707cb9a978579c2ddfc"
+        },
+        "vvp_runtime": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "sha256": "161e2a3ad86b22fa6c71daa377fd3dcab67a11d190aa3c86914ff000185c4f5c"
+        },
+        "normal_config": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.conf",
+          "sha256": "29fb593ff99ce168ff0506c4f31d47fc01c542ec40d3933db59ff4e74fb9a2a4"
+        },
+        "synthesis_config": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp-s.conf",
+          "sha256": "f5016b4b72a6d9a445b720fa35680221b33921e8e9087c221abe00873da0fb5e"
+        },
+        "uvm_dpi": {
+          "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/uvm_dpi.vpi",
+          "sha256": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9"
+        }
+      },
+      "uvm_sources": {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "sha256": "885ba9f74652494aa132aaaa26c43e9f210f94cdf5a8d3a87064993ec9b35dc0"
+      }
+    },
+    "source_clean_after": true
   },
   "cleanup": {
     "removed": [

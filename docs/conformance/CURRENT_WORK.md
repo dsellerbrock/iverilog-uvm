@@ -41,8 +41,8 @@ records retain their original revisions and limits.
 
 The [September 20 stable-release replay checkpoint](session_logs/2026-09-20_stable_release_replay.json)
 records the fresh Caliptra static census and unmodified power2round unit-runtime
-pass with warnings, an unmodified OpenTitan TL-agent UVM test verdict with a
-runtime warning, the ongoing full census, and audited cleanup. These bounded
+pass with warnings, unmodified OpenTitan TL-agent and Earlgrey xbar UVM test
+verdicts with a runtime warning, the completed census, and audited cleanup. These bounded
 results do not establish full-chip or complete application qualification.
 
 The [September 15 OpenTitan `xbar_smoke` UVM pass](session_logs/2026-09-15_opentitan_xbar_smoke_patched.md)
