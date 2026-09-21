@@ -7,7 +7,7 @@ merged_baseline:
   main: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
   qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
   ci_run: 35588718454
-  last_observed: Ubuntu22.04 and24.04 pass; macOS and3Windows jobs still running. No failure observed.
+  last_observed: Run35588718454 completed success; Ubuntu22.04/24.04,macOS,CLANG64,UCRT64,MINGW64 all success.
 next_batch:
   integrated_fixes: 7
   revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c, e42f114cd]
@@ -104,3 +104,18 @@ packed_vpi_local_integration:
   evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_integration.json
   status: Focused tests and116/116VPI pass; local semantic checkpoint, broad batch gates pending.
   next: Continue structural VIF event implementation and choose next independent reproduced debt after worker handoff.
+
+caliptra_continuous_string_assessment:
+  evidence: docs/conformance/session_logs/2026-09-21_caliptra_continuous_string.json
+  blocker: Continuously assigned string variable crashes paired reducer; stable rej_bounded_tb has failed filename reads and max-cycle termination.
+  owner: constraint_guard_semantics, Sol medium, assessment only before disjoint scope selection.
+  status: REPRODUCED; not implemented, app unchanged.
+event_validity_glue: Private coordinator-glue/validity-glue.patch prepared, apply-check clean, Bison14SR5RR unchanged; worker implementation still private.
+
+continuous_string_boundary_evidence: evidence/review-20260920/next-caliptra-debt-assessment/continuous-string-boundaries.json; dynamic source to sink crashes BUFZ recv_string both editions, multi-driver rejection already correct.
+
+continuous_string_selection_boundary:
+  root: Spec-grounded frontend string-to-net coercion and vector synthesis; adding BUFZ string receive alone is insufficient.
+  standards: Both editions6.5/6.16/10.3.2.
+  next: Select after event-owned elaborate.cc is free; meanwhile retained worker assesses independent constraint debt.
+  evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md

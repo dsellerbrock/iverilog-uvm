@@ -1,0 +1,24 @@
+{
+  "head": "d8e3fd378ca2f01ed18007126df5df6b6c098f6e",
+  "source": "Uncommitted packed-VPI candidate through resolver-order delta",
+  "runtime_sha256": "273b199c3eecf4e05e6ce0755e1eeb3c51d249e126b0ed87fcba9a25833d322e",
+  "crossbar": {
+    "release": "Earlgrey-PROD-M6",
+    "compile": 0,
+    "runtime": 0,
+    "requests": 180,
+    "scoreboard_items": 354,
+    "warnings": 0,
+    "errors": 0,
+    "fatals": 0,
+    "normal_completion": true,
+    "evidence": "evidence/review-20260920/next-vpi-packed-element-fix/crossbar-retest.json"
+  },
+  "focused": {
+    "shape": "Both editions pass",
+    "hex": "Both editions pass",
+    "packed_api": "Both editions abort on vpiSuppressVal after callback payload delta; worker repairing",
+    "evidence": "evidence/review-20260920/next-vpi-packed-element-fix/first-runtime/after-forward-resolver-review.json"
+  },
+  "status": "Not integrated, DONE, or qualified; callback and structural event work remains."
+}

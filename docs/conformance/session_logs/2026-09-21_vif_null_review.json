@@ -1,0 +1,11 @@
+{
+  "blocker": "COMPOUND-VIF-EDGE-EVENTS",
+  "editions": {
+    "2017": "25.9; local LRM text line50638",
+    "2023": "25.9; local LRM text line52839"
+  },
+  "requirement": "Attempted use of a null virtual interface requires fatal runtime error.",
+  "candidate_review": "Private structural proxy currently publishes X for null/missing member source. This is not sufficient for an evaluated null dereference.",
+  "distinction": "Proxy elaboration or dormant pre-arm existence must not itself count as procedural member evaluation. Arm and active rebind must preserve actual evaluation semantics.",
+  "next": "Worker to identify smallest existing activation/null-check mechanism; no qualification or acceptance by weakening null fixture."
+}

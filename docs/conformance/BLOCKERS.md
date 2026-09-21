@@ -3371,3 +3371,5 @@ The [pwrmgr follow-up reducers](session_logs/2026-09-21_pwrmgr_followup_blockers
 VARIABLE-OUTPUT-PORT-DIRECTION is reproduced in both editions: external net resolution feeds back into an output variable across a collapsed port. See the [runtime reducer and net/variable controls](session_logs/2026-09-21_variable_output_port_direction.json). This is awaiting selection; removing the pwrmgr warning alone would not fix the demonstrated semantics.
 
 VPI-PACKED-ELEMENT-ACCESS is focused-tested with permanent paired-edition regressions and the affected VPI suite. See [integration evidence and remaining boundaries](session_logs/2026-09-21_packed_vpi_integration.json). Required batch gates remain pending; this is not whole-VPI or application qualification.
+
+CONTINUOUS-STRING-ASSIGN is reproduced in both editions from the unchanged stable Caliptra/Adams Bridge rejection-sampling testbench. The [paired runtime failure](session_logs/2026-09-21_caliptra_continuous_string.json) is under standards/root-cause assessment; no implementation selected yet.

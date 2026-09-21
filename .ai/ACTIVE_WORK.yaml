@@ -109,3 +109,13 @@ event_validity_expansion:
   coordinator_glue: Target emission and .eventvalid parser/compiler registration; worker supplies exact APIs and descriptors.
   acceptance: Dormant null permitted; armed null fatal; guarded null branches valid; four-state conditional evaluation; validity/data propagation must not create transient false fatal or lose same-slot pulses; automatic lifecycle tests.
   constraint: Reuse existing synthesis helpers; no general expression interpreter or speculative framework; no silent unsupported expression validity fallback.
+
+ready_continuous_string:
+  id: CONTINUOUS-STRING-ASSIGN
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_AWAITING_FILE_OWNERSHIP
+  standards: IEEE1800-2017/2023 6.5,6.16,10.3.2
+  evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
+  root: String variable coerced to unresolved net and lowered through fixed-width vector synthesis.
+  proposed: Preserve complete string variable storage and reuse behavioral continuous-variable lowering with time-zero evaluation and RHS sensitivity.
+  dependency: elaborate.cc remains owned by structural event lane; no concurrent edits authorized.
+  acceptance: Paired constant,dynamic,empty,resized strings; existing multi-driver rejection; unmodified stable Caliptra rej_bounded_tb replay.

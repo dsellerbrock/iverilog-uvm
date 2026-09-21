@@ -1,0 +1,66 @@
+{
+  "head": "d8e3fd378ca2f01ed18007126df5df6b6c098f6e",
+  "candidate": "Uncommitted packed VPI through force-overlap-and-hardening delta",
+  "runtime_sha256": "79d51f8a61898b159da66527fe927662aaa2300efdbf353625752c980135a71d",
+  "build": "Serial build and install passed",
+  "rich_paired_cases": [
+    {
+      "name": "packed_api",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PACKED_API_RESULT failures=0 sig=1 leaf=1 mem=2 force=1 release=1\n"
+    },
+    {
+      "name": "packed_api",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PACKED_API_RESULT failures=0 sig=1 leaf=1 mem=2 force=1 release=1\n"
+    },
+    {
+      "name": "packed_force_overlap",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PACKED_FORCE_RESULT failures=0 af=1 late=1 bf=1 ar=2 br=1\n"
+    },
+    {
+      "name": "packed_force_overlap",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "PACKED_FORCE_RESULT failures=0 af=1 late=1 bf=1 ar=2 br=1\n"
+    },
+    {
+      "name": "forward_net",
+      "edition": "2017",
+      "compile": 0,
+      "runtime": 0,
+      "output": "FORWARD_NET PASS value=3\n"
+    },
+    {
+      "name": "forward_net",
+      "edition": "2023",
+      "compile": 0,
+      "runtime": 0,
+      "output": "FORWARD_NET PASS value=3\n"
+    }
+  ],
+  "other_tests": {
+    "shape_api_hex": "Six edition-specific cases pass",
+    "malformed_metadata": "Missing target, trailing comma, and overflow rejected with focused diagnostics",
+    "neighbors": "13 passed, zero failed"
+  },
+  "evidence": [
+    "evidence/review-20260920/next-vpi-packed-element-fix/first-runtime/after-force-overlap.json",
+    "evidence/review-20260920/next-vpi-packed-element-fix/neighbors-after-force.json"
+  ],
+  "pending": [
+    "Permanent regression registration",
+    "Nested callback dispatch lifetime check",
+    "Final semantic review",
+    "Required batch broad gates"
+  ],
+  "status": "Focused candidate improvements verified; not yet integrated or qualified"
+}
