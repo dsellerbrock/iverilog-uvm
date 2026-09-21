@@ -1542,3 +1542,23 @@ The [paired record](../session_logs/2026-09-21_reset_only_synthesis.json) adds r
 ### September 21 fixed-array row asynchronous reset
 
 The [paired runtime evidence](../session_logs/2026-09-21_row_async_reset.json) covers generated row-index snapshots through asynchronous reset synthesis, including nested blocks and invalid selectors. Synthesis remains PARTIAL; batch qualification is pending.
+
+### September 21 integral constraint casts and coupled distributions
+
+Revision `969853350` extends the PARTIAL constraint implementation under
+6.24, 11.6, 11.8.2 and clause 18 with integral cast IR and width/sign
+evaluation through nested arithmetic, shifts, comparisons, fixed-array
+indices and the tested inside expressions. Cast-context inside comparisons
+use the common operand type; this is not a claim that all ordinary inside
+contexts are repaired. Active X/Z queue elements fail with guarded state
+validation and value/RNG rollback under 18.3; inactive guards remain legal.
+Container elements wider than 64 bits are explicitly unsupported, and
+queue-field state transport remains outside this repair.
+
+The bounded coupled-distribution route extends the 18.5.4/18.5.10 subset
+with exact staged projections, declared solve-before ordering and atomic
+failure rollback. The projection bound remains 1024; requests beyond the
+supported domain are rejected rather than sampled from a truncated prefix.
+This does not establish all distribution, soft-constraint or probability
+families. The [focused checkpoint](../session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json)
+owns paired-edition test evidence. Broad batch qualification is pending.

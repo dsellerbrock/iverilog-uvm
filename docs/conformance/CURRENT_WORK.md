@@ -116,3 +116,6 @@ The [reset-only synthesis record](session_logs/2026-09-21_reset_only_synthesis.j
 The [restoration CI checkpoint](session_logs/2026-09-21_restoration_ci_checkpoint.json) records live exact-head platform status for PR306, independently of the current batch.
 
 Latest bounded application retest: [queue-validity candidate release evidence](session_logs/2026-09-21_queue_candidate_release_retest.json). This does not supersede full compiler qualification.
+
+The [constraint cast/distribution checkpoint](session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json)
+records focused and neighboring regression evidence for `969853350`, pending broad batch qualification.

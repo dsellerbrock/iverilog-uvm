@@ -261,3 +261,9 @@ constraint guards move from 18.5.13 to 18.5.12. Earlier records citing
 7.4.6 for both editions should be read with that clause-number correction.
 
 Reset-only synthesis follows the shared9.2/10.4 semantics; [paired evidence](session_logs/2026-09-21_reset_only_synthesis.json) records both editions and remaining scope.
+
+Integral constraint casts use shared 6.24, 11.6, 11.8.2 and 18.3 semantics;
+[shared scope and evidence](matrices/ieee1800_2017_clause_matrix.md#september-21-integral-constraint-casts-and-coupled-distributions)
+records separate 2017/2023 runs. Distribution and solve-before references
+move from 2017 18.5.4/18.5.10 to 2023 18.5.3/18.5.9. No broader edition
+qualification is implied by the focused checkpoint.
