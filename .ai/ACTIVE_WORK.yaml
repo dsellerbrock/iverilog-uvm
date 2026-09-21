@@ -1,62 +1,78 @@
-id: OPENTITAN-VIF-DIST-20260921
-status: SPEC_GROUNDED_PARALLEL_IMPLEMENTATION_AUTHORIZED
-objective: Full IEEE1800-2017 and2023 separately; IEEE1800.2/UVM; unmodified OpenTitan/Caliptra RTL/DV and standards-correct SVA/formal frontend.
-branch: agent/opentitan-vif-dist-20260921
+id: OT-GPIO-EXACT-LARGE-DIST-RANGES
+status: REGRESSION_TESTED_DOCUMENTED_READY_TO_PUBLISH
+objective: Full IEEE1800-2017 and2023 separately; IEEE1800.2/UVM; unmodified OpenTitan/Caliptra RTL/DV
+  and standards-correct SVA/formal frontend.
+branch: agent/opentitan-exact-dist-20260921
 baseline:
-  source: 1222ba7caba3c1c27aa20843c7e2af25de72f996
-  evidence: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
-  dependency: PR312 externally merged as9b3ba770a withCI stillqueued; refreshedmain merged into this branch without source differences. All required local gates passed.
-authority: User-authorized continuous campaign; coordinator-authorized two independent implementation lanes after prior required local qualification.
+  main: 7e726f52192ebcfed78a2edbf92af33890e72184
+  last_broad_qualification: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
+  vif_dependency: PR313 externally merged; this batch also qualifies the VIF runtime fix.
+history: docs/conformance/session_logs/2026-09-21_before_exact_dist_qualification_ACTIVE_WORK.yaml
+authority: User-authorized continuous campaign; coordinator owns selected implementation scope and all
+  qualification. Two retained agents perform bounded independent read-only assessments during source freeze.
 coordination:
-  coordinator: Selection, normative interpretation, integration, all shared builds/installations/test-output directories, registration manifests, documentation and final review.
-  agent_limit: Two retained cheaper implementation agents; no new worktrees.
-  preservation: External87-line AGENTS.md addition and unrelated artifacts untouched. Explicit staging only.
-  builds: Agents submit patches and private reducers; coordinator builds after coherent source checkpoint. No simultaneous edits outside owned files.
-  correctness: No app workarounds, null suppression, discarded constraints, fake values or probability approximations. Unsupported requested behavior must fail explicitly.
+  coordinator: Selection, normative interpretation, integration, all shared builds/installations/test-output
+    directories, registration manifests, documentation and final review.
+  agent_limit: Two retained cheaper agents, disjoint private evidence ownership; no newworktrees.
+  preservation: External87-line AGENTS.md addition and unrelated artifacts untouched. Explicit staging
+    only.
+  builds: Agents submit patches and private reducers; coordinator builds after coherent source checkpoint.
+    No simultaneous edits outside owned files.
+  correctness: No app workarounds, null suppression, discarded constraints, fake values or probability
+    approximations. Unsupported requested behavior must fail explicitly.
 lanes:
-  pwrmgr_vif:
-    id: OT-PWRMGR-DESCENDANT-VIF-CONTEXT
-    owner: Sol medium implementation frozen; coordinator validation; Terra medium mechanical permanent tests
-    status: FOCUSED_TESTED_REGISTRATION_AND_BROAD_PENDING
-    clauses: Both2017/2023 6.21 lifetime,8.6 automatic class methods,9.3.2 fork join_none.
-    evidence: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/LIFETIME_MATRIX.md
-    reproducer: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event.sv
-    expected: Descendant VIF structural events bind the valid root in their own ancestor activation, retain it while children live, observe rebinding, and preserve actual null-at-arm failure.
-    current: Direct controls pass;12paired descendant cases falsely report null despite valid receiver publication. Real-null controls fail as required.
-    root: Ancestor publication precedes descendant proxy allocation; initialize_instance binds null default_root_ instead of the existing ancestor object slot.
-    allowed_files: vvp/event.cc, vvp/vvp_net_sig.h, vvp/vvp_net_sig.cc; private evidence and uniquely named sv_vif_descendant_* regression source/gold/config files.
-    design: Add explicit-context read of existing AA signal object slot; recover matching owner scope from child context. Reuse storage and ownership, no duplicate history cache. Preserve static and same-scope initialization behavior.
-    excluded: Ref-formal root semantics without separate proof; parser/lowering/vthread changes; global last-root caches; arbitrary single-live-context fallback; null suppression.
-    acceptance: Paired existing16fixture matrix, recursive/concurrent identity and activation reuse, genuine-null negative, related VIF/scalar-event cases, unmodified pinned pwrmgr replay and required regression gates. Runtime correctness required.
-  gpio_dist:
+  distribution:
     id: OT-GPIO-EXACT-LARGE-DIST-RANGES
-    owner: vif_proxy_implementation, retained Sol medium; coordinator semantic review
-    status: ROOT_CAUSED
-    clauses: 2017 18.5.4 and2023 18.5.3 distribution; preserve exact existing bounded item semantics.2023 explicitly retains full source-range weight under exclusions; do not invent2017 wording.
+    owner: Coordinator qualification; Sol implementation complete
+    status: LOCALLY_REGRESSION_TESTED
+    clauses: 2017 18.5.4 and2023 18.5.3 distribution; preserve exact existing bounded item semantics.2023
+      explicitly retains full source-range weight under exclusions; do not invent2017 wording.
     evidence: evidence/review-20260920/opentitan-gpio-dist-next/COMPONENT-DESIGN.md and LARGE-ITEM-TESTS.md
     reproducer: evidence/review-20260920/opentitan-gpio-dist-next/dist_large_range_items.sv
-    expected: Exact weighted item selection and uniform feasible member selection for large ground integral ranges; preserve signed bounds, overlap, exclusions, zero weights and deterministic RNG ownership.
-    current: Over256member ranges use weighted-soft fallback; paired reducers expose wrong probabilities despite deterministic reseeding.
-    root: Exact resolver expands every range and refuses above cap; fallback optimizes soft objectives instead of sampling probability.
-    allowed_files: vvp/vvp_z3.cc; private evidence and uniquely named sv_dist_large_exact_* regression source/gold/config files.
-    design: Reuse DistSpec, component traversal and RNG; prove isolated subject factor and construct its local hard conjunction. Discover verified feasible intervals without enumerating members; select using exact mass/cardinality. Never negate global conjunction with unrelated free variables.
-    boundaries: Ground unconditional integral single-subject component; exact signed coordinates and checked cardinality/weight arithmetic. PreserveUNKNOWN as unsupported, not UNSAT or success. Unsupported large-range paths must fail with focused diagnostic instead of falsely successful weighted-soft results.
-    excluded: Parser/API changes, app constraint rewrites, raising enumeration cap, approximate sampling, joint-variable distributions or new broad solver architecture without coordinator reassessment.
-    acceptance: Paired probability/domain/reseed tests with combined false-rejection bound below1e-8, subcap controls, exclusions/overlap/zero/empty ranges, signed and overflow boundaries, related constraint suites, corrected pinned GPIO replay and required regression gates.
+    expected: Exact weighted item selection and uniform feasible member selection for large ground integral
+      ranges; preserve signed bounds, overlap, exclusions, zero weights and deterministic RNG ownership.
+    root: Exact resolver expands every range and refuses above cap; fallback optimizes soft objectives
+      instead of sampling probability.
+    allowed_files: vvp/vvp_z3.cc; private evidence and uniquely named sv_dist_large_exact_* regression
+      source/gold/config files.
+    design: Reuse DistSpec, component traversal and RNG; prove isolated subject factor and construct its
+      local hard conjunction. Discover verified feasible intervals without enumerating members; select
+      using exact mass/cardinality. Never negate global conjunction with unrelated free variables.
+    boundaries: Direct isolated integral subject or proven singleton expression, <=64-bit, <=64 intervals/item,
+      checked counts and mass. UNKNOWN, coupled or non-singleton expressions fail explicitly.
+    excluded: Parser/API changes, app constraint rewrites, raising enumeration cap, approximate sampling,
+      joint-variable distributions or new broad solver architecture without coordinator reassessment.
+    acceptance: Paired probability/domain/reseed tests with combined false-rejection bound below1e-8,
+      subcap controls, exclusions/overlap/zero/empty ranges, signed and overflow boundaries, related constraint
+      suites, corrected pinned GPIO replay and required regression gates.
+    prior_behavior: Over256member ranges use weighted-soft fallback; paired reducers expose wrong probabilities
+      despite deterministic reseeding.
+    current: Exact selected subset passes paired focus/fullJSON/NFA/realDPIUVM; firstlegacy gate differs
+      only stalewarninggold nowcorrected. Finallegacy/frontend pending.
 completion:
-  per_fix: Implement smallest complete fix, root build and focused positive/negative/boundary/interaction validation, permanent regressions and exact claims.
-  broad: HIGH runtime semantic risk; required broad gates at coherent batch checkpoint before promotion. Prior qualification evidence remains immutable.
-  applications: No DV pass from process0 or banners alone; require real traffic/checking, drain and normal completion without semantic-degradation diagnostics.
-  next: Agents submit source patches; coordinator review/build/tests then integrate. New discoveries are record-only.
-
-latest_validation:
-  runtime: VIF-only serial build75803 andinstall terminal0; source/hash snapshot in evidence/review-20260920/opentitan-vif-dist-build/vif-build1-source.json.
-  focused: Paired18/18private VIFruns pass including16positive and2genuine-null negatives. ExistingVIF9andclass-event16pass inbothlegacyandJSON.
-  application: Fresh pinned unmodified pwrmgr replay59263 terminalclassifiedfailure; null-at-arm errorsgone, simulationreaches1ms configuredPH_TIMEOUT, distfallback remains. No DVpass.
-  registration: Terra may create onlynew sv_vif_descendant_* source/gold/JSON files andprivate registration snippets; coordinator owns sharedmanifests.
-  gpio_design_correction: Inactive state pins must be substituted or retained outside negativeconjunction; unique positivepins alone do not make notF sound. Terra returned no coherent patch; vvp_z3.cc unchanged.
-
-parallel_readonly_assessment:
-  owner: canonical_graph_refresh, retained Terra medium
-  scope: First unsatisfied prerequisite behind pinned pwrmgrPH_TIMEOUT usingexistingimage andatmostone boundedprivate rerun. No implementation/app/build/install/globaldocs edits.
-  evidence: evidence/review-20260920/opentitan-pwrmgr-timeout-next
+  per_fix: Implement smallest complete fix, root build and focused positive/negative/boundary/interaction
+    validation, permanent regressions and exact claims.
+  broad: HIGH runtime semantic risk; required broad gates at coherent batch checkpoint before promotion.
+    Prior qualification evidence remains immutable.
+  applications: No DV pass from process0 or banners alone; require real traffic/checking, drain and normal
+    completion without semantic-degradation diagnostics.
+  next: Agents submit source patches; coordinator review/build/tests then integrate. New discoveries are
+    record-only.
+current:
+  source_patch_sha256: 949fdb1e68a1cdafb4075a2600f4f7207ab3119c17989d1ab0ab80bcd9b5fef4
+  runtime_sha256: 75d7efb0aba206648e3dd0fb23777cf8490339962f7938a5db7da1ea7dbe273a
+  evidence: docs/conformance/session_logs/2026-09-21_exact_large_dist_focus.json
+  compiler_edits: Frozen until qualification finishes or a concrete regression requires correction.
+  gates: Allrequiredlocalgatespassed; see revision-scoped evidence. CI pendingpublication.
+next_assessment:
+  id: OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT
+  status: PAIRED_REPRODUCED_ROOT_CAUSED_DESIGN_ONLY
+  owner: Terra read-only design; no implementation authorized yet
+  clauses: 2017/2023 9.4.2 event expression changes
+  evidence: evidence/review-20260920/opentitan-pwrmgr-timeout-next/REDUCER_ASSESSMENT.md
+  design: Reuse existing elaborate_wait mixed-family isolated join_any/cancellation plus expression filter.
+    Do not remove mixed-family rejection without correct subscriptions/cancellation.
+readonly_parallel:
+  pwrmgr: Terra paired boundary/cleanup reducers using approved mixed-eventdesign; private evidenceonly.
+  caliptra: Sol first queueunderflow rootcause fromstable rej_bounded10casereplay; no application/compiler
+    edits.

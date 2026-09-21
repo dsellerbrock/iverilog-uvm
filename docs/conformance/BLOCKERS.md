@@ -3400,4 +3400,12 @@ PR309 required local requalification now passes on `09316da3d`; see the [revisio
 
 ### September 21 descendant VIF event context
 
-OT-PWRMGR-DESCENDANT-VIF-CONTEXT is FOCUSED_TESTED, with permanent paired regressions and preserved genuine-null rejection. [Evidence](session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json) records removal of the unmodified power-manager time-zero false-null failure; its configured phase timeout and distribution debt remain open. Required broad gates are pending.
+OT-PWRMGR-DESCENDANT-VIF-CONTEXT is LOCALLY_REGRESSION_TESTED, with permanent paired regressions and preserved genuine-null rejection. [Evidence](session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json) records removal of the unmodified power-manager time-zero false-null failure; its configured phase timeout and distribution debt remain open. The subsequent [distribution batch](session_logs/2026-09-21_exact_large_dist_focus.json) passed the required broad local gates with this runtime fix included.
+
+### OT-GPIO-EXACT-LARGE-DIST-RANGES — local regression validated
+
+Exact interval sampling replaces the large ground-range weighted-soft fallback for isolated integral subjects and provably singleton expressions. Unsupported coupled/non-singleton cases fail explicitly. [Revision-scoped evidence](session_logs/2026-09-21_exact_large_dist_focus.json) records boundaries, compatibility validation, and GPIO traffic with matched responses. All required local gates passed. GPIO warnings were assessed as valid upstream NBA diagnostics and standards-permitted input coercion; they remain visible. This is not full DV-suite qualification.
+
+### OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT — reproduced, implementation pending
+
+IEEE 1800-2017/2023 §9.4.2: an event on a task-local packed vector indexed by a class property fails to wake on an asserted selected-bit X-to-zero change. Paired reducers pass with local/constant indices and with a class-member vector. The class mutation lowering drops the ordinary local-vector dependency; this prevents unmodified OpenTitan pwrmgr slow responders completing reset. Private evidence is `evidence/review-20260920/opentitan-pwrmgr-timeout-next/REDUCER_ASSESSMENT.md`. Reuse of the existing isolated mixed-family wait and cancellation mechanism is under coordinator review; implementation waits for the distribution baseline qualification.

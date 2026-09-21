@@ -434,8 +434,7 @@ class dist_signed_constant_occurrence;
   }
 endclass
 
-// Exact member probing is deliberately capped; a larger range must preserve
-// the hard domain and continue through the documented weighted-soft fallback.
+// Large direct ranges preserve the hard domain using exact item sampling.
 class dist_range_over_exact_cap;
   rand bit [8:0] value;
   constraint value_c { value dist {[0:300] := 1, 301 := 1}; }
@@ -471,9 +470,9 @@ class dist_weight_over_uint64;
   }
 endclass
 
-// A fallback-managed expression must retain control of all subject leaves.
-// Uniformly pinning a and b before Optimize would make this strong scalar
-// branch ineffective even though its fallback weight dominates the range.
+// This non-singleton expression exceeds the exact expression sampler boundary.
+// Reject it transactionally instead of always choosing the dominant item: the
+// latter is not the requested 1:100 probability distribution.
 class dist_expression_over_exact_cap;
   rand bit [8:0] a;
   rand bit [8:0] b;
@@ -534,6 +533,7 @@ module main;
   dist_weight_wide_zero_high wide_weight_item;
   dist_weight_over_uint64 over_uint64_item;
   dist_expression_over_exact_cap expression_fallback_item;
+  string expression_rng_before;
   int one_hot;
   int other;
   int fill_terminal_all;
@@ -1158,10 +1158,15 @@ module main;
     end
 
     expression_fallback_item = new;
+    expression_fallback_item.a = 17;
+    expression_fallback_item.b = 29;
+    expression_rng_before = expression_fallback_item.get_randstate();
     repeat (16) begin
-      if (!expression_fallback_item.randomize() ||
-          expression_fallback_item.a + expression_fallback_item.b != 301)
-        $fatal(1, "expression dist fallback was overridden by leaf sampling");
+      if (expression_fallback_item.randomize())
+        $fatal(1, "unsupported non-singleton expression dist succeeded");
+      if (expression_fallback_item.a != 17 || expression_fallback_item.b != 29 ||
+          expression_fallback_item.get_randstate() != expression_rng_before)
+        $fatal(1, "unsupported expression changed values or RNG state");
     end
     $display("PASSED");
   end

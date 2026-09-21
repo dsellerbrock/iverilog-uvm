@@ -1627,3 +1627,7 @@ The [focused implementation evidence](../session_logs/2026-09-21_spi_host_member
 ## September 21 descendant automatic VIF event initialization
 
 2017 §§6.21,8.6,9.3.2: the evidenced descendant-event subset now reads the exact retained ancestor receiver during proxy initialization. Concurrent/recursive activations, rebinding, detached lifetime, reuse and true-null negatives have [paired focused evidence](../session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json). Broader automatic/VIF semantics remain PARTIAL; required broad gates are pending.
+
+#### 2026-09-21: §18.5.4 large integral distribution ranges
+
+PARTIAL: exact weighted item and feasible-member sampling now has focused evidence for isolated ground integral subjects and provably singleton expressions. Coupled/non-singleton large expressions and wider arithmetic limits remain explicit boundaries. [Revision-scoped evidence and passing local gates](../session_logs/2026-09-21_exact_large_dist_focus.json). No full randomization qualification is claimed.

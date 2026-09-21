@@ -201,3 +201,5 @@ The [OpenTitan configuration correction and replay](session_logs/2026-09-21_open
 PR #311 merged externally before the dependency-kind repair. The [follow-up integrated record](session_logs/2026-09-21_dependency_kind_integrated_followup.json) records the repaired source and passing integrated gate; remaining qualification is tracked in CAMPAIGN.
 
 The [power-manager descendant VIF checkpoint](session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json) records paired focused runtime tests and the next pinned application boundary. Broad qualification for this new increment remains pending.
+
+The current large-range distribution candidate and GPIO traffic evidence are recorded in [the 2026-09-21 focus checkpoint](session_logs/2026-09-21_exact_large_dist_focus.json). All required local gates passed on the recorded frozen source; CI awaits publication.

@@ -1,0 +1,127 @@
+id: OPENTITAN-VIF-DIST-20260921
+status: SPEC_GROUNDED_PARALLEL_IMPLEMENTATION_AUTHORIZED
+objective: Full IEEE1800-2017 and2023 separately; IEEE1800.2/UVM; unmodified OpenTitan/Caliptra RTL/DV and standards-correct SVA/formal frontend.
+branch: agent/opentitan-exact-dist-20260921
+baseline:
+  source: 1222ba7caba3c1c27aa20843c7e2af25de72f996
+  evidence: docs/conformance/session_logs/2026-09-21_pr312_local_qualification.json
+  dependency: PR312 externally merged as9b3ba770a withCI stillqueued; refreshedmain merged into this branch without source differences. All required local gates passed.
+authority: User-authorized continuous campaign; coordinator-authorized two independent implementation lanes after prior required local qualification.
+coordination:
+  coordinator: Selection, normative interpretation, integration, all shared builds/installations/test-output directories, registration manifests, documentation and final review.
+  agent_limit: Two retained cheaper implementation agents; no new worktrees.
+  preservation: External87-line AGENTS.md addition and unrelated artifacts untouched. Explicit staging only.
+  builds: Agents submit patches and private reducers; coordinator builds after coherent source checkpoint. No simultaneous edits outside owned files.
+  correctness: No app workarounds, null suppression, discarded constraints, fake values or probability approximations. Unsupported requested behavior must fail explicitly.
+lanes:
+  pwrmgr_vif:
+    id: OT-PWRMGR-DESCENDANT-VIF-CONTEXT
+    owner: Sol medium implementation frozen; coordinator validation; Terra medium mechanical permanent tests
+    status: FOCUSED_TESTED_REGISTRATION_AND_BROAD_PENDING
+    clauses: Both2017/2023 6.21 lifetime,8.6 automatic class methods,9.3.2 fork join_none.
+    evidence: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/LIFETIME_MATRIX.md
+    reproducer: evidence/review-20260920/opentitan-pwrmgr-null-vif-next/detached_task_vif_event.sv
+    expected: Descendant VIF structural events bind the valid root in their own ancestor activation, retain it while children live, observe rebinding, and preserve actual null-at-arm failure.
+    current: Direct controls pass;12paired descendant cases falsely report null despite valid receiver publication. Real-null controls fail as required.
+    root: Ancestor publication precedes descendant proxy allocation; initialize_instance binds null default_root_ instead of the existing ancestor object slot.
+    allowed_files: vvp/event.cc, vvp/vvp_net_sig.h, vvp/vvp_net_sig.cc; private evidence and uniquely named sv_vif_descendant_* regression source/gold/config files.
+    design: Add explicit-context read of existing AA signal object slot; recover matching owner scope from child context. Reuse storage and ownership, no duplicate history cache. Preserve static and same-scope initialization behavior.
+    excluded: Ref-formal root semantics without separate proof; parser/lowering/vthread changes; global last-root caches; arbitrary single-live-context fallback; null suppression.
+    acceptance: Paired existing16fixture matrix, recursive/concurrent identity and activation reuse, genuine-null negative, related VIF/scalar-event cases, unmodified pinned pwrmgr replay and required regression gates. Runtime correctness required.
+  gpio_dist:
+    id: OT-GPIO-EXACT-LARGE-DIST-RANGES
+    owner: vif_proxy_implementation, retained Sol medium; coordinator semantic review
+    status: ROOT_CAUSED
+    clauses: 2017 18.5.4 and2023 18.5.3 distribution; preserve exact existing bounded item semantics.2023 explicitly retains full source-range weight under exclusions; do not invent2017 wording.
+    evidence: evidence/review-20260920/opentitan-gpio-dist-next/COMPONENT-DESIGN.md and LARGE-ITEM-TESTS.md
+    reproducer: evidence/review-20260920/opentitan-gpio-dist-next/dist_large_range_items.sv
+    expected: Exact weighted item selection and uniform feasible member selection for large ground integral ranges; preserve signed bounds, overlap, exclusions, zero weights and deterministic RNG ownership.
+    current: Over256member ranges use weighted-soft fallback; paired reducers expose wrong probabilities despite deterministic reseeding.
+    root: Exact resolver expands every range and refuses above cap; fallback optimizes soft objectives instead of sampling probability.
+    allowed_files: vvp/vvp_z3.cc; private evidence and uniquely named sv_dist_large_exact_* regression source/gold/config files.
+    design: Reuse DistSpec, component traversal and RNG; prove isolated subject factor and construct its local hard conjunction. Discover verified feasible intervals without enumerating members; select using exact mass/cardinality. Never negate global conjunction with unrelated free variables.
+    boundaries: Ground unconditional integral single-subject component; exact signed coordinates and checked cardinality/weight arithmetic. PreserveUNKNOWN as unsupported, not UNSAT or success. Unsupported large-range paths must fail with focused diagnostic instead of falsely successful weighted-soft results.
+    excluded: Parser/API changes, app constraint rewrites, raising enumeration cap, approximate sampling, joint-variable distributions or new broad solver architecture without coordinator reassessment.
+    acceptance: Paired probability/domain/reseed tests with combined false-rejection bound below1e-8, subcap controls, exclusions/overlap/zero/empty ranges, signed and overflow boundaries, related constraint suites, corrected pinned GPIO replay and required regression gates.
+completion:
+  per_fix: Implement smallest complete fix, root build and focused positive/negative/boundary/interaction validation, permanent regressions and exact claims.
+  broad: HIGH runtime semantic risk; required broad gates at coherent batch checkpoint before promotion. Prior qualification evidence remains immutable.
+  applications: No DV pass from process0 or banners alone; require real traffic/checking, drain and normal completion without semantic-degradation diagnostics.
+  next: Agents submit source patches; coordinator review/build/tests then integrate. New discoveries are record-only.
+
+latest_validation:
+  runtime: VIF-only serial build75803 andinstall terminal0; source/hash snapshot in evidence/review-20260920/opentitan-vif-dist-build/vif-build1-source.json.
+  focused: Paired18/18private VIFruns pass including16positive and2genuine-null negatives. ExistingVIF9andclass-event16pass inbothlegacyandJSON.
+  application: Fresh pinned unmodified pwrmgr replay59263 terminalclassifiedfailure; null-at-arm errorsgone, simulationreaches1ms configuredPH_TIMEOUT, distfallback remains. No DVpass.
+  registration: Terra may create onlynew sv_vif_descendant_* source/gold/JSON files andprivate registration snippets; coordinator owns sharedmanifests.
+  gpio_design_correction: Inactive state pins must be substituted or retained outside negativeconjunction; unique positivepins alone do not make notF sound. Terra returned no coherent patch; vvp_z3.cc unchanged.
+
+parallel_readonly_assessment:
+  owner: canonical_graph_refresh, retained Terra medium
+  scope: First unsatisfied prerequisite behind pinned pwrmgrPH_TIMEOUT usingexistingimage andatmostone boundedprivate rerun. No implementation/app/build/install/globaldocs edits.
+  evidence: evidence/review-20260920/opentitan-pwrmgr-timeout-next
+
+exact_dist_first_build_checkpoint:
+  source_patch_sha256: f76bd5e6d96cf1b0b10223b16df744072f39fc7de7bbb683e0498086d5f4220a
+  build: Serial vvp build/install session87594 passed. Focus session76300 completed.
+  evidence: evidence/review-20260920/opentitan-gpio-dist-next/implementation/focus1/results.json
+  results: 4/14 passed; six runtime memory faults in large-range cases, four compile failures in two new fixtures. No implementation qualification.
+  correction: Sol owns focused Z3 solver reference-lifetime correction and private fixture syntax repair. Coordinator captured crash1-backtrace.log; no further shared build until source frozen.
+  pwrmgr: Generic physical/task-local/virtual-interface clocking probes pass both editions; actual application runtime state remains unproven. Terra readonly assessment continues; candidate runtime crash disclosed.
+  next: Receive frozen correction, capture new patch, serial vvp rebuild/install, rerun paired focus into focus2 preserving focus1.
+
+exact_dist_correction1_checkpoint:
+  source_patch_sha256: 16f2f797c9c5081f83895dfae2eeb9ae3503fddd415725080c0e743c43510b3f
+  runtime: Serial build/install and paired focus session58548 terminal0; corrected runtime installed.
+  results: 14/14 focused runs pass across2017/2023; probability, reseed, pinned state, boundaries, subcap and focused overflow/coupled failure tested.
+  evidence: evidence/review-20260920/opentitan-gpio-dist-next/implementation/focus2/results.json
+  root_cause_correction: Retain positive Z3 solver immediately before creating negative solver. Repaired private fixture keyword identifiers and explicit overflow bounds.
+  lanes: Sol preparing permanent unique regression files; Terra resumes bounded actual pwrmgr debugger observation with corrected runtime provenance.
+  coordinator_next: Review/register permanent tests; run neighboring dist/joint/randc legacy and JSON focuses, then corrected GPIO replay and required broad gates.
+  qualification: FOCUSED_TESTED only; no new application DV pass or broad qualification.
+
+exact_dist_adjacent_checkpoint:
+  evidence: evidence/review-20260920/opentitan-gpio-dist-next/implementation/adjacent1/results.json
+  results: All10harness runs complete; boolean suite fails fixed complemented subject, joint-randc atomic negative differs only removed obsolete fallback warning; ordered-dist/ordered-randc/transaction suites pass.
+  required_correction: Preserve provably singleton expression subjects before claiming compatible exact-range support. Same IEEE distribution scope; source vvp/vvp_z3.cc only. Prove uniqueness against full base with disequality UNSAT; UNKNOWN or non-singleton remains unsupported. Use isolated fresh same-sort sampling coordinate fixed to proven value; pin original expression and retain per-item declared mass/RNG path. No inverse-expression approximation.
+  regression_policy: Existing fixed-expression positive must continue passing. Historical over-cap expression test requires all draws choose dominant branch, which codifies biased fallback; replace with focused unsupported negative and transactional invariants until exact non-singleton expression sampling exists. Keep historical evidence, explain exact changed expectation.
+  next: Sol finish permanent-file checkpoint then implement bounded singleton correction; coordinator owns existing regression expectation and manifest updates after proof.
+
+gpio_correction1_application_checkpoint:
+  runtime_sha256: 9eca66c8eafd0f1b1388c31a3342fe72d62cf09a00392d8671c7407b3fdab20c
+  evidence: evidence/review-20260920/opentitan-gpio-dist-next/implementation/gpio-correction1
+  replay: Fresh pinned unmodified M6 GPIO smoke session29033 complete; runtime process0, 113415561ps, zeroUVMerrors/fatals, runtime_debt_count0. MatrixDEBT retains10compilewarnings.
+  traffic: Same image/seed high-verbosity replay15781 complete0 with unchangedruntimehash. 510driverrequests,510Amonitor,510Dmonitor;314scoreboardregwrite,196CSRread and825pinprediction log events. Counts are execution evidence, not independent proof of all comparisons or drained queues.
+  pending: Disposition input-to-inout and9always_combNBA compilewarnings; verify scoreboard check guards and drain. No broad or fullDVqualification yet.
+  permanent: Installed52new reviewed regression files with12pairedconfigs; registered twofocuslists plusmainmanifests. Singleton compatibility correction pending on Sol; root changed historical biased-expression expectation to explicitfailure withvalue/RNGrollback checks and removed obsolete rangefallback warninggold.
+  next: Receive frozen singleton correction; rebuild and rerun focused/newpermanent/failedadjacent; then broad qualification. All sessions named here are terminal.
+
+exact_dist_final_source_qualification:
+  source_patch_sha256: 949fdb1e68a1cdafb4075a2600f4f7207ab3119c17989d1ab0ab80bcd9b5fef4
+  build: Build3/install/focus3 session67419 terminal0. Two negativefixture elaboration failures corrected with typed bounds; no compiler scope change.
+  focused: focus3-singleton6/6pass; adjacent2 session7971 terminal0, allsixharnessruns pass including compatibility and permanent ranges.
+  integrated: Session34824 live; evidence/review-20260920/exact-dist-qualification/integrated.log. Poll same handle; do not restart based on observation timeout.
+  pending: FullJSON/NFA/realDPIUVM/frontend/makecheck; permanent singletonpackage integration and focus; finalsource application replay; publication.
+  ownership: Compiler source frozen. Sol finalizes private newpermanent files only; Terra bounded pwrmgrwatchpoint assessment. Coordinator owns sharedoutputs and allbroadgates.
+  gpio: Independent log pairing verifies510request/responses with nounmatchedsource/address; readchecks enabled in source and basecheckphase reports leftoverfifos. Tencompilewarnings remain undisposed.
+  evidence: docs/conformance/session_logs/2026-09-21_exact_large_dist_focus.json
+
+exact_dist_qualification_running:
+  source_frozen: Patch949fdb1e68a1cdafb4075a2600f4f7207ab3119c17989d1ab0ab80bcd9b5fef4; runtime75d7efb0aba206648e3dd0fb23777cf8490339962f7938a5db7da1ea7dbe273a.
+  nfa: Session85158 terminal0;58passed0failed, stabletoolhashes in exact-dist-qualification/nfa.run.json.
+  integrated: Session34824 live, verified via write_stdin and activeperl process; exact-dist-qualification/integrated.log and ivtest/regression_report.txt.
+  uvm: Session54456 live; driver reports realDPI built withoutUVM_NO_DPI; exact-dist-qualification/uvm.log.
+  singleton_package: Installed26new files andtwo standalonefocuslists; globalmainmanifestregistration andsharedharnessrun await integratedgate boundary. Private packagedsource6/6pass.
+  next: Poll livehandles; after integratedterminal, registersingletonmainentries andrun focuslegacy/JSON, then fullJSON (installtgt-fpga first). Frontend cannot run concurrently withruntimeusers becauseit hides installlib.
+  agents: Terra boundedbuilt-in pwrmgrinstructiontrace; Sol readonlyGPIOwarningassessment. No compilerimplementationedits authorized duringqualification.
+  publication: gh pr list returnednoneopen; no newPRyet.
+
+exact_dist_broad_checkpoint:
+  integrated: Session34824 terminal1. Legacy6159total6152passed2failed2NI3EF; only2jointmultiple-distnegative golds retainedobsolete rangefallbackwarning. Actualfailure/rollbackchecks pass. VPI126/126,negative148/148,runtime15/15pass. Goldcorrected; freshintegrated gate pending afterJSON.
+  singleton_registration: All26filesintegrated andbothmainmanifests registered; focused6legacy+6JSONpass.
+  json: Session11070 live following terminalfocusedregistration andfpga install; pollsamehandle. Shared ivtest outputsownedbythisrun.
+  uvm: Session54456 stilllive realDPI; pollsamehandle.
+  applications: FinalGPIO runtime38867 terminal0,510matchedresponsepairs,nooutstanding,noUVMerrors/fatals,no distfallback. StableCaliptrav2.1.2/Adamsv2.0.3power2round2048pass; rej_bounded8of10fail, unchangedknown gap.
+  warning_assessment: GPIO10compilewarnings fromvalidupstreamconstructs;4pairedsemanticprobespass. Source/timingdebt staysvisible; no appedits orwarningsuppression.
+  next: FinishJSON/UVM; rerunintegrated into newdirectory preserving firstfailedrun, thenfrontend/makecheck andpublishcoherentPR.
+  pwrmgr_next: Cheap pairedred nowproves missingtask-localvector sensitivity ineventindexedbyclassproperty; controls pass. Terra readonlymixedwaiterdesign; noimplementationeditsauthorizedwhile currentqualificationruns.

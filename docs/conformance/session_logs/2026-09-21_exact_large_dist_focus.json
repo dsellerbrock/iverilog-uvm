@@ -1,0 +1,134 @@
+{
+  "blocker": "OT-GPIO-EXACT-LARGE-DIST-RANGES",
+  "status": "LOCALLY_REGRESSION_TESTED",
+  "baseline": "7e726f52192ebcfed78a2edbf92af33890e72184",
+  "source_patch_sha256": "949fdb1e68a1cdafb4075a2600f4f7207ab3119c17989d1ab0ab80bcd9b5fef4",
+  "standards": {
+    "2017": "18.5.4",
+    "2023": "18.5.3; explicitly retain declared source-range mass after exclusions"
+  },
+  "mechanism": "Prove isolated integral subject hard factor, discover exact feasible intervals and sample weighted items then uniform feasible members. Compound subjects require a full-base uniqueness proof. Original subject receives the selected hard equality. Unsupported shapes fail transactionally.",
+  "boundaries": [
+    "Ground integral ranges <=64 bits",
+    "At most64 feasible intervals per item, checked uint64 cardinalities and aggregate weights",
+    "Coupled and non-singleton expression large ranges remain unsupported",
+    "Wide weight fallback outside selected scope remains separate debt"
+  ],
+  "evidence_root": "evidence/review-20260920/opentitan-gpio-dist-next/implementation",
+  "focused": {
+    "focus2": "14/14 passed on corrected1 runtime",
+    "focus3": "18/20 passed on singleton runtime; two new negative fixture compile failures require typed-literal correction",
+    "permanent_harness1": "12legacy and12JSON pass on corrected1 runtime",
+    "adjacent2": "All six legacy/JSON harness runs passed: boolean subjects, joint ordered randc multiple distributions, permanent exact ranges",
+    "focus3_singleton": "6/6 passed after typing negative fixture range endpoints; no compiler change for fixture repair",
+    "singleton_permanent": "6legacy and6JSON passed; registered inbothmainmanifests"
+  },
+  "gpio": {
+    "corpus_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "runtime_sha256": "9eca66c8eafd0f1b1388c31a3342fe72d62cf09a00392d8671c7407b3fdab20c",
+    "seed": 1,
+    "test": "gpio_base_test/gpio_smoke_vseq",
+    "runtime_errors": 0,
+    "runtime_debt": 0,
+    "compile_warning_debt": 10,
+    "requests": 510,
+    "responses": 510,
+    "source_address_matches": 510,
+    "unmatched": 0,
+    "scoreboard_reg_write_logs": 314,
+    "scoreboard_read_logs": 196,
+    "scoreboard_pin_prediction_logs": 825,
+    "finish_ps": 113415561,
+    "qualified": false,
+    "remaining": "Compile warning disposition and final-source regression qualification; GPIO evidence is corrected1 revision, before singleton-only compatibility repair."
+  },
+  "required_gates": "All required local gates passed on the frozen source patch; CI pending publication. Includes regression qualification of PR313 VIF runtime fix.",
+  "gates": {
+    "nfa": {
+      "passed": 58,
+      "failed": 0,
+      "evidence": "evidence/review-20260920/exact-dist-qualification/nfa.run.json"
+    },
+    "integrated": {
+      "status": "FAILED_GOLD_ONLY",
+      "session": 34824,
+      "legacy_total": 6159,
+      "legacy_passed": 6152,
+      "legacy_failed": 2,
+      "legacy_not_implemented": 2,
+      "legacy_expected_fail": 3,
+      "failures": [
+        "sv_randomize_joint_multiple_dist_fail",
+        "sv_randomize_joint_multiple_dist_fail_2023"
+      ],
+      "reason": "Expected obsolete rangefallback warning; actual negative diagnostics and transactional PASSED unchanged. Gold corrected; freshgate pending.",
+      "vpi_passed": 126,
+      "negative_passed": 148,
+      "runtime_invariants_passed": 15
+    },
+    "uvm": {
+      "status": "PASSED",
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "mode": "REAL_DPI",
+      "generation": "g2012",
+      "evidence": "evidence/review-20260920/exact-dist-qualification/uvm.run.json"
+    },
+    "json": {
+      "status": "PASSED",
+      "ran": 3096,
+      "failed": 0,
+      "evidence": "evidence/review-20260920/exact-dist-qualification/json.run.json"
+    },
+    "makecheck": {
+      "status": "PASSED",
+      "evidence": "evidence/review-20260920/exact-dist-qualification/makecheck.run.json"
+    },
+    "frontend": {
+      "status": "PASSED",
+      "evidence": "evidence/review-20260920/exact-dist-qualification/frontend.run.json"
+    },
+    "integrated_rerun": {
+      "status": "PASSED",
+      "legacy_total": 6165,
+      "legacy_passed": 6160,
+      "legacy_failed": 0,
+      "legacy_not_implemented": 2,
+      "legacy_expected_fail": 3,
+      "vpi_passed": 126,
+      "negative_passed": 148,
+      "runtime_invariants_passed": 15,
+      "export_checks_passed": 66,
+      "copyout_checks_passed": 6,
+      "stable_hashes": true,
+      "evidence": "evidence/review-20260920/exact-dist-qualification/integrated-rerun/integrated.run.json"
+    }
+  },
+  "gpio_final": {
+    "evidence": "evidence/review-20260920/exact-dist-qualification/gpio-final/traffic.json",
+    "runtime_sha256": "75d7efb0aba206648e3dd0fb23777cf8490339962f7938a5db7da1ea7dbe273a",
+    "requests": 510,
+    "matched_responses": 510,
+    "unmatched": 0,
+    "uvm_errors": 0,
+    "uvm_fatals": 0,
+    "runtime_dist_fallback": false,
+    "compile_warning_disposition": "pending"
+  },
+  "caliptra_final": {
+    "release": "v2.1.2",
+    "adams_bridge": "v2.0.3",
+    "clean_tags_verified": true,
+    "power2round": "2048 vectors passed",
+    "rej_bounded": "8 failures in10cases; known gap persists",
+    "evidence": "evidence/review-20260920/exact-dist-qualification",
+    "rej_bounded_classification": "Active-region application race between counter/pop and zeroize processes; external observer confirms all256 queue entries consumed. IEEE2017/2023 4.7/4.8 allow processordering. No simulator-specificquirk orcompilerqueuedefect proven.",
+    "assessment": "evidence/review-20260920/caliptra-rej-underflow-next/ASSESSMENT.md"
+  },
+  "gpio_warning_assessment": {
+    "evidence": "evidence/review-20260920/gpio-warning-disposition/ASSESSMENT.md",
+    "paired_probes": "4/4passed",
+    "disposition": "Nine valid upstream always_comb NBA warnings preserving NBA delta ordering; one standards-permitted bidirectional net coercion. No compiler miscompile shown; decoder timing beyond exercised smoke remains unqualified."
+  }
+}
