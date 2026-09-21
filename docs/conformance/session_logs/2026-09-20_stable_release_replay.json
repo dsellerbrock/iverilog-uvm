@@ -1,5 +1,5 @@
 {
-  "scope": "Stable-release checkpoint: Caliptra static census and power2round unit runtime complete; OpenTitan running; full-chip qualification incomplete",
+  "scope": "Stable release replay: Caliptra census and unit-runtime pass; OpenTitan TL-agent UVM test reports pass with runtime warning; overall OpenTitan census still running",
   "compiler_semantic_revision": "e90059a07708cf2a3022255bfce640808178a418",
   "merged_main": "0998f058a4a549b9e988f5a1784bdfbbec1246a8",
   "caliptra": {
@@ -93,7 +93,33 @@
     "uvm": "1.2",
     "status": "358-job census running; no final result yet",
     "session": 55045,
-    "evidence": "evidence/review-20260920/application-replay/opentitan-uvm12.log"
+    "evidence": "evidence/review-20260920/application-replay/opentitan-uvm12.log",
+    "tl_agent_runtime": {
+      "test": "tl_agent_base_test",
+      "sequence": "tl_agent_base_vseq",
+      "core": "lowrisc:dv:tl_agent_sim:0.1",
+      "verdict": "TEST PASSED CHECKS",
+      "runtime_exit": 0,
+      "runtime_seconds": 130.815,
+      "host_requests": 1307,
+      "scoreboard_items": 2614,
+      "uvm_errors": 0,
+      "uvm_fatals": 0,
+      "uvm_warnings": 0,
+      "report_demotions": 0,
+      "report_catches": 0,
+      "source_clean_after": true,
+      "compiler_diagnostics": "No errors/warnings; DPI export stub informational note only",
+      "runtime_warning": "Calling $system() as a task; returned status ignored by unmodified dv_utils_pkg.sv:205",
+      "matrix_classification": "DEBT (preserved runtime warning)",
+      "scope": "One unmodified stable-release UVM agent test, not complete OpenTitan DV/RTL/formal qualification",
+      "evidence": {
+        "evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_tl_agent_sim_0.1/matrix-runtime.log": "63b7f5760be87f5e836a19cebdf9ef27ecd89e7c83a551d019e8fbb44f210efa",
+        "evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_tl_agent_sim_0.1/matrix-compile.log": "3f7a16a0da4c0ab2421824be69c6434582ef9056ce2d2efe5c815f0fa870b090",
+        "evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_tl_agent_sim_0.1/matrix-iverilog.scr": "0809af97c61950649fb6b385f735913d6ea79559cdb30123873e8a3515aef956"
+      },
+      "scoreboard_source": "hw/dv/sv/scoreboard/scoreboard.sv check_phase compares expected/actual counts, checks remaining queues and FIFOs"
+    }
   },
   "cleanup": {
     "removed": [
