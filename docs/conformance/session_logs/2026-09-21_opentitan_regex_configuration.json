@@ -1,0 +1,90 @@
+{
+  "date": "2026-09-21",
+  "blocker": "OT-UVM-REGEX-CONFIG-PROPAGATION",
+  "compiler_commit": "81de58051",
+  "harness_base": "b04404191",
+  "harness_sha256": "a3bec0c63cc398c012b9a11ccbeef0fbc5464262308b100706ecc37b1b91da0c",
+  "upstream_pin": "Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "uvm": "1.2",
+  "upstream_configuration": "hw/dv/tools/dvsim/common_sim_cfg.hjson:65 +define+UVM_REGEX_NO_DPI",
+  "behavior": "Forward exact discovered define for UVM-importing UVM/runtime jobs; retain normal -uvm and all other DPI. No compiler/UVM/application source relaxation.",
+  "self_test": "PASS",
+  "paired_probe": "Identical direct *_shadowed pattern fails via strict DPI regex without define and passes match/nonmatch with prescribed SV glob matcher.",
+  "probe_evidence": "evidence/review-20260920/opentitan-priority-spi-host-next-regex/ASSESSMENT.md",
+  "replay_evidence": "evidence/review-20260920/opentitan-regex-config-replay/result.json",
+  "rows": [
+    {
+      "core": "lowrisc:dv:gpio_sim:0.1",
+      "status": "DEBT",
+      "compile_returncode": 0,
+      "runtime_returncode": 0,
+      "runtime_duration_seconds": 20.621,
+      "semantic_debt": [
+        "../src/lowrisc_dv_gpio_sim_0.1/tb/tb.sv:28: warning: input port rst_n is coerced to inout.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_gpio_csr_assert_0/gpio_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process."
+      ],
+      "runtime_debt": [
+        "Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed)."
+      ],
+      "runtime_errors": [],
+      "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog -g2012 -stb -sgpio_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-regex-config-replay/matrix/runtime/lowrisc_dv_gpio_sim_0.1/matrix-runtime.vvp -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-regex-config-replay/matrix/runtime/lowrisc_dv_gpio_sim_0.1/matrix-iverilog.scr",
+      "runtime_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp -n /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-regex-config-replay/matrix/runtime/lowrisc_dv_gpio_sim_0.1/matrix-runtime.vvp +ntb_random_seed=1 +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=gpio_base_test +UVM_TEST_SEQ=gpio_smoke_vseq"
+    },
+    {
+      "core": "lowrisc:dv:pwrmgr_sim:0.1",
+      "status": "RUNTIME_FAIL",
+      "compile_returncode": 0,
+      "runtime_returncode": 0,
+      "runtime_duration_seconds": 1.825,
+      "semantic_debt": [
+        "../src/lowrisc_dv_pwrmgr_sim_0.1/tb.sv:42: warning: input port rst_n is coerced to inout.",
+        "../src/lowrisc_dv_pwrmgr_sim_0.1/tb.sv:59: warning: input port rst_n is coerced to inout.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.",
+        "../src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process."
+      ],
+      "runtime_debt": [
+        "Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed)."
+      ],
+      "runtime_errors": [
+        "runtime error: event expression attempted to use a null virtual interface",
+        "UVM_ERROR @         0 ps: (tlul_assert.sv:301) [ASSERT FAILED] noOutstandingReqsAtEndOfSim_A",
+        "TEST FAILED CHECKS",
+        "OpenTitan runtime produced no `TEST PASSED [UVM_]CHECKS` banner"
+      ],
+      "compile_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog -g2012 -stb -spwrmgr_bind -spwrmgr_cov_bind -spwrmgr_unit_only_bind -ssec_cm_prim_count_bind -ssec_cm_prim_double_lfsr_bind -ssec_cm_prim_onehot_check_bind -ssec_cm_prim_sparse_fsm_flop_bind -uvm -DUVM -DUVM_NO_DEPRECATED -DUVM_REG_ADDR_WIDTH=32 -DUVM_REG_DATA_WIDTH=32 -DUVM_REG_BYTENABLE_WIDTH=4 -DUVM_REGEX_NO_DPI -DSIMULATION -DDUT_HIER=tb.dut --uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src -o /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-regex-config-replay/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-runtime.vvp -c /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-regex-config-replay/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-iverilog.scr",
+      "runtime_command": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp -n /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-regex-config-replay/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-runtime.vvp +ntb_random_seed=1 +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +test_timeout_ns=1000000 +smoke_test=1 +UVM_TESTNAME=pwrmgr_base_test +UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+    }
+  ],
+  "gpio_completion": {
+    "uvm_errors": 0,
+    "uvm_fatals": 0,
+    "finish_time_ps": 113415561,
+    "banner": "TEST PASSED CHECKS",
+    "qualified": false,
+    "reasons": [
+      "Runtime dist-range weighted-soft fallback remains.",
+      "Traffic and scoreboard checking have not yet been independently counted for this run.",
+      "Compile warnings require separate classification."
+    ]
+  },
+  "pwrmgr_completion": {
+    "qualified": false,
+    "reason": "Null VIF event errors and noOutstandingReqsAtEndOfSim_A at time0, despite process exit0."
+  },
+  "correction": "Earlier no-configuration-mismatch conclusion was wrong; prior strict regex logs describe omitted upstream build option, not proof of upstream-invalid source or VCS-specific behavior."
+}

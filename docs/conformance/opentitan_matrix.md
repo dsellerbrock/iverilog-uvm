@@ -52,6 +52,15 @@ installed UVM source tree when present. Hashing only the `iverilog` driver is
 insufficient because that binary can remain unchanged when the compiler engine
 is rebuilt. A dirty OpenTitan tree is reported rather than modified.
 
+For UVM and runtime jobs, the runner forwards
+`-DUVM_REGEX_NO_DPI` only when discovery retained the exact
+`+define+UVM_REGEX_NO_DPI` option from the selected dvsim metadata. Earlgrey-
+PROD-M6 defines it in `hw/dv/tools/dvsim/common_sim_cfg.hjson`; pinned UVM 1.2
+then uses its documented SystemVerilog glob matcher for `uvm_re_match`.
+Normal `-uvm` DPI support remains enabled, and the runner does not translate
+arbitrary dvsim or VCS build options. RTL, SVA, and UVM metadata without this
+option do not receive the define.
+
 The Python interpreter used for FuseSoC API discovery is equally part of the
 fingerprint. The runner records its logical virtual-environment path, real
 executable, SHA-256, Python version, imported FuseSoC version, and HJSON version
