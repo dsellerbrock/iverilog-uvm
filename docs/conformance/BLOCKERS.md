@@ -255,8 +255,10 @@ from `blocker_inventory.json` as if still open:
 - "Joint parent/child constraints entirely missing" — PR #258 implements a
   bounded joint route; only its residual contract (Z01 above, and the
   other Z02–Z14 rows in the fuller audit) remains open.
-- "Solver UNKNOWN accepted as a successful model" — `vvp_z3.cc` returns
-  failure and rolls back on UNKNOWN; an old lenient-UNKNOWN note is stale.
+- "Solver UNKNOWN accepted as a successful model" — the class route rejects
+  UNKNOWN, but the scope route still accepts unconstrained targets. The
+  September 21 source finding in [discovered debt](DISCOVERED_DEBT.md) corrects
+  the earlier blanket exclusion; scope runtime reproduction remains pending.
 
 See `blocker_inventory.json` / `iverilog_uvm_blocker_audit.md` (as supplied
 to the governance-bootstrap session) for the full 134-row inventory this

@@ -1,0 +1,106 @@
+{
+  "status": "INCOMPLETE",
+  "candidate": "pending-nba-overlay-incremental.patch",
+  "patch_sha256": "56d55ad564da3f04f5f80a8b676b56acafdaede6b4c1cbf0b9b7b2e7069e48bd",
+  "compiler_sha256": "c2276eb46094fbd66c870a43bedcb06284bceaf56e69fd1f342a20e5a72f4829",
+  "cases": 26,
+  "passed": 20,
+  "failures": [
+    {
+      "source": "evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv",
+      "edition": "2017",
+      "compile": 134,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/pending_nba_unpacked_dynamic_part-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv"
+      ],
+      "source_sha256": "c368c792f8b2a243440addacfca6413493a5d5105d484c09675a291353cbaec6",
+      "passed": false
+    },
+    {
+      "source": "evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv",
+      "edition": "2023",
+      "compile": 134,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/pending_nba_unpacked_dynamic_part-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/fixtures/pending_nba_unpacked_dynamic_part.sv"
+      ],
+      "source_sha256": "c368c792f8b2a243440addacfca6413493a5d5105d484c09675a291353cbaec6",
+      "passed": false
+    },
+    {
+      "source": "evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv",
+      "edition": "2017",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/blocking-overwrite-boundary-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv"
+      ],
+      "source_sha256": "1f053f20793763b7ee2bc23ad536f56dc65704ebe8a04c0e8af5f7e1876cf5ec",
+      "runtime": 1,
+      "passed": false
+    },
+    {
+      "source": "evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv",
+      "edition": "2023",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/blocking-overwrite-boundary-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv"
+      ],
+      "source_sha256": "1f053f20793763b7ee2bc23ad536f56dc65704ebe8a04c0e8af5f7e1876cf5ec",
+      "runtime": 1,
+      "passed": false
+    },
+    {
+      "source": "evidence/review-20260920/next-row-async-reset/blocking-overwrite-packed-boundary.sv",
+      "edition": "2017",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/blocking-overwrite-packed-boundary-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-row-async-reset/blocking-overwrite-packed-boundary.sv"
+      ],
+      "source_sha256": "bfe7a0dba0701a6a068b650818d16073161558ad1913f338a663aedb42ad0d8b",
+      "runtime": 1,
+      "passed": false
+    },
+    {
+      "source": "evidence/review-20260920/next-row-async-reset/blocking-overwrite-packed-boundary.sv",
+      "edition": "2023",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-S",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/blocking-overwrite-packed-boundary-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-row-async-reset/blocking-overwrite-packed-boundary.sv"
+      ],
+      "source_sha256": "bfe7a0dba0701a6a068b650818d16073161558ad1913f338a663aedb42ad0d8b",
+      "runtime": 1,
+      "passed": false
+    }
+  ],
+  "evidence": "evidence/review-20260920/next-blocking-index/candidate-overlay-incremental/results.json",
+  "next": "Private incremental repair of dynamic word mapping and blocking-selector data flow, then coordinator build and paired runtime focus. No closure or broad qualification."
+}

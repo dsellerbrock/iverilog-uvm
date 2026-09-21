@@ -329,3 +329,16 @@ queue_state_and_nba_review_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-21_queue_state_and_nba_review.json
   next: Review frozen queue transport and NBA enable/hold patches, then coordinator build and targeted paired runtime checks.
   shared_processes: No build/test live; private implementation agents remain active.
+
+queue_candidate_release_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_queue_candidate_release_retest.json
+  status: Eight queue tests pass in both harnesses; release runtime retests recorded; synthesis candidate remains incomplete.
+  next: Review pending-nba-overlay-incremental.patch, build under coordinator ownership, run next-blocking-index/run_focus.py with a fresh output directory; then constraint neighbors and broad gates when ready.
+  shared_processes: No shared build or test running.
+
+nba_overlay_incremental_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_nba_overlay_incremental_checkpoint.json
+  status: INCOMPLETE_20_OF_26_RUNTIME_CASES_PASS
+  remaining: Dynamic unpacked word mapping assertion and incorrect packed/unpacked blocking-selector results, both editions.
+  owner: synthesis_nba_completion private incremental repair; coordinator shared integration and tests.
+  next: Review next private patch, rebuild and run paired synthesis focus before synthesis neighbors.

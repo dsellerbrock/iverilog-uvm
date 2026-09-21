@@ -3010,3 +3010,14 @@ not implement their wide value transport. Full-width element capture and
 comparison remain UNSUPPORTED, separate from scalar integral casts.
 IEEE 1800-2017/2023 11.4.13 and 11.8.2; producer and paired diagnostic evidence:
 `evidence/review-20260920/next-joint-distributions/patch-type-inside/`.
+
+### 2026-09-21 scope solver UNKNOWN still accepts random targets
+
+During CONSTRAINT-INTEGRAL-CAST-IR review, `vvp_z3_randomize_scope` in
+`vvp/vvp_z3.cc` was found to return success with unconstrained targets when
+`Z3_optimize_check` returns UNKNOWN. This branch also exists in committed
+`93ce7507a`; it is not introduced by the queue-state patch. The BLOCKERS
+exclusion for solver UNKNOWN was too broad: class and scope routes differ.
+IEEE 1800-2017/2023 clause 18 constraint satisfaction remains required; a
+warning cannot establish a legal solution. Source-confirmed, runtime UNKNOWN
+reproducer not yet established, record-only pending separate selection.
