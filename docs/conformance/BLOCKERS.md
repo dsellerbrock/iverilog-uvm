@@ -3373,3 +3373,7 @@ VARIABLE-OUTPUT-PORT-DIRECTION is reproduced in both editions: external net reso
 VPI-PACKED-ELEMENT-ACCESS is focused-tested with permanent paired-edition regressions and the affected VPI suite. See [integration evidence and remaining boundaries](session_logs/2026-09-21_packed_vpi_integration.json). Required batch gates remain pending; this is not whole-VPI or application qualification.
 
 CONTINUOUS-STRING-ASSIGN is reproduced in both editions from the unchanged stable Caliptra/Adams Bridge rejection-sampling testbench. The [paired runtime failure](session_logs/2026-09-21_caliptra_continuous_string.json) is under standards/root-cause assessment; no implementation selected yet.
+
+### September21 constraint division/remainder by zero
+
+CONSTRAINT-DIVMOD-ZERO is implemented and focused-tested, awaiting required batch gates. Active zero divisors produce constraint evaluation errors; guarded inactive branches remain legal. See [paired evidence and rollback tests](session_logs/2026-09-21_constraint_divmod_zero.json).

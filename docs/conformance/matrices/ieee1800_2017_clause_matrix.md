@@ -1605,3 +1605,7 @@ Clauses6.24.1/26 self-package type casts and19.5.1/19.5.7 signed static bin rang
 ### 2026-09-21 packed VPI selection refinement
 
 Clauses37/38.19/38.21/38.36.1 remain PARTIAL overall. Declared integral packed selections now have runtime-tested width, range, value and selected callback behavior; [paired evidence and explicit limits](../session_logs/2026-09-21_packed_vpi_integration.json). Full batch qualification is pending.
+
+### September21 constraint arithmetic error refinement
+
+Clauses11.3.4/11.3.5/18.3: division and remainder by zero now use guard-aware constraint error checks, preserving legal nonzero models and failure rollback. The [paired2017/2023 evidence](../session_logs/2026-09-21_constraint_divmod_zero.json) covers this implemented subset; broad qualification and overall clause completion remain pending.

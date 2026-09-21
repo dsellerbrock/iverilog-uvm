@@ -3324,12 +3324,44 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    if (op == "add")      r = Z3_mk_bvadd(b.ctx, left, right);
 	    else if (op == "sub") r = Z3_mk_bvsub(b.ctx, left, right);
 	    else if (op == "mul") r = Z3_mk_bvmul(b.ctx, left, right);
-	    else if (op == "div") r = result_signed
-		  ? Z3_mk_bvsdiv(b.ctx, left, right)
-		  : Z3_mk_bvudiv(b.ctx, left, right);
-	    else                  r = result_signed
-		  ? Z3_mk_bvsrem(b.ctx, left, right)
-		  : Z3_mk_bvurem(b.ctx, left, right);
+	    else {
+		  Z3_ast zero = Z3_mk_unsigned_int64(
+			b.ctx, 0, Z3_get_sort(b.ctx, right));
+		  Z3_ast zero_divisor = Z3_mk_eq(b.ctx, right, zero);
+		  Z3_ast folded_zero_divisor = Z3_simplify(
+			b.ctx, b.resolve_signed_constants(zero_divisor));
+		  bool may_be_zero = Z3_get_bool_value(
+			b.ctx, folded_zero_divisor) != Z3_L_FALSE;
+		  if (may_be_zero && !b.collect_refs_only && b.collect_preferences) {
+			Z3Builder::StateCheck check = {
+			      zero_divisor,
+			      op == "div"
+				? "division by zero in constraint"
+				: "remainder by zero in constraint"
+			};
+			b.state_checks.push_back(check);
+		  }
+
+		  Z3_ast value;
+		  if (op == "div") value = result_signed
+			? Z3_mk_bvsdiv(b.ctx, left, right)
+			: Z3_mk_bvudiv(b.ctx, left, right);
+		  else value = result_signed
+			? Z3_mk_bvsrem(b.ctx, left, right)
+			: Z3_mk_bvurem(b.ctx, left, right);
+
+		  /* Z3 gives division/remainder by zero a total bit-vector value,
+		   * while SystemVerilog produces X (11.3.4), which is illegal in a
+		   * constraint (18.3). Keep the erroneous branch satisfiable solely
+		   * for the relaxed diagnostic solve. Every accepted solve excludes
+		   * active zero divisors; inactive branches cannot supply a value. */
+		  if (may_be_zero) {
+			Z3_ast placeholder = Z3_mk_fresh_const(
+			      b.ctx, op == "div" ? "sv_divzero" : "sv_modzero",
+			      Z3_get_sort(b.ctx, value));
+			r = Z3_mk_ite(b.ctx, zero_divisor, placeholder, value);
+		  } else r = value;
+	    }
 	    return b.typed_result(r, sv, result_signed);
       }
 

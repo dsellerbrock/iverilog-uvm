@@ -155,3 +155,5 @@ The [empty-branch enable repair](session_logs/2026-09-21_empty_branch_enable_rep
 Latest bounded release replay: [2026-09-21 current candidate](session_logs/2026-09-21_current_release_retest.json). Exact pins, commands, runtime outcomes and qualification limits are recorded there.
 
 Latest packed-VPI local checkpoint: [paired tests and affected-suite evidence](session_logs/2026-09-21_packed_vpi_integration.json). Broad batch qualification remains pending.
+
+The [constraint divide/remainder error repair](session_logs/2026-09-21_constraint_divmod_zero.json) has paired focused and neighboring runtime evidence; broad batch gates remain pending.

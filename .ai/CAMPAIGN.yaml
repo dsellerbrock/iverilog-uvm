@@ -119,3 +119,35 @@ continuous_string_selection_boundary:
   standards: Both editions6.5/6.16/10.3.2.
   next: Select after event-owned elaborate.cc is free; meanwhile retained worker assesses independent constraint debt.
   evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
+
+next_constraint_lane:
+  selected: CONSTRAINT-DIVMOD-ZERO
+  owner: constraint_guard_semantics, Sol medium
+  scope: vvp/vvp_z3.cc only, private patch; root shared build/install/review.
+  evidence: evidence/review-20260920/next-constraint-array-assessment/RESULTS.md
+  next: Implement guard-aware zero-divisor error semantics with paired runtime/rollback tests.
+
+event_boolean_pulse_boundary:
+  evidence: docs/conformance/session_logs/2026-09-21_event_boolean_pulse.json
+  result: Static and dynamic AND-expression pulses fail both editions; deferred boolean gates coalesce intermediate transitions.
+  next: Review event-only synchronous propagation proposal; preserve normal combinational scheduling.
+
+divmod_candidate_checkpoint:
+  state: Shared vvp_z3.cc patch applied and serial build/install passed; uncommitted.
+  evidence: evidence/review-20260920/next-constraint-array-assessment/primary-after-patch.json and root-controls/results.json
+  result: Both editions primary error, unsigned remainder error, legal random divisor controls pass.
+  pending: Permanent guard/wide/rollback fixtures and neighbors before integration.
+event_cone_scope: Additional worker logic.h/cc and coordinator draw_mux.c authorized for event-only synchronous gates; scope recorded in ACTIVE_WORK.
+
+divmod_guard_validation:
+  paired_fixture: evidence/review-20260920/next-constraint-array-assessment/tests/root-review.json; both editions PASSED with7expected diagnostics.
+  neighbors: evidence/review-20260920/next-constraint-array-assessment/neighbors.json;6/6JSON tests pass.
+  pending: Permanent fixture additions for ternary sifting and randc history replay; avoid disabling precheck for provably nonzero constant divisors.
+
+divmod_local_integration:
+  status: FOCUSED_TESTED_BATCH_GATES_PENDING
+  evidence: docs/conformance/session_logs/2026-09-21_constraint_divmod_zero.json
+  integrated_fixes_in_batch: 8
+  tests: Both editions pass focused legacy and JSON fixtures;11neighbor cases pass in each harness.
+  next: Continue event lane; retained solver worker assesses another independent recorded debt. Caliptra continuous strings wait for elaborate.cc ownership.
+event_part_select_scope: Event-only constant part-select propagation authorized in part.h/cc, with coordinator parser and vvp_scope.c glue; ordinary combinational scheduling unchanged.

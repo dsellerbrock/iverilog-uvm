@@ -4101,3 +4101,5 @@ sv_covergroup_inside_unsigned_comparison normal,-g2017,-s,test ivltests gold=sv_
 sv_covergroup_inside_unsigned_comparison_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
 sv_covergroup_signed_range_cap CE,-g2017,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
 sv_covergroup_signed_range_cap_2023 CE,-g2023,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
+sv_constraint_divmod_zero normal,-g2017 ivltests gold=sv_constraint_divmod_zero.gold
+sv_constraint_divmod_zero_2023 normal,-g2023 ivltests gold=sv_constraint_divmod_zero.gold

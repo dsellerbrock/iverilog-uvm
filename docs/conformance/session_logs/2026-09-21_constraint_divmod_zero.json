@@ -1,0 +1,84 @@
+{
+  "blocker": "CONSTRAINT-DIVMOD-ZERO",
+  "status": "FOCUSED_TESTED_BATCH_GATES_PENDING",
+  "base_revision": "dba4f4dc39d4e5c48ba5719b2f3d8dc5acce25b5",
+  "standards": [
+    "IEEE1800-2017 11.3.4,11.3.5,18.3",
+    "IEEE1800-2023 11.3.4,11.3.5,18.3"
+  ],
+  "root_cause": "Z3 totalized division/remainder by zero incorrectly satisfied constraints instead of raising an active X-result evaluation error.",
+  "implementation": "Reuse guard-aware state checks and diagnostic-only placeholders; accepted models exclude active zero divisors. Constant proven-nonzero divisors preserve the existing precheck fast path.",
+  "source_sha256": "81ab2ed4ebd5e996fca41f2a62f17c19b317c00c316ff6732b6b8f8795e0dd37",
+  "build": "Serial shared build and installation passed; final subsequent change is comment-only.",
+  "tests": [
+    {
+      "case": "focused-legacy",
+      "exit": 0,
+      "argv": [
+        "perl",
+        "./vvp_reg.pl",
+        "regress-constraint-divmod-zero-legacy.list"
+      ]
+    },
+    {
+      "case": "focused-json",
+      "exit": 0,
+      "argv": [
+        "python3",
+        "./vvp_reg.py",
+        "regress-constraint-divmod-zero-vvp.list"
+      ]
+    },
+    {
+      "case": "neighbors-legacy",
+      "exit": 0,
+      "argv": [
+        "perl",
+        "./vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-array-assessment/permanent/ivtest/regress-constraint-divmod-zero-neighbors-legacy.list"
+      ]
+    },
+    {
+      "case": "neighbors-json",
+      "exit": 0,
+      "argv": [
+        "python3",
+        "./vvp_reg.py",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-array-assessment/permanent/ivtest/regress-constraint-divmod-zero-neighbors-vvp.list"
+      ]
+    }
+  ],
+  "counts": {
+    "legacy_focus": {
+      "passed": 2,
+      "failed": 0
+    },
+    "json_focus": {
+      "passed": 2,
+      "failed": 0
+    },
+    "legacy_neighbors": {
+      "passed": 11,
+      "failed": 0
+    },
+    "json_neighbors": {
+      "passed": 11,
+      "failed": 0
+    }
+  },
+  "coverage": [
+    "signed/unsigned division and remainder",
+    "128-bit operands",
+    "inactive implication, if, logical and conditional branches",
+    "random divisor domain containing zero with legal nonzero model",
+    "failed solve preserves values, RNG, randc sequence and post_randomize effects"
+  ],
+  "expected_diagnostics_per_edition": 8,
+  "permanent_reproducer": "ivtest/ivltests/sv_constraint_divmod_zero.v",
+  "raw_evidence": "evidence/review-20260920/next-constraint-array-assessment",
+  "pending": [
+    "Required broad batch suites",
+    "Batch PR and CI"
+  ],
+  "limits": "Focused subset only; no full clause, randomization, edition or application qualification."
+}
