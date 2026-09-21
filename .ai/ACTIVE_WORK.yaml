@@ -495,3 +495,11 @@ row_oob_repair_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-21_row_oob_regression_repair.json
   status: Allsix initial broadgate failures now repaired with focused evidence.
   next: Rerun seven broad gates using batch-20260921-repaired; retain original failed gate evidence.
+
+repaired_broad_gate_run:
+  semantic_revision: bbb3a9d30
+  session: 22845
+  directory: evidence/review-20260920/batch-20260921-repaired
+  order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
+  next: Poll session22845; inspect statuses and logs; do not restart a live gate or mutate installed binaries.
+  previous_run: batch-20260921 integrated failed, six regressions repaired; never count it as qualified.
