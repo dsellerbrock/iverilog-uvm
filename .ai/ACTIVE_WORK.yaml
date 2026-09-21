@@ -371,3 +371,18 @@ constraint_post_queue_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
   status: FOCUSED_AND_NEIGHBOR_TESTED_NOT_BROAD_QUALIFIED
   next: Preserve cast/distribution integration; complete active synthesis repair, then mandatory broad batch gates.
+
+nba_overlay_output_and_constant_scope:
+  authority: Coordinator-authorized prerequisite for the existing blocking/NBA synthesis repair.
+  invariant: Variable-base substitutes cannot be folded as fixed constants; a dynamic nested unpacked write must expose all reachable words.
+  added_files: [link_const.cc, net_nex_output.cc]
+  reason: Paired failing synthesis acceptance traces root causes to constant-driver classification and output nexus discovery, outside synth2.cc.
+  acceptance: Existing 26 runtime cases plus memory read-after-NBA ordering and synthesis neighbors.
+  next: Integrate frozen incremental-2 patch and coordinator build.
+
+nba_overlay_incremental2_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_nba_overlay_incremental2_checkpoint.json
+  status: INCOMPLETE_24_OF_26_PLUS_TWO_OLD_READ_PASSES
+  remaining: Nested unpacked dynamic part write output map assertion in both editions.
+  shared_unbuilt: Incremental3 limits nested root resolution to non-precise output discovery, preserving always_comb sensitivity subtraction.
+  next: Integrate mapped root-cause repair, build and run expanded28case focus, then synthesis neighbors.
