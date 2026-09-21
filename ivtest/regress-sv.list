@@ -4224,3 +4224,17 @@ sv_event_nba_vif_active_null_fail RE,-g2017 ivltests gold=sv_event_nba_vif_activ
 sv_event_nba_vif_active_null_fail_2023 RE,-g2023 ivltests gold=sv_event_nba_vif_active_null_fail_2023.gold
 sv_event_renba_boolean_coalescing normal,-g2017 ivltests gold=sv_event_renba_boolean_coalescing.gold
 sv_event_renba_boolean_coalescing_2023 normal,-g2023 ivltests gold=sv_event_renba_boolean_coalescing_2023.gold
+
+# Selected fixed unpacked-struct member-array constraints and activation (IEEE 18)
+sv_struct_array_constraint normal,-g2017 ivltests gold=sv_struct_array_constraint.gold
+sv_struct_array_constraint_bounds normal,-g2017 ivltests gold=sv_struct_array_constraint_bounds.gold
+sv_struct_array_constraint_state normal,-g2017 ivltests gold=sv_struct_array_constraint_state.gold
+sv_struct_array_constraint_dist normal,-g2017 ivltests gold=sv_struct_array_constraint_dist.gold
+sv_struct_array_constraint_explicit normal,-g2017 ivltests gold=sv_struct_array_constraint_explicit.gold
+sv_struct_array_rand_mode normal,-g2017 ivltests gold=sv_struct_array_rand_mode.gold
+sv_struct_array_rand_mode_bounds normal,-g2017 ivltests gold=sv_struct_array_rand_mode_bounds.gold
+sv_struct_array_randc_rollback normal,-g2017 ivltests gold=sv_struct_array_randc_rollback.gold
+sv_struct_array_constraint_4state normal,-g2017 ivltests gold=sv_struct_array_constraint_4state.gold
+sv_struct_array_rand_mode_query_fail CE,-g2017 ivltests gold=sv_struct_array_rand_mode_query_fail.gold
+sv_struct_array_constraint_shape_fail CE,-g2017 ivltests gold=sv_struct_array_constraint_shape_fail.gold
+sv_struct_array_randc_subset normal,-g2017 ivltests gold=sv_struct_array_randc_subset.gold

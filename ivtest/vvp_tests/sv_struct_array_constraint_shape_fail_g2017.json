@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_struct_array_constraint_shape_fail.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_struct_array_constraint_shape_fail"
+}

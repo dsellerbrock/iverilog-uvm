@@ -4173,6 +4173,20 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	delete[] $3;
 	$$ = tmp;
       }
+  /* A direct unpacked-struct/class member array is a hierarchical array
+     identifier too (IEEE 1800-2017 18.5.8.1 / 2023 18.5.7.1):
+       foreach (config.fields[i]) ...
+     Keep the empty prefix distinct from the selected-owner form below. */
+  | K_foreach '(' IDENTIFIER '.' IDENTIFIER '[' loop_variables ']'
+    ')' constraint_set
+      { std::list<perm_string>*prefix = new std::list<perm_string>();
+	PEConstraintForeach*tmp = new PEConstraintForeach(
+	      lex_strings.make($3), prefix, lex_strings.make($5), $7, $10);
+	FILE_NAME(tmp, @1);
+	delete[] $3;
+	delete[] $5;
+	$$ = tmp;
+      }
   /* Iterative constraint over a hierarchical target:
      foreach (array_name[prefix_names].member_name[loop_vars]).
      `prefix_names' select one element of `array_name' PER already-

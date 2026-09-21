@@ -1,0 +1,2 @@
+./ivltests/sv_struct_array_rand_mode_query_fail.v:13: error: rand_mode() query requires one selected element of unpacked-struct member `word'.
+1 error(s) during elaboration.

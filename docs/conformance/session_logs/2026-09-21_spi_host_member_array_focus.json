@@ -1,0 +1,109 @@
+{
+  "date": "2026-09-21",
+  "blocker": "OT-SPI-HOST-STRUCT-MEMBER-ARRAY-CONSTRAINT",
+  "base_commit": "cd60ff54fa15186387ae9a5a6dd9cb5890fd27cc",
+  "source_diff_sha256": "97fb79b5333cfd1860f620674ace18af4eb938d00a01e8bfccb4c2b8c2acc7f1",
+  "source_sha256": {
+    "PExpr.cc": "b8b6ca5f209967b7a1d7578f1626302c588a5d7746292b3c01620ddbe202d636",
+    "PExpr.h": "fee271b02977d67beb6fa07ebbc108247118b7409fee9f32a85df27a1a1b35a2",
+    "parse.y": "e9c763b2b31435a84319e6538aae391f8780b1d765e773fd9fca85c32bd409bf",
+    "elaborate.cc": "faaaccc71f2e828fb7acde6b254287160d3b146a22b0181fc92c7219e97f684b",
+    "elab_expr.cc": "32728bc63f0135396d1b656e2dd88c62ad602a8b7d4c2f29605203aff0f0ef69",
+    "vvp/vvp_z3.cc": "c8364d2a4f10f677a7052415f03e5b4a90ec47b9dc6ff9b3d14c8bfa4d122dda"
+  },
+  "installed_sha256": {
+    "local-install/lib/ivl/ivl": "46e9dd4f0c0c4e34efcdeb3fb7e53bb47609ec071ab017138d00ded1299ab7df",
+    "local-install/bin/vvp": "89310886b73e1209778d82c77018b8c997780449a2d1f8c438e85f9ed86b2079",
+    "local-install/lib/ivl/vvp.tgt": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af"
+  },
+  "status": "FOCUSED_TESTED_BROAD_QUALIFICATION_PENDING",
+  "scope": "One-level, one-dimensional fixed unpacked integral struct-member constraint leaves up to64bits, foreach declared indices, and selected rand_mode; no overall randomization clause qualification.",
+  "standards": {
+    "2017": [
+      "18.3",
+      "18.4",
+      "18.4.2",
+      "18.5.8.1",
+      "18.8"
+    ],
+    "2023": [
+      "18.3",
+      "18.4",
+      "18.4.2",
+      "18.5.7.1",
+      "18.8"
+    ]
+  },
+  "tests": [
+    "sv_struct_array_constraint",
+    "sv_struct_array_constraint_bounds",
+    "sv_struct_array_constraint_state",
+    "sv_struct_array_constraint_dist",
+    "sv_struct_array_constraint_explicit",
+    "sv_struct_array_rand_mode",
+    "sv_struct_array_rand_mode_bounds",
+    "sv_struct_array_randc_rollback",
+    "sv_struct_array_constraint_4state",
+    "sv_struct_array_rand_mode_query_fail",
+    "sv_struct_array_constraint_shape_fail",
+    "sv_struct_array_randc_subset"
+  ],
+  "focused": {
+    "new_legacy_2017": {
+      "total": 12,
+      "passed": 12
+    },
+    "new_legacy_2023": {
+      "total": 12,
+      "passed": 12
+    },
+    "new_json_paired": {
+      "total": 24,
+      "failed": 0
+    },
+    "existing_declaration_legacy": {
+      "total": 15,
+      "passed": 15
+    },
+    "existing_array_mode_legacy": {
+      "total": 8,
+      "passed": 8
+    },
+    "existing_transaction_legacy": {
+      "total": 29,
+      "passed": 29
+    },
+    "existing_transaction_json": {
+      "total": 29,
+      "failed": 0
+    }
+  },
+  "evidence": [
+    "evidence/review-20260920/spi-host-build/subsystem-5/results.json",
+    "evidence/review-20260920/spi-host-build/transaction-reconciled/results.json"
+  ],
+  "historical_failures": [
+    "build1 C++ declaration/constructor errors",
+    "candidate3 unknown-state substitution and randc cycle failure",
+    "candidate4 singleton randc sampler bypass",
+    "first JSON focus omitted stdout gold files",
+    "four stale focus-only extension golds; expectations reconciled after source-history audit, no exact-baseline binary replay"
+  ],
+  "bison": {
+    "shift_reduce": 572,
+    "reduce_reduce": 1122,
+    "baseline_counts_unchanged": true,
+    "candidate_report_sha256": "482e95b28cb458a6a4572fe890e7d3085a737627cbe6eb74055acd6c94614fb5"
+  },
+  "application": {
+    "opentitan_pin": "Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "uvm": "1.2",
+    "result": "Original SPIHost foreach parser blocker removed; compile still exits139 after output queue type and compound-event diagnostics. No SPIHost DV pass.",
+    "evidence": "evidence/review-20260920/spi-host-build/application-2/result.json"
+  },
+  "limits": [
+    "Unsupported deeper/indexed outer struct paths, multidimensional member constraints and wider member leaves remain diagnosed.",
+    "Distribution interaction fixture is not a statistical qualification of the full probability model.",
+    "Required broader checks and CI remain pending; do not merge based on this record alone."
+  ]
+}
