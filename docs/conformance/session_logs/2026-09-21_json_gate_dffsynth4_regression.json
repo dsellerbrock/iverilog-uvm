@@ -1,0 +1,47 @@
+{
+  "status": "JSON_GATE_FAILED_REPAIR_REQUIRED",
+  "semantic_revision": "bbb3a9d30",
+  "gate": {
+    "command": [
+      "python3",
+      "vvp_reg.py",
+      "regress-vvp.list"
+    ],
+    "start": 1789984163.072948,
+    "end": 1789984424.538754,
+    "exit": 1,
+    "installed_before": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+      "local-install/lib/ivl/ivl": "5d3c6cbdb8cfea4968db31bde01229daa4796f3f1ee02c05605d88a219ac2f1f",
+      "local-install/lib/ivl/vvp.tgt": "4a843e0c71f052db4f5db954db0b12369f4350377963ab5aa5e6c15f28987df7",
+      "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "installed_after": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+      "local-install/lib/ivl/ivl": "5d3c6cbdb8cfea4968db31bde01229daa4796f3f1ee02c05605d88a219ac2f1f",
+      "local-install/lib/ivl/vvp.tgt": "4a843e0c71f052db4f5db954db0b12369f4350377963ab5aa5e6c15f28987df7",
+      "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "stable": true
+  },
+  "cases": 2890,
+  "failures": [
+    "dffsynth4"
+  ],
+  "actual": "Compiler assertion at t-dll.cc1924 logic nexus t_cookie for empty if arm and else-only NBA.",
+  "expected": "Conditional hold and enabled update must simulate correctly; original runtime assertions preserved.",
+  "evidence": "evidence/review-20260920/next-blocking-index/dffsynth4-repair",
+  "pending": [
+    "repaired integrated as appropriate",
+    "repaired json",
+    "uvm",
+    "nfa",
+    "releases",
+    "frontend",
+    "makecheck"
+  ]
+}

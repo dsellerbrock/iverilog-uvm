@@ -1,5 +1,5 @@
 id: SV-UVM-BATCH-20260921
-status: VALIDATING
+status: REGRESSION_REPAIR
 objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
 authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
 semantic_revision: bbb3a9d30
@@ -21,7 +21,7 @@ scope:
     - OVERSIZED-CONSTANT-ARRAY-WORD
   implementation_state: Integrated and focused-tested; broad qualification incomplete.
   allowed: Diagnose concrete gate failures, record root cause and repair scope, validate and document fixes; publish coherent PR after required gates.
-  frozen: No shared implementation or installed-binary changes during the live gate.
+  frozen: Gate22845 completed after JSONfailure; coordinator may integrate and build the authorized repair.
   forbidden: Application source edits, weakened tests, invented passing evidence, silent semantic fallback, unrelated feature implementation.
   discoveries: Record unrelated findings in DISCOVERED_DEBT; select next independent blockers only after this batch is validated.
 
@@ -35,16 +35,16 @@ standards:
 
 ownership:
   coordinator: Selection, difficult reasoning, integration, shared build/install/test directories, final review and PR.
-  workers: No active implementation assignments while qualification is frozen.
+  workers: synthesis_nba_completion owns private dffsynth4 repair; other workers idle.
   reusable_agents:
     row_async_reset: Terra medium; array elaboration and bounded fixtures; completed latest repair.
-    synthesis_nba_completion: Sol medium; synthesis mechanism; interrupted while idle.
+    synthesis_nba_completion: Sol medium; synthesis mechanism; active private dffsynth4 repair.
     constraint_guard_semantics: Sol medium; cast and distribution solver; completed.
   routing: Explicit cheapest capable worker model and effort; compact handoff; reuse existing agents and disjoint file ownership.
 
 validation:
   integrated: PASS; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
-  live_session: 22845
+  last_session: 22845
   directory: evidence/review-20260920/batch-20260921-repaired
   order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
   rule: Inspect actual status/run.json/log; driver stops at first nonzero gate. Never restart a live process.
@@ -56,5 +56,16 @@ validation:
   applications: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
   limits: Integrated gate and application subset passes are not full language/UVM/application qualification.
 
-next_action: Poll session22845; resolve any real failure without weakening expectations; finalize evidence and coherent PR after all gates pass.
+next_action: Review private dffsynth4 repair, integrate and run focused runtime tests; repeat affected broad gates before PR.
 completion: Required gates, source review, docs and exact revision evidence; qualified batch does not complete the full mission.
+
+active_regression:
+  id: SYNTHESIS-EMPTY-TRUE-NBA-ELSE
+  test: ivtest/ivltests/dffsynth4.v
+  reproducer: local-install/bin/iverilog -S -o evidence/review-20260920/next-blocking-index/dffsynth4-repair/test.vvp ivtest/ivltests/dffsynth4.v
+  actual: Compiler asserts at t-dll.cc1924 missing logic nexus t_cookie.
+  expected: Else-only NBA captures D when ce is false and holds Q when ce is true.
+  owner: synthesis_nba_completion; retained Sol medium, private patch only; coordinator integration/build.
+  scope: Trace directly implicated synth2.cc branch-enable/netlist connectivity; preserve all B/P semantics.
+  evidence: evidence/review-20260920/next-blocking-index/dffsynth4-repair
+  acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.

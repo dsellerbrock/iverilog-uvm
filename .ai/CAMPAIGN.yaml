@@ -1,5 +1,5 @@
 status: active
-phase: broad_batch_validation
+phase: json_regression_repair
 objective: Full compiler/UVM/SVA mission remains active; no full IEEE or application completion claim.
 worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 branch: agent/reviewed-main-baseline-20260920
@@ -16,14 +16,14 @@ preservation:
   graph: /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json; never duplicate in worktrees.
 
 validation:
-  live_session: 22845
+  last_session: 22845
   runner: evidence/review-20260920/batch-20260921-repaired/run_gate.py
-  process: Serial driver; integrated completedPASS, remaining gates proceed or stop on first failure.
+  process: Session22845 completed; integratedPASS, JSON2890cases onefailure dffsynth4, later gates notrun.
   order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
   integrated_evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
   previous_failed_run: evidence/review-20260920/batch-20260921; six regressions repaired, never count that run as qualification.
   toolchain: Native ARM64 local-install; absolute PATH; coordinator owns builds and installs.
-  current_qualification: Incomplete; poll live session and read per-gate statuses before acting.
+  current_qualification: Incomplete; repair dffsynth4 compiler assertion before broad continuation.
 
 applications:
   evidence: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
@@ -41,7 +41,9 @@ publication:
   merge_authority: User authorized merge after one complete green exact-head CI and local correctness gates; subsequent CI failures require follow-up repair PR.
 
 resume:
-  first: Poll existing session22845 via write_stdin. Missing/terminal handle requires authoritative process/status inspection, never blind restart.
+  first: Review synthesis_nba_completion private dffsynth4 patch; coordinator integrates and rebuilds only after root-cause review.
   then: Inspect gate run.json stable hashes and status; preserve failed logs; select concrete regression repair only if necessary.
   after_gates: Record final revision-scoped evidence, finalize PRbody, publish coherent PR and report exact scope/limits.
   after_merge: Refresh main, update canonical graph from canonical checkout only, respect worktree cleanup safeguards, select next standards-grounded blockers.
+
+active_regression: SYNTHESIS-EMPTY-TRUE-NBA-ELSE; see ACTIVE_WORK.
