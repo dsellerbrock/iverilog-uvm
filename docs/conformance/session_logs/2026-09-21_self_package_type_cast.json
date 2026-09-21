@@ -1,0 +1,21 @@
+{
+  "blocker": "SELF-PACKAGE-TYPE-CAST",
+  "state": "IMPLEMENTED_FOCUSED_TESTED; broad gates pending",
+  "standards": [
+    "IEEE1800-2017/2023 6.19,6.24.1,26"
+  ],
+  "fix": "Existing explicit scoped cast carrier resolves a typedef in its enclosing package, reusing the existing self-package method scope/shadow lookup. No lexical token or grammar-production changes.",
+  "source_sha256": "06c7651f15716ef22bb91714b31293affe4c9021eba90749e3c752b88d7a0beb",
+  "tests": {
+    "legacy_package": "8/8",
+    "json_package": "12/12",
+    "paired_controls": "Scoped numeric size casts pass; dotted type and implicit enum conversion reject; local variable same as package remains valid.",
+    "parser": "Homebrew Bison3.8.2:572shift/reduce,1122reduce/reduce,209conflicted states unchanged"
+  },
+  "limitations": [
+    "Existing local-class scoped typedef cast remains unsupported; control is not recovered as a package cast.",
+    "Unknown-type cast retains original focused constant-expression diagnostics."
+  ],
+  "review": "Discarded unconditional current-package lexer experiment after shadowing regression. Permanent local-variable shadow fixture retained.",
+  "evidence": "evidence/review-20260920/next-self-package-cast-fix"
+}

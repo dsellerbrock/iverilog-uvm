@@ -33229,16 +33229,100 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  return std::make_pair(false, true);
 			    };
 
-			    auto eval_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
-						   std::vector<std::pair<uint64_t,uint64_t>>&rout) -> bool {
-				    // A constructor reference anywhere makes the complete bin
-				    // per-instance. Do not partially constant-elaborate earlier pairs
-				    // or try to bind a formal hidden in an unsupported later tree.
-				  for (auto&range : ranges)
+		    auto eval_ranges = [&](std::vector<std::pair<PExpr*,PExpr*>>&ranges,
+					   std::vector<std::pair<uint64_t,uint64_t>>&rout,
+					   unsigned value_width, bool value_signed,
+					   const char*bin_name) -> bool {
+			    // A constructor reference anywhere makes the complete bin
+			    // per-instance. Do not partially constant-elaborate earlier pairs
+			    // or try to bind a formal hidden in an unsupported later tree.
+			  for (auto&range : ranges)
 				if (range_references_runtime(range.first)
 				    || range_references_runtime(range.second))
-					      return false;
-				  for (auto& range : ranges) {
+				      return false;
+			  if (value_width == 0 || value_width > 64) return false;
+			  auto mask = [](unsigned width) -> uint64_t {
+				return width >= 64 ? UINT64_MAX
+				      : (UINT64_C(1) << width) - 1;
+			  };
+			  auto numeric = [&](uint64_t bits, unsigned width,
+					     bool is_signed) -> __int128 {
+				bits &= mask(width);
+				if (is_signed && (bits & (UINT64_C(1) << (width - 1)))) {
+				      if (width == 64) return (__int128)(int64_t)bits;
+				      return (__int128)bits - ((__int128)1 << width);
+				}
+				return (__int128)bits;
+			  };
+			  auto encoded = [&](const __int128&value) -> uint64_t {
+				if (value >= 0) return (uint64_t)value & mask(value_width);
+				if (value_width == 64) return (uint64_t)value;
+				return (uint64_t)(((__int128)1 << value_width) + value)
+				      & mask(value_width);
+			  };
+			  struct resolved_endpoint_t {
+				__int128 effective;
+				bool warning;
+				bool below;
+				bool above;
+			  };
+			  auto resolve_endpoint = [&](const NetEConst*constant)
+					     -> resolved_endpoint_t {
+				const verinum&value = constant->value();
+				unsigned width = value.len();
+				bool source_signed = constant->has_sign();
+				uint64_t bits = value.as_ulong64();
+				bool negative = source_signed && width > 0
+				      && value.get(width - 1) == verinum::V1;
+				__int128 source = 0;
+				if (negative) {
+				      bool fits = width <= 64;
+				      if (!fits) {
+					    fits = value.get(63) == verinum::V1;
+					    for (unsigned bit = 64; bit < width; bit += 1)
+						  if (value.get(bit) != verinum::V1) {
+							fits = false;
+							break;
+						  }
+				      }
+				      source = fits ? (width <= 64
+					    ? numeric(bits, width, true)
+					    : (__int128)(int64_t)bits)
+					    : -((__int128)1 << 100);
+				} else {
+				      bool fits = true;
+				      for (unsigned bit = 64; bit < width; bit += 1)
+					    if (value.get(bit) == verinum::V1) {
+						  fits = false;
+						  break;
+					    }
+				      source = fits ? (__int128)bits : ((__int128)1 << 100);
+				}
+				bool signed_compare = value_signed && source_signed;
+				__int128 domain_lo = signed_compare
+				      ? -((__int128)1 << (value_width - 1)) : 0;
+				__int128 domain_hi = signed_compare
+				      ? ((__int128)1 << (value_width - 1)) - 1
+				      : value_width == 64 ? (__int128)UINT64_MAX
+				      : ((__int128)1 << value_width) - 1;
+				uint64_t cast_bits = encoded(source);
+				__int128 source_cmp = signed_compare
+				      ? source : (__int128)(bits & mask(width));
+				__int128 cast_cmp = signed_compare
+				      ? numeric(cast_bits, value_width, true)
+				      : (__int128)cast_bits;
+				bool explicit_negative = !value_signed && source_signed
+				      && source < 0;
+				bool below = source < domain_lo;
+				bool above = source > domain_hi;
+				__int128 clipped = std::max(domain_lo,
+						       std::min(source, domain_hi));
+				return {numeric(encoded(clipped), value_width, value_signed),
+					explicit_negative || below || above
+					      || source_cmp != cast_cmp,
+					below, above};
+			  };
+			  for (auto& range : ranges) {
 					if (!range.first || !range.second) continue;
 					NetExpr* lo_e = elab_and_eval(des, class_scope_,
 							      range.first, -1,
@@ -33248,12 +33332,43 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							      false, false);
 				NetEConst* lo_c = dynamic_cast<NetEConst*>(lo_e);
 				NetEConst* hi_c = dynamic_cast<NetEConst*>(hi_e);
-				bool okc = (lo_c && hi_c);
-				if (okc) {
-				      uint64_t lo = lo_c->value().as_ulong64();
-				      uint64_t hi = hi_c->value().as_ulong64();
-				      if (hi < lo) std::swap(lo, hi);
-				      rout.push_back(std::make_pair(lo, hi));
+				bool okc = lo_c && hi_c;
+				bool defined = okc && lo_c->value().is_defined()
+				      && hi_c->value().is_defined();
+				if (defined) {
+				      resolved_endpoint_t lo = resolve_endpoint(lo_c);
+				      resolved_endpoint_t hi = resolve_endpoint(hi_c);
+				      bool warned = lo.warning || hi.warning;
+				      if (warned)
+					    cerr << range.first->get_fileline()
+						 << ": warning: covergroup bin '" << bin_name
+						 << "' has a value outside its effective "
+						 << (value_signed ? "signed " : "unsigned ")
+						 << value_width << "-bit coverpoint type; "
+						    "the affected range is intersected with "
+						    "that type's domain." << endl;
+				      bool singleton = range.first == range.second;
+				      bool empty = singleton && warned;
+				      empty = empty || (lo.below && hi.below)
+					    || (lo.above && hi.above);
+				      if (!empty) {
+					    __int128 first = lo.effective;
+					    __int128 last = hi.effective;
+					    if (last < first) std::swap(first, last);
+					    if (value_signed && first < 0 && last >= 0) {
+						  rout.push_back(std::make_pair(encoded(first),
+									mask(value_width)));
+						  rout.push_back(std::make_pair(0, encoded(last)));
+					    } else {
+						  rout.push_back(std::make_pair(encoded(first),
+									encoded(last)));
+					    }
+				      }
+				} else if (okc) {
+				      cerr << range.first->get_fileline()
+					   << ": warning: covergroup bin '" << bin_name
+					   << "' has an X/Z endpoint; the affected range "
+					      "is excluded." << endl;
 				}
 				delete lo_e;
 				delete hi_e;
@@ -33297,9 +33412,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			      PExpr*hi_pe = range.hi;
 			      if (!lo_pe || !hi_pe) return -1;
 			      NetExpr*lo_e = elab_and_eval(des, class_scope_, lo_pe,
-						       -1, false, false);
+					       -1, false, false);
 			      NetExpr*hi_e = elab_and_eval(des, class_scope_, hi_pe,
-						       -1, false, false);
+					       -1, false, false);
 			      NetEConst*lo_c = dynamic_cast<NetEConst*>(lo_e);
 			      NetEConst*hi_c = dynamic_cast<NetEConst*>(hi_e);
 			      bool ok = lo_c && hi_c;
@@ -33778,7 +33893,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				if (xbin.wildcard || !xbin.trans_seqs.empty())
 				      continue;
 				std::vector<std::pair<uint64_t,uint64_t>> xr;
-				if (eval_ranges(xbin.ranges, xr))
+				if (eval_ranges(xbin.ranges, xr, cp_value_width,
+					  cp_value_signed, xbin.name.str()))
 				      carve_ranges.insert(carve_ranges.end(),
 							  xr.begin(), xr.end());
 			  }
@@ -33911,7 +34027,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    unsigned __int128 sequence_variants = 1;
 					    for (auto&source_term : source_terms) {
 						  trans_term_t term;
-						  if (!eval_ranges(source_term.ranges, term.ranges)
+						  if (!eval_ranges(source_term.ranges, term.ranges,
+							     cp_value_width, cp_value_signed,
+							     bin.name.str())
 						      || term.ranges.empty()) {
 							cerr << "sorry: covergroup transition terms must "
 							     << "be nonempty constant sets; bin '"
@@ -34267,7 +34385,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << "is dropped." << endl;
 					    continue;
 				      }
-				} else if (!eval_ranges(bin.ranges, rr)) {
+				} else if (!eval_ranges(bin.ranges, rr, cp_value_width,
+						 cp_value_signed, bin.name.str())) {
 					// Constructor-dependent bounds are per-instance
 					  // constants (19.3), not failed declaration
 					  // constants. Preserve each endpoint as property IR.
@@ -34411,6 +34530,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      }
 				}
 
+				  // A declared value bin whose complete resolved set is
+				  // unrepresentable is empty and excluded from coverage (19.5.7,
+				  // 19.11). It still counts as an explicit bin declaration, so it
+				  // must not trigger unrelated automatic-bin synthesis.
+				if (rr.empty()) {
+				      if (base_kind == 0) has_value_bins = true;
+				      continue;
+				}
+
 				if (base_kind == 1) { // ignore_bins: no counter
 				      unsigned tup = 0;
 				      for (auto&r : rr)
@@ -34463,6 +34591,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						       << open_array_bin_limit
 						       << " value-keyed counters; the bin is dropped."
 						       << endl;
+						  des->errors += 1;
 						  continue;
 					    }
 					    for (auto&range : merged) {
@@ -34530,7 +34659,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						 << array_bin_limit << " counters; the bin "
 						 << "is dropped."
 						 << endl;
-					    continue;
+					    des->errors += 1;
+					  continue;
 				      }
 				      if (nbins > total) nbins = total;
 				      if (nbins == 0) continue;
@@ -34972,7 +35102,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						if (dim < 0) return false;
 						std::vector<std::pair<uint64_t,uint64_t>> irr;
 						if (!s->intersect_ranges.empty()
-						    && !eval_ranges(s->intersect_ranges, irr))
+						    && !eval_ranges(s->intersect_ranges, irr,
+							 cp_value_widths[cp_indexes[dim]],
+							 cp_value_signedness[cp_indexes[dim]],
+							 s->bin_name.nil() ? "bins" : s->bin_name.str()))
 						      return false;
 						std::vector<std::string> leaves;
 						const std::vector<xbin_desc_t>&descs =
@@ -35193,7 +35326,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					  }
 					  if (!s->intersect_ranges.empty()) {
 						std::vector<std::pair<uint64_t,uint64_t>> irr;
-						if (!eval_ranges(s->intersect_ranges, irr))
+						if (!eval_ranges(s->intersect_ranges, irr,
+						 cp_value_widths[cp_indexes[k]],
+						 cp_value_signedness[cp_indexes[k]],
+						 s->bin_name.nil() ? "bins" : s->bin_name.str()))
 						      return -1;
 						bool overlap = false;
 							for (auto&ra : d.ranges) {

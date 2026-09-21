@@ -287,3 +287,5 @@ is established by these focused checks.
 The [object-method constraint evidence](session_logs/2026-09-21_constraint_object_method_receiver.json) pairs 2023 clause18.5.11 with 2017 clause18.5.12. This is shared implementation evidence with separate generation modes, not full clause qualification.
 
 The [bare enum-name evidence](session_logs/2026-09-21_enum_bare_name_type.json) checks shared clauses5.13/6.19 separately under 2017 and2023 modes.
+
+Paired 2023 evidence shares the [self-package cast](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range](session_logs/2026-09-21_signed_cover_range_resolution.json) implementation records with2017; broad edition qualification remains pending.

@@ -17,7 +17,7 @@ publication:
   remaining_ci: Run35588718454 had5other jobs running at merge; inspect terminal results and repair any failures in follow-up PR.
   prior_batch_fixes: 11
 next_batch:
-  integrated_fixes: 4
+  integrated_fixes: 6
   revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c]
   scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
   sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
@@ -84,3 +84,14 @@ latest_checkpoint:
   package: Terra authorized exact scoped self-package typedef recovery at existing cast action, revert unconditional package lexer classification; preserve shadow test.
   processes: No shared build or test active.
   preserved: Package candidate and failing permanent shadow regression remain uncommitted; external AGENTS.md unchanged.
+
+validated_lanes_checkpoint:
+  package: docs/conformance/session_logs/2026-09-21_self_package_type_cast.json
+  coverage: docs/conformance/session_logs/2026-09-21_signed_cover_range_resolution.json
+  next: Inspect exact pwrmgr compile replay, then select next concrete independent blockers.
+
+pwrmgr_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_startup.json
+  result: Compile0, runtime UVM_FATAL at0 on uvm_hdl_check_path; not PASS despite process exit0.
+  assessment: Luna low read-only exact HDL path analysis, no implementation selected yet.
+  pending: Broad required batch gates near10fixes;6focused fixes now integrated.

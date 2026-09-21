@@ -30,6 +30,10 @@ The [constraint object-method repair](session_logs/2026-09-21_constraint_object_
 
 The [bare enum-name repair](session_logs/2026-09-21_enum_bare_name_type.json) has paired focused and enum-neighbor evidence, pending broad batch gates.
 
+The [self-package cast repair](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range repair](session_logs/2026-09-21_signed_cover_range_resolution.json) have paired focused evidence. Required broad batch gates remain pending.
+
+The [pwrmgr startup replay](session_logs/2026-09-21_pwrmgr_startup.json) reaches runtime but fails HDL-path checking; compiler fallback warnings also exclude application qualification.
+
 ## Latest recorded compiler qualification
 
 The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on the experimental worktree, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.

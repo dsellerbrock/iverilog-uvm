@@ -3363,3 +3363,5 @@ required broad batch gates remain pending. Scope, indexed-receiver limits and
 application failures are recorded in the [receiver evidence](session_logs/2026-09-21_constraint_object_method_receiver.json).
 
 ENUM-NAME-BARE-CONCAT-TYPE has [focused paired evidence](session_logs/2026-09-21_enum_bare_name_type.json), with required broad batch gates pending.
+
+SELF-PACKAGE-TYPE-CAST and SIGNED-COVER-BINS-CROSS-ZERO are focused-tested, with required batch gates pending. The [self-package cast repair](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range repair](session_logs/2026-09-21_signed_cover_range_resolution.json) have paired focused evidence. Required broad batch gates remain pending.

@@ -75,7 +75,7 @@ completed_receiver_implementation:
 
 independent_selected_implementation:
   id: SELF-PACKAGE-TYPE-CAST
-  status: PATCHED_REGRESSION_FOUND
+  status: IMPLEMENTED_FOCUSED_TESTED
   owner: package_enum_context, Terra medium
   standard: IEEE1800-2017/2023 6.19 enum typing,6.24 casts and26 package qualification; verify specific package rule before fix.
   reproducer: evidence/review-20260920/next-package-enum-context/repro_self_pkg_no_include.sv
@@ -88,7 +88,7 @@ independent_selected_implementation:
 
 selected_implementation:
   id: SIGNED-COVER-BINS-CROSS-ZERO
-  status: REPRODUCED_SPEC_GROUNDED
+  status: IMPLEMENTED_FOCUSED_TESTED
   owner: constraint_guard_semantics, Sol medium
   standard: IEEE1800-2017 and2023 19.5.1 and19.5.7
   reproducer: evidence/review-20260920/next-signed-cover-assessment/distinct_bin_oracle.sv
@@ -116,3 +116,7 @@ coordinator_direct_small_fix:
   forbidden: Application edits, new lowering, unrelated methods, dropping string semantics
   acceptance: Paired bare/parenthesized concatenation, direct/local/class enum receivers, invalid enum value empty name, unrelated integral enum methods unchanged.
   dependencies: Disjoint from Sol elaborate.cc and Terra package/parser files; coordinator shared build ownership.
+
+coverage_cap_completion: Coordinator authorized focused compilation rejection at unchanged open/fixed counter caps; never accept a dropped requested family as successful compilation.
+
+latest_resolution: Package shadow regression corrected by parse-only recovery; both selected lanes focused-tested and frozen pending broad batch gates.

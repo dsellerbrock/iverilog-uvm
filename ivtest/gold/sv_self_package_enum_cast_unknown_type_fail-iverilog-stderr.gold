@@ -1,0 +1,3 @@
+ivltests/sv_self_package_enum_cast_unknown_type_fail.v:4: error: A hierarchical reference (`p.missing_type') is not allowed in a constant expression.
+ivltests/sv_self_package_enum_cast_unknown_type_fail.v:4: error: Cast size expression must be constant and greater than zero.
+2 error(s) during elaboration.
