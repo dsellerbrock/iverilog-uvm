@@ -248,3 +248,10 @@ cast_type_before_value_authorization:
   boundaries: No inference AST creation, state reads, graph mutation, reference/error registration or RNG use; real value pass alone owns those effects. No new fallback values or dropped constraints.
   acceptance: Core and signed/nestedcontext reducers, typed qfield foreach, fourstate and rollback, exactwidth intermediate overflow/division, selfdetermined fences, mixed original/cast identity; paired editions and constraint neighbors.
   build_owner: Coordinator; compiler emitter unchanged unless a concrete producer defect is separately reviewed.
+
+blocking_index_ordering_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_blocking_index_root_cause.json
+  status: ROOT_CAUSE_EXPANDED_DESIGN_REVIEW
+  invariant: NBA RHS sees prior blocking state; final NBA overlay can override subsequent blocking writes.
+  next: Terra proposes minimal separate read-state and pending-NBA masks using existing branch bus machinery; no shared implementation yet.
+  cast_lane: Sol pure typepass implementation active privately; root acceptance runner ready at patch-cast/run_acceptance.py.
