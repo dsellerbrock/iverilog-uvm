@@ -18,12 +18,12 @@ preservation:
 validation:
   live_session: 40936
   runner: evidence/review-20260920/batch-20260921-conditional-enable/run_gate.py
-  process: Session40936 runs seven gates on8ab943352; source frozen; JSONfirst. Session22845 completed with dffsynth4 failure, since repaired.
+  process: Session40936 JSON2892cases passed with stable binaries; integrated running, remaining gates pending. Source frozen at8ab943352.
   order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
   integrated_evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
   previous_failed_run: evidence/review-20260920/batch-20260921; six regressions repaired, never count that run as qualification.
   toolchain: Native ARM64 local-install; absolute PATH; coordinator owns builds and installs.
-  current_qualification: Incomplete; current seven-gate run must finish before publication.
+  current_qualification: Incomplete; JSONpassed, remaining six gates must finish before publication.
 
 applications:
   evidence: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
