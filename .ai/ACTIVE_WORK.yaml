@@ -260,7 +260,7 @@ rootseed_threadless_validation_boundary:
 
 selected_continuous_string:
   id: CONTINUOUS-STRING-ASSIGN
-  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_PRIVATE_IMPLEMENTATION
+  status: PRIVATE_FOCUSED_TESTED_COORDINATOR_REVIEW
   owner: vif_proxy_implementation, retained Sol medium with elaboration context
   standards: IEEE1800-2017/2023 6.5,6.16,10.3.2
   evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
@@ -271,3 +271,83 @@ selected_continuous_string:
   forbidden: App changes, string truncation, fabricated paths, weakened driver checks, global scheduler changes, shared build/install/source changes.
   event_dependency: Event candidate392b50c66ed9e918c3e8fbaed13df195f2b74ee57e061c6511cf4484bb0e8eac safely suspended immutable pending integration. No event worker edits remain; elaborate.cc ownership transferred for this separate private candidate. Coordinator resolves final patch order after broad gate/publication.
   lanes: This lane and solver failure-boundary fixtures; rootseed/regex/event immutable awaiting integration.
+
+continuous_string_review_checkpoint:
+  candidate: evidence/review-20260920/next-caliptra-continuous-string-fix/CODE.patch
+  sha256: 9e8dc260ac98df3c7f429c2934275477e01cf854dbd17ebf4155bc05463e662f
+  evidence: 45 expected outcomes pass privately across2017/2023/2012; integrated application acceptance pending.
+  lane: Retained Sol medium audits unused _ivl_continuous_variable attribute and synthesis boundary; only private correction allowed.
+  preparation: Retained Luna low prepares unchanged stable Caliptra replay command read-only; coordinator executes.
+
+selected_variable_output_direction:
+  id: VARIABLE-OUTPUT-PORT-DIRECTION
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, retained Sol medium
+  standards: IEEE1800-2017/2023 23.2.2.3 and23.3.3.2; verify applicable wording before editing.
+  evidence: evidence/review-20260920/next-pwrmgr-driver-assessment/port-kind-results.json
+  reproducer: port_logic_vector.sv, port_procedural_struct.sv, interface_resolved_ports.sv; explicit-wire control passes.
+  expected: Variable output values remain internal driver values when external resolved wire has conflicting driver; external wire resolves normally. Explicit wire ports retain collapse semantics.
+  root: REG-to-UWIRE conversion allows output-variable connection collapse and external driver feedback; trace precise connection path before editing.
+  scope: Private elaborate.cc patch and focused regressions; reuse existing directional output buffers and original variable identity. If declaration metadata is lost, report precise prerequisite before expanding files.
+  acceptance: Paired2017/2023 scalar/vector/packed-struct and nested outputs, procedural and continuous drivers, external conflict/release, explicit-wire collapse control, variable multiple-driver and input/inout neighbors.
+  forbidden: App edits, warning-only masking, changing explicit net behavior, shared compiler/build/install edits.
+  dependencies: Event and corrected string patches frozen immutable; elaborate.cc private ownership transfers here. Coordinator handles ordering and shared integration afterPR308. Caliptra trace lane is read-only and disjoint.
+
+string_permanent_packaging:
+  owner: caliptra_next_blocker, retained Luna low
+  status: AUTHORIZED_PRIVATE_TEST_PACKAGING
+  scope: Private permanent simulation and negative/synthesis regression bundle for frozen corrected CONTINUOUS-STRING-ASSIGN; no compiler/shared manifests edits.
+  acceptance: Preserve original fixtures and expected semantic/diagnostic checks; provide installation map consistent with existing legacy/JSON patterns. Coordinator reviews and registers.
+  lanes: Second implementation/test lane alongside private output-port fix; Caliptra observer is read-only diagnostic preparation.
+
+multidist_permanent_packaging:
+  owner: constraint_guard_semantics, retained Sol medium with solver fixture context
+  status: AUTHORIZED_PRIVATE_TEST_PACKAGING
+  scope: Frozen joint ordered randc multiple-dist fixtures and transactional range-cap/UNKNOWN checks; no source/shared manifests/build changes.
+  acceptance: Real isolated legacy and JSON execution against private solver runtime, exact diagnostics and positive stdout; UNKNOWN injection remains platform-scoped with explicit macOS provenance.
+  lanes: Replaces completed string packaging lane; output-port implementation independent.
+
+port_permanent_packaging:
+  owner: vif_proxy_implementation, retained Sol medium with port fixture context
+  status: AUTHORIZED_PRIVATE_TEST_PACKAGING
+  scope: Frozen VARIABLE-OUTPUT-PORT-DIRECTION tests, private permanent bundle only; no shared files/builds.
+  acceptance: Actual isolated legacy and JSON runners, both editions, exact self-check/diagnostic oracles including selected/unpacked neighbors and synthesized scalar semantics.
+regex_permanent_packaging:
+  owner: coordinator
+  scope: Existing strict_regex_exec fixture copied to future tests/uvm_regex_strict_exec_test.sv and compiled with bundled UVM package in isolated directory; existing real private DPI candidate.
+  acceptance: Both editions semantic assertions, one expected legacy invalid-regex diagnostic; existing UVM auto-discovery means no new pipeline mechanism.
+
+event_permanent_packaging:
+  owner: constraint_guard_semantics, retained Sol medium
+  status: AUTHORIZED_PRIVATE_TEST_PACKAGING
+  scope: Frozen COMPOUND-VIF-EDGE-EVENTS fixture bundle, existing legacy/JSON and VPI runner conventions; no compiler edits or new shared builds.
+  acceptance: Paired atomic/pulse/reconvergence, validity/null, automatic/rebind tests with exact oracles; VPI nested callback publications preserve assertions and run through appropriate harness. Actual isolated execution required.
+  dependency: Worker vif_proxy_implementation provides retained private compiler/runtime locations and fixture mapping. Source remains frozen; coordinator integrates four event patch layers.
+  lanes: Second test lane alongside port packaging; no new agents or worktrees.
+
+shared_six_validation:
+  status: FOCUSED_TESTED_BROAD_GATES_PENDING
+  evidence: docs/conformance/session_logs/2026-09-21_shared_six_focus.json
+  owner: Coordinator; shared source frozen during qualification.
+  release_replay_preparation:
+    owner: caliptra_next_blocker, retained Luna low
+    scope: Only evidence/review-20260920/shared-six-release-replay-current/runner.py and preparation notes; no compiler, application, shared build or test execution.
+    acceptance: Exact prior command verification, fresh compile, pinned clean corpora, tool hashes, serial timed runs, separate semantic failure classification.
+
+next_pwrmgr_assessment:
+  owner: vif_proxy_implementation, retained Sol medium
+  status: READ_ONLY_ASSESSMENT
+  scope: Only evidence/review-20260920/next-pwrmgr-after-six-assessment notes and reducers; no compiler or corpus edits, shared test/build execution, or application sweeps.
+  objective: Identify next standards/API-grounded pwrmgr startup path blocker with a cheap reproducer after six-fix integration. Fresh application replay remains coordinator-owned.
+
+shared_six_regression_repair:
+  status: COORDINATOR_AUTHORIZED_PARALLEL_ROOT_CAUSE
+  evidence: evidence/review-20260920/shared-six-qualification/integrated.log
+  reason: Broad gate found 15 legacy regressions and one VPI failure after six-fix integration. No failure waiver.
+  event_lane:
+    owner: constraint_guard_semantics, retained Sol medium
+    scope: Read-only diagnosis and isolated reproducers under evidence/review-20260920/shared-six-event-repair; event runtime history, activation, NBA and interface validity regressions. No shared edits/builds.
+  port_lane:
+    owner: vif_proxy_implementation, retained Sol medium
+    scope: Read-only diagnosis and isolated reproducers under evidence/review-20260920/shared-six-port-repair; shortreal/output-port, partselsynth, packed struct reset and VHDL arithmetic regression paths. No shared edits/builds.
+  acceptance: Standards-grounded root cause and minimal proposed patch with per-file ownership before implementation; preserve current failures and all new passing semantics.

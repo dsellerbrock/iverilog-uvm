@@ -1,0 +1,27 @@
+{
+  "date": "2026-09-21",
+  "blocker": "CONTINUOUS-STRING-ASSIGN",
+  "baseline": "568856f200eb269df129ac9cfdeb027f5af4cd05",
+  "private_patch_sha256": "9e8dc260ac98df3c7f429c2934275477e01cf854dbd17ebf4155bc05463e662f",
+  "corpora": {
+    "caliptra": {
+      "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "status": ""
+    },
+    "adams": {
+      "head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "status": ""
+    }
+  },
+  "source_status_after": {
+    "caliptra": "",
+    "adams": ""
+  },
+  "semantic_result": "FAIL",
+  "completed_test_cases": 10,
+  "scoreboard_errors": 8,
+  "observation": "String filenames and fresh vector generation now work. Test runs to normal completion but reports eight insufficient-queue errors; no application pass claimed.",
+  "raw": "evidence/review-20260920/next-caliptra-continuous-string-fix/replay-private-original",
+  "next": "Assess first incorrect scoreboard/handshake behavior without changing application sources; complete string synthesis review before integration.",
+  "scope": "Private candidate only, g2012 application mode; not merged or broadly qualified."
+}

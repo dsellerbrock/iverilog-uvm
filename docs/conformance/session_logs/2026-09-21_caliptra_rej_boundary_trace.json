@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-21",
+  "blocker": "CONTINUOUS-STRING-ASSIGN",
+  "scope": "Diagnostic extra top reads unmodified pinned Caliptra/AdamsBridge; g2012 private corrected candidate. Not application qualification.",
+  "trace": "evidence/review-20260920/next-caliptra-continuous-string-fix/replay-boundary-scalars/runtime.log",
+  "observer": "evidence/review-20260920/next-caliptra-continuous-string-fix/rej_boundary_observer_scalars.sv",
+  "counter_boundary": [
+    {
+      "time": 685,
+      "count": 252,
+      "valid": 1,
+      "zeroize": 0
+    },
+    {
+      "time": 695,
+      "count": 256,
+      "valid": 1,
+      "zeroize": 0
+    },
+    {
+      "time": 705,
+      "event": "queue underflow before postponed zeroize1/count0"
+    }
+  ],
+  "controls": "At1375 and2055 count256 but valid0, and no underflow on next edge; all ten seeds and vectors unchanged by observer.",
+  "remaining_errors": 8,
+  "interpretation": "Trace supports Active-region race between blocking scoreboard counter increments and independent zeroize process. IEEE2017/2023 4.7/4.8 allow unordered Active events. No evidence here warrants changing scheduler order.",
+  "source_edits": false,
+  "status": "APPLICATION_FAIL_WITH_SOURCE_RACE_EVIDENCE",
+  "diagnostic_boundary": "Initial observer queue.size argument to strobe rejected; scalar-only observer used. That diagnostic run is retained, not counted as test execution."
+}

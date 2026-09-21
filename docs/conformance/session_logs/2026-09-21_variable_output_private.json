@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-21",
+  "blocker": "VARIABLE-OUTPUT-PORT-DIRECTION",
+  "base": "568856f200eb269df129ac9cfdeb027f5af4cd05",
+  "patch": "evidence/review-20260920/next-variable-output-direction-fix/CODE.patch",
+  "sha256": "1b0fe614355be2480aa9b0bf3cae17b9f8c84940f206dceb9295269bc91010bb",
+  "worker_evidence": "evidence/review-20260920/next-variable-output-direction-fix/results/acceptance-matrix.tsv",
+  "private_result": "18/18 positive/negative outcomes across2017/2023; compiler source onlyelaborate.cc. Not integrated qualification.",
+  "root": "Output-variable declaration identity survives REG-to-UWIRE conversion but direct nexus collapse loses required one-way port boundary.",
+  "review": "Private overlap reconciliation preserves both string and port pending-driver audits and shared helper bookkeeping.",
+  "pending": [
+    "selected packed/unpacked destinations review",
+    "synthesis semantic execution rather than compilation alone",
+    "combined runtime and required integration gates"
+  ],
+  "reconciliation": "evidence/review-20260920/next-batch-port-reconcile/resolution.json"
+}

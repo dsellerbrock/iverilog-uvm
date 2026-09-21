@@ -1,0 +1,99 @@
+{
+  "date": "2026-09-21",
+  "semantic_commit": "779de5464",
+  "raw": "evidence/review-20260920/shared-six-release-replay-current",
+  "tools": {
+    "iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "vvp": "21ffd74b8f30c63739c784bc111df69e1a33629fb53b971a19ed25e2a477387f",
+    "ivl": "73e2e2d2948bf1e02bc142ae8a2082de14d6d2d38a6f798434cebc53865fc834",
+    "vvp.tgt": "2e78ed3d8ae9bf680de4a6779ba5e503190c4bc8fd88e2dd4067c235c25268ed",
+    "uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb"
+  },
+  "pins": {
+    "opentitan": {
+      "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "status": ""
+    },
+    "caliptra": {
+      "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "status": ""
+    },
+    "adams_bridge": {
+      "head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "status": ""
+    }
+  },
+  "scope": "Fresh compilation and g2012 runtime, pinned unmodified sources; no full application/edition qualification. Compiler broad gate failed separately.",
+  "results": {
+    "xbar": {
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "summary_lines": [
+        "UVM_INFO @   4882677 ps: (xbar_base_vseq.sv:94) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.xbar_smoke_vseq] uvm_test_top.env.main_agent.sequencer.main_seq finished sending 180 requests",
+        "UVM_INFO @   9882677 ps: (scoreboard.sv:160) uvm_test_top.env.scoreboard [uvm_test_top.env.scoreboard] Totally 354 items processed",
+        "UVM_WARNING :    0",
+        "UVM_ERROR :    0",
+        "UVM_FATAL :    0",
+        "TEST PASSED CHECKS"
+      ],
+      "compile_fallback_lines": [],
+      "passed": true
+    },
+    "gpio": {
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "summary_lines": [
+        "UVM_FATAL @         0 ps: [BUILDERR] stopping due to build errors",
+        "UVM_WARNING :    0",
+        "UVM_ERROR :   20",
+        "UVM_FATAL :    1"
+      ],
+      "compile_fallback_lines": [],
+      "passed": false
+    },
+    "pwrmgr": {
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "summary_lines": [
+        "UVM_FATAL @         0 ps: [BUILDERR] stopping due to build errors",
+        "UVM_WARNING :    0",
+        "UVM_ERROR :   38",
+        "UVM_FATAL :    1"
+      ],
+      "compile_fallback_lines": [],
+      "passed": false
+    },
+    "power2round": {
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "summary_lines": [
+        "*** All 2048 test cases completed successfully",
+        "* TESTCASE PASSED"
+      ],
+      "compile_fallback_lines": [],
+      "passed": true,
+      "generated_files": {
+        "coeff_low.hex": "bd39ae09382c135f681abc06558e2e7af8ece0d8c25a45ce866a52b6398abd35",
+        "coeff_input.hex": "67093b6affab5657fe283ad889b17511bd5f3538ce4c280fdff478b9ba40e796",
+        "coeff_high.hex": "a2dc95c89c90a377762ccc670d034706cd15e53f8c2b0bb83c24b1ad2d82505b"
+      }
+    },
+    "rej_bounded": {
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "summary_lines": [
+        "*** 10 test cases completed.",
+        "*** 05 errors detected during testing.",
+        "* TESTCASE FAILED"
+      ],
+      "compile_fallback_lines": [],
+      "passed": false,
+      "generated_files": {
+        "input_vectors.txt": "2c9249383b60eba9c3e768c7b085803f50297c6a670f40bfb0cdd5ef40a04c07",
+        "exp_results.txt": "538ee269ce4bed3ff401ac3b92e4c6a031bb89ed4fdbf3f95c3c2a38e435d7bd",
+        "input_seeds.txt": "c6d5e68e0e6d503b826812c4767f8175ca32e9d2af1c2ede227fb1a34793c1eb"
+      }
+    }
+  },
+  "interpretation": "pwrmgr advances past previous prim_count_if HDL-path fatal to legacy regex/build errors. Caliptra rej_bounded completes ten cases but fails five queue-underflow checks; random vectors differ from prior run, so failure-count change is not a semantic improvement claim."
+}

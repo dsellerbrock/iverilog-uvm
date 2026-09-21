@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-21",
+  "blocker": "VARIABLE-OUTPUT-PORT-DIRECTION",
+  "patch_unchanged": "1b0fe614355be2480aa9b0bf3cae17b9f8c84940f206dceb9295269bc91010bb",
+  "followup_evidence": "evidence/review-20260920/next-variable-output-direction-fix/FOLLOWUP_REVIEW.md",
+  "observations": [
+    "Selected packed actual update and overlapping-driver rejection match baseline in both editions.",
+    "Unpacked actuals use preexisting elaborate_unpacked_port path before new carrier; paired baseline/candidate updates pass.",
+    "Self-checking synthesized nested scalar conflict/release passes in both editions."
+  ],
+  "private_integration": "evidence/review-20260920/next-batch-port-reconcile/compile-correct-headers.json",
+  "integration_result": "Reconciled elaborate.cc compiled with all patched event declarations. Shared elaborate.o unchanged.",
+  "failed_attempt": "compile-provenance.json retained: incomplete private header overlay preloaded shared netlist.h through quoted includes; copying unchanged root headers into overlay corrected setup. No source patch changed for that failure.",
+  "pending": "Combined runtime, permanent port tests, installed compiler and required integrated gates; no integrated qualification claim."
+}

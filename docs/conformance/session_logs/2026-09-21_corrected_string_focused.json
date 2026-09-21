@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-21",
+  "blocker": "CONTINUOUS-STRING-ASSIGN",
+  "compiler_sha256": "0d094978e5aa462ef342a55c0ab33eb0b6523dd26c44358f1bc8c8da3b791947",
+  "private_patch": "ac9f5b95680357737dec7635734a59d8a290b01d594ab070d745de9c222f5b02",
+  "checks": 45,
+  "passed": 45,
+  "editions": [
+    "2017",
+    "2023",
+    "2012 compatibility"
+  ],
+  "oracle": "Self-checking positives return0 with exact original stdout; negatives match exact original diagnostics and exit code; corrected source rejects unsupported synthesis separately.",
+  "raw": "evidence/review-20260920/next-caliptra-continuous-string-fix/coordinator-corrected-matrix/results.json",
+  "boundary": "Private focused validation; permanent registration and shared integrated gates pending."
+}

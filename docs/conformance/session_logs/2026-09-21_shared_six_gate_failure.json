@@ -1,0 +1,54 @@
+{
+  "semantic_commit": "779de5464",
+  "status": "REGRESSION_TESTING_FAILED; repairs required before publication",
+  "gate": {
+    "command": [
+      "bash",
+      ".github/ivtest_gate.sh"
+    ],
+    "start": 1790006860.054496,
+    "end": 1790007278.151871,
+    "exit": 1,
+    "installed_before": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "21ffd74b8f30c63739c784bc111df69e1a33629fb53b971a19ed25e2a477387f",
+      "local-install/lib/ivl/ivl": "73e2e2d2948bf1e02bc142ae8a2082de14d6d2d38a6f798434cebc53865fc834",
+      "local-install/lib/ivl/vvp.tgt": "2e78ed3d8ae9bf680de4a6779ba5e503190c4bc8fd88e2dd4067c235c25268ed",
+      "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "installed_after": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "21ffd74b8f30c63739c784bc111df69e1a33629fb53b971a19ed25e2a477387f",
+      "local-install/lib/ivl/ivl": "73e2e2d2948bf1e02bc142ae8a2082de14d6d2d38a6f798434cebc53865fc834",
+      "local-install/lib/ivl/vvp.tgt": "2e78ed3d8ae9bf680de4a6779ba5e503190c4bc8fd88e2dd4067c235c25268ed",
+      "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "stable": true
+  },
+  "legacy": {
+    "total": 6108,
+    "passed": 6088,
+    "failed": 15,
+    "not_implemented": 2,
+    "expected_fail": 3
+  },
+  "vpi": {
+    "total": 126,
+    "passed": 125,
+    "failed": 1,
+    "failing_test": "br_gh169b"
+  },
+  "negative": {
+    "passed": 148,
+    "failed": 0
+  },
+  "runtime_invariants": {
+    "passed": 15,
+    "failed": 0
+  },
+  "raw": "evidence/review-20260920/shared-six-qualification",
+  "remaining_gates": "Not escalated after integrated failure; JSON/NFA/frontend/full UVM/releases/make check pending after repair.",
+  "repair_lanes": "Event activation/history/validity and variable output real/synthesis paths, retained Sol agents, no expected-failure waiver."
+}

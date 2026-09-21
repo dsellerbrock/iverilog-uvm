@@ -1,64 +1,110 @@
 campaign: IEEE1800-UVM-continuous
 mission: Full IEEE1800-2017 and2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV and eventual formal foundation; preserve1364, UPF deferred.
-branch: agent/scope-sva-next-20260921
+branch: agent/application-foundation-batch-20260921
 merged_baseline:
-  main: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
-  ci: All six jobs passed; see2026-09-21_pr307_final_ci.json.
+  main: 482c3c89d815ad98ba549507184bf389b14b3ac9
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/308
+  evidence: docs/conformance/session_logs/2026-09-21_pr308_merge.json
+  ci: Ubuntu22.04 and24.04 passed; macOS andthreeWindowsjobs still running at latest check. Watch for later failures and repair via follow-up PR per user instruction.
+  source_equivalence: Merged tree identical to568856f200eb269df129ac9cfdeb027f5af4cd05; nine semantic fixes qualified locally before publication.
+  local_qualification: docs/conformance/session_logs/2026-09-21_nine_fix_batch_qualification.json
+  canonical: Main checkout fast-forwarded; canonical graph AST update passed. HTML generation limited by graph size; no LLM labeling requested.
+  canonical_evidence: evidence/review-20260920/pr308-merge/graph-update.json
 current_batch:
-  integrated_fixes: 9
-  semantic_revision: c1635efe9780fc78b8d03d8750df1c56f36023dd
-  state: REQUIRED_LOCAL_GATES_PASS_READY_FOR_PUBLICATION
-  evidence: docs/conformance/session_logs/2026-09-21_nine_fix_batch_qualification.json
-  raw: evidence/review-20260920/batch-nine-20260921-repaired
-  process: Session60450 completed exit0; all seven gates passed. No live qualification job.
-  failures_repaired: Obsolete ordered-randc test expectation and invalid packed metadata on handleless synthesis temporaries; evidence preserved, neither adds feature count.
-  publication: No open PR at refreshed origin/main3d3f8086b; publish coherent nine-fix branch after evidence commit. User authorizes merge after one exact-head green CI plus required local gates; later CI failures require follow-up repair.
-  draft: evidence/review-20260920/batch-nine-20260921-repaired/PR_BODY_DRAFT.md
-private_candidates:
+  prepared_fixes: 6
+  shared_integrated_fixes: 6
+  semantic_commit: 779de5464
+  state: BROAD_GATE_FAILED_ROOT_CAUSE_ACTIVE
+  build: evidence/review-20260920/shared-six-build/provenance.json
+  install: local-install
+  build_status: Native clean build and install completed successfully.
+  focus: docs/conformance/session_logs/2026-09-21_shared_six_focus.json
+  results: 96 legacy, 96 JSON, 10 VPI cases pass; rootseed checks and strict-regex real-DPI UVM pass.
+  boundary: Focused implementation evidence; broad and application qualification pending.
+source_order:
+  initial_eight_layers: evidence/review-20260920/next-batch-source-order/integration-order.json
+  final_port_layer: evidence/review-20260920/next-batch-port-reconcile/PORT_AFTER_STRING_EVENT.patch
+  reconciliation: Five overlaps preserve shared continuous-lvalue bookkeeping and both string/port pending-driver audits. Combined elaboration compile passed after fixing private header lookup.
+candidates:
   event:
-    blocker: COMPOUND-VIF-EDGE-EVENTS
-    state: Frozen private patch and paired matrix; integration review pending.
-    patch: evidence/review-20260920/next-compound-vif-edge-fix/sol-structural/CODE.patch
-    sha256: 392b50c66ed9e918c3e8fbaed13df195f2b74ee57e061c6511cf4484bb0e8eac
-    glue: Apply coordinator validity, event-sync, then part-event patches after CODE.patch.
-    tests: Atomic fanout, unequal-depth reconvergence, same-slot pulses, nested callback source order, automatic liveness and null, rebind, four-state cases passed privately; shared gates required after integration.
+    id: COMPOUND-VIF-EDGE-EVENTS
+    source: next-compound-vif-edge-fix/sol-structural/CODE.patch plus coordinator validity, event-sync-target andpart-event glue.
+    tests: next-compound-vif-edge-fix/sol-structural/permanent-pending
+    state: Isolated40legacy,40JSON,10VPI cases passed against combined install; reviewed permanent artifacts integrated.
+    invariant: Atomic source publication settles marked event cones before validity/edge sinks; nested callback writes retain separate ordered publications. Preserve short-circuit null and automatic lifetimes.
   solver:
-    blocker: JOINT-ORDERED-RANDC-MULTIDIST
-    state: Private build and six paired runtime cases passed; additional range-cap rollback test passed both editions.
-    evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_multidist_private.json
-    raw: evidence/review-20260920/next-constraint-ordered-randc-multidist-fix
-    sha256: 5c40e4855321b300e0f94dccb3f961b7b6abf4ff0a2a62d00bda1ad3040e6ead
-    boundary: New prefix UNKNOWN is source-reviewed, not selectively injected; existing optimizer interposer targets a different API. Range cap/overflow already preflighted unpinned.
-    next: Permanent packaging and next-batch integration; preserve exact hard constraints, zero exclusions, transactional RNG/history and documented conflicting-weight priority.
+    id: JOINT-ORDERED-RANDC-MULTIDIST
+    source: next-constraint-ordered-randc-multidist-fix/JOINT-ORDERED-RANDC-MULTIDIST.patch
+    tests: next-constraint-ordered-randc-multidist-fix/permanent-reviewed/manifest-reviewed.json
+    state: Eight paired permanent cases passed each runner privately and in combined focus. SeparatemacOSUNKNOWN injection2of2passed with exact target diagnostic; noLinuxclaim.
   rootseed:
-    blocker: DV-RUNTIME-ROOT-SEED
-    state: Revised private entry-hook patch passes paired original and threadless controls.
-    evidence: docs/conformance/session_logs/2026-09-21_rootseed_private_entry_fix.json
-    patch: evidence/review-20260920/rootseed-rebase/rootseed-runtime-entry.patch
-    sha256: 58af5d4a3ce0cab4c89c38afc7d36b82229b0967c3d4606d9fe3e19d62b4d8a3
-    boundary: Vendor DV option, not normative spelling; default streams and IEEE random stability preserved. Original compile_thread-only boundary failure retained.
+    id: DV-RUNTIME-ROOT-SEED
+    source: rootseed-rebase/rootseed-runtime-entry.patch
+    tests: rootseed-rebase/permanent/manifest-reviewed.json
+    state: Original plus threadless boundary checks pass against combined runtime. Vendor option spelling, not normative language feature.
   regex:
-    blocker: UVM-STRICT-REGEX-GLOB-FALLBACK
-    state: Private reviewed patch passes paired real-DPI controls; installed umbrella unchanged.
-    evidence: docs/conformance/session_logs/2026-09-21_strict_uvm_regex_private.json
-    next: Permanent registration and integration; removal of modern fallback does not repair legacy GPIO invalid-regex calls.
-  caliptra_string:
-    blocker: CONTINUOUS-STRING-ASSIGN
-    owner: Reused vif_proxy_implementation, Sol medium
-    state: Active private elaborate.cc implementation; event patch immutable and ownership transferred.
-    evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
-    scope: ACTIVE_WORK owns exact acceptance and scope; no application/source-install changes. Private patch order reviewed before integration.
+    id: UVM-STRICT-REGEX-GLOB-FALLBACK
+    source: next-uvm-regex-assessment/private/uvm_dpi-strict-reviewed.patch
+    tests: next-uvm-regex-assessment/private/permanent-reviewed/manifest-reviewed.json
+    state: Paired private and combined realDPI pass; baseline fails strict-glob assertion. Fixture uses existing UVM tests discovery, exact expected error count and restored ID action.
+  string:
+    id: CONTINUOUS-STRING-ASSIGN
+    source: next-caliptra-continuous-string-fix/CODE.review-corrected.patch
+    tests: next-caliptra-continuous-string-fix/permanent-reviewed/manifest-reviewed.json
+    state: Corrected45case private matrix passes; permanent22legacy/22JSON pass and combined focus passes. Earlier permanent bundle is broken historical output; never install it.
+    boundary: Unsupported synthesis rejected explicitly; dead metadata removed. Original synthesis alternatives lost updates or aborted; evidence retained.
+  port:
+    id: VARIABLE-OUTPUT-PORT-DIRECTION
+    source: next-variable-output-direction-fix/CODE.patch; use reconciled final layer after event/string.
+    tests: next-variable-output-direction-fix/permanent-reviewed/manifest-reviewed.json
+    state: 18focused outcomes plus selected/unpacked/synthesized semantic checks pass; permanent26legacy/26JSON pass and combined focus passes.
+    evidence: docs/conformance/session_logs/2026-09-21_variable_output_integration_review.json
 application_checkpoint:
-  evidence: docs/conformance/session_logs/2026-09-21_qualified_nine_release_retest.json
-  opentitan: Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; crossbar180requests/354checks passes, GPIO fails startup regex/build errors.
-  caliptra: v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; AdamsBridgev2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0; power2round2048pass.
-  boundary: Fresh generator vectors, clean unchanged release sources, g2012; not full applications or paired edition qualification. Pwrmgr and rej_bounded remain failing.
+  shared_baseline: docs/conformance/session_logs/2026-09-21_qualified_nine_release_retest.json
+  opentitan: Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; crossbar180requests/354checks passes; GPIO startup regex/build errors andpwrmgr remain failing.
+  caliptra: v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; AdamsBridgev2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0; power2round2048passes.
+  private_string_replay: Filenames andfreshvector generation repaired; rej_bounded completes10cases but fails8queue-underflow checks. Corrected candidate produces identical vectors; noapp pass.
+  race_evidence: docs/conformance/session_logs/2026-09-21_caliptra_rej_boundary_trace.json
+  race_disposition: External observer supports Active-region race between counter increment andindependent zeroize process; no source changes or scheduler-order workaround justified.
+  boundary: Application checks g2012, bounded cases only; no fullapp or pairededitionqualification.
 coordination:
-  shared: Coordinator owns integration, shared builds/install/test outputs, review and publication. Retained cheaper workers, at most two disjoint implementation lanes; no new trees.
-  preserve: External AGENTS.md changes remain untouched and unstaged. All private patches and unique evidence retained.
-  cleanup: Nine existing worktrees audited; no automatically removable tree. Use controlling-repository retirement helper with ancestry/clean/submodule checks; never raw-delete trees.
-  counts: Nine fixes in this batch; three explicitly OPEN registry headers are not a total remaining-feature count. Current matrices lack a complete finite feature census; see publication-count-coordinator-review.json.
+  model: Coordinator stays selectedGPT6medium. Reuse retained cheaper agents; atmosttwo disjoint implementation/test lanes. No newagents/worktrees.
+  lanes: Luna prepares release replay runner only; Sol workers completed permanent packaging. Coordinator owns shared tests and integration.
+  preserve: External87lineAGENTS patch untouched/unstaged. Snapshot evidence/review-20260920/pr308-merge/tracked-preserved.patch. Preserve LRMs, pinned corpora, unique history and active private evidence.
+  cleanup: Nine trees audited; no new tree created. Retirement only via controlling-repository helper with ancestry/clean/submodule safeguards, never rawdelete trees.
+  cadence: Focused semantics per fix; broad required gates around10integrated fixes or earlier forrisk. Current six include scheduler/ABI changes, so broad validation may be needed earlier. Merge afteroneexactheadgreenCI per user authorization plus localrequiredgates.
 resumption:
-  classification: Progress; qualified batch, privately validated solver/rootseed/regex, selected Caliptra string repair.
-  next: Commit qualification/application evidence, publish PR, inspect exact-head CI. Keep private candidates excluded until merge and fresh next-batch branch.
+  classification: Progress; PR308 merged, six-fix shared installed focus passed.
+  semantic_commit: 779de5464
+  next: Poll integrated gate session21340; review corrected release runner then execute serially; remaining broad gates use shared-six-qualification/run_gate.py.
+  poll_pr: gh pr view 308 --json state,headRefOid,statusCheckRollup
+
+shared_integration_checkpoint:
+  evidence: evidence/review-20260920/next-batch-integration.json
+  result: 32 compiler files match validated combined build; 471 test artifacts hash-verified and installed; 96 legacy, 96 JSON and 10 VPI entries added to main manifests.
+  rootseed_gate: Existing runtime gate invokes permanent driver using explicitIVERILOG/VVP paths; private combined replay andshellsyntax passed.
+  pending: Broad required gates and fresh application replay; shared build/install/focus passed.
+
+shared_build_process:
+  session: 79501
+  provenance: evidence/review-20260920/shared-six-build/provenance.json
+  status: Completed successfully, including install.
+shared_focus_checkpoint:
+  session: 40503
+  evidence: docs/conformance/session_logs/2026-09-21_shared_six_focus.json
+  status: All focused gates passed on current installed compiler.
+  next: Fresh pinned application replay and broad required gates; source frozen, user AGENTS patch untouched.
+
+regression_repair_checkpoint:
+  semantic_commit: 779de5464
+  observed: 15 unexplained legacy failures and one VPI failure; negative148 and runtime15 pass so far.
+  lanes: Retained Sol event runtime analysis and retained Sol port/synthesis analysis; private evidence only until root cause review.
+  application_replay_session: 54476
+  integrated_gate_session: 21340
+  next: Preserve completed gate outputs, classify failures, authorize minimal disjoint repairs; no further broad escalation until fixed.
+
+latest_validation:
+  broad: docs/conformance/session_logs/2026-09-21_shared_six_gate_failure.json
+  applications: docs/conformance/session_logs/2026-09-21_shared_six_release_retest.json
+  processes: Sessions21340 and54476 completed; no shared test/build process active.
+  priority: Repair event and port regressions in the six-fix batch before any further broad escalation or publication.

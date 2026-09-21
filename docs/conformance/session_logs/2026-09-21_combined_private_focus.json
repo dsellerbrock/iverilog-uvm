@@ -1,0 +1,23 @@
+{
+  "date": "2026-09-21",
+  "base": "482c3c89d815ad98ba549507184bf389b14b3ac9",
+  "private_source_base": "568856f200eb269df129ac9cfdeb027f5af4cd05",
+  "prepared_fixes": 6,
+  "build": "evidence/review-20260920/next-batch-combined-build/provenance.json",
+  "focus": "evidence/review-20260920/next-batch-combined-focus",
+  "results": {
+    "legacy": {
+      "total": 56,
+      "failed": 0
+    },
+    "json": {
+      "total": 56,
+      "failed": 0
+    },
+    "rootseed": "PASS",
+    "regex_2017": "PASS",
+    "regex_2023": "PASS"
+  },
+  "pending": "Event/VPI bundle executing; shared integration, installed replay, broad gates and application replay remain pending.",
+  "boundary": "No broad or shared simulator qualification inferred from private focus."
+}

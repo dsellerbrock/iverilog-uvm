@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-21",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/308",
+  "merge_commit": "482c3c89d815ad98ba549507184bf389b14b3ac9",
+  "merged_at": "2026-09-21T15:49:37Z",
+  "published_head": "568856f200eb269df129ac9cfdeb027f5af4cd05",
+  "observation": "PR was already merged when coordinator merge command reached GitHub; merge actor not inferred.",
+  "successful_checks": [
+    "\ud83d\udc27 Ubuntu 22.04",
+    "\ud83d\udc27 Ubuntu 24.04"
+  ],
+  "running_checks": [
+    "\ud83c\udf4f macOS",
+    "\ud83d\udfea MINGW64",
+    "\ud83d\udfea UCRT64",
+    "\ud83d\udfea CLANG64"
+  ],
+  "baseline_tree": "git diff --quiet568856f2 origin/main passed; merged tree identical to qualified published head.",
+  "next_branch": "agent/application-foundation-batch-20260921",
+  "preservation": "Local operational notes and external87lineAGENTS patch carried unchanged; snapshot in raw evidence.",
+  "raw": "evidence/review-20260920/pr308-merge"
+}
