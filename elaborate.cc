@@ -30290,26 +30290,64 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return "";
       }
 
-      /* Integral casts around caller values are evaluated at the
-         randomize() call site, preserving the cast's truncation/extension,
-         then supplied as an ordinary value slot. For solver properties the
-         current IR has no separate cast node; retaining the inner property
-         is still more accurate than dropping the entire constraint. */
+      /* Caller-value casts are evaluated before solving. Solver expressions
+       * retain an explicit integral cast, including self-determined width and
+       * signedness, rather than silently reusing the uncast operand. */
       auto cast_to_constraint_ir = [&](const PExpr*base) -> string {
-	    size_t before = value_slots ? value_slots->size() : 0;
-	    string ir = pexpr_to_constraint_ir(base, cls, value_slots,
-					 scope, loop_env);
-	    if (value_slots && ir.compare(0, 2, "v:") == 0
-		&& value_slots->size() == before + 1)
-		  value_slots->back() = expr;
-	    return ir;
+            size_t before = value_slots ? value_slots->size() : 0;
+            string ir = pexpr_to_constraint_ir(base, cls, value_slots,
+                                             scope, loop_env);
+            if (ir.empty()) return ir;
+            if (value_slots && ir.compare(0, 2, "v:") == 0
+                && value_slots->size() == before + 1) {
+                  value_slots->back() = expr;
+                  return ir;
+            }
+            Design*des = constraint_ir_design_ctx_;
+            NetScope*cast_scope = const_cast<NetScope*>(scope
+                  ? scope : cls ? cls->class_scope() : nullptr);
+            if (!des || !cast_scope) return "";
+            unsigned width = 0;
+            unsigned sign = 2; // inherit for a size cast
+            if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+                  ivl_type_t type = cast->resolve_target_type(des, cast_scope);
+                  if (!type) return "";
+                  if (!type->packed() || !type_is_vectorable(type->base_type())) {
+                        cerr << expr->get_fileline()
+                             << ": error: Non-integral solver casts are not supported in constraints."
+                             << endl;
+                        des->errors += 1;
+                        return "";
+                  }
+                  width = type->packed_width();
+                  sign = type->get_signed() ? 1 : 0;
+            } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+                  unique_ptr<NetExpr>size(elab_and_eval(
+                        des, cast_scope, cast->cast_size(), -1, true));
+                  const NetEConst*constant = dynamic_cast<const NetEConst*>(size.get());
+                  if (!constant || !constant->value().is_defined()
+                      || constant->value().is_negative()
+                      || constant->value().as_ulong64() == 0
+                      || constant->value().as_ulong64() > UINT_MAX) {
+                        cerr << expr->get_fileline()
+                             << ": error: Constraint cast size must be a positive representable constant."
+                             << endl;
+                        des->errors += 1;
+                        return "";
+                  }
+                  width = constant->value().as_ulong64();
+            } else {
+                  sign = expr->has_sign() ? 1 : 0;
+            }
+            return "(cast c:" + to_string(width) + " c:" + to_string(sign)
+                  + " " + ir + ")";
       };
       if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
-	    return cast_to_constraint_ir(cast->cast_base());
+            return cast_to_constraint_ir(cast->cast_base());
       if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
-	    return cast_to_constraint_ir(cast->cast_base());
+            return cast_to_constraint_ir(cast->cast_base());
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
-	    return cast_to_constraint_ir(cast->cast_base());
+            return cast_to_constraint_ir(cast->cast_base());
 
       // I4 (Phase 62c): soft constraint wrapper.  Emit `(soft <expr>)`
       // so the Z3 backend applies the inner expression via
@@ -31905,7 +31943,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    if (et && (eb == IVL_VT_BOOL
 					       || eb == IVL_VT_LOGIC)) {
 					  unsigned ew = et->packed_width();
-					  if (ew == 0 || ew > 64) ew = 32;
+					  if (ew == 0 || ew > 64) {
+                                                cerr << r.hi->get_fileline()
+                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
+                                                     << endl;
+                                                if (scope_randomize_design_ctx_) scope_randomize_design_ctx_->errors += 1;
+                                                return "";
+                                          }
 					  NetExpr*object_expr = elab_and_eval(
 						scope_randomize_design_ctx_,
 						const_cast<NetScope*>(scope),
@@ -31942,7 +31986,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    ? et->base_type() : IVL_VT_NO_TYPE;
 			      if (et && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
 				    unsigned ewid = et->packed_width();
-				    if (ewid == 0 || ewid > 64) ewid = 32;
+				    if (ewid == 0 || ewid > 64) {
+                                                cerr << r.hi->get_fileline()
+                                                     << ": sorry: Constraint inside container elements must be integral values of 1 to 64 bits."
+                                                     << endl;
+                                                if (constraint_ir_design_ctx_) constraint_ir_design_ctx_->errors += 1;
+                                                return "";
+                                          }
 				    range_ir = "q:" + to_string(cpi)
 					  + ":" + to_string(ewid)
 					  + (et->get_signed() ? ":s" : "");

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_cast_fixed_index.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_constraint_cast_fixed_index"
+}

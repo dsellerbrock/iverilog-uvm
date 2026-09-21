@@ -1,0 +1,3 @@
+ERROR: constraint state read: X/Z inside container state element in constraint (IEEE 1800-2017/2023 18.3).
+ERROR: constraint state read: X/Z inside container state element in constraint (IEEE 1800-2017/2023 18.3).
+PASSED

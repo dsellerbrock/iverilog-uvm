@@ -12,6 +12,8 @@
  *   (and expr expr)      -- logical AND
  *   (or  expr expr)      -- logical OR
  *   (not expr)           -- logical NOT
+ *   (cast c:W c:S expr)  -- integral cast; W=0 inherits expression width,
+ *                            S=0 unsigned, S=1 signed, S=2 inherits sign
  *   (trunc:W[:s] expr)   -- self-determined W-bit integral result
  *   (inside p:N:W [c:lo,c:hi] c:val ...) -- prop[N] inside ranges/values
  *   (dist expr (b MODE W item) ...) -- weighted distribution; MODE is
@@ -423,6 +425,301 @@ struct IRParser {
       }
 };
 
+struct constraint_integral_type_t {
+      unsigned width = 0;
+      bool sign = false;
+};
+
+static bool infer_constraint_integral_type_(
+      IRParser&par, constraint_integral_type_t&out);
+static bool infer_constraint_inside_type_(
+      IRParser&par, constraint_integral_type_t&out);
+
+static bool constraint_ir_uint_token_(const string&token, uint64_t&value)
+{
+      if (token.compare(0, 2, "c:") != 0) return false;
+      char*end = nullptr;
+      value = strtoull(token.c_str() + 2, &end, 10);
+      return end && (*end == 0 || *end == ':');
+}
+
+static bool constraint_ir_header_type_(const string&token,
+                                        constraint_integral_type_t&out)
+{
+      vector<string> fields;
+      string part;
+      istringstream input(token);
+      while (getline(input, part, ':')) fields.push_back(part);
+      if (fields.empty()) return false;
+      if (fields[0] == "s") {
+            out.width = 32;
+            out.sign = true; // size() returns int; alias in typed value pass
+            return true;
+      }
+      bool sign = fields.back() == "s";
+      size_t count = fields.size() - (sign ? 1 : 0);
+      size_t width_field = 0;
+      if (fields[0] == "p" || fields[0] == "g" || fields[0] == "v")
+            width_field = 2;
+      else if (fields[0] == "m") width_field = 3;
+      else if (fields[0] == "e") width_field = 2;
+      else if (fields[0] == "r" || fields[0] == "pp")
+            width_field = count - 1;
+      else return false;
+      if (width_field >= count) return false;
+      char*end = nullptr;
+      unsigned long width = strtoul(fields[width_field].c_str(), &end, 10);
+      if (end == fields[width_field].c_str() || *end || !width
+          || width > UINT_MAX) return false;
+      out.width = (unsigned)width;
+      out.sign = sign;
+      return true;
+}
+
+static bool infer_constraint_integral_type_(IRParser&par,
+                                             constraint_integral_type_t&out)
+{
+      par.skip_ws();
+      if (par.peek() != '(') {
+            string token = par.read_token();
+            if (token.compare(0, 2, "c:") == 0) {
+                  const char*text = token.c_str() + 2;
+                  char*end = nullptr;
+                  (void)strtoull(text, &end, 10);
+                  out.width = 32; out.sign = false;
+                  if (end && *end == ':') {
+                        unsigned long width = strtoul(end + 1, &end, 10);
+                        if (!width || width > UINT_MAX) return false;
+                        out.width = (unsigned)width;
+                        out.sign = end && *end == ':' && end[1] == 's'
+                              && end[2] == 0;
+                        if (end && *end && !out.sign) return false;
+                  }
+                  return true;
+            }
+            return constraint_ir_header_type_(token, out);
+      }
+      par.consume();
+      string op = par.read_token();
+      if (op == "cast") {
+            uint64_t width = 0, sign = 0;
+            if (!constraint_ir_uint_token_(par.read_token(), width)
+                || !constraint_ir_uint_token_(par.read_token(), sign)
+                || width > UINT_MAX || sign > 2
+                || !infer_constraint_integral_type_(par, out)
+                || !par.expect(')')) return false;
+            if (width) out.width = (unsigned)width;
+            if (sign != 2) out.sign = sign == 1;
+            return out.width != 0;
+      }
+      if (op.compare(0, 6, "trunc:") == 0) {
+            const char*spec = op.c_str() + 6;
+            char*end = nullptr;
+            unsigned long width = strtoul(spec, &end, 10);
+            constraint_integral_type_t ignored;
+            if (!width || width > UINT_MAX
+                || !infer_constraint_integral_type_(par, ignored)
+                || !par.expect(')')) return false;
+            out.width = (unsigned)width;
+            out.sign = end && *end == ':' && end[1] == 's';
+            return true;
+      }
+      if (op == "neg" || op == "bnot") {
+            return infer_constraint_integral_type_(par, out) && par.expect(')');
+      }
+      if (op == "not" || op == "redand" || op == "redor"
+          || op == "redxor" || op == "onehot" || op == "onehot0"
+          || op == "countones") {
+            constraint_integral_type_t ignored;
+            if (!infer_constraint_integral_type_(par, ignored)
+                || !par.expect(')')) return false;
+            out.width = op == "countones" ? 32 : 1;
+            out.sign = op == "countones";
+            return true;
+      }
+      if (op == "add" || op == "sub" || op == "mul" || op == "div"
+          || op == "mod" || op == "band" || op == "bor" || op == "bxor") {
+            constraint_integral_type_t left, right;
+            if (!infer_constraint_integral_type_(par, left)
+                || !infer_constraint_integral_type_(par, right)
+                || !par.expect(')')) return false;
+            out.width = max(left.width, right.width);
+            out.sign = left.sign && right.sign;
+            return out.width != 0;
+      }
+      if (op == "shl" || op == "lshr" || op == "ashr" || op == "pow") {
+            constraint_integral_type_t left, right;
+            if (!infer_constraint_integral_type_(par, left)
+                || !infer_constraint_integral_type_(par, right)
+                || !par.expect(')')) return false;
+            out = left; return out.width != 0;
+      }
+      if (op == "lt" || op == "le" || op == "gt" || op == "ge"
+          || op == "eq" || op == "ne" || op == "and" || op == "or"
+          || op == "impl" || op == "iff") {
+            constraint_integral_type_t left, right;
+            if (!infer_constraint_integral_type_(par, left)
+                || !infer_constraint_integral_type_(par, right)
+                || !par.expect(')')) return false;
+            out.width = 1; out.sign = false; return true;
+      }
+      if (op == "ite") {
+            constraint_integral_type_t condition, yes, no;
+            if (!infer_constraint_integral_type_(par, condition)
+                || !infer_constraint_integral_type_(par, yes)
+                || !infer_constraint_integral_type_(par, no)
+                || !par.expect(')')) return false;
+            out.width = max(yes.width, no.width);
+            out.sign = yes.sign && no.sign;
+            return out.width != 0;
+      }
+      if (op == "bit") {
+            constraint_integral_type_t base, index;
+            if (!infer_constraint_integral_type_(par, base)
+                || !infer_constraint_integral_type_(par, index)
+                || !par.expect(')')) return false;
+            out.width = 1; out.sign = false; return true;
+      }
+      if (op == "part") {
+            constraint_integral_type_t base;
+            uint64_t hi = 0, lo = 0;
+            if (!infer_constraint_integral_type_(par, base)
+                || !constraint_ir_uint_token_(par.read_token(), hi)
+                || !constraint_ir_uint_token_(par.read_token(), lo)
+                || hi < lo || hi - lo >= UINT_MAX || !par.expect(')'))
+                  return false;
+            out.width = (unsigned)(hi - lo + 1); out.sign = false; return true;
+      }
+      if (op == "concat") {
+            out.width = 0; out.sign = false;
+            while (par.peek() && par.peek() != ')') {
+                  constraint_integral_type_t item;
+                  if (!infer_constraint_integral_type_(par, item)
+                      || item.width > UINT_MAX - out.width) return false;
+                  out.width += item.width;
+            }
+            return out.width && par.expect(')');
+      }
+      if (op == "fsel" || op == "delem" || op == "qmelem"
+          || op == "qfield" || op == "qkeymember" || op == "hselectfield") {
+            string header = par.read_token();
+            vector<string> fields;
+            string field;
+            istringstream input(header);
+            while (getline(input, field, ':')) fields.push_back(field);
+            bool sign = !fields.empty() && fields.back() == "s";
+            size_t n = fields.size() - (sign ? 1 : 0);
+            size_t wi = op == "qmelem" ? 2 : op == "hselectfield" ? 1
+                  : op == "qfield" ? 3 : 1;
+            if (wi >= n) return false;
+            char*end = nullptr;
+            unsigned long width = strtoul(fields[wi].c_str(), &end, 10);
+            if (end == fields[wi].c_str() || *end || !width
+                || width > UINT_MAX) return false;
+            int depth = 0;
+            while (*par.p) {
+                  char c = *par.p++;
+                  if (c == '(') ++depth;
+                  else if (c == ')' && depth-- == 0) break;
+            }
+            out.width = (unsigned)width; out.sign = sign; return true;
+      }
+      if (op == "inside") {
+            constraint_integral_type_t ignored;
+            if (!infer_constraint_inside_type_(par, ignored)) return false;
+            out.width = 1; out.sign = false; return true;
+      }
+      return false;
+}
+
+static bool infer_constraint_inside_container_type_(
+      const string&token, constraint_integral_type_t&out)
+{
+      bool empty = token.compare(0, 7, "qempty:") == 0;
+      bool bad = token.compare(0, 5, "qbad:") == 0;
+      if (!empty && !bad && token.compare(0, 2, "q:") != 0) return false;
+      vector<string> fields;
+      string field;
+      istringstream input(token);
+      while (getline(input, field, ':')) fields.push_back(field);
+      bool sign = !fields.empty() && fields.back() == "s";
+      size_t count = fields.size() - (sign ? 1 : 0);
+      size_t width_field = empty || bad ? 1 : 2;
+      if (count != width_field + 1) return false;
+      char*end = nullptr;
+      unsigned long width = strtoul(fields[width_field].c_str(), &end, 10);
+      if (end == fields[width_field].c_str() || *end || !width
+          || width > UINT_MAX)
+            return false;
+      out.width = (unsigned)width;
+      out.sign = sign;
+      return true;
+}
+
+static bool infer_constraint_inside_type_(
+      IRParser&par, constraint_integral_type_t&out)
+{
+      if (!infer_constraint_integral_type_(par, out) || !out.width)
+            return false;
+      auto merge = [&](const constraint_integral_type_t&item) {
+            out.width = max(out.width, item.width);
+            out.sign = out.sign && item.sign;
+      };
+
+      par.skip_ws();
+      while (par.peek() != ')' && !par.at_end()) {
+            if (par.peek() == '[') {
+                  par.consume();
+                  par.skip_ws();
+                  if (par.peek() == '*') {
+                        par.consume();
+                  } else {
+                        constraint_integral_type_t item;
+                        if (!infer_constraint_integral_type_(par, item))
+                              return false;
+                        merge(item);
+                  }
+                  if (!par.expect(',')) return false;
+                  par.skip_ws();
+                  if (par.peek() == '*') {
+                        par.consume();
+                  } else {
+                        constraint_integral_type_t item;
+                        if (!infer_constraint_integral_type_(par, item))
+                              return false;
+                        merge(item);
+                  }
+                  if (!par.expect(']')) return false;
+            } else if (par.peek() == '(') {
+                  constraint_integral_type_t item;
+                  if (!infer_constraint_integral_type_(par, item))
+                        return false;
+                  merge(item);
+            } else {
+                  string token = par.read_token();
+                  if (token == "qempty") {
+                        // An empty unpacked container contributes no element.
+                  } else {
+                        constraint_integral_type_t item;
+                        if (token.compare(0, 2, "q:") == 0
+                            || token.compare(0, 7, "qempty:") == 0
+                            || token.compare(0, 5, "qbad:") == 0) {
+                              if (!infer_constraint_inside_container_type_(
+                                    token, item)) return false;
+                        } else {
+                              IRParser item_parser(token);
+                              if (!infer_constraint_integral_type_(
+                                    item_parser, item)
+                                  || !item_parser.at_end()) return false;
+                        }
+                        merge(item);
+                  }
+            }
+            par.skip_ws();
+      }
+      return par.expect(')');
+}
+
 /* ---------------------------------------------------------------
  * Z3 expression builder context
  * --------------------------------------------------------------- */
@@ -742,15 +1039,15 @@ struct Z3Builder {
 	    { return signed_vars.find(a) != signed_vars.end(); }
 
 	/* Z3 bitvector sorts do not carry SystemVerilog signedness, and Z3
-	 * hash-conses equal numeral ASTs. Give each signed constant occurrence a
-	 * fresh alias, constrained equal to its raw bits, so marking that alias
-	 * signed cannot contaminate an unsigned occurrence with the same value.
+	 * hash-conses equal numeral/identity ASTs. Give each occurrence whose type
+	 * metadata changes a fresh alias, constrained equal to its raw bits, so
+	 * marking that alias cannot contaminate another occurrence of the same AST.
 	 * Property/member variables stay unaliased because ordering and write-back
 	 * depend on their stable raw identity. */
       std::vector<std::pair<Z3_ast,Z3_ast> > signed_constant_aliases;
 
-	/* Replace signed-constant aliases by their raw ground values when a caller
-	 * must fold an item, endpoint, exponent, or weight outside the surrounding
+	/* Replace occurrence aliases by their raw values when a caller must fold an
+	 * item, endpoint, exponent, weight, or guard outside the surrounding
 	 * assertion. The assertion parser separately appends alias==raw clauses. */
       Z3_ast resolve_signed_constants(Z3_ast value) const {
 	    if (!value || signed_constant_aliases.empty()) return value;
@@ -783,6 +1080,12 @@ struct Z3Builder {
 	// and came back UNSAT, and `s == a * b' with a 32-bit s solved
 	// s to the low 8 bits of the product.
       std::map<Z3_ast,unsigned> sv_wid;
+      // Width supplied by an enclosing assignment-like integral cast. A
+      // nested cast replaces (and therefore fences) this context while its
+      // operand is built.
+      unsigned integral_context_width = 0;
+      int integral_context_sign = -1; // -1 derives from this expression
+      bool integral_typed_mode = false;
       void set_sv(Z3_ast a, unsigned w) { sv_wid[a] = w; }
       unsigned sv_of(Z3_ast a) {
 	    std::map<Z3_ast,unsigned>::const_iterator it = sv_wid.find(a);
@@ -906,7 +1209,54 @@ struct Z3Builder {
 	    signed_constant_aliases.push_back(std::make_pair(alias, raw));
 	    return alias;
       }
+
+	/* A cast changes occurrence-local width/sign metadata. Z3 hash-conses
+	 * identity extracts/extensions, so tagging `raw' directly could change
+	 * another use of the same property or arithmetic AST. Give every cast a
+	 * fresh equality-constrained result, just like a signed literal. */
+      Z3_ast tag_integral_cast(Z3_ast raw, unsigned width, bool is_signed) {
+	    Z3_sort sort = Z3_get_sort(ctx, raw);
+	    Z3_ast alias = Z3_mk_fresh_const(ctx, "sv_integral_cast", sort);
+	    set_sv(alias, width);
+	    if (is_signed) signed_vars.insert(alias);
+	    signed_constant_aliases.push_back(std::make_pair(alias, raw));
+	    return alias;
+      }
+
+      Z3_ast typed_result(Z3_ast raw, unsigned width, bool is_signed) {
+	    if (integral_typed_mode)
+		  return tag_integral_cast(raw, width, is_signed);
+	    set_sv(raw, width);
+	    if (is_signed) signed_vars.insert(raw);
+	    return raw;
+      }
 };
+
+static bool enter_typed_binary_context_(IRParser parser, Z3Builder&b,
+                                         bool left_result,
+                                         unsigned&saved_width,
+                                         int&saved_sign,
+                                         unsigned&width, bool&sign)
+{
+      saved_width = b.integral_context_width;
+      saved_sign = b.integral_context_sign;
+      constraint_integral_type_t left, right;
+      if (!infer_constraint_integral_type_(parser, left)
+          || !infer_constraint_integral_type_(parser, right)) return false;
+      width = left_result ? left.width : max(left.width, right.width);
+      if (saved_width > width) width = saved_width;
+      sign = saved_sign >= 0 ? saved_sign != 0
+            : left_result ? left.sign : left.sign && right.sign;
+      b.integral_context_width = width;
+      b.integral_context_sign = sign ? 1 : 0;
+      return width != 0;
+}
+
+static void leave_typed_context_(Z3Builder&b, unsigned width, int sign)
+{
+      b.integral_context_width = width;
+      b.integral_context_sign = sign;
+}
 
 // Forward declaration
 static Z3_ast build_z3_expr(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
@@ -919,6 +1269,8 @@ static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx);
 static uint64_t cobj_member_bits(vvp_cobject* cobj, unsigned outer,
 				 unsigned member);
 static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem);
+static bool cobj_elem_vec4_(vvp_cobject*cobj, unsigned idx, unsigned elem,
+                            vvp_vector4_t&value);
 static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
 				       unsigned elem, unsigned member);
 static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
@@ -1242,6 +1594,48 @@ static string subst_loop_token(const string& body, uint64_t i)
       return out;
 }
 
+/* Recover exact width/sign metadata for a constant or a chain of casts. The
+ * legacy constant folder intentionally evaluates arithmetic in uint64
+ * headroom, so only leaf/cast chains are safe to normalize here. */
+static bool const_cast_source_type_(IRParser&par, unsigned&width, bool&sign)
+{
+      par.skip_ws();
+      if (par.peek() != '(') {
+	    string token = par.read_token();
+	    if (token.compare(0, 2, "c:") != 0) return false;
+	    const char*text = token.c_str() + 2;
+	    char*end = nullptr;
+	    (void)strtoull(text, &end, 10);
+	    width = 32;
+	    sign = false;
+	    if (end && *end == ':') {
+		  unsigned long parsed = strtoul(end + 1, &end, 10);
+		  if (!parsed || parsed > 64) return false;
+		  width = (unsigned)parsed;
+		  sign = end && *end == ':' && end[1] == 's' && end[2] == 0;
+		  if (end && *end && !sign) return false;
+	    }
+	    return true;
+      }
+      par.consume();
+      if (par.read_token() != "cast") return false;
+      auto header = [&](uint64_t&value) {
+	    string token = par.read_token();
+	    if (token.compare(0, 2, "c:") != 0) return false;
+	    char*end = nullptr;
+	    value = strtoull(token.c_str() + 2, &end, 10);
+	    return end && (*end == 0 || *end == ':');
+      };
+      uint64_t cast_width = 0, cast_sign = 0;
+      if (!header(cast_width) || !header(cast_sign)
+	  || cast_width > 64 || cast_sign > 2) return false;
+	if (!const_cast_source_type_(par, width, sign) || !par.expect(')'))
+	  return false;
+      if (cast_width) width = (unsigned)cast_width;
+      if (cast_sign != 2) sign = cast_sign == 1;
+      return true;
+}
+
 /* Constant-fold an index sub-expression of a (delem ...) form:
  * "c:V" tokens and (add|sub|mul|div|mod a b) forms, uint64
  * two's-complement arithmetic (matching the elaboration-side
@@ -1259,6 +1653,34 @@ static bool eval_const_ir_impl(IRParser& par, uint64_t& out)
 		  par.skip_ws();
 		  if (!par.expect(')')) return false;
 		  out = c ? t : f;
+		  return true;
+	    }
+	    if (op == "cast") {
+		  uint64_t width = 0, sign = 0, value = 0;
+		  const char*value_begin = nullptr;
+		  if (!eval_const_ir_impl(par, width)
+		      || !eval_const_ir_impl(par, sign)) return false;
+		  par.skip_ws();
+		  value_begin = par.p;
+		  if (!eval_const_ir_impl(par, value)
+		      || width > 64 || sign > 2) return false;
+		  string value_ir(value_begin, par.p - value_begin);
+		  par.skip_ws();
+		  if (!par.expect(')')) return false;
+		  unsigned source_width = 0;
+		  bool source_signed = false;
+		  IRParser source(value_ir);
+		  if (const_cast_source_type_(source, source_width, source_signed)
+		      && source.at_end()
+		      && source_width < 64) {
+			uint64_t source_mask = ((uint64_t)1 << source_width) - 1;
+			value &= source_mask;
+			if (source_signed && (value & ((uint64_t)1 << (source_width - 1))))
+			      value |= ~source_mask;
+		  }
+		  if (width && width < 64)
+			value &= ((uint64_t)1 << width) - 1;
+		  out = value;
 		  return true;
 	    }
 	    uint64_t a = 0, b = 0;
@@ -1517,7 +1939,9 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       }
       if (tok.substr(0,2) == "s:") {
 	      // s:N:T — size of dynamic-array property N, darray type T.
-	    return parse_size(b, tok);
+	    Z3_ast size = parse_size(b, tok);
+	    return b.integral_typed_mode
+		  ? b.tag_integral_cast(size, 32, true) : size;
       }
       if (tok.substr(0,2) == "e:") {
 	    return parse_elem(par, b, tok);
@@ -1833,7 +2257,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             }
             unsigned member = (unsigned)member_ul;
             unsigned width = (unsigned)width_ul;
+            unsigned outer_context = b.integral_context_width;
+            int outer_sign = b.integral_context_sign;
+            b.integral_context_width = 0;
+            b.integral_context_sign = -1;
             Z3_ast cond = bv_to_bool(b.ctx, build_z3_atom(par, b));
+            b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
             auto index_value = [](IRParser&index, uint64_t&value, string&error) {
                   if (eval_const_ir(index, value)) return true;
                   error = "conditional class-handle index is not constant";
@@ -2131,11 +2561,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    vector<Z3_ast> indices;
 	    set<Z3Builder::VarRef> index_refs;
 	    set<Z3Builder::VarRef>*saved_refs = b.collect_refs;
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    b.collect_refs = &index_refs;
 	    indices.reserve(count);
 	    for (unsigned long dim = 0; dim < count; ++dim)
 		  indices.push_back(build_z3_atom(par, b));
 	    b.collect_refs = saved_refs;
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    if (saved_refs) saved_refs->insert(index_refs.begin(), index_refs.end());
 	    par.skip_ws(); par.expect(')');
 	    Z3_ast valid = Z3_mk_false(b.ctx);
@@ -2371,8 +2807,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
        * The select index may itself be randomized. Fixed part-select bounds
        * have already had caller value slots substituted with constants. */
       if (op == "bit") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast base = build_z3_atom(par, b);
 	    Z3_ast idx = build_z3_atom(par, b);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    unsigned bw = bv_width(b.ctx, base);
 	      // A packed bit select outside the vector's declared domain does
@@ -2411,9 +2853,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       }
 
       if (op == "part") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast base = build_z3_atom(par, b);
 	    uint64_t hi = 0, lo = 0;
 	    bool ok = eval_const_ir(par, hi) && eval_const_ir(par, lo);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    unsigned bw = bv_width(b.ctx, base);
 	    if (!ok || hi < lo || hi >= bw) return mk_free_bv(b, 1);
@@ -2421,12 +2869,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       }
 
       if (op == "concat") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    vector<Z3_ast> parts;
 	    par.skip_ws();
 	    while (par.peek() != ')' && !par.at_end()) {
 		  parts.push_back(build_z3_atom(par, b));
 		  par.skip_ws();
 	    }
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.expect(')');
 	    if (parts.empty())
 		  return Z3_mk_unsigned_int64(b.ctx, 0,
@@ -2435,6 +2889,46 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    for (size_t i = 1 ; i < parts.size() ; i += 1)
 		  out = Z3_mk_concat(b.ctx, out, parts[i]);
 	    return out;
+      }
+
+      /* Integral type/size/sign cast. WIDTH 0 and SIGN 2 preserve the
+	 * operand's self-determined width and signedness, respectively. Build the
+	 * operand under its propagated type before final narrowing. Extension follows the
+	 * operand's signedness; the requested signedness applies to the resulting
+	 * occurrence and to its later consumers. */
+      if (op == "cast") {
+	    uint64_t width_value = 0, sign_value = 0;
+	    bool width_ok = eval_const_ir(par, width_value);
+	    bool sign_ok = eval_const_ir(par, sign_value);
+	    unsigned saved_context = b.integral_context_width;
+	    int saved_context_sign = b.integral_context_sign;
+	    bool saved_typed_mode = b.integral_typed_mode;
+	    constraint_integral_type_t inner_type;
+	    IRParser type_parser = par;
+	    bool type_ok = infer_constraint_integral_type_(type_parser, inner_type);
+	    b.integral_typed_mode = type_ok;
+	    b.integral_context_width = width_ok && width_value <= UINT_MAX
+		  ? (width_value ? (unsigned)width_value
+		                 : type_ok ? inner_type.width : 0) : 0;
+	    b.integral_context_sign = -1;
+	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = saved_context;
+	    b.integral_context_sign = saved_context_sign;
+	    b.integral_typed_mode = saved_typed_mode;
+	    par.skip_ws(); par.expect(')');
+	    arg = bool_to_bv1(b.ctx, arg);
+	    if (!width_ok || !sign_ok || !type_ok
+		|| width_value > UINT_MAX || sign_value > 2) {
+		  b.state_errors.push_back(
+			"unsupported integral expression in constraint cast");
+		  return mk_free_bv(b, 1);
+	    }
+	    unsigned width = width_value ? (unsigned)width_value : b.sv_of(arg);
+	    if (!width) return mk_free_bv(b, 1);
+	    bool is_signed = sign_value == 2 ? b.is_signed(arg)
+		  : sign_value == 1;
+	    Z3_ast value = b.coerce(arg, width);
+	    return b.tag_integral_cast(value, width, is_signed);
       }
 
       /* A method/operator with an explicitly self-determined result width
@@ -2446,7 +2940,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    char*end = 0;
 	    unsigned width = (unsigned)strtoul(spec, &end, 10);
 	    bool is_signed = end && *end == ':' && end[1] == 's';
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    if (width == 0) return mk_free_bv(b, 1);
 	      /* A relational/logical with expression is an integral 1-bit
@@ -2454,13 +2954,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	       * Re-enter the bitvector domain at this explicit width boundary. */
 	    arg = bool_to_bv1(b.ctx, arg);
 	    Z3_ast out = b.coerce(arg, width);
-	    b.set_sv(out, width);
-	    if (is_signed) b.signed_vars.insert(out);
-	    return out;
+	    return b.typed_result(out, width, is_signed);
       }
 
       if (op == "countones") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    unsigned aw = bv_width(b.ctx, arg);
 	    Z3_sort out_sort = Z3_mk_bv_sort(b.ctx, 32);
@@ -2470,12 +2974,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  Z3_ast wide = Z3_mk_zero_ext(b.ctx, 31, bit);
 		  sum = Z3_mk_bvadd(b.ctx, sum, wide);
 	    }
-	    b.set_sv(sum, 32);
-	    return sum;
+	    return b.typed_result(sum, 32, true);
       }
 
       if (op == "onehot" || op == "onehot0") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    unsigned aw = bv_width(b.ctx, arg);
 	    Z3_ast zero = Z3_mk_unsigned_int64(b.ctx, 0,
@@ -2495,7 +3004,31 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    size_t before = b.state_errors.size();
 	    size_t side_before = b.side_constraints.size();
 	    Z3_lbool condition, yes_guard, no_guard;
+	    unsigned saved_width = b.integral_context_width;
+	    int saved_sign = b.integral_context_sign;
+	    unsigned expression_context = saved_width;
+	    bool result_signed = false;
+	    bool typed = b.integral_typed_mode;
+	    if (typed) {
+		  IRParser types = par;
+		  constraint_integral_type_t condition_type, yes_type, no_type;
+		  if (!infer_constraint_integral_type_(types, condition_type)
+		      || !infer_constraint_integral_type_(types, yes_type)
+		      || !infer_constraint_integral_type_(types, no_type)) {
+			b.state_errors.push_back(
+			      "unsupported typed conditional in constraint cast");
+		  } else {
+			expression_context = max(saved_width,
+			      max(yes_type.width, no_type.width));
+			result_signed = saved_sign >= 0 ? saved_sign != 0
+			      : yes_type.sign && no_type.sign;
+		  }
+	    }
+	    b.integral_context_width = 0; // condition is self-determined
+	    b.integral_context_sign = -1;
 	    Z3_ast cond = bv_to_bool(b.ctx, build_z3_atom(par, b, &condition));
+	    b.integral_context_width = expression_context;
+	    b.integral_context_sign = result_signed ? 1 : 0;
 	    size_t after_cond = b.state_errors.size();
 	    size_t side_after_cond = b.side_constraints.size();
 	    size_t checks_after_cond = b.state_checks.size();
@@ -2504,6 +3037,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    size_t side_after_yes = b.side_constraints.size();
 	    size_t checks_after_yes = b.state_checks.size();
 	    Z3_ast no = build_z3_atom(par, b, &no_guard);
+	    leave_typed_context_(b, saved_width, saved_sign);
 	    size_t side_after_no = b.side_constraints.size();
 	    size_t checks_after_no = b.state_checks.size();
 	    constraint_guard_state_checks_(b, checks_after_cond,
@@ -2541,15 +3075,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    no = bool_to_bv1(b.ctx, no);
 	    unsigned sw = b.sv_of(yes);
 	    if (b.sv_of(no) > sw) sw = b.sv_of(no);
+	    if (expression_context > sw) sw = expression_context;
             // Both arms determine the common type, including the unchosen
             // arm (IEEE 1800-2017/2023 11.6.1, 11.8.1, 11.8.2).
-            bool result_signed = b.is_signed(yes) && b.is_signed(no);
+	    if (!typed) result_signed = b.is_signed(yes) && b.is_signed(no);
 	    yes = b.coerce_in_context(yes, sw, result_signed);
 	    no = b.coerce_in_context(no, sw, result_signed);
 	    Z3_ast out = Z3_mk_ite(b.ctx, cond, yes, no);
-	    b.set_sv(out, sw);
-            if (result_signed) b.signed_vars.insert(out);
-	    return out;
+	    return b.typed_result(out, sw, result_signed);
       }
 
       if (op == "and" || op == "or") {
@@ -2557,11 +3090,17 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    size_t side_before = b.side_constraints.size();
 	    size_t checks_before = b.state_checks.size();
 	    Z3_lbool left_guard, right_guard;
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b, &left_guard));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
 	    size_t checks_after_left = b.state_checks.size();
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b, &right_guard));
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    size_t side_after_right = b.side_constraints.size();
 	    size_t checks_after_right = b.state_checks.size();
 	    Z3_ast left_error = constraint_state_error_disjunction_(
@@ -2622,6 +3161,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    size_t before = b.state_errors.size();
 	    size_t side_before = b.side_constraints.size();
 	    Z3_lbool left_guard;
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b, &left_guard));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
@@ -2629,14 +3172,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             if (op == "impl" && before == after_left && left_guard == Z3_L_FALSE) {
                   // Eliminate the guarded constraint before registering any
                   // soft/disable-soft/order/foreach side effects.
-                  if (par.peek() == '(') { par.consume(); capture_balanced_form(par); }
-                  else par.read_token();
-                  par.expect(')');
+		  if (par.peek() == '(') { par.consume(); capture_balanced_form(par); }
+		  else par.read_token();
+		  par.expect(')');
+		  b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
                   if (guard) *guard = Z3_L_TRUE;
                   return b.mk_true();
             }
 	    if (op == "impl") b.soft_guards.push_back(left);
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    if (op == "impl") b.soft_guards.pop_back();
 	    size_t side_after_right = b.side_constraints.size();
 	    size_t checks_after_right = b.state_checks.size();
@@ -2670,14 +3217,35 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
        * Evaluating at the operand width instead, which is what this
        * did, wrapped `a + b == 300' mod 256 and reported UNSAT. */
       if (op == "pow") {
+	    unsigned saved_width = b.integral_context_width;
+	    int saved_sign = b.integral_context_sign;
+	    unsigned typed_width = 0;
+	    bool typed_sign = false;
+	    bool typed = b.integral_typed_mode;
+	    if (typed && !enter_typed_binary_context_(
+		  par, b, true, saved_width, saved_sign,
+		  typed_width, typed_sign))
+		  b.state_errors.push_back(
+			"unsupported typed power in constraint cast");
 	    Z3_ast left = build_z3_atom(par, b);
+	    unsigned expression_context = typed ? typed_width
+		  : b.integral_context_width;
+	    int expression_sign = b.integral_context_sign;
+	    b.integral_context_width = 0; // exponent is self-determined
+	    b.integral_context_sign = -1;
 	    Z3_ast right = build_z3_atom(par, b);
+	    if (typed) leave_typed_context_(b, saved_width, saved_sign);
+	    else {
+		  b.integral_context_width = expression_context;
+		  b.integral_context_sign = expression_sign;
+	    }
 	    par.skip_ws(); par.expect(')');
-	    bool result_signed = b.is_signed(left);
+	    bool result_signed = typed ? typed_sign : b.is_signed(left);
 
 	    unsigned sw = b.sv_of(left);
+	    if (expression_context > sw) sw = expression_context;
 	    if (sw == 0) sw = 32;
-	    left = b.coerce(left, sw);
+	    left = b.coerce_in_context(left, sw, result_signed);
 	    Z3_sort sort = Z3_mk_bv_sort(b.ctx, sw);
 	    Z3_ast result = Z3_mk_unsigned_int64(b.ctx, 1, sort);
 
@@ -2709,31 +3277,44 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			base = Z3_mk_bvmul(b.ctx, base, base);
 		  }
 	    }
-	    b.set_sv(result, sw);
-	    if (result_signed) b.signed_vars.insert(result);
-	    return result;
+	    return b.typed_result(result, sw, result_signed);
       }
 
       if (op == "add" || op == "sub" || op == "mul"
 	  || op == "div" || op == "mod") {
+	    unsigned saved_width = b.integral_context_width;
+	    int saved_sign = b.integral_context_sign;
+	    unsigned typed_width = 0;
+	    bool typed_sign = false;
+	    bool typed = b.integral_typed_mode;
+	    if (typed && !enter_typed_binary_context_(
+		  par, b, false, saved_width, saved_sign,
+		  typed_width, typed_sign))
+		  b.state_errors.push_back(
+			"unsupported typed arithmetic in constraint cast");
 	    Z3_ast left  = build_z3_atom(par, b);
 	    Z3_ast right = build_z3_atom(par, b);
+	    if (typed) leave_typed_context_(b, saved_width, saved_sign);
 	    par.skip_ws(); par.expect(')');
 	    // IEEE 1800-2017 11.8.1: a binary arithmetic result is signed
 	    // only when both operands are signed. This common context also
 	    // controls how both operands extend before the operation.
-	    bool result_signed = b.is_signed(left) && b.is_signed(right);
+	    bool result_signed = typed ? typed_sign
+		  : b.is_signed(left) && b.is_signed(right);
 
 	    unsigned sv = b.sv_of(left);
 	    if (b.sv_of(right) > sv) sv = b.sv_of(right);
+	    if (typed) sv = typed_width;
+	    else if (b.integral_context_width > sv) sv = b.integral_context_width;
 
 	    unsigned lw = bv_width(b.ctx, left);
 	    unsigned rw = bv_width(b.ctx, right);
 	    unsigned work = lw > rw ? lw : rw;
 	      /* Headroom so the operation itself cannot lose bits: one
 		 carry for add/sub, the full lw+rw for a product. */
-	    if (op == "add" || op == "sub") work += 1;
-	    else if (op == "mul") work = lw + rw;
+	    if (!typed && (op == "add" || op == "sub")) work += 1;
+	    else if (!typed && op == "mul") work = lw + rw;
+	    else if (typed) work = typed_width;
 	    if (work < sv) work = sv;
 
 	    left  = b.coerce_in_context(left,  work, result_signed);
@@ -2749,59 +3330,124 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    else                  r = result_signed
 		  ? Z3_mk_bvsrem(b.ctx, left, right)
 		  : Z3_mk_bvurem(b.ctx, left, right);
-	    b.set_sv(r, sv);
-	    if (result_signed) b.signed_vars.insert(r);
-	    return r;
+	    return b.typed_result(r, sv, result_signed);
       }
 
       if (op == "neg") {
+	    constraint_integral_type_t inferred;
+	    IRParser type_parser = par;
+	    bool typed = b.integral_typed_mode;
+	    bool type_ok = !typed || infer_constraint_integral_type_(type_parser, inferred);
+	    if (!type_ok)
+		  b.state_errors.push_back(
+			"unsupported typed unary expression in constraint cast");
 	    Z3_ast arg = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
+	    unsigned width = b.sv_of(arg);
+	    if (b.integral_context_width > width)
+		  width = b.integral_context_width;
+	    bool result_signed = typed && b.integral_context_sign >= 0
+		  ? b.integral_context_sign != 0
+		  : typed && type_ok ? inferred.sign : b.is_signed(arg);
+	    arg = b.coerce_in_context(arg, width, result_signed);
 	    Z3_ast out = Z3_mk_bvneg(b.ctx, arg);
-	    b.set_sv(out, b.sv_of(arg));
-	    if (b.is_signed(arg)) b.signed_vars.insert(out);
-	    return out;
+	    return b.typed_result(out, width, result_signed);
       }
 
       if (op == "band" || op == "bor" || op == "bxor") {
+	    unsigned saved_width = b.integral_context_width;
+	    int saved_sign = b.integral_context_sign;
+	    unsigned typed_width = 0;
+	    bool typed_sign = false;
+	    bool typed = b.integral_typed_mode;
+	    if (typed && !enter_typed_binary_context_(
+		  par, b, false, saved_width, saved_sign,
+		  typed_width, typed_sign))
+		  b.state_errors.push_back(
+			"unsupported typed bitwise expression in constraint cast");
 	    Z3_ast left = build_z3_atom(par, b);
 	    Z3_ast right = build_z3_atom(par, b);
+	    if (typed) leave_typed_context_(b, saved_width, saved_sign);
 	    par.skip_ws(); par.expect(')');
 	    unsigned sw = b.sv_of(left);
 	    if (b.sv_of(right) > sw) sw = b.sv_of(right);
-	    left = b.coerce(left, sw);
-	    right = b.coerce(right, sw);
+	    if (typed) sw = typed_width;
+	    else if (b.integral_context_width > sw) sw = b.integral_context_width;
+	    bool result_signed = typed ? typed_sign
+		  : b.is_signed(left) && b.is_signed(right);
+	    left = b.coerce_in_context(left, sw, result_signed);
+	    right = b.coerce_in_context(right, sw, result_signed);
 	    Z3_ast out = op == "band" ? Z3_mk_bvand(b.ctx, left, right)
 		  : op == "bor" ? Z3_mk_bvor(b.ctx, left, right)
 		  : Z3_mk_bvxor(b.ctx, left, right);
-	    b.set_sv(out, sw);
-	    return out;
+	    return b.typed_result(out, sw, result_signed);
       }
 
       if (op == "shl" || op == "lshr" || op == "ashr") {
+	    unsigned saved_width = b.integral_context_width;
+	    int saved_sign = b.integral_context_sign;
+	    unsigned typed_width = 0;
+	    bool typed_sign = false;
+	    bool typed = b.integral_typed_mode;
+	    if (typed && !enter_typed_binary_context_(
+		  par, b, true, saved_width, saved_sign,
+		  typed_width, typed_sign))
+		  b.state_errors.push_back(
+			"unsupported typed shift in constraint cast");
 	    Z3_ast left = build_z3_atom(par, b);
+	    unsigned expression_context = typed ? typed_width
+		  : b.integral_context_width;
+	    int expression_sign = b.integral_context_sign;
+	    b.integral_context_width = 0; // shift count is self-determined
+	    b.integral_context_sign = -1;
 	    Z3_ast right = build_z3_atom(par, b);
+	    if (typed) leave_typed_context_(b, saved_width, saved_sign);
+	    else {
+		  b.integral_context_width = expression_context;
+		  b.integral_context_sign = expression_sign;
+	    }
 	    par.skip_ws(); par.expect(')');
 	    unsigned lw = b.sv_of(left);
-	    left = b.coerce(left, lw);
+	    if (expression_context > lw) lw = expression_context;
+	    bool result_signed = typed ? typed_sign : b.is_signed(left);
+	    left = b.coerce_in_context(left, lw, result_signed);
 	    right = b.coerce(right, lw);
 	    Z3_ast out = op == "shl" ? Z3_mk_bvshl(b.ctx, left, right)
-		  : op == "lshr" ? Z3_mk_bvlshr(b.ctx, left, right)
-		  : Z3_mk_bvashr(b.ctx, left, right);
-	    b.set_sv(out, lw);
-	    return out;
+		  : op == "lshr" || !result_signed
+		    ? Z3_mk_bvlshr(b.ctx, left, right)
+		    : Z3_mk_bvashr(b.ctx, left, right);
+	    return b.typed_result(out, lw, result_signed);
       }
 
       if (op == "bnot") {
+	    constraint_integral_type_t inferred;
+	    IRParser type_parser = par;
+	    bool typed = b.integral_typed_mode;
+	    bool type_ok = !typed || infer_constraint_integral_type_(type_parser, inferred);
+	    if (!type_ok)
+		  b.state_errors.push_back(
+			"unsupported typed unary expression in constraint cast");
 	    Z3_ast arg = build_z3_atom(par, b);
 	    par.skip_ws(); par.expect(')');
+	    unsigned width = b.sv_of(arg);
+	    if (b.integral_context_width > width)
+		  width = b.integral_context_width;
+	    bool result_signed = typed && b.integral_context_sign >= 0
+		  ? b.integral_context_sign != 0
+		  : typed && type_ok ? inferred.sign : b.is_signed(arg);
+	    arg = b.coerce_in_context(arg, width, result_signed);
 	    Z3_ast out = Z3_mk_bvnot(b.ctx, arg);
-	    b.set_sv(out, b.sv_of(arg));
-	    return out;
+	    return b.typed_result(out, width, result_signed);
       }
 
       if (op == "redand" || op == "redor" || op == "redxor") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast arg = build_z3_atom(par, b);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    unsigned aw = bv_width(b.ctx, arg);
 	    Z3_ast bit = Z3_mk_extract(b.ctx, 0, 0, arg);
@@ -2820,7 +3466,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	     * (e.g. `(eq lhs (not c:1))`) expect a BitVec result, not a
 	     * Bool.  Implement as ITE over a Bool view of the operand. */
 	    Z3_lbool child_guard;
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    b.integral_context_width = 0;
+	    b.integral_context_sign = -1;
 	    Z3_ast raw = build_z3_atom(par, b, guard ? &child_guard : nullptr);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
             if (guard && child_guard != Z3_L_UNDEF)
                   *guard = child_guard == Z3_L_TRUE ? Z3_L_FALSE : Z3_L_TRUE;
 	    par.skip_ws(); par.expect(')');
@@ -2835,8 +3487,29 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       // Binary comparison: lt le gt ge eq ne
       if (op == "lt" || op == "le" || op == "gt" || op == "ge"
 	  || op == "eq" || op == "ne") {
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    if (b.integral_typed_mode) {
+		  IRParser types = par;
+		  constraint_integral_type_t left_type, right_type;
+		  if (!infer_constraint_integral_type_(types, left_type)
+		      || !infer_constraint_integral_type_(types, right_type)) {
+			b.state_errors.push_back(
+			      "unsupported typed comparison in constraint cast");
+			b.integral_context_width = 0;
+			b.integral_context_sign = -1;
+		  } else {
+			b.integral_context_width = max(left_type.width, right_type.width);
+			b.integral_context_sign = left_type.sign && right_type.sign ? 1 : 0;
+		  }
+	    } else {
+		  b.integral_context_width = 0;
+		  b.integral_context_sign = -1;
+	    }
 	    Z3_ast left  = build_z3_atom(par, b);
 	    Z3_ast right = build_z3_atom(par, b);
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	      // A nested comparison is a one-bit SystemVerilog integral value,
 	      // although Z3 represents it as Bool. Equality and relational
@@ -2880,26 +3553,49 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       if (op == "inside") {
 	    // Format: (inside p:N:W [lo,hi] val ...) where lo/hi/val are
 	    // atoms: c:V literals or parenthesized expressions.
+	    unsigned outer_context = b.integral_context_width;
+	    int outer_sign = b.integral_context_sign;
+	    bool typed = b.integral_typed_mode;
+	    bool type_ok = false;
+	    constraint_integral_type_t common_type;
+	    if (typed) {
+		  IRParser types = par;
+		  type_ok = infer_constraint_inside_type_(types, common_type);
+		  if (!type_ok) {
+			b.state_errors.push_back(
+			      "unsupported integral type in constraint inside expression");
+		  }
+	    }
+	    b.integral_context_width = type_ok ? common_type.width : 0;
+	    b.integral_context_sign = type_ok ? (common_type.sign ? 1 : 0) : -1;
 	    Z3_ast subject = build_z3_atom(par, b);
-	    unsigned subj_sv = b.sv_of(subject);
+	    if (type_ok)
+		  subject = b.coerce_in_context(subject, common_type.width,
+					       common_type.sign);
+	    unsigned subj_sv = type_ok ? common_type.width : b.sv_of(subject);
 	      // A signed subject selects signed range semantics
 	      // (IEEE 1800-2017 11.4.13, 11.8.1).
-	    bool subj_signed = b.is_signed(subject);
+	    bool subj_signed = type_ok ? common_type.sign : b.is_signed(subject);
 
-	      // `inside' compares like `==' (11.4.13), so each member is
-	      // sized WITH the subject to the wider of the two -- the
-	      // subject is not the ceiling. Truncating members down to the
-	      // subject's width, which is what this did, silently rewrote
-	      // `x inside {[0:300]}' on an 8-bit x into `x inside {[0:44]}'.
+	      // IEEE 1800-2017/2023 Table 11-21 omits inside sizing, but the
+	      // reported LRM-issue consensus and interoperable implementation
+	      // policy use one common type across the subject, every member, and
+	      // both range bounds before doing any comparison. The typed cast
+	      // path computes that type above. The helpers below retain the old
+	      // pairwise behavior only for constraints outside a typed cast.
 	    auto member_width = [&](Z3_ast a) -> unsigned {
 		  unsigned mw = b.sv_of(a);
 		  return mw > subj_sv ? mw : subj_sv;
 	    };
 	    auto match_width = [&](Z3_ast a) -> Z3_ast {
-		  return b.coerce(a, member_width(a));
+		  return type_ok
+			? b.coerce_in_context(a, common_type.width,
+					      common_type.sign)
+			: b.coerce(a, member_width(a));
 	    };
 	    auto subj_at = [&](Z3_ast member) -> Z3_ast {
-		  return b.coerce(subject, bv_width(b.ctx, member));
+		  return type_ok ? subject
+			: b.coerce(subject, bv_width(b.ctx, member));
 	    };
 	    auto range_ge = [&](Z3_ast x, Z3_ast lo) -> Z3_ast {
 		  return subj_signed ? Z3_mk_bvsge(b.ctx, x, lo)
@@ -2933,11 +3629,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			unsigned rw = subj_sv;
 			if (lo_raw && member_width(lo_raw) > rw) rw = member_width(lo_raw);
 			if (hi_raw && member_width(hi_raw) > rw) rw = member_width(hi_raw);
-			Z3_ast sx = b.coerce(subject, rw);
+			if (type_ok) rw = common_type.width;
+			Z3_ast sx = type_ok ? subject : b.coerce(subject, rw);
 			Z3_ast c1 = lo_raw
-			      ? range_ge(sx, b.coerce(lo_raw, rw)) : 0;
+			      ? range_ge(sx, type_ok
+				    ? b.coerce_in_context(lo_raw, rw,
+							 common_type.sign)
+				    : b.coerce(lo_raw, rw)) : 0;
 			Z3_ast c2 = hi_raw
-			      ? range_le(sx, b.coerce(hi_raw, rw)) : 0;
+			      ? range_le(sx, type_ok
+				    ? b.coerce_in_context(hi_raw, rw,
+							 common_type.sign)
+				    : b.coerce(hi_raw, rw)) : 0;
 			if (c1 && c2) {
 			      Z3_ast both[2] = {c1, c2};
 			      clauses.push_back(Z3_mk_and(b.ctx, 2, both));
@@ -2968,11 +3671,21 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, v,
 						      Z3_mk_bv_sort(b.ctx, cw));
 			      if (csign) cv = b.tag_signed_constant(cv);
-			      unsigned mw = member_width(cv);
-			      clauses.push_back(Z3_mk_eq(b.ctx,
-					    b.coerce(subject, mw),
-					    b.coerce(cv, mw)));
-			} else if (tok == "qempty") {
+			      cv = match_width(cv);
+			      clauses.push_back(Z3_mk_eq(b.ctx, subj_at(cv), cv));
+			} else if (tok.compare(0, 5, "qbad:") == 0) {
+			      if (b.collect_preferences && !b.collect_refs_only) {
+				    Z3Builder::StateCheck check = {
+					  b.mk_true(),
+					  "X/Z inside container state element in constraint (IEEE 1800-2017/2023 18.3)"
+				    };
+				    b.state_checks.push_back(check);
+			      }
+			      // Placeholder only; the guarded state check above
+			      // prevents every active solve from accepting it.
+			      clauses.push_back(Z3_mk_false(b.ctx));
+			} else if (tok == "qempty"
+				   || tok.compare(0, 7, "qempty:") == 0) {
 			      clauses.push_back(Z3_mk_false(b.ctx));
 			} else if (tok.substr(0,2) == "q:") {
 			      // Queue/darray property container: expand the
@@ -2983,14 +3696,35 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      // values, so randomize() must fail.
 			      unsigned qpidx, qewid; bool qesig;
 			      parse_pws_header(tok.substr(2), qpidx, qewid, qesig);
-			      if (qewid > 64) qewid = 64;
+			      if (typed && qewid > 64) {
+				    b.state_errors.push_back(
+					  "inside container elements wider than 64 bits are not yet supported");
+			      }
+			      if (qewid > 64) {
+				    qewid = 64;
+			      }
 			      uint64_t qcount = b.cobj
 				    ? cobj_darray_size(b.cobj, qpidx) : 0;
 			      if (qcount == 0) {
 				    clauses.push_back(Z3_mk_false(b.ctx));
 			      } else for (uint64_t qi = 0; qi < qcount; qi += 1) {
-				    uint64_t bits =
-					  cobj_elem_bits(b.cobj, qpidx, (unsigned)qi);
+				    uint64_t bits = 0;
+				    vvp_vector4_t value;
+				    bool known = cobj_elem_vec4_(
+					  b.cobj, qpidx, (unsigned)qi, value)
+					  && value.size() == qewid
+					  && vec4_to_uint64_(value, bits);
+				    if (b.collect_preferences
+				        && !b.collect_refs_only && !known) {
+					  Z3Builder::StateCheck check = {
+						b.mk_true(),
+						"X/Z inside container state element in constraint (IEEE 1800-2017/2023 18.3)"
+					  };
+					  b.state_checks.push_back(check);
+				    }
+				    if (!typed || !known)
+					  bits = cobj_elem_bits(
+						b.cobj, qpidx, (unsigned)qi);
 				    if (qewid < 64)
 					  bits &= (1ULL << qewid) - 1;
 				    if (qesig && qewid < 64
@@ -3006,10 +3740,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 				    Z3_ast cv = Z3_mk_unsigned_int64(b.ctx, bits,
 					    Z3_mk_bv_sort(b.ctx, qewid));
 				    if (qesig) cv = b.tag_signed_constant(cv);
-				    unsigned mw = member_width(cv);
-				    clauses.push_back(Z3_mk_eq(b.ctx,
-					    b.coerce(subject, mw),
-					    b.coerce(cv, mw)));
+				    cv = match_width(cv);
+				    clauses.push_back(
+					  Z3_mk_eq(b.ctx, subj_at(cv), cv));
 			      }
 			} else if (tok.empty()) {
 			      // Unrecognized input: consume one char so the
@@ -3021,6 +3754,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  par.skip_ws();
 	    }
 	    par.expect(')');
+	    b.integral_context_width = outer_context;
+	    b.integral_context_sign = outer_sign;
 
 	    if (clauses.empty()) return b.mk_true();
 	    if (clauses.size() == 1) return clauses[0];
@@ -3990,11 +4725,13 @@ static bool substitute_class_slots_(const string&ir,
 }
 
 /* Scope std::randomize may also carry queue/darray membership operands.
- * qv:N:W[:s] expands to the current element values as ordinary inside-set
- * tokens. Keep a distinct qempty token so membership in an empty queue is
- * false rather than the vacuous true of an accidentally empty set. */
+ * qv:N:W[:s] expands known elements to ordinary constants and unknown ones
+ * to qbad:W[:s], which the typed inside path turns into a guard-aware 18.3
+ * error. Keep qempty:W[:s] so an empty queue is false rather than vacuously
+ * true, while retaining its declared type for context sizing. */
 static string substitute_scope_object_slots(
-      const string&ir, const vector<vector<uint64_t> >&object_vals)
+      const string&ir, const vector<vector<uint64_t> >&object_vals,
+      const vector<vector<bool> >&object_known)
 {
       string result;
       const char*p = ir.c_str();
@@ -4061,13 +4798,20 @@ static string substitute_scope_object_slots(
 			if (*q == ':' && q[1] == 's') { is_signed = true; q += 2; }
 		  }
 		  if (slot >= object_vals.size() || object_vals[slot].empty()) {
-			result += "qempty";
+			result += "qempty:" + to_string(width)
+			      + (is_signed ? ":s" : "");
 		  } else {
 			for (size_t i = 0 ; i < object_vals[slot].size() ; i += 1) {
 			      if (i) result += " ";
-			      result += "c:" + to_string(object_vals[slot][i])
-				    + ":" + to_string(width)
-				    + (is_signed ? ":s" : "");
+			      bool known = slot < object_known.size()
+				    && i < object_known[slot].size()
+				    && object_known[slot][i];
+			      result += known
+				    ? "c:" + to_string(object_vals[slot][i])
+					  + ":" + to_string(width)
+					  + (is_signed ? ":s" : "")
+				    : "qbad:" + to_string(width)
+					  + (is_signed ? ":s" : "");
 			}
 		  }
 		  p = q;
@@ -4490,7 +5234,7 @@ class state_foreach_expander_t {
                   {"eq",2}, {"ne",2}, {"and",2}, {"or",2}, {"impl",2},
                   {"iff",2}, {"band",2}, {"bor",2}, {"bxor",2},
                   {"shl",2}, {"lshr",2}, {"ashr",2}, {"bit",2},
-                  {"order",2}, {"ite",3}, {"part",3}
+                  {"order",2}, {"ite",3}, {"part",3}, {"cast",3}
             };
             auto arity = arities.find(op);
             bool directive = op == "order" || op == "vars" || op == "dist"
@@ -6424,8 +7168,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             vector<vector<Z3_ast> > components;
             if (!z3_joint_components_(ctx, base, variables, components))
                   return fail_joint("the joint dependency graph contains an unsupported expression");
-            vector<const Z3Builder::DistSpec*> distributions(components.size(), nullptr);
-            vector<size_t> subject_columns(components.size());
+            struct JointDistBinding {
+                  const Z3Builder::DistSpec*spec;
+                  size_t subject_column;
+                  unsigned stage;
+            };
+            vector<vector<JointDistBinding> > distributions(components.size());
             for (const auto&spec : builder.dist_specs) {
                   if (dist_disabled(spec)) continue;
                   // IEEE 1800-2017 18.5.4; IEEE 1800-2023 18.5.3.
@@ -6439,10 +7187,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         const auto&component = components[ci];
                         auto subject = find(component.begin(), component.end(), spec.subject);
                         if (subject == component.end()) continue;
-                        if (distributions[ci])
-                              return fail_joint("multiple distributions in a coupled component are not yet supported");
-                        distributions[ci] = &spec;
-                        subject_columns[ci] = subject - component.begin();
+                        unsigned stage = final_stage;
+                        auto subject_stage = stages.find(spec.subject);
+                        if (subject_stage != stages.end())
+                              stage = subject_stage->second;
+                        distributions[ci].push_back({
+                              &spec, (size_t)(subject - component.begin()), stage
+                        });
                         found = true;
                         break;
                   }
@@ -6453,9 +7204,62 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // choosing a weighted value could otherwise bias successful calls.
             vector<vector<vector<uint64_t> > > tables(components.size());
             for (size_t ci = 0; ci < components.size(); ++ci) {
+                  if (distributions[ci].size() > 1) continue;
                   const char*reason = nullptr;
                   if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
                         return fail_joint(reason);
+            }
+            // IEEE 1800-2017 18.5.4 and IEEE 1800-2023 18.5.3 do
+            // not define product weights (or any other combination rule) for
+            // separate dist expressions in one coupled component. Resolve
+            // them in stable IR order within each solve-before stage. Before
+            // drawing, prove every unweighted stage projection is globally
+            // bounded: any later conditional fiber is a subset of this set,
+            // so a random prefix cannot decide whether the cap is exceeded.
+            // The 2023 retained source-range mass policy is also a valid 2017
+            // implementation choice when other constraints exclude weighted
+            // choices; do not require complete ranges in this staged path.
+            bool has_multiple_distributions = any_of(distributions.begin(),
+                  distributions.end(), [](const vector<JointDistBinding>&v) {
+                        return v.size() > 1;
+                  });
+            if (has_multiple_distributions) {
+                  Z3_lbool feasible = Z3_solver_check(ctx, base);
+                  if (feasible == Z3_L_FALSE) return fail_joint(nullptr);
+                  if (feasible != Z3_L_TRUE)
+                        return fail_joint("the solver returned UNKNOWN while preflighting coupled distributions");
+            }
+            for (size_t ci = 0; ci < components.size(); ++ci) {
+                  const auto&bindings = distributions[ci];
+                  if (bindings.size() <= 1) continue;
+                  const auto&component = components[ci];
+                  set<Z3_ast> weighted;
+                  for (const auto&binding : bindings) {
+                        weighted.insert(binding.spec->subject);
+                        uint64_t ignored = 0;
+                        if (!z3_resolve_dist_exact(ctx, base, opt,
+                              *binding.spec,
+                              owner_rng(binding.spec->rng_owner), ignored,
+                              false, true))
+                              return fail_joint("a coupled distribution cannot be sampled exactly");
+                  }
+                  for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                        vector<Z3_ast> projection;
+                        for (Z3_ast var : component) {
+                              unsigned due = final_stage;
+                              auto found = stages.find(var);
+                              if (found != stages.end()) due = found->second;
+                              if (due == stage && !weighted.count(var))
+                                    projection.push_back(var);
+                        }
+                        if (projection.empty()) continue;
+                        vector<vector<uint64_t> > values;
+                        const char*reason = nullptr;
+                        if (z3_enumerate_joint_(ctx, base, projection,
+                              ENUM_DOMAIN_CAP, values, reason) != Z3_L_TRUE)
+                              return fail_joint(reason ? reason
+                                    : "a coupled stage projection cannot be proved");
+                  }
             }
             // Prove every ordered prefix can resolve its due distribution
             // before consuming any random draw. The common 2017/2023 subset
@@ -6466,8 +7270,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // UNKNOWN ahead of all component/stage sampling.
             if (!builder.order_pairs.empty()) {
                   for (size_t ci = 0; ci < components.size(); ++ci) {
-                        const auto*spec = distributions[ci];
-                        if (!spec) continue;
+                        if (distributions[ci].size() != 1) continue;
+                        const auto*spec = distributions[ci][0].spec;
                         const auto&component = components[ci];
                         unsigned dist_stage = final_stage;
                         auto subject_stage = stages.find(spec->subject);
@@ -6508,12 +7312,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   const auto&component = components[ci];
                   auto&tuples = tables[ci];
-                  const auto*spec = distributions[ci];
-                  size_t subject_column = spec ? subject_columns[ci] : 0;
+                  const auto&bindings = distributions[ci];
+                  const auto*spec = bindings.size() == 1
+                        ? bindings[0].spec : nullptr;
+                  size_t subject_column = spec
+                        ? bindings[0].subject_column : 0;
                   unsigned dist_stage = final_stage;
                   if (spec) {
-                        auto found = stages.find(spec->subject);
-                        if (found != stages.end()) dist_stage = found->second;
+                        dist_stage = bindings[0].stage;
                   }
                   auto pin_column = [&](size_t column, uint64_t bits) {
                         Z3_ast value = Z3_mk_unsigned_int64(ctx, bits,
@@ -6522,6 +7328,50 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         Z3_solver_assert(ctx, base, pin);
                         Z3_optimize_assert(ctx, opt, pin);
                   };
+                  if (bindings.size() > 1) {
+                        set<Z3_ast> weighted;
+                        for (const auto&binding : bindings)
+                              weighted.insert(binding.spec->subject);
+                        for (unsigned stage = 0; stage <= final_stage; ++stage) {
+                              // Weighted subjects are resolved before ordinary
+                              // peers at the same stage. Otherwise a uniform
+                              // projection could erase an ordered dist marginal.
+                              for (const auto&binding : bindings) {
+                                    if (binding.stage != stage) continue;
+                                    uint64_t subject = 0;
+                                    if (!z3_resolve_dist_exact(ctx, base, opt,
+                                          *binding.spec,
+                                          owner_rng(binding.spec->rng_owner),
+                                          subject, false))
+                                          return fail_joint("a coupled distribution could not be sampled exactly in its staged fiber");
+                              }
+                              vector<size_t> columns;
+                              vector<Z3_ast> projection;
+                              for (size_t i = 0; i < component.size(); ++i) {
+                                    unsigned due = final_stage;
+                                    auto found = stages.find(component[i]);
+                                    if (found != stages.end())
+                                          due = found->second;
+                                    if (due == stage
+                                        && !weighted.count(component[i])) {
+                                          columns.push_back(i);
+                                          projection.push_back(component[i]);
+                                    }
+                              }
+                              if (projection.empty()) continue;
+                              vector<vector<uint64_t> > values;
+                              const char*reason = nullptr;
+                              if (z3_enumerate_joint_(ctx, base, projection,
+                                    ENUM_DOMAIN_CAP, values, reason) != Z3_L_TRUE)
+                                    return fail_joint(reason ? reason
+                                          : "a coupled stage projection could not be sampled");
+                              const auto&chosen = values[values.size() == 1
+                                    ? 0 : root_rng.uniform_index(values.size())];
+                              for (size_t i = 0; i < columns.size(); ++i)
+                                    pin_column(columns[i], chosen[i]);
+                        }
+                        continue;
+                  }
                   // Resolve stages in order. Prefix pins are installed in the
                   // hard solver immediately, so a distribution on a later
                   // subject is sampled from its actual conditional fiber.
@@ -8043,6 +8893,7 @@ bool vvp_z3_randomize_scope(const string&ir,
 			    const vector<unsigned>&widths,
 			    const vector<uint64_t>&slot_vals,
 			    const vector<vector<uint64_t> >&object_vals,
+			    const vector<vector<bool> >&object_known,
 			    vector<string>&values)
 {
       values.clear();
@@ -8060,7 +8911,7 @@ bool vvp_z3_randomize_scope(const string&ir,
       builder.opt = opt;
 
       string sub = substitute_slots(ir, slot_vals);
-      sub = substitute_scope_object_slots(sub, object_vals);
+      sub = substitute_scope_object_slots(sub, object_vals, object_known);
       Z3_ast assertion = parse_constraint_ir(sub, builder);
       if (!builder.state_errors.empty()) {
             fprintf(stderr, "ERROR: constraint state read: %s.\n",
@@ -8078,6 +8929,13 @@ bool vvp_z3_randomize_scope(const string&ir,
 			  Z3_ast_to_string(ctx, builder.pending_soft[i].a));
       }
       Z3_optimize_assert(ctx, opt, assertion);
+      Z3_ast any_state_error = nullptr;
+      if (!builder.state_checks.empty()) {
+	    any_state_error = constraint_state_error_disjunction_(
+		  builder, 0, builder.state_checks.size());
+	    Z3_optimize_assert(ctx, opt,
+			      Z3_mk_not(ctx, any_state_error));
+      }
 
 	// Ensure even a variable absent from the constraint is represented:
 	// every argument of std::randomize is randomized, not only those
@@ -8141,6 +8999,29 @@ bool vvp_z3_randomize_scope(const string&ir,
 
       Z3_lbool result = Z3_optimize_check(ctx, opt, 0, nullptr);
       if (result == Z3_L_FALSE) {
+	    if (any_state_error) {
+		  Z3_solver diagnostic = Z3_mk_simple_solver(ctx);
+		  Z3_solver_inc_ref(ctx, diagnostic);
+		  Z3_solver_assert(ctx, diagnostic, assertion);
+		  Z3_solver_assert(ctx, diagnostic, any_state_error);
+		  if (Z3_solver_check(ctx, diagnostic) == Z3_L_TRUE) {
+			Z3_model model = Z3_solver_get_model(ctx, diagnostic);
+			Z3_model_inc_ref(ctx, model);
+			for (const auto&check : builder.state_checks) {
+			      Z3_ast value = nullptr;
+			      if (!Z3_model_eval(ctx, model, check.error, 1, &value)
+			          || !value
+			          || Z3_get_bool_value(ctx, Z3_simplify(ctx, value))
+			                         != Z3_L_TRUE) continue;
+			      fprintf(stderr,
+				    "ERROR: constraint state read: %s.\n",
+				    check.message.c_str());
+			      break;
+			}
+			Z3_model_dec_ref(ctx, model);
+		  }
+		  Z3_solver_dec_ref(ctx, diagnostic);
+	    }
 	    Z3_optimize_dec_ref(ctx, opt);
 	    Z3_del_context(ctx);
 	    return false;

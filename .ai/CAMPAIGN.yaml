@@ -1,5 +1,5 @@
 status: active
-phase: baseline_locally_qualified_next_patch_review
+phase: constraint_candidates_validated_synthesis_repair_in_progress
 branch: agent/reviewed-main-baseline-20260920
 merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 local_unqualified_integration: 0133287ec092a6e36d1e6fe18db28835af13e127
@@ -342,3 +342,8 @@ nba_overlay_incremental_checkpoint:
   remaining: Dynamic unpacked word mapping assertion and incorrect packed/unpacked blocking-selector results, both editions.
   owner: synthesis_nba_completion private incremental repair; coordinator shared integration and tests.
   next: Review next private patch, rebuild and run paired synthesis focus before synthesis neighbors.
+
+constraint_post_queue_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
+  next: Complete synthesis repair and paired runtime acceptance before broad batch gates and PR.
+  shared_processes: No build or test running; synthesis worker owns private repair.
