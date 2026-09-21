@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_uarray_invalid_row_mixed_driver.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_uarray_invalid_row_mixed_driver"
+}

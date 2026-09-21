@@ -1,0 +1,17 @@
+{
+  "status": "FOCUSED_TESTED_PENDING_BROAD_RERUN",
+  "root_cause": "The mixed-driver row check converted a checked X constant address to host integer zero and probed the wrong row.",
+  "repair": "Skip overlap calculation and driven-word loop only for a proven undefined constant canonical address. Preserve dynamic and valid constant checks; retain invalid lvalue for ordinary no-op lowering.",
+  "standards": [
+    "IEEE1800-2017 7.4.6",
+    "IEEE1800-2023 7.4.5"
+  ],
+  "tests": {
+    "array_slice_neighbors": 24,
+    "paired_positive_negative_boundary": 6,
+    "permanent_boundary_legacy": 2,
+    "permanent_boundary_json": 2
+  },
+  "evidence": "evidence/review-20260920/batch-20260921/first-regressions",
+  "remaining": "Repeat integrated broad gate; other six gates still pending."
+}

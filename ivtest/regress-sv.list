@@ -4070,3 +4070,6 @@ sv_unowned_unpacked_word_initialization_synth normal,-g2017,-S ivltests gold=sv_
 sv_unowned_unpacked_word_initialization_synth_2023 normal,-g2023,-S ivltests gold=sv_unowned_unpacked_word_initialization_synth.gold
 sv_word_part_selector_once normal,-g2017 ivltests gold=sv_word_part_selector_once.gold
 sv_word_part_selector_once_2023 normal,-g2023 ivltests gold=sv_word_part_selector_once.gold
+
+sv_uarray_invalid_row_mixed_driver normal,-g2017 ivltests gold=sv_uarray_invalid_row_mixed_driver.gold
+sv_uarray_invalid_row_mixed_driver_2023 normal,-g2023 ivltests gold=sv_uarray_invalid_row_mixed_driver.gold

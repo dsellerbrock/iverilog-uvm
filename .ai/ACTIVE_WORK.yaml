@@ -490,3 +490,8 @@ batch_gate_completed_with_regressions:
   evidence: docs/conformance/session_logs/2026-09-21_batch_gate_regressions.json
   session12410: Completed; integrated failed with6legacy regressions, later gates notrun.
   next: Repair diagnostic preservation and invalid-row driver check; focusedvalidation before fresh broadgate directory.
+
+row_oob_repair_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_row_oob_regression_repair.json
+  status: Allsix initial broadgate failures now repaired with focused evidence.
+  next: Rerun seven broad gates using batch-20260921-repaired; retain original failed gate evidence.

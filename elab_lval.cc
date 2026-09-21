@@ -1581,9 +1581,14 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 		  ivl_assert(*this, reg->coerced_to_uwire());
 		  long first_word = 0;
 		  bool have_base = eval_as_long(first_word, base);
+		  const NetEConst*base_const = dynamic_cast<const NetEConst*>(base);
+		  bool invalid_constant_base = base_const
+			&& !base_const->value().is_defined();
 		  unsigned long word_count = netrange_width(sub_dims);
-		  bool overlap = !have_base || first_word < 0 || word_count == 0;
-		  for (unsigned long word = 0; !overlap && word < word_count;
+		  bool overlap = !invalid_constant_base
+			&& (!have_base || first_word < 0 || word_count == 0);
+		  for (unsigned long word = 0;
+		       !invalid_constant_base && !overlap && word < word_count;
 		       word += 1) {
 			if (reg->test_part_driven(reg->vector_width()-1, 0,
 					  first_word + word))
