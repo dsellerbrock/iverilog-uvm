@@ -1,0 +1,2 @@
+./ivltests/sv_covergroup_cross_with_value_limit_fail.v:9: error: cross bin 'too_large' `with' predicate requires more than 65536 value tuples to evaluate.
+1 error(s) during elaboration.

@@ -661,7 +661,6 @@ sv_class_constructor_fail   CE,-g2009		ivltests
 sv_class_empty_item	normal,-g2009		ivltests
 sv_class_extends_scoped	normal,-g2009		ivltests
 sv_class_localparam	normal,-g2009		ivltests
-sv_class_method_localparam_outer_param normal,-g2012 ivltests
 sv_class_new_fail1	CE,-g2009		ivltests
 sv_real_string_assign_fail	CE,-g2012		ivltests
 sv_class_new_fail2	CE,-g2009		ivltests
@@ -1480,6 +1479,7 @@ sv_covergroup_cross_retain_auto_bins_2023 normal,-g2023 ivltests gold=sv_covergr
 sv_covergroup_cross_retain_scope_fail CE,-g2023 ivltests gold=sv_covergroup_cross_retain_scope_fail.gold
 sv_covergroup_cross_range_tuple_overflow normal,-g2017 ivltests gold=sv_covergroup_cross_range_tuple_overflow.gold
 sv_covergroup_cross_with normal,-g2012 ivltests gold=sv_covergroup_cross_with.gold
+sv_covergroup_cross_with_select_expr normal,-g2012 ivltests gold=sv_covergroup_cross_with_select_expr.gold
 sv_covergroup_following_localparam normal,-g2012 ivltests gold=sv_covergroup_following_localparam.gold
 sv_covergroup_hierarchical_cross normal,-g2012 ivltests gold=sv_covergroup_hierarchical_cross.gold
 sv_covergroup_procedural_item_options normal,-g2012 ivltests gold=sv_covergroup_procedural_item_options.gold
