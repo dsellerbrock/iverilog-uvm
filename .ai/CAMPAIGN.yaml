@@ -1,5 +1,5 @@
 status: active
-phase: merged_baseline_broad_validation_running
+phase: baseline_locally_qualified_next_patch_review
 branch: agent/reviewed-main-baseline-20260920
 merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 local_unqualified_integration: 0133287ec092a6e36d1e6fe18db28835af13e127
@@ -10,9 +10,9 @@ review_evidence: evidence/review-20260920/baseline-review.json
 previous_handoff: evidence/review-20260920/prior-CAMPAIGN.yaml
 preserved_original_patch: evidence/review-20260920/preserved-opentitan-matrix.patch
 preservation: Original adapter also retained in named git stash; all original untracked evidence retained.
-shared_process: Existing qualification session25490 verified live; integrated and JSON gates passed, UVM running.
-next_action: Finish existing qualification without restarting; review isolated next-batch patches before integration.
-qualification: Pending; combined candidate is not a qualified baseline. Earlier seven-gate evidence is revision-scoped and unchanged.
+shared_process: Qualification session25490 completed successfully; no shared gate remains active.
+next_action: Review corrected isolated patches, integrate only with proper error/default semantics, then run focused tests.
+qualification: docs/conformance/session_logs/2026-09-20_restored_baseline_qualification.json
 
 agent_audit:
   completed_workers: [review_foreach, review_cross]
@@ -40,7 +40,7 @@ frozen_checkpoint:
   phase: Focused gates passed; broad seven-gate run next.
   coverage_harness: evidence/review-20260920/coverage-focus-gate.log
   commands: python3 evidence/review-20260920/qualification/run_gate.py integrated
-  pending_gates: [integrated, json, uvm, nfa, releases, makecheck, frontend]
+  pending_gates: []
   publication_authority: PR integration agent may publish matching reviewed repairs after checkpoint, but may not merge without green CI and coordinator final clearance.
 
 latest_user_execution_policy:
@@ -77,5 +77,11 @@ restored_baseline_verification:
   merged_by: dsellerbrock
   merged_at: 2026-09-21T04:29:08Z
   source_test_equivalence: git diff against frozen e90059a07 is empty excluding docs, .ai and AGENTS.md.
-  qualification: Integrated and JSON status files are zero; UVM live; remaining gates pending.
+  qualification: All seven gate statuses zero and artifact hashes stable; see qualification record.
   ci: All six PR306 jobs queued at verification; merge is not evidence of CI qualification.
+
+completed_qualification:
+  evidence: docs/conformance/session_logs/2026-09-20_restored_baseline_qualification.json
+  session: 25490
+  status: Completed successfully; do not poll or restart.
+  next_batch_review: evidence/review-20260920/next-batch-review.md

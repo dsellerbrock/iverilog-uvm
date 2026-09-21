@@ -9,22 +9,26 @@ run on every later checkout.
 
 The [restoration record](session_logs/2026-09-20_merged_baseline_restoration.md)
 identifies source/test changes missing after the three PR merges and the
-reviewed checkpoint used to restore them. Broad qualification is pending.
+reviewed checkpoint used to restore them. The local qualification is linked below.
 
 ## September 20 integration review
 
 The [PR review and repair record](session_logs/2026-09-20_pr_review_repairs.md)
-identifies the merged-main candidate and the three reproduced defects in
-pending PRs. The combined local candidate is unqualified. Resumption and
+identifies the three reproduced defects and their repairs. PR306 restored
+the reviewed compiler/test tree to main. Resumption and
 validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
 ## Latest recorded compiler qualification
 
-The [L96–L105 qualification record](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json)
-records the passing seven-gate candidate `053e07d37`, with semantic source
-`366ef2bf1`. The [batch session](session_logs/2026-09-15_compiler_batch_l96_l105.md)
-links the ten bounded fixes and the preserved first-gate correction. Counts,
-commands, source and artifact fingerprints live in the JSON record.
+The [restored-baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json)
+records all seven local gates passing for semantic revision `e90059a07`,
+whose compiler/test tree matches merged main `0998f058a`. Counts, commands,
+artifact fingerprints and edition limits live in that record. GitHub CI
+remains separate from this local evidence.
+
+The earlier [L96–L105 qualification](session_logs/2026-09-15_compiler_batch_l96_l105_qualification.json)
+and [batch session](session_logs/2026-09-15_compiler_batch_l96_l105.md)
+retain their revision-scoped results.
 
 This qualifies that local candidate, not full IEEE, UVM or whole-application
 support. Earlier [L85–L95](session_logs/2026-09-15_compiler_batch_l85_l95_qualification.json),

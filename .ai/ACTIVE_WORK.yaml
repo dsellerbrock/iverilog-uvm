@@ -1,5 +1,5 @@
 id: PR302-305-CORRECTNESS-REPAIR
-status: FOCUSED_TESTED_BROAD_PENDING
+status: BASELINE_QUALIFIED_NEXT_PATCH_REVIEW
 base_revision: 0133287ec092a6e36d1e6fe18db28835af13e127
 merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 authority: User requests review and merge of all PRs while preserving compiler correctness; goal continuation authorizes fixing identified blockers.
@@ -56,7 +56,7 @@ focused_checkpoint:
   selectors: Both editions pass exact positive/negative/boundary checks; paired legacy and JSON gates each pass12 tests.
   coverage: Both editions pass range, signed-zero-crossing, overlapping/disjoint values, false predicates, exact resource boundary and rejection beyond bound; paired legacy and JSON harnesses each passed six tests.
   neighbors: Existing112 legacy foreach/cross neighbors all pass.
-  publication: Repairs restored through user-merged PR306; broad qualification remains pending.
+  publication: Repairs restored through user-merged PR306; seven local gates passed. CI remains separate.
 
 latest_user_execution_policy:
   authority: User instruction after frozen repair checkpoint, 2026-09-20.
