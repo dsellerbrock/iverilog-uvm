@@ -1,0 +1,17 @@
+{
+  "canonical": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-svtests-qualified-if-20260813",
+  "old": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-svtests-qualified-if-20260813/.graphify-rebuild-20260921-9b3ba770a/graphify-out",
+  "new": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-svtests-qualified-if-20260813/.graphify-rebuild-20260921-e2f804f0d/graphify-out",
+  "head": "e2f804f0d816e6feb9e2402f761129ffffb69abd",
+  "status": "VALIDATED_CUTOVER_OLD_GENERATED_ARTIFACT_RETIRED",
+  "exit": 0,
+  "nodes": 51337,
+  "edges": 94263,
+  "sha256": "bf9f2f229999991de120b41ef5d34329fe286e10cc055e2a65b08fb08396d1a6",
+  "old_sha256": "1b45f50b064984212966b06018feb2bf1c63845b0762f7466ec5d07f6bf98361",
+  "limitations": [
+    "AST-only update; non-AST documentation not refreshed.",
+    "23 source files partially parsed.",
+    "HTML omitted above graph size limit."
+  ]
+}

@@ -1,5 +1,7 @@
 # Current evidence and work
 
+Latest focused candidate: [occurrence-time class event expressions](session_logs/2026-09-21_occurrence_event_focus.json) resolves the paired pulse boundary and records new selector/lifetime regressions. Required local gates pass; final application replay and PR publication are pending. The [earlier synchronous-wait candidate](session_logs/2026-09-21_mixed_event_focus.json) retains its failed pulse evidence. Latest merged baseline remains PR314 (`e2f804f0d`), with [distribution local qualification](session_logs/2026-09-21_exact_large_dist_focus.json). Full application DV qualification remains open.
+
 Latest compiler qualification: [PR312 required local gates](session_logs/2026-09-21_pr312_local_qualification.json) pass on repair source `0b1aeaee6`, identical to `b5bc2864f` for compiler/test inputs. CI remains pending. This supersedes pending local-gate statements below; application outcomes retain their recorded provenance.
 
 Latest PR309 evidence: [required local qualification](session_logs/2026-09-21_pr309_local_qualification.json) passes on `09316da3d`; PR309 merged as `cb6f35b56` while CI was still running. This supersedes the earlier pending-local-gate notes below without changing their historical results or claiming full application qualification.

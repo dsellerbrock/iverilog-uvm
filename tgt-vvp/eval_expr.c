@@ -237,6 +237,12 @@ static void eval_logic_into_integer(ivl_expr_t expr, unsigned ix)
 		   reading index values directly from variables. In
 		   this case, try to use that special instruction. */
 	  case IVL_EX_SIGNAL: {
+		if (event_expr_capture_active(expr)) {
+		      draw_eval_vec4(expr);
+		      fprintf(vvp_out, "    %%ix/vec4%s %u; captured selector\n",
+			      ivl_expr_signed(expr) ? "/s" : "", ix);
+		      break;
+		}
 		const char*type = ivl_expr_signed(expr) ? "/s" : "";
 		ivl_signal_t sig = ivl_expr_signal(expr);
 

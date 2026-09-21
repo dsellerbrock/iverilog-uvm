@@ -3239,7 +3239,7 @@ static int eval_object_unary(ivl_expr_t ex)
       return 0;
 }
 
-int draw_eval_object(ivl_expr_t ex)
+static int draw_eval_object_core_(ivl_expr_t ex)
 {
       switch (ivl_expr_type(ex)) {
 
@@ -3331,6 +3331,13 @@ int draw_eval_object(ivl_expr_t ex)
 	    return 0;
 
       }
+}
+
+int draw_eval_object(ivl_expr_t ex)
+{
+      int errors = draw_eval_object_core_(ex);
+      event_expr_capture_object_result(ex);
+      return errors;
 }
 
 /*

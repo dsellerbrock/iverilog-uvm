@@ -333,6 +333,7 @@ struct ivl_event_s {
       unsigned obj_N;
       unsigned obj_pre_N;
       std::vector<ivl_obj_mutation_path_s> obj_mutation_paths;
+      ivl_expr_t observer_expr;
       // Named-event array support (IEEE 1800-2017 6.20): see
       // ivl_event_is_array() et al. in ivl_target.h.
       bool is_array;
@@ -356,6 +357,7 @@ int dll_target_signal_array_base(const NetNet*net);
 bool dll_target_signal_array_addr_swapped(const NetNet*net);
 
 struct ivl_expr_s {
+      const NetExpr*origin_ = nullptr;
       unsigned type_ : 8;
       unsigned value_ : 8;
       unsigned signed_ : 1;
@@ -1131,6 +1133,7 @@ struct ivl_statement_s {
 static inline void FILE_NAME(ivl_expr_t expr, const LineInfo*info)
 {
       expr->location_ = dll_target_expr_location(info);
+      expr->origin_ = dynamic_cast<const NetExpr*>(info);
 }
 
 static inline void FILE_NAME(ivl_event_t event, const LineInfo*info)

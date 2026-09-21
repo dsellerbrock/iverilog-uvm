@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_mixed_event_disable_reuse_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_mixed_event_disable_reuse"
+  ],
+  "gold": "sv_mixed_event_disable_reuse_2023"
+}

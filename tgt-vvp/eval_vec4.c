@@ -3219,7 +3219,7 @@ static void draw_unary_vec4(ivl_expr_t expr)
       }
 }
 
-void draw_eval_vec4(ivl_expr_t expr)
+static void draw_eval_vec4_core_(ivl_expr_t expr)
 {
       static unsigned char warned_unexpected_vec4_type[32];
       static int warned_unexpected_vec4_type_oob = 0;
@@ -3446,4 +3446,10 @@ void draw_eval_vec4(ivl_expr_t expr)
 	                    ivl_expr_width(expr) ? ivl_expr_width(expr) : 1);
 	    return;
       }
+}
+
+void draw_eval_vec4(ivl_expr_t expr)
+{
+      draw_eval_vec4_core_(expr);
+      event_expr_capture_vec4_result(expr);
 }

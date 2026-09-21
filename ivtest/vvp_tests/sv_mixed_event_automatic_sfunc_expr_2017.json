@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_mixed_event_automatic_sfunc_expr_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "top"
+  ],
+  "gold": "sv_mixed_event_automatic_sfunc_expr_2017"
+}

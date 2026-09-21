@@ -3544,6 +3544,68 @@ static int show_stmt_utask(ivl_statement_t net)
       return 0;
 }
 
+typedef struct event_expr_capture_s {
+      ivl_expr_t expr;
+      unsigned slot;
+      int object;
+      struct event_expr_capture_s*next;
+} event_expr_capture_t;
+
+static event_expr_capture_t*event_expr_captures_ = 0;
+static int event_expr_capturing_ = 0;
+
+static unsigned event_expr_capture_slot_(ivl_expr_t expr, int object)
+{
+      unsigned slot = 0;
+      for (event_expr_capture_t*cur = event_expr_captures_; cur; cur = cur->next) {
+            if (cur->expr == expr && cur->object == object)
+                  return cur->slot;
+            slot += 1;
+      }
+      event_expr_capture_t*entry = calloc(1, sizeof *entry);
+      assert(entry);
+      entry->expr = expr;
+      entry->slot = slot;
+      entry->object = object;
+      entry->next = event_expr_captures_;
+      event_expr_captures_ = entry;
+      return slot;
+}
+
+void event_expr_capture_vec4_result(ivl_expr_t expr)
+{
+      if (!event_expr_capturing_) return;
+      for (event_expr_capture_t*cur = event_expr_captures_; cur; cur = cur->next)
+            if (!cur->object && cur->expr == expr)
+                  fprintf(vvp_out, "    %%event/expr/save/v %u;\n", cur->slot);
+}
+
+void event_expr_capture_object_result(ivl_expr_t expr)
+{
+      if (!event_expr_capturing_) return;
+      for (event_expr_capture_t*cur = event_expr_captures_; cur; cur = cur->next)
+            if (cur->object && cur->expr == expr)
+                  fprintf(vvp_out, "    %%event/expr/save/o %u;\n", cur->slot);
+}
+
+int event_expr_capture_active(ivl_expr_t expr)
+{
+      if (!event_expr_capturing_) return 0;
+      for (event_expr_capture_t*cur = event_expr_captures_; cur; cur = cur->next)
+            if (cur->expr == expr)
+                  return 1;
+      return 0;
+}
+
+static void event_expr_capture_end_(void)
+{
+      while (event_expr_captures_) {
+            event_expr_capture_t*entry = event_expr_captures_;
+            event_expr_captures_ = entry->next;
+            free(entry);
+      }
+}
+
 static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 {
       static unsigned int cascade_counter = 0;
@@ -3586,6 +3648,27 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 				    break;
 			      }
 		  }
+                  ivl_expr_t observer = ivl_event_observer_expr(ev);
+                  unsigned observer_label = 0;
+                  if (observer) {
+                        assert(has_property_filter && !event_expr_captures_);
+                        observer_label = cascade_counter++;
+                        for (unsigned path = 0; path < path_count; ++path) {
+                              ivl_expr_t owner = ivl_event_obj_mutation_owner_expr(ev, path);
+                              ivl_expr_t word = ivl_event_obj_mutation_property_word_expr(ev, path);
+                              ivl_expr_t bit = ivl_event_obj_mutation_property_bit_expr(ev, path);
+                              if (owner) event_expr_capture_slot_(owner, 1);
+                              if (word) event_expr_capture_slot_(word, 0);
+                              if (bit) event_expr_capture_slot_(bit, 0);
+                        }
+                        fprintf(vvp_out, "    %%wait/obj/expr E_%p, Tevent_%u;\n",
+                                ev, observer_label);
+                        fprintf(vvp_out, "    %%jmp Tevent_after_%u;\n", observer_label);
+                        fprintf(vvp_out, "Tevent_%u ;\n", observer_label);
+                        event_expr_capturing_ = 1;
+                        draw_eval_vec4(observer);
+                        event_expr_capturing_ = 0;
+                  }
 		  for (unsigned path = 0 ; path < path_count ; path += 1) {
 			ivl_expr_t owner_expr = ivl_event_obj_mutation_count(ev)
 			      ? ivl_event_obj_mutation_owner_expr(ev, path) : 0;
@@ -3596,7 +3679,11 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			      ? ivl_event_obj_mutation_N(ev, path)
 			      : ivl_event_obj_N(ev);
 			if (owner_expr) {
-			      draw_eval_object(owner_expr);
+                              if (observer)
+                                    fprintf(vvp_out, "    %%event/expr/load/o %u;\n",
+                                            event_expr_capture_slot_(owner_expr, 1));
+                              else
+                                    draw_eval_object(owner_expr);
 			} else {
 			      unsigned root_pin = ivl_event_obj_mutation_count(ev)
 				    ? ivl_event_obj_mutation_root_pin(ev, path) : 0;
@@ -3624,9 +3711,13 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 				      property_N);
 			      ivl_expr_t word_expr =
 				    ivl_event_obj_mutation_property_word_expr(ev, path);
-			      if (word_expr)
-				    draw_eval_vec4(word_expr);
-			      else
+                              if (word_expr && observer)
+                                    fprintf(vvp_out, "    %%event/expr/load/v %u, %u;\n",
+                                            event_expr_capture_slot_(word_expr, 0),
+                                            ivl_expr_width(word_expr));
+                              else if (word_expr)
+                                    draw_eval_vec4(word_expr);
+                              else
 				    fprintf(vvp_out,
 					  "    %%pushi/vec4 %u, 0, 32;\n",
 					  property_word);
@@ -3634,9 +3725,13 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 				    ivl_event_obj_mutation_property_bit(ev, path);
 			      ivl_expr_t bit_expr =
 				    ivl_event_obj_mutation_property_bit_expr(ev, path);
-			      if (bit_expr)
-				    draw_eval_vec4(bit_expr);
-			      else
+                              if (bit_expr && observer)
+                                    fprintf(vvp_out, "    %%event/expr/load/v %u, %u;\n",
+                                            event_expr_capture_slot_(bit_expr, 0),
+                                            ivl_expr_width(bit_expr));
+                              else if (bit_expr)
+                                    draw_eval_vec4(bit_expr);
+                              else
 				    fprintf(vvp_out,
 					  "    %%pushi/vec4 %u, 0, 32;\n",
 					  property_bit);
@@ -3648,7 +3743,11 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 				    (word_expr ? 1U : 0U) | (bit_expr ? 2U : 0U));
 			}
 		  }
-		  if (has_property_filter && path_count == 1)
+                  if (observer) {
+                        fprintf(vvp_out, "    %%event/expr/return %u;\n", path_count);
+                        fprintf(vvp_out, "Tevent_after_%u ;\n", observer_label);
+                        event_expr_capture_end_();
+                  } else if (has_property_filter && path_count == 1)
 			fprintf(vvp_out, "    %%wait/obj/mutation/filtered;\n");
 		  else if (has_property_filter)
 			fprintf(vvp_out,

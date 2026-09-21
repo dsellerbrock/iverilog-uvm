@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_mixed_event_selector_side_effect_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "gold": "sv_mixed_event_selector_side_effect_2023"
+}

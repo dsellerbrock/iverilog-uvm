@@ -4540,6 +4540,8 @@ class NetEvProbe  : public NetNode {
       void set_synthesis_expr(const NetExpr*expr);
       NetExpr* synthesis_expr() { return synthesis_expr_; }
       const NetExpr* synthesis_expr() const { return synthesis_expr_; }
+      void set_event_observer_expr(NetExpr*expr);
+      const NetExpr* event_observer_expr() const { return event_observer_expr_; }
 
       void find_similar_probes(std::list<NetEvProbe*>&);
 
@@ -4611,12 +4613,18 @@ class NetEvProbe  : public NetNode {
             { return obj_mutation_property_word_.at(idx); }
       const NetExpr*obj_mutation_property_word_expr(unsigned idx) const
             { return obj_mutation_property_word_expr_.at(idx); }
+      const NetExpr*obj_mutation_property_word_observer_expr(unsigned idx) const
+            { return obj_mutation_property_word_observer_expr_.at(idx); }
       unsigned obj_mutation_property_bit(unsigned idx) const
             { return obj_mutation_property_bit_.at(idx); }
       const NetExpr*obj_mutation_property_bit_expr(unsigned idx) const
             { return obj_mutation_property_bit_expr_.at(idx); }
+      const NetExpr*obj_mutation_property_bit_observer_expr(unsigned idx) const
+            { return obj_mutation_property_bit_observer_expr_.at(idx); }
       const NetExpr*obj_mutation_owner_expr(unsigned idx) const
             { return obj_mutation_owner_expr_.at(idx); }
+      const NetExpr*obj_mutation_owner_observer_expr(unsigned idx) const
+            { return obj_mutation_owner_observer_expr_.at(idx); }
 
       virtual bool emit_node(struct target_t*) const override;
       virtual void dump_node(std::ostream&, unsigned ind) const override;
@@ -4628,6 +4636,7 @@ class NetEvProbe  : public NetNode {
       NetEvProbe*enext_;
       NetNet*vif_validity_ = 0;
       NetExpr*synthesis_expr_ = 0;
+      NetExpr*event_observer_expr_ = 0;
       bool is_vif_posedge_ = false;
       bool is_vif_negedge_ = false;
       bool is_vif_anyedge_ = false;
@@ -4648,9 +4657,12 @@ class NetEvProbe  : public NetNode {
       std::vector<unsigned> obj_mutation_property_N_;
       std::vector<unsigned> obj_mutation_property_word_;
       std::vector<NetExpr*> obj_mutation_property_word_expr_;
+      std::vector<const NetExpr*> obj_mutation_property_word_observer_expr_;
       std::vector<unsigned> obj_mutation_property_bit_;
       std::vector<NetExpr*> obj_mutation_property_bit_expr_;
+      std::vector<const NetExpr*> obj_mutation_property_bit_observer_expr_;
       std::vector<NetExpr*> obj_mutation_owner_expr_;
+      std::vector<const NetExpr*> obj_mutation_owner_observer_expr_;
 };
 
 /*

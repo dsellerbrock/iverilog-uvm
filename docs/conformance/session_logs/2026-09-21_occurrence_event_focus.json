@@ -1,0 +1,622 @@
+{
+  "blocker": "OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT",
+  "status": "REGRESSION_TESTED_PENDING_PUBLICATION",
+  "baseline": "e2f804f0d816e6feb9e2402f761129ffffb69abd",
+  "patch_sha256": "77051d66fe5870a466750b07dc14048f10055b8d54b5908d9c30a55307dfc1b7",
+  "source_hashes": {
+    "elaborate.cc": "94e01ad5a8c611a1d963e3a760f6df0b7000bc931fdb470eb8b2293c946dd4a4",
+    "ivl_target.h": "6de24fa7c40a9f6cfa97ad077952d1abc05666045bc7344d84af49094d2dc8f5",
+    "net_event.cc": "c3593d5dfe5bc3fa14b3c39a2e907a86d0bb2c8391bc2139fced0d701cbd4bfb",
+    "netlist.h": "ff9a02b917bd9802fe8e571509994a27424272ff47bd8cd8064a507a815b43d4",
+    "t-dll-api.cc": "c2b3804cb682f5484751f8fd41bd4fa735bdc401a81a6710f2d38d4db22cdca8",
+    "t-dll.cc": "4253eca44cf0c6d019bbf8f17ca59a1e5cdb2a34da8c2d6c3ea9f23ef608bdcb",
+    "t-dll.h": "582689bdea27ad29743c5401c1fa2d8dc2cdd416cb6cb69ffb8a1f9009509f6b",
+    "tgt-vvp/eval_expr.c": "2ba8b6e09d29453b639ef6720ce9171e9fd650b98df75f98fa2d1f4989731e3d",
+    "tgt-vvp/eval_object.c": "dab4afb95bda4baa221d91bb124e12a27b9c76ef56a48f183382f4704e827717",
+    "tgt-vvp/eval_vec4.c": "5ebdafe5a172bd1634be4e4af8bea6ed8c20ab466e17fb66c0f64d85fa021153",
+    "tgt-vvp/vvp_priv.h": "2f97db4821a6b92b6b41ada135973e1237368a4916c16e77a379e17a4219b272",
+    "tgt-vvp/vvp_process.c": "5dfb62b4bc75398805c8a022c637bd70fe35587b8eb6473113a15faee22e054c",
+    "vvp/codes.h": "2da00bf01c756121501ea77e4c2941fbdd31219c69c5e745d47f2960a0c56080",
+    "vvp/compile.cc": "94c45b4554683407cac8a459e7ee3eb5a5fd9f8e23cfe5990ac162ca8f64fcaa",
+    "vvp/vthread.cc": "b02a06162ca9c830ecd48d4b2af6e9ab72653f74cb30648ac827094cc3b23f68",
+    "vvp/vthread.h": "f0dc7a06bacc58c8da28747b2402ccd4891474dfc36ae97477feada5204a35e4",
+    "vvp/vvp_object.cc": "cc432e3e98cc449191cd85e4bc66bc911208fe8968ae7cee4cca636e5940f1ef"
+  },
+  "installed_tools": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+    "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+    "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8"
+  },
+  "standards": {
+    "2017": [
+      "9.4.2",
+      "9.3.2",
+      "4.4"
+    ],
+    "2023": [
+      "9.4.2",
+      "9.3.2",
+      "4.4"
+    ]
+  },
+  "implementation": "Synchronous occurrence-time expression evaluation using existing VVP dispatcher, original waiter context/process identity and exact4state comparison; in-order selector/owner capture into evaluator-private slots; precise subscription refresh on equal values; normal-region body wake; cancellation/lifetime pins. No helper process or application modifications.",
+  "focus": {
+    "passed": 52,
+    "failed": 0,
+    "paired_editions": [
+      2017,
+      2023
+    ],
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/observer-candidate2/results.json"
+  },
+  "permanent": {
+    "logical_added": 12,
+    "paired_added": 24,
+    "legacy_passed": 44,
+    "json_passed": 44,
+    "recipe_abi_checks": 7,
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/observer-permanent2/results.json"
+  },
+  "adjacent": {
+    "passed": 96,
+    "failed": 0,
+    "scope": "observer-build2 before removal of unpublished unused opcode",
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/observer-adjacent1/results.json"
+  },
+  "lifetime": {
+    "paired_passed": 2,
+    "event_recipe_opcode_verified": true,
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/runtime/bytecode-fixtures/results-build2-selfkill4/results.tsv"
+  },
+  "applications": {
+    "pwrmgr": {
+      "release": "Earlgrey-PROD-M6",
+      "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "clean": true,
+      "scope": "Fresh compiled image on observer-build2; source generation reused from verified pinned candidate1 setup. Not fullDV qualification.",
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-observer1/result.json",
+      "seed1": "normal finish at 65380465ps; zero UVM errors/fatals; 25 matched A/D pairs, 25 responses drained, 2 generic mirrored compares plus dedicated register checks",
+      "seed3": "FAIL EscClkStopEscTimeout_A at26220918ps,1UVMerror despiteprocess0",
+      "traffic_audit": "evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-observer1/audit/result.json"
+    }
+  },
+  "required_gates": {
+    "state": "PASSED",
+    "evidence": "evidence/review-20260920/opentitan-observer-qualification/",
+    "completed": {
+      "integrated": {
+        "command": [
+          "bash",
+          ".github/ivtest_gate.sh"
+        ],
+        "start": 1790030160.1363919,
+        "end": 1790030579.810496,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      },
+      "json": {
+        "command": [
+          "python3",
+          "vvp_reg.py",
+          "regress-vvp.list"
+        ],
+        "start": 1790030582.347658,
+        "end": 1790030872.857449,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      },
+      "nfa": {
+        "command": [
+          "bash",
+          "tests/sva_nfa/run.sh"
+        ],
+        "start": 1790030872.902163,
+        "end": 1790030875.707454,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      },
+      "uvm": {
+        "command": [
+          "bash",
+          ".github/uvm_test.sh"
+        ],
+        "start": 1790030875.751178,
+        "end": 1790031448.643562,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      },
+      "frontend": {
+        "command": [
+          "bash",
+          ".github/uvm_frontend_test.sh"
+        ],
+        "start": 1790031448.6925561,
+        "end": 1790031469.621797,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      },
+      "makecheck": {
+        "command": [
+          "make",
+          "check"
+        ],
+        "start": 1790031469.665248,
+        "end": 1790031470.5696902,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      },
+      "rootseed": {
+        "command": [
+          "python3",
+          "ivtest/runtime_root_seed.py"
+        ],
+        "start": 1790031487.9264488,
+        "end": 1790031488.2476978,
+        "exit": 0,
+        "installed_before": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "installed_after": {
+          "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+          "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+          "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+          "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+          "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+          "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+        },
+        "stable": true
+      }
+    },
+    "counts": {
+      "legacy": {
+        "total": 6209,
+        "passed": 6204,
+        "failed": 0,
+        "not_implemented": 2,
+        "expected_fail": 3
+      },
+      "json": {
+        "ran": 3140,
+        "failed": 0
+      },
+      "vpi": {
+        "passed": 126,
+        "failed": 0
+      },
+      "negative": {
+        "passed": 148,
+        "failed": 0
+      },
+      "nfa": {
+        "passed": 58,
+        "failed": 0
+      },
+      "uvm": {
+        "passed": 358,
+        "failed": 0,
+        "skipped": 0,
+        "mode": "REAL_DPI"
+      },
+      "runtime_invariants": 15
+    }
+  },
+  "limitations": [
+    "Full OpenTitan/Caliptra DV suites are not qualified.",
+    "Existing mixed static/global and separately lowered event-list diagnostics retained.",
+    "Compound VIF filtering unchanged.",
+    "Whole user-function/ordinary event object-delivery crash is an untriaged separate path; no observer opcode emitted."
+  ],
+  "pr": null,
+  "applications_final": {
+    "tools_before": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+      "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+      "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8"
+    },
+    "corpora": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34": {
+        "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+        "clean": true
+      },
+      "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl": {
+        "revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+        "clean": true
+      },
+      "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge": {
+        "revision": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+        "clean": true
+      }
+    },
+    "pwrmgr": [
+      {
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-observer1/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed": 4.133839845657349,
+        "log_sha256": "253330f9f2318aabe1d983f4620fe66b1afe9fc5cf63c149a634ffa998dde2d4",
+        "matches_audited_build2_log": false
+      },
+      {
+        "seed": 3,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-observer1/pwrmgr.vvp",
+          "+ntb_random_seed=3",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed": 3.8377909660339355,
+        "log_sha256": "990eb514b7581aa952811ed8717ff014c788552a1677836bdce5b714daec8e27",
+        "matches_audited_build2_log": false
+      }
+    ],
+    "image_sha256": "61881e8cd5eb4b5ba7af3897a2e2e29d71be1f08cfd60bc22adba3113e0175ff",
+    "image_provenance": "Reused fresh observer-build2 image: compiler and target hashes identical to final build3; runtime replayed below.",
+    "power2round": {
+      "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+      "source_modified": false,
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-gassertions",
+            "-s",
+            "power2round_tb",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-observer-qualification/power2round-runtime/power2round_tb.vvp",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.023812055587768555
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-observer-qualification/power2round-runtime/power2round_tb.vvp"
+          ],
+          "exit": 0,
+          "elapsed": 0.15012192726135254
+        }
+      },
+      "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "generator_sha256": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+      "pass_marker": true,
+      "failure_marker": false,
+      "passed": true,
+      "vector_files": {
+        "coeff_low.hex": "1a4e6892cbc72f4d76700dd45e903d5d4bb4eaf7e6527110d4d9a307586413b8",
+        "coeff_input.hex": "b5ac344a703ec297fbd8882e669223681057966b2623e679886d1f2558386190",
+        "coeff_high.hex": "3401d4c7a6ceed02c8e6850da172bfd9cbf38ed291196ae92e3bca5fb962f212"
+      }
+    },
+    "rej_bounded": {
+      "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+      "source_modified": false,
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-gassertions",
+            "-s",
+            "rej_bounded_tb",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-observer-qualification/rej_bounded-runtime/rej_bounded_tb.vvp",
+            "-f",
+            "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_bounded/config/rej_bounded_tb.vf"
+          ],
+          "exit": 0,
+          "elapsed": 0.023714065551757812
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-observer-qualification/rej_bounded-runtime/rej_bounded_tb.vvp",
+            "+VEC_CNT=10"
+          ],
+          "exit": 0,
+          "elapsed": 0.0898139476776123
+        }
+      },
+      "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+      "generator_sha256": "f64511a39e29e4d21db02d35e7a8ee9ed66a832d77f8cce88cc25c3dbc5a1c8a",
+      "pass_marker": false,
+      "failure_marker": true,
+      "passed": false,
+      "vector_files": {}
+    },
+    "tools_after": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0",
+      "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+      "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8"
+    },
+    "stable": true,
+    "pwrmgr_audit": {
+      "scope": "Read-only observer-build3 versus observer-build2 pwrmgr log audit; no simulation, build, or source changes.",
+      "seed1": {
+        "observer_build3": {
+          "sha256": "253330f9f2318aabe1d983f4620fe66b1afe9fc5cf63c149a634ffa998dde2d4",
+          "bytes": 174904,
+          "traffic": {
+            "a_monitor_items": 25,
+            "d_monitor_items": 25,
+            "ordered_source_address_matches": 25,
+            "multiset_source_address_matches": 25,
+            "a_unmatched": 0,
+            "d_unmatched": 0,
+            "driver_responses_pending_zero": 25,
+            "outstanding_increment_to_1": 25,
+            "outstanding_decrement_to_0": 25
+          },
+          "checks": {
+            "read_observations": {
+              "cfg_cdc_sync": 4,
+              "intr_enable": 2,
+              "intr_state": 3,
+              "reset_status": 3,
+              "wake_status": 3
+            },
+            "uvm_errors": 0,
+            "uvm_fatals": 0,
+            "test_passed_checks_banner": 1,
+            "test_failed_banner": 0,
+            "finish_time_ps": 65380465
+          },
+          "inline_cleanup_diagnostics": 2
+        },
+        "observer_build2": {
+          "sha256": "eca461ffbbc7903df7382cfb80dbc80a41b034d1af1eef31c83481555ae270e2",
+          "bytes": 174904,
+          "traffic": {
+            "a_monitor_items": 25,
+            "d_monitor_items": 25,
+            "ordered_source_address_matches": 25,
+            "multiset_source_address_matches": 25,
+            "a_unmatched": 0,
+            "d_unmatched": 0,
+            "driver_responses_pending_zero": 25,
+            "outstanding_increment_to_1": 25,
+            "outstanding_decrement_to_0": 25
+          },
+          "checks": {
+            "read_observations": {
+              "cfg_cdc_sync": 4,
+              "intr_enable": 2,
+              "intr_state": 3,
+              "reset_status": 3,
+              "wake_status": 3
+            },
+            "uvm_errors": 0,
+            "uvm_fatals": 0,
+            "test_passed_checks_banner": 1,
+            "test_failed_banner": 0,
+            "finish_time_ps": 65380465
+          },
+          "inline_cleanup_diagnostics": 2
+        },
+        "comparison": {
+          "non_equal_hunks": 1,
+          "line_changes": [
+            {
+              "old_lines": [
+                9,
+                9
+              ],
+              "new_lines": [
+                9,
+                9
+              ]
+            }
+          ],
+          "explanation": "The only changed line is the time-zero pwrmgr_reg_block csr_addrs list: observer-build2 prints one permutation, build3 prints the same 17 decimal addresses in ascending order. All other log lines are identical."
+        },
+        "conclusion": "Build3 preserves all audited traffic, drain, read-observation, UVM-summary, finish-time, and completion evidence. The differing hash is cosmetic deterministic address-list order."
+      },
+      "seed3": {
+        "observer_build3": {
+          "sha256": "990eb514b7581aa952811ed8717ff014c788552a1677836bdce5b714daec8e27",
+          "bytes": 228071,
+          "traffic": {
+            "a_monitor_items": 37,
+            "d_monitor_items": 37,
+            "ordered_source_address_matches": 37,
+            "multiset_source_address_matches": 37,
+            "a_unmatched": 0,
+            "d_unmatched": 0,
+            "driver_responses_pending_zero": 36,
+            "outstanding_increment_to_1": 37,
+            "outstanding_decrement_to_0": 37
+          },
+          "checks": {
+            "read_observations": {
+              "cfg_cdc_sync": 17,
+              "intr_enable": 2,
+              "intr_state": 2,
+              "reset_status": 3,
+              "wake_status": 3
+            },
+            "uvm_errors": 1,
+            "uvm_fatals": 0,
+            "test_passed_checks_banner": 0,
+            "test_failed_banner": 1,
+            "finish_time_ps": 26220918
+          },
+          "inline_cleanup_diagnostics": 2
+        },
+        "observer_build2": {
+          "sha256": "157a63672391725c4e16bd4ecf518e5a8c47b2078f75c46e8e0c5964a88fed0c",
+          "bytes": 228071,
+          "traffic": {
+            "a_monitor_items": 37,
+            "d_monitor_items": 37,
+            "ordered_source_address_matches": 37,
+            "multiset_source_address_matches": 37,
+            "a_unmatched": 0,
+            "d_unmatched": 0,
+            "driver_responses_pending_zero": 36,
+            "outstanding_increment_to_1": 37,
+            "outstanding_decrement_to_0": 37
+          },
+          "checks": {
+            "read_observations": {
+              "cfg_cdc_sync": 17,
+              "intr_enable": 2,
+              "intr_state": 2,
+              "reset_status": 3,
+              "wake_status": 3
+            },
+            "uvm_errors": 1,
+            "uvm_fatals": 0,
+            "test_passed_checks_banner": 0,
+            "test_failed_banner": 1,
+            "finish_time_ps": 26220918
+          },
+          "inline_cleanup_diagnostics": 2
+        },
+        "comparison": {
+          "non_equal_hunks": 1,
+          "line_changes": [
+            {
+              "old_lines": [
+                9,
+                9
+              ],
+              "new_lines": [
+                9,
+                9
+              ]
+            }
+          ],
+          "explanation": "The only changed line is the time-zero pwrmgr_reg_block csr_addrs list: observer-build2 prints one permutation, build3 prints the same 17 decimal addresses in ascending order. All other log lines are identical."
+        },
+        "conclusion": "Build3 preserves the seed3 traffic/check counts and the existing one-UVM-error failed result; this audit makes no root-cause claim."
+      },
+      "pairing_parser_note": "A/D monitor records are keyed by (source,address). Two inline [CLEANUP-leak] diagnostics split physical lines, so they are removed only for record reconstruction."
+    }
+  }
+}

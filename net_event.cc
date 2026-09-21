@@ -548,6 +548,12 @@ void NetEvProbe::set_synthesis_expr(const NetExpr*expr)
       synthesis_expr_ = expr ? expr->dup_expr() : 0;
 }
 
+void NetEvProbe::set_event_observer_expr(NetExpr*expr)
+{
+      delete event_observer_expr_;
+      event_observer_expr_ = expr;
+}
+
 void NetEvProbe::set_obj_handle_change()
 {
       ivl_assert(*this, edge_ == ANYEDGE);
@@ -652,13 +658,16 @@ void NetEvProbe::set_obj_mutation(unsigned N, unsigned pre_N,
       for (NetExpr*expr : obj_mutation_property_word_expr_)
             delete expr;
       obj_mutation_property_word_expr_.clear();
+      obj_mutation_property_word_observer_expr_.clear();
       obj_mutation_property_bit_.clear();
       for (NetExpr*expr : obj_mutation_property_bit_expr_)
             delete expr;
       obj_mutation_property_bit_expr_.clear();
+      obj_mutation_property_bit_observer_expr_.clear();
       for (NetExpr*expr : obj_mutation_owner_expr_)
             delete expr;
       obj_mutation_owner_expr_.clear();
+      obj_mutation_owner_observer_expr_.clear();
       add_obj_mutation(N, pre_N, root_pin, property_N, property_word,
                        property_word_expr, property_bit, property_bit_expr,
                        owner_expr);
@@ -700,16 +709,20 @@ void NetEvProbe::add_obj_mutation(unsigned N, unsigned pre_N,
       obj_mutation_property_word_.push_back(property_word);
       obj_mutation_property_word_expr_.push_back(
             property_word_expr ? property_word_expr->dup_expr() : nullptr);
+      obj_mutation_property_word_observer_expr_.push_back(property_word_expr);
       obj_mutation_property_bit_.push_back(property_bit);
       obj_mutation_property_bit_expr_.push_back(
             property_bit_expr ? property_bit_expr->dup_expr() : nullptr);
+      obj_mutation_property_bit_observer_expr_.push_back(property_bit_expr);
       obj_mutation_owner_expr_.push_back(
             owner_expr ? owner_expr->dup_expr() : nullptr);
+      obj_mutation_owner_observer_expr_.push_back(owner_expr);
 }
 
 NetEvProbe::~NetEvProbe()
 {
       delete synthesis_expr_;
+      delete event_observer_expr_;
       for (NetExpr*expr : obj_mutation_property_word_expr_)
             delete expr;
       for (NetExpr*expr : obj_mutation_property_bit_expr_)

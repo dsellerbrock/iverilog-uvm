@@ -689,6 +689,12 @@ extern bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION_FILTERED(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION_FILTERED_MULTI(vthread_t thr,
                                                 vvp_code_t code);
+extern bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_EXPR_SAVE_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_EXPR_LOAD_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_EXPR_SAVE_OBJECT(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_EXPR_LOAD_OBJECT(vthread_t thr, vvp_code_t code);
 extern bool of_XNOR(vthread_t thr, vvp_code_t code);
 extern bool of_XNORR(vthread_t thr, vvp_code_t code);
 extern bool of_XOR(vthread_t thr, vvp_code_t code);

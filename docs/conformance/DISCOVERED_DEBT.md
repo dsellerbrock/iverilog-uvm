@@ -3144,3 +3144,15 @@ Read-only assessment after the upstream regex configuration repair identifies fa
 ### 2026-09-21 power-manager phase timeout after VIF context repair
 
 Discovered during OT-PWRMGR-DESCENDANT-VIF-CONTEXT validation: the clean pinned M6 power-manager smoke compiles and reaches its configured1ms UVM PH_TIMEOUT after the false-null event errors are removed. The exact cause is not yet reduced; process exit0 is not a pass. Preserve the existing timeout and application sources. The large-range distribution fallback remains in the same run and must be resolved before any qualification claim. [Scoped evidence](session_logs/2026-09-21_pwrmgr_descendant_vif_focus.json); record-only, no timeout/scheduler workaround selected.
+
+### 2026-09-21 scope-less VVP event fixture crashes
+
+Active blocker: OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT. Three hand-written VVP files declare an event without an enclosing scope and exit with SIGSEGV before the intended operand diagnostic on candidate1. Replacing their surrounding program with a compiler-generated valid program and mutating only the new wait count produces normal rejection for zero, overflow and missing operands. The scope-less input crash is separate internal-bytecode robustness debt; no IEEE source-language defect or regression attribution is established. Candidate bytecode parser/event construction needs bounded triage before selecting a fix. Preserve private inputs/results under `evidence/review-20260920/opentitan-mixed-wait-design/runtime/` and `derived-malformed/`; no scope-less-input implementation change is authorized here.
+
+### 2026-09-21 pwrmgr seed 3 escalation-clock assertion
+
+During OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT candidate1 validation, unchanged Earlgrey-PROD-M6 `pwrmgr_base_test` / `pwrmgr_smoke_vseq` seed 3 reports `EscClkStopEscTimeout_A` at 26,220,918 ps in `pwrmgr_sec_cm_checker_assert.sv:120`. It terminates with one UVM error despite process exit0; seeds1/2 complete without UVM errors. Evidence: `evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-seed3/{run.json,runtime.log}`. The candidate also has independently reproduced transient-event loss, so this assertion is untriaged: no distinct root cause or vendor dependency is inferred, and no timeout/assertion suppression or application edit is authorized.
+
+### 2026-09-21 whole-function class selector event delivery
+
+Active blocker: OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT. The lifetime-test draft `@(data[cfg.selector()])` reaches `vvp_wide_fun_t::recv_object` and aborts; its generated image contains no new `%wait/obj/expr` instruction. The accepted direct-class-property shape `@(cfg.bits[cfg.selector()])` does emit the observer recipe and passes paired self-disable/lifetime assertions. Preserve `evidence/review-20260920/opentitan-mixed-wait-implementation/runtime/bytecode-fixtures/results-build2-selfkill3/` and corrected `results-build2-selfkill4/`. The whole-function dependency/lowering path requires separate IEEE 1800 §9.4.2 assessment; regression attribution is unestablished, and no unrelated compiler fix is selected.

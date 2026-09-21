@@ -1,0 +1,252 @@
+{
+  "blocker": "OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT",
+  "status": "PARTIAL_BLOCKED_BY_TRANSIENT_EVENT_LOSS",
+  "baseline": "e2f804f0d816e6feb9e2402f761129ffffb69abd",
+  "source_patch_sha256": "e4c69cac9aa518e93151ff430f44582ef6bf99456591f98d1a7dbed6661f626e",
+  "source_hashes": {
+    "elaborate.cc": "3a2f6250786f2748144330bbb4a734495e1643e2ad17ac9b5b56551934014487",
+    "tgt-vvp/vvp_process.c": "45feaa0c0d9598fbb8f23669eb475d1fbfa7d62d0de4755336ca3413cd660766",
+    "vvp/vthread.cc": "09c910c255c3ef7d861d1f6a42372bfb8ce1d0d3e1711e506db40b39157524f9",
+    "vvp/codes.h": "5651f15296dd279fbc1ed709b61b94aa0bce05cc2715b7b10beb271233e243f7",
+    "vvp/compile.cc": "b3194a5a9ae72d86c7781c0857975d003f76bbd0e656b9f611a7fe466cee06ca"
+  },
+  "installed_tools": {
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp": "7c0337189d1a35dd1ea750d4ea20e6cb53b2729b28c4d54b568bfba020bb17d5",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/vvp.tgt": "997cf31bb93a59d5f22bd18f5334d98d7cda5fb973a9593ded65edbb9639ad06",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivl": "3ad04f7cf6499b5628a8ac1ebbae122e810a457c328586cd5de4075528faa282"
+  },
+  "standards": {
+    "2017": [
+      "9.4.2",
+      "9.3.2",
+      "4.4"
+    ],
+    "2023": [
+      "9.4.2",
+      "9.3.2",
+      "4.4"
+    ]
+  },
+  "mechanism": "Original thread synchronously subscribes to existing ordinary event and filtered object mutation paths. First wake cancels sibling subscriptions before scheduling. Mixed local selectors retain expression-value filtering. No helper thread or application change.",
+  "rejected_design": "Isolated fork/join_any misses a prequeued Reactive writer; source and paired evidence retained privately.",
+  "baseline_reducers": "evidence/review-20260920/opentitan-mixed-wait-implementation/expanded-baseline/results.json",
+  "focused": {
+    "paired_executions": 28,
+    "passed": 28,
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/candidate1/results.json"
+  },
+  "permanent": {
+    "logical_tests": 10,
+    "paired_tests": 20,
+    "legacy_passed": 20,
+    "json_passed": 20,
+    "bytecode_rejections": 3,
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/permanent1/results.json"
+  },
+  "adjacent": {
+    "passed": 96,
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/adjacent1/results.json"
+  },
+  "pwrmgr": {
+    "compile_warnings": {
+      "count": 11,
+      "nba_in_always_comb": {
+        "count": 9,
+        "file": "lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv",
+        "lines": [
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          100
+        ]
+      },
+      "rst_n_input_coerced_to_inout": {
+        "count": 2,
+        "file": "lowrisc_dv_pwrmgr_sim_0.1/tb.sv",
+        "lines": [
+          42,
+          59
+        ]
+      }
+    },
+    "completion": {
+      "caught_or_demoted_errors_or_fatals": 0,
+      "finish_time_ps": 65380465,
+      "local_responder_objections_drained": 1,
+      "test_passed_checks": true,
+      "uvm_errors": 0,
+      "uvm_fatals": 0,
+      "watchdog_objections_dropped": 3,
+      "watchdog_objections_raised": 3
+    },
+    "evidence_sha256": {
+      "matrix_compile_log": "d8e4aa993920340b7c6eb99ef4c33fc29a6fcd39d3d814de60a113b082592eca",
+      "run_json": "1d23d32cb3e70853fe09384d56fd6feabdb8b0285c8475f29afa6d558aa2de06",
+      "runtime_log": "253330f9f2318aabe1d983f4620fe66b1afe9fc5cf63c149a634ffa998dde2d4"
+    },
+    "provenance": {
+      "exit": 0,
+      "image_sha256": "b617a444f782f114e7f6758aef2363eb8c312fce5dcd30c10a531ff1e5889969",
+      "opentitan_dirty": false,
+      "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "opentitan_root": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+      "runtime_sha256": "7c0337189d1a35dd1ea750d4ea20e6cb53b2729b28c4d54b568bfba020bb17d5",
+      "runtime_verbosity": "UVM_HIGH",
+      "seed": 1,
+      "sequence": "pwrmgr_smoke_vseq",
+      "test": "pwrmgr_base_test",
+      "test_timeout_ns": 1000000,
+      "uvm_version": "1.2"
+    },
+    "read_checking": {
+      "by_register": {
+        "cfg_cdc_sync": 4,
+        "intr_enable": 2,
+        "intr_state": 3,
+        "reset_status": 3,
+        "wake_status": 3
+      },
+      "default_disable_csr_rd_chk": 0,
+      "generic_scoreboard_compare_suppressed": {
+        "cfg_cdc_sync": 4,
+        "intr_state": 3,
+        "reset_status": 3,
+        "wake_status": 3
+      },
+      "generic_scoreboard_mirrored_value_compares": {
+        "intr_enable": 2
+      },
+      "limitation": "Read log messages prove observation, not by themselves a generic scoreboard mirrored-value compare.",
+      "logged_reads": 15,
+      "other_active_checks": {
+        "cfg_cdc_sync": "4 polls arose from pwrmgr_smoke_vseq wait_for_csr_to_propagate_to_slow_domain, which calls csr_spinwait with exp_data 0.",
+        "intr_state": "generic mirrored comparison is disabled by scoreboard special case; with default invalid_st_test 0, its data-channel branch performs interrupt-data and pin checks.",
+        "reset_status": "3 reads correspond to pwrmgr_smoke_vseq check_reset_status calls, each using csr_rd_check.",
+        "wake_status": "3 reads correspond to pwrmgr_smoke_vseq check_wake_status calls, each using csr_rd_check."
+      }
+    },
+    "scope": "Read-only audit of the completed unmodified OpenTitan pwrmgr smoke replay.",
+    "traffic": {
+      "driver_pending_request_zero": 25,
+      "driver_responses": 25,
+      "final_outstanding": 0,
+      "outstanding_decrement_to_0": 25,
+      "outstanding_increment_to_1": 25,
+      "scoreboard_csr_reads": 15,
+      "scoreboard_csr_writes": 10,
+      "source_address_pairing": {
+        "a_records": 25,
+        "a_unmatched": 0,
+        "d_records": 25,
+        "d_unmatched": 0,
+        "method": "A records keyed by (a_source,a_addr); D records keyed by (d_source,a_addr).",
+        "multiset_source_address_matches": 25,
+        "ordered_source_address_matches": 25,
+        "repeated_keys": {
+          "0x17@0x47109c18": 2,
+          "0x65@0x47109c18": 3,
+          "0xfd@0x47109c00": 3
+        }
+      },
+      "tl_a_monitor_items": 25,
+      "tl_d_monitor_items": 25
+    }
+  },
+  "pwrmgr_matrix_status": "DEBT:11compilewarnings retained; runtime completes; single-seed prescribed smoke evidence only.",
+  "pwrmgr_audit": "evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-traffic1/ASSESSMENT.md",
+  "caliptra": {
+    "release": "v2.1.2 / AdamsBridge v2.0.3",
+    "source_modified": false,
+    "power2round": "2048cases pass on freshly compiled candidate",
+    "rej_bounded": "10cases,8errors persists; process0 notpass; earlier race assessment remains separate.",
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/caliptra-candidate1"
+  },
+  "pending": [
+    "required integrated legacy/VPI/negative/runtime gate",
+    "fullJSON gate",
+    "realDPIUVM/frontend/makecheck chain",
+    "Occurrence-time expression evaluation fix and regression proof before publication"
+  ],
+  "passed_broad_so_far": {
+    "NFA": 58,
+    "UVM_REAL_DPI": 358,
+    "frontend": "ALL_SCENARIOS_PASSED",
+    "makecheck": 0
+  },
+  "boundaries": [
+    "No full-clause, fullUVM or fullOpenTitanDV-suite qualification.",
+    "Static/global mixed dependencies and mixed separate event lists retain existing unsupported diagnostics.",
+    "Scope-less malformed bytecode crash is separately recorded debt."
+  ],
+  "pr": null,
+  "new_boundary": {
+    "paired_failures": 8,
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-design/frontend/final-boundary/",
+    "semantics": "Both original local-vector/class-index shape and class-vector/local-index shape lose required same-slot pulses; matched ordinary controls wake."
+  },
+  "pwrmgr_extra_seeds": {
+    "seed2": "normalfinish zeroerrors/fatals; no separate fulltraffic audit",
+    "seed3": "oneUVMerror EscClkStopEscTimeout_A; failed despiteprocess0"
+  },
+  "warning_disposition": {
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-warning-disposition/result.json",
+    "coercions": "2legal resolved-wire input-to-inout coercions",
+    "NBA": "9legal generated assertion-template NBAs with upstream delta-order hazard; warning retained",
+    "limit": "No distinct compilerdefect demonstrated; nonexhaustive application timing evidence."
+  },
+  "integrated_first_attempt": {
+    "classification": "invalid qualification due to concurrent frontend relocation",
+    "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/interference.json",
+    "rerun": "serial integrated thenJSON session58901 live at handoff"
+  },
+  "broad_candidate1": {
+    "scope": "Candidate1 only; known eight paired transient failures override broad pass results; current observer metadata/runtime edits are unbuilt.",
+    "integrated": {
+      "exit": 0,
+      "legacy_total": 6185,
+      "legacy_passed": 6180,
+      "legacy_failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3,
+      "vpi_passed": 126,
+      "negative_passed": 148,
+      "runtime_invariants": 15,
+      "malformed_mixed_wait": 3,
+      "covergroup_exports": 66,
+      "copyout_malformed": 6,
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/integrated-rerun/integrated.run.json"
+    },
+    "json": {
+      "exit": 0,
+      "ran": 3116,
+      "failed": 0,
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/integrated-rerun/json.run.json"
+    },
+    "nfa": {
+      "passed": 58,
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/nfa.run.json"
+    },
+    "uvm": {
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "dpi": "REAL",
+      "generation": "g2012",
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/uvm.run.json"
+    },
+    "frontend": {
+      "result": "ALL_SCENARIOS_PASSED",
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/frontend.run.json"
+    },
+    "makecheck": {
+      "exit": 0,
+      "evidence": "evidence/review-20260920/opentitan-mixed-wait-qualification/makecheck.run.json"
+    }
+  }
+}

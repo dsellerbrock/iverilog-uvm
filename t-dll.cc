@@ -1657,6 +1657,60 @@ static void materialize_event_selector_signals_(dll_target*target,
       delete inputs;
 }
 
+/* Dynamic mutation descriptors retain pointers into an observer expression.
+ * Locate the matching exported child by that exact frontend identity; source
+ * location or structural equality would merge distinct function calls. */
+static ivl_expr_t find_event_observer_child_(ivl_expr_t expr,
+					      const NetExpr*origin)
+{
+      if (!expr || !origin)
+	    return 0;
+      if (expr->origin_ == origin)
+	    return expr;
+
+      ivl_expr_t found = 0;
+      auto find = [&](ivl_expr_t child) {
+	    if (!found)
+		  found = find_event_observer_child_(child, origin);
+      };
+      switch (expr->type_) {
+	case IVL_EX_BINARY:
+	    find(expr->u_.binary_.lef_); find(expr->u_.binary_.rig_); break;
+	case IVL_EX_UNARY:
+	    find(expr->u_.unary_.sub_); break;
+	case IVL_EX_CONCAT:
+	    for (unsigned idx = 0 ; idx < expr->u_.concat_.parms ; ++idx)
+		  find(expr->u_.concat_.parm[idx]);
+	    break;
+	case IVL_EX_TERNARY:
+	    find(expr->u_.ternary_.cond); find(expr->u_.ternary_.true_e);
+	    find(expr->u_.ternary_.false_e); break;
+	case IVL_EX_SELECT:
+	    find(expr->u_.select_.expr_); find(expr->u_.select_.base_); break;
+	case IVL_EX_PROPERTY:
+	    if (expr->property_signal_)
+		  find(expr->u_.property_.index);
+	    else {
+		  find(expr->u_.property_.source.base);
+		  find(expr->u_.property_.index);
+	    }
+	    break;
+	case IVL_EX_SIGNAL:
+	    find(expr->u_.signal_.word); break;
+	case IVL_EX_SFUNC:
+	    for (unsigned idx = 0 ; idx < expr->u_.sfunc_.parms ; ++idx)
+		  find(expr->u_.sfunc_.parm[idx]);
+	    break;
+	case IVL_EX_UFUNC:
+	    for (unsigned idx = 0 ; idx < expr->u_.ufunc_.parms ; ++idx)
+		  find(expr->u_.ufunc_.parm[idx]);
+	    break;
+	default:
+	    break;
+      }
+      return found;
+}
+
 void dll_target::event(const NetEvent*net)
 {
       ivl_scope_t scop = find_scope(des_, net->scope());
@@ -1696,6 +1750,7 @@ void dll_target::event(const NetEvent*net)
       obj->obj_N = UINT_MAX;
       obj->obj_pre_N = UINT_MAX;
       obj->obj_mutation_paths.clear();
+      obj->observer_expr = 0;
       obj->is_array = net->is_event_array();
       obj->array_base = net->array_base_slot();
       obj->array_count = net->array_count();
@@ -1704,6 +1759,14 @@ void dll_target::event(const NetEvent*net)
 
 	    for (unsigned idx = 0 ;  idx < net->nprobe() ;  idx += 1) {
 		  const NetEvProbe*pr = net->probe(idx);
+		  if (const NetExpr*observer_expr = pr->event_observer_expr()) {
+			assert(obj->observer_expr == 0);
+			materialize_event_selector_signals_(this, observer_expr);
+			assert(expr_ == 0);
+			observer_expr->expr_scan(this);
+			obj->observer_expr = expr_;
+			expr_ = 0;
+		  }
 		  if (pr->vif_validity()) {
 			const Nexus*nex = pr->vif_validity()->pin(0).nexus();
 			obj->vif_validity = nex ? nex->t_cookie() : 0;
@@ -1722,36 +1785,51 @@ void dll_target::event(const NetEvent*net)
 			      path.property_word =
 				    pr->obj_mutation_property_word(pidx);
 			      path.property_word_expr = 0;
-				      if (const NetExpr*word_expr =
-					  pr->obj_mutation_property_word_expr(pidx)) {
-					    materialize_event_selector_signals_(this,
-									word_expr);
-					    assert(expr_ == 0);
-					    word_expr->expr_scan(this);
-				    path.property_word_expr = expr_;
-				    expr_ = 0;
+			      if (const NetExpr*word_expr =
+				  pr->obj_mutation_property_word_expr(pidx)) {
+				    path.property_word_expr = find_event_observer_child_(
+					  obj->observer_expr,
+					  pr->obj_mutation_property_word_observer_expr(pidx));
+                                    assert(!obj->observer_expr || path.property_word_expr);
+				    if (!path.property_word_expr) {
+					  materialize_event_selector_signals_(this, word_expr);
+					  assert(expr_ == 0);
+					  word_expr->expr_scan(this);
+					  path.property_word_expr = expr_;
+					  expr_ = 0;
+				    }
 			      }
 			      path.property_bit =
 				    pr->obj_mutation_property_bit(pidx);
 			      path.property_bit_expr = 0;
-				      if (const NetExpr*bit_expr =
-					  pr->obj_mutation_property_bit_expr(pidx)) {
-					    materialize_event_selector_signals_(this,
-									bit_expr);
-					    assert(expr_ == 0);
-				    bit_expr->expr_scan(this);
-				    path.property_bit_expr = expr_;
-				    expr_ = 0;
+			      if (const NetExpr*bit_expr =
+				  pr->obj_mutation_property_bit_expr(pidx)) {
+				    path.property_bit_expr = find_event_observer_child_(
+					  obj->observer_expr,
+					  pr->obj_mutation_property_bit_observer_expr(pidx));
+                                    assert(!obj->observer_expr || path.property_bit_expr);
+				    if (!path.property_bit_expr) {
+					  materialize_event_selector_signals_(this, bit_expr);
+					  assert(expr_ == 0);
+					  bit_expr->expr_scan(this);
+					  path.property_bit_expr = expr_;
+					  expr_ = 0;
+				    }
 			      }
 			      path.owner_expr = 0;
-				      if (const NetExpr*owner_expr =
-					  pr->obj_mutation_owner_expr(pidx)) {
-					    materialize_event_selector_signals_(this,
-								owner_expr);
-					    assert(expr_ == 0);
-				    owner_expr->expr_scan(this);
-				    path.owner_expr = expr_;
-				    expr_ = 0;
+			      if (const NetExpr*owner_expr =
+				  pr->obj_mutation_owner_expr(pidx)) {
+				    path.owner_expr = find_event_observer_child_(
+					  obj->observer_expr,
+					  pr->obj_mutation_owner_observer_expr(pidx));
+                                    assert(!obj->observer_expr || path.owner_expr);
+				    if (!path.owner_expr) {
+					  materialize_event_selector_signals_(this, owner_expr);
+					  assert(expr_ == 0);
+					  owner_expr->expr_scan(this);
+					  path.owner_expr = expr_;
+					  expr_ = 0;
+				    }
 			      }
 			      bool duplicate = false;
 			      for (unsigned old = 0 ; old < obj->obj_mutation_paths.size();

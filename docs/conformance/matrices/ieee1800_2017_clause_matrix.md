@@ -1631,3 +1631,7 @@ The [focused implementation evidence](../session_logs/2026-09-21_spi_host_member
 #### 2026-09-21: §18.5.4 large integral distribution ranges
 
 PARTIAL: exact weighted item and feasible-member sampling now has focused evidence for isolated ground integral subjects and provably singleton expressions. Coupled/non-singleton large expressions and wider arithmetic limits remain explicit boundaries. [Revision-scoped evidence and passing local gates](../session_logs/2026-09-21_exact_large_dist_focus.json). No full randomization qualification is claimed.
+
+## September 21 synchronous mixed event dependencies
+
+§9.4.2 remains PARTIAL overall. The automatic-local signal plus class-property event subset now has focused evidence for occurrence-time four-state expression comparison, transient pulses, selector/owner capture, equal-value rebinding, multiple mutation paths, cancellation, automatic contexts and Reactive arming. [Current revision-scoped evidence](../session_logs/2026-09-21_occurrence_event_focus.json) records paired editions and passing required local gates. The [earlier candidate](../session_logs/2026-09-21_mixed_event_focus.json) preserves the deferred-filter pulse failures. Existing mixed static/global and separate event-list diagnostics remain; compound VIF filtering is unchanged. This is not full-clause or full-application qualification.
