@@ -129,3 +129,12 @@ masked_memory_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-20_masked_memory_synthesis.json
   next_action: Review revised variable-row patch, integrate and run coordinator focused tests; DD044 worker still resolving wide/X state selections.
   shared_processes: None active.
+
+variable_row_integration_checkpoint:
+  status: INTEGRATION_IN_PROGRESS_NOT_COUNTED
+  preserved_patch: evidence/review-20260920/next-variable-row/coordinator-integration-wip.patch
+  installed_candidate: Includes uncommitted row copy changes; not qualified.
+  results: Acceptance, whole-array source, invalid-index behavior pass both editions; shape mismatch focused rejection both editions; ten array neighbors pass.
+  blocker: Original blocking row assignment pattern still reaches constant-only backend array_pattern_base_ assertion.
+  next_action: Integrate worker incremental blocking-pattern elaboration fix over current source; repeat original red and focused acceptance before registration or commit.
+  shared_processes: None active.
