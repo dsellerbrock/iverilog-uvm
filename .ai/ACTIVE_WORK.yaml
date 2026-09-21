@@ -250,7 +250,7 @@ selected_strict_uvm_regex:
   dependencies: Event, multidist and rootseed patches frozen; this is the only active implementation lane. Coordinator alone builds private DPI candidate after review.
 
 rootseed_threadless_validation_boundary:
-  status: PRIVATE_SCOPE_REFINEMENT_AUTHORIZED
+  status: PRIVATE_FOCUSED_TESTED_ENTRY_HOOK_REPAIR
   owner: caliptra_next_blocker, retained Luna low; coordinator validated original private runtime
   evidence: evidence/review-20260920/rootseed-rebase/coordinator-build/threadless-boundary.json
   root: Option validation runs only from compile_thread, so designs with no threads silently accept invalid root-seed options.

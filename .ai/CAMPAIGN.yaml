@@ -73,3 +73,8 @@ private_validation_progress:
   solver: Six paired multidist runtime cases passed using private linked runtime; source-frozen shared artifacts unchanged. See2026-09-21_ordered_randc_multidist_private.json. Worker audits additional failure boundaries.
   rootseed: Original paired driver passes private runtime, but new threadless invalid-option control fails. Worker moves hook to runtime entry; see2026-09-21_rootseed_private_boundary.json.
   batch: Session60450 verified live; integrated,JSON,NFA,frontend passed; full real-DPI UVM running.
+
+rootseed_entry_repair:
+  state: Private revised entry-hook patch passes all original and threadless controls in both editions.
+  evidence: docs/conformance/session_logs/2026-09-21_rootseed_private_entry_fix.json
+  next: Permanent packaging/integration after current batch; original failing threadless evidence preserved.
