@@ -1,15 +1,15 @@
 campaign: IEEE1800-UVM-continuous
 mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV
   and eventual formal foundation; preserve1364, UPF deferred.
-branch: agent/opentitan-mixed-event-20260921
+branch: agent/opentitan-spi-host-next-20260921
 history: docs/conformance/session_logs/2026-09-21_before_exact_dist_qualification_CAMPAIGN.yaml
 baseline:
-  main: e2f804f0d816e6feb9e2402f761129ffffb69abd
+  main: 175dcb65d76ffdbae78e64ba45beee95217e8773
   last_broad_qualification: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
   vif_dependency: PR313 externally merged; this batch also qualifies the VIF runtime fix.
 active: .ai/ACTIVE_WORK.yaml
 source:
-  head: e2f804f0d816e6feb9e2402f761129ffffb69abd
+  head: 7c30c69c412817872c911103648c9aef12ecc78e
   source_patch_sha256: 77051d66fe5870a466750b07dc14048f10055b8d54b5908d9c30a55307dfc1b7
   runtime_sha256: 4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0
   evidence: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
@@ -150,25 +150,23 @@ applications:
   pwrmgr: 'Observer-build3 stable M6 replay: seed1 normal completion, seed3 EscClkStopEscTimeout_A remains.
     Final traffic audit confirms25 matched/drained A/D and zero UVM errors/fatals for seed1; no full DV claim.'
 next:
-- Final traffic audit passed; explicitly stage owning documentation, commit and publish event-expression
-  PR.
-- Merge after one CI pass with all required local gates passed; then refresh canonical main graph and select
-  next OpenTitan blocker.
+- Preserve separately patched seed3 checker validation; unmodified release remains failing on that checker.
+- Resume SPI Host event-list/whole-function-event assessment from preserved evidence; select root-caused compiler
+  blocker before edits.
 agents:
   canonical_graph_refresh: 'Terra medium: target recipe with in-order frame-local selector/owner captures;
     exact files ACTIVE_WORK.'
   vif_proxy_implementation: 'Sol medium: authorized synchronous observer runtime; exact files ACTIVE_WORK.'
-graph: Canonical checkout and shared graph e2f804f0d; validated51337nodes94263edges, atomiccutover and oldgeneratedartifact
-  retired. AST-only limitations and23partialparses in evidence/review-20260920/opentitan-mixed-wait-implementation/graph-refresh.json.
+graph: Canonicalmain175dcb65d7,51607nodes94609links; atomiccutover validated, oldgeneratedartifactretired.
+  Evidence/review-20260920/post-pr315-graph/result.json.
 publication:
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/314
-  head: bb94b59b7
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/315
+  head: 7c30c69c412817872c911103648c9aef12ecc78e
   state: MERGED_EXTERNALLY
-  ci_run: 35654962546
-  ci_status: PR314 Ubuntu24.04 SUCCESS; other jobs pending at last observation.
-  local_validation: Allrequiredgatespassed
-  merge_authority: User authorizes merge afteroneCIpass with requiredlocalgatespassed; inspectfreshchecks beforemerge,
-    laterfailures followup.
+  ci_status: Six jobs QUEUED; no pass yet.
+  local_validation: All seven required gates passed, source/tool hashes verified.
+  merge_authority: User authorizes merge after one CI pass, with required local gates passed. Inspect fresh
+    checks; later failures get follow-up PR.
 preservation: External87-lineAGENTS.md patch and unrelated evidence unchanged; nineexistingworktrees, no newclones
   or cleanup.
 vcs_quirks:
@@ -181,5 +179,5 @@ vcs_quirks:
     failure alone.
   candidate: Caliptra rej_bounded Active-region race is a comparison candidate, not a confirmed VCS dependency;
     see evidence/review-20260920/caliptra-rej-underflow-next/ASSESSMENT.md.
-exact_next_tool: Read final pwrmgr-audit.json; validate source hashes; explicitly stage own docs and commit/push/open
-  PR using prepared body.
+exact_next_tool: Read checker-fix/traffic-audit.json; update durable evidence, then coordinator next compiler
+  blocker selection.

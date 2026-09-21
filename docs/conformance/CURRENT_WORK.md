@@ -1,5 +1,9 @@
 # Current evidence and work
 
+The [seed-3 checker correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) records a separately patched upstream checker, passing seed1/seed3 smoke, and retained stopped-clock failure checks. The pristine release stays unchanged and its seed3 remains failing; this is patched-DV evidence.
+
+The [pwrmgr seed-3 assessment](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json) identifies a clock-phase assumption in the unchanged upstream assertion. The run remains failing; this is diagnostic evidence, not an application pass or a compiler fix.
+
 Latest focused candidate: [occurrence-time class event expressions](session_logs/2026-09-21_occurrence_event_focus.json) resolves the paired pulse boundary and records new selector/lifetime regressions. Required local gates pass; final application replay and PR publication are pending. The [earlier synchronous-wait candidate](session_logs/2026-09-21_mixed_event_focus.json) retains its failed pulse evidence. Latest merged baseline remains PR314 (`e2f804f0d`), with [distribution local qualification](session_logs/2026-09-21_exact_large_dist_focus.json). Full application DV qualification remains open.
 
 Latest compiler qualification: [PR312 required local gates](session_logs/2026-09-21_pr312_local_qualification.json) pass on repair source `0b1aeaee6`, identical to `b5bc2864f` for compiler/test inputs. CI remains pending. This supersedes pending local-gate statements below; application outcomes retain their recorded provenance.

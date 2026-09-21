@@ -1,0 +1,232 @@
+{
+  "classification": "PATCHED_UPSTREAM_CHECKER_VALIDATION_NOT_UNMODIFIED_DV_QUALIFICATION",
+  "compiler_revision": "175dcb65d76ffdbae78e64ba45beee95217e8773",
+  "release": "Earlgrey-PROD-M6",
+  "application_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pristine_status": "",
+  "patch": "evidence/review-20260920/pwrmgr-seed3-checker-fix/opentitan-clock-activity.patch",
+  "patch_sha256": "dc4c9b4be456a842e34c41cb002972762395ac0952bcef153d3bca7b4e9af8ec",
+  "image_sha256": "db7e5fb9b49aec47f3da60bfe47d851cbe9bf32847962ec4cb63c1944262a8a4",
+  "tools": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/lib/ivl/ivl": "30aa4c39003e223688ad9e545fc78c07c555f2e1a6fd5d994d90f1d7381688ab",
+    "local-install/lib/ivl/vvp.tgt": "43fad3332593bec47ffc8f9ec8af552453512441c1e01a632a795833bc623ed8",
+    "local-install/bin/vvp": "4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0"
+  },
+  "compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-spwrmgr_bind",
+      "-spwrmgr_cov_bind",
+      "-spwrmgr_unit_only_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/pwrmgr.vvp",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/overlay.scr"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-candidate1/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+    "replaced_source": [
+      "../src/lowrisc_dv_pwrmgr_sva_0.1/pwrmgr_sec_cm_checker_assert.sv"
+    ]
+  },
+  "compile_exit": 0,
+  "runs": [
+    {
+      "seed": 3,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/pwrmgr.vvp",
+        "+ntb_random_seed=3",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "exit": 0,
+      "seconds": 4.613227844238281
+    },
+    {
+      "seed": 1,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/pwrmgr.vvp",
+        "+ntb_random_seed=1",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "exit": 0,
+      "seconds": 4.1162800788879395
+    }
+  ],
+  "focus": {
+    "passed": 60,
+    "failed": 0,
+    "editions": [
+      2017,
+      2023
+    ],
+    "nfa_modes": [
+      0,
+      1
+    ],
+    "evidence": "evidence/review-20260920/pwrmgr-seed3-checker-fix/focus-results.json"
+  },
+  "semantics": "Replace sampled clock level with stability of last positive-edge time. Keep 138 consecutive cycles, nonoverlapped consequent, enable and reset controls. No forced phase or assertion suppression. Template and generated checker both covered by applicable patch; only generated checker overlaid for simulation.",
+  "limits": [
+    "DV checker relies on positive clock periods resolved at1ps; same-timestamp zero-delay clock loops are outside physical clock stimulus.",
+    "Pristine seed3 still fails; only separately patched seed3 passes.",
+    "No whole DV suite qualification; no compiler change."
+  ],
+  "durable_patch": "docs/conformance/repros/pwrmgr_clock_activity/opentitan-clock-activity.patch",
+  "durable_reducer": "docs/conformance/repros/pwrmgr_clock_activity/checker_repro.sv",
+  "traffic_audit": {
+    "scope": "Read-only traffic audit of checker-overlay replays; no simulator/build/source action.",
+    "classification": "patched upstream checker overlay, NOT pristine-corpus qualification.",
+    "overlay_evidence": {
+      "command_json_replaced_source": [
+        "../src/lowrisc_dv_pwrmgr_sva_0.1/pwrmgr_sec_cm_checker_assert.sv"
+      ],
+      "overlay_source_copy": "evidence/review-20260920/pwrmgr-seed3-checker-fix/hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv"
+    },
+    "seeds": {
+      "seed1": {
+        "exit": 0,
+        "finish_time_ps": 65380465,
+        "monitor": {
+          "a_items": 25,
+          "d_items": 25,
+          "ordered_source_address_matches": true,
+          "multiset_source_address_matches": true,
+          "a_unmatched": {},
+          "d_unmatched": {}
+        },
+        "driver": {
+          "responses": 25,
+          "pending_request_zero": 25
+        },
+        "outstanding": {
+          "increment_to_1": 25,
+          "decrement_to_0": 25,
+          "final_drained": true
+        },
+        "operations": {
+          "PutPartialData": 4,
+          "Get": 15,
+          "PutFullData": 6
+        },
+        "scoreboard": {
+          "writes": 10,
+          "read_observations": 15,
+          "read_observations_by_register": {
+            "wake_status": 3,
+            "reset_status": 3,
+            "cfg_cdc_sync": 4,
+            "intr_state": 3,
+            "intr_enable": 2
+          }
+        },
+        "completion": {
+          "uvm_errors": 0,
+          "uvm_fatals": 0,
+          "test_passed_checks_banner": 1,
+          "test_failed_banner": 0
+        },
+        "log_sha256": "253330f9f2318aabe1d983f4620fe66b1afe9fc5cf63c149a634ffa998dde2d4"
+      },
+      "seed3": {
+        "exit": 0,
+        "finish_time_ps": 53640918,
+        "monitor": {
+          "a_items": 38,
+          "d_items": 38,
+          "ordered_source_address_matches": true,
+          "multiset_source_address_matches": true,
+          "a_unmatched": {},
+          "d_unmatched": {}
+        },
+        "driver": {
+          "responses": 38,
+          "pending_request_zero": 38
+        },
+        "outstanding": {
+          "increment_to_1": 38,
+          "decrement_to_0": 38,
+          "final_drained": true
+        },
+        "operations": {
+          "PutPartialData": 7,
+          "Get": 28,
+          "PutFullData": 3
+        },
+        "scoreboard": {
+          "writes": 10,
+          "read_observations": 28,
+          "read_observations_by_register": {
+            "wake_status": 3,
+            "reset_status": 3,
+            "cfg_cdc_sync": 17,
+            "intr_state": 3,
+            "intr_enable": 2
+          }
+        },
+        "completion": {
+          "uvm_errors": 0,
+          "uvm_fatals": 0,
+          "test_passed_checks_banner": 1,
+          "test_failed_banner": 0
+        },
+        "log_sha256": "480703146b97f0a296bd24dbc799d499931551e838e37cdacd128983e28ff046"
+      }
+    },
+    "read_check_classification": {
+      "default_disable_csr_rd_chk": 0,
+      "generic_mirrored_value_compares": {
+        "intr_enable": 2
+      },
+      "generic_compare_suppressed": {
+        "cfg_cdc_sync": "all observed reads",
+        "intr_state": "all observed reads",
+        "reset_status": "all observed reads",
+        "wake_status": "all observed reads"
+      },
+      "dedicated_or_special_checks": {
+        "cfg_cdc_sync": "pwrmgr_smoke_vseq wait_for_csr_to_propagate_to_slow_domain invokes csr_spinwait with expected data 0.",
+        "intr_state": "with default invalid_st_test 0, the special scoreboard path performs interrupt-data and pin checks.",
+        "reset_status": "pwrmgr_smoke_vseq check_reset_status uses csr_rd_check.",
+        "wake_status": "pwrmgr_smoke_vseq check_wake_status uses csr_rd_check."
+      },
+      "limitation": "A scoreboard \u201cReading\u201d line proves observation only. It does not itself prove a generic mirrored-value compare."
+    },
+    "provenance": {
+      "runs_json_sha256": "b82a1c717200899ecdd1320a3232d1e0da2fdb427e6f3bd6e2ff05fb22264c51",
+      "seed1_log": "evidence/review-20260920/pwrmgr-seed3-checker-fix/seed1.log",
+      "seed3_log": "evidence/review-20260920/pwrmgr-seed3-checker-fix/seed3.log"
+    }
+  }
+}

@@ -1,144 +1,29 @@
-id: OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT
-status: DOCUMENTED_PENDING_PUBLICATION
-branch: agent/opentitan-mixed-event-20260921
-baseline:
-  main: e2f804f0d816e6feb9e2402f761129ffffb69abd
-  qualification: docs/conformance/session_logs/2026-09-21_exact_large_dist_focus.json
-  ci: PR314 merged; Ubuntu24.04 SUCCESS, remaining jobs pending at latest observation.
-objective: Full IEEE1800-2017 and2023 separately; IEEE1800.2/UVM; unmodified OpenTitan/Caliptra RTL/DV and
-  standards-correct SVA/formal frontend.
-authority: User-authorized continuous campaign. Candidate1 patch/evidence preserved. Coordinator authorizes
-  synchronous observer runtime and frontend lowering within listed files. Source checkpoint is coherent and
-  installed as observer-build3; required serial qualification is running.
-coordination:
-  coordinator: Selection, normative interpretation, integration, all shared builds/installations/test-output
-    directories, registration manifests, documentation and final review.
-  agent_limit: Two retained cheaper agents, disjoint private evidence ownership; no newworktrees.
-  preservation: External87-line AGENTS.md addition and unrelated artifacts untouched. Explicit staging only.
-  builds: No live shared build/test. Observer-build3 frozen; all required gates passed.
-  correctness: No app workarounds, null suppression, discarded constraints, fake values or probability approximations.
-    Unsupported requested behavior must fail explicitly.
-clauses: IEEE1800-2017 and2023 9.4.2; preserve 9.3.2 join_none arming and 4.4 stratified regions.
-reproducer: evidence/review-20260920/opentitan-pwrmgr-timeout-next/mixed-event-acceptance/
-expected: Selected local-vector value changes and class selector mutations re-evaluate the same event expression;
-  only expression value changes resume the caller, exactly once.
-current:
-  build: Observer-build3 build/install/FPGA exit0; snapshots/hash manifest preserved.
-  focus: 52paired private runs pass,44legacy+44JSON permanent tests pass,7recipe ABI checks pass;96adjacent
-    pass on observer-build2.
-  malformed: New recipe ABI compile/runtime rejection and valid recipe checks pass7/7; superseded unpublished
-    opcode removed.
-  pending: PR publication; final traffic audit passed.
-  adjacent: 96/96 legacy+JSON checks pass across property events, resource waits, VIF events, finish and statement
-    events.
-  application: 'Final observer-build3: pwrmgr seed1 normal completion, seed3 assertion persists; Caliptra power2round2048
-    pass, rej_bounded8 errors/10 cases.'
-  warnings: Pwrmgr2resolved-wire coercions legal;9generated assertion-template NBAs legal with delta-order
-    hazard; warnings retained, no separate compilerdefect proven.
-root: Existing NetEvent retains ordinary pins and mutation paths, but target emits mutation-only wait. Forked
-  helper rejected because it can delay subscription in Reactive processes.
+id: OT-PWRMGR-SEED3-CHECKER-ACTIVITY
+status: FOCUSED_AND_PATCHED_DV_TESTED
+authority: User explicitly said Still fix seed3 after diagnosis. Prepare and validate a separate upstream checker
+  patch; keep pristine corpus unchanged.
+baseline: 7c30c69c412817872c911103648c9aef12ecc78e
+reproducer: Stable unmodified Earlgrey-PROD-M6 pwrmgr_smoke_vseq seed3; evidence/review-20260920/opentitan-observer-qualification/pwrmgr-seed3.log
+expected: Determine whether 138 consecutive sampled antecedent cycles occurred and whether the non-overlapped
+  consequent is false; distinguish compiler defect, application scheduling, and RTL/stimulus.
+hypothesis: Level sampling aliases deliberately randomized clock phase. A timestamp of the most recent rising
+  edge records activity independently of sampled clock level.
 allowed_files:
-- elaborate.cc
-- tgt-vvp/vvp_process.c
-- vvp/vthread.cc
-- vvp/codes.h
-- vvp/compile.cc
-- private evidence and uniquely named permanent mixed-event tests
-- tests/vvp_runtime/mixed_wait_malformed.{vvp,stdout,stderr}
-- tests/vvp_runtime/mixed_wait_recipe_*.{vvp,stdout,stderr}
-- tests/vvp_runtime/run_mixed_wait_malformed.sh
-- .github/ivtest_gate.sh (register selected opcode negative test only)
-- netlist.h
-- net_event.cc
-- t-dll.h
-- t-dll.cc
-- t-dll-api.cc
-- ivl_target.h
-- vvp/vthread.h
-- vvp/event.cc
-- vvp/event.h
-- vvp/vvp_object.cc
-- vvp/vvp_object.h
-- tgt-vvp/eval_vec4.c
-- tgt-vvp/eval_object.c
-- tgt-vvp/eval_expr.c
-- tgt-vvp/vvp_priv.h
-- t-dll-expr.cc
-forbidden: No application edits, forked observer subscription, new expression interpreter, unrelated wait-family
-  changes, discarded function semantics or broad scheduler refactor. Existing unsupported mixed static/global
-  and separate-event-list diagnostics remain.
+- Private evidence/review-20260920/pwrmgr-seed3-checker-fix/
+- Owning documentation and resumption records
+forbidden: No pristine application edits, forced clock phases, disabled assertions, changed timeout bounds,
+  or compiler semantics changes. Patched DV must be labeled patched.
 lanes:
-  target:
-    owner: canonical_graph_refresh (Terra medium)
-    files:
-    - elaborate.cc
-    - netlist.h
-    - net_event.cc
-    - t-dll.h
-    - t-dll.cc
-    - t-dll-api.cc
-    - ivl_target.h
-    - tgt-vvp/vvp_process.c
-    - tgt-vvp/eval_vec4.c
-    - tgt-vvp/eval_object.c
-    - tgt-vvp/eval_expr.c
-    - tgt-vvp/vvp_priv.h
-    - t-dll-expr.cc
-    status: FROZEN_COORDINATOR_COMPLETED_TARGET_RECIPE
-  runtime:
-    owner: vif_proxy_implementation (Sol medium)
-    files:
-    - vvp/vthread.cc
-    - vvp/vthread.h
-    - vvp/codes.h
-    - vvp/compile.cc
-    - vvp/event.cc
-    - vvp/event.h
-    - vvp/vvp_object.cc
-    - vvp/vvp_object.h
-    status: FROZEN_RUNTIME_CHECKPOINT_PRIVATE_BYTECODE_FIXTURES_ONLY
-contract: Existing VVP dispatcher executes full-expression recipe synchronously before source publisher returns;
-  retain waiter context and process identity, separate expression sampling from normal-region body scheduling.
-  Refresh precise subscriptions on equal-value owner/selector changes. No delayed value-free occurrence FIFO,
-  no duplicate selector-function calls, no newly rejected accepted expression forms.
-acceptance:
-- Paired selected/unselected, selector-same/different, X/invalid, simultaneous changes, disable/reuse and Reactive
-  queued-writer cases.
-- Mixed multi-path, root replacement and automatic context isolation; malformed opcode checks as applicable.
-- Permanent paired legacy/JSON regressions and adjacent wait/cancellation suites.
-- Fresh unmodified pinned pwrmgr replay; no DV success from timeout/process status alone.
-- Required broad runtime gates before qualification.
-discovery_policy: Record unrelated defects only.
-stop_after_completion: Freeze completed patch, return to coordinator selection.
-evidence: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
-publication:
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/314
-  head: bb94b59b7
-  state: MERGED_EXTERNALLY
-  ci_run: 35654962546
-  ci_status: Ubuntu24.04 in progress, five queued; no CI pass claimed.
-  local_validation: Allrequiredgatespassed
-  merge_authority: User authorizes merge afteroneCIpass with requiredlocalgatespassed; inspectfreshchecks beforemerge,
-    laterfailures followup.
-bytecode: '%wait/obj/expr E,T; %event/expr/return N; capture save/v or save/o slot, load/v slot,width and load/o
-  slot. Full vec4 plus precise descriptors, inline recipe skipped by original process continuation.'
-scope_review: Root review found cfg.bits[local_idx] also selects combined target but precise_direct currently
-  skips expression filter. Track ordinary non-root dependency and require none for precise_direct, reusing
-  existing value-filter for mixed dependencies. Prevent same-value selector changes from falsely resuming caller.
-violated_invariant: IEEE9.4.2 event occurrence must survive an expression pulse returning to armed value before
-  waiting thread runs. Existing deferred procedural filter misses same-slot selected-vector and selector pulses.
-boundary_evidence: evidence/review-20260920/opentitan-mixed-wait-design/frontend/final-boundary/
-why_local_fix_insufficient: Synchronous subscription fixes missing dependency but deferred NetDoWhile value
-  filter samples final value too late. Removing filter causes false wakes on unchanged selected values; a forked
-  evaluator delays arming. Need occurrence-time value evaluation and exact-once/cancellable wake.
-proposed_scope: Coordinator-authorized occurrence-time evaluation using existing dispatcher and retained contexts.
-  event/object hooks only as required for synchronous publication and cancellation; no unrelated scheduler
-  redesign.
-observer_frontend: NetEvProbe owns duplicated full expression for existing accepted integral compound class
-  event path; export via ivl_event_observer_expr after materializing input signals. Reuse existing mutation-probe
-  dedup isolation. Remove deferred filter only when observer target/runtime recipe is ready; no accepted expression
-  form silently narrowed.
-capture_contract: Capture original selector/owner nodes during existing full-expression evaluation into private
-  runtime frame slots; descriptors reuse captured values. No duplicate function execution, unconditional hoisting,
-  cross-activation temporaries or structural CSE. Unevaluated branch descriptors inactive. Exact mapping to
-  original nodes; frame slots valid only for that evaluation.
+  review:
+    owner: vif_proxy_implementation Sol/medium
+    scope: Review phase-independent clock activity check and acceptance boundaries
+  graph:
+    owner: canonical_graph_refresh Terra/medium
+    scope: Canonical graph refresh after PR315; no checker/build ownership
+coordinator: Prepare minimal isolated upstream patch, compile overlay and run positive/negative/boundary checks
+  and real UVM smoke.
+preservation: PR315 frozen; external AGENTS patch and unrelated artifacts untouched.
+conclusion: Separate upstream checker timestamp patch passes60 focusedchecks and seed1/seed3smoke; pristine
+  release untouched, no compilerfix.
+evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json
+pending: Traffic audit passed; patch ready for review. No patch applied to pristine source.
