@@ -343,3 +343,19 @@ inside_common_type_checkpoint:
   synthesis: Escalated Sol private patch now handles case merges but nested packed P write boundary requires completion or focused rejection.
   shared_processes: No shared build or test remains live; prior JSON neighbor session1849 and combinedfocus18980 completed successfully.
   next: Review inside X/Z patch and synthesis nested select update before next shared build; repeat affected focused tests and constraint neighbors for actual code changes.
+
+inside_queue_state_transport_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  parent: CONSTRAINT-INTEGRAL-CAST-IR
+  invariant: X/Z values in active constraint operands must error under IEEE1800-2017/2023 18.3; inactive guarded reads must not fail.
+  root_cause: Class q reads and of_STD_RANDOMIZE_WITH scope queue capture collapse X/Z to uint64 zero before constraint state validation.
+  scope: Private vvp/vthread.cc producer, vvp/vvp_z3.h scope API, vvp/vvp_z3.cc consumer; parallel per-element validity metadata for qv, existing guarded StateCheck for invalid q/qv reads.
+  constraints: Preserve declared element width/sign, state/ref effects once, value/RNG/callback rollback; invalid numeric placeholder cannot reach successful active solution. Do not claim qfield or wide-container semantics repaired.
+  evidence: evidence/review-20260920/next-joint-distributions/patch-type-inside/{queue-x-assessment.json,scope-queue-x-assessment.json}
+  acceptance: Known fourstate containers, active X and Z rejection with rollback, inactive guards pass, both class/scope and both editions; all cast/distribution and constraint neighbors remain required.
+  owner: constraint_guard_semantics private patch; coordinator alone integrates/builds.
+
+queue_state_and_nba_review_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_queue_state_and_nba_review.json
+  next: Review frozen queue transport and NBA enable/hold patches, then coordinator build and targeted paired runtime checks.
+  shared_processes: No build/test live; private implementation agents remain active.
