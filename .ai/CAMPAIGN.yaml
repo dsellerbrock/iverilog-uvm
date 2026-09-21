@@ -411,3 +411,11 @@ memory_regression_controlled_attribution:
   installed_state: Baselineelaborator isolation variant; rebuild candidate before qualification.
   ownership: Sol owns synthesiscode for allsix failures; Terra private memoryport runtime/netlisttrace only, no implementationedits.
   next: Integrate concrete synthesisrepair, rebuild candidate, rerun sixfailures plusfocused/wide suites.
+
+release_retest_and_cleanup_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_candidate_release_retest_and_cleanup.json
+  installed_state: Full current candidate rebuilt after restoring elab_lval.cc timestamp; binary hashes verified after retests.
+  focused_state: 160 synthesis neighbors pass; 46 legacy cases have 38 passes and eight duplicate-warning gold mismatches, runtime assertions pass.
+  application_state: Pinned clean releases retested; crossbar and power2round pass, GPIO remains failing.
+  processes: Retest and neighbor sessions complete; no shared build running.
+  next: Resolve duplicate index diagnostic path or exact gold differences, run both focused harnesses, then broad batch gates before PR.

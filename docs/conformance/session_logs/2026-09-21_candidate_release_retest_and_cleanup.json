@@ -1,0 +1,244 @@
+{
+  "date": "2026-09-21",
+  "status": "FOCUSED_APPLICATION_RETEST_NOT_FULL_QUALIFICATION",
+  "provenance": {
+    "head": "3751150f4fc9bcb881c6ea08f13456f0594f6eec",
+    "releases": [
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+        "release": "Earlgrey-PROD-M6",
+        "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+        "tag_commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+        "status": ""
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+        "release": "v2.1.2",
+        "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+        "tag_commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+        "status": ""
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge",
+        "release": "v2.0.3",
+        "head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+        "tag_commit": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+        "status": ""
+      }
+    ],
+    "binaries": {
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/ivl": "b5548be0a6d5c7b8d44f42f0f219e300bae129e88455511055e8408f8696d4c7"
+    },
+    "diff_sha256": "7957053335ee2d79a7e92689748fa5eaad201f5c59e59e057326f02dc162f2b4"
+  },
+  "applications": [
+    {
+      "release": "Earlgrey-PROD-M6",
+      "test": "peripheral crossbar UVM1.2 smoke",
+      "result": "PASS",
+      "scoreboard_items": 354,
+      "uvm_warning_error_fatal": [
+        0,
+        0,
+        0
+      ],
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-stb",
+            "-ssec_cm_prim_count_bind",
+            "-ssec_cm_prim_double_lfsr_bind",
+            "-ssec_cm_prim_onehot_check_bind",
+            "-ssec_cm_prim_sparse_fsm_flop_bind",
+            "-sxbar_peri_bind",
+            "-uvm",
+            "-DUVM",
+            "-DUVM_NO_DEPRECATED",
+            "-DUVM_REG_ADDR_WIDTH=32",
+            "-DUVM_REG_DATA_WIDTH=32",
+            "-DUVM_REG_BYTENABLE_WIDTH=4",
+            "-DSIMULATION",
+            "-DDUT_HIER=tb.dut",
+            "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-final-candidate/top_earlgrey_xbar_peri_sim.vvp",
+            "-c",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/matrix-iverilog.scr"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 2.40621280670166
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-final-candidate/top_earlgrey_xbar_peri_sim.vvp",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_LOW",
+            "+cdc_instrumentation_enabled=1",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=xbar_base_test",
+            "+UVM_TEST_SEQ=xbar_smoke_vseq"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 27.438934087753296
+        }
+      }
+    },
+    {
+      "release": "Earlgrey-PROD-M6",
+      "test": "GPIO UVM1.2 smoke",
+      "result": "FAIL",
+      "reason": "Known direct regex boundary; early UVM fatal and assertion failures. Exit0 is not success.",
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-stb",
+            "-sgpio_bind",
+            "-ssec_cm_prim_count_bind",
+            "-ssec_cm_prim_double_lfsr_bind",
+            "-ssec_cm_prim_onehot_check_bind",
+            "-ssec_cm_prim_sparse_fsm_flop_bind",
+            "-uvm",
+            "-DUVM",
+            "-DUVM_NO_DEPRECATED",
+            "-DUVM_REG_ADDR_WIDTH=32",
+            "-DUVM_REG_DATA_WIDTH=32",
+            "-DUVM_REG_BYTENABLE_WIDTH=4",
+            "-DSIMULATION",
+            "-DDUT_HIER=tb.dut",
+            "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-final-candidate/gpio_sim.vvp",
+            "-c",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/matrix-iverilog.scr"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 1.8919801712036133
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-final-candidate/gpio_sim.vvp",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_LOW",
+            "+cdc_instrumentation_enabled=1",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=gpio_base_test",
+            "+UVM_TEST_SEQ=gpio_smoke_vseq"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 1.610313892364502
+        }
+      },
+      "error_lines": 277,
+      "fatal_lines": 2
+    },
+    {
+      "release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+      "test": "power2round",
+      "result": "PASS",
+      "input_vector_lines": 2048,
+      "evidence": {
+        "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+        "source_modified": false,
+        "commands": {
+          "compile": {
+            "argv": [
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+              "-g2012",
+              "-gassertions",
+              "-s",
+              "power2round_tb",
+              "-o",
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-final-candidate/power2round-runtime/power2round_tb.vvp",
+              "-f",
+              "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+            ],
+            "exit": 0,
+            "elapsed": 0.044790029525756836
+          },
+          "runtime": {
+            "argv": [
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+              "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921-final-candidate/power2round-runtime/power2round_tb.vvp"
+            ],
+            "exit": 0,
+            "elapsed": 0.1497652530670166
+          }
+        },
+        "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+        "generator_sha256": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+        "pass_marker": true,
+        "failure_marker": false,
+        "passed": true,
+        "vector_files": {
+          "coeff_low.hex": "e40ab5ce0da44d35dfc6950c35ed1d40a2a0c388aa329720e7725921fae9f98d",
+          "coeff_input.hex": "340b315bead61ca371e7e33b65b6a794439255b4c0ef9847e1f20b8b66fd67f1",
+          "coeff_high.hex": "f9dff295fc0dfab8bc39da003fc7e419ee961ac3d61dee576a599bf6b03f1249"
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "removed_files": [
+      {
+        "path": "evidence/review-20260920/retest-20260921/top_earlgrey_xbar_peri_sim.vvp",
+        "bytes": 69183766,
+        "sha256": "008cdbcb9c5f53f477f0a3a02fed20b66c737cf227bb5e74010e358315139a1d",
+        "reason": "Generated binary from completed passing run; commands, sources, vectors and logs retained."
+      },
+      {
+        "path": "evidence/review-20260920/retest-20260921/power2round-runtime/power2round_tb.vvp",
+        "bytes": 109770,
+        "sha256": "88ac343c772f44fc6467f690d3f5da15f915fad8863475484356ee9b4c95259b",
+        "reason": "Generated binary from completed passing run; commands, sources, vectors and logs retained."
+      },
+      {
+        "path": "evidence/review-20260920/retest-20260921-queue-validity/top_earlgrey_xbar_peri_sim.vvp",
+        "bytes": 69183392,
+        "sha256": "32e3600695565f77e8fdf8c248e7371e91b90dec4ba3aecd2b8c7db0d82f783b",
+        "reason": "Generated binary from completed passing run; commands, sources, vectors and logs retained."
+      },
+      {
+        "path": "evidence/review-20260920/retest-20260921-queue-validity/power2round-runtime/power2round_tb.vvp",
+        "bytes": 109767,
+        "sha256": "086cc18038ce151ee93e7cdb1cc48136ce7e6b4f3fe6980a9d56ae4387f013a0",
+        "reason": "Generated binary from completed passing run; commands, sources, vectors and logs retained."
+      },
+      {
+        "path": "evidence/review-20260920/retest-20260921-final-candidate/top_earlgrey_xbar_peri_sim.vvp",
+        "bytes": 69183334,
+        "sha256": "3965a78f9bb4563fdbccf714182211c33957b10b632cac239f667e7ea34b5b78",
+        "reason": "Generated binary from completed passing run; commands, sources, vectors and logs retained."
+      },
+      {
+        "path": "evidence/review-20260920/retest-20260921-final-candidate/power2round-runtime/power2round_tb.vvp",
+        "bytes": 109786,
+        "sha256": "4de3d4e8616513e7d8893cd8f8e27c89b0b95700a34c27e4c5de8661bc32c9e1",
+        "reason": "Generated binary from completed passing run; commands, sources, vectors and logs retained."
+      }
+    ],
+    "bytes_reclaimed": 207879815,
+    "repositories_removed": [],
+    "protected": "All9registeredworktrees; unique unregistered source; unproven unused final-parity/proof builds retained."
+  },
+  "focused_compiler_status": {
+    "legacy46": "38pass;8exact-output mismatches from duplicate truncation warnings, runtime assertions pass",
+    "synthesis_neighbors160": "160pass",
+    "broad_gates": "Pending"
+  },
+  "rebuild_correction": "Candidate elab_lval source restored with old mtime initially left HEAD object installed; touched source, rebuilt and installed before these tests. All hashes unchanged after retests.",
+  "raw_evidence": "evidence/review-20260920/retest-20260921-final-candidate"
+}
