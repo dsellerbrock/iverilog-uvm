@@ -470,3 +470,8 @@ repaired_broad_gate_run:
   order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
   next: Poll session22845; inspect statuses and logs; do not restart a live gate or mutate installed binaries.
   previous_run: batch-20260921 integrated failed, six regressions repaired; never count it as qualified.
+
+repaired_candidate_application_retest:
+  evidence: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
+  session77217: Complete; crossbar andpower2round pass, GPIO fails.
+  broad_session: 22845 stillactive; poll existing handle.

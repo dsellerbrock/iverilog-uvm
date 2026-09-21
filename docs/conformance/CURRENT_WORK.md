@@ -125,3 +125,5 @@ records fresh pinned-release application results and disposable binary removal.
 It does not qualify the current uncommitted compiler candidate.
 
 The [synthesis and wide-index focused checkpoint](session_logs/2026-09-21_synthesis_and_wide_index_focus.json) records paired-edition runtime and neighboring-test evidence. Required broad batch gates remain pending.
+
+The [repaired-candidate release retest](session_logs/2026-09-21_repaired_candidate_release_retest.json) supersedes the earlier application snapshot for the latest elaboration repairs. Full batch qualification remains pending.
