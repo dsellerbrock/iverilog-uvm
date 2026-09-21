@@ -1,0 +1,3 @@
+ivltests/synth_reset_only_async_load_fail.v:4: sorry: Asynchronous load is not currently supported in synthesis.
+ivltests/synth_reset_only_async_load_fail.v:3: error: Unable to synthesize synchronous process.
+2 error(s) in post-elaboration processing.

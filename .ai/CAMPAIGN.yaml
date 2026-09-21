@@ -177,3 +177,10 @@ constraint_completed_checkpoint_20260921:
   completed_session: 80982
   active_shared_process: null
   next: Continue async-reset root-cause repair and select next independent blocker. Broad qualification due near ten fixes.
+
+reset_only_completed_checkpoint:
+  focused_validated_fixes: 6
+  completed_synthesis_session: 73505
+  evidence: docs/conformance/session_logs/2026-09-21_reset_only_synthesis.json
+  shared_process: null
+  next: Review row async-reset guard diagnosis and coupled-distribution assessment; broad gates at batch checkpoint.

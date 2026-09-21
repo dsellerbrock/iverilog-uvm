@@ -1534,3 +1534,7 @@ extends the PARTIAL 7.4.6/18.3/18.5 implementation to symbolic selections
 of fixed integral class arrays. It records bounds, state errors, guard sifting,
 wide state leaves, rollback, and negative solve-before evidence. Full batch
 qualification remains pending; this is not general randomization qualification.
+
+### September 21 reset-only synthesis
+
+The [paired record](../session_logs/2026-09-21_reset_only_synthesis.json) adds runtime evidence for reset-only flip-flop hold behavior under9.2/10.4. Synthesis remains PARTIAL, including the separate asynchronous row-reset blocker.

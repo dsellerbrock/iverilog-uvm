@@ -4963,12 +4963,6 @@ bool NetProcTop::synth_sync(Design*des)
 	    ff2->aset_value(aset_value[idx]);
 	    ff2->async_set_priority(aset_priority[idx]);
 
-	    NetNet*tmp = nex_d.pin(idx).nexus()->pick_any_net();
-	    tmp->set_line(*this);
-	    assert(tmp);
-
-	    tmp = crop_to_width(des, tmp, ff2->width());
-
 	    ivl_variable_type_t q_data_type = nex_set[idx].lnk.nexus()
 		  ->synthesized_process_variable_type();
 	    ivl_assert(*this, q_data_type != IVL_VT_NO_TYPE);
@@ -4983,6 +4977,13 @@ bool NetProcTop::synth_sync(Design*des)
 	    q_value->local_flag(true);
 	    q_value->set_line(*this);
 	    connect(q_value->pin(0), ff2->pin_Q());
+	    NetNet*tmp = nex_d.pin(idx).nexus()->pick_any_net();
+	      // Reset-only outputs have no D expression; clocks retain Q.
+	    if (!tmp && (aclr.pin(idx).is_linked() || aset.pin(idx).is_linked()))
+		  tmp = q_value;
+	    ivl_assert(*this, tmp);
+	    tmp->set_line(*this);
+	    tmp = crop_to_width(des, tmp, ff2->width());
 	    NetNet*typed_q_value = q_data_type == IVL_VT_BOOL
 		  ? cast_to_int2(des, scope(), q_value, ff2->width())
 		  : q_value;

@@ -1,0 +1,9 @@
+{
+  "type": "CE",
+  "source": "synth_reset_only_async_load_fail.v",
+  "iverilog-args": [
+    "-S",
+    "-g2023"
+  ],
+  "gold": "synth_reset_only_async_load_fail"
+}

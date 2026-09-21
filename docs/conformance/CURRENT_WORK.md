@@ -100,3 +100,5 @@ The [masked memory synthesis record](session_logs/2026-09-20_masked_memory_synth
 The [variable-row assignment record](session_logs/2026-09-20_variable_row_assignment.json) contains paired focused evidence and the remaining Ibex synthesis boundary.
 
 The [state-selected constraint record](session_logs/2026-09-21_state_selected_fixed_array_constraints.json) tracks the next paired focused candidate and its validation status.
+
+The [reset-only synthesis record](session_logs/2026-09-21_reset_only_synthesis.json) records the next paired runtime checkpoint.

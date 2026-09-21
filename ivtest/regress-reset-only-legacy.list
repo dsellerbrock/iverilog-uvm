@@ -1,0 +1,4 @@
+synth_reset_only_hold normal,-S,-g2017 ivltests gold=synth_reset_only_hold.gold
+synth_reset_only_hold_2023 normal,-S,-g2023 ivltests gold=synth_reset_only_hold.gold
+synth_reset_only_async_load_fail CE,-S,-g2017 ivltests gold=synth_reset_only_async_load_fail.gold
+synth_reset_only_async_load_fail_2023 CE,-S,-g2023 ivltests gold=synth_reset_only_async_load_fail.gold

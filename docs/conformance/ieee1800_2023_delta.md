@@ -259,3 +259,5 @@ State-selected fixed-array constraint evidence is [shared here](session_logs/202
 Indexing/slicing and Table 7-1 move from 2017 7.4.6 to 2023 7.4.5;
 constraint guards move from 18.5.13 to 18.5.12. Earlier records citing
 7.4.6 for both editions should be read with that clause-number correction.
+
+Reset-only synthesis follows the shared9.2/10.4 semantics; [paired evidence](session_logs/2026-09-21_reset_only_synthesis.json) records both editions and remaining scope.
