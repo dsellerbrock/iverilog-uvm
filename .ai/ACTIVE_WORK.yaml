@@ -196,3 +196,17 @@ reset_only_completed_checkpoint:
   status: FOCUSED_AND_NEIGHBOR_TESTED
   evidence: docs/conformance/session_logs/2026-09-21_reset_only_synthesis.json
   remaining: Original row async-reset blocker is still active; reset-only prerequisite is complete.
+
+joint_distribution_implementation_lane:
+  id: JOINT-MULTIPLE-DISTRIBUTIONS
+  status: SPEC_GROUNDED_ROOT_CAUSED
+  agent: constraint_guard_semantics (reused gpt-5.6-sol, medium)
+  owns: evidence/review-20260920/next-joint-distributions/patch; proposed vvp/vvp_z3.cc only plus fixtures.
+  assessment: evidence/review-20260920/next-joint-distributions/ASSESSMENT.md
+  reproducer: evidence/review-20260920/next-joint-distributions/fixtures/sv_randomize_joint_multiple_dist_positive.sv
+  expected: Satisfiable coupled distributions randomize successfully, respecting memberships, solve-before, edition-specific item weights, RNG ownership and transactional rollback.
+  scope: Reuse exact distribution resolver with symbolic staged conditioning for multiple distributions; preserve existing zero/one-distribution component paths.
+  acceptance: Actual M6 clock-configuration reducer beyond1024 complete tuples; ordered marginal, identical/opposing coupled distributions, hard UNSAT, invalid weights, deterministic replay and rollback; both editions.
+  restrictions: Never uniformly pin weighted stage subjects before weighting; no prefix-dependent unsupported-domain failures, cap increases, product-weight claim, approximate fallbacks or application edits.
+  preflight: Prove bounded global stage projections or static domain bounds before draws so every conditioned fiber is representable.
+  dependencies: Disjoint from active async-reset synthesis files; coordinator alone applies patches and builds.

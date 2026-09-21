@@ -184,3 +184,10 @@ reset_only_completed_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-21_reset_only_synthesis.json
   shared_process: null
   next: Review row async-reset guard diagnosis and coupled-distribution assessment; broad gates at batch checkpoint.
+
+joint_distribution_selection_checkpoint:
+  selected: JOINT-MULTIPLE-DISTRIBUTIONS
+  basis: Cheap paired failing reducer and stable M6 configuration IR; normative assessment distinguishes separate distributions from additive items.
+  parallel: row_async_reset continues synthesis enable aggregation diagnosis.
+  shared_process: null
+  next: Review private staged sampler and async-reset enable correction; retain six integrated fixes pending batch qualification.

@@ -1,0 +1,40 @@
+{
+  "conclusion": "",
+  "headSha": "cec75d034ea7c5ef23c6e7420b89fedff166a07d",
+  "jobs": [
+    {
+      "conclusion": "success",
+      "name": "\ud83d\udc27 Ubuntu 22.04",
+      "status": "completed"
+    },
+    {
+      "conclusion": "",
+      "name": "\ud83d\udfea CLANG64",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "",
+      "name": "\ud83d\udfea UCRT64",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "",
+      "name": "\ud83d\udfea MINGW64",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "",
+      "name": "\ud83c\udf4f macOS",
+      "status": "in_progress"
+    },
+    {
+      "conclusion": "success",
+      "name": "\ud83d\udc27 Ubuntu 24.04",
+      "status": "completed"
+    }
+  ],
+  "status": "in_progress",
+  "observed_utc": "2026-09-21T06:28:41.771132+00:00",
+  "run_url": "https://github.com/dsellerbrock/iverilog-uvm/actions/runs/35560995954",
+  "scope": "Restoration PR306 exact head; does not cover subsequent six-fix batch."
+}
