@@ -244,6 +244,8 @@ extern void ctx_stats_bump(const char* site);
    notification delivery. */
 extern bool vthread_context_live_matches_scope(vvp_context_t context,
                                                __vpiScope*scope);
+/* A nonzero token uniquely identifies the current live use of a context. */
+extern uint64_t vthread_context_generation(vvp_context_t context);
 
 /*
  * Access value stacks from thread space.

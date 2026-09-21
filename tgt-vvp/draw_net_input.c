@@ -398,6 +398,11 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 		  break;
 	    }
 
+            /* Event operands must be ready before pushed waiters arm.
+               Lowercase constants use the existing pre-simulation queue. */
+            if (ivl_const_event_synchronous(cptr))
+                  result[0] = 'c';
+
 	    d_rise = ivl_const_delay(cptr, 0);
 	    d_fall = ivl_const_delay(cptr, 1);
 	    d_decay = ivl_const_delay(cptr, 2);

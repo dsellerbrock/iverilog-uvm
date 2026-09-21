@@ -190,6 +190,8 @@ extern void schedule_at_active_sync(vvp_gen_event_t obj);
 
 /* True after all pre-simulation initialization events have drained. */
 extern bool schedule_simulation_started(void);
+/* True only while an NBA or Re-NBA update event is executing. */
+extern bool schedule_in_nba_update_region(void);
 
 extern void schedule_at_start_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);

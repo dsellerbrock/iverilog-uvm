@@ -713,6 +713,8 @@ extern ivl_nexus_t ivl_const_nex(ivl_net_const_t net);
 extern ivl_scope_t ivl_const_scope(ivl_net_const_t net);
 extern int         ivl_const_signed(ivl_net_const_t net);
 extern unsigned    ivl_const_width(ivl_net_const_t net);
+/* Constant operand created for an event expression; initialize before waiters. */
+extern int         ivl_const_event_synchronous(ivl_net_const_t net);
 extern double      ivl_const_real(ivl_net_const_t net);
 
 extern const char* ivl_const_file(ivl_net_const_t net);

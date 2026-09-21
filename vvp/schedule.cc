@@ -1421,6 +1421,12 @@ bool schedule_simulation_started(void)
       return sim_started;
 }
 
+bool schedule_in_nba_update_region(void)
+{
+      return sched_current_region == SEQ_NBASSIGN
+          || sched_current_region == SEQ_RE_NBASSIGN;
+}
+
 void schedule_functor(vvp_gen_event_t obj)
 {
       struct generic_event_s*cur = new generic_event_s;

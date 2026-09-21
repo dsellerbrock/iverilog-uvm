@@ -120,3 +120,41 @@ repair_resumption:
   exact_status_command: git status --short --untracked-files=no
   shared_processes: None running.
   preserve: AGENTS.md remains user-owned87-line addition; never stage it. Existing failed gate and fresh application evidence are committed and raw logs retained.
+
+publication_request_20260921:
+  user: Open PR after local checks for these substantial fixes; ten-fix batching waived for this batch.
+  body_draft: evidence/review-20260920/application-foundation-pr-body.md
+  prerequisite: Resolve current broad regressions and complete local qualification; draft explicitly not ready to publish.
+  active_progress: Private automatic part/event owner-scope fixes pass several previously failing activation/ancestor cases; NBA expression timing remains under review. Private port lane comparing removal of behavioral carrier against type exclusions.
+  approved_scopes: ACTIVE_WORK records part.cc/event.cc liveness repair, elaborate.cc port repair and compound mixed-dependency diagnostic restoration, with disjoint private ownership.
+
+publication_repair_checkpoint:
+  head: b03bccdf9
+  committed_repair: Port behavioral carrier removed, existing structural direction and driver diagnostics retained; mixed unsupported class/VIF expression rejection restored. Private26legacy26JSON plus real/integer/VHDL/VPI checks pass. Shared rebuild not yet run.
+  rejected_experiment: VIF-only synchronous marking passed38of40 but lost paired static-interface blocking pulse; never integrate that experiment.
+  runtime_lane: Sol private part/event context repair is frozen; NBA-derived comb deferral and central context-generation witness under focused tests. Scheduler scope is readonly NBA/ReNBA accessor, existing Active queues only.
+  frontend_lane: Sol assessing physical interface time-zero binding and remaining -S failures; no nullcheck waiver authorized.
+  next: Receive validated repair patches, review liveness/region invariants, integrate and rebuild, run shared-six-repair-focus failedcase list plus allnewfocus, then complete broadqualification and publish requestedPR.
+  processes: No shared build/test process running; two private repair lanes active.
+  preserve: AGENTS user87linepatch remains untouched/unstaged.
+
+application_foundation_draft_pr_checkpoint:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/309
+  state: OPEN_DRAFT_NOT_READY_FOR_MERGE
+  published_head: b03bccdf94e539eb5bbee34fd79092dfdc311af4
+  publication: User requested PR after local checks; draft exposes completed checks and unresolved regressions without qualification or merge claim.
+  integrated_uncommitted: Reviewed automatic-context event.cc and part.cc patch applied; shared rebuild not yet run.
+  active_lanes:
+    runtime: Retained Sol medium packages NBA/context tests and tests event literal pre-simulation initialization; no deferred-null-validation waiver.
+    synthesis: Retained Sol medium tests removal of residual expression lowering from VVP synthesis config; hardware-clock propagation fix remains assessment pending scope.
+  shared_build: Idle; installed binaries still initial779de5464 semantic source.
+  next_action: Review private runtime and synthesis results, integrate accepted repairs, shared rebuild, replay 15failed legacy and1VPI cases plus allfocus before required broad qualification.
+  external_user_changes: Preserve unstaged87line AGENTS.md addition; unrelated untracked evidence untouched.
+
+event_runtime_repair_checkpoint:
+  status: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-21_event_runtime_regression_repair.json
+  installed_source: Current shared runtime/context/NBA/literal-support repairs plus committed port repair; synthesis patch still private.
+  focused: 110legacy,110JSON,10VPI pass; cast startup and callback pulse pass both editions.
+  prior_failure_replay: 13of15legacy pass; both synthesis failures remain; priorVPIcase passes.
+  next: Review synthesis patch, integrate, rebuild, replay synthesis tests and required broad gates. PR309 remains draft.

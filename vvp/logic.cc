@@ -863,6 +863,19 @@ void compile_functor(char*label, char*type, unsigned width,
       if (auto*mux = dynamic_cast<vvp_fun_muxz*>(obj))
             mux->event_synchronous(event_synchronous);
 
+      /* A synchronous event cone must have its literal support settled
+       * before time-zero waiters are armed. input_connect uses the leading
+       * case to distinguish init constants from ordinary Active updates. */
+      if (event_synchronous) {
+            for (unsigned idx = 0; idx < argc; idx += 1) {
+                  char*text = argv[idx].text;
+                  if (text && text[0] == 'C'
+                      && (text[1] == '4' || text[1] == '8'
+                          || text[1] == 'r')
+                      && text[2] == '<')
+                        text[0] = 'c';
+            }
+      }
       inputs_connect(net, argc, argv);
       free(argv);
 

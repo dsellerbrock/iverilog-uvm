@@ -1107,6 +1107,9 @@ NetNet* NetEConst::synthesize(Design*des, NetScope*scope, NetExpr*)
       osig->local_flag(true);
 
       NetConst*con = new NetConst(scope, scope->local_symbol(), value());
+      if (net_expr_event_synchronous())
+            con->attribute(perm_string::literal("_ivl_event_constant"),
+                           verinum(verinum::V1));
       con->set_line(*this);
       des->add_node(con);
 
@@ -1128,6 +1131,9 @@ NetNet* NetECReal::synthesize(Design*des, NetScope*scope, NetExpr*)
       osig->local_flag(true);
 
       NetLiteral*con = new NetLiteral(scope, scope->local_symbol(), value_);
+      if (net_expr_event_synchronous())
+            con->attribute(perm_string::literal("_ivl_event_constant"),
+                           verinum(verinum::V1));
       con->set_line(*this);
       des->add_node(con);
 

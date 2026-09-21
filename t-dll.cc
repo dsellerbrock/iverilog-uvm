@@ -3310,6 +3310,8 @@ bool dll_target::net_const(const NetConst*net)
       static unsigned bits_cnt = 0;
 
       struct ivl_net_const_s *obj = new struct ivl_net_const_s;
+      obj->event_synchronous = net->attribute(
+            perm_string::literal("_ivl_event_constant")).as_ulong() != 0;
 
       if (net->is_string()) {
 	    obj->type = IVL_VT_STRING;
@@ -3384,6 +3386,8 @@ bool dll_target::net_literal(const NetLiteral*net)
 {
 
       struct ivl_net_const_s *obj = new struct ivl_net_const_s;
+      obj->event_synchronous = net->attribute(
+            perm_string::literal("_ivl_event_constant")).as_ulong() != 0;
 
       obj->type = IVL_VT_REAL;
       assert(net->scope());

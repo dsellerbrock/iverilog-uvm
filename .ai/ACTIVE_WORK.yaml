@@ -369,3 +369,107 @@ strict_regex_wrapper_regression_alignment:
   root: Historical test requires removed implicit fallback, contrary to selected strict-regex semantics.
   scope: tests/uvm_regex_legacy_glob_test.sv only; use explicit uvm_glob_to_re, retain positive/negative glob and normal regex checks. New strict rejection test remains unchanged. No application/compiler/library edits.
   acceptance: Actual real-DPI before failure and both wrapper/strict tests pass afterward, explicit conversion checked at runtime.
+
+shared_six_port_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, retained Sol medium
+  root: Behavioral output carrier adds a scheduling boundary and loses initialization/same-process propagation for real/integer outputs.
+  scope: Private elaborate.cc candidate and focused regressions only; no shared source/build changes. Compare removal of unnecessary carrier with existing coercion plus directional formal isolation before adopting type-specific exclusions.
+  acceptance: All26 paired output cases, real/integer driver-conflict boundaries, shortreal runtime, VHDL immediate outputs and exact br_gh169b VPI. Preserve negative procedural/initializer conflicts and explicit-wire behavior.
+  synthesis_boundary: Blanket disabling synchronous event marking under -S is not authorized; retained behavioral processes still require correct event semantics. Event worker owns runtime diagnosis.
+publication_override:
+  user_instruction: Open PR for substantial six-fix batch immediately after required local checks pass; do not wait for10 fixes.
+  prerequisite: Repair current broad regressions, perform focused repair checks, then complete required local qualification on integrated source.
+
+event_repair_source_liveness_expansion:
+  owner: constraint_guard_semantics, retained Sol medium
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  additional_file: vvp/event.cc
+  evidence: Part owner-context repair fixes automatic_events2 but ancestor/history still fail; automatic edge/anyedge callback-cone guard rejects ancestor source before descendant fanout.
+  scope: Validate incoming context against actual automatic_event_source_scope_, using existing source-scope/lifetime machinery; preserve stale/sibling rejection and downstream scope fanout.
+  acceptance: Ancestor-to-descendant, concurrent activations, recursive generations, teardown and all event repair focus; no liveness bypass.
+
+compound_mixed_event_guard_repair:
+  owner: vif_proxy_implementation, retained Sol medium; event worker supplied root cause
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  file: elaborate.cc
+  root: ANYEDGE collector restricted to direct NetEProperty bypasses compound mixed VIF/object expressions and silently drops VIF dependencies.
+  fix: Remove only direct-property restriction, allowing existing dependency collector to issue its focused unsupported mixed-dependency diagnostic.
+  acceptance: Existing exact negative gold, supported mixed explicit-event-list positive, and pureVIF compound event regressions. No unsupported-to-implemented claim.
+
+port_carrier_removal_review:
+  decision: Full behavioral carrier deletion approved; retain existing lnet coercion and directional formal BUFZ isolation.
+  evidence: All26 semantic port cases and real/integer immediate propagation, VHDL arithmetic and VPI enumeration pass. Restoring REG without carrier fails10cases; type-exclusion workaround is unnecessary.
+  diagnostic_change: Existing lnet conflict error identifies offending procedural/initializer assignment and continuous driver. Intentional exactgold wording/location updates authorized after preserving old/new evidence; rejection semantics unchanged.
+  owner: vif_proxy_implementation private elaborate.cc and associated exactgold only.
+
+event_marking_boundary_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation private elaborate.cc; event worker supplied IR evidence
+  root: RAII synchronous marking affected every event expression, changing ordinary NBA Boolean coalescing and leaving marked sensitivity cones in synthesis output.
+  fix: Enable marked expression synthesis only when collect_vif_member_paths_ finds actual VIF reads; preserve complete mixed VIF expression marking. No scheduler changes or blanket synthesis disable.
+  acceptance: OrdinaryNBA paired case, both failing -S cases, actualVIF40casefocus and runtimecontext additions.
+  mixed_guard_boundary: Restore focused rejection of unsupported object-property plusVIF expression without rejecting newly supported ordinary-signal plusVIF expressions.
+
+event_marking_boundary_review_failure:
+  status: CANDIDATE_REJECTED
+  evidence: VIF-only marking private eventfocus38of40; paired static interface Boolean pulse loses same-slot blocking transition.
+  decision: Keep original pulse oracle and do not integrate VIF-only marking. No global synthesis exemption.
+  next_assessment: Runtime owner evaluates region-aware marked-combinational publication using existing scheduler region and Active queue; source changes beyond approved part/event require concrete proposal. Static synthesis orphan issue remains separate.
+  port_independence: Port carrier deletion and supported/unsupported mixed-dependency guard proceed separately; failed VIF-only experiment remains historical evidence.
+
+event_nba_publication_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: constraint_guard_semantics, retained Sol medium
+  files: vvp/event.cc and readonly NBA/ReNBA accessor in vvp/schedule.h, vvp/schedule.cc
+  root: Marked combinational event cones recompute after each NBA source store, exposing intermediates instead of iterative Active evaluation. Blocking pulses require synchronous sourcepublication and cannot be unmarked by expression shape.
+  scope: Reuse existing Active/active_sync mechanism to defer only marked combinational work from NBA/ReNBA, preserving normal ingress, validity, direct edges, callback publication and queue ordering. No scheduler ordering rewrite.
+  acceptance: NBAcoalescing, directsignal NBA edgehistory, blocking pulses, NBA-from-NBA stages, NBA-to-Active interactions, nested VPIwrites during NBA, ReNBA scheduling, and pending automatic-context lifetime. Static synthesis defect remains independently outstanding.
+
+event_deferred_context_generation:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: constraint_guard_semantics, retained Sol medium
+  additional_files: vvp/vthread.h and vvp/vthread.cc
+  root: Deferred NBAcomb work may outlive an automatic activation; recycled pointer plus same scope passes prior liveness check. Retaining refcount incorrectly keeps logically dead activation live.
+  fix: Assign unique nonzero generation on allocation/reuse; readonly getter returns0 for non-live context. Capture/check centrally when vvp_event_enqueue_comb queues work. No per-functor duplication or allocator/event coupling.
+  acceptance: Cancellation plus same-scope storage reuse red/green oracle; pending work never affects replacement activation; all automatic event and callback regressions remain required.
+
+event_literal_initialization_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: constraint_guard_semantics, retained Sol medium
+  file: vvp/logic.cc
+  root: Event-marked Boolean functor literal padding uses uppercase C4 constants scheduled in Active, after pushed waiters; initialized nonnull formal therefore exposes false cached validity before literal operands arrive.
+  evidence: shared-six-port-repair/followup/lldb-validity-backtraces.txt; compile.cc input_connect uppercase versus lowercase constant initialization.
+  fix: Reuse existing lowercase constant pre-simulation initialization for literal operands of event-synchronous functors only, after confirming exact literal source. Do not change null validation timing or global constant scheduling.
+  acceptance: Interface cast startup, initially-null rejection, guarded inactive/active-null, conditional expression, all event focus; ordinary functor initialization unchanged.
+
+synthesis_event_boundary_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, retained Sol medium
+  files: Private vvp-s.conf experiment corresponding to tgt-vvp/vvp-s.conf.in; synth2.cc read-only hardware-clock assessment pending concrete scope.
+  root: Legacy synth pass lowers residual VVP behavioral body expressions to stale structural temporaries; synth2 separately reuses synchronous event-marked selectors as hardware clock inputs.
+  first_fix: Test omitting legacy residual-expression lowering in VVP configuration while retaining synth2 hardware conversion and all behavioral event semantics.
+  second_assessment: Give synthesized hardware clock ordinary structural propagation without changing surviving behavioral sensitivity cones; no global marker removal.
+  acceptance: Original partselsynth and packed-struct asynchronous-reset regressions; paired same-slot static interface pulses under synthesis; shared surviving event and synthesized clock boundary.
+
+publication_review_checkpoint:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/309
+  published_head: b03bccdf94e539eb5bbee34fd79092dfdc311af4
+  state: DRAFT_LOCAL_REGRESSIONS_DISCLOSED
+  clarification: Earlier coordinator publication prerequisite applied to ready-for-merge qualification; user-requested review draft is published with failures and pending checks explicit. Required repair, validation and merge gates remain unchanged.
+
+event_constant_cone_initialization:
+  owner: Coordinator
+  status: IMPLEMENTATION_AUTHORIZED
+  root: Literal initialization only at marked gates misses upstream constant BUFTs generated for event expressions; those constants also arrive after pushed waiters.
+  files: expr_synth.cc, t-dll.cc, t-dll.h, t-dll-api.cc, ivl_target.h, ivl.def, tgt-vvp/draw_net_input.c; runtime literal initialization supplied by event lane.
+  fix: Mark constants created inside event synthesis with existing compiler attributes; carry one target metadata bit and use existing lowercase pre-simulation constant emission. Ordinary constant timing stays unchanged.
+  acceptance: Paired initial valid and genuinely-null events, guarded true/false/XZ validity, interface cast sensitivity, complete event focused suite.
+
+synthesized_clock_expression_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, retained Sol medium
+  files: netlist.h, net_event.cc, elaborate.cc, synth2.cc; netlist.cc only if constructor implementation requires it; tgt-vvp/vvp-s.conf.in for residual-expression fix.
+  root: Synthesized hardware clock reused event-synchronous selected expression and sampled before ordinary structural data cone settled.
+  fix: Preserve an owned duplicate of elaborated event expression on its probe; resynthesize selected hardware clock with ordinary propagation while leaving surviving behavioral event cone unchanged. Reuse expression synthesis and marker restoration.
+  acceptance: Packed-struct clock/reset runtime, original partselsynth, retained same-slot pulses, shared hardware clock plus behavioral watcher, paired editions.

@@ -67,6 +67,8 @@ struct event_source_saved_s {
       event_source_transaction_s transaction;
 };
 static std::vector<event_source_saved_s> event_source_saved_;
+static std::map<event_work_key_t,std::function<void()> > nba_pending_comb_;
+static bool nba_comb_flush_scheduled_ = false;
 
 static void flush_event_source_transaction_()
 {
@@ -104,6 +106,30 @@ static void flush_event_source_transaction_()
       }
       event_source_flushing_ = false;
 }
+
+struct nba_comb_flush_s : vvp_gen_event_s {
+      void run_run() override
+      {
+            nba_comb_flush_scheduled_ = false;
+            assert(event_source_depth_ == 0);
+            assert(!event_source_flushing_);
+            assert(event_source_transaction_.comb.empty());
+            event_source_transaction_.comb.swap(nba_pending_comb_);
+            flush_event_source_transaction_();
+      }
+};
+static nba_comb_flush_s nba_comb_flush_;
+
+static void defer_nba_comb_()
+{
+      for (auto&item : event_source_transaction_.comb)
+            nba_pending_comb_[item.first] = std::move(item.second);
+      event_source_transaction_.comb.clear();
+      if (!nba_comb_flush_scheduled_) {
+            nba_comb_flush_scheduled_ = true;
+            schedule_at_active_sync(&nba_comb_flush_);
+      }
+}
 }
 
 void vvp_event_source_begin()
@@ -128,6 +154,9 @@ void vvp_event_source_end()
                   event_source_transaction_.ingress.clear();
             }
       } else {
+            if (schedule_in_nba_update_region()
+                && !event_source_transaction_.comb.empty())
+                  defer_nba_comb_();
             flush_event_source_transaction_();
       }
 }
@@ -192,7 +221,18 @@ void vvp_event_enqueue_comb(void*key, vvp_context_t context,
             work();
             return;
       }
-      event_source_transaction_.comb[event_work_key_t(key, context)] = work;
+      if (context) {
+            uint64_t generation = vthread_context_generation(context);
+            if (!generation)
+                  return;
+            event_source_transaction_.comb[event_work_key_t(key, context)] =
+                  [context, generation, work]() {
+                        if (vthread_context_generation(context) == generation)
+                              work();
+                  };
+      } else {
+            event_source_transaction_.comb[event_work_key_t(key, context)] = work;
+      }
 }
 void vvp_event_enqueue_valid(void*key, vvp_context_t context,
                              const std::function<void()>&work)
@@ -920,11 +960,20 @@ void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
       if (vvp_event_cone_dispatch_active()) {
+            __vpiScope*source_scope =
+                  automatic_event_source_scope_(context, context_scope_);
+            vvp_context_t owner = scalar_event_native_context_(
+                  context, source_scope, context_scope_);
+            if (context && !source_scope && !owner)
+                  return;
+            vvp_context_t live_context = source_scope ? context : owner;
+            __vpiScope*live_scope = source_scope ? source_scope
+                                                 : (owner ? context_scope_ : 0);
             vvp_event_enqueue_edge(this, context, port.port(),
-                  [this, port, bit, context]() {
-                  if (context
+                  [this, port, bit, context, live_context, live_scope]() {
+                  if (live_scope
                       && !vthread_context_live_matches_scope(
-                              context, context_scope_))
+                              live_context, live_scope))
                         return;
                   recv_vec4(port, bit, context);
             });
@@ -1514,11 +1563,20 @@ void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
       if (vvp_event_cone_dispatch_active()) {
+            __vpiScope*source_scope =
+                  automatic_event_source_scope_(context, context_scope_);
+            vvp_context_t owner = scalar_event_native_context_(
+                  context, source_scope, context_scope_);
+            if (context && !source_scope && !owner)
+                  return;
+            vvp_context_t live_context = source_scope ? context : owner;
+            __vpiScope*live_scope = source_scope ? source_scope
+                                                 : (owner ? context_scope_ : 0);
             vvp_event_enqueue_edge(this, context, port.port(),
-                  [this, port, bit, context]() {
-                  if (context
+                  [this, port, bit, context, live_context, live_scope]() {
+                  if (live_scope
                       && !vthread_context_live_matches_scope(
-                              context, context_scope_))
+                              live_context, live_scope))
                         return;
                   recv_vec4(port, bit, context);
             });

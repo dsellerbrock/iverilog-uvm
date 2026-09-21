@@ -300,6 +300,12 @@ extern "C" int ivl_const_signed(ivl_net_const_t net)
       return net->signed_;
 }
 
+extern "C" int ivl_const_event_synchronous(ivl_net_const_t net)
+{
+      assert(net);
+      return net->event_synchronous;
+}
+
 extern "C" unsigned ivl_const_width(ivl_net_const_t net)
 {
       assert(net);

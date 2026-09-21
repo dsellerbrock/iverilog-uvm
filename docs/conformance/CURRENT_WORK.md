@@ -24,6 +24,8 @@ validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
 ## Current focused implementation
 
+The [port regression repair](session_logs/2026-09-21_port_regression_repair.json) removes the unnecessary behavioral carrier and preserves structural propagation. Shared qualification remains pending the event repairs.
+
 The [six-fix installed focus](session_logs/2026-09-21_shared_six_focus.json) records the shared rebuild and passing permanent regressions. The [broad gate failed](session_logs/2026-09-21_shared_six_gate_failure.json), so qualification is pending repair. The [fresh stable-release replay](session_logs/2026-09-21_shared_six_release_retest.json) records current application results.
 
 The [variable-output review](session_logs/2026-09-21_variable_output_integration_review.json) records private semantic and integration checks; shared qualification is pending.
@@ -173,3 +175,7 @@ The [constraint divide/remainder error repair](session_logs/2026-09-21_constrain
 The [joint ordered-randc repair](session_logs/2026-09-21_joint_ordered_randc.json) has paired runtime, distribution and rollback evidence; batch gates remain pending.
 
 Latest bounded stable-application replay: [qualified nine-fix candidate](session_logs/2026-09-21_qualified_nine_release_retest.json). Exact corpus pins, binary fingerprints, commands, pass/failure evidence and scope limits are in that record.
+
+Draft review checkpoint: [PR #309](https://github.com/dsellerbrock/iverilog-uvm/pull/309) publishes `b03bccdf9` for review. It is not a qualified baseline; the PR lists the preserved local regression failures and required repair/requalification. Current private repair lanes and the uncommitted automatic-context integration are recorded in `.ai/CAMPAIGN.yaml`.
+
+[Event runtime repair checkpoint](session_logs/2026-09-21_event_runtime_regression_repair.json) supersedes the runtime failure status above for its recorded source/tools. Synthesis repairs and broad requalification remain pending; PR #309 stays draft.

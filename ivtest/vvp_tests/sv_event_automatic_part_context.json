@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_event_automatic_part_context.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_event_automatic_part_context"
+}

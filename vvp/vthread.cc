@@ -9396,6 +9396,8 @@ template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
 static unordered_map<vvp_context_t, __vpiScope*> automatic_context_owner;
 static unordered_map<vvp_context_t, unsigned> automatic_context_refcount;
 static unordered_set<vvp_context_t> live_automatic_contexts;
+static unordered_map<vvp_context_t, uint64_t> automatic_context_generation;
+static uint64_t next_automatic_context_generation = 1;
 
 static void retain_automatic_context_(vvp_context_t context)
 {
@@ -9470,6 +9472,9 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       automatic_context_owner[context] = scope;
       automatic_context_refcount[context] = 1;
       live_automatic_contexts.insert(context);
+      automatic_context_generation[context] = next_automatic_context_generation++;
+      if (next_automatic_context_generation == 0)
+            next_automatic_context_generation = 1;
 
       return context;
 }
@@ -9521,6 +9526,7 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             automatic_context_refcount.erase(ref_it);
       }
       live_automatic_contexts.erase(context);
+      automatic_context_generation.erase(context);
 
       auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
             for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
@@ -11385,6 +11391,15 @@ bool vthread_context_live_matches_scope(vvp_context_t context,
                                         __vpiScope*scope)
 {
       return context_live_matches_scope_(context, scope);
+}
+
+uint64_t vthread_context_generation(vvp_context_t context)
+{
+      if (!context_live_in_owner(context))
+            return 0;
+      unordered_map<vvp_context_t, uint64_t>::const_iterator found =
+            automatic_context_generation.find(context);
+      return found == automatic_context_generation.end() ? 0 : found->second;
 }
 
 vvp_context_t vthread_recover_stacked_context_for_scope(

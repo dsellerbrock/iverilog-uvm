@@ -23,6 +23,7 @@ ivl_const_real
 ivl_const_scope
 ivl_const_signed
 ivl_const_type
+ivl_const_event_synchronous
 ivl_const_width
 
 ivl_discipline_domain
