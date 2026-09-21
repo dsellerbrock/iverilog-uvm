@@ -30,7 +30,7 @@ lanes:
     acceptance: Paired existing16fixture matrix, recursive/concurrent identity and activation reuse, genuine-null negative, related VIF/scalar-event cases, unmodified pinned pwrmgr replay and required regression gates. Runtime correctness required.
   gpio_dist:
     id: OT-GPIO-EXACT-LARGE-DIST-RANGES
-    owner: Coordinator semantic review; pending retained Sol medium after safe graph checkpoint
+    owner: vif_proxy_implementation, retained Sol medium; coordinator semantic review
     status: ROOT_CAUSED
     clauses: 2017 18.5.4 and2023 18.5.3 distribution; preserve exact existing bounded item semantics.2023 explicitly retains full source-range weight under exclusions; do not invent2017 wording.
     evidence: evidence/review-20260920/opentitan-gpio-dist-next/COMPONENT-DESIGN.md and LARGE-ITEM-TESTS.md
@@ -55,3 +55,8 @@ latest_validation:
   application: Fresh pinned unmodified pwrmgr replay59263 terminalclassifiedfailure; null-at-arm errorsgone, simulationreaches1ms configuredPH_TIMEOUT, distfallback remains. No DVpass.
   registration: Terra may create onlynew sv_vif_descendant_* source/gold/JSON files andprivate registration snippets; coordinator owns sharedmanifests.
   gpio_design_correction: Inactive state pins must be substituted or retained outside negativeconjunction; unique positivepins alone do not make notF sound. Terra returned no coherent patch; vvp_z3.cc unchanged.
+
+parallel_readonly_assessment:
+  owner: canonical_graph_refresh, retained Terra medium
+  scope: First unsatisfied prerequisite behind pinned pwrmgrPH_TIMEOUT usingexistingimage andatmostone boundedprivate rerun. No implementation/app/build/install/globaldocs edits.
+  evidence: evidence/review-20260920/opentitan-pwrmgr-timeout-next
