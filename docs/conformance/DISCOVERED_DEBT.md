@@ -2456,7 +2456,7 @@ against the same stimulus, proving the composed delay is exactly 5,
 not silently wrong in either direction. Permanent regression:
 `ivtest/ivltests/sv_sva_chained_leading_cycle_delay.v`. Status: fixed.
 
-### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17)
+### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17, FIXED)
 
 Found via a fresh OpenTitan census against the corrected release pin
 (Earlgrey-PROD-M6): `hw/dv/sv/dv_utils/dv_report_catcher.sv:19`,
@@ -2524,16 +2524,87 @@ outer array with a variable selector iterates the OUTER array's own
 keys into the inner loop variable; other combinations silently
 iterate zero times) — all wrong, none diagnosed, until this fix.
 
-**Fix scope (deliberately narrow — refuse, don't attempt to
-lower):** added a `foreach_target_has_selector_prefix_()` check
-(`elaborate.cc`) gating both reachable dispatch sites
-(`elaborate_signal_array_` and the parallel `elaborate_foreach_target_expr_`-based
-expression route) to refuse with an honest `sorry:` whenever the
-**final** path component being iterated carries a non-empty selector
-index, rather than attempt the real fix (threading a runtime-evaluated
-key expression through `elaborate_assoc_array_`, which `PForeach`'s
-current interface does not support and is out of scope for this
-session).
+**Real fix:** a `foreach_target_has_selector_prefix_()` check
+(`elaborate.cc`, unchanged from the earlier `sorry:` version) still
+identifies whenever the **final** path component being iterated
+carries a non-empty selector index. What changed is the dispatch: a
+selector-prefixed target into an ASSOCIATIVE array (`netqueue_t`,
+`assoc_compat()`) now routes to `elaborate_foreach_target_expr_`,
+which builds a `PEIdent` from the full (selector-included) target path
+and calls `PEIdent::elaborate_expr()` — the exact same
+`elab_assoc_index()`-based lookup machinery every other indexed
+reference to an associative array already uses. That machinery
+re-evaluates the selector at RUNTIME on every loop entry (not baked in
+once at elaboration time), so it correctly tracks a selector whose
+value changes across outer-loop iterations (see the `successors[s].
+m_predecessors[pred]` UVM shape below) or across repeated executions
+of the same `foreach` statement. `elaborate_signal_array_()`'s own
+associative-array branch is now reached ONLY for a genuinely
+unselected target (no index on the final component at all), where
+wrapping the whole array signal and handing it to
+`elaborate_assoc_array_()` is correct as-is.
+
+**A second, pre-existing bug found and fixed in the same pass (loop
+variable type):** the runtime fix above only mattered for a VARIABLE
+selector (`m[id][msg]`); a real discriminating-population test showed
+a LITERAL/constant selector (`m["a"][msg]`) still iterated zero times
+regardless. Root cause was upstream of `elaborate.cc` entirely: the
+pre-existing `parse.y` grammar rule for this shape
+(`K_foreach '(' foreach_array_identifier '[' expression ']' '['
+loop_variables ']' ')'`) always passed `nullptr` as the array name to
+`pform_make_foreach_declarations`, forcing the loop variable (`msg`)
+to be typed plain `int` regardless of the array's real key type. For a
+string-keyed associative array this made the vvp code generator emit
+the wrong opcode variant (`%aa/first/sv` instead of `%aa/first/str`,
+confirmed by direct `.vvp` bytecode inspection via `iverilog -d
+elaborate`), which iterates zero elements with no diagnostic at all —
+not even a wrong answer, just silence. Fixed by attaching the fixed
+selector's index onto the array name BEFORE calling
+`pform_make_foreach_declarations` (instead of after, once the body had
+already been parsed) and passing that real, indexed name through, so
+`foreach_index_type_t::elaborate_type_raw`'s existing "selected" branch
+(already used by the undotted-selector grammar rule above) resolves
+the loop variable's true declared type instead of falling back to
+`int`.
+
+**A third, pre-existing bug found and fixed in the same pass (plain
+static arrays):** the loop-variable-type fix above is lazy — it only
+changes what type gets attached to the loop variable, so on its own it
+should not have touched anything about how the array TARGET itself is
+resolved. But re-running the full verification suite after landing it
+caught a real regression anyway: `foreach (A[0][j])` over a plain
+`int A[2][3]` (no associative array anywhere) started failing with
+"Array A['sd0] needs 2 indices, but got only 1." where it had
+previously compiled. The actual cause was independent of the loop-var
+fix and had been latent since the FIRST version of this session's
+routing change (the one gating `elaborate.cc`'s `hier_sig` fast path
+on `foreach_target_has_selector_prefix_`): that gate was written to
+force ANY selector-prefixed target through the expression route, not
+just associative ones. For a plain static array, the expression
+route's `PEIdent::elaborate_expr()` refuses a PARTIAL index into a
+signal outright (`elaborate_expr_net_word_` demands a complete,
+element-addressing index count) — a restriction that exists precisely
+because ordinary expression elaboration has no use for a "half
+selected" array. Before this session's DD-040 work, this exact shape
+went through `elaborate_signal_array_()` via the same fast path as
+every other plain array, which DID compile — but a discriminating
+runtime check newly written to confirm the fix showed it had ALWAYS
+silently iterated the wrong (already-fixed) dimension, ignoring the
+selector's value entirely: the same "drop the selector" bug class as
+DD-040's headline bug, just for a signal instead of a queue, and never
+previously caught because the only check on record for this shape was
+`exit==0`, not actual output. Fixed by narrowing the routing gate to
+send only a selector-prefixed target into an ASSOCIATIVE signal
+through the expression route; a selector-prefixed target into any
+other (plain static or dynamic) signal still uses the fast path, and
+`elaborate_signal_array_()` now drops the leading N selected
+dimensions (N = the selector's index count — only the COUNT matters
+here, never the selector's actual value, since the loop bounds for the
+remaining dimensions don't depend on which slice was picked) before
+computing loop bounds for the remaining ones. Verified with a real
+discriminating-population runtime test: two different selector values
+(`A[0][j]` and `A[1][k]`) each correctly iterate the same REMAINING
+dimension (size 3), never the fixed one (size 2).
 
 **A near-miss worth recording as its own lesson:** the first version
 of this gate checked whether ANY component of the target path had a
@@ -2557,25 +2628,33 @@ actually iterated) before landing; UVM regression is 357/0/0 with the
 corrected gate. See `sv_foreach_nested_assoc_no_selector.v` for the
 permanent regression protecting this exact shape.
 
-**Closure requirements:** thread a runtime-evaluated selector key
-expression through `elaborate_assoc_array_()` so the correct sub-array
-is looked up on every loop entry (not baked in once at elaboration
-time, since the selector's value can change between separate `foreach`
-executions or — per the near-miss case above — across outer-loop
-iterations). This does not by itself unblock the OpenTitan UVM/runtime
-census jobs that hit `dv_report_catcher.sv`: a `sorry:` still
-increments `error_count`, so those cores remain `FAIL`, just with an
-honest, specific diagnostic instead of a raw `syntax error`. Status:
-recorded, not selected.
+**Resolution:** all three bugs above (the associative-array selector
+never being applied, the literal-selector loop variable being
+mistyped, and the plain-static-array selector silently iterating the
+wrong dimension) are fixed and verified with real discriminating-
+population runtime checks, not just compile checks. This unblocks the
+OpenTitan UVM/runtime census jobs that hit `dv_report_catcher.sv`
+(`m_changed_sev[id][msg]`) — that construct now elaborates and runs
+correctly instead of failing with a `sorry:`. Local six-gate suite
+(UVM: 357/0/0, ivtest: 5827 passed/0 failed/0 unexplained, VPI: 108/0,
+negative: 148/0, runtime invariants: 15/15) and `bison --report=state`
+conflict-state comparison against origin/main (572 shift/reduce, 1122
+reduce/reduce, identical per-state signatures, zero new conflicts) all
+clean. Status: fixed.
 
-Tests: `ivtest/ivltests/sv_foreach_selected_prefix_assoc_fail.v`
-(undotted selector into a nested associative array, `sorry:`,
-gold-verified), `sv_foreach_undotted_selected_prefix_fail.v`
-(undeclared selector identifier, real elaboration error, gold-verified),
+Tests: `ivtest/ivltests/sv_foreach_selected_prefix_assoc.v` (renamed
+from `..._fail.v` now that the construct passes — both a variable
+selector `m[id][msg]` and a literal one `m["a"][msg]`, real runtime
+check with a discriminating population of disjoint inner key sets),
+`sv_foreach_undotted_selected_prefix_fail.v` (undeclared selector
+identifier, still correctly a real elaboration error, gold-verified),
 `sv_foreach_nested_assoc_no_selector.v` (the UVM-shaped false-positive
 protection, real clocked runtime check with a discriminating population
 — two outer keys with disjoint inner key sets — not just a compile
-check).
+check), `sv_foreach_selected_prefix_static_array.v` (the plain-static-
+array sibling bug found while fixing this, real runtime check with two
+different selector values each iterating the correct remaining
+dimension).
 
 ### DD-041 — Crash: `ivl_assert` failure evaluating a class-method `localparam` initialized from a bare-name outer-scope parameter (2026-09-17, FIXED)
 
@@ -2704,7 +2783,7 @@ bind parameter" diagnostic path) was confirmed NOT to be the same
 mechanism and remains unpursued — genuinely out of scope for this fix.
 Status: fixed.
 
-### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17)
+### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17, FIXED)
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6): two independent
 real corpus files hit a raw `syntax error` on a cross-body `ignore_bins`
@@ -2761,41 +2840,63 @@ name, matching just the `cross_identifier` alternative of
 `select_expression`, not the `binsof`/`&&`/`||`/paren alternatives the
 LRM also allows before `with`.
 
-**Why this isn't a small parse.y-only fix:** the pform-level struct
+**Why this wasn't a small parse.y-only fix:** the pform-level struct
 these productions populate (`class_type_t::pform_cross_t::cross_bin_t`,
-`PClass.h` or wherever it's declared) has a `with_cross` field typed
-as a bare `perm_string` (a cross/bins *name*), consumed downstream in
-`elaborate.cc` (at minimum lines ~33715, 33802, 34476, 34704, 34725,
-34734 as of this session) including a same-cross-name identity check
-(`cb.with_cross == cross.label`, ~line 34706) that only makes sense
-when the pre-`with` operand really is a name. Generalizing the grammar
-to accept a full `cross_bins_expr` before `with` means either widening
-`with_cross` to hold a full select-tree (like the existing `select`
-field already does for the non-`with` bins forms) and updating every
-elaboration consumer to handle both shapes, or adding a parallel field
-— a real struct-and-multi-site change, not a grammar-only accept-and-
-sorry patch. Given this session's own DD-039/DD-040 near-misses from
-touching shared elaboration code under time pressure, this was
-diagnosed precisely (LRM-confirmed root cause, both real reproducers
-in hand) and then deliberately NOT attempted blind.
+`pform_types.h`) has a `with_cross` field typed as a bare `perm_string`
+(a cross/bins *name*), consumed downstream in `elaborate.cc` including
+a same-cross-name identity check (`cb.with_cross == cross.label`) that
+only makes sense when the pre-`with` operand really is a name.
+Generalizing the grammar to accept a full `cross_bins_expr` before
+`with` needed the existing `select` field (the SAME select-tree
+`cross_bins_expr` already builds for the non-`with` bins forms — no
+new field type required) to carry it, and every `elaborate.cc`
+consumer of the with-dispatch updated to handle both shapes.
 
-**Closure requirements:** generalize `cross_bin_t`'s `with_cross`
-(or add an alternative field) to carry a full `cross_bins_expr` select
-tree instead of a bare name; update parse.y's three `K_with`
-productions to accept `cross_bins_expr K_with '(' expression ')' ';'`
-in addition to (not instead of — `cross_identifier` remains a valid
-LRM alternative) the existing `bins_name K_with (...)` form; update
-every `elaborate.cc` consumer of `with_cross` to evaluate the select
-tree against the candidate bin tuple instead of doing a name-equality
-check, preserving the existing self-reference-only restriction ("Only
-the cross_identifier of the enclosing cross may be used" per 19.6.1.2)
-for the `cross_identifier` case specifically. A real regression test
-needs runtime coverage verification (does the ignore_bins actually
-suppress the correct tuples, not just parse), not a compile-only
-check, per this session's own established discipline. Status:
-recorded, not selected.
+**Fix:** `parse.y` gained three new `cross_body_opt` alternatives
+(`illegal_bins`/`ignore_bins`/`bins`, each mirroring its existing
+`bins_name K_with (...)` sibling) accepting
+`cross_bins_expr K_with '(' expression ')' ';'` and storing the parsed
+select tree into `cb.select` (the SAME field the non-`with` forms
+already populate) alongside `cb.with_expr`. `cross_bins_expr` never
+reduces from a bare IDENTIFIER alone (every alternative requires
+`binsof`/`!`/`&&`/`||`/parens), so this cannot collide with the
+existing bare-name `bins_name K_with` form — confirmed via
+`bison --report=state`: shift/reduce and reduce/reduce conflict
+totals AND the full per-state conflict-shape multiset (count+type per
+conflicting state, ignoring state numbers that shift when new states
+are inserted — see [[parse-y-conflict-totals-are-insufficient]]) are
+byte-for-byte identical to the origin/main baseline (572 shift/reduce,
+1122 reduce/reduce, 209 conflicting states, same shapes) — zero new
+conflicts.
 
-### DD-043 — Constraint `foreach`: no undotted selected-prefix form (`foreach (arr[fixed][loop])`), only plain and dotted-member forms exist (2026-09-17)
+`elaborate.cc`'s with-dispatch (the loop building each cross's product
+tuples) now branches on whether `cb.select` is set: when it is (the
+new general-expression form), the tuple is first filtered through the
+SAME `eval_sel()` tree-evaluator the non-`with` bins forms already
+use; only a tuple that survives that filter is then ALSO checked
+against the `with` predicate (still requiring every contributing
+coverpoint bin in the tuple to be a singleton integral value, per
+19.6.1.2, unchanged from before). When `cb.select` is null (the
+existing bare-name form), the original `cb.with_cross == cross.label`
+self-reference check runs exactly as before — that path is untouched.
+
+**Verified:** both real OpenTitan shapes (csrng's `!binsof(...)
+intersect {...} with (...)` / `binsof(...) intersect {...} with
+(...)` complementary pair, and pwm's `(binsof(a) && binsof(b)) with
+(...)`) now parse AND elaborate correctly — checked against
+`cov.get_inst_coverage()`, not just compile success: a general-select
+`with`-filtered construct produces IDENTICAL coverage percentages to
+a hand-verified, already-working bare-name `with` construct filtering
+the logically equivalent tuple (27.7778% and 34.4444% on a matched
+3x2 cross, both forms agreeing exactly), and a real
+discriminating-population test explicitly samples the tuples the
+`with`-predicate SHOULD exclude and confirms they don't move coverage
+that would otherwise depend on them — see
+`ivtest/ivltests/sv_covergroup_cross_with_select_expr.v`. Local
+six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI
+108/0, negative 148/0, runtime invariants 15/15). Status: fixed.
+
+### DD-043 — Constraint `foreach`: no undotted selected-prefix form (`foreach (arr[fixed][loop])`), only plain and dotted-member forms exist (2026-09-17, FIXED)
 
 Found via the fresh OpenTitan census (Earlgrey-PROD-M6):
 `hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:118-122`:
@@ -2806,7 +2907,7 @@ foreach (filter_cfg[channel]) {
   }
 }
 ```
-`filter_cfg` is `rand int filter_cfg[NumAdcFilters][ADC_CTRL_NUM_CHANNELS]` — a plain 2D unpacked array, no class/struct member involved anywhere. The inner `foreach (filter_cfg[channel][filter])` hits a raw `syntax error`. This is the exact same construct class as DD-040 (a `foreach` selected-prefix, IEEE 1800-2017/2023 12.7.3: `channel` is already declared by the enclosing `foreach`, so it selects a fixed index rather than introducing a second loop variable) — but here inside a `constraint` block's iterative-constraint form (18.5.7.1) rather than an ordinary statement.
+`filter_cfg` is `rand int filter_cfg[NumAdcFilters][ADC_CTRL_NUM_CHANNELS]` — a plain 2D unpacked array, no class/struct member involved anywhere. The inner `foreach (filter_cfg[channel][filter])` hit a raw `syntax error`. This is the exact same construct class as DD-040 (a `foreach` selected-prefix, IEEE 1800-2017/2023 12.7.3: `channel` is already declared by the enclosing `foreach`, so it selects a fixed index rather than introducing a second loop variable) — but here inside a `constraint` block's iterative-constraint form (18.5.7.1) rather than an ordinary statement.
 
 **Confirmed independently: slang (`--std 1800-2017`) accepts this exact reducer, 0 errors** (minimal standalone reproducer, no OpenTitan/UVM dependency):
 ```systemverilog
@@ -2825,10 +2926,15 @@ module t;
   initial begin C c = new; void'(c.randomize()); end
 endmodule
 ```
-(`soft` and the nested-`foreach`-ness are both incidental: a single-level `foreach (arr[i]) { soft arr[i] == ...; }` already works fine today, confirming `soft` is not implicated; a 2D array with two *plain* foreach loop variables via the comma form, e.g. `foreach (filter_cfg[channel, filter])`, was not tried this pass but is expected to already work since it doesn't touch the selected-prefix grammar path at all.)
 
-**Root cause:** `parse.y`'s `constraint_expression` nonterminal (IEEE 1800-2017/2023 18.5.7.1) has exactly two `K_foreach` alternatives: a plain single-bracket form (`K_foreach '(' IDENTIFIER '[' loop_variables ']' ')' constraint_set`) and a DOTTED selected-prefix form for a hierarchical/member target (`K_foreach '(' IDENTIFIER '[' loop_variables ']' '.' IDENTIFIER '[' loop_variables ']' ')' constraint_set`, already correctly implementing the "prefix_names select an already-declared value, not a fresh loop variable" semantics — the same ambiguity `parse.y` documents for the plain-statement foreach in ledger G65). There is no UNDOTTED sibling (`IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'`, no `.member` in between) — exactly the gap DD-040 closed for ordinary statement `foreach`, but never added on the constraint side.
+**Root cause:** `parse.y`'s `constraint_expression` nonterminal (IEEE 1800-2017/2023 18.5.7.1) had exactly two `K_foreach` alternatives: a plain single-bracket form and a DOTTED selected-prefix form for a hierarchical/member target (`K_foreach '(' IDENTIFIER '[' loop_variables ']' '.' IDENTIFIER '[' loop_variables ']' ')' constraint_set`). There was no UNDOTTED sibling (`IDENTIFIER '[' loop_variables ']' '[' loop_variables ']'`, no `.member` in between) — exactly the gap DD-040 closed for ordinary statement `foreach`, but never added on the constraint side.
 
-**Why this is not the same quick fix as DD-040:** on the statement side, `pform_make_foreach`/`PForeach::elaborate` provided a natural place to add the new grammar alternative and its guard. On the constraint side, `PEConstraintForeach` already has a distinct "hierarchical target" constructor and code path (`constraint_foreach_source_type_` in `elaborate.cc`, plus consumers at ~23974/27468/28856/30745) that assumes a real `.member_name` follows the prefix — after consuming `prefix_names().size()` array dimensions, it looks up `member_name` as a **class property or struct member** (`constraint_class_component_type_`/`record->member_index()`). An undotted selected-prefix (`arr[fixed][loop]`, plain array, no member) does not fit that shape: there is no member to look up, only "continue iterating the same array's own remaining dimension." Naively reusing the hierarchical constructor with `member_name == array_name` would make the elaborator try (and fail) a class/struct member lookup that was never supposed to happen. A correct fix needs either a third `PEConstraintForeach` shape (prefix-into-same-array, no member) or generalizing the hierarchical path to recognize "no member, self-referential continuation" as a distinct case, and updating every one of `constraint_foreach_source_type_`'s downstream consumers to handle it. Given this session's own DD-039/DD-040/DD-042 near-misses from touching shared, multi-site elaboration code under time pressure, this was diagnosed precisely (LRM/G65-pattern-confirmed root cause, minimal reproducer, slang-verified) and then deliberately not attempted blind.
+**Why this needed more than a grammar rule:** `PEConstraintForeach`'s hierarchical-target code path (`constraint_foreach_source_type_` in `elaborate.cc`, plus the emission dispatcher's `has_hierarchical_target()` branch) assumed a real `.member_name` always followed the prefix — after consuming `prefix_names().size()` array dimensions, it looked up `member_name` as a class property or struct member and, at emission time, routed through the `qforeach` runtime-queue machinery (which requires a DYNAMIC array/queue element type, not a static one). An undotted selected-prefix has no member to look up and is not a queue: it needs to continue iterating the SAME array's own remaining STATIC dimension(s), unrolled at elaboration time like the plain form already does.
 
-**Closure requirements:** add the undotted grammar alternative to `constraint_expression` (mirroring DD-040's parse.y pattern, including the `pform_wire_visible_in_enclosing_scope`-style undeclared-selector guard — an undeclared identifier in the constraint-foreach selector position should be a real error here too, not silently accepted); extend `PEConstraintForeach` and `constraint_foreach_source_type_` (and its ~4 known consumers) to handle "prefix into the same array, no member" as its own case rather than misrouting through the class/struct member-lookup path. A real regression test needs actual constraint-solver output verification (does `randomize()` actually respect the fixed-selector semantics — a discriminating population, e.g. two different `channel` values producing correctly different constrained results — not just "does it parse"), per this session's own established discipline. Status: recorded, not selected.
+**Fix:** the new grammar alternative reuses the EXISTING hierarchical `PEConstraintForeach` constructor, passing a NIL `member_name` to mark "no member, self-referential continuation into the same array" — no new field or third constructor shape needed. Two `elaborate.cc` sites were updated to recognize this marker:
+- `constraint_foreach_source_type_`: when `member_name()` is nil, return the array type as already reduced by consuming `prefix_names().size()` dimensions (the remaining-dimension array type) directly, instead of falling into the member-lookup path that assumes the prefix fully consumed every dimension.
+- The constraint-IR emission dispatcher: a nil `member_name()` now skips the `qforeach`/dotted-member branch entirely (that branch's own guard was narrowed to `has_hierarchical_target() && !member_name().nil()`) and falls through to the existing plain-static-array unroll loop, which was extended to offset past `prefix_names().size()` LEADING dimensions — those are already fixed by an outer, already-bound variable (present in the incoming `loop_env`, seeded by the enclosing foreach's own unroll), not re-iterated here — so the trailing loop variables unroll the array's REMAINING dimensions instead of restarting at dimension 0.
+
+Unlike DD-040's plain-statement form, this grammar rule does not check the selector identifier against a parse-time symbol table: a constraint foreach's own loop variables are not declared as real wires (they exist only as `PEConstraintForeach::loop_vars_`, resolved through a runtime `loop_env` at elaboration), so there is no parse-time table to check the selector against — matching the already-shipped DOTTED constraint-foreach rule, which accepts its own `prefix_names` the same way, without a declared-check either. An undeclared/misspelled selector fails to resolve at elaboration instead (the array-index reference inside the constraint body can't find it in `loop_env`), consistent with that existing form's own behavior.
+
+**Verified:** `bison --report=state` conflict totals and per-state conflict-shape multiset unchanged from the origin/main baseline (572 shift/reduce, 1122 reduce/reduce, 209 conflicting states, same shapes) — zero new conflicts. A real discriminating-population runtime check (not just "does it compile"): the constraint value depends on BOTH the prefix-selected outer variable and the freshly-iterated inner variable, producing 12 distinct correctly-constrained values across a 3x4 array — see `ivtest/ivltests/sv_constraint_foreach_undotted_selected_prefix.v`. Confirmed the pre-existing plain single-bracket, comma multi-dimensional, and dotted hierarchical-member forms are all unaffected. Local six-gate suite clean (UVM 357/0/0, ivtest 5828/0/0 unexplained, VPI 108/0, negative 148/0, runtime invariants 15/15). Status: fixed.

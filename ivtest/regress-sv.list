@@ -1480,6 +1480,7 @@ sv_covergroup_cross_retain_auto_bins_2023 normal,-g2023 ivltests gold=sv_covergr
 sv_covergroup_cross_retain_scope_fail CE,-g2023 ivltests gold=sv_covergroup_cross_retain_scope_fail.gold
 sv_covergroup_cross_range_tuple_overflow normal,-g2017 ivltests gold=sv_covergroup_cross_range_tuple_overflow.gold
 sv_covergroup_cross_with normal,-g2012 ivltests gold=sv_covergroup_cross_with.gold
+sv_covergroup_cross_with_select_expr normal,-g2012 ivltests gold=sv_covergroup_cross_with_select_expr.gold
 sv_covergroup_following_localparam normal,-g2012 ivltests gold=sv_covergroup_following_localparam.gold
 sv_covergroup_hierarchical_cross normal,-g2012 ivltests gold=sv_covergroup_hierarchical_cross.gold
 sv_covergroup_procedural_item_options normal,-g2012 ivltests gold=sv_covergroup_procedural_item_options.gold
@@ -2557,6 +2558,7 @@ sv_queue_selected_receiver_assign normal,-g2017,-s,main ivltests gold=sv_queue_s
 sv_queue_selected_receiver_assign_2023 normal,-g2023,-s,main ivltests gold=sv_queue_selected_receiver_assign.gold
 sv_constraint_foreach_state_errors normal,-g2017,-s,main ivltests gold=sv_constraint_foreach_state_errors.gold
 sv_constraint_foreach_state_errors_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_foreach_state_errors.gold
+sv_constraint_foreach_undotted_selected_prefix normal,-g2012,-s,main ivltests
 sv_constraint_foreach_selected_unsupported CE,-g2017,-s,main ivltests gold=sv_constraint_foreach_selected_unsupported.gold
 sv_constraint_foreach_selected_unsupported_2023 CE,-g2023,-s,main ivltests gold=sv_constraint_foreach_selected_unsupported.gold
 sv_constraint_foreach_member_access CE,-g2017,-s,main ivltests gold=sv_constraint_foreach_member_access.gold
@@ -3610,9 +3612,10 @@ sv_sva_match_item_partsel_lhs_fail CE,-g2012 ivltests gold=sv_sva_match_item_par
 sv_sva_chained_leading_cycle_delay normal,-g2012 ivltests
 
 # DD-040 foreach selected-prefix into an associative array
-sv_foreach_selected_prefix_assoc_fail CE,-g2012 ivltests gold=sv_foreach_selected_prefix_assoc_fail.gold
+sv_foreach_selected_prefix_assoc normal,-g2012 ivltests
 sv_foreach_undotted_selected_prefix_fail CE,-g2012 ivltests gold=sv_foreach_undotted_selected_prefix_fail.gold
 sv_foreach_nested_assoc_no_selector normal,-g2012 ivltests
+sv_foreach_selected_prefix_static_array normal,-g2012 ivltests
 
 # L92 fixed multiclock assertion control
 sv_assert_multiclock_fixed_control_off normal,-g2017 ivltests
