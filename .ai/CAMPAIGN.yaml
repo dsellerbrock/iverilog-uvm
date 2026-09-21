@@ -175,3 +175,58 @@ repaired_batch_qualification_start:
   pending: integrated,json,nfa,frontend,uvm,releases,makecheck; then exact-head CI review. No merge or qualification claim before gates.
   command: python3 evidence/review-20260920/shared-six-repaired-qualification/run_gate.py integrated
   agents: Implementation lanes frozen; retained Luna completed read-only regex assessment. No worker source edits pending.
+
+pr309_repaired_publication_live:
+  published_head: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/309
+  state: OPEN_DRAFT
+  local_qualification_session: 12449
+  last_verified_live_utc: 2026-09-21T17:39:03.857594+00:00
+  current_gate: integrated; API export and copy-out checks pass, vendored ivtest sweep running.
+  gate_sequence: integrated,json,nfa,frontend,uvm,releases,makecheck; stops on first nonzero exit.
+  next_exact_action: Poll existing exec session12449 with write_stdin. If unavailable inspect shared-six-repaired-qualification/batch-progress.json and actual process state before resuming any missing gate; do not restart merely on observation timeout.
+  compiler_source_freeze: No compiler edits during qualification; only user AGENTS.md patch remains externally dirty before this note.
+  worker_state: Both implementation lanes and read-only Luna tasks completed; reuse retained workers for a concrete next blocker after qualification or scoped failure diagnosis.
+
+pr309_integrated_gate_checkpoint:
+  head: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  integrated: PASS; 6121 passed, 0 failed, 2 not implemented, 3 expected failures; VPI126, negative148, invariants15 pass.
+  current_gate: json; existing session12449, do not restart.
+  remaining: json,nfa,frontend,uvm,releases,makecheck and exact-head CI.
+  worker: Retained Luna correcting private trace build include configuration; no compiler or corpus edits.
+
+pr309_json_nfa_checkpoint:
+  head: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  completed: integrated PASS; JSON3036/0; NFA58/0; tool hashes stable for all three.
+  active: uvm in existing session12449; then releases,makecheck. Frontend passed with stable tool hashes.
+  next: Poll session12449; preserve source freeze and do not repeat completed gates.
+  assessment: docs/conformance/session_logs/2026-09-21_opentitan_regex_attribution.json; source/API compatibility blocker, no compiler fix selected.
+  pending_docs: Attribution record and owner-document links are local, commit with final qualification evidence; preserve external AGENTS.md changes.
+
+pr309_ci_build_checkpoint:
+  head: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  run: 35633277441
+  state: All six jobs reached regression testing; Windows event API export link failures cleared. No completed green CI yet.
+  local: Session12449 live in real-DPI UVM gate; integrated,JSON,NFA,frontend passed.
+  next_assessment: Retained Luna low assessing VPI force callback debt privately per ACTIVE_WORK; no compiler source edits.
+
+next_vpi_assessment_complete:
+  evidence: evidence/review-20260920/next-vpi-force-callback-assessment/assessment.json
+  finding: Paired compiled force/release callbacks return signal rather than statement handles; legacy variable-bit cbForce registration incorrectly accepted.
+  state: Reproduced next-batch debt only; current compiler source remains frozen.
+  worker: Retained Luna completed assessment; idle.
+
+canonical_graph_refresh_authorized:
+  request: User explicitly requested a separate agent to generate replacement graph while preserving the old graph, validate, then retire and cut over.
+  owner: canonical_graph_refresh; Terra medium
+  source: Canonical clean current main checkout iverilog-uvm-svtests-qualified-if-20260813, never this feature tree.
+  constraints: No new worktree; preserve current graph/pointers through staging generation; validate source revision, integrity, representative queries and output coverage before safe cutover; rollback retained until post-cutover checks pass.
+  state: Agent inspecting live paths and existing rebuild mechanisms.
+  compiler: PR309 source remains frozen; session12449 still live in UVM tests.
+
+pr309_required_local_qualification_complete:
+  head: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  evidence: docs/conformance/session_logs/2026-09-21_pr309_local_qualification.json
+  status: ALL_SEVEN_LOCAL_GATES_PASS_CI_PENDING
+  session: 12449 completed exit0; do not poll or restart.
+  next: Publish evidence-only commit, update PR, inspect exact-head CI; no merge without required local evidence and user-authorized green-CI boundary.

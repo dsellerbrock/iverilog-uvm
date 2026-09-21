@@ -3393,3 +3393,7 @@ COMPOUND-VIF-EDGE-EVENTS, JOINT-ORDERED-RANDC-MULTIDIST, DV-RUNTIME-ROOT-SEED, U
 The [six-fix broad gate](session_logs/2026-09-21_shared_six_gate_failure.json) found regressions in automatic events and port/synthesis behavior; these are active repair obligations before qualification. The [fresh release replay](session_logs/2026-09-21_shared_six_release_retest.json) advances pwrmgr past its old HDL-path fatal to legacy regex/build errors. OpenTitan crossbar and Caliptra power2round pass their bounded checks; GPIO, pwrmgr and rejection sampling remain failing.
 
 At `1d7e38ce5`, [runtime and startup repairs](session_logs/2026-09-21_event_runtime_regression_repair.json) have focused evidence. COMPOUND-VIF-EDGE-EVENTS remains open for synthesis boundary repairs and complete regression requalification. These repairs add no feature count.
+
+The [private regex attribution](session_logs/2026-09-21_opentitan_regex_attribution.json) identifies the remaining GPIO/pwrmgr startup failure as a pinned application/API usage compatibility blocker. Keep application sources untouched and strict matching intact; no additional compiler implementation is selected from this observation.
+
+PR309 required local requalification now passes on `09316da3d`; see the [revision-scoped gate record](session_logs/2026-09-21_pr309_local_qualification.json). The six-fix batch and its regression repairs await exact-head CI. OpenTitan/Caliptra residual failures remain open; local regression completion does not close those application objectives.

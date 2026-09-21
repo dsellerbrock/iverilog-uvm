@@ -1,5 +1,7 @@
 # Current evidence and work
 
+Latest PR309 evidence: [required local qualification](session_logs/2026-09-21_pr309_local_qualification.json) passes on `09316da3d`; exact-head CI remains pending. This supersedes the earlier pending-local-gate notes below without changing their historical results or claiming full application qualification.
+
 Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
 `9c8f716b1`; operational handoff reconciled after documentation merge
 `fdbb8f34a` and local sync `3ab991187`. This page points to recorded evidence; it does not claim a fresh
@@ -181,3 +183,5 @@ Draft review checkpoint: [PR #309](https://github.com/dsellerbrock/iverilog-uvm/
 [Event runtime repair checkpoint](session_logs/2026-09-21_event_runtime_regression_repair.json) supersedes the runtime failure status above for its recorded source/tools. Synthesis repairs and broad requalification remain pending; PR #309 stays draft.
 
 [Synthesis event repair evidence](session_logs/2026-09-21_synthesis_event_regression_repair.json) records the successful replay of all earlier failing legacy/VPI cases and new paired boundary tests. [Fresh pinned release replay](session_logs/2026-09-21_repaired_release_replay.json) and [initial PR309 CI classification](session_logs/2026-09-21_pr309_initial_ci.json) preserve application limitations and the Windows export repair. Full repaired-revision gates are pending.
+
+The [OpenTitan regex trace](session_logs/2026-09-21_opentitan_regex_attribution.json) attributes the current GPIO/pwrmgr startup errors to a direct glob-shaped argument reaching the strict legacy regex API. It establishes no application pass or new compiler fix.
