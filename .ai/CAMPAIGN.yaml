@@ -272,3 +272,20 @@ cast_index_and_distribution_checkpoint:
   distributions: Four obsolete rejection tests updated with successful coupled values and contradictory rollback; both harnesses pass, other negative cases preserved.
   pending: Inside common operand sizing review; joint permanent packaging; B/P synthesis lane; complete neighbor and broad batch gates.
   next: Review Sol inside normative assessment before changing consumer; integrate frozen distribution fixtures and verify.
+
+inside_common_type_authorization:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  parent: CONSTRAINT-INTEGRAL-CAST-IR
+  evidence: evidence/review-20260920/next-joint-distributions/patch-type-inside-assessment/ASSESSMENT.md
+  invariant: Inside result is self-determined; membership operands use one common type before value construction, with no repeated state/reference effects.
+  authority: IEEE2017/2023 11.4.13 wildcard comparison and 11.8.2 sizing; all-member aggregation is an acknowledged wording ambiguity resolved with documented independent Slang evidence.
+  scope: Private vvp_z3.cc pure payload scan and existing occurrence-local coercion in typed inside descendants; no per-member replay or new AST.
+  acceptance: Wide and mixed members, narrow overflow, range bounds, common unsigned shift, container element typing, negative rollback and existing cast/distribution neighbors in both editions.
+  constraints: Preserve all state/reference/error effects once; reject unsupported typed payload instead of legacy sizing fallback or omitted members.
+
+joint_distribution_permanent_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_joint_distribution_permanent_focus.json
+  focused: Four permanent cases pass both legacy and JSON harnesses; frozen fixtures unchanged.
+  remaining: Cast inside prerequisite, full constraint neighbors, complete B/P synthesis, broad batch gates and PR.
+  next_command: Review private inside patch against current shared vvp/vvp_z3.cc before applying; coordinator rebuild and rerun paired focus.
+  processes: No shared build or test process remains live; two private implementation agents active.
