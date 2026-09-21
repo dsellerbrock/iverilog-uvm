@@ -39,6 +39,10 @@ records retain their original revisions and limits.
 
 ## Application evidence
 
+The [September 20 stable-release replay checkpoint](session_logs/2026-09-20_stable_release_replay.json)
+records the fresh Caliptra static census, the ongoing OpenTitan UVM1.2 replay,
+and audited artifact cleanup. It does not establish a new runtime pass.
+
 The [September 15 OpenTitan `xbar_smoke` UVM pass](session_logs/2026-09-15_opentitan_xbar_smoke_patched.md)
 is the first UVM test to reach `TEST PASSED CHECKS` against a stable OpenTitan
 release (Earlgrey-PROD-M6). **It is a patched-release result, not an

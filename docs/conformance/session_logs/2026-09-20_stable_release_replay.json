@@ -1,0 +1,70 @@
+{
+  "scope": "Release replay checkpoint; static Caliptra census complete, OpenTitan and Caliptra runtime qualification pending",
+  "compiler_semantic_revision": "e90059a07708cf2a3022255bfce640808178a418",
+  "merged_main": "0998f058a4a549b9e988f5a1784bdfbbec1246a8",
+  "caliptra": {
+    "tag": "v2.1.2",
+    "repository": {
+      "adams_bridge_commit": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "dirty": false,
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl"
+    },
+    "counts": {
+      "DEBT": 7,
+      "ICARUS_GAP": 0,
+      "PASS": 61,
+      "SHARED_SOURCE_OR_CONFIG": 34,
+      "SLANG_ONLY_DIFFERENCE": 4,
+      "SOURCE_ORDER_DEBT": 0,
+      "TIMEOUT": 0,
+      "compile_yml": 61,
+      "filelist_missing_inputs": 1,
+      "fileset_only": 39,
+      "iverilog_assertions_pass": 72,
+      "iverilog_no_assertions_pass": 72,
+      "jobs": 106,
+      "slang_pass": 68,
+      "with_tops": 67
+    },
+    "iverilog_assertions_clean": 67,
+    "generation": "2012 (census invocation)",
+    "interpretation": "Zero exit is static compile only. Legacy DEBT combines Icarus and Slang warnings; its generic reason misattributes some Slang warnings to Icarus. caliptra_top and caliptra_top_ss_mode have zero Icarus errors/warnings.",
+    "evidence": "evidence/review-20260920/application-replay/caliptra/caliptra-static-census.json",
+    "per_tool_diagnostics": "evidence/review-20260920/application-replay/caliptra/per-tool-diagnostics.json"
+  },
+  "opentitan": {
+    "tag": "Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "uvm": "1.2",
+    "status": "358-job census running; no final result yet",
+    "session": 55045,
+    "evidence": "evidence/review-20260920/application-replay/opentitan-uvm12.log"
+  },
+  "cleanup": {
+    "removed": [
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/build-param-vif-agent",
+        "size_kib": 342772,
+        "reason": "Audited unused generated build/install output or retired Python environment; no source, evidence or active process reference"
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/build/opentitan-baseline-tools-x86-retired-20260822",
+        "size_kib": 32788,
+        "reason": "Audited unused generated build/install output or retired Python environment; no source, evidence or active process reference"
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan/matrix",
+        "size_kib": 60476,
+        "reason": "Abandoned initial replay generated build, terminated before correct UVM1.2 replay; initial log retained"
+      }
+    ],
+    "worktrees": "Preserved pending ancestry/history reconciliation; no linked tree removed"
+  },
+  "limitations": [
+    "No new application source modifications",
+    "No full IEEE or UVM compliance claim",
+    "Caliptra full-testbench/runtime setup under review",
+    "Initial OpenTitan bundled-UVM attempt abandoned; excluded from result claims"
+  ]
+}
