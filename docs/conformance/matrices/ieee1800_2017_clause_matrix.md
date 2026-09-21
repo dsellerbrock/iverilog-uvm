@@ -1609,3 +1609,7 @@ Clauses37/38.19/38.21/38.36.1 remain PARTIAL overall. Declared integral packed s
 ### September21 constraint arithmetic error refinement
 
 Clauses11.3.4/11.3.5/18.3: division and remainder by zero now use guard-aware constraint error checks, preserving legal nonzero models and failure rollback. The [paired2017/2023 evidence](../session_logs/2026-09-21_constraint_divmod_zero.json) covers this implemented subset; broad qualification and overall clause completion remain pending.
+
+### September21 joint cyclic ordering refinement
+
+Clauses18.4.2/18.5.10: the joint solver supports implicit cyclic-variable priority followed by ordinary solve-before stages, including a single coupled ordinary distribution with prefix preflight. See [paired evidence and remaining limits](../session_logs/2026-09-21_joint_ordered_randc.json). The broader randomization requirements remain PARTIAL; batch qualification is pending.

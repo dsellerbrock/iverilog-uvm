@@ -6784,6 +6784,30 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    Z3_optimize_assert(ctx, opt, sa.a);
       }
 
+      auto active_randc_var = [&](Z3_ast var) -> bool {
+            for (const auto&pv : builder.prop_vars)
+                  if (pv.var == var
+                      && rand_scalar_active_(builder, prop_active, pv.idx)
+                      && builder.type(pv.idx)->property_is_randc(
+                            builder.local_index(pv.idx)))
+                        return true;
+            for (const auto&ev : builder.elem_vars)
+                  if (ev.var == var
+                      && rand_elem_active_(builder, prop_active,
+                            ev.idx, ev.elem)
+                      && builder.type(ev.idx)->property_is_randc(
+                            builder.local_index(ev.idx)))
+                        return true;
+            return false;
+      };
+      bool defer_ordered_joint_randc = false;
+      if (exact_joint && !builder.order_pairs.empty()) {
+            for (const auto&pv : builder.prop_vars)
+                  defer_ordered_joint_randc |= active_randc_var(pv.var);
+            for (const auto&ev : builder.elem_vars)
+                  defer_ordered_joint_randc |= active_randc_var(ev.var);
+      }
+
       map<unsigned, uint64_t> proved_joint_sizes;
       if (exact_joint) {
             // Ordered randc/dist and non-scalar stages need separate proofs.
@@ -6821,14 +6845,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                             || (pair.second.kind != Z3Builder::OrderRef::PROP
                                 && !supported_element_order_ref(pair.second)))
                               return fail_joint("joint solve-before requires canonical scalar or supported element ordering variables");
-                  for (const auto&pv : builder.prop_vars)
-                        if (rand_scalar_active_(builder, prop_active, pv.idx)
-                            && builder.type(pv.idx)->property_is_randc(builder.local_index(pv.idx)))
-                              return fail_joint("joint solve-before with active randc is not yet supported");
-                  for (const auto&ev : builder.elem_vars)
-                        if (rand_elem_active_(builder, prop_active, ev.idx, ev.elem)
-                            && builder.type(ev.idx)->property_is_randc(builder.local_index(ev.idx)))
-                              return fail_joint("joint solve-before with active randc is not yet supported");
             }
             vector<Z3_ast> sizes;
             for (const auto&sv : builder.size_vars) sizes.push_back(sv.var);
@@ -6958,6 +6974,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    && builder.elem_vars.empty() && builder.size_vars.empty();
 
       bool joint_randc_failed = false;
+      map<Z3_ast, uint64_t> sampled_randc_values;
       auto sample_scalars = [&](bool cyclic_only) {
       if (exact_joint && (defer_joint || !cyclic_only)) return;
       for (auto& pv : builder.prop_vars) {
@@ -6999,6 +7016,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			if (chosen != prefill)
 			      builder.object(pv.idx)->randc_unmark(builder.local_index(pv.idx), prefill);
 			builder.object(pv.idx)->randc_mark_feasible(builder.local_index(pv.idx), chosen, feasible);
+                        sampled_randc_values[pv.var] = chosen;
 		  } else {
 			chosen = feasible[property_rng(pv.idx).uniform_index(feasible.size())];
 		  }
@@ -7101,6 +7119,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      builder.object(ev.idx)->randc_mark_feasible(builder.local_index(ev.idx), chosen, feasible,
 							  ev.elem);
 			}
+                        sampled_randc_values[ev.var] = chosen;
 			Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
 			Z3_ast cv = Z3_mk_unsigned_int64(ctx, chosen, sort);
 			Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
@@ -7140,7 +7159,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       // IEEE 1800-2017/2023 18.4.2: randc precedes ordinary rand across
       // the complete graph, including variables in other objects' constraints.
-      if (graph) { sample_scalars(true); sample_elements(true); }
+      if (graph && !defer_ordered_joint_randc) {
+            sample_scalars(true);
+            sample_elements(true);
+      }
       if (joint_randc_failed) {
             if (Z3_solver_check(ctx, base) == Z3_L_FALSE) return fail_joint(nullptr);
             return fail_joint("a randc stage could not be enumerated completely");
@@ -7309,10 +7331,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         auto subject_stage = stages.find(spec->subject);
                         if (subject_stage != stages.end())
                               dist_stage = subject_stage->second;
+                        if (active_randc_var(spec->subject))
+                              return fail_joint("a randc variable cannot be used as a distribution subject");
                         vector<size_t> prefix_columns;
                         for (size_t i = 0; i < component.size(); ++i) {
                               auto found = stages.find(component[i]);
-                              if (found != stages.end() && found->second < dist_stage)
+                              if (active_randc_var(component[i])
+                                  || (found != stages.end()
+                                      && found->second < dist_stage))
                                     prefix_columns.push_back(i);
                         }
                         set<vector<uint64_t> > prefixes;
@@ -7338,6 +7364,52 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               Z3_solver_pop(ctx, base, 1);
                               if (!valid)
                                     return fail_joint("an ordered distribution cannot be resolved for every proved prefix fiber");
+                        }
+                  }
+            }
+            if (defer_ordered_joint_randc) {
+                  // randc has an implicit priority before every ordinary rand
+                  // variable (18.4.2). Keep the established canonical
+                  // per-property chooser/history transaction, but defer its
+                  // draws until every exact component and ordered prefix has
+                  // been proved. A cap or UNKNOWN therefore cannot make a
+                  // successful call conditional on a randc draw.
+                  for (size_t ci = 0; ci < components.size(); ++ci) {
+                        if (distributions[ci].size() <= 1) continue;
+                        if (any_of(components[ci].begin(), components[ci].end(),
+                              active_randc_var))
+                              return fail_joint("ordered randc with multiple coupled distributions is not yet supported");
+                  }
+                  sample_scalars(true);
+                  sample_elements(true);
+                  if (joint_randc_failed) {
+                        if (Z3_solver_check(ctx, base) == Z3_L_FALSE)
+                              return fail_joint(nullptr);
+                        return fail_joint("a randc stage could not be enumerated completely");
+                  }
+                  // The tables were proved before the draw. Restrict each to
+                  // the randc prefix now pinned in base; every selected randc
+                  // value came from a feasible domain, so its component keeps
+                  // at least one complete tuple.
+                  for (size_t ci = 0; ci < components.size(); ++ci) {
+                        auto&tuples = tables[ci];
+                        const auto&component = components[ci];
+                        for (size_t column = 0; column < component.size(); ++column) {
+                              Z3_ast var = component[column];
+                              if (!active_randc_var(var)) continue;
+                              auto sampled = sampled_randc_values.find(var);
+                              if (sampled == sampled_randc_values.end())
+                                    return fail_joint("an active randc variable was not sampled");
+                              uint64_t bits = sampled->second;
+                              unsigned width = bv_width(ctx, var);
+                              if (width < 64)
+                                    bits &= (uint64_t(1) << width) - 1;
+                              tuples.erase(remove_if(tuples.begin(), tuples.end(),
+                                    [&](const vector<uint64_t>&tuple) {
+                                          return tuple[column] != bits;
+                                    }), tuples.end());
+                              if (tuples.empty())
+                                    return fail_joint("a sampled randc value has no proved joint tuple");
                         }
                   }
             }

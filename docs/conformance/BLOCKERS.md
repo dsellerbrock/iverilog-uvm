@@ -3377,3 +3377,7 @@ CONTINUOUS-STRING-ASSIGN is reproduced in both editions from the unchanged stabl
 ### September21 constraint division/remainder by zero
 
 CONSTRAINT-DIVMOD-ZERO is implemented and focused-tested, awaiting required batch gates. Active zero divisors produce constraint evaluation errors; guarded inactive branches remain legal. See [paired evidence and rollback tests](session_logs/2026-09-21_constraint_divmod_zero.json).
+
+### September21 joint ordering with active cyclic variables
+
+JOINT-ORDERED-ACTIVE-RANDC is implemented and focused-tested, pending batch gates. DD-001/Z01 no longer blanket-rejects ordinary ordering alongside cyclic variables. Multiple coupled ordinary distributions in a cyclic component remain open. See [evidence and limits](session_logs/2026-09-21_joint_ordered_randc.json).

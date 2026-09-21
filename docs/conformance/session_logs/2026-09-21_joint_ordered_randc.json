@@ -1,0 +1,120 @@
+{
+  "blocker": "JOINT-ORDERED-ACTIVE-RANDC",
+  "debt": "DD-001/Z01",
+  "status": "FOCUSED_TESTED_BATCH_GATES_PENDING",
+  "base_revision": "312d223f202312beb0d65dab12fe9ba2e83c2aed",
+  "standards": {
+    "2017": [
+      "18.4.2",
+      "18.5.10",
+      "18.5.4"
+    ],
+    "2023": [
+      "18.4.2",
+      "18.5.9",
+      "18.5.3"
+    ]
+  },
+  "root": "Exact joint solver blanket-rejected ordinary solve-before whenever an active cyclic variable was present.",
+  "implementation": "Preflight exact component tables and all explicit/implicit cyclic distribution prefixes before RNG draws; reuse transactional randc-first sampling and filter proved tables before ordinary ordered sampling.",
+  "source_sha256": "8cdd2dfd1b44dc6ffd92871069e9c4c959fb272bdccb1775e7e052ef296b9198",
+  "tests": {
+    "original_paired_reducer": [
+      {
+        "edition": "2017",
+        "compile_exit": 0,
+        "compile_log": "",
+        "runtime_exit": 0,
+        "runtime_log": "RESULT=SUPPORTED\n"
+      },
+      {
+        "edition": "2023",
+        "compile_exit": 0,
+        "compile_log": "",
+        "runtime_exit": 0,
+        "runtime_log": "RESULT=SUPPORTED\n"
+      }
+    ],
+    "focused_legacy": {
+      "passed": 4,
+      "failed": 0
+    },
+    "focused_json": {
+      "passed": 4,
+      "failed": 0
+    },
+    "neighbors_legacy": {
+      "passed": 13,
+      "failed": 0
+    },
+    "neighbors_json": {
+      "passed": 13,
+      "failed": 0
+    }
+  },
+  "coverage": [
+    "full/restricted scalar cycles",
+    "coupled and independent cyclic subjects",
+    "fixed-array cyclic elements",
+    "disabled randc and seeded replay",
+    "ordinary conditional marginal distinguishes1/2 from incorrect16/17 tuple sampling",
+    "ordinary coupled1:3 dist",
+    "UNSAT, cap and excluded-fiber value/history/RNG/callback rollback",
+    "existing explicit-randc-order negative"
+  ],
+  "validation_note": "Initial JSON negative gold omitted terminal periods; corrected to exact runtime diagnostics. Final source differs from tested candidate only in unreachable defensive invalid-randc-dist diagnostic wording; post-wording build/control results retained separately.",
+  "raw_evidence": "evidence/review-20260920/next-constraint-ordered-randc-fix",
+  "permanent_tests": [
+    "ivtest/ivltests/sv_randomize_joint_ordered_randc.v",
+    "ivtest/ivltests/sv_randomize_joint_ordered_randc_fail.v"
+  ],
+  "limits": [
+    "Multiple coupled ordinary dist expressions sharing a component with active randc remain explicitly unsupported; no biased fallback.",
+    "Direct dist on randc is forbidden by both standards and already rejected by frontend; it is not missing support.",
+    "Existing exact-table caps remain unchanged.",
+    "No full randomization/clause/edition qualification; required broad batch gates pending."
+  ],
+  "final_diagnostic_controls": {
+    "source_sha256": "8cdd2dfd1b44dc6ffd92871069e9c4c959fb272bdccb1775e7e052ef296b9198",
+    "runtime_sha256": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+    "tests": [
+      {
+        "case": "primary",
+        "edition": "2017",
+        "compile_exit": 0,
+        "compile_log": "",
+        "runtime_exit": 0,
+        "runtime_log": "RESULT=SUPPORTED\n",
+        "passed": true
+      },
+      {
+        "case": "illegal",
+        "edition": "2017",
+        "compile_exit": 1,
+        "compile_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-fix/tests/sv_randomize_joint_ordered_randc_dist_illegal.v:5: error: 'randc' variables cannot be used in 'dist' constraints.\n1 error(s) during elaboration.\n",
+        "runtime_exit": null,
+        "runtime_log": null,
+        "passed": true
+      },
+      {
+        "case": "primary",
+        "edition": "2023",
+        "compile_exit": 0,
+        "compile_log": "",
+        "runtime_exit": 0,
+        "runtime_log": "RESULT=SUPPORTED\n",
+        "passed": true
+      },
+      {
+        "case": "illegal",
+        "edition": "2023",
+        "compile_exit": 1,
+        "compile_log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-fix/tests/sv_randomize_joint_ordered_randc_dist_illegal.v:5: error: 'randc' variables cannot be used in 'dist' constraints.\n1 error(s) during elaboration.\n",
+        "runtime_exit": null,
+        "runtime_log": null,
+        "passed": true
+      }
+    ]
+  },
+  "final_build_install": "Both pass after defensive invalid-source wording correction"
+}

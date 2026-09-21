@@ -168,3 +168,17 @@ event_atomic_candidate_failure:
   action: Authorized private vvp_net.h fanout hooks with marked-cone-only publication and reentrant source-write acceptance boundary. Context seed remains under repair.
 
 event_atomic_review_evidence: docs/conformance/session_logs/2026-09-21_event_atomic_fanout.json
+
+ordered_randc_candidate:
+  shared_base: 312d223f2
+  source_patch_sha256: 3f89161f0e59afcf317b8198779dc976a9b7ea0e83c64d483acd1a7ef4a093d1
+  state: Applied shared; build/install and original paired reducer pass. Permanent legacy4/4, corrected JSON4/4, legacy neighbors13/13 pass; JSON neighbors running session35090.
+  pending: Final neighbor results, correct normative invalid-source classification for randc dist, evidence/docs and semantic commit.
+  evidence: evidence/review-20260920/next-constraint-ordered-randc-fix
+
+ordered_randc_focused_checkpoint:
+  integrated_fixes_in_batch: 9
+  status: Focused-tested; local semantic commit follows final diagnostic-only rebuild controls. Required batch gates pending.
+  evidence: docs/conformance/session_logs/2026-09-21_joint_ordered_randc.json
+  tests: Four focused and thirteen neighbor cases pass in each harness; paired original reducer passes.
+  next: Event lane continues private atomic propagation repair; retained solver worker assesses one independent recorded debt without source edits.

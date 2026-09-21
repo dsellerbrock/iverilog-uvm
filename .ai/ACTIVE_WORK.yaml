@@ -13,7 +13,8 @@ completed_focused_subsets:
   - SELF-PACKAGE-TYPE-CAST (e42f114cd)
   - SIGNED-COVER-BINS-CROSS-ZERO (e42f114cd)
   - VPI-PACKED-ELEMENT-ACCESS (1a340208c)
-  - CONSTRAINT-DIVMOD-ZERO (current local checkpoint)
+  - CONSTRAINT-DIVMOD-ZERO (86a2e967d)
+  - JOINT-ORDERED-ACTIVE-RANDC (current local checkpoint)
 validation: Focused evidence linked by docs/conformance/CURRENT_WORK.md; required broad batch gates pending near10fixes or earlier for concrete risk. No completed-clause/full-application claim.
 coordination:
   owner: Coordinator owns selection, source integration, shared build/install, tests and final review.
@@ -158,7 +159,7 @@ event_part_select_expansion:
 selected_ordered_randc:
   id: JOINT-ORDERED-ACTIVE-RANDC
   debt: DD-001/Z01
-  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED
+  status: FOCUSED_TESTED_BATCH_GATES_PENDING
   owner: constraint_guard_semantics, Sol medium
   standards: IEEE1800-2017/2023 18.4.2; ordering18.5.10 in2017 and18.5.9 in2023.
   reproducer: evidence/review-20260920/next-constraint-ordered-randc-assessment/joint_ordered_active_randc.sv
