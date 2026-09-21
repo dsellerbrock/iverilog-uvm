@@ -13,11 +13,11 @@ next_batch:
   revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c, e42f114cd]
   evidence_index: docs/conformance/CURRENT_WORK.md
   pending: Required broad gates near10fixes, then coherent PR; no next-batch PR yet.
-  processes: No shared build or test active; two read-only worker assessments active.
+  processes: Release retests completed; Terra private event implementation active, VPI assessment delivered.
 applications:
   pins: OpenTitan Earlgrey-PROD-M6; Caliptra v2.1.2 and AdamsBridgev2.0.3. Sources unchanged.
-  release_replay: docs/conformance/session_logs/2026-09-21_next_candidate_release_retest.json
-  release_limits: Bounded earlier candidate replay; crossbar UVM354items and Caliptra2048vectors pass, GPIO fails. Not current whole-app qualification.
+  release_replay: docs/conformance/session_logs/2026-09-21_current_release_retest.json
+  release_limits: Fresh bounded replay at51f3a67c0; crossbar and Caliptra power2round pass, GPIO and pwrmgr fail. Not whole-app qualification.
   latest_pwrmgr: docs/conformance/session_logs/2026-09-21_pwrmgr_startup.json
   pwrmgr_state: Compiles but semantic fallback warnings exclude qualification; startup UVM_FATAL on indexed packed HDL path, despite process exit0.
   live_path_probe: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/application-probe.json
