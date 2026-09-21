@@ -98,3 +98,5 @@ The [grouped clocked consequent record](session_logs/2026-09-20_grouped_clocked_
 The [masked memory synthesis record](session_logs/2026-09-20_masked_memory_synthesis.json) contains the next paired focused checkpoint, pending batch qualification.
 
 The [variable-row assignment record](session_logs/2026-09-20_variable_row_assignment.json) contains paired focused evidence and the remaining Ibex synthesis boundary.
+
+The [state-selected constraint record](session_logs/2026-09-21_state_selected_fixed_array_constraints.json) tracks the next paired focused candidate and its validation status.

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_state_selected_fixed_array_bounds.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_constraint_state_selected_fixed_array_bounds"
+}

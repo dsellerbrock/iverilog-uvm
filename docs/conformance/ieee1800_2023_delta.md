@@ -254,3 +254,8 @@ rules; [paired evidence](session_logs/2026-09-20_grouped_clocked_consequent.md) 
 Masked runtime memory writes follow the shared 7.4.6, 11.5 and 10.4 rules; [paired evidence](session_logs/2026-09-20_masked_memory_synthesis.json) records both editions.
 
 Variable fixed-array row assignments use shared 7.4.6, 7.6 and 10.4 rules; [paired evidence](session_logs/2026-09-20_variable_row_assignment.json) records the edition runs and limits.
+
+State-selected fixed-array constraint evidence is [shared here](session_logs/2026-09-21_state_selected_fixed_array_constraints.json).
+Indexing/slicing and Table 7-1 move from 2017 7.4.6 to 2023 7.4.5;
+constraint guards move from 18.5.13 to 18.5.12. Earlier records citing
+7.4.6 for both editions should be read with that clause-number correction.

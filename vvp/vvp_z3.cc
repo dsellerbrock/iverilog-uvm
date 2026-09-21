@@ -561,6 +561,11 @@ struct Z3Builder {
       // (IEEE 1800-2017 18.5.13 / 1800-2023 18.5.12).
       vector<string> state_errors;
       vector<Z3_ast> side_constraints;
+      struct StateCheck {
+            Z3_ast error;
+            string message;
+      };
+      vector<StateCheck> state_checks;
       // C7 (Phase 62b): optional optimize handle for soft asserts.
       // When non-null, dist branches emit Z3_optimize_assert_soft per
       // branch with the user-specified weight, biasing the model toward
@@ -908,6 +913,8 @@ static Z3_ast build_z3_expr(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
 static Z3_ast build_z3_atom(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
 static Z3_lbool state_guard_truth_(Z3Builder&, Z3_ast,
                                   const set<Z3Builder::VarRef>&);
+static bool rand_elem_active_(const Z3Builder&, const vector<bool>*,
+                              unsigned, unsigned);
 static uint64_t cobj_prop_bits(vvp_cobject* cobj, unsigned idx);
 static uint64_t cobj_member_bits(vvp_cobject* cobj, unsigned outer,
 				 unsigned member);
@@ -916,6 +923,14 @@ static uint64_t cobj_qelem_member_bits(vvp_cobject* cobj, unsigned qprop,
 				       unsigned elem, unsigned member);
 static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx);
 static bool vec4_to_uint64_(const vvp_vector4_t&value, uint64_t&bits);
+
+static bool vec4_is_two_state_(const vvp_vector4_t&value)
+{
+      for (unsigned bit = 0; bit < value.size(); ++bit)
+            if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1)
+                  return false;
+      return true;
+}
 
 /* Object reads must retain identity, not property_object::get_vec4's
  * intentional nullness view (IEEE 1800-2017/2023 8.4, 11.4.5, 18.4).
@@ -1448,6 +1463,27 @@ static Z3_ast constraint_side_conjunction_(Z3Builder&b,
       if (end == begin + 1) return b.side_constraints[begin];
       return Z3_mk_and(b.ctx, (unsigned)(end - begin),
                        b.side_constraints.data() + begin);
+}
+
+static void constraint_guard_state_checks_(Z3Builder&b, size_t begin,
+                                            size_t end, Z3_ast guard)
+{
+      for (size_t idx = begin; idx < end; ++idx) {
+            Z3_ast guarded[2] = {guard, b.state_checks[idx].error};
+            b.state_checks[idx].error = Z3_mk_and(b.ctx, 2, guarded);
+      }
+}
+
+static Z3_ast constraint_state_error_disjunction_(Z3Builder&b,
+                                                   size_t begin, size_t end)
+{
+      if (begin >= end) return Z3_mk_false(b.ctx);
+      if (end == begin + 1) return b.state_checks[begin].error;
+      vector<Z3_ast> errors;
+      errors.reserve(end - begin);
+      for (size_t idx = begin; idx < end; ++idx)
+            errors.push_back(b.state_checks[idx].error);
+      return Z3_mk_or(b.ctx, (unsigned)errors.size(), errors.data());
 }
 
 static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
@@ -2040,6 +2076,166 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    return var;
       }
 
+      /* Fixed unpacked-array selection. The compiler supplies each declared
+       * dimension as LOW:WIDTH followed by its index expressions. Build the
+       * selection from the existing e: leaves. Table 7-1 makes an invalid
+       * 2-state read zero. A ground invalid 4-state state read is an 18.3
+       * evaluation error; retain symbolic validity for a random selector. */
+      if (op == "fsel") {
+	    string hdr = par.read_token();
+	    unsigned pidx, width; bool sflag;
+	    parse_pws_header(hdr, pidx, width, sflag);
+	    pidx = b.property_index(pidx);
+	    string count_token = par.read_token();
+	    if (count_token.compare(0, 2, "c:") != 0) {
+		  b.state_errors.push_back("malformed fixed-array selection rank");
+		  return b.mk_true();
+	    }
+	    char*end = nullptr;
+	    unsigned long count = strtoul(count_token.c_str() + 2, &end, 10);
+	    if (end == count_token.c_str() + 2 || *end || count == 0) {
+		  b.state_errors.push_back("invalid fixed-array selection rank");
+		  return b.mk_true();
+	    }
+	    string state_token = par.read_token();
+	    if (state_token.compare(0, 2, "c:") != 0
+		|| state_token.size() == 2) {
+		  b.state_errors.push_back("invalid fixed-array selection state kind");
+		  return b.mk_true();
+	    }
+	    unsigned long two_state = strtoul(state_token.c_str() + 2, &end, 10);
+	    if (end == state_token.c_str() + 2 || *end || two_state > 1) {
+		  b.state_errors.push_back("invalid fixed-array selection state kind");
+		  return b.mk_true();
+	    }
+	    vector<int64_t> lows(count);
+	    vector<unsigned long> spans(count);
+	    unsigned long words = 1;
+	    for (unsigned long dim = 0; dim < count; ++dim) {
+		  string descriptor = par.read_token();
+		  char*colon = nullptr;
+		  long long parsed_low = strtoll(descriptor.c_str(), &colon, 10);
+		  if (colon == descriptor.c_str() || *colon != ':') {
+			b.state_errors.push_back("malformed fixed-array selection dimension");
+			return b.mk_true();
+		  }
+		  lows[dim] = (int64_t)parsed_low;
+		  spans[dim] = strtoul(colon + 1, &end, 10);
+		  if (end == colon + 1 || *end || spans[dim] == 0
+		      || words > UINT_MAX / spans[dim]) {
+			b.state_errors.push_back("invalid fixed-array selection dimension");
+			return b.mk_true();
+		  }
+		  words *= spans[dim];
+	    }
+	    vector<Z3_ast> indices;
+	    set<Z3Builder::VarRef> index_refs;
+	    set<Z3Builder::VarRef>*saved_refs = b.collect_refs;
+	    b.collect_refs = &index_refs;
+	    indices.reserve(count);
+	    for (unsigned long dim = 0; dim < count; ++dim)
+		  indices.push_back(build_z3_atom(par, b));
+	    b.collect_refs = saved_refs;
+	    if (saved_refs) saved_refs->insert(index_refs.begin(), index_refs.end());
+	    par.skip_ws(); par.expect(')');
+	    Z3_ast valid = Z3_mk_false(b.ctx);
+	    vector<Z3_ast> matches(words);
+	    Z3_ast selected = Z3_mk_unsigned_int64(
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width ? width : 32));
+	    for (unsigned long word = words; word-- > 0;) {
+		  unsigned long ordinal = word;
+		  Z3_ast match = Z3_mk_true(b.ctx);
+		  for (size_t dim = count; dim-- > 0;) {
+			unsigned long digit = ordinal % spans[dim];
+			ordinal /= spans[dim];
+			if ((uint64_t)digit > (uint64_t)INT64_MAX
+			    || lows[dim] > INT64_MAX - (int64_t)digit) {
+			      b.state_errors.push_back(
+			            "fixed-array declared index exceeds signed 64-bit representation");
+			      return b.mk_true();
+			}
+			int64_t declared_value = lows[dim] + (int64_t)digit;
+			Z3_ast declared = b.tag_signed_constant(Z3_mk_unsigned_int64(
+			      b.ctx, (uint64_t)declared_value,
+			      Z3_mk_bv_sort(b.ctx, 64)));
+			// Compare mathematical index values, not same-width modular bit
+			// patterns. The guard bit keeps unsigned 64'hffff... distinct
+			// from signed -1, while each operand retains its own extension.
+			unsigned common = max(b.sv_of(indices[dim]), 64u) + 1;
+			Z3_ast equal = Z3_mk_eq(b.ctx,
+			      b.coerce(indices[dim], common),
+			      b.coerce(declared, common));
+			Z3_ast both[2] = {match, equal};
+			match = Z3_mk_and(b.ctx, 2, both);
+		  }
+		  matches[word] = match;
+		  if (b.collect_refs) {
+			Z3Builder::VarRef ref = {Z3Builder::VarRef::ELEM, pidx, (unsigned)word};
+			b.collect_refs->insert(ref);
+		  }
+		  Z3_ast leaf = b.collect_refs_only
+			? Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width ? width : 32))
+			: b.get_elem_var(pidx, width, (unsigned)word);
+		  if (sflag) b.signed_vars.insert(leaf);
+		  selected = Z3_mk_ite(b.ctx, match, leaf, selected);
+		  Z3_ast either[2] = {valid, match};
+		  valid = Z3_mk_or(b.ctx, 2, either);
+	    }
+	    if (!two_state) {
+		  Z3_lbool validity = b.collect_refs_only
+			? Z3_L_UNDEF : state_guard_truth_(b, valid, index_refs);
+		  if (validity == Z3_L_UNDEF) {
+		    if (!b.collect_refs_only && b.collect_preferences) {
+			Z3Builder::StateCheck check = {
+			      Z3_mk_not(b.ctx, valid),
+			      "invalid 4-state fixed-array index in constraint"
+			};
+			b.state_checks.push_back(check);
+			vector<Z3_ast> unknown_matches;
+			for (unsigned long word = 0; word < words; ++word) {
+			      if (rand_elem_active_(b, b.prop_active, pidx,
+			                            (unsigned)word)) continue;
+			      vvp_vector4_t value;
+			      b.object(pidx)->get_vec4(
+			            b.local_index(pidx), value, (unsigned)word);
+			      if (!vec4_is_two_state_(value))
+			            unknown_matches.push_back(matches[word]);
+			}
+			if (!unknown_matches.empty()) {
+			      Z3_ast selected_unknown = unknown_matches.size() == 1
+			            ? unknown_matches[0]
+			            : Z3_mk_or(b.ctx, (unsigned)unknown_matches.size(),
+			                       unknown_matches.data());
+			      Z3Builder::StateCheck unknown_check = {
+			            selected_unknown,
+			            "X/Z fixed-array state element in constraint"
+			      };
+			      b.state_checks.push_back(unknown_check);
+			}
+		    }
+		  }
+		  else if (validity == Z3_L_FALSE)
+			b.state_errors.push_back(
+			      "invalid 4-state fixed-array index in constraint");
+		  else for (unsigned long word = 0; word < words; ++word) {
+			if (state_guard_truth_(b, matches[word], index_refs)
+			    != Z3_L_TRUE) continue;
+			if (!rand_elem_active_(b, b.prop_active, pidx, (unsigned)word)) {
+			      vvp_vector4_t value;
+			      b.object(pidx)->get_vec4(
+				    b.local_index(pidx), value, (unsigned)word);
+			      if (!vec4_is_two_state_(value))
+				    b.state_errors.push_back(
+					  "X/Z fixed-array state element in constraint");
+			}
+			break;
+		  }
+	    }
+	    b.set_sv(selected, width ? width : 32);
+	    if (sflag) b.signed_vars.insert(selected);
+	    return selected;
+      }
+
       if (op == "delem") {
 	    string hdr = par.read_token();
 	    unsigned pidx, ewid; bool esig;
@@ -2302,11 +2498,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast cond = bv_to_bool(b.ctx, build_z3_atom(par, b, &condition));
 	    size_t after_cond = b.state_errors.size();
 	    size_t side_after_cond = b.side_constraints.size();
+	    size_t checks_after_cond = b.state_checks.size();
 	    Z3_ast yes = build_z3_atom(par, b, &yes_guard);
 	    size_t after_yes = b.state_errors.size();
 	    size_t side_after_yes = b.side_constraints.size();
+	    size_t checks_after_yes = b.state_checks.size();
 	    Z3_ast no = build_z3_atom(par, b, &no_guard);
 	    size_t side_after_no = b.side_constraints.size();
+	    size_t checks_after_no = b.state_checks.size();
+	    constraint_guard_state_checks_(b, checks_after_cond,
+	                                  checks_after_yes, cond);
+	    constraint_guard_state_checks_(b, checks_after_yes,
+	                                  checks_after_no, Z3_mk_not(b.ctx, cond));
 	    Z3_ast cond_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_cond);
 	    Z3_ast yes_valid = constraint_side_conjunction_(
@@ -2352,21 +2555,38 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       if (op == "and" || op == "or") {
 	    size_t before = b.state_errors.size();
 	    size_t side_before = b.side_constraints.size();
+	    size_t checks_before = b.state_checks.size();
 	    Z3_lbool left_guard, right_guard;
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b, &left_guard));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
+	    size_t checks_after_left = b.state_checks.size();
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b, &right_guard));
 	    size_t side_after_right = b.side_constraints.size();
+	    size_t checks_after_right = b.state_checks.size();
+	    Z3_ast left_error = constraint_state_error_disjunction_(
+	          b, checks_before, checks_after_left);
+	    Z3_ast right_error = constraint_state_error_disjunction_(
+	          b, checks_after_left, checks_after_right);
+	    Z3_ast left_decides = op == "and"
+		  ? Z3_mk_not(b.ctx, left) : left;
+	    Z3_ast right_decides = op == "and"
+		  ? Z3_mk_not(b.ctx, right) : right;
+	    Z3_ast left_sift_args[2] = {
+		  Z3_mk_not(b.ctx, right_error), right_decides
+	    };
+	    Z3_ast right_sift_args[2] = {
+		  Z3_mk_not(b.ctx, left_error), left_decides
+	    };
+	    constraint_guard_state_checks_(b, checks_before, checks_after_left,
+	          Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, left_sift_args)));
+	    constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
+	          Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)));
 	    Z3_ast left_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_left);
 	    Z3_ast right_valid = constraint_side_conjunction_(
 		  b, side_after_left, side_after_right);
 	    b.side_constraints.resize(side_before);
-	    Z3_ast left_decides = op == "and"
-		  ? Z3_mk_not(b.ctx, left) : left;
-	    Z3_ast right_decides = op == "and"
-		  ? Z3_mk_not(b.ctx, right) : right;
 	    Z3_ast left_or_right_valid[2] = { left_decides, right_valid };
 	    Z3_ast left_path[2] = {
 		  left_valid, Z3_mk_or(b.ctx, 2, left_or_right_valid)
@@ -2405,6 +2625,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast left  = bv_to_bool(b.ctx, build_z3_atom(par, b, &left_guard));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
+	    size_t checks_after_left = b.state_checks.size();
             if (op == "impl" && before == after_left && left_guard == Z3_L_FALSE) {
                   // Eliminate the guarded constraint before registering any
                   // soft/disable-soft/order/foreach side effects.
@@ -2418,6 +2639,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast right = bv_to_bool(b.ctx, build_z3_atom(par, b));
 	    if (op == "impl") b.soft_guards.pop_back();
 	    size_t side_after_right = b.side_constraints.size();
+	    size_t checks_after_right = b.state_checks.size();
+	    if (op == "impl")
+	          constraint_guard_state_checks_(b, checks_after_left,
+	                                        checks_after_right, left);
 	    Z3_ast left_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_left);
 	    Z3_ast right_valid = constraint_side_conjunction_(
@@ -3283,14 +3508,26 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 	    if (par.at_end()) break;
 	    const char* before = par.p;
 	    size_t side_begin = b.side_constraints.size();
+	    size_t checks_begin = b.state_checks.size();
 	    Z3_ast expr = bv_to_bool(b.ctx, build_z3_atom(par, b));
 	    size_t side_end = b.side_constraints.size();
+	    size_t checks_end = b.state_checks.size();
 	    if (side_end != side_begin) {
 		  Z3_ast validity = constraint_side_conjunction_(
 			b, side_begin, side_end);
 		  Z3_ast valid_expr[2] = { validity, expr };
 		  expr = Z3_mk_and(b.ctx, 2, valid_expr);
 		  b.side_constraints.resize(side_begin);
+	    }
+	    // Keep evaluation-error branches satisfiable long enough to obtain a
+	    // diagnostic model. The solve normally asserts every check false; if
+	    // that is UNSAT, the relaxed assertion proves which guarded read failed.
+	    if (checks_end != checks_begin) {
+		  Z3_ast either[2] = {
+			expr, constraint_state_error_disjunction_(
+			      b, checks_begin, checks_end)
+		  };
+		  expr = Z3_mk_or(b.ctx, 2, either);
 	    }
 	    if (par.p == before) {
 		  static bool warned_no_progress = false;
@@ -3532,6 +3769,51 @@ static uint64_t cobj_elem_bits(vvp_cobject* cobj, unsigned idx, unsigned elem)
       for (unsigned b = 0; b < wid; ++b)
 	    if (vec.value(b) == BIT4_1) bits |= (1ULL << b);
       return bits;
+}
+
+static bool cobj_elem_vec4_(vvp_cobject*cobj, unsigned idx, unsigned elem,
+                            vvp_vector4_t&value)
+{
+      vvp_object_t propobj;
+      cobj->get_object(idx, propobj, 0);
+      if (vvp_darray*da = propobj.peek<vvp_darray>()) {
+            if (elem >= da->get_size()) return false;
+            da->get_word(elem, value);
+            return true;
+      }
+      if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>()) {
+            string key_text, val_str;
+            double val_real = 0;
+            int val_kind = -1;
+            return assoc->peek_entry(elem, key_text, value, val_real,
+                                     val_str, val_kind) && val_kind == 0;
+      }
+      cobj->get_vec4(idx, value, elem);
+      return value.size() != 0;
+}
+
+static Z3_ast z3_vec4_constant_(Z3_context ctx,
+                                const vvp_vector4_t&value,
+                                unsigned width)
+{
+      if (width == 0 || value.size() != width || !vec4_is_two_state_(value))
+            return nullptr;
+      vector<Z3_ast> chunks;
+      for (unsigned high = width; high > 0;) {
+            unsigned low = high > 64 ? high - 64 : 0;
+            unsigned chunk_width = high - low;
+            uint64_t bits = 0;
+            for (unsigned bit = 0; bit < chunk_width; ++bit)
+                  if (value.value(low + bit) == BIT4_1)
+                        bits |= UINT64_C(1) << bit;
+            chunks.push_back(Z3_mk_unsigned_int64(
+                  ctx, bits, Z3_mk_bv_sort(ctx, chunk_width)));
+            high = low;
+      }
+      Z3_ast result = chunks[0];
+      for (size_t idx = 1; idx < chunks.size(); ++idx)
+            result = Z3_mk_concat(ctx, result, chunks[idx]);
+      return result;
 }
 
 /* Write bits into an array-property element. */
@@ -5428,8 +5710,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (rand_elem_active_(builder, prop_active, ev.idx, ev.elem))
 		  continue;
 	    Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
-	    Z3_ast cv = Z3_mk_unsigned_int64(ctx,
-		  cobj_elem_bits(builder.object(ev.idx), builder.local_index(ev.idx), ev.elem), sort);
+	    vvp_vector4_t value;
+	    Z3_ast cv = cobj_elem_vec4_(builder.object(ev.idx),
+	          builder.local_index(ev.idx), ev.elem, value)
+	          ? z3_vec4_constant_(ctx, value, ev.width) : nullptr;
+	    // A selected X/Z state leaf is rejected by the guarded state check.
+	    // Keep a typed placeholder for unselected leaves so they do not lose
+	    // their identity while the selector is solved.
+	    if (!cv) cv = Z3_mk_unsigned_int64(ctx, 0, sort);
 	    Z3_ast eq = Z3_mk_eq(ctx, ev.var, cv);
 	    Z3_optimize_assert(ctx, opt, eq);
 	    Z3_solver_assert(ctx, base, eq);
@@ -5509,6 +5797,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_optimize_assert(ctx, opt, eq);
 		  Z3_solver_assert(ctx, base, eq);
 	    }
+      }
+
+      bool state_check_scope = false;
+      Z3_ast any_state_error = nullptr;
+      if (!builder.state_checks.empty()) {
+            any_state_error = constraint_state_error_disjunction_(
+                  builder, 0, builder.state_checks.size());
+            Z3_ast no_state_error = Z3_mk_not(ctx, any_state_error);
+            // Keep a relaxed copy of the hard problem below this scope. It
+            // is used only when the legal solve is UNSAT, to distinguish a
+            // selected evaluation error from an ordinary contradiction.
+            Z3_solver_push(ctx, base);
+            state_check_scope = true;
+            Z3_solver_assert(ctx, base, no_state_error);
+            Z3_optimize_assert(ctx, opt, no_state_error);
       }
 
       // Apply queued explicit soft assertions. Dist preferences are retained
@@ -5605,9 +5908,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, sv.var, cv));
 	    }
 	    for (auto& ev : builder.elem_vars) {
-		  uint64_t bits = cobj_elem_bits(builder.object(ev.idx), builder.local_index(ev.idx), ev.elem);
 		  Z3_sort sort = Z3_mk_bv_sort(ctx, ev.width);
-		  Z3_ast cv = Z3_mk_unsigned_int64(ctx, bits, sort);
+		  vvp_vector4_t value;
+		  Z3_ast cv = cobj_elem_vec4_(builder.object(ev.idx),
+		        builder.local_index(ev.idx), ev.elem, value)
+		        ? z3_vec4_constant_(ctx, value, ev.width) : nullptr;
+		  if (!cv) cv = Z3_mk_unsigned_int64(ctx, 0, sort);
 		  Z3_solver_assert(ctx, chk, Z3_mk_eq(ctx, ev.var, cv));
 	    }
 	    Z3_lbool precheck = Z3_solver_check(ctx, chk);
@@ -5657,6 +5963,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 					 ev.idx, ev.elem)
 		      && builder.type(ev.idx)->property_is_randc(builder.local_index(ev.idx)))
 			precheck = Z3_L_FALSE;
+
+	    // A symbolic state selection needs the final model to decide whether
+	    // its chosen index names an X/Z leaf or lies outside the declaration.
+	    if (!builder.state_checks.empty()) precheck = Z3_L_FALSE;
 
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
 		  // The candidate check included every active explicit `soft`
@@ -6639,6 +6949,25 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    fflush(stderr);
       }
       if (result != Z3_L_TRUE) {
+	    if (result == Z3_L_FALSE && state_check_scope) {
+		  Z3_solver_pop(ctx, base, 1);
+		  Z3_solver_assert(ctx, base, any_state_error);
+		  if (Z3_solver_check(ctx, base) == Z3_L_TRUE) {
+			Z3_model error_model = Z3_solver_get_model(ctx, base);
+			Z3_model_inc_ref(ctx, error_model);
+			for (const auto&check : builder.state_checks) {
+			      Z3_ast value = nullptr;
+			      if (!Z3_model_eval(ctx, error_model, check.error, 1,
+			                         &value) || !value
+			          || Z3_get_bool_value(ctx, Z3_simplify(ctx, value))
+			                         != Z3_L_TRUE) continue;
+			      fprintf(stderr, "ERROR: constraint state read: %s.\n",
+			              check.message.c_str());
+			      break;
+			}
+			Z3_model_dec_ref(ctx, error_model);
+		  }
+	    }
 	    Z3_solver_dec_ref(ctx, base);
 	    Z3_optimize_dec_ref(ctx, opt);
 	    Z3_del_context(ctx);
@@ -6660,6 +6989,22 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
       Z3_model model = Z3_optimize_get_model(ctx, opt);
       Z3_model_inc_ref(ctx, model);
+
+      for (const auto&check : builder.state_checks) {
+            Z3_ast value = nullptr;
+            Z3_lbool failed = Z3_L_UNDEF;
+            if (Z3_model_eval(ctx, model, check.error, 1, &value) && value)
+                  failed = Z3_get_bool_value(ctx, Z3_simplify(ctx, value));
+            if (failed == Z3_L_FALSE) continue;
+            fprintf(stderr, "ERROR: constraint state read: %s.\n",
+                    failed == Z3_L_TRUE ? check.message.c_str()
+                                        : "could not evaluate guarded state read");
+            Z3_model_dec_ref(ctx, model);
+            Z3_solver_dec_ref(ctx, base);
+            Z3_optimize_dec_ref(ctx, opt);
+            Z3_del_context(ctx);
+            return Z3PASS_FAILED;
+      }
 
       // Keep selected class handles and their retained callbacks intact.
       // IEEE 1800-2017 18.5.8.1/18.5.9 / 1800-2023 18.5.7.1/18.5.8:

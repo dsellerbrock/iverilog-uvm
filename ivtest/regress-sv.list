@@ -3971,3 +3971,11 @@ sv_variable_row_loop normal,-g2017 ivltests gold=sv_variable_row_loop.gold
 sv_variable_row_loop_2023 normal,-g2023 ivltests gold=sv_variable_row_loop.gold
 sv_variable_row_shape_fail CE,-g2017 ivltests gold=sv_variable_row_shape_fail.gold
 sv_variable_row_shape_fail_2023 CE,-g2023 ivltests gold=sv_variable_row_shape_fail.gold
+
+# DD044 state-selected fixed arrays, paired editions.
+sv_constraint_state_selected_fixed_array normal,-g2017 ivltests gold=sv_constraint_state_selected_fixed_array.gold
+sv_constraint_state_selected_fixed_array_2023 normal,-g2023 ivltests gold=sv_constraint_state_selected_fixed_array.gold
+sv_constraint_state_selected_fixed_array_bounds normal,-g2017 ivltests gold=sv_constraint_state_selected_fixed_array_bounds.gold
+sv_constraint_state_selected_fixed_array_bounds_2023 normal,-g2023 ivltests gold=sv_constraint_state_selected_fixed_array_bounds.gold
+sv_constraint_two_state_x_index_error normal,-g2017 ivltests gold=sv_constraint_two_state_x_index_error.gold
+sv_constraint_two_state_x_index_error_2023 normal,-g2023 ivltests gold=sv_constraint_two_state_x_index_error.gold

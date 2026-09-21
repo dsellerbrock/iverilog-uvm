@@ -27620,6 +27620,27 @@ static string scope_randomize_select_ir_(
       return "";
 }
 
+/* A fixed unpacked array has finitely many e: leaves. Preserve a symbolic
+ * state index by passing its declared dimensions to the solver, which selects
+ * a matching leaf or applies the element type's invalid-read semantics. */
+static string constraint_fixed_array_select_ir_(
+      unsigned property, unsigned width, bool is_signed, bool two_state,
+      const netranges_t&dims, const vector<string>&indices)
+{
+      if (dims.empty() || dims.size() != indices.size()) return "";
+      string header = to_string(property) + ":" + to_string(width)
+            + (is_signed ? ":s" : "");
+      string result = "(fsel " + header + " c:" + to_string(dims.size())
+            + " c:" + to_string(two_state ? 1 : 0);
+      for (const netrange_t&dim : dims) {
+            if (dim.width() == 0) return "";
+            result += " " + to_string(min(dim.get_msb(), dim.get_lsb()))
+                  + ":" + to_string(dim.width());
+      }
+      for (const string&index : indices) result += " " + index;
+      return result + ")";
+}
+
 struct constraint_const_ir_t {
       uint64_t value = 0;
       unsigned width = 32;
@@ -27667,6 +27688,30 @@ static uint64_t constraint_resize_const_bits_(
 	    bits |= ~((UINT64_C(1) << value.width) - 1);
       if (width < 64) bits &= (UINT64_C(1) << width) - 1;
       return bits;
+}
+
+/* Convert an integral constant index to its mathematical offset from a
+ * signed fixed-array lower bound. Keep unsigned values nonnegative: modular
+ * uint64 subtraction would otherwise make unsigned MAX alias declared -1. */
+static bool constraint_fixed_index_offset_(
+      const constraint_const_ir_t&value, int64_t low, uint64_t span,
+      uint64_t&offset)
+{
+      uint64_t bits = constraint_resize_const_bits_(
+            value, 64, value.is_signed);
+      if (value.is_signed) {
+            int64_t signed_value = (int64_t)bits;
+            if (signed_value < low) return false;
+            offset = (uint64_t)signed_value - (uint64_t)low;
+      } else if (low >= 0) {
+            if (bits < (uint64_t)low) return false;
+            offset = bits - (uint64_t)low;
+      } else {
+            uint64_t magnitude = (uint64_t)(-(low + 1)) + 1;
+            if (bits > UINT64_MAX - magnitude) return false;
+            offset = bits + magnitude;
+      }
+      return offset < span;
 }
 
 /* An unbased unsized literal (`'0 or `'1) takes the width of its expression
@@ -29558,12 +29603,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      constraint_const_ir_t index;
 			      if (!constraint_parse_const_ir_(index_ir, index)
 				  || index.width > 64) return "";
-			      uint64_t digit = constraint_resize_const_bits_(
-				    index, 64, index.is_signed);
 			      long low = std::min((*dims)[dim].get_msb(),
 				    (*dims)[dim].get_lsb());
-			      digit -= (uint64_t)low;
-			      if (digit >= (*dims)[dim].width()) return "";
+			      uint64_t digit = 0;
+			      if (!constraint_fixed_index_offset_(index, (int64_t)low,
+			            (*dims)[dim].width(), digit)) return "";
 			      word = word * (*dims)[dim].width() + digit;
 			      ++dim;
 			}
@@ -30141,8 +30185,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			const netranges_t&dims = ua->static_dimensions();
 			if (dims.size() != id->path().back().index.size())
 			      return "";
+			vector<string> index_irs;
 			uint64_t elem = 0;
 			size_t dim = 0;
+			bool constant = true;
 			for (const index_component_t&ic :
 			     id->path().back().index) {
 			      if (!ic.msb || ic.lsb
@@ -30150,25 +30196,33 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    return "";
 			      string idx_ir = pexpr_to_constraint_ir(
 				    ic.msb, cls, value_slots, scope, loop_env);
+			      if (idx_ir.empty()) return "";
+			      index_irs.push_back(idx_ir);
 			      constraint_const_ir_t index_const;
 			      if (!constraint_parse_const_ir_(idx_ir, index_const)
-				  || index_const.width > 64)
-				    return "";
-			      uint64_t digit = constraint_resize_const_bits_(
-				    index_const, 64, index_const.is_signed);
+				  || index_const.width > 64) {
+				    constant = false;
+				    ++dim;
+				    continue;
+			      }
 			      long range_lo = std::min(
 				    dims[dim].get_msb(), dims[dim].get_lsb());
-			      digit -= (uint64_t)range_lo;
-			      if (digit >= dims[dim].width()) return "";
-			      elem = elem * dims[dim].width() + digit;
+			      uint64_t digit = 0;
+			      if (!constraint_fixed_index_offset_(index_const,
+			            (int64_t)range_lo, dims[dim].width(), digit))
+				    constant = false;
+			      else if (constant) elem = elem * dims[dim].width() + digit;
 			      ++dim;
 			}
 			ivl_type_t etype = ua->element_type();
 			unsigned ewid = etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
-			string esfx = (etype && etype->get_signed()) ? ":s" : "";
-			return "e:" + to_string(idx) + ":" + to_string(ewid)
-			      + ":" + to_string(elem) + esfx;
+			if (constant) return "e:" + to_string(idx) + ":"
+			      + to_string(ewid) + ":" + to_string(elem)
+			      + (etype && etype->get_signed() ? ":s" : "");
+			return constraint_fixed_array_select_ir_(idx, ewid,
+			      etype && etype->get_signed(),
+			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
 		  }
 
 		  unsigned wid = 0;
@@ -31200,12 +31254,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			constraint_const_ir_t value;
 			if (!constraint_parse_const_ir_(index_ir, value)
 			    || value.width > 64) return;
-			uint64_t digit = constraint_resize_const_bits_(
-			      value, 64, value.is_signed);
 			const netrange_t&range = array->static_dimensions()[dim++];
-			digit -= (uint64_t)std::min(
-			      range.get_msb(), range.get_lsb());
-			if (digit < range.width()) continue;
+			uint64_t digit = 0;
+			if (constraint_fixed_index_offset_(value,
+			      (int64_t)std::min(range.get_msb(), range.get_lsb()),
+			      range.width(), digit)) continue;
 			if (constraint_ir_design_ctx_
 			    && constraint_ir_design_ctx_
 			         ->mark_constraint_order_diagnostic(item)) {
@@ -31223,7 +31276,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (!item) continue;
 			string s = pexpr_to_constraint_ir(item, cls,
 						value_slots, scope, loop_env);
-			if (s.empty()) diagnose_fixed_oob(item);
+			diagnose_fixed_oob(item);
 			if (s.compare(0, 7, "(delem ") == 0) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
 			      if (!id || !cls || id->path().package

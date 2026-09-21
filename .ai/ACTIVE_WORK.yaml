@@ -1,5 +1,5 @@
 id: PR302-305-CORRECTNESS-REPAIR
-status: NEXT_BATCH_FOUR_FIXES_FOCUSED_VALIDATED
+status: NEXT_BATCH_FIVE_FIXES_FOCUSED_VALIDATED
 base_revision: 0133287ec092a6e36d1e6fe18db28835af13e127
 merged_main_baseline: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
 authority: User requests review and merge of all PRs while preserving compiler correctness; goal continuation authorizes fixing identified blockers.
@@ -107,7 +107,7 @@ current_integration:
   item: DD042-RECURSIVE-WITH
   compiler_patch: Built and installed after completed stable-release replay.
   validation: Both focused harnesses pass8; old coverage6 and legacy neighbors112 pass. See recursive-cross session record.
-  constraint_patch: Not applied; focused 4-state diagnostic review still active.
+  constraint_patch: Applied DD044 candidate and 64-bit bounds correction; runtime focused tests pass, two solve-before OOB negative regressions under repair.
 
 variable_row_assignment_lane:
   id: IBEX-VARIABLE-ROW-ASSIGNMENT
@@ -159,3 +159,19 @@ row_async_reset_lane:
   dependency: Current coordinator row elaboration candidate; do not edit its files or snapshots.
   acceptance: Assert/deassert reset away from clock, initialize every row, enabled and disabled clocked data shifts, both editions, no blanket acceptance of genuine asynchronous data loads.
   forbidden: Shared edits/builds, app changes, silently dropping reset, diagnostic-only suppression.
+
+review_checkpoint_20260921:
+  integrated_fixes: 4
+  constraint_lane: Reused constraint_guard_semantics (gpt-5.6-sol, medium); private correction for two solve-before OOB negative regressions.
+  synthesis_lane: Reused row_async_reset (gpt-5.6-terra, medium); private constant-loop crash diagnosis and complete async reset boundary tests.
+  shared_candidate: DD044 plus bounds correction in elaborate.cc/vvp_z3.cc; async reset proposal in synth2.cc, all uncommitted.
+  tests: DD044 focused runtime passes both editions with nine expected diagnostics each; bounds runtime passes both editions; 398 of 400 neighbors pass.
+  pending: Resolve two compile-error regressions before counting DD044; build and validate async reset proposal and its crash boundary.
+  build_owner: Coordinator only.
+
+constraint_completed_checkpoint_20260921:
+  id: DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
+  status: FOCUSED_AND_NEIGHBOR_TESTED
+  evidence: docs/conformance/session_logs/2026-09-21_state_selected_fixed_array_constraints.json
+  supersedes: Earlier DD044 review and pending regression notes above.
+  next: Coordinator selects next independent mechanism; async reset lane remains active and uncommitted.

@@ -149,3 +149,31 @@ variable_row_completed_checkpoint:
   supersedes: variable_row_integration_checkpoint blocking-pattern crash, now resolved and tested.
   next_action: Review final DD044 guarded-error patch; async-row reset worker owns separate synthesis blocker.
   shared_processes: None active.
+
+review_checkpoint_20260921:
+  committed_feature_head: d10883f1b
+  focused_validated_fixes: 4
+  uncommitted: DD044 constraint selection and bounds; async reset synthesis proposal.
+  completed_test_session: 28470
+  failed_neighbors: [sv_randomize_joint_element_order_oob_fail, sv_randomize_joint_element_order_oob_fail_2023]
+  shared_build_session: 26323
+  next: Poll build, validate async reset and genuine async-load rejection, review worker corrections; retain all failure evidence.
+  qualification: Prior seven-gate baseline does not qualify current candidate; broad suites due at batch checkpoint.
+
+review_boundary_checkpoint_20260921:
+  shared_build_session: null
+  installed: DD044+bounds and original async-reset proposal, uncommitted.
+  source_only: One-line solve-before OOB correction applied, not rebuilt yet.
+  constraint_remaining: Constant unsigned64 index range alias review and X/Z index into two-state array; worker owns private correction.
+  constraint_reproducer: evidence/review-20260920/next-dd044/two-state-x-index.sv
+  async_result: Original proposal builds but reset repro still rejects; constant-loop boundary still crashes139, both editions. Worker tracing; do not count fix.
+  async_evidence: evidence/review-20260920/next-row-async-reset/initial-shared-results.json
+  registration: Luna prepares private registration patch only; no shared file ownership.
+  next: Review workers' incremental corrections before shared rebuild; no shared build or test currently running.
+
+constraint_completed_checkpoint_20260921:
+  focused_validated_fixes: 5
+  evidence: docs/conformance/session_logs/2026-09-21_state_selected_fixed_array_constraints.json
+  completed_session: 80982
+  active_shared_process: null
+  next: Continue async-reset root-cause repair and select next independent blocker. Broad qualification due near ten fixes.

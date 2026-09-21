@@ -1526,3 +1526,11 @@ adds procedural direct-signal row copies and patterns to the 7.4.6/7.6/10.4
 PARTIAL implementation: selector and RHS snapshots, invalid-index behavior,
 and NBA updates have runtime evidence. It does not qualify arbitrary
 aggregate/function/delayed row assignments or the remaining synthesis reset path.
+
+### September 21 state-selected fixed-array constraints
+
+The [paired constraint record](../session_logs/2026-09-21_state_selected_fixed_array_constraints.json)
+extends the PARTIAL 7.4.6/18.3/18.5 implementation to symbolic selections
+of fixed integral class arrays. It records bounds, state errors, guard sifting,
+wide state leaves, rollback, and negative solve-before evidence. Full batch
+qualification remains pending; this is not general randomization qualification.
