@@ -109,7 +109,7 @@ next_batch_checkpoint:
   broad_gate_cadence: Approximately ten integrated fixes; prior baseline evidence remains revision-scoped.
 
 parallel_next_items:
-  lanes: [DD044 guarded state selection, IBEX variable row assignment]
+  lanes: [DD044 guarded state selection, IBEX variable row assignment, OT masked memory synthesis]
   ownership: Separate private artifact directories; coordinator shared build and tracked integration.
 
 grouped_clocked_checkpoint:

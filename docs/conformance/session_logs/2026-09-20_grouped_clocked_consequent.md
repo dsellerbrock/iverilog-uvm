@@ -33,3 +33,13 @@ Raw build, install, focused and neighbor logs:
 `evidence/review-20260920/next-clocked-property/`.
 The earlier application replay used its recorded compiler fingerprints; these
 focused tests do not establish a new whole-application or broad qualification.
+
+## Original application source check
+
+At `e384b5dcc`, the original M6 `lowrisc:dv:adc_ctrl_sva:0.1` compile
+command was replayed against the retained, unmodified FuseSoC source list.
+The original 15 parser/cascading errors are gone: compiler exit zero, no
+warning/error diagnostic (only the DPI-export informational note).
+This is a compile-only check, not a simulation or formal proof result.
+Exact command and output are retained in `next-clocked-property/adc-source-retest.json`
+and `adc-source-retest.log` under the evidence directory above.

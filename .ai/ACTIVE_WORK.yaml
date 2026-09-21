@@ -132,3 +132,16 @@ clocked_property_group_lane:
   owns: evidence/review-20260920/next-clocked-property/patch; proposed parse.y and parser property helpers only.
   acceptance: Equivalent grouped/ungrouped multiclock implication verdicts, distinct and coincident clocks, nonoverlap boundary, failing consequent, disable iff, nested groups; both editions.
   exclusions: No changes to shared source/builds, constraint solver or row-assignment lane files; coordinator applies private patch.
+
+masked_memory_synthesis_lane:
+  id: OT-MASKED-RUNTIME-MEMORY-WRITE
+  status: REPRODUCED
+  agent: cleanup_audit (reused gpt-5.6-luna, low)
+  source: Clean OpenTitan M6 prim_generic_ram_1p.sv and ram_2p.sv masked word writes.
+  reproducer: evidence/review-20260920/next-masked-memory/repro.sv
+  standards: IEEE1800-2017/2023 7.4.6,11.5 and10.4; synthesized simulation must preserve selected-bit NBA behavior.
+  root_cause: synth2.cc runtime word-write lowering supports whole words only and rejects packed selects before decoded per-word enables.
+  owns: evidence/review-20260920/next-masked-memory/patch; proposed synth2.cc only plus private fixtures.
+  dependency: Independent compiler mechanism and source file from row-assignment and constraint lanes; root owns shared build.
+  acceptance: Synthesized runtime preserves unselected bits and other words, per-byte masks and disabled write, OOB and X address no-write, descending/nonzero ranges, both editions and whole-word neighbors.
+  forbidden: Shared edits/builds, app edits, dropped writes, zero fill of unselected bits, whole-word enable substituting selected-bit preservation.
