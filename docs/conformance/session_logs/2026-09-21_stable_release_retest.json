@@ -1,0 +1,205 @@
+{
+  "head": "1bf15029256236dff052c67b8a8dc7132d6b2896",
+  "qualification": "Bounded release retest of uncommitted candidate, not broad batch qualification",
+  "patch_sha256": "cd03d84adf29225a348cb4dea4652d9e2ac029052bac2451094329c4f7881b61",
+  "artifacts": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "9423aadd1fdd179344b2189b2179689de6f500237ef4dd51857bdb92c290da28",
+    "local-install/lib/ivl/ivl": "e99f3b7220da5c83b3976ee7796672248c8b202f933d56609eb0a56e28c9a5fc"
+  },
+  "sources": [
+    {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+      "tag": "v2.1.2",
+      "commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "status": "",
+      "submodules": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0 submodules/adams-bridge (v2.0.3)",
+      "status_after": ""
+    },
+    {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34",
+      "tag": "Earlgrey-PROD-M6",
+      "commit": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "status": "",
+      "submodules": "",
+      "status_after": ""
+    }
+  ],
+  "cleanup": {
+    "removed": "../iverilog-uvm-campaign-20260914",
+    "method": "rmdir of verified empty unregistered non-Git directory",
+    "bytes": 0,
+    "retained": "all registered worktrees; qualification artifacts and unique work"
+  },
+  "opentitan": [
+    {
+      "core": "lowrisc:dv:top_earlgrey_xbar_peri_sim:0.1",
+      "release": "Earlgrey-PROD-M6",
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-stb",
+            "-ssec_cm_prim_count_bind",
+            "-ssec_cm_prim_double_lfsr_bind",
+            "-ssec_cm_prim_onehot_check_bind",
+            "-ssec_cm_prim_sparse_fsm_flop_bind",
+            "-sxbar_peri_bind",
+            "-uvm",
+            "-DUVM",
+            "-DUVM_NO_DEPRECATED",
+            "-DUVM_REG_ADDR_WIDTH=32",
+            "-DUVM_REG_DATA_WIDTH=32",
+            "-DUVM_REG_BYTENABLE_WIDTH=4",
+            "-DSIMULATION",
+            "-DDUT_HIER=tb.dut",
+            "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/top_earlgrey_xbar_peri_sim.vvp",
+            "-c",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/matrix-iverilog.scr"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 2.3706419467926025
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/top_earlgrey_xbar_peri_sim.vvp",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_LOW",
+            "+cdc_instrumentation_enabled=1",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=xbar_base_test",
+            "+UVM_TEST_SEQ=xbar_smoke_vseq"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 27.400687217712402
+        }
+      },
+      "pass_banner": true,
+      "uvm_report_summary": {
+        "UVM_WARNING": 0,
+        "UVM_ERROR": 0,
+        "UVM_FATAL": 0
+      },
+      "actual_error_lines": 0,
+      "scoreboard_items": [
+        354
+      ],
+      "runtime_log": "evidence/review-20260920/retest-20260921/top_earlgrey_xbar_peri_sim-runtime.log",
+      "runtime_sha256": "fefad9f21e89944b0b44f26e27e7776611b440dbff75e48a3cafbec329b30117",
+      "passed": true,
+      "scope": "Unmodified UVM 1.2 g2012 runtime test; benign $system task warning retained; not full application qualification"
+    },
+    {
+      "core": "lowrisc:dv:gpio_sim:0.1",
+      "release": "Earlgrey-PROD-M6",
+      "commands": {
+        "compile": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+            "-g2012",
+            "-stb",
+            "-sgpio_bind",
+            "-ssec_cm_prim_count_bind",
+            "-ssec_cm_prim_double_lfsr_bind",
+            "-ssec_cm_prim_onehot_check_bind",
+            "-ssec_cm_prim_sparse_fsm_flop_bind",
+            "-uvm",
+            "-DUVM",
+            "-DUVM_NO_DEPRECATED",
+            "-DUVM_REG_ADDR_WIDTH=32",
+            "-DUVM_REG_DATA_WIDTH=32",
+            "-DUVM_REG_BYTENABLE_WIDTH=4",
+            "-DSIMULATION",
+            "-DDUT_HIER=tb.dut",
+            "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+            "-o",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/gpio_sim.vvp",
+            "-c",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/matrix-iverilog.scr"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 1.930901050567627
+        },
+        "runtime": {
+          "argv": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/gpio_sim.vvp",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_LOW",
+            "+cdc_instrumentation_enabled=1",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=gpio_base_test",
+            "+UVM_TEST_SEQ=gpio_smoke_vseq"
+          ],
+          "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/sim-icarus",
+          "exit": 0,
+          "elapsed": 1.4999589920043945
+        }
+      },
+      "pass_banner": false,
+      "uvm_report_summary": {
+        "UVM_WARNING": 0,
+        "UVM_ERROR": 20,
+        "UVM_FATAL": 1
+      },
+      "actual_error_lines": 277,
+      "scoreboard_items": [],
+      "runtime_log": "evidence/review-20260920/retest-20260921/gpio_sim-runtime.log",
+      "runtime_sha256": "c07504e0adf555c6d6c3b2f9c45abc7fc411a8f11b98aab571b0d29406221618",
+      "passed": false,
+      "scope": "Unmodified UVM 1.2 g2012 runtime test; benign $system task warning retained; not full application qualification"
+    }
+  ],
+  "caliptra": {
+    "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+    "source_modified": false,
+    "commands": {
+      "compile": {
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-gassertions",
+          "-s",
+          "power2round_tb",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/power2round-runtime/power2round_tb.vvp",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+        ],
+        "exit": 0,
+        "elapsed": 0.15007710456848145
+      },
+      "runtime": {
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/power2round-runtime/power2round_tb.vvp"
+        ],
+        "exit": 0,
+        "elapsed": 0.27028799057006836
+      }
+    },
+    "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "generator_sha256": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+    "pass_marker": true,
+    "failure_marker": false,
+    "passed": true,
+    "vector_files": {
+      "coeff_low.hex": "bc701406ddca0a1d0a7ce0634bd30db0aee3926b08ad42e9643286aa289074c7",
+      "coeff_input.hex": "eb048c12539690c745655b161879257f8536837361e365d43ee1e20f9529f153",
+      "coeff_high.hex": "cfb95c73d0dfdea5f064e50b736a4352be722b20465b033b6fec60aced02b392"
+    },
+    "all_2048_passed": true,
+    "compile_warnings": 5,
+    "scope": "Unmodified release unit test with upstream generator, fresh vectors; not full-chip or UVM pass"
+  },
+  "pending": "Six integrated focused fixes; row snapshot, joint distribution and integral cast candidates remain uncommitted, broad batch gates pending; cast sizing/foreach acceptance unresolved."
+}

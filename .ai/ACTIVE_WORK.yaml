@@ -218,3 +218,28 @@ row_snapshot_metadata_prerequisite:
   constraints: No name/local-flag heuristic, general blocking-assignment cache or new SSA framework. Evaluate RHS before replacing binding; restore context at block exit. Preserve genuine dynamic enable/load rejection.
   acceptance: Row reset and shift runtime, nested loops/blocks, ordinary conditional overwrite and self-increment index controls; both editions.
   parallel_ownership: Row lane owns these private patch files; distribution lane remains vvp/vvp_z3.cc only.
+
+uvm_regex_assessment_lane:
+  status: ASSESSMENT_ONLY
+  agent: cleanup_audit (reused gpt-5.6-luna, low)
+  source: Original M6 GPIO runtime gets past cfg.randomize with staged sampler candidate, then reports UVM/DPI/REGEX_INV and BUILDERR at time0.
+  evidence: evidence/review-20260920/next-joint-distributions/gpio-original-runtime.json
+  owns: evidence/review-20260920/next-uvm-regex
+  scope: Read-only regex implementation/callsite/provenance diagnosis and cheap reproducer plan; no source modification or error suppression.
+
+constraint_integral_cast_prerequisite:
+  id: CONSTRAINT-INTEGRAL-CAST-IR
+  status: SPEC_GROUNDED_ROOT_CAUSED
+  reproducer: evidence/review-20260920/next-joint-distributions/signed-small-control.sv
+  root_cause: Constraint lowering returns the inner expression for integral casts, discarding signedness and width; signed cross-zero inside range becomes UNSAT.
+  standards: IEEE1800-2017/2023 6.24 integral casting,11 expression sizing,18.3 constraints.
+  ownership: Coordinator elaborate.cc emitter; constraint_guard_semantics private vvp/vvp_z3.cc consumer and fixtures. Row-snapshot elaborate.cc metadata hunks integrated first by coordinator.
+  acceptance: Signed unsigned-difference range, unsigned negative cast, width truncation and extension, nested casts and metadata isolation, contradictory rollback; paired editions and exact OpenTitan Small relation.
+  constraints: Preserve caller value-slot evaluation; no signedness-only workaround in inside; do not erase requested non-integral cast semantics.
+
+release_retest_checkpoint_20260921:
+  evidence: docs/conformance/session_logs/2026-09-21_stable_release_retest.json
+  build: Combined cast consumer and row snapshot candidate built and installed successfully.
+  focused: Synthesized four-word row reset runtime and Small signed range pass both editions; full cast acceptance still fails compilation and context-sizing audit.
+  pending: Sol private cast context correction and foreach translation diagnosis; Terra nested row fixture; coordinator integration and required batch gates.
+  cleanup: Removed empty unregistered campaign-20260914 directory using rmdir; all registered worktrees preserved.

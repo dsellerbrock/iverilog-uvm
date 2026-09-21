@@ -198,3 +198,18 @@ row_snapshot_selection_checkpoint:
   new_discovery: docs/conformance/DISCOVERED_DEBT.md#2026-09-21-blocking-index-memory-synthesis-control
   shared_build_test_process: null
   next: Review private tagged-snapshot and joint-distribution implementations; preserve uncommitted original synth2 context fold.
+
+joint_candidate_runtime_checkpoint:
+  source_state: Staged sampler candidate applied to vvp/vvp_z3.cc and built; not committed or counted.
+  completed_sessions: [99940, 2505, 67900]
+  evidence: evidence/review-20260920/next-joint-distributions/shared-results.json
+  result: Ordered marginal and rollback/control checks pass, but small-clock-difference positive fails both editions; worker diagnosing.
+  application: Original M6 GPIO bytecode gets past cfg.randomize, then fails REGEX_INV/BUILDERR; no passing application claim.
+  next: Review sampler correction, immutable row snapshot patch, and read-only regex assessment; no shared process running.
+
+release_retest_checkpoint_20260921:
+  evidence: docs/conformance/session_logs/2026-09-21_stable_release_retest.json
+  build: Combined cast consumer and row snapshot candidate built and installed successfully.
+  focused: Synthesized four-word row reset runtime and Small signed range pass both editions; full cast acceptance still fails compilation and context-sizing audit.
+  pending: Sol private cast context correction and foreach translation diagnosis; Terra nested row fixture; coordinator integration and required batch gates.
+  cleanup: Removed empty unregistered campaign-20260914 directory using rmdir; all registered worktrees preserved.
