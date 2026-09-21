@@ -47,3 +47,24 @@ resumption:
   previous_turn: Concrete compiler/harness changes and new paired runtime/application evidence; progress.
   preservation: AGENTS.md external87-line addition remains unstaged. No new worktree; nine retained trees, no removal authorized without clean/ancestor audit.
   next: Verify live integrated gate, inspect/continue exact handle; publish review PR; next OpenTitan priorities are exact wide dist semantics and pwrmgr null-VIF root cause after bounded assessment.
+publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/311
+  published_head: 9444f3c55
+  state: DRAFT_FOCUSED_CHECKS_PASS_BROAD_GATES_PENDING
+  delivered: One compiler capability plus two upstream configuration corrections; no full-clause or full-DV qualification claim.
+  next_agents: Terra medium read-only GPIO exact-distribution assessment; Sol medium read-only pwrmgr null-VIF event assessment. Ownership recorded in ACTIVE_WORK; no shared compiler changes while gates run.
+  merge_boundary: Required local gates and user-authorized green-CI boundary before promotion; do not merge the current draft merely because publication succeeded.
+
+qualification_regression_checkpoint:
+  session88117: Terminal exit1, do not poll or restart old handle.
+  results: Legacy6138total6091pass42fail2NI3EF; VPI126/126,negative148/148,runtime15/15 pass.
+  source_freeze: Released for selected coordinator enum compatibility repair only; shared install not yet changed.
+  root: New VarRef kind shifted numeric dependency identities consumed from class_type metadata; OrderRef casts depend on same mapping.
+  evidence: evidence/review-20260920/spi-host-qualification/enum-regression/names.json
+  next: Build/install repair; exact42failure list andmember-arraypackage first, then newoutputdirectory integratedgate. PR311 remainsdraft.
+
+enum_repair_focus_complete:
+  result: All42regressions pass, expandedfocus16peredition and32pairedJSON pass.
+  evidence: docs/conformance/session_logs/2026-09-21_spi_host_dependency_kind_repair.json
+  state: Sharedsource frozen again after metadata-kind alias repair; next integratedrun uses spi-host-repaired-qualification directory.
+  source_provenance: Old installed/compiler focus evidence retained, newruntime hashes recorded. No broadpass claim yet.

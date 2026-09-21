@@ -875,7 +875,14 @@ struct Z3Builder {
       // `dist` branches (probabilistic — bvxor diversity randomizes the
       // pick across branches; early-return on hard satisfaction is OK).
       struct VarRef {
-	    enum Kind { PROP, MEMBER, MEMBER_ELEM, ELEM, SIZE } kind;
+	    // These values are consumed from class_type dependency metadata.
+	    enum Kind {
+		  PROP = class_type::constraint_dependency_t::PROP,
+		  MEMBER = class_type::constraint_dependency_t::MEMBER,
+		  ELEM = class_type::constraint_dependency_t::ELEM,
+		  SIZE = class_type::constraint_dependency_t::SIZE,
+		  MEMBER_ELEM
+	    } kind;
 	    unsigned idx;
 	    unsigned leaf;
 	    unsigned subleaf;
@@ -1172,7 +1179,11 @@ struct Z3Builder {
 	// distinct ordering variables, rather than collapsing to their owning
 	// property. This preserves directives such as `solve n before a.size'.
       struct OrderRef {
-	    enum Kind { PROP, MEMBER, MEMBER_ELEM, ELEM, SIZE } kind;
+	    enum Kind {
+		  PROP = VarRef::PROP, MEMBER = VarRef::MEMBER,
+		  ELEM = VarRef::ELEM, SIZE = VarRef::SIZE,
+		  MEMBER_ELEM = VarRef::MEMBER_ELEM
+	    } kind;
 	    unsigned idx;
 	    unsigned elem;
 	    unsigned subelem;
