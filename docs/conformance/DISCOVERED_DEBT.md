@@ -3062,3 +3062,44 @@ calls to UVM `get_reset` in `pwrmgr_smoke_vseq.sv:21-25`, and an open covergroup
 bin requiring more than65536 counters. These are record-only next candidates,
 not selected work or proof of root cause. Current log:
 `evidence/review-20260920/next-long-antecedent/pwrmgr-compile.log`.
+
+### 2026-09-21 signed cover-bin ranges crossing zero are misinterpreted
+
+A fresh standalone reducer of OpenTitan's `bins close[] = {[-4:4]}`
+compiles with a diagnostic claiming more than65536 counters, drops the bin,
+and returns3.125% after all nine intended values are sampled. This reproduces
+in both2017 and2023; `[-1:1]` also fails while `[-4:-1]` and `[0:4]` controls
+pass. Thus the application diagnostic does not establish a genuinely large
+range. `netclass_t::elaborate`'s `eval_ranges` lambda at elaborate.cc33145
+converts endpoints with `as_ulong64()` and swaps by unsigned comparison,
+turning a signed zero-crossing interval into its enormous complement.
+Selection must account for effective coverpoint width/sign, empty and unknown
+ranges, duplicate bins and carving; merely raising a bin cap is incorrect.
+IEEE1800-2017/2023 clause19.5 bin semantics apply (exact conversion clauses
+must be verified before implementation). Evidence:
+`evidence/review-20260920/next-signed-cover-assessment/`.
+This also demonstrates unsafe fallback to automatic bins after dropping an
+explicit family; implementation must not manufacture coverage when a bin
+cannot be represented. No fix is integrated yet.
+
+### 2026-09-21 power-manager remaining blockers reduced
+
+The enum cast failure reduces to a class inside package `p` using
+`p::wakeup_e'(i)` before that package body closes. External-package control
+casts pass. Coordinator `-g2017` and worker `-g2023` runs fail with the same
+hierarchical-size-cast diagnostic as the application. Earlier worker `-g2012`
+runs are not2017 evidence. See
+`evidence/review-20260920/next-package-enum-context/coordinator-real-2017.json`.
+Parser self-package resolution is selected in ACTIVE_WORK.
+
+The constraint failure reduces to a pure `box.get_value()` call through a
+state object handle. Direct and nested receiver cases fail both editions;
+current-object calls, including the UVM default-string/associative-array/64bit
+return shape, pass and observe state updates. Impure calls remain rejected.
+See `evidence/review-20260920/next-constraint-method-assessment/RESULTS.md`.
+Receiver resolution before existing state-call capture is selected separately
+with exclusive elaborate.cc ownership. Neither repair is integrated yet.
+
+Generated application input files for the two original failures were compared
+byte-for-byte with the pinned clean release sources; provenance is retained in
+`evidence/review-20260920/next-batch-20260921/pwrmgr-source-provenance.json`.

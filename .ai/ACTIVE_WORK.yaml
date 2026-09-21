@@ -1,5 +1,5 @@
 id: SV-UVM-NEXT-BATCH-20260921
-status: TWO_FIXES_FOCUSED_TESTED_NEXT_SELECTION
+status: NEXT_BLOCKER_IMPLEMENTATION
 objective: Repair scope solver UNKNOWN failure semantics and OpenTitan long fixed antecedent lowering, preserving the full compiler/UVM mission.
 authority: Coordinator-selected work under the user-authorized continuous campaign.
 branch: agent/scope-sva-next-20260921
@@ -21,7 +21,7 @@ coordination:
   tests: Focused positive, negative, boundary and semantic runtime tests per fix; broad required gates near10fixes or earlier for concrete risk.
   discovery: Unrelated findings recorded only; next items require coordinator selection.
 latest_release_retest: docs/conformance/session_logs/2026-09-21_published_candidate_release_retest.json
-next_action: Inspect remaining merged-PR307 CI and select the next independent reproduced blockers; both listed lanes are implemented and focused-tested.
+next_action: Integrate and test the selected object-method receiver patch, continue enum context assessment and inspect remaining merged-PR307 CI.
 parallel_preparation:
   authority: Coordinator selection under continuous campaign; prior batch all local gates passed and PR307 frozen awaiting CI.
   supersedes: Prior prohibition on new implementation applies to the published shared source; isolated patches for these two selected blockers are now authorized.
@@ -51,3 +51,37 @@ parallel_preparation:
 
 merge_record: docs/conformance/session_logs/2026-09-21_pr307_merge.json
 next_selection: Reduce one of the newly exposed exact-release pwrmgr enum-cast or constraint-call failures; no additional implementation authorized yet.
+
+current_assessment:
+  enum_cast: Self-package context reproduced; independent parser implementation selected below.
+  constraint_call: Assessment complete; implementation selected below.
+  signed_cover: Coordinator reproduced signed zero-crossing bin failure in both editions with passing negative-only and positive controls; candidate root is unsigned endpoint swap in elaborate.cc.
+  dependencies: Coverage and constraint repairs may overlap elaborate.cc; select disjoint file ownership before implementing either.
+
+selected_implementation:
+  id: CONSTRAINT-OBJECT-METHOD-RECEIVER
+  status: REPRODUCED_SPEC_GROUNDED
+  owner: constraint_guard_semantics, Sol medium
+  standard: IEEE1800-2017 18.5.12 and2023 18.5.11
+  reproducer: evidence/review-20260920/next-constraint-method-assessment/method_receiver_fail.sv
+  evidence: evidence/review-20260920/next-constraint-method-assessment/RESULTS.md
+  expected: Pure integral-result calls through state object properties resolve and execute through existing pre-solve state capture, preserving dependency and rollback semantics.
+  root_cause: pexpr_to_constraint_ir resolves unqualified or lexical method scopes but not flattened property receivers before state-call capture.
+  allowed: Private elaborate.cc patch using existing receiver walker and capture wrapper plus focused fixtures.
+  forbidden: Source application changes, dropped purity/dependency checks, random-variable substitution, unsupported virtual/null paths silently accepted, unrelated coverage changes.
+  dependencies: Exclusive elaborate.cc ownership; signed-cover repair queued, not concurrent even in disjoint hunks.
+  acceptance: Paired direct/nested receivers, default string argument and64bit return, state changes and pre_randomize ordering, purity negatives, virtual/null/rollback boundaries; exact pwrmgr diagnostics rechecked by coordinator.
+  integration: Worker private patch only; coordinator owns shared build/install/index/tests.
+
+independent_selected_implementation:
+  id: SELF-PACKAGE-TYPE-CAST
+  status: REPRODUCED
+  owner: package_enum_context, Terra medium
+  standard: IEEE1800-2017/2023 6.19 enum typing,6.24 casts and26 package qualification; verify specific package rule before fix.
+  reproducer: evidence/review-20260920/next-package-enum-context/repro_self_pkg_no_include.sv
+  edition_evidence: Coordinator real-g2017 repro exits7; worker g2023 repro fails. Never label g2012 as2017.
+  root_hypothesis: Package is registered only after parsing its body, so self-qualified type cast is misparsed as a size cast of a hierarchical expression.
+  allowed: Private parse.y and pform_package.cc/h changes only if necessary for current-package type resolution; focused fixtures.
+  forbidden: Concurrent elaborate.cc edits, accepting unknown types, converting arbitrary hierarchical sizes to type casts, application changes, new grammar conflicts without reviewed explanation.
+  acceptance: Paired self/external package casts, included body and classconstructor context, enum-name runtime semantics, valid integral size casts unchanged, invalid names/implicit enum conversion remain rejected; parser conflict provenance required.
+  integration: Worker private patch only; coordinator owns parser generation, shared builds/tests and final review.

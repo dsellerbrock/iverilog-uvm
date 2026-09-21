@@ -36,3 +36,9 @@ resume:
   next: Reduce exact-release pwrmgr enum-cast and constraint-call failures; select independent concrete blockers before implementation.
   ownership: Coordinator integrates/reviews/builds; explicit lower-model workers own disjoint private patches.
   cadence: Approximately10fixes per broad-gated PR; never weaken semantics or application sources.
+
+selected_next_lane: CONSTRAINT-OBJECT-METHOD-RECEIVER; Sol medium private elaborate.cc implementation authorized in ACTIVE_WORK.
+queued_reproduced_lane: Signed cover bins crossing zero; samefile elaborate.cc so wait until methodlane integrates.
+independent_assessment: Terra medium is reducing package-enum include/selfpackage context before a disjoint implementation selection.
+
+second_selected_lane: SELF-PACKAGE-TYPE-CAST; Terra medium private parser/package ownership, disjoint from Sol elaborate.cc.
