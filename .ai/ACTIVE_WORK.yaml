@@ -58,7 +58,7 @@ current_assessment:
   signed_cover: Coordinator reproduced signed zero-crossing bin failure in both editions with passing negative-only and positive controls; candidate root is unsigned endpoint swap in elaborate.cc.
   dependencies: Coverage and constraint repairs may overlap elaborate.cc; select disjoint file ownership before implementing either.
 
-selected_implementation:
+completed_receiver_implementation:
   id: CONSTRAINT-OBJECT-METHOD-RECEIVER
   status: IMPLEMENTED_FOCUSED_TESTED
   owner: constraint_guard_semantics, Sol medium
@@ -75,7 +75,7 @@ selected_implementation:
 
 independent_selected_implementation:
   id: SELF-PACKAGE-TYPE-CAST
-  status: REPRODUCED
+  status: PATCHED_REGRESSION_FOUND
   owner: package_enum_context, Terra medium
   standard: IEEE1800-2017/2023 6.19 enum typing,6.24 casts and26 package qualification; verify specific package rule before fix.
   reproducer: evidence/review-20260920/next-package-enum-context/repro_self_pkg_no_include.sv
@@ -85,3 +85,22 @@ independent_selected_implementation:
   forbidden: Concurrent elaborate.cc edits, accepting unknown types, converting arbitrary hierarchical sizes to type casts, application changes, new grammar conflicts without reviewed explanation.
   acceptance: Paired self/external package casts, included body and classconstructor context, enum-name runtime semantics, valid integral size casts unchanged, invalid names/implicit enum conversion remain rejected; parser conflict provenance required.
   integration: Worker private patch only; coordinator owns parser generation, shared builds/tests and final review.
+
+selected_implementation:
+  id: SIGNED-COVER-BINS-CROSS-ZERO
+  status: REPRODUCED_SPEC_GROUNDED
+  owner: constraint_guard_semantics, Sol medium
+  standard: IEEE1800-2017 and2023 19.5.1 and19.5.7
+  reproducer: evidence/review-20260920/next-signed-cover-assessment/distinct_bin_oracle.sv
+  expected: Signed effective coverpoint [-4:4] has nine distinct automatic bins; each unique sample increments coverage by1/9, duplicates and default do not enlarge denominator.
+  root_cause: eval_ranges casts signed endpoints to unsigned then swaps order, turning zero-crossing range into a huge complement and dropping bins at the implementation limit.
+  allowed: Private elaborate.cc range resolution/bin expansion patch and private tests. Inspect shared callers and reuse effective-domain conversion; propose other files before editing.
+  forbidden: Raising counter cap, dropping bins, fake auto coverage, application edits, ignoring19.5.7 clipping/XZ/exclusion rules.
+  dependencies: Receiver repair committed346b48f68 and frozen; exclusive elaborate.cc ownership. Package lane owns pform_package.cc and private tests.
+  acceptance: Paired signed negative/positive/crosszero ranges; per-sample partial coverage and denominator; overlaps/duplicates, default, ignore/illegal; narrow effective widths, casts/clipping, existing coverage neighbors.
+  integration: Private patch only; coordinator owns shared builds/install/test output and registration.
+
+package_shadow_regression:
+  evidence: evidence/review-20260920/next-self-package-cast-fix/shadow-regression
+  finding: Unconditional current-package lexical classification breaks local variable with same package name; prior baseline log had cast errors only, not declaration syntax errors.
+  action: Hold uncommitted package patch; Terra proposes contextual recognition repair; retain permanent shadow test.

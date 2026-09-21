@@ -17,8 +17,8 @@ publication:
   remaining_ci: Run35588718454 had5other jobs running at merge; inspect terminal results and repair any failures in follow-up PR.
   prior_batch_fixes: 11
 next_batch:
-  integrated_fixes: 2
-  revisions: [25653fdc0, acb786965]
+  integrated_fixes: 3
+  revisions: [25653fdc0, acb786965, 346b48f68]
   scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
   sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
   validation: Focused paired runtime checks and relevant neighbors pass; broad gates pending near10integrated fixes or sooner for concrete risk.
@@ -66,3 +66,12 @@ receiver_integrated_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-21_constraint_object_method_receiver.json
   pending: Broad batch gates; no full application qualification.
   worker: Frozen; elaborate.cc may be reassigned after coordinator checkpoint.
+
+selected_coverage_lane: SIGNED-COVER-BINS-CROSS-ZERO; Sol medium private elaborate.cc repair authorized, receiver patch frozen.
+
+current_checkpoint:
+  committed_receiver: 346b48f68;14private acceptance cases and6permanent cases per harness,206neighbors per harness pass.
+  package_candidate: Held uncommitted; self-package cast works but same-name local variable syntax regressed; retained failing regression.
+  active_lanes: Sol medium signed coverage range; Terra medium package lexical-context correction, private patches only.
+  shared_processes: No active shared build or test.
+  next: Review package contextual recognition proposal and signed range patch; no next-batch PR until coherent validated batch.
