@@ -248,3 +248,10 @@ row_async_reset_completed_checkpoint:
   status: FOCUSED_AND_NEIGHBOR_TESTED
   evidence: docs/conformance/session_logs/2026-09-21_row_async_reset.json
   pending: Required integrated batch gates; no full application qualification claim.
+
+cast_context_validation_checkpoint:
+  status: ROOT_CAUSE_REFINED_NOT_INTEGRATED
+  evidence: docs/conformance/session_logs/2026-09-21_cast_context_checkpoint.json
+  invariant: IEEE11.8.2 propagates common width and signedness before operand evaluation; width-only incremental is incomplete.
+  next: Sol private type-before-value design assessment; root reviews scope before implementation. Terra validates supported object-owned foreach shape; direct package queue recorded separately.
+  build: Candidate rebuilt installed; no shared build/test process live at checkpoint.

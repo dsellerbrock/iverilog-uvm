@@ -218,3 +218,10 @@ row_async_reset_integration_checkpoint:
   integrated_fixes: 7
   evidence: docs/conformance/session_logs/2026-09-21_row_async_reset.json
   remaining: Joint distributions and cast prerequisites still uncommitted; Sol runtime sizing and Terra foreach-emitter diagnosis active.
+
+cast_context_validation_checkpoint:
+  status: ROOT_CAUSE_REFINED_NOT_INTEGRATED
+  evidence: docs/conformance/session_logs/2026-09-21_cast_context_checkpoint.json
+  invariant: IEEE11.8.2 propagates common width and signedness before operand evaluation; width-only incremental is incomplete.
+  next: Sol private type-before-value design assessment; root reviews scope before implementation. Terra validates supported object-owned foreach shape; direct package queue recorded separately.
+  build: Candidate rebuilt installed; no shared build/test process live at checkpoint.

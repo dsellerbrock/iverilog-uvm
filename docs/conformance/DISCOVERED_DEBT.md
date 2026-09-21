@@ -2982,3 +2982,20 @@ into compact memory address ports, IEEE1800-2017/2023 10.4 and9.2.
 
 Status: REPRODUCED, root cause unconfirmed, record-only during the immutable
 row-snapshot fix. Do not claim this control passing or suppress its failure.
+
+### 2026-09-21 direct package-state foreach and GPIO regex boundaries
+
+During CONSTRAINT-INTEGRAL-CAST-IR, the package-global queue foreach fails
+translation even without a cast. `PEConstraintForeach` takes the plain property
+lookup path and cannot capture the caller container; the cast is not the cause.
+Paired failing reducers are under
+`evidence/review-20260920/next-joint-distributions/foreach-cast/`.
+IEEE 1800-2017 18.5.8.1 / 2023 18.5.7.1; reproduced, separate record-only debt.
+
+The GPIO diagnostic DPI trace identifies twenty direct `uvm_re_match` calls
+with `*_shadowed`, rejected by native POSIX regex compilation. Pinned UVM1.2
+uses the same direct `regcomp(REG_EXTENDED)` path. Attribution and exact
+commands live in `evidence/review-20260920/next-uvm-regex/confirmed-attribution.json`.
+This is an application/UVM API compatibility boundary, not an established
+compiler defect. Other platform behavior remains unverified. Preserve failure;
+do not rewrite patterns or suppress diagnostics to obtain a passing test.
