@@ -117,25 +117,57 @@ static void qualify_enable(Design*des, NetScope*scope, NetNet*qualifier,
       connect(sig->pin(0), gate->pin(0));
 }
 
+static bool enable_nexus_has_value_(const Link&enable)
+{
+      if (!enable.is_linked())
+	    return false;
+
+      const Nexus*nexus = enable.nexus();
+      for (const Link*cur = nexus->first_nlink(); cur;
+	   cur = cur->next_nlink()) {
+	    const NetPins*obj = cur->get_obj();
+	    if (!obj || !dynamic_cast<const NetBus*>(obj))
+		  return true;
+      }
+      return false;
+}
+
 static void multiplex_enables(Design*des, NetScope*scope, NetNet*select,
 			      Link&enable_1, Link&enable_0, Link&enable_o)
 {
-      if (!enable_1.is_linked() &&
-	  !enable_0.is_linked() )
+	/* Temporary NetBus pins can be linked only to other temporary pins.
+	 * Such a nexus carries no synthesized enable and must be treated like
+	 * an unlinked pin. Feeding it into a gate also leaves that gate input
+	 * without a target-visible nexus. A real node remains a value even if a
+	 * separate topology defect omitted its typed NetNet. */
+      const bool have_enable_1 = enable_nexus_has_value_(enable_1);
+      const bool have_enable_0 = enable_nexus_has_value_(enable_0);
+
+      if (!have_enable_1 && !have_enable_0)
 	    return;
 
-      if ( enable_1.is_linked(scope->tie_hi()) &&
-	   enable_0.is_linked(scope->tie_hi()) ) {
+      const bool zero_enable_1 = !have_enable_1
+	    || enable_1.is_linked(scope->tie_lo());
+      const bool zero_enable_0 = !have_enable_0
+	    || enable_0.is_linked(scope->tie_lo());
+      if (zero_enable_1 && zero_enable_0) {
+	    connect(enable_o, scope->tie_lo());
+	    return;
+      }
+
+      if (have_enable_1 && have_enable_0
+	  && enable_1.is_linked(scope->tie_hi())
+	  && enable_0.is_linked(scope->tie_hi())) {
 	    connect(enable_o, scope->tie_hi());
 	    return;
       }
 
-      if (enable_1.is_linked(scope->tie_lo()) || !enable_1.is_linked()) {
+      if (zero_enable_1) {
 	    qualify_enable(des, scope, select, false, NetLogic::AND,
 			   enable_0, enable_o);
 	    return;
       }
-      if (enable_0.is_linked(scope->tie_lo()) || !enable_0.is_linked()) {
+      if (zero_enable_0) {
 	    qualify_enable(des, scope, select, true,  NetLogic::AND,
 			   enable_1, enable_o);
 	    return;

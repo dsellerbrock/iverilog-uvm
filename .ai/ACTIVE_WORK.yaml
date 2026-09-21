@@ -1,5 +1,5 @@
 id: SV-UVM-BATCH-20260921
-status: REGRESSION_REPAIR
+status: VALIDATING
 objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
 authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
 semantic_revision: bbb3a9d30
@@ -21,7 +21,7 @@ scope:
     - OVERSIZED-CONSTANT-ARRAY-WORD
   implementation_state: Integrated and focused-tested; broad qualification incomplete.
   allowed: Diagnose concrete gate failures, record root cause and repair scope, validate and document fixes; publish coherent PR after required gates.
-  frozen: Gate22845 completed after JSONfailure; coordinator may integrate and build the authorized repair.
+  frozen: Compiler source and installed binaries frozen for the next broad validation run.
   forbidden: Application source edits, weakened tests, invented passing evidence, silent semantic fallback, unrelated feature implementation.
   discoveries: Record unrelated findings in DISCOVERED_DEBT; select next independent blockers only after this batch is validated.
 
@@ -35,7 +35,7 @@ standards:
 
 ownership:
   coordinator: Selection, difficult reasoning, integration, shared build/install/test directories, final review and PR.
-  workers: synthesis_nba_completion owns private dffsynth4 repair; other workers idle.
+  workers: No active implementation assignments; dffsynth4 repair focused-tested.
   reusable_agents:
     row_async_reset: Terra medium; array elaboration and bounded fixtures; completed latest repair.
     synthesis_nba_completion: Sol medium; synthesis mechanism; active private dffsynth4 repair.
@@ -56,7 +56,7 @@ validation:
   applications: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
   limits: Integrated gate and application subset passes are not full language/UVM/application qualification.
 
-next_action: Review private dffsynth4 repair, integrate and run focused runtime tests; repeat affected broad gates before PR.
+next_action: Run all seven gates on repaired enable topology; inspect actual statuses before qualification or publication.
 completion: Required gates, source review, docs and exact revision evidence; qualified batch does not complete the full mission.
 
 active_regression:
@@ -69,3 +69,5 @@ active_regression:
   scope: Trace directly implicated synth2.cc branch-enable/netlist connectivity; preserve all B/P semantics.
   evidence: evidence/review-20260920/next-blocking-index/dffsynth4-repair
   acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.
+
+empty_branch_repair_evidence: docs/conformance/session_logs/2026-09-21_empty_branch_enable_repair.json

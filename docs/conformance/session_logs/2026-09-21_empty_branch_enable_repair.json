@@ -1,0 +1,28 @@
+{
+  "status": "FOCUSED_TESTED_PENDING_BROAD_GATES",
+  "root_cause": "multiplex_enables treated temporary NetBus-only links as a real branch enable and emitted an AND gate with an input lacking actual signal connectivity.",
+  "repair": "Recognize only proven temporary-only links as absent; retain real node/net links. Normalize absent and explicit-low branches before qualifying remaining enables.",
+  "standards": "IEEE1800-2017/2023 clause10.4, conditional assignment updates and hold behavior; default language compatibility tested.",
+  "focused": {
+    "dff_family": {
+      "ran": 12,
+      "passed": 11,
+      "not_implemented": 1,
+      "failed": 0
+    },
+    "batch_json": 46,
+    "synthesis_neighbors_legacy": 160,
+    "paired_runtime_editions": [
+      "2017",
+      "2023"
+    ],
+    "permanent_paired_legacy": 2,
+    "permanent_paired_json": 2
+  },
+  "raw_evidence": "evidence/review-20260920/next-blocking-index/dffsynth4-repair",
+  "known_limits": "All required broad gates pending for this exact compiler; no full synthesis qualification claim.",
+  "installed": {
+    "local-install/lib/ivl/ivl": "ddf636b21c49f4beaca3105612d3a239a72d0d670c4535df5f55897951c54c43",
+    "local-install/bin/vvp": "ffe0a8530f2c7b60516c2f12690b374de12dd0ba390ed2095304a147518ab892"
+  }
+}
