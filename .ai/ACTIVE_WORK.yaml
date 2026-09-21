@@ -210,3 +210,11 @@ joint_distribution_implementation_lane:
   restrictions: Never uniformly pin weighted stage subjects before weighting; no prefix-dependent unsupported-domain failures, cap increases, product-weight claim, approximate fallbacks or application edits.
   preflight: Prove bounded global stage projections or static domain bounds before draws so every conditioned fiber is representable.
   dependencies: Disjoint from active async-reset synthesis files; coordinator alone applies patches and builds.
+
+row_snapshot_metadata_prerequisite:
+  status: COORDINATOR_AUTHORIZED
+  root_cause: Generated immutable index snapshot folds its RHS but later word writes cannot see the value, creating decoder enables that remain structurally dynamic during reset checks.
+  scope: Minimal compiler-only snapshot flag on NetAssign in netlist.h, set only by row-index snapshot lowering in elaborate.cc, consumed with scoped context binding in synth2.cc; net_assign.cc only if initialization requires it.
+  constraints: No name/local-flag heuristic, general blocking-assignment cache or new SSA framework. Evaluate RHS before replacing binding; restore context at block exit. Preserve genuine dynamic enable/load rejection.
+  acceptance: Row reset and shift runtime, nested loops/blocks, ordinary conditional overwrite and self-increment index controls; both editions.
+  parallel_ownership: Row lane owns these private patch files; distribution lane remains vvp/vvp_z3.cc only.

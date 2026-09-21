@@ -2965,3 +2965,20 @@ The first reducer had redundant constraints, so its PASSED banner does not
 prove the dropped constraint. A discriminating unsatisfiable reducer and a
 root-cause fix remain required. Recorded, not selected; do not count the
 warning as successful support.
+
+### 2026-09-21 blocking-index memory synthesis control
+
+Discovered while reviewing IBEX-ROW-ASYNC-RESET-SYNTHESIS. The control assigns
+an ordinary integer index with blocking assignments before a clocked memory
+NBA, including conditional overwrite and self-increment. Ordinary simulation
+passes; current synthesized simulation leaves both output words X on the first
+clock in both editions. This predates the rejected generic block-cache proposal.
+The source and failed evidence are in
+`evidence/review-20260920/next-row-async-reset/blocking-overwrite-boundary.sv`
+and `blocking-overwrite-baseline.json`; the2023 behavioral/control pair was also
+run. Candidate source includes the original context-fold proposal, but no new
+blocking-value cache. Possible scope: synthesis of procedural blocking dataflow
+into compact memory address ports, IEEE1800-2017/2023 10.4 and9.2.
+
+Status: REPRODUCED, root cause unconfirmed, record-only during the immutable
+row-snapshot fix. Do not claim this control passing or suppress its failure.

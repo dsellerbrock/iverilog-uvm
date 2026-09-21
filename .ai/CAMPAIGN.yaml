@@ -191,3 +191,10 @@ joint_distribution_selection_checkpoint:
   parallel: row_async_reset continues synthesis enable aggregation diagnosis.
   shared_process: null
   next: Review private staged sampler and async-reset enable correction; retain six integrated fixes pending batch qualification.
+
+row_snapshot_selection_checkpoint:
+  completed_fixes: 6
+  selected_prerequisite: Explicit immutable generated-index snapshot metadata; general blocking cache rejected as unsafe.
+  new_discovery: docs/conformance/DISCOVERED_DEBT.md#2026-09-21-blocking-index-memory-synthesis-control
+  shared_build_test_process: null
+  next: Review private tagged-snapshot and joint-distribution implementations; preserve uncommitted original synth2 context fold.
