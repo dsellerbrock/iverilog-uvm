@@ -230,3 +230,13 @@ pr309_required_local_qualification_complete:
   status: ALL_SEVEN_LOCAL_GATES_PASS_CI_PENDING
   session: 12449 completed exit0; do not poll or restart.
   next: Publish evidence-only commit, update PR, inspect exact-head CI; no merge without required local evidence and user-authorized green-CI boundary.
+
+pr309_external_merge_reconciled:
+  merged_at: 2026-09-21T17:57:48Z
+  merge_commit: cb6f35b560e02d1927679d1c30dfccdfb2e5b5bc
+  merged_source: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  state: PR309 externally merged while final local evidence publication was in flight; six CI jobs remain running.
+  active_branch: agent/pr309-qualification-evidence from refreshed origin/main, evidence-only follow-up.
+  local_tools: Qualified09316 compiler source is included unchanged in merged main.
+  graph: Separate Terra agent generating staged replacement from cb6f35b56; cutover held until existing documentation coverage is preserved.
+  next: Publish evidence-only follow-up PR; continue exact semantic-source CI checks, repair any regression in another PR.

@@ -1,6 +1,6 @@
 # Current evidence and work
 
-Latest PR309 evidence: [required local qualification](session_logs/2026-09-21_pr309_local_qualification.json) passes on `09316da3d`; exact-head CI remains pending. This supersedes the earlier pending-local-gate notes below without changing their historical results or claiming full application qualification.
+Latest PR309 evidence: [required local qualification](session_logs/2026-09-21_pr309_local_qualification.json) passes on `09316da3d`; PR309 merged as `cb6f35b56` while CI was still running. This supersedes the earlier pending-local-gate notes below without changing their historical results or claiming full application qualification.
 
 Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
 `9c8f716b1`; operational handoff reconciled after documentation merge
