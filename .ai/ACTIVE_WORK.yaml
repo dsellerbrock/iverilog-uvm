@@ -170,3 +170,19 @@ selected_ordered_randc:
   acceptance: Full/restricted cycles,coupled and independent cyclic subjects,disabled randc,illegal explicit randc ordering,mathematically justified ordinary conditional distributions,seed replay,cap/UNKNOWN/UNSAT value/history/RNG/callback rollback.
   forbidden: Remove rejection without correct priority; cap increases; arbitrary model selection or biased successful subsets; event/elaboration edits.
   dependencies: Disjoint from event worker; divmod integrated86a2e967d.
+
+event_atomic_fanout_expansion:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, Sol medium
+  additional_worker_files: vvp/vvp_net_sig.cc
+  root: Synchronous event-cone gates fabricate edges from partial fanout of one atomic vector update; static baseline does not.
+  design: Signal-source nesting boundary with event-cone recompute queue and final validity-before-edge publication; no queue survives source dispatch. Existing pure_comb evaluation transaction is too broad and must remain separate.
+  constraints: Defer only marked event-cone consumers; ordinary events, signal writes and VPI callbacks keep their behavior. Hook declarations must avoid event.h/net.h include cycles. Context teardown removes pending references.
+  acceptance: Both atomic and pulse controls; static/dynamic/automatic/XZ/rebind/null tests; independent same-slot NBA updates; nested callback-origin source writes must remain distinct from derived fanout.
+  review: Source-only nesting cannot silently coalesce reentrant procedural/VPI writes; trace and test this boundary before integration. Default-root seeding must not leak one automatic activation into another.
+
+event_callback_boundary_review:
+  root: filter_mask_ invokes callbacks inside downstream signal dispatch; object callback ordering alone does not prove reentrant write separation.
+  candidate: Worker private callback suspend/resume refinement in vvp_net_sig.cc; no shared application yet.
+  acceptance: boolean_callback_atomic fixture captures distinct callback writes; callback suspension must not publish a partially propagated original vector as a false edge. Test fanout order permutations and original-source plus callback-source transitions.
+  status: Architecture risk remains open until boundary evidence is reviewed.

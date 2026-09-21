@@ -162,3 +162,9 @@ event_atomic_expression_review:
   fixtures: evidence/review-20260920/next-pwrmgr-event-assessment/boolean_atomic_static.sv and boolean_atomic_dynamic.sv
   risk: Synchronous leaf fanout must not fabricate expression transitions between parts of a single atomic vector update.
   next: Worker runs atomic controls alongside pulse controls; architecture expansion requires coordinator review if this fails.
+
+event_atomic_candidate_failure:
+  reported_result: Private event-only synchronous gate candidate passes pulse tests but fails atomic vector controls in both editions; shared compiler unchanged.
+  action: Authorized private vvp_net.h fanout hooks with marked-cone-only publication and reentrant source-write acceptance boundary. Context seed remains under repair.
+
+event_atomic_review_evidence: docs/conformance/session_logs/2026-09-21_event_atomic_fanout.json
