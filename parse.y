@@ -8061,6 +8061,15 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      such as an implication. */
   | '(' property_expr ')'
       { $$ = $2; }
+  /* A clocked sequence property may itself be grouped. Preserve the
+     explicit consequent clock until an enclosing implication supplies
+     its overlapping/nonoverlapping clock-flow boundary (16.13). */
+  | '(' event_control sva_seq_expr sva_mc_tail_opt ')'
+      { sva_property_t*p = new sva_property_t;
+        p->seq = $3;
+        p->seq_clk_evt = $2;
+        p->mc_more = $4;
+        $$ = p; }
   /* A grouping pair around a complete composite sequence is transparent,
      including when that sequence continues through a cycle delay.  Keep the
      grouped prefix exact: a global `sva_seq_comb ## ...' alternative would

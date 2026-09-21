@@ -92,3 +92,5 @@ The former continuation narrative is preserved in the
 Earlier checkpoints and failed attempts remain in the
 [session logs](session_logs/README.md). Keep historical results revision-scoped;
 update these pointers when new evidence is committed.
+
+The [grouped clocked consequent record](session_logs/2026-09-20_grouped_clocked_consequent.md) provides focused paired-edition evidence pending the next batch qualification.

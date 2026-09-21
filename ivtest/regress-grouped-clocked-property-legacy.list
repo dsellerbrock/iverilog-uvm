@@ -1,0 +1,2 @@
+sv_assert_grouped_clocked_consequent normal,-g2017 ivltests gold=sv_assert_grouped_clocked_consequent.gold
+sv_assert_grouped_clocked_consequent_2023 normal,-g2023 ivltests gold=sv_assert_grouped_clocked_consequent.gold

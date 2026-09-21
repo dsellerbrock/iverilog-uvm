@@ -1503,3 +1503,9 @@ The subsequent [recursive select-expression fix](../session_logs/2026-09-20_recu
 Explicit matches and arbitrary-sized value products remain outside that scope. The independent
 2023 goal remains separate; paired generation-mode tests are recorded in
 the linked evidence and do not establish full-edition support.
+
+### September 20 grouped clocked implication consequent
+
+Clause 16.13 / Annex A.2.10 remains PARTIAL overall. Grouping an explicitly
+clocked sequence consequent now preserves the implication clock boundary; see
+[paired focused evidence](../session_logs/2026-09-20_grouped_clocked_consequent.md).
