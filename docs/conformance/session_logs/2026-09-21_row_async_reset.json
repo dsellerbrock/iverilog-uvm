@@ -50,5 +50,22 @@
     "synth2.cc": "33a320881683ee6066ee426c34c8dba4fca8064da07a66ed5e25d655077d2b9b",
     "netlist.h": "0d172f00cc6141d8ddd73288d2153662e847ec467e0e3552cb120235d7d60831",
     "elaborate.cc": "004938e207b4638aab8fe572b0706a5b5f18979cd2d668ccd9c8fffde0b992a1"
+  },
+  "application_probe": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-srv_core_ibex",
+      "-S",
+      "-DSYNTHESIS",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/retest-20260921/ibex-row-synth.vvp",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/rtl/lowrisc_ip_rv_core_ibex_0.1/default-icarus/lowrisc_ip_rv_core_ibex_0.1.scr"
+    ],
+    "exit": 0,
+    "elapsed": 0.589000940322876,
+    "scope": "synthesis compilation only, not runtime pass",
+    "warnings": "Four upstream memory-load processes remain unsynthesized; warnings retained."
   }
 }
