@@ -15,7 +15,7 @@ completed_focused_subsets:
   - VPI-PACKED-ELEMENT-ACCESS (1a340208c)
   - CONSTRAINT-DIVMOD-ZERO (86a2e967d)
   - JOINT-ORDERED-ACTIVE-RANDC (dba0473b6)
-validation: Focused evidence linked by docs/conformance/CURRENT_WORK.md; required broad batch gates pending near10fixes or earlier for concrete risk. No completed-clause/full-application claim.
+validation: All seven required local gates passed for nine integrated fixes through c1635efe9; see2026-09-21_nine_fix_batch_qualification.json. Private candidates await separate integration/validation. No completed-clause/full-application claim.
 coordination:
   owner: Coordinator owns selection, source integration, shared build/install, tests and final review.
   workers: At most2implementation agents with disjoint file ownership; private patches only.
@@ -189,7 +189,7 @@ event_callback_boundary_review:
   status: Architecture risk remains open until boundary evidence is reviewed.
 
 batch_qualification:
-  state: BROAD_RERUN_AFTER_PACKED_METADATA_REPAIR
+  state: REQUIRED_LOCAL_GATES_PASS_PUBLICATION_PENDING
   revision: dba0473b6
   integrated_fixes: 9
   reason: Approximately-ten cadence and full-UVM policy threshold; event patch stays private until acceptance passes.
@@ -257,3 +257,17 @@ rootseed_threadless_validation_boundary:
   scope: Replace compile.cc hook with one vvp/lib_main.cc::vvp_run hook after lifecycle check and before compile_design. Keep vthread.cc/h parser and default RNG unchanged. Private files only.
   acceptance: Existing paired seed driver plus threadless invalid, duplicate, valid-boundary, and no-option controls; no shared build/install.
   dependency: Regex patch frozen; this is its replacement implementation lane, alongside solver boundary tests.
+
+selected_continuous_string:
+  id: CONTINUOUS-STRING-ASSIGN
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, retained Sol medium with elaboration context
+  standards: IEEE1800-2017/2023 6.5,6.16,10.3.2
+  evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
+  reproducer: continuous_string.sv and continuous_string_dynamic.sv in assessment directory; both editions abort instead of preserving string values.
+  root: Continuous-assignment elaboration promotes string REG to vector-oriented UWIRE and lowers via scalar net/BUFZ; runtime lacks valid string storage.
+  scope: Private elaborate.cc patch and focused regressions only. Reuse existing continuous-variable initialization/sensitivity lowering before lnet promotion. Reserve driver identity and preserve all assignment restrictions.
+  acceptance: Paired constant,dynamic,empty,resized,concat,function-dependency,time-zero cases; duplicate continuous/procedural-overlap rejection; delayed/selected/member forms must have correct behavior or focused existing unsupported diagnostic, never crash. Retained stable Caliptra rej_bounded_tb is integration acceptance.
+  forbidden: App changes, string truncation, fabricated paths, weakened driver checks, global scheduler changes, shared build/install/source changes.
+  event_dependency: Event candidate392b50c66ed9e918c3e8fbaed13df195f2b74ee57e061c6511cf4484bb0e8eac safely suspended immutable pending integration. No event worker edits remain; elaborate.cc ownership transferred for this separate private candidate. Coordinator resolves final patch order after broad gate/publication.
+  lanes: This lane and solver failure-boundary fixtures; rootseed/regex/event immutable awaiting integration.

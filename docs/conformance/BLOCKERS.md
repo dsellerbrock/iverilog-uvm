@@ -3383,3 +3383,5 @@ CONSTRAINT-DIVMOD-ZERO is implemented and focused-tested, awaiting required batc
 JOINT-ORDERED-ACTIVE-RANDC is implemented and focused-tested, pending batch gates. DD-001/Z01 no longer blanket-rejects ordinary ordering alongside cyclic variables. Multiple coupled ordinary distributions in a cyclic component remain open. See [evidence and limits](session_logs/2026-09-21_joint_ordered_randc.json).
 
 The [packed-VPI synthesis regression repair](session_logs/2026-09-21_packed_vpi_synthesis_regression.json) passes paired runtime controls and focused synthesis/VPI suites; required broad rerun remains pending. This repairs VPI-PACKED-ELEMENT-ACCESS and adds no feature count.
+
+The [nine-fix batch qualification](session_logs/2026-09-21_nine_fix_batch_qualification.json) completes required local gates for the integrated September21 fixes through `c1635efe9`. Broader clause/application blockers and private candidates remain open; CI/publication tracked in CAMPAIGN.

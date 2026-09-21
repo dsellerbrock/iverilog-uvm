@@ -1,80 +1,64 @@
 campaign: IEEE1800-UVM-continuous
-mission: Full IEEE1800-2017 and2023 independently; IEEE1800.2/UVM separately; preserve1364; UPF deferred; unmodified OpenTitan/Caliptra RTL/DV and eventual formal frontend.
+mission: Full IEEE1800-2017 and2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV and eventual formal foundation; preserve1364, UPF deferred.
 branch: agent/scope-sva-next-20260921
 merged_baseline:
   main: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
-  ci: All six jobs passed; docs/conformance/session_logs/2026-09-21_pr307_final_ci.json
+  ci: All six jobs passed; see2026-09-21_pr307_final_ci.json.
 current_batch:
   integrated_fixes: 9
-  semantic_revision: c1635efe9
-  test_revision: c1635efe9
-  state: BROAD_RERUN_AFTER_PACKED_METADATA_REPAIR
-  cadence: Approximately ten fixes; full-UVM policy also triggers after eight stable changes. Private next-batch work is excluded.
-  evidence: evidence/review-20260920/batch-nine-20260921-repaired
-  live_exec_session: 60450; prior session60589 terminated on JSON failure
-  command: Resume write_stdin session60450; inspect batch-nine-20260921-repaired/gates-status.json. Source frozen; do not restart a live gate on observation timeout.
-  serial_gates: integrated legacy/VPI/negative/runtime, JSON, NFA, frontend, full real-DPI UVM, release matrix, makecheck
-  first_failure: Two old tests required ordered randc rejection. Now require real constrained cycles, retaining cyclic-order negative. Six focused cases pass in each harness; integrated rerun passed; JSON then failed synth_interface_member_transfer-S packed metadata binding.
-  first_failure_evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_legacy_expectation.json
-  rootseed_command: Historical runner referenced absent ivtest/runtime_root_seed.py; command did not run tests. Not a passing gate. Rebase separately selected below.
-  publication: No open PR at last check; prepare coherent PR after required local gates. User authorizes merge after one exact-head CI pass plus required local checks; later CI failures require follow-up repair.
-private_lanes:
+  semantic_revision: c1635efe9780fc78b8d03d8750df1c56f36023dd
+  state: REQUIRED_LOCAL_GATES_PASS_READY_FOR_PUBLICATION
+  evidence: docs/conformance/session_logs/2026-09-21_nine_fix_batch_qualification.json
+  raw: evidence/review-20260920/batch-nine-20260921-repaired
+  process: Session60450 completed exit0; all seven gates passed. No live qualification job.
+  failures_repaired: Obsolete ordered-randc test expectation and invalid packed metadata on handleless synthesis temporaries; evidence preserved, neither adds feature count.
+  publication: No open PR at refreshed origin/main3d3f8086b; publish coherent nine-fix branch after evidence commit. User authorizes merge after one exact-head green CI plus required local gates; later CI failures require follow-up repair.
+  draft: evidence/review-20260920/batch-nine-20260921-repaired/PR_BODY_DRAFT.md
+private_candidates:
   event:
     blocker: COMPOUND-VIF-EDGE-EVENTS
-    owner: vif_proxy_implementation, Sol medium
-    state: Private implementation and focused validation; not integrated.
-    scope: ACTIVE_WORK.yaml owns exact file authorization, source/callback transaction and context-lifetime boundaries.
-    evidence: evidence/review-20260920/next-compound-vif-edge-fix/sol-structural
-    coordinator_glue: evidence/review-20260920/next-compound-vif-edge-fix/coordinator-glue; validity then event-sync then part-event patches.
-    next: Review final apply-clean patch and latest matrix; reconvergent unequal-depth event control added by coordinator.
+    state: Frozen private patch and paired matrix; integration review pending.
+    patch: evidence/review-20260920/next-compound-vif-edge-fix/sol-structural/CODE.patch
+    sha256: 392b50c66ed9e918c3e8fbaed13df195f2b74ee57e061c6511cf4484bb0e8eac
+    glue: Apply coordinator validity, event-sync, then part-event patches after CODE.patch.
+    tests: Atomic fanout, unequal-depth reconvergence, same-slot pulses, nested callback source order, automatic liveness and null, rebind, four-state cases passed privately; shared gates required after integration.
   solver:
     blocker: JOINT-ORDERED-RANDC-MULTIDIST
-    owner: constraint_guard_semantics, Sol medium
-    scope: Private vvp/vvp_z3.cc and regressions only; no shared source/build/install.
-    evidence: evidence/review-20260920/next-constraint-ordered-randc-multidist-fix
-    next: Multidist patch frozen SHA5c40e4855321b300e0f94dccb3f961b7b6abf4ff0a2a62d00bda1ad3040e6ead; packed-metadata synthesis regression repaired and focused-tested; worker idle.
-    interpretation: Conflicting statistical weights permit implementation priority; hard domains and zero exclusions remain mandatory. See docs/conformance/session_logs/2026-09-21_coupled_dist_interpretation.json.
-  rootseed_prepared:
+    state: Private build and six paired runtime cases passed; additional range-cap rollback test passed both editions.
+    evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_multidist_private.json
+    raw: evidence/review-20260920/next-constraint-ordered-randc-multidist-fix
+    sha256: 5c40e4855321b300e0f94dccb3f961b7b6abf4ff0a2a62d00bda1ad3040e6ead
+    boundary: New prefix UNKNOWN is source-reviewed, not selectively injected; existing optimizer interposer targets a different API. Range cap/overflow already preflighted unpinned.
+    next: Permanent packaging and next-batch integration; preserve exact hard constraints, zero exclusions, transactional RNG/history and documented conflicting-weight priority.
+  rootseed:
     blocker: DV-RUNTIME-ROOT-SEED
-    worker: caliptra_next_blocker, Luna low, mechanical preparation completed.
-    state: Private patch prepared; no implementation validation yet; not an active third implementation lane.
-    evidence: evidence/review-20260920/rootseed-rebase
-    red: evidence/review-20260920/rootseed-baseline-audit/current-runtime.json; actual random words identical for seed1 and2 in both editions.
-    source_patch: vvp-rootseed.patch; three runtime files, no shared application.
-    driver_review: Coordinator restored historical checks and made only payload comparison correction; baseline now fails for genuine seed-insensitivity. See coordinator-driver-review.json.
-    next: Semantic review, permanent packaging and paired validation after frozen batch ends. Vendor DV seed option, not a normative IEEE spelling.
-ready_application_work:
-  caliptra: CONTINUOUS-STRING-ASSIGN; paired crash/root cause known; elaborate.cc held by event worker. Stable rej_bounded_tb reaches max cycles after invalid string filenames; no app pass claim.
-  output_ports: VARIABLE-OUTPUT-PORT-DIRECTION; paired failing runtime and explicit-wire control retained; also waits for elaborate.cc ownership.
-  evidence: docs/conformance/session_logs/2026-09-21_caliptra_continuous_string.json
-application_pins:
-  opentitan: Earlgrey-PROD-M6 at a78922f14a8cc20c7ee569f322a04626f2ac6127
-  caliptra: v2.1.2 at49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; AdamsBridgev2.0.3 atb77e3d899e828d626cfc2a0d26a6b5704cc121e0
-  last_results: CURRENT_WORK.md links revision-scoped evidence. Crossbar UVM and power2round had meaningful passing runs; pwrmgr/GPIO and rej_bounded remain failing. Fresh checkpoint retest completed on81ea0fab5: crossbar180requests/354checks and power2round2048pass; GPIOstillfails. See2026-09-21_batch_nine_release_retest.json.
+    state: Revised private entry-hook patch passes paired original and threadless controls.
+    evidence: docs/conformance/session_logs/2026-09-21_rootseed_private_entry_fix.json
+    patch: evidence/review-20260920/rootseed-rebase/rootseed-runtime-entry.patch
+    sha256: 58af5d4a3ce0cab4c89c38afc7d36b82229b0967c3d4606d9fe3e19d62b4d8a3
+    boundary: Vendor DV option, not normative spelling; default streams and IEEE random stability preserved. Original compile_thread-only boundary failure retained.
+  regex:
+    blocker: UVM-STRICT-REGEX-GLOB-FALLBACK
+    state: Private reviewed patch passes paired real-DPI controls; installed umbrella unchanged.
+    evidence: docs/conformance/session_logs/2026-09-21_strict_uvm_regex_private.json
+    next: Permanent registration and integration; removal of modern fallback does not repair legacy GPIO invalid-regex calls.
+  caliptra_string:
+    blocker: CONTINUOUS-STRING-ASSIGN
+    owner: Reused vif_proxy_implementation, Sol medium
+    state: Active private elaborate.cc implementation; event patch immutable and ownership transferred.
+    evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
+    scope: ACTIVE_WORK owns exact acceptance and scope; no application/source-install changes. Private patch order reviewed before integration.
+application_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_qualified_nine_release_retest.json
+  opentitan: Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; crossbar180requests/354checks passes, GPIO fails startup regex/build errors.
+  caliptra: v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; AdamsBridgev2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0; power2round2048pass.
+  boundary: Fresh generator vectors, clean unchanged release sources, g2012; not full applications or paired edition qualification. Pwrmgr and rej_bounded remain failing.
 coordination:
-  shared: Coordinator owns source integration, builds, installation, shared test outputs, review and publication. Broad run terminated; coordinator may integrate only its focused regression repair before resuming gates.
-  agents: Reuse cheaper workers; at most two active implementation lanes, disjoint files. Current event and solver lanes; no new worktrees.
-  preserve: External user AGENTS.md changes and unique evidence remain untouched and unstaged.
-  cleanup: Nine existing worktrees audited; none newly created. Never raw-delete worktrees; use required retirement helper after ancestry/cleanliness/submodule audit. Retain active/review evidence.
+  shared: Coordinator owns integration, shared builds/install/test outputs, review and publication. Retained cheaper workers, at most two disjoint implementation lanes; no new trees.
+  preserve: External AGENTS.md changes remain untouched and unstaged. All private patches and unique evidence retained.
+  cleanup: Nine existing worktrees audited; no automatically removable tree. Use controlling-repository retirement helper with ancestry/clean/submodule checks; never raw-delete trees.
+  counts: Nine fixes in this batch; three explicitly OPEN registry headers are not a total remaining-feature count. Current matrices lack a complete finite feature census; see publication-count-coordinator-review.json.
 resumption:
-  last_turn: Progress; reviewed private solver, established fresh rootseed red, corrected obsolete regression oracle and resumed required broad gate.
-  next_action: Resume new serial broad gate run; private event nested-callback audit passed. No further source/build mutations until gates terminate.
-  historical_state: Prior chronological CAMPAIGN preserved in git81ea0fab5 and earlier commits; historical session records unchanged.
-
-private_regex_checkpoint:
-  blocker: UVM-STRICT-REGEX-GLOB-FALLBACK
-  state: Private patch reviewed and real-DPI focused-tested; installed bundle unchanged.
-  worker: Retained Luna low completed bounded deletion; coordinator built private bundle and corrected portable reducer.
-  evidence: docs/conformance/session_logs/2026-09-21_strict_uvm_regex_private.json
-  next: Permanent registration and next-batch integration after current frozen qualification/publication. Not part of nine integrated fixes.
-
-private_validation_progress:
-  solver: Six paired multidist runtime cases passed using private linked runtime; source-frozen shared artifacts unchanged. See2026-09-21_ordered_randc_multidist_private.json. Worker audits additional failure boundaries.
-  rootseed: Original paired driver passes private runtime, but new threadless invalid-option control fails. Worker moves hook to runtime entry; see2026-09-21_rootseed_private_boundary.json.
-  batch: Session60450 verified live; integrated,JSON,NFA,frontend passed; full real-DPI UVM running.
-
-rootseed_entry_repair:
-  state: Private revised entry-hook patch passes all original and threadless controls in both editions.
-  evidence: docs/conformance/session_logs/2026-09-21_rootseed_private_entry_fix.json
-  next: Permanent packaging/integration after current batch; original failing threadless evidence preserved.
+  classification: Progress; qualified batch, privately validated solver/rootseed/regex, selected Caliptra string repair.
+  next: Commit qualification/application evidence, publish PR, inspect exact-head CI. Keep private candidates excluded until merge and fresh next-batch branch.

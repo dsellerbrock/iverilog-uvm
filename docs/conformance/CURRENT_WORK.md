@@ -38,6 +38,8 @@ The [nine-fix checkpoint release retest](session_logs/2026-09-21_batch_nine_rele
 
 ## Latest recorded compiler qualification
 
+The [nine-fix batch qualification](session_logs/2026-09-21_nine_fix_batch_qualification.json) records all seven required local gates passing on semantic revision `c1635efe9`, including the synthesis metadata repair. CI, private next-batch candidates, and full application/standards qualification remain separate.
+
 The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) preserves earlier bounded OpenTitan and Caliptra runtime results, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.
 
 The [canonical graph and cleanup record](session_logs/2026-09-21_canonical_graph_cleanup.json) records the restored main checkout, shared graph refresh, retired worktree, preserved branch, and cleanup audit.
@@ -161,3 +163,5 @@ Latest packed-VPI local checkpoint: [paired tests and affected-suite evidence](s
 The [constraint divide/remainder error repair](session_logs/2026-09-21_constraint_divmod_zero.json) has paired focused and neighboring runtime evidence; broad batch gates remain pending.
 
 The [joint ordered-randc repair](session_logs/2026-09-21_joint_ordered_randc.json) has paired runtime, distribution and rollback evidence; batch gates remain pending.
+
+Latest bounded stable-application replay: [qualified nine-fix candidate](session_logs/2026-09-21_qualified_nine_release_retest.json). Exact corpus pins, binary fingerprints, commands, pass/failure evidence and scope limits are in that record.
