@@ -1,0 +1,249 @@
+{
+  "blocker": "JOINT-ORDERED-RANDC-MULTIDIST",
+  "state": "PRIVATE_FOCUSED_TESTED_NOT_INTEGRATED",
+  "base_revision": "d4b35b0817f68528ce9aa2498362bd664b5abfd9",
+  "patch_sha256": "5c40e4855321b300e0f94dccb3f961b7b6abf4ff0a2a62d00bda1ad3040e6ead",
+  "build": {
+    "compile": [
+      "g++",
+      "-I.",
+      "-I..",
+      "-I/opt/homebrew/opt/libffi/include",
+      "-I/opt/homebrew/opt/z3/include",
+      "-DHAVE_CONFIG_H",
+      "-DICARUS_VPI_CONST=const",
+      "-DUSE_LIBFFI=1",
+      "-DIVL_SUFFIX=\"\"",
+      "-DMODULE_DIR1=\"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl\"",
+      "-Wall",
+      "-Wextra",
+      "-Wshadow",
+      "-g0",
+      "-O2",
+      "-std=c++11",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/patch/vvp/vvp_z3.cc",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp_z3.o"
+    ],
+    "link": [
+      "g++",
+      "-Wl,-all_load",
+      "-L/opt/homebrew/opt/libffi/lib",
+      "-L/opt/homebrew/opt/z3/lib",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+      "main.o",
+      "lib_main.o",
+      "parse.o",
+      "parse_misc.o",
+      "lexor.o",
+      "arith.o",
+      "array_common.o",
+      "array.o",
+      "bufif.o",
+      "compile.o",
+      "concat.o",
+      "dff.o",
+      "class_type.o",
+      "enum_type.o",
+      "extend.o",
+      "file_line.o",
+      "latch.o",
+      "npmos.o",
+      "part.o",
+      "permaheap.o",
+      "reduce.o",
+      "resolv.o",
+      "sfunc.o",
+      "stop.o",
+      "substitute.o",
+      "symbols.o",
+      "ufunc.o",
+      "codes.o",
+      "vthread.o",
+      "schedule.o",
+      "statistics.o",
+      "tables.o",
+      "udp.o",
+      "vvp_island.o",
+      "vvp_net.o",
+      "vvp_net_sig.o",
+      "vvp_object.o",
+      "vvp_assoc.o",
+      "vvp_cobject.o",
+      "vvp_darray.o",
+      "vvp_dpi.o",
+      "vvp_mailbox.o",
+      "vvp_vinterface.o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp_z3.o",
+      "event.o",
+      "logic.o",
+      "delay.o",
+      "words.o",
+      "island_tran.o",
+      "vpi_modules.o",
+      "vpi_bit.o",
+      "vpi_callback.o",
+      "vpi_cobject.o",
+      "vpi_const.o",
+      "vpi_darray.o",
+      "vpi_event.o",
+      "vpi_iter.o",
+      "vpi_mcd.o",
+      "vpi_priv.o",
+      "vpi_scope.o",
+      "vpi_real.o",
+      "vpi_signal.o",
+      "vpi_string.o",
+      "vpi_tasks.o",
+      "vpi_time.o",
+      "vpi_vthr_vector.o",
+      "vpip_bin.o",
+      "vpip_hex.o",
+      "vpip_oct.o",
+      "vpip_to_dec.o",
+      "vpip_format.o",
+      "vvp_vpi.o",
+      "-lbz2",
+      "-lz",
+      "-lpthread",
+      "-lreadline",
+      "-ltermcap",
+      "-lz3",
+      "-lffi",
+      "-ldl"
+    ],
+    "shared_artifacts_unchanged": {
+      "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+      "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+      "vvp/vvp_z3.o": "364659ec9008b966d034888e6c790a64ba4baf0be17044f10262d1f45b9fef47"
+    },
+    "source_sha256": "9eda597bd83128e6822b94d1f01036d7f409cb45420b427736a838694ebc900a"
+  },
+  "tests": [
+    {
+      "source": "joint_ordered_randc_multiple_dist.sv",
+      "edition": "2017",
+      "compile": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/tests/joint_ordered_randc_multiple_dist.sv"
+      ],
+      "compile_exit": 0,
+      "runtime": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "seconds": 1.849687099456787,
+      "passed": true,
+      "output": "PASSED\n"
+    },
+    {
+      "source": "joint_ordered_randc_multiple_dist_boundary.sv",
+      "edition": "2017",
+      "compile": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist_boundary-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/tests/joint_ordered_randc_multiple_dist_boundary.sv"
+      ],
+      "compile_exit": 0,
+      "runtime": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist_boundary-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "seconds": 2.274092197418213,
+      "passed": true,
+      "output": "PASSED\nERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.\n"
+    },
+    {
+      "source": "joint_unordered_randc_multiple_dist_large.sv",
+      "edition": "2017",
+      "compile": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_unordered_randc_multiple_dist_large-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/tests/joint_unordered_randc_multiple_dist_large.sv"
+      ],
+      "compile_exit": 0,
+      "runtime": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_unordered_randc_multiple_dist_large-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "seconds": 1.8218848705291748,
+      "passed": true,
+      "output": "PASSED\n"
+    },
+    {
+      "source": "joint_ordered_randc_multiple_dist.sv",
+      "edition": "2023",
+      "compile": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/tests/joint_ordered_randc_multiple_dist.sv"
+      ],
+      "compile_exit": 0,
+      "runtime": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "seconds": 1.7356290817260742,
+      "passed": true,
+      "output": "PASSED\n"
+    },
+    {
+      "source": "joint_ordered_randc_multiple_dist_boundary.sv",
+      "edition": "2023",
+      "compile": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist_boundary-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/tests/joint_ordered_randc_multiple_dist_boundary.sv"
+      ],
+      "compile_exit": 0,
+      "runtime": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_ordered_randc_multiple_dist_boundary-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "seconds": 2.3402342796325684,
+      "passed": true,
+      "output": "PASSED\nERROR: global constraint sampling failed: the complete joint solution set exceeds the enumeration limit.\n"
+    },
+    {
+      "source": "joint_unordered_randc_multiple_dist_large.sv",
+      "edition": "2023",
+      "compile": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_unordered_randc_multiple_dist_large-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/tests/joint_unordered_randc_multiple_dist_large.sv"
+      ],
+      "compile_exit": 0,
+      "runtime": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-constraint-ordered-randc-multidist-fix/coordinator-build/joint_unordered_randc_multiple_dist_large-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "seconds": 1.877065896987915,
+      "passed": true,
+      "output": "PASSED\n"
+    }
+  ],
+  "validation_scope": "Real private runtime, existing installed compiler; six paired positive/boundary/unordered regression runs. Exact enumeration-limit diagnostic checked.",
+  "pending": "Additional proof-failure boundary audit, permanent test registration, integration, neighboring and broad gates. No full-clause qualification.",
+  "interpretation": "Hard constraints and zero weights mandatory. Conflicting statistical weights follow allowed existing priority; no mandated product or cross-vendor identical distribution claim."
+}

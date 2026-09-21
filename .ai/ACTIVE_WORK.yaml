@@ -209,7 +209,7 @@ selected_runtime_root_seed:
 
 selected_ordered_randc_multidist:
   id: JOINT-ORDERED-RANDC-MULTIDIST
-  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_PRIVATE_IMPLEMENTATION
+  status: PRIVATE_FOCUSED_TESTED_ADDITIONAL_FAILURE_BOUNDARY_AUDIT
   owner: constraint_guard_semantics, retained Sol medium
   standards: Both editions18.4.2; 2017 18.5.4/18.5.10 and2023 18.5.3/18.5.9.
   reproducer: evidence/review-20260920/next-constraint-ordered-randc-multidist-assessment/joint_ordered_randc_multiple_dist.sv
@@ -248,3 +248,12 @@ selected_strict_uvm_regex:
   root: regcomp wrapper retries invalid strict expressions as globs despite deglob=0.
   acceptance: Invalid strict pattern returns null; same pattern explicitly deglobbed succeeds; valid regex matching/nonmatching, slash-bracket behavior, bounds, legacy strict behavior remain unchanged; paired real DPI.
   dependencies: Event, multidist and rootseed patches frozen; this is the only active implementation lane. Coordinator alone builds private DPI candidate after review.
+
+rootseed_threadless_validation_boundary:
+  status: PRIVATE_SCOPE_REFINEMENT_AUTHORIZED
+  owner: caliptra_next_blocker, retained Luna low; coordinator validated original private runtime
+  evidence: evidence/review-20260920/rootseed-rebase/coordinator-build/threadless-boundary.json
+  root: Option validation runs only from compile_thread, so designs with no threads silently accept invalid root-seed options.
+  scope: Replace compile.cc hook with one vvp/lib_main.cc::vvp_run hook after lifecycle check and before compile_design. Keep vthread.cc/h parser and default RNG unchanged. Private files only.
+  acceptance: Existing paired seed driver plus threadless invalid, duplicate, valid-boundary, and no-option controls; no shared build/install.
+  dependency: Regex patch frozen; this is its replacement implementation lane, alongside solver boundary tests.
