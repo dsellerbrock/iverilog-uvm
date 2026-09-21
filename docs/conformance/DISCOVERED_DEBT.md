@@ -3103,3 +3103,7 @@ with exclusive elaborate.cc ownership. Neither repair is integrated yet.
 Generated application input files for the two original failures were compared
 byte-for-byte with the pinned clean release sources; provenance is retained in
 `evidence/review-20260920/next-batch-20260921/pwrmgr-source-provenance.json`.
+
+### 2026-09-21 VPI force callback object fidelity
+
+Review under VPI-PACKED-ELEMENT-ACCESS confirmed IEEE1800-2017/2023 38.36.1 requires statement objects for compiled force/release callbacks and prohibits variable-bit registrations. New packed variable leaves reject registration; inherited legacy variable-bit acceptance and compiled statement-object fidelity remain record-only debt. VPI-origin forces have no SV statement; selected-object callback behavior is an Icarus policy. See [scoped evidence](session_logs/2026-09-21_packed_vpi_integration.json).

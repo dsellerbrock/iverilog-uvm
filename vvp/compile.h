@@ -466,6 +466,7 @@ extern void compile_array_port(char*label, char*name, char*addr,
 extern void compile_array_port(char*label, char*name, long addr);
 
 extern void compile_array_cleanup(void);
+extern void compile_packed_dims(char*label, char*layout);
 
 /*
  * Compile the .ufunc statement.

@@ -189,3 +189,11 @@ string_literal_vector_2023 normal,-g2023 string_literal_vector.c string_literal_
 # Long fixed antecedents retain all overlapping endpoints.
 sv_assert_long_fixed_antecedent normal,-g2017 sv_assert_long_fixed_antecedent.c sv_assert_long_fixed_antecedent.log
 sv_assert_long_fixed_antecedent_2023 normal,-g2023 sv_assert_long_fixed_antecedent.c sv_assert_long_fixed_antecedent_2023.log
+
+# Multidimensional packed VPI handles retain dimensions, slice storage and callbacks.
+packed_multidim_api normal,-g2017 packed_multidim_api.c packed_multidim_api.gold
+packed_multidim_api_2023 normal,-g2023 packed_multidim_api.c packed_multidim_api_2023.gold
+packed_force_overlap normal,-g2017 packed_force_overlap.c packed_force_overlap.gold
+packed_force_overlap_2023 normal,-g2023 packed_force_overlap.c packed_force_overlap_2023.gold
+packed_forward_net normal,-g2017 packed_forward_net.c packed_forward_net.gold
+packed_forward_net_2023 normal,-g2023 packed_forward_net.c packed_forward_net_2023.gold

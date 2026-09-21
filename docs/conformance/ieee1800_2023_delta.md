@@ -289,3 +289,5 @@ The [object-method constraint evidence](session_logs/2026-09-21_constraint_objec
 The [bare enum-name evidence](session_logs/2026-09-21_enum_bare_name_type.json) checks shared clauses5.13/6.19 separately under 2017 and2023 modes.
 
 Paired 2023 evidence shares the [self-package cast](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range](session_logs/2026-09-21_signed_cover_range_resolution.json) implementation records with2017; broad edition qualification remains pending.
+
+2026-09-21: packed-VPI selected-element behavior has separate 2023 runs in the [shared integration evidence](session_logs/2026-09-21_packed_vpi_integration.json). No edition-specific rule change is asserted; whole-clause status remains partial.

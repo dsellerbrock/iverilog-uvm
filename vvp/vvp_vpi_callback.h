@@ -23,6 +23,7 @@
 # include  "vpi_user.h"
 
 class value_callback;
+class vvp_vector2_t;
 
 /*
  * Things derived from vvp_vpi_callback may have callbacks
@@ -57,6 +58,8 @@ class vvp_vpi_callback {
 	// cb_data.reason matches, unconditionally (no value-change
 	// test -- a re-force of the same value still reports).
       void run_force_callbacks(int reason);
+      void run_force_callbacks(int reason, const vvp_vector2_t&mask);
+      void run_force_callbacks(int reason, unsigned base, unsigned width);
 
     protected:
 	// Derived classes call this method to indicate that it is
@@ -68,6 +71,9 @@ class vvp_vpi_callback {
       value_callback*vpi_callbacks_;
       value_callback*driver_activity_callbacks_;
       struct __vpi_array_word*array_words_;
+      void run_force_callbacks_(int reason, const vvp_vector2_t*mask,
+                                bool have_range, unsigned base,
+                                unsigned width);
 };
 
 

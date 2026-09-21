@@ -33,25 +33,25 @@ assessments:
     observation: pwrmgr scoreboard compound virtual-interface edge expressions are skipped with compile-progress warnings.
     scope: Reproduce exact edge semantics and trace existing event lowering; proposal before implementation.
     acceptance_basis: Observe expression transitions, not every operand change; no skipped waits.
-next_action: Review both bounded root-cause proposals, select independent implementation scopes, then run cheap runtime regressions.
+next_action: Integrate reviewed VPI corrections and structural event implementation, run focused semantic tests, then select the next reproduced application/debt/IEEE blocker.
 
 selected_implementation:
   id: COMPOUND-VIF-EDGE-EVENTS
-  status: ARCHITECTURE_REQUIRED
-  owner: package_enum_context, Terra medium
+  status: PRIVATE_IMPLEMENTATION_UNDER_REVIEW
+  owner: vif_proxy_implementation, Sol medium
   standard: IEEE1800-2017/2023 9.4.2 event expression and edge transitions
   reproducer: evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv
   red: Both editions compile0 but fail at time1 because reduction/equality/selected-bit waits were skipped.
   expected: Wait until the complete expression has the requested edge; operand changes alone do not imply an edge.
   root: PEventStatement::elaborate_st compound class-to-VIF expressions fall through static synthesis and are skipped.
-  scope: Private elaborate.cc patch reusing existing dynamic VIF descriptors/evaluation machinery; propose dependent files before expansion.
+  scope: Structural implementation scope and coordinator glue are defined in event_structural_expansion below; procedural resampling proposal rejected.
   acceptance: Paired runtime edge counts, no early execution, predicate unchanged on operand mutation, rearming, packed field/select,4state transitions, rebind semantics grounded in LRM, real-edge rejection.
   forbidden: Remove warnings without semantics, broaden sensitivity to all operands, skip waits, modify application sources.
   dependencies: Disjoint from VPI declaration/runtime proposal; coordinator shared build/install/tests.
 
 selected_vpi_implementation:
   id: VPI-PACKED-ELEMENT-ACCESS
-  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED
+  status: FOCUSED_TESTED_BATCH_GATES_PENDING
   owner: constraint_guard_semantics, Sol medium
   standards: IEEE1800-2017/2023 38.19 and38.21; verify chapter37 object properties against selected integral type.
   evidence: evidence/review-20260920/next-vpi-packed-element-assessment/RESULTS.md
@@ -62,7 +62,7 @@ selected_vpi_implementation:
   architecture: Preserve ordered declaration metadata without changing flattened value storage; reuse existing selected-value machinery, stable handle ownership, and callbacks. Verify observable VPI types and properties from normative object model.
   acceptance: Paired2017/2023 nets/variables, ascending/descending/nonzero/negative ranges, nested selectors, unpacked words, escaped identifiers, invalid indices, XZ, get/deposit/force/release and callbacks; unchanged pwrmgr22-bit element paths.
   forbidden: Path-check exceptions, dummy handles, forged values, application edits, metadata-only success claims.
-  dependencies: Disjoint from Terra elaborate.cc; coordinator owns builds, shared source integration and regression directories.
+  dependencies: Disjoint from structural event worker files; coordinator owns shared glue, integration, builds and regression directories.
   boundary: Integral packed selection via by-name and by-index; no full VPI object-model qualification or multi-index API completion claim.
 
   scope_refinement: IEEE chapter37 requires packed prefix handles retain net/variable type, not part-select type. vpi_callback.cc is authorized solely to route these real selected handles through existing filtered signal/array callback machinery.
@@ -78,9 +78,34 @@ event_structural_expansion:
   design: evidence/review-20260920/next-compound-vif-edge-fix/RUNTIME_SCOPE_PROPOSAL.md
   worker: vif_proxy_implementation, Sol medium
   worker_files: elaborate.cc, expr_synth.cc, netlist.h, netlist.cc, emit.cc, target.h, target.cc, t-dll.h, t-dll.cc, t-dll-api.cc, ivl_target.h, vvp/vvp_vinterface.h, vvp/vvp_vinterface.cc, vvp/event.h, vvp/event.cc
-  coordinator_glue: tgt-vvp/vvp_scope.c and VVP directive parser/compiler registration; worker must supply exact descriptor/API requirements, not edit Sol-owned files.
+  coordinator_glue: tgt-vvp/vvp_scope.c, tgt-vvp/draw_net_input.c (new LPM output nexus linkage), and VVP directive parser/compiler registration; worker must supply exact descriptor/API requirements, not edit Sol-owned files.
   ownership: Sol remains sole private editor of shared packed-VPI file set; coordinator integrates common glue after reviewing both patches.
   acceptance: Existing compound/table/pulse fixtures; simultaneous automatic activations; changed and unchanged handle rebind; alias mutation propagation; old-source unlink; scope teardown; no VM reentry; no side-effect or function semantics lost.
   boundary: No general runtime interpreter or AST clone framework; preserve unsupported forms with focused diagnostics. Propose further files before editing.
 
 event_worker_escalation: Terra completed repeated planning-only turns with no structural source changes; replaced with Sol medium for the authorized cross-stage structural implementation. Existing findings and fixtures retained.
+
+vpi_force_overlap_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  owner: constraint_guard_semantics, Sol medium
+  invariant: Packed selections share root storage but force/release callbacks must identify the affected selection; sibling callbacks cannot fire spuriously.
+  root: Existing signal force callback registry discards affected slice; local selected-handle routing alone cannot preserve overlap semantics.
+  additional_files: vvp/vvp_vpi_callback.h, vvp/vvp_net_sig.cc, vvp/vthread.cc
+  scope: Extend existing callback dispatch with exact force mask and release range; preserve whole-object and real callbacks. Private patches only.
+  acceptance: Paired sibling/prefix/leaf exact callback counts and values; sparse masks; registration/removal during dispatch; legacy force neighbors.
+  dependencies: Disjoint from structural event worker; coordinator owns shared integration/builds.
+
+selection_priority:
+  authority: User reiterated debt, unmodified stable OpenTitan/Caliptra, and missing IEEE1800 semantics as next work.
+  current: Finish two selected application-driven compiler fixes; do not count review-only or compile-only results as integrated fixes.
+  ready: VARIABLE-OUTPUT-PORT-DIRECTION has paired failing runtime and explicit-wire control; select when elaborate.cc ownership becomes free.
+  assessment: caliptra_next_blocker, Luna low, read-only current stable-release failure selection; no third implementation lane.
+
+event_validity_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  reason: IEEE2017/2023 25.9 null dereference fatal must occur only when expression is evaluated; 11.3.5 preserves short-circuit behavior.
+  worker: vif_proxy_implementation, Sol medium, existing authorized files only.
+  design: Structural data plus validity, expression-aware short-circuit propagation, arm-aware final waitable event validity input; no procedural post-wake resampling.
+  coordinator_glue: Target emission and .eventvalid parser/compiler registration; worker supplies exact APIs and descriptors.
+  acceptance: Dormant null permitted; armed null fatal; guarded null branches valid; four-state conditional evaluation; validity/data propagation must not create transient false fatal or lose same-slot pulses; automatic lifecycle tests.
+  constraint: Reuse existing synthesis helpers; no general expression interpreter or speculative framework; no silent unsupported expression validity fallback.

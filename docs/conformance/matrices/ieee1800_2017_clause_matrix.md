@@ -1601,3 +1601,7 @@ Clauses5.13/6.19: enum `name` without parentheses now resolves to string in
 concatenations through the shared type walker. See [paired focused evidence](../session_logs/2026-09-21_enum_bare_name_type.json); broad gates remain pending.
 
 Clauses6.24.1/26 self-package type casts and19.5.1/19.5.7 signed static bin ranges now have focused implementation evidence. See the [cast record](../session_logs/2026-09-21_self_package_type_cast.json) and [coverage record](../session_logs/2026-09-21_signed_cover_range_resolution.json) for boundaries and pending qualification.
+
+### 2026-09-21 packed VPI selection refinement
+
+Clauses37/38.19/38.21/38.36.1 remain PARTIAL overall. Declared integral packed selections now have runtime-tested width, range, value and selected callback behavior; [paired evidence and explicit limits](../session_logs/2026-09-21_packed_vpi_integration.json). Full batch qualification is pending.

@@ -153,3 +153,5 @@ The [repaired-candidate release retest](session_logs/2026-09-21_repaired_candida
 The [empty-branch enable repair](session_logs/2026-09-21_empty_branch_enable_repair.json) records the JSON-discovered synthesis regression and focused recovery; the final broad run is tracked in CAMPAIGN.
 
 Latest bounded release replay: [2026-09-21 current candidate](session_logs/2026-09-21_current_release_retest.json). Exact pins, commands, runtime outcomes and qualification limits are recorded there.
+
+Latest packed-VPI local checkpoint: [paired tests and affected-suite evidence](session_logs/2026-09-21_packed_vpi_integration.json). Broad batch qualification remains pending.

@@ -1,0 +1,49 @@
+{
+  "blocker": "VPI-PACKED-ELEMENT-ACCESS",
+  "parent_revision": "d8e3fd378ca2f01ed18007126df5df6b6c098f6e",
+  "status": "FOCUSED_TESTED; full affected VPI suite passed; required batch gates pending",
+  "standards": {
+    "2017": [
+      "37 packed array object model",
+      "38.19",
+      "38.21",
+      "38.36.1"
+    ],
+    "2023": [
+      "37 packed array object model",
+      "38.19",
+      "38.21",
+      "38.36.1"
+    ]
+  },
+  "changes": [
+    "Retain declared packed dimensions in VVP and resolve metadata after forward nets",
+    "Return stable selected handles with correct widths, ranges, values and parent relationships",
+    "Selected read/deposit/force/release and callback payload/overlap behavior",
+    "Reject illegal new packed variable-bit force/release registrations",
+    "Correct legacy part-select value-change expected payload from parent10 to selected2"
+  ],
+  "validation": {
+    "build": "serial make and make install pass",
+    "vpi_suite": {
+      "total": 116,
+      "passed": 116,
+      "failed": 0,
+      "raw": "evidence/review-20260920/next-vpi-packed-element-fix/vpi-final-with-regressions.log"
+    },
+    "paired_permanent": [
+      "packed_multidim_api",
+      "packed_force_overlap",
+      "packed_forward_net"
+    ],
+    "extra": "Extreme signed index boundaries and malformed metadata positive/negative evidence retained",
+    "runtime_sha256": "eb8532ebf3533add8d9c2e62c9a4dd030a0183a6180fe6fa9db30f89936e4e8f"
+  },
+  "limits": [
+    "No full VPI object-model or multi-index API qualification",
+    "VPI-origin force has no SV statement; selected registered object is Icarus policy, not a claim of IEEE statement-handle fidelity",
+    "Compiled force/release statement-handle callbacks and legacy variable-bit callback acceptance remain debt",
+    "Broad compiler/UVM/edition batch gates pending",
+    "OpenTitan pwrmgr still fails separately; no application success claim"
+  ]
+}

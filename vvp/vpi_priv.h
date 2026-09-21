@@ -25,6 +25,7 @@
 # include  "config.h"
 
 # include  <map>
+# include  <list>
 # include  <set>
 # include  <string>
 # include  <vector>
@@ -218,6 +219,9 @@ class value_callback : public __vpiCallback {
 	// user supplied callback data
       struct t_vpi_time cb_time;
       struct t_vpi_value cb_value;
+      bool force_range_valid = false;
+      unsigned force_base = 0;
+      unsigned force_width = 0;
 };
 
 extern void callback_execute(struct __vpiCallback*cur);
@@ -396,6 +400,17 @@ struct __vpiSignal : public __vpiHandle {
       void make_bits();
 
       struct __vpiBit*bits;
+
+      struct packed_range_t {
+            int left;
+            int right;
+      };
+      std::vector<packed_range_t> packed_ranges;
+      std::vector<vpiHandle> packed_children;
+      unsigned packed_depth = 0;
+      unsigned value_base = 0;
+      unsigned value_width = 0;
+      vpiHandle packed_parent = nullptr;
 
     public:
       union { // The scope or parent array that contains me.
@@ -901,6 +916,10 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 			   vvp_net_t*source);
       void release_word(unsigned idx, unsigned off, unsigned wid);
       bool is_forceable_vec4_array() const;
+      void add_packed_force_callback(value_callback*cb, unsigned word,
+                                     unsigned base, unsigned width);
+      void run_packed_force_callbacks(int reason, unsigned word,
+                                      unsigned base, unsigned width);
 
       vvp_vector4_t get_word(unsigned address);
       double get_word_r(unsigned address);
@@ -945,6 +964,16 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       std::map<unsigned, vvp_vector4_t> hist_prev_;
       std::map<unsigned, force_word_state_t> force_words_;
       std::vector<vvp_net_t*> force_links_;
+      struct packed_force_callback_t {
+            value_callback*cb;
+            unsigned word;
+            unsigned base;
+            unsigned width;
+      };
+      std::list<packed_force_callback_t> packed_force_callbacks_;
+#ifdef CHECK_WITH_VALGRIND
+      friend void memory_delete(vpiHandle item);
+#endif
 
 	// .array/alias records share their word storage. Keep force overlays,
 	// live-force adapters and sampling history on the same canonical object
@@ -1003,6 +1032,9 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// lazy reload rebinds nested queue bounds to the destination declaration.
       vvp_container_layout_t element_container_layout_;
 
+      std::vector<__vpiSignal::packed_range_t> packed_ranges;
+      std::map<std::string, vpiHandle> packed_views;
+
 private:
       unsigned array_count;
       __vpiScope*scope;
@@ -1012,6 +1044,28 @@ friend vpiHandle vpip_make_array(const char*label, const char*name,
                                  bool signed_flag);
 friend void compile_array_alias(char*label, char*name, char*src);
 };
+
+/* A constant packed index-select into a compact fixed-array word. */
+struct __vpiArrayPackedView : public __vpiHandle {
+      int get_type_code(void) const override;
+      int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+      vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_index(int idx) override;
+
+      __vpiArray*array = nullptr;
+      vpiHandle packed_parent = nullptr;
+      unsigned word = 0;
+      unsigned base = 0;
+      unsigned width = 0;
+      unsigned depth = 0;
+      std::vector<int> indices;
+};
+
+extern vpiHandle vpip_array_word_packed_index(vpiHandle word, int idx);
+extern void compile_packed_dims(char*label, char*layout);
 
 class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
     public:

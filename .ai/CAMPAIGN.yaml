@@ -9,7 +9,7 @@ merged_baseline:
   ci_run: 35588718454
   last_observed: Ubuntu22.04 and24.04 pass; macOS and3Windows jobs still running. No failure observed.
 next_batch:
-  integrated_fixes: 6
+  integrated_fixes: 7
   revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c, e42f114cd]
   evidence_index: docs/conformance/CURRENT_WORK.md
   pending: Required broad gates near10fixes, then coherent PR; no next-batch PR yet.
@@ -41,3 +41,66 @@ structural_event_lane: Terra authorized private structural VIF proxy implementat
 active_workers: constraint_guard_semantics (Sol medium packed VPI) and vif_proxy_implementation (Sol medium structural events); previous Terra worker stopped after repeated plan-only responses.
 
 ready_after_active_lanes: VARIABLE-OUTPUT-PORT-DIRECTION; paired failing runtime and explicit-wire control in docs/conformance/session_logs/2026-09-21_variable_output_port_direction.json. Do not concurrently edit event-owned elaborate.cc.
+
+packed_vpi_candidate_checkpoint:
+  state: Shared uncommitted candidate built and installed; six integrated fixes unchanged.
+  evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_candidate_replay.json
+  forward_metadata: Deferred net resolution repaired; paired forward-net runtime passes.
+  pending: Richer callbacks and force/release sibling overlap semantics; permanent tests and review before commit.
+  applications: Caliptra power2round2048 passes with working generator; OpenTitan pwrmgr still UVM_FATAL BUILDERR.
+  next: Review worker force/release scope proposal and malformed metadata boundary; integrate structural event patch only when ready.
+
+resolver_order_checkpoint:
+  build: Serial build and install completed after resolver-order delta.
+  evidence: evidence/review-20260920/next-vpi-packed-element-fix/resolver-order-results.json
+  tests: Paired valid forward-net passes; malformed fixture currently stops at syntax error and requires repair before negative claim.
+  worker: Sol packed-VPI lane authorized exact force/release overlap expansion; structural event lane remains independent.
+
+packed_vpi_review_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_review_checkpoint.json
+  crossbar: Fresh stable-release run passes180requests354scoreboard items; zero UVM warnings/errors/fatals.
+  new_red: Existing packed_api now aborts for vpiSuppressVal in callback payload refresh; Sol repairing, no semantic commit permitted yet.
+  event: Private structural build passes paired compound/table/pulse/mixed-or tests; automatic null rebind under standards review.
+
+structural_review_pending:
+  source: evidence/review-20260920/next-compound-vif-edge-fix/sol-structural/patch/event.cc
+  findings: Relay ownership across repeated rebind; root_word selection contract; malformed descriptor compile_errors; automatic default root for future activations.
+  action: Worker notified with bounded acceptance checks; private patch not integrated.
+
+packed_boundary_checkpoint:
+  positive: Paired2017/2023 INT_MIN/INT_MAX small-width dimensions and two-state packed memory reads pass; next-vpi-packed-element-assessment/root-oracle/boundary-results.json.
+  negative: Root valid-bytecode mutation proves trailing comma wrongly accepted; missing target lacks focused diagnostic; first-runtime/metadata-negative-review.json.
+  next: Worker repairing words.cc metadata boundaries and callback suppression/overlap; coordinator must rerun these exact cases before integrating.
+
+vif_null_semantics_review: docs/conformance/session_logs/2026-09-21_vif_null_review.json; both editions25.9 require fatal on attempted null use, while dormant structural initialization is not procedural evaluation. Worker designing correct activation boundary.
+
+user_priority_checkpoint:
+  current: Two selected OpenTitan-driven IEEE fixes remain under active implementation and correction.
+  next: Reproduced variable-output direction semantics, plus bounded Caliptra stable-release debt assessment by retained Luna.
+  success_measure: Integrated runtime-correct fixes with evidence, not documentation volume or compilation alone.
+
+vpi_force_candidate_validation:
+  evidence: docs/conformance/session_logs/2026-09-21_vpi_force_candidate_validation.json
+  result: Built and installed; rich access/force/forward cases pass both editions;13neighbor VPI tests pass; malformed metadata rejects correctly.
+  pending: Permanent tests, nested callback dispatch lifetime, final review before semantic commit.
+  next: Review worker regression patch and lifetime evidence, then integrate validated fix.
+
+vpi_full_candidate_review:
+  evidence: docs/conformance/session_logs/2026-09-21_vpi_full_candidate_review.json
+  suite:110cases106pass4goldmismatch:
+    correction: Four legacy partselect callback golds corrected to selected value per38.36.1;4focused reruns pass.
+  pending: Reject illegal new packed variable leaf force/release callback registrations; integrate revised legal-prefix permanent regressions.
+  caliptra: compress_tb probe needs missing package dependency restored in harness, not application edits.
+
+packed_leaf_callback_checkpoint:
+  source: New packed variable scalar force/release callback registrations now rejected under38.36.1; legal prefixes and net bits preserved.
+  build: Serial build/install passed.
+  tests: Corrected rich API passes both editions with two expected type49 diagnostics; legal-prefix nested overlap test passes both editions.
+  evidence: evidence/review-20260920/next-vpi-packed-element-fix/rich-runtime/leaf-reject-corrected-results.json
+  next: Integrate final permanent regression patch, run its exact manifest cases, then review semantic commit readiness.
+caliptra_compress_probe: External filelist correction resolves missing package; unchanged TB then fails missing mem_wr_req/mem_wr_data ports. Upstream test validity issue; another compatible TB under assessment.
+
+packed_vpi_local_integration:
+  evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_integration.json
+  status: Focused tests and116/116VPI pass; local semantic checkpoint, broad batch gates pending.
+  next: Continue structural VIF event implementation and choose next independent reproduced debt after worker handoff.

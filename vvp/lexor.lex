@@ -238,6 +238,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".param/real"   { return K_PARAM_REAL; }
 ".part"         { return K_PART; }
 ".part/pv"      { return K_PART_PV; }
+".packed_dims"  { return K_PACKED_DIMS; }
 ".part/v"       { return K_PART_V; }
 ".part/v.s"     { return K_PART_V_S; }
 ".port"         { return K_PORT; }

@@ -26935,8 +26935,8 @@ static bool do_release_vec(vvp_code_t cp, bool net_flag)
 	    net->fil->release_pv(ptr, base, width, net_flag);
       }
       net->fun->force_flag(false);
-	// M12B-fr: report the release to any cbRelease callbacks.
-      net->fil->run_force_callbacks(cbRelease);
+	// M12B-fr: report the release to overlapping cbRelease callbacks.
+      net->fil->run_force_callbacks(cbRelease, base, width);
 
       return true;
 }

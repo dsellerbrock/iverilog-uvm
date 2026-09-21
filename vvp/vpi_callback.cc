@@ -252,10 +252,12 @@ inline value_part_callback::value_part_callback(p_cb_data data)
 : value_callback(data)
 {
       struct __vpiPV*pobj = dynamic_cast<__vpiPV*>(data->obj);
-      assert(pobj);
+      struct __vpiSignal*sobj = dynamic_cast<__vpiSignal*>(data->obj);
+      assert(pobj || sobj);
 
       vvp_vpi_callback*sig_fil;
-      sig_fil = dynamic_cast<vvp_vpi_callback*>(pobj->net->fil);
+      vvp_net_t*net = pobj ? pobj->net : sobj->node;
+      sig_fil = dynamic_cast<vvp_vpi_callback*>(net->fil);
       assert(sig_fil);
 
       sig_fil->add_vpi_callback(this);
@@ -266,11 +268,12 @@ inline value_part_callback::value_part_callback(p_cb_data data)
 	// is lsb first.
       s_vpi_value tmp_value;
       tmp_value.format = vpiBinStrVal;
-      pobj->vpi_get_value(&tmp_value);
+      data->obj->vpi_get_value(&tmp_value);
 
-      value_bits_ = new char[pobj->width+1];
-      memcpy(value_bits_, tmp_value.value.str, pobj->width);
-      value_bits_[pobj->width] = 0;
+      unsigned width = ::vpi_get(vpiSize, data->obj);
+      value_bits_ = new char[width+1];
+      memcpy(value_bits_, tmp_value.value.str, width);
+      value_bits_[width] = 0;
 }
 
 value_part_callback::~value_part_callback()
@@ -281,22 +284,25 @@ value_part_callback::~value_part_callback()
 bool value_part_callback::test_value_callback_ready(void)
 {
       struct __vpiPV*pobj = dynamic_cast<__vpiPV*>(cb_data.obj);
-      assert(pobj);
+      struct __vpiSignal*sobj = dynamic_cast<__vpiSignal*>(cb_data.obj);
+      assert(pobj || sobj);
 
       vvp_vpi_callback*sig_fil;
-      sig_fil = dynamic_cast<vvp_vpi_callback*>(pobj->net->fil);
+      vvp_net_t*net = pobj ? pobj->net : sobj->node;
+      sig_fil = dynamic_cast<vvp_vpi_callback*>(net->fil);
       assert(sig_fil);
 
 	// Get a reference value that can be used to compare with an
 	// updated value.
       s_vpi_value tmp_value;
       tmp_value.format = vpiBinStrVal;
-      pobj->vpi_get_value(&tmp_value);
+      cb_data.obj->vpi_get_value(&tmp_value);
 
-      if (memcmp(value_bits_, tmp_value.value.str, pobj->width) == 0)
+      unsigned width = ::vpi_get(vpiSize, cb_data.obj);
+      if (memcmp(value_bits_, tmp_value.value.str, width) == 0)
 	    return false;
 
-      memcpy(value_bits_, tmp_value.value.str, pobj->width);
+      memcpy(value_bits_, tmp_value.value.str, width);
       return true;
 }
 
@@ -380,7 +386,41 @@ static value_callback* make_force_release(p_cb_data data)
 
       assert(data->obj);
 
+      if (__vpiArrayPackedView*packed =
+            dynamic_cast<__vpiArrayPackedView*>(data->obj)) {
+            if (packed->get_type_code() == vpiRegBit) {
+                  fprintf(stderr, "vpi error: cbForce/cbRelease callback on an "
+                          "object that cannot carry a force (type=%d)\n",
+                          packed->get_type_code());
+                  delete obj;
+                  return 0;
+            }
+            packed->array->add_packed_force_callback(
+                  obj, packed->word, packed->base, packed->width);
+            return obj;
+      }
+
       vvp_net_t*use_net = 0;
+      if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(data->obj)) {
+            /* Packed scalar views deliberately expose vpiNetBit/vpiRegBit,
+               but remain signal views so they can retain their largest
+               containing packed parent. Do not reinterpret them as the
+               legacy __vpiBit layout. */
+            if (sig->packed_parent) {
+                  if (sig->get_type_code() == vpiRegBit) {
+                        fprintf(stderr, "vpi error: cbForce/cbRelease callback "
+                                "on an object that cannot carry a force "
+                                "(type=%d)\n", sig->get_type_code());
+                        delete obj;
+                        return 0;
+                  }
+                  use_net = sig->node;
+                  obj->force_range_valid = true;
+                  obj->force_base = sig->value_base;
+                  obj->force_width = sig->width();
+            }
+      }
+      if (!use_net)
       switch (data->obj->get_type_code()) {
 	  case vpiPartSelect: {
 		struct __vpiPV*pobj = dynamic_cast<__vpiPV*>(data->obj);
@@ -456,9 +496,16 @@ static value_callback* make_value_change(p_cb_data data)
 	 * signal/array. Attach scheduling to that one canonical object while
 	 * retaining data->obj in value_callback so the VPI client receives the
 	 * exact member view it registered. */
-	vpiHandle target = vpip_class_member_static_storage(data->obj);
-	if (!target)
+      vpiHandle target = vpip_class_member_static_storage(data->obj);
+      if (!target)
 	      target = data->obj;
+
+      if (dynamic_cast<__vpiArrayPackedView*>(target))
+            return vpip_array_word_change_target(data, target);
+
+      if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(target))
+            if (sig->packed_parent)
+                  return make_value_change_part(data);
 
 	// Special case: the target object is a vpiPartSelect
 	if (target->get_type_code() == vpiPartSelect) {
@@ -1131,8 +1178,17 @@ void vvp_vpi_callback::run_vpi_callbacks()
 			continue;
 		  }
 		  if (cur->test_value_callback_ready()) {
-			if (cur->cb_data.value)
-			      get_value(cur->cb_data.value);
+			if (cur->cb_data.value &&
+			    cur->cb_data.value->format != vpiSuppressVal) {
+			      __vpiSignal*view = dynamic_cast<__vpiSignal*>(
+			            cur->cb_data.obj);
+			      if (cur->cb_data.obj &&
+			          (cur->cb_data.obj->get_type_code() == vpiPartSelect ||
+			           (view && view->packed_parent)))
+			            cur->cb_data.obj->vpi_get_value(cur->cb_data.value);
+			      else
+			            get_value(cur->cb_data.value);
+			}
 
 			callback_execute(cur);
 		  }
@@ -1218,6 +1274,26 @@ extern "C" vpiHandle vpip_register_driver_activity_cb(p_cb_data data)
  */
 void vvp_vpi_callback::run_force_callbacks(int reason)
 {
+      run_force_callbacks_(reason, 0, false, 0, 0);
+}
+
+void vvp_vpi_callback::run_force_callbacks(int reason,
+                                            const vvp_vector2_t&mask)
+{
+      run_force_callbacks_(reason, &mask, false, 0, 0);
+}
+
+void vvp_vpi_callback::run_force_callbacks(int reason, unsigned base,
+                                            unsigned width)
+{
+      run_force_callbacks_(reason, 0, true, base, width);
+}
+
+void vvp_vpi_callback::run_force_callbacks_(int reason,
+                                             const vvp_vector2_t*mask,
+                                             bool have_range, unsigned base,
+                                             unsigned width)
+{
       value_callback *next = vpi_callbacks_;
       value_callback *prev = 0;
 
@@ -1226,9 +1302,34 @@ void vvp_vpi_callback::run_force_callbacks(int reason)
 	    next = dynamic_cast<value_callback*>(cur->next);
 
 	    if (cur->cb_data.cb_rtn != 0) {
-		  if (cur->cb_data.reason == reason) {
-			if (cur->cb_data.value)
-			      get_value(cur->cb_data.value);
+		  bool overlaps = true;
+		  if (cur->force_range_valid && mask) {
+			overlaps = false;
+			uint64_t end = static_cast<uint64_t>(cur->force_base)
+			      + cur->force_width;
+			for (uint64_t idx = cur->force_base;
+			     idx < end && idx < mask->size(); idx += 1) {
+			      if (mask->value(static_cast<unsigned>(idx))) {
+				    overlaps = true;
+				    break;
+			      }
+			}
+		  } else if (cur->force_range_valid && have_range) {
+			uint64_t cb_end = static_cast<uint64_t>(cur->force_base)
+			      + cur->force_width;
+			uint64_t use_end = static_cast<uint64_t>(base) + width;
+			overlaps = cur->force_base < use_end && base < cb_end;
+		  }
+		  if (cur->cb_data.reason == reason && overlaps) {
+			if (cur->cb_data.value &&
+			    cur->cb_data.value->format != vpiSuppressVal) {
+			      __vpiSignal*view = dynamic_cast<__vpiSignal*>(
+			            cur->cb_data.obj);
+			      if (view && view->packed_parent)
+			            view->vpi_get_value(cur->cb_data.value);
+			      else
+			            get_value(cur->cb_data.value);
+			}
 			callback_execute(cur);
 		  }
 		  prev = cur;
