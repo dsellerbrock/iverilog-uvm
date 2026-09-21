@@ -189,7 +189,7 @@ event_callback_boundary_review:
   status: Architecture risk remains open until boundary evidence is reviewed.
 
 batch_qualification:
-  state: SHARED_SEMANTIC_TREE_FROZEN
+  state: BROAD_RERUN_AFTER_PACKED_METADATA_REPAIR
   revision: dba0473b6
   integrated_fixes: 9
   reason: Approximately-ten cadence and full-UVM policy threshold; event patch stays private until acceptance passes.
@@ -226,3 +226,13 @@ event_callback_replay_scope:
   files: vvp/vvp_net.h and vvp/vvp_net_sig.cc in addition to existing event/logic/part ownership.
   purpose: Source transaction boundaries and ordered callback-origin marked-cone replay preserve parent atomicity and separate nested source pulses while ordinary storage/callback execution stays synchronous.
   acceptance: Parent-fanout low/high/reordered callback taps, automatic context liveness/recycling and active-null negatives; no shared integration before full focused matrix and coordinator review.
+
+packed_metadata_synthesis_regression:
+  id: VPI-PACKED-ELEMENT-ACCESS-SYNTH-REGRESSION
+  status: FOCUSED_TESTED_AWAITING_BROAD_RERUN
+  owner: Coordinator integrated reviewed Sol patch
+  trigger: Broad JSON synth_interface_member_transfer-S fails runtime with four packed dimension metadata target is not integral storage diagnostics.
+  evidence: evidence/review-20260920/batch-nine-20260921/json-first-failure
+  scope: Private trace and minimal repair of integrated packed-metadata emission/resolution; tgt-vvp/vvp_scope.c, vvp/words.cc, tests. Propose other files before editing.
+  acceptance: Original synthesis runtime reducer, matching nonsynthesis control, paired 2017/2023 packed VPI controls, exact metadata widths and alias handling; no metadata omission to conceal unsupported semantics.
+  coordination: Multidist patch frozen pending integration; this is its replacement lane. Shared broad process60589 terminated on JSON failure; coordinator owns build/install and validation.

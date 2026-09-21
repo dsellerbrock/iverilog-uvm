@@ -1182,8 +1182,11 @@ static void draw_net_in_scope(ivl_signal_t sig)
 				strength_aware_flag?", strength-aware":"");
 	    }
 
-          if (ivl_signal_data_type(sig) == IVL_VT_BOOL ||
-              ivl_signal_data_type(sig) == IVL_VT_LOGIC) {
+          /* Standalone local nets have no VPI handle. Array words and
+             variables retain handles even when compiler-generated. */
+          if ((!ivl_signal_local(sig) || dimensions > 0)
+              && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+                  || ivl_signal_data_type(sig) == IVL_VT_LOGIC)) {
                 char suffix[32];
                 snprintf(suffix, sizeof suffix, "_%u", iword);
                 emit_packed_dims_(sig, suffix);

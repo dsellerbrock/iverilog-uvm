@@ -1,212 +1,63 @@
-mission: Full standards-correct compiler/UVM campaign remains active; formal backend separate, preserve1364, defer1801.
+campaign: IEEE1800-UVM-continuous
+mission: Full IEEE1800-2017 and2023 independently; IEEE1800.2/UVM separately; preserve1364; UPF deferred; unmodified OpenTitan/Caliptra RTL/DV and eventual formal frontend.
 branch: agent/scope-sva-next-20260921
-head_checkpoint: e42f114cd
-history: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/before-CAMPAIGN.yaml
 merged_baseline:
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
   main: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
-  qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
-  ci_run: 35588718454
-  last_observed: Run35588718454 completed success; Ubuntu22.04/24.04,macOS,CLANG64,UCRT64,MINGW64 all success.
-next_batch:
-  integrated_fixes: 7
-  revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c, e42f114cd]
-  evidence_index: docs/conformance/CURRENT_WORK.md
-  pending: Required broad gates near10fixes, then coherent PR; no next-batch PR yet.
-  processes: Release retests completed; Terra event runtime-scope assessment active; exploratory post-wake patch rejected, Sol private VPI packed-element implementation authorized.
-applications:
-  pins: OpenTitan Earlgrey-PROD-M6; Caliptra v2.1.2 and AdamsBridgev2.0.3. Sources unchanged.
-  release_replay: docs/conformance/session_logs/2026-09-21_current_release_retest.json
-  release_limits: Fresh bounded replay at51f3a67c0; crossbar and Caliptra power2round pass, GPIO and pwrmgr fail. Not whole-app qualification.
-  latest_pwrmgr: docs/conformance/session_logs/2026-09-21_pwrmgr_startup.json
-  pwrmgr_state: Compiles but semantic fallback warnings exclude qualification; startup UVM_FATAL on indexed packed HDL path, despite process exit0.
-  live_path_probe: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/application-probe.json
-workspace:
-  user_changes: AGENTS.md remains dirty and untouched.
-  graph: Shared canonical graph refreshed from main3d3f8086b; feature worktree must not update graph.
-  cleanup: docs/conformance/session_logs/2026-09-21_canonical_graph_cleanup.json
-resume:
-  next: Review VPI packed-element and compound virtual-interface event proposals; update ACTIVE_WORK before new implementation.
-  exact_check: git status --short --branch
-  ownership: Coordinator shared integration/builds; lower-model workers private disjoint patches.
-
-selected_event_lane: COMPOUND-VIF-EDGE-EVENTS; Terra medium private elaborate.cc fix authorized after paired failing reducer. VPI packed-element implementation now authorized for Sol medium; scope and acceptance in ACTIVE_WORK.
-
-parallel_boundary_evidence: docs/conformance/session_logs/2026-09-21_parallel_pwrmgr_boundaries.json
-
-event_pulse_boundary: docs/conformance/session_logs/2026-09-21_vif_event_pulse_boundary.json
-
-structural_event_lane: Terra authorized private structural VIF proxy implementation; coordinator owns shared target/parser glue, disjoint from Sol private VPI edits.
-
-active_workers: constraint_guard_semantics (Sol medium packed VPI) and vif_proxy_implementation (Sol medium structural events); previous Terra worker stopped after repeated plan-only responses.
-
-ready_after_active_lanes: VARIABLE-OUTPUT-PORT-DIRECTION; paired failing runtime and explicit-wire control in docs/conformance/session_logs/2026-09-21_variable_output_port_direction.json. Do not concurrently edit event-owned elaborate.cc.
-
-packed_vpi_candidate_checkpoint:
-  state: Shared uncommitted candidate built and installed; six integrated fixes unchanged.
-  evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_candidate_replay.json
-  forward_metadata: Deferred net resolution repaired; paired forward-net runtime passes.
-  pending: Richer callbacks and force/release sibling overlap semantics; permanent tests and review before commit.
-  applications: Caliptra power2round2048 passes with working generator; OpenTitan pwrmgr still UVM_FATAL BUILDERR.
-  next: Review worker force/release scope proposal and malformed metadata boundary; integrate structural event patch only when ready.
-
-resolver_order_checkpoint:
-  build: Serial build and install completed after resolver-order delta.
-  evidence: evidence/review-20260920/next-vpi-packed-element-fix/resolver-order-results.json
-  tests: Paired valid forward-net passes; malformed fixture currently stops at syntax error and requires repair before negative claim.
-  worker: Sol packed-VPI lane authorized exact force/release overlap expansion; structural event lane remains independent.
-
-packed_vpi_review_checkpoint:
-  evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_review_checkpoint.json
-  crossbar: Fresh stable-release run passes180requests354scoreboard items; zero UVM warnings/errors/fatals.
-  new_red: Existing packed_api now aborts for vpiSuppressVal in callback payload refresh; Sol repairing, no semantic commit permitted yet.
-  event: Private structural build passes paired compound/table/pulse/mixed-or tests; automatic null rebind under standards review.
-
-structural_review_pending:
-  source: evidence/review-20260920/next-compound-vif-edge-fix/sol-structural/patch/event.cc
-  findings: Relay ownership across repeated rebind; root_word selection contract; malformed descriptor compile_errors; automatic default root for future activations.
-  action: Worker notified with bounded acceptance checks; private patch not integrated.
-
-packed_boundary_checkpoint:
-  positive: Paired2017/2023 INT_MIN/INT_MAX small-width dimensions and two-state packed memory reads pass; next-vpi-packed-element-assessment/root-oracle/boundary-results.json.
-  negative: Root valid-bytecode mutation proves trailing comma wrongly accepted; missing target lacks focused diagnostic; first-runtime/metadata-negative-review.json.
-  next: Worker repairing words.cc metadata boundaries and callback suppression/overlap; coordinator must rerun these exact cases before integrating.
-
-vif_null_semantics_review: docs/conformance/session_logs/2026-09-21_vif_null_review.json; both editions25.9 require fatal on attempted null use, while dormant structural initialization is not procedural evaluation. Worker designing correct activation boundary.
-
-user_priority_checkpoint:
-  current: Two selected OpenTitan-driven IEEE fixes remain under active implementation and correction.
-  next: Reproduced variable-output direction semantics, plus bounded Caliptra stable-release debt assessment by retained Luna.
-  success_measure: Integrated runtime-correct fixes with evidence, not documentation volume or compilation alone.
-
-vpi_force_candidate_validation:
-  evidence: docs/conformance/session_logs/2026-09-21_vpi_force_candidate_validation.json
-  result: Built and installed; rich access/force/forward cases pass both editions;13neighbor VPI tests pass; malformed metadata rejects correctly.
-  pending: Permanent tests, nested callback dispatch lifetime, final review before semantic commit.
-  next: Review worker regression patch and lifetime evidence, then integrate validated fix.
-
-vpi_full_candidate_review:
-  evidence: docs/conformance/session_logs/2026-09-21_vpi_full_candidate_review.json
-  suite:110cases106pass4goldmismatch:
-    correction: Four legacy partselect callback golds corrected to selected value per38.36.1;4focused reruns pass.
-  pending: Reject illegal new packed variable leaf force/release callback registrations; integrate revised legal-prefix permanent regressions.
-  caliptra: compress_tb probe needs missing package dependency restored in harness, not application edits.
-
-packed_leaf_callback_checkpoint:
-  source: New packed variable scalar force/release callback registrations now rejected under38.36.1; legal prefixes and net bits preserved.
-  build: Serial build/install passed.
-  tests: Corrected rich API passes both editions with two expected type49 diagnostics; legal-prefix nested overlap test passes both editions.
-  evidence: evidence/review-20260920/next-vpi-packed-element-fix/rich-runtime/leaf-reject-corrected-results.json
-  next: Integrate final permanent regression patch, run its exact manifest cases, then review semantic commit readiness.
-caliptra_compress_probe: External filelist correction resolves missing package; unchanged TB then fails missing mem_wr_req/mem_wr_data ports. Upstream test validity issue; another compatible TB under assessment.
-
-packed_vpi_local_integration:
-  evidence: docs/conformance/session_logs/2026-09-21_packed_vpi_integration.json
-  status: Focused tests and116/116VPI pass; local semantic checkpoint, broad batch gates pending.
-  next: Continue structural VIF event implementation and choose next independent reproduced debt after worker handoff.
-
-caliptra_continuous_string_assessment:
-  evidence: docs/conformance/session_logs/2026-09-21_caliptra_continuous_string.json
-  blocker: Continuously assigned string variable crashes paired reducer; stable rej_bounded_tb has failed filename reads and max-cycle termination.
-  owner: constraint_guard_semantics, Sol medium, assessment only before disjoint scope selection.
-  status: REPRODUCED; not implemented, app unchanged.
-event_validity_glue: Private coordinator-glue/validity-glue.patch prepared, apply-check clean, Bison14SR5RR unchanged; worker implementation still private.
-
-continuous_string_boundary_evidence: evidence/review-20260920/next-caliptra-debt-assessment/continuous-string-boundaries.json; dynamic source to sink crashes BUFZ recv_string both editions, multi-driver rejection already correct.
-
-continuous_string_selection_boundary:
-  root: Spec-grounded frontend string-to-net coercion and vector synthesis; adding BUFZ string receive alone is insufficient.
-  standards: Both editions6.5/6.16/10.3.2.
-  next: Select after event-owned elaborate.cc is free; meanwhile retained worker assesses independent constraint debt.
-  evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
-
-next_constraint_lane:
-  selected: CONSTRAINT-DIVMOD-ZERO
-  owner: constraint_guard_semantics, Sol medium
-  scope: vvp/vvp_z3.cc only, private patch; root shared build/install/review.
-  evidence: evidence/review-20260920/next-constraint-array-assessment/RESULTS.md
-  next: Implement guard-aware zero-divisor error semantics with paired runtime/rollback tests.
-
-event_boolean_pulse_boundary:
-  evidence: docs/conformance/session_logs/2026-09-21_event_boolean_pulse.json
-  result: Static and dynamic AND-expression pulses fail both editions; deferred boolean gates coalesce intermediate transitions.
-  next: Review event-only synchronous propagation proposal; preserve normal combinational scheduling.
-
-divmod_candidate_checkpoint:
-  state: Shared vvp_z3.cc patch applied and serial build/install passed; uncommitted.
-  evidence: evidence/review-20260920/next-constraint-array-assessment/primary-after-patch.json and root-controls/results.json
-  result: Both editions primary error, unsigned remainder error, legal random divisor controls pass.
-  pending: Permanent guard/wide/rollback fixtures and neighbors before integration.
-event_cone_scope: Additional worker logic.h/cc and coordinator draw_mux.c authorized for event-only synchronous gates; scope recorded in ACTIVE_WORK.
-
-divmod_guard_validation:
-  paired_fixture: evidence/review-20260920/next-constraint-array-assessment/tests/root-review.json; both editions PASSED with7expected diagnostics.
-  neighbors: evidence/review-20260920/next-constraint-array-assessment/neighbors.json;6/6JSON tests pass.
-  pending: Permanent fixture additions for ternary sifting and randc history replay; avoid disabling precheck for provably nonzero constant divisors.
-
-divmod_local_integration:
-  status: FOCUSED_TESTED_BATCH_GATES_PENDING
-  evidence: docs/conformance/session_logs/2026-09-21_constraint_divmod_zero.json
-  integrated_fixes_in_batch: 8
-  tests: Both editions pass focused legacy and JSON fixtures;11neighbor cases pass in each harness.
-  next: Continue event lane; retained solver worker assesses another independent recorded debt. Caliptra continuous strings wait for elaborate.cc ownership.
-event_part_select_scope: Event-only constant part-select propagation authorized in part.h/cc, with coordinator parser and vvp_scope.c glue; ordinary combinational scheduling unchanged.
-
-parallel_checkpoint_86a2e967d:
-  integrated: Eight focused-tested fixes; broad gates pending around ten.
-  lane_event: Private event-cone select propagation and null-at-arm validation.
-  lane_solver: JOINT-ORDERED-ACTIVE-RANDC authorized after paired red/control evidence; private vvp_z3.cc only.
-  next_command: Review private solver patch and event combined-build evidence before shared integration.
-
-event_atomic_expression_review:
-  fixtures: evidence/review-20260920/next-pwrmgr-event-assessment/boolean_atomic_static.sv and boolean_atomic_dynamic.sv
-  risk: Synchronous leaf fanout must not fabricate expression transitions between parts of a single atomic vector update.
-  next: Worker runs atomic controls alongside pulse controls; architecture expansion requires coordinator review if this fails.
-
-event_atomic_candidate_failure:
-  reported_result: Private event-only synchronous gate candidate passes pulse tests but fails atomic vector controls in both editions; shared compiler unchanged.
-  action: Superseded by private vvp_net_sig.cc signal-source hooks; marked-cone-only publication and reentrant callback boundary remain under repair.
-
-event_atomic_review_evidence: docs/conformance/session_logs/2026-09-21_event_atomic_fanout.json
-
-ordered_randc_candidate:
-  shared_base: 312d223f2
-  source_patch_sha256: 3f89161f0e59afcf317b8198779dc976a9b7ea0e83c64d483acd1a7ef4a093d1
-  state: Integrated dba0473b6; four focus and thirteen neighbor cases pass in each harness; final diagnostic-only rebuild and paired controls pass.
-  pending: Broad batch qualification.
-  evidence: evidence/review-20260920/next-constraint-ordered-randc-fix
-
-ordered_randc_focused_checkpoint:
-  integrated_fixes_in_batch: 9
-  status: Focused-tested and committed dba0473b6; required batch gates starting.
-  evidence: docs/conformance/session_logs/2026-09-21_joint_ordered_randc.json
-  tests: Four focused and thirteen neighbor cases pass in each harness; paired original reducer passes.
-  next: Event lane continues private atomic propagation repair; retained solver worker assesses one independent recorded debt without source edits.
-
-batch_nine_qualification:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
+  ci: All six jobs passed; docs/conformance/session_logs/2026-09-21_pr307_final_ci.json
+current_batch:
+  integrated_fixes: 9
   semantic_revision: dba0473b6
-  risk: HIGH; shared typing, VPI/runtime and solver changes require full project and UVM gates before publication/merge.
-  cadence: Nine fixes is approximately ten; freeze coherent batch while architectural event repair remains private. Regression policy also requires full UVM after eight stable changes.
-  shared_state: No builds/install/source mutations during gates; workers private only.
+  test_revision: 81ea0fab5
+  state: BROAD_RERUN_AFTER_PACKED_METADATA_REPAIR
+  cadence: Approximately ten fixes; full-UVM policy also triggers after eight stable changes. Private next-batch work is excluded.
   evidence: evidence/review-20260920/batch-nine-20260921
-  next: Run existing rootseed, integrated legacy/VPI/negative/runtime, JSON, NFA, frontend, full real-DPI UVM, release matrix and make-check gates serially; stop on failure.
-
-rootseed_rebase_selection:
-  evidence: evidence/review-20260920/rootseed-baseline-audit/current-runtime.json
-  result: Actual random payload identical for distinct root-seed options in both editions; historical parser absent.
-  next: Retained Luna mechanically rebases historical implementation/tests privately. Coordinator will strengthen echoed-label variation oracle and validate semantics before integration in following batch.
-  qualification_boundary: Current nine-fix shared source remains frozen; missing rootseed command is not reported as a passing gate.
-multidist_monotonicity_review:
-  evidence: evidence/review-20260920/next-constraint-multidist-monotonic-assessment/RESULTS.md
-  result: Both editions ignore later positive weights in equality-coupled ordinary distributions;1000same-seeded draws identical after1:1-to1:9 change.
-  next: Full-clause review permits prioritizing conflicting statistical weights while retaining hard domains; equality-conflict reducer does not establish a conformance defect. Preserve the documented policy and verify cyclic-prefix preflight before any future extension. No implementation authorized yet.
-
-batch_first_failure:
-  evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_legacy_expectation.json
-  state: Integrated gate stopped on two obsolete ordered-randc rejection expectations; VPI116/116,negative148/148,invariants15/15 passed.
-  action: Replace unsupported expectation with actual cycle/constraint assertions and retain true cyclic-order negative; add to focused manifests, rerun gates. Source/runtime remain unchanged.
-
-next_batch_private_lanes:
-  rootseed: Mechanical rebase prepared by Luna; coordinator validation/integration waits for frozen batch completion.
-  solver: JOINT-ORDERED-RANDC-MULTIDIST private implementation authorized after full-clause interpretation review; existing priority permitted for incompatible statistical requests, hard-domain obligations unchanged.
-  event: Worker reports atomic/pulse/callback/table/rebind controls pass both editions; latest liveness/full matrix and review pending. Private only.
+  live_exec_session: none; session60589 terminated on JSON failure
+  command: Repair VPI-PACKED-ELEMENT-ACCESS-SYNTH-REGRESSION, validate focused synthesis/runtime controls, rebuild only affected artifacts, then resume broad gates with new fingerprints.
+  serial_gates: integrated legacy/VPI/negative/runtime, JSON, NFA, frontend, full real-DPI UVM, release matrix, makecheck
+  first_failure: Two old tests required ordered randc rejection. Now require real constrained cycles, retaining cyclic-order negative. Six focused cases pass in each harness; integrated rerun passed; JSON then failed synth_interface_member_transfer-S packed metadata binding.
+  first_failure_evidence: docs/conformance/session_logs/2026-09-21_ordered_randc_legacy_expectation.json
+  rootseed_command: Historical runner referenced absent ivtest/runtime_root_seed.py; command did not run tests. Not a passing gate. Rebase separately selected below.
+  publication: No open PR at last check; prepare coherent PR after required local gates. User authorizes merge after one exact-head CI pass plus required local checks; later CI failures require follow-up repair.
+private_lanes:
+  event:
+    blocker: COMPOUND-VIF-EDGE-EVENTS
+    owner: vif_proxy_implementation, Sol medium
+    state: Private implementation and focused validation; not integrated.
+    scope: ACTIVE_WORK.yaml owns exact file authorization, source/callback transaction and context-lifetime boundaries.
+    evidence: evidence/review-20260920/next-compound-vif-edge-fix/sol-structural
+    coordinator_glue: evidence/review-20260920/next-compound-vif-edge-fix/coordinator-glue; validity then event-sync then part-event patches.
+    next: Review final apply-clean patch and latest matrix; reconvergent unequal-depth event control added by coordinator.
+  solver:
+    blocker: JOINT-ORDERED-RANDC-MULTIDIST
+    owner: constraint_guard_semantics, Sol medium
+    scope: Private vvp/vvp_z3.cc and regressions only; no shared source/build/install.
+    evidence: evidence/review-20260920/next-constraint-ordered-randc-multidist-fix
+    next: Multidist patch frozen SHA5c40e4855321b300e0f94dccb3f961b7b6abf4ff0a2a62d00bda1ad3040e6ead; packed-metadata synthesis regression repaired and focused-tested; worker idle.
+    interpretation: Conflicting statistical weights permit implementation priority; hard domains and zero exclusions remain mandatory. See docs/conformance/session_logs/2026-09-21_coupled_dist_interpretation.json.
+  rootseed_prepared:
+    blocker: DV-RUNTIME-ROOT-SEED
+    worker: caliptra_next_blocker, Luna low, mechanical preparation completed.
+    state: Private patch prepared; no implementation validation yet; not an active third implementation lane.
+    evidence: evidence/review-20260920/rootseed-rebase
+    red: evidence/review-20260920/rootseed-baseline-audit/current-runtime.json; actual random words identical for seed1 and2 in both editions.
+    source_patch: vvp-rootseed.patch; three runtime files, no shared application.
+    driver_review: Coordinator restored historical checks and made only payload comparison correction; baseline now fails for genuine seed-insensitivity. See coordinator-driver-review.json.
+    next: Semantic review, permanent packaging and paired validation after frozen batch ends. Vendor DV seed option, not a normative IEEE spelling.
+ready_application_work:
+  caliptra: CONTINUOUS-STRING-ASSIGN; paired crash/root cause known; elaborate.cc held by event worker. Stable rej_bounded_tb reaches max cycles after invalid string filenames; no app pass claim.
+  output_ports: VARIABLE-OUTPUT-PORT-DIRECTION; paired failing runtime and explicit-wire control retained; also waits for elaborate.cc ownership.
+  evidence: docs/conformance/session_logs/2026-09-21_caliptra_continuous_string.json
+application_pins:
+  opentitan: Earlgrey-PROD-M6 at a78922f14a8cc20c7ee569f322a04626f2ac6127
+  caliptra: v2.1.2 at49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; AdamsBridgev2.0.3 atb77e3d899e828d626cfc2a0d26a6b5704cc121e0
+  last_results: CURRENT_WORK.md links revision-scoped evidence. Crossbar UVM and power2round had meaningful passing runs; pwrmgr/GPIO and rej_bounded remain failing. Fresh checkpoint retest completed on81ea0fab5: crossbar180requests/354checks and power2round2048pass; GPIOstillfails. See2026-09-21_batch_nine_release_retest.json.
+coordination:
+  shared: Coordinator owns source integration, builds, installation, shared test outputs, review and publication. Broad run terminated; coordinator may integrate only its focused regression repair before resuming gates.
+  agents: Reuse cheaper workers; at most two active implementation lanes, disjoint files. Current event and solver lanes; no new worktrees.
+  preserve: External user AGENTS.md changes and unique evidence remain untouched and unstaged.
+  cleanup: Nine existing worktrees audited; none newly created. Never raw-delete worktrees; use required retirement helper after ancestry/cleanliness/submodule audit. Retain active/review evidence.
+resumption:
+  last_turn: Progress; reviewed private solver, established fresh rootseed red, corrected obsolete regression oracle and resumed required broad gate.
+  next_action: Resume new serial broad gate run; private event nested-callback audit passed. No further source/build mutations until gates terminate.
+  historical_state: Prior chronological CAMPAIGN preserved in git81ea0fab5 and earlier commits; historical session records unchanged.

@@ -34,9 +34,11 @@ The [self-package cast repair](session_logs/2026-09-21_self_package_type_cast.js
 
 The [pwrmgr startup replay](session_logs/2026-09-21_pwrmgr_startup.json) reaches runtime but fails HDL-path checking; compiler fallback warnings also exclude application qualification.
 
+The [nine-fix checkpoint release retest](session_logs/2026-09-21_batch_nine_release_retest.json) records fresh stable-source application results and the current broad-gate failure. Full batch qualification remains pending.
+
 ## Latest recorded compiler qualification
 
-The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on the experimental worktree, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.
+The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) preserves earlier bounded OpenTitan and Caliptra runtime results, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.
 
 The [canonical graph and cleanup record](session_logs/2026-09-21_canonical_graph_cleanup.json) records the restored main checkout, shared graph refresh, retired worktree, preserved branch, and cleanup audit.
 
