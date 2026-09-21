@@ -80,5 +80,10 @@
     "Required broad batch suites",
     "Batch PR and CI"
   ],
-  "limits": "Focused subset only; no full clause, randomization, edition or application qualification."
+  "limits": "Focused subset only; no full clause, randomization, edition or application qualification.",
+  "integrated_revision": "86a2e967d",
+  "additional_scope_randomize_control": {
+    "evidence": "evidence/review-20260920/next-constraint-array-assessment/root-controls/scope_divmod.json",
+    "result": "2017 and2023 active zero divisor diagnostic, unchanged failed value and legal divisor runtime control all pass"
+  }
 }

@@ -153,4 +153,20 @@ event_part_select_expansion:
   coordinator_files: tgt-vvp/vvp_scope.c, vvp/lexor.lex, vvp/parse.y, vvp/compile.h
   root: Constant part-select SA functors defer propagation independently of AND/event and lose the reproduced same-slot pulse.
   design: Event-only part-select marker and synchronous propagation; preserve ordinary part-select scheduling. Worker supplies factory signature before coordinator glue.
-  acceptance: Static and dynamic selected-bit Boolean pulses in both editions; existing select bounds, XZ, automatic context lifetime and event validity tests.
+  acceptance: Static and dynamic selected-bit Boolean pulses in both editions; atomic vector01-to10-to01 must not fabricate an AND edge; existing select bounds, XZ, automatic context lifetime and event validity tests.
+
+selected_ordered_randc:
+  id: JOINT-ORDERED-ACTIVE-RANDC
+  debt: DD-001/Z01
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED
+  owner: constraint_guard_semantics, Sol medium
+  standards: IEEE1800-2017/2023 18.4.2; ordering18.5.10 in2017 and18.5.9 in2023.
+  reproducer: evidence/review-20260920/next-constraint-ordered-randc-assessment/joint_ordered_active_randc.sv
+  red: Both editions blanket-reject legal ordering of ordinary rand variables whenever a separate active randc exists; ingredient controls pass.
+  root: Joint exact sampler rejects active randc instead of respecting implicit randc-first priority before explicit ordinary stages.
+  scope: Private vvp/vvp_z3.cc patch and paired permanent regressions only; coordinator owns integration/build/install.
+  design: Reuse complete component tables and transactional randc machinery; establish implicit cyclic stage before ordered ordinary stages. Retain preflight caps and RNG ownership.
+  semantic_boundary: 18.4.2 permits failures caused by cyclic ordering; do not infer universal success or prematurely reset histories merely to obtain a satisfiable ordinary-stage model.
+  acceptance: Full/restricted cycles,coupled and independent cyclic subjects,disabled randc,illegal explicit randc ordering,mathematically justified ordinary conditional distributions,seed replay,cap/UNKNOWN/UNSAT value/history/RNG/callback rollback.
+  forbidden: Remove rejection without correct priority; cap increases; arbitrary model selection or biased successful subsets; event/elaboration edits.
+  dependencies: Disjoint from event worker; divmod integrated86a2e967d.
