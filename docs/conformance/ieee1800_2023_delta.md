@@ -283,3 +283,5 @@ The scope UNKNOWN failure path and long fixed antecedent repairs have paired
 [SVA record](session_logs/2026-09-21_long_fixed_antecedent_fix.json) for semantics,
 revision scope and limits. No edition-wide completion or broad qualification
 is established by these focused checks.
+
+The [object-method constraint evidence](session_logs/2026-09-21_constraint_object_method_receiver.json) pairs 2023 clause18.5.11 with 2017 clause18.5.12. This is shared implementation evidence with separate generation modes, not full clause qualification.

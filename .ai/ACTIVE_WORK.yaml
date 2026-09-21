@@ -60,7 +60,7 @@ current_assessment:
 
 selected_implementation:
   id: CONSTRAINT-OBJECT-METHOD-RECEIVER
-  status: REPRODUCED_SPEC_GROUNDED
+  status: IMPLEMENTED_FOCUSED_TESTED
   owner: constraint_guard_semantics, Sol medium
   standard: IEEE1800-2017 18.5.12 and2023 18.5.11
   reproducer: evidence/review-20260920/next-constraint-method-assessment/method_receiver_fail.sv

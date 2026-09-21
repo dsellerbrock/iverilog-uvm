@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_constraint_object_method_impure_override_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_constraint_object_method_impure_override_fail"
+}

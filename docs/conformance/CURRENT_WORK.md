@@ -26,6 +26,8 @@ validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
 The [scope solver UNKNOWN repair](session_logs/2026-09-21_scope_solver_unknown_fix.json) is focused-tested on the next-batch branch. The [long fixed antecedent repair](session_logs/2026-09-21_long_fixed_antecedent_fix.json) is also focused-tested. Broad next-batch qualification is pending; both fixes are separate from PR307.
 
+The [constraint object-method repair](session_logs/2026-09-21_constraint_object_method_receiver.json) has paired focused and neighboring regression evidence; broad batch gates remain pending.
+
 ## Latest recorded compiler qualification
 
 The [next-candidate release retest](session_logs/2026-09-21_next_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on the experimental worktree, including source/binary fingerprints and clean release pins. It does not qualify the pending compiler patches. The [published-candidate retest](session_logs/2026-09-21_published_candidate_release_retest.json) and September 20 static census remain revision-scoped historical evidence.

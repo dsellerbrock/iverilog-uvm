@@ -28693,7 +28693,14 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
       /* Traverse actual/default argument expressions, never the called body:
 	 * only source arguments establish the implicit priority. */
       if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(expr)) {
-	    for (unsigned idx = 0; idx < call->parm_count(); ++idx)
+	    /* An object receiver is an implicit implementation argument, not a
+	     * source function argument. Its state is sampled when the call is
+	     * evaluated; it must not establish the 18.5.12/18.5.11 priority that
+	     * applies only to random variables used as function arguments. */
+	    unsigned first = scope_method_uses_implicit_this(
+		  constraint_ir_design_ctx_,
+		  const_cast<NetScope*>(call->func())) ? 1U : 0U;
+	    for (unsigned idx = first; idx < call->parm_count(); ++idx)
 		  if (!constraint_call_dependencies_(call->parm(idx), cls,
 			receiver, dependencies)) return false;
 	    return true;
@@ -31031,14 +31038,44 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	       * the constraint and let each randomize call evaluate the method on
 	       * its actual receiver after pre_randomize(). */
 	    if (cls && constraint_ir_state_calls_ctx_
-		&& (!call->receiver_expr() || scoped_static_locator)
 		&& !cpath.empty() && call->with_constraints().empty()) {
 		  NetScope*method = nullptr;
+		  const netclass_t*method_receiver_class = nullptr;
 		  if (!call->path().package && !call->has_scoped_type_prefix()
 		      && cpath.size() == 1 && cpath.front().index.empty())
 			method = cls->resolve_method_call_scope(
 			      constraint_ir_design_ctx_, cpath.front().name);
-		  else {
+		  /* A source object method can be flattened as a dotted path or
+		   * retain an arbitrary receiver expression. Resolve its declared
+		   * receiver type with the same target-precedence-aware walker used
+		   * elsewhere in constraint translation. The generated wrapper still
+		   * evaluates the complete original call, so nested handles, defaults,
+		   * and virtual dispatch retain ordinary language semantics. */
+		  if (!method && !call->has_scoped_type_prefix()) {
+			constraint_source_type_t receiver_type;
+			if (call->receiver_expr()) {
+			      receiver_type = constraint_source_expr_type_(
+				    call->receiver_expr(), cls, value_slots, scope);
+			} else if (!call->path().package && cpath.size() > 1) {
+			      pform_name_t receiver_path = cpath;
+			      receiver_path.pop_back();
+			      unique_ptr<PEIdent>receiver(
+				    new PEIdent(receiver_path, UINT_MAX));
+			      if (call->leading_type_args())
+				receiver->set_borrowed_leading_type_args(
+				      call->leading_type_args());
+			      receiver_type = constraint_source_expr_type_(
+				    receiver.get(), cls, value_slots, scope);
+			}
+			method_receiver_class =
+			      !receiver_type.unpacked_dimensions
+			      ? dynamic_cast<const netclass_t*>(receiver_type.type)
+			      : nullptr;
+			if (method_receiver_class)
+			      method = method_receiver_class->resolve_method_call_scope(
+				    constraint_ir_design_ctx_, cpath.back().name);
+		  }
+		  if (!method) {
 			symbol_search_results found;
 			if (symbol_search(call, constraint_ir_design_ctx_,
 			      const_cast<NetScope*>(scope), call->path(), UINT_MAX,
@@ -31131,8 +31168,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      NetNet*receiver = new NetNet(wrapper,
 				    perm_string::literal(THIS_TOKEN), NetNet::REG, cls);
 			      receiver->port_type(NetNet::PINPUT);
+			      bool validate_receiver = method_receiver_class
+				    && implicit_this
+				    && !(pfunc && pfunc->method_qualifiers().test_static());
+			      ivl_type_t capture_type = result_type;
+			      if (validate_receiver)
+				    capture_type = new netvector_t(
+					  IVL_VT_LOGIC,
+					  result_type->packed_width() - 1, 0,
+					  result_type->get_signed());
 			      NetNet*wrapper_result = new NetNet(wrapper,
-				    wrapper->basename(), NetNet::REG, result_type);
+				    wrapper->basename(), NetNet::REG, capture_type);
 			      vector<NetNet*>wrapper_ports(1, receiver);
 			      vector<NetExpr*>wrapper_defaults(1, nullptr);
 			      NetFuncDef*wrapper_def = new NetFuncDef(wrapper,
@@ -31142,6 +31188,47 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    constraint_ir_design_ctx_, wrapper, result_type,
 				    const_cast<PECallFunction*>(call), false);
 			      if (!wrapped_call) return "";
+			      /* Calling a nonstatic method through null is illegal
+			       * (IEEE 1800-2017/2023 8.4). Ordinary method lowering can
+			       * otherwise execute a constant body without dereferencing its
+			       * null implicit-this argument and fabricate a successful value.
+			       * Preserve the original call for argument-priority analysis,
+			       * but guard its execution in the capture wrapper. A null path
+			       * yields four-state X, which the existing constraint capture
+			       * check rejects transactionally under 18.3. */
+			      NetExpr*dependency_call = wrapped_call;
+			      if (validate_receiver) {
+				    const NetEUFunc*method_call =
+					  dynamic_cast<const NetEUFunc*>(wrapped_call);
+				    const NetExpr*actual_receiver = method_call
+					  && method_call->parm_count()
+					  ? method_call->parm(0) : nullptr;
+				    if (!actual_receiver) {
+					  cerr << call->get_fileline() << ": error: Function '"
+					       << call->path() << "' used in a constraint has "
+					       << "no representable object receiver." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
+				    NetExpr*receiver_copy = actual_receiver->dup_expr();
+				    NetENull*null_value = new NetENull(
+					  actual_receiver->net_type());
+				    receiver_copy->set_line(*call);
+				    null_value->set_line(*call);
+				    NetEBComp*receiver_valid = new NetEBComp(
+					  'N', receiver_copy, null_value);
+				    receiver_valid->set_line(*call);
+				    verinum invalid(verinum::Vx,
+					  result_type->packed_width(), true);
+				    invalid.has_sign(result_type->get_signed());
+				    NetEConst*invalid_value = new NetEConst(invalid);
+				    invalid_value->set_line(*call);
+				    wrapped_call = new NetETernary(
+					  receiver_valid, wrapped_call, invalid_value,
+					  result_type->packed_width(),
+					  result_type->get_signed());
+				    wrapped_call->set_line(*call);
+			      }
 			      NetAssign*return_value = new NetAssign(
 				    new NetAssign_(wrapper_result), wrapped_call);
 			      return_value->set_line(*call);
@@ -31162,7 +31249,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      }
 			      set<netclass_t::constraint_dependency_t>dependencies;
 			      if (!scoped_static_locator
-				  && !constraint_call_dependencies_(wrapped_call, cls,
+				  && !constraint_call_dependencies_(dependency_call, cls,
 				    receiver, dependencies)) {
 				    cerr << call->get_fileline() << ": error: Function '"
 					 << call->path() << "' used in a constraint has "

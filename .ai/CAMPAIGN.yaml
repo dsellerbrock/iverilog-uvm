@@ -60,3 +60,9 @@ self_package_candidate:
   results: Paired2017/2023 four positive runtime controls pass; implicit enum and unknown type reject; bare name concatenation remains separate failure.
   pending: Permanent tests and focused neighbor validation.
 application_retest_checkpoint: docs/conformance/session_logs/2026-09-21_next_candidate_release_retest.json; crossbar354items and Caliptra2048cases pass, GPIO20errors/1fatal; clean release pins.
+
+receiver_integrated_checkpoint:
+  state: IMPLEMENTED_FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-21_constraint_object_method_receiver.json
+  pending: Broad batch gates; no full application qualification.
+  worker: Frozen; elaborate.cc may be reassigned after coordinator checkpoint.

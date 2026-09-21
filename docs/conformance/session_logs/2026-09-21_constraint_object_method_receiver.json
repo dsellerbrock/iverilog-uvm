@@ -1,0 +1,39 @@
+{
+  "blocker": "CONSTRAINT-OBJECT-METHOD-RECEIVER",
+  "state": "IMPLEMENTED_FOCUSED_TESTED; broad batch gates pending",
+  "source_sha256": "ad88a9af17a5a7fe8152f1af1420c602a7eac2573693a59dbb94b8dbb64d4f00",
+  "standards": {
+    "2017": [
+      "18.5.12",
+      "18.3",
+      "8.4"
+    ],
+    "2023": [
+      "18.5.11",
+      "18.3",
+      "8.4"
+    ]
+  },
+  "mechanism": "Resolve state object method receivers through existing type walker; preserve purity, virtual dispatch, actual/default argument dependencies and pre-solve capture. Reject null nonstatic receivers through four-state capture; static methods use source qualifiers, not synthetic implicit-this structure.",
+  "tests": {
+    "acceptance": "8 paired runtime and6 paired compile-rejection cases pass",
+    "permanent_legacy": "6/6 pass",
+    "permanent_json": "6/6 pass",
+    "neighbors_legacy": "206/206 pass",
+    "neighbors_json": "206/206 pass"
+  },
+  "application": "Exact retained Earlgrey-PROD-M6 pwrmgr closure now exits2: enum.name concatenation errors remain plus signed-bin drop diagnostic. Compile progress only, not application success.",
+  "limits": [
+    "Indexed object receivers remain explicitly rejected by purity; no support claimed.",
+    "Packed integral method results only.",
+    "Class constraint capture only; scope object calls not expanded.",
+    "Pure receiver expressions may be evaluated for nullness and again for call; original arguments alone determine function priority."
+  ],
+  "review_corrections": [
+    "Original inactive-X expectation corrected using active-block call semantics; constraint_mode(0) checked separately.",
+    "First null correction incorrectly guarded static calls; fixed using PFunction source static qualifier.",
+    "Permanent CE JSON uses base source in both modes to preserve exact diagnostic path."
+  ],
+  "evidence": "evidence/review-20260920/next-constraint-method-fix",
+  "pending": "Required broad suites at batch checkpoint; full UVM/application/edition conformance remains partial."
+}

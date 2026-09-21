@@ -1591,3 +1591,8 @@ Clause16.9.2 fixed antecedents use the existing age pipeline beyond the former
 128-cycle restriction; see [runtime and cover evidence](../session_logs/2026-09-21_long_fixed_antecedent_fix.json).
 These are implemented subsets with focused evidence, not broad qualification
 or completion of either clause.
+
+Clause18.5.12 class constraints now capture pure integral state-object method
+calls, including nested receivers and virtual dispatch, with null/X rejection
+and transactional failure. Indexed receivers remain unsupported. See the
+[paired-edition focused evidence](../session_logs/2026-09-21_constraint_object_method_receiver.json); broad qualification remains pending.
