@@ -1,0 +1,24 @@
+{
+  "status": "FOCUSED_BASE_PASS_WIDE_BOUNDARIES_FAIL",
+  "focus": {
+    "evidence": "evidence/review-20260920/next-blocking-index/candidate-overlay-incremental-5/results.json",
+    "passed": 28,
+    "total": 28
+  },
+  "permanent_registration": {
+    "evidence": "evidence/review-20260920/next-blocking-index/permanent-staging",
+    "legacy_passed": 28,
+    "json_passed": 28,
+    "revision_note": "Permanent harness runs used incremental4; incremental5 repeated direct28runtimefocus.",
+    "corrections": "JSON gold basename,2023include prefix corrected; $finish(0) suppresses banners, assertions unchanged."
+  },
+  "wide_boundary_evidence": "evidence/review-20260920/next-blocking-index/patch/wide-word-synth/results.json",
+  "wide_failures": {
+    "negative": "No wrong write, but untouched mem1 becomes Z rather than X under synthesis.",
+    "positive": "Elaboration truncates80-bit OOB index to zero; mem0 overwritten. Also untouched mem1 Z."
+  },
+  "root_cause_evidence": "evidence/review-20260920/next-blocking-index/patch/map-diagnostic-evidence.json",
+  "temporary_diagnostic": "Removed and rebuilt before current tests.",
+  "discarded_change": "Speculative net_nex_output.cc changes fully reverted.",
+  "next": "Terra elab_lval checked-index helper reuse; Sol unowned memory word X initialization; integrate both, retest widecases/basefocus then synthesis neighbors and broad batch gates."
+}

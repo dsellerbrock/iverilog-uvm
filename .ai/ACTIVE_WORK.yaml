@@ -386,3 +386,44 @@ nba_overlay_incremental2_checkpoint:
   remaining: Nested unpacked dynamic part write output map assertion in both editions.
   shared_unbuilt: Incremental3 limits nested root resolution to non-precise output discovery, preserving always_comb sensitivity subtraction.
   next: Integrate mapped root-cause repair, build and run expanded28case focus, then synthesis neighbors.
+
+nba_permanent_registration_lane:
+  agent: row_async_reset
+  model: gpt-5.6-terra
+  effort: medium
+  scope: Prepare private permanent registrations for the fourteen existing synthesis acceptance sources, without changing assertions or expected values.
+  owns: [evidence/review-20260920/next-blocking-index/permanent-staging]
+  forbidden: Shared source, manifests, index, builds, tests and invented warning golds.
+  dependency: Coordinator captures exact outputs after all focus cases pass; candidate remains incomplete.
+
+nba_constant_word_bounds_prerequisite:
+  authority: Coordinator-authorized completion of constant-word map handling.
+  scope: Use existing width-independent verinum_signed_magnitude in pending-map, per-word and compact address checks in synth2.cc.
+  invariant: IEEE1800-2017 7.4.6 and2023 7.4.5 invalid array indices perform no write; host-long truncation cannot select another word.
+  acceptance: Negative and oversized positive constant indices plus current28focused cases; preserve positive failing reducer even if behavioral engine is wrong.
+  discovery: Behavioral elaboration reportedly truncates positive wider-than64-bit index; record separately with actual evidence rather than using it as the oracle.
+
+wide_constant_word_elaboration_lane:
+  id: OVERSIZED-CONSTANT-ARRAY-WORD
+  status: REPRODUCED_COORDINATOR_AUTHORIZED
+  agent: row_async_reset
+  model: gpt-5.6-terra
+  effort: medium
+  scope: Private smallest complete elaboration fix preserving oversized constant array index invalidity before host-long conversion.
+  owns: [evidence/review-20260920/next-wide-constant-word]
+  implementation_files: elab_lval.cc and directly implicated existing index canonicalization helper only, after source trace.
+  forbidden: synth2.cc, expr_synth.cc, link_const.cc, netlist.h, shared edits/builds/install/manifests, application source changes.
+  standards: IEEE1800-2017 7.4.6; IEEE1800-2023 7.4.5, invalid index writes have no effect.
+  reproducer: evidence/review-20260920/next-blocking-index/patch/pending_nba_wide_positive_oob.sv
+  actual: Both behavioral editions truncate80-bit index to zero and overwrite mem[0].
+  expected: Preserve both array words; no fabricated in-range index.
+  acceptance: Paired behavioral and synthesis positivewide/negativewide OOB no-write, valid index, X/Z boundary; ordinary indexing neighbors preserved.
+  dependency: Independent compiler-stage prerequisite exposed during synthesis constant-word review.
+
+nba_wide_boundary_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_nba_focused_and_wide_boundary_checkpoint.json
+  status: BASE28PASS_WIDE_BOUNDARIES_FAIL
+  synthesis_prerequisite: Preserve initial X for untouched4state unpacked words; synthesis_nba_completion owns existing synthesis files.
+  elaboration_prerequisite: Prevent widepositive constant word truncation; row_async_reset owns private elab_lval.cc patch via existing checked helper.
+  shared_processes: No build or test running.
+  next: Integrate disjoint fixes and run positive/negativewide boundaries plus28focus before synthesis neighbors and broad gates.
