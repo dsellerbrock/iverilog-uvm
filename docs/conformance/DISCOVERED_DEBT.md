@@ -2577,7 +2577,7 @@ protection, real clocked runtime check with a discriminating population
 — two outer keys with disjoint inner key sets — not just a compile
 check).
 
-### DD-041 — Crash: `ivl_assert` failure evaluating a class-method `localparam` initialized from a bare-name outer-scope parameter (2026-09-17)
+### DD-041 — Crash: `ivl_assert` failure evaluating a class-method `localparam` initialized from a bare-name outer-scope parameter (2026-09-17, FIXED)
 
 Found via the same fresh OpenTitan census (Earlgrey-PROD-M6) that surfaced
 DD-040: `hw/dv/sv/entropy_src_xht_agent/seq_lib/entropy_src_xht_base_device_seq.sv:55`,
@@ -2643,45 +2643,66 @@ ingredients held at the shape above):
   gap; class-in-module bare-name outer-parameter visibility may simply
   work differently or not be supported at all — not pursued this pass).
 
-**Root cause (not found — traced partway, stopped before guessing):**
-`NetScope::evaluate_parameter_` (`net_design.cc` ~line 1941-1949)
-elaborates `cur->second.val_type` into `cur->second.ivl_type` for
-every parameter exactly once, immediately before dispatching to
-`evaluate_parameter_logic_` (or the real/string/array variants) by
-`use_type`. For an explicitly-typed `localparam int X = ...`, `val_type`
-is always present, so `elaborate_type()` should always produce a
-non-null `ivl_type` before `evaluate_parameter_logic_` ever runs and
-checks it at line 1518. That it's null there for the class-method
-case, but not for the plain-function case with the identical
-declaration shape, means either: (a) class-method-local parameters
-reach `evaluate_parameter_logic_` through a different call path that
-skips this elaborate-type step, or (b) resolving the bare-name
-`val_expr` (`RNG_BUS_WIDTH`) during `elab_and_eval()` recursively
-touches parameter evaluation for the WRONG scope's `cur` iterator —
-e.g. a class-method-local parameter table entry that shares the name
-but was never given a `val_type` in the first place, as opposed to the
-outer package's correctly-typed entry. Distinguishing these (and
-finding why only the class-method path takes whichever route is
-wrong) needs tracing `evaluate_parameters()`'s scope-walk order and
-`elab_scope.cc`'s class-method scope construction directly, not
-further black-box bisection.
+**Root cause, found via direct instrumentation (temporary `cerr` tracing
+at both `NetScope::evaluate_parameter_`'s type-elaboration step and
+`evaluate_parameter_logic_`'s pre-assert check, removed before landing
+the fix):** the trace showed `X`'s `ivl_type` correctly becoming
+non-null immediately after `evaluate_parameter_` elaborates its
+declared type — then, after recursively resolving `RNG_BUS_WIDTH`'s
+own value, reading back as null again for the SAME map entry (same
+address) by the time `evaluate_parameter_logic_`'s assert runs. Nothing
+in between explicitly clears it except `NetScope::set_parameter()`
+(`net_scope.cc:490-512`), which unconditionally resets `ref.ivl_type = 0`
+on every call — meaning `X`'s declaration was being RE-REGISTERED a
+second time, mid-flight, while its own first registration's value was
+still being evaluated.
 
-**Closure requirements:** trace `NetScope::evaluate_parameters()`'s
-scope-walk order for a class method scope specifically (does it visit
-the method's own scope, or via a different path than plain
-function/package scopes?), and instrument (or step through) which
-`param_ref_t`/`cur` the crashing `ivl_assert` actually refers to when
-it fires — confirm whether it is genuinely the class-method-local
-entry for a name that was never locally declared (in which case the
-bug is likely a spurious/duplicate parameter-table entry created
-during class-method scope elaboration) or the correctly-shared outer
-entry (in which case the bug is in whatever clears `ivl_type` between
-the dispatcher and the logic evaluator). A real, discriminating
-regression test (two class methods each referencing a differently-typed
-outer parameter, or a runtime check on the correctly-elaborated value,
-not just "does it not crash") is required once a fix is attempted,
-per [[discovered-debt-hypothesis-is-not-diagnosis]] and this session's
-own DD-039/DD-040 near-misses. Status: recorded, not selected.
+That re-registration traces to `elaborate_scope_class()`
+(`elab_scope.cc`, the ordinary/non-parameterized class-scope
+elaboration entry point): it elaborates a class's typedefs, signals,
+events, enums and — critically — every task/function method scope
+(which is where a method-local `localparam` gets declared via
+`set_parameter`) entirely inline, but **never calls
+`use_class->set_scope_ready(true)`** afterward, unlike its two siblings
+`elaborate_specialized_class_type()` and
+`complete_class_scope_in_place_()`, which both do at the end of
+equivalent work. Because the class is left permanently looking
+"incomplete", `ensure_visible_class_type()`'s "found the class, but it
+is not `scope_ready()`" branch (`elab_scope.cc:800-813`) re-triggers
+`elaborate_scope_class()` for the SAME class on every subsequent
+lookup — including a self-referential one reached while resolving
+`RNG_BUS_WIDTH`'s bare-name reference from inside the class's own
+method body. That second call finds the class scope already exists
+(the `child_byname` guard at `elab_scope.cc:4351`) and, since
+`scope_ready()` is still false, calls `complete_class_scope_in_place_()`
+— which reuses the SAME, already-elaborated method scope object
+(`class_scope->child(use_name)`) and re-runs
+`PFunction::elaborate_scope()` on it, re-declaring `X` via
+`set_parameter()` and wiping the `ivl_type` the outer, still-in-progress
+`evaluate_parameter_()` call had just set.
+
+**Fix:** add `use_class->set_scope_ready(true)` at the true completion
+point of `elaborate_scope_class()`, mirroring what its two sibling
+completion paths already do. This is the correct, minimal, root-cause
+fix — not a defensive guard on `set_parameter()`'s reset, which would
+leave the actual bug (silent, wasteful, and potentially unsafe
+re-elaboration of an already-complete class scope on every subsequent
+reference to it) in place for whatever else it might also corrupt.
+
+**Verified:** the original minimal reproducer, the qualified-name and
+plain-function bisection variants (still correctly unaffected), and a
+real discriminating-population runtime check (two classes in two
+different packages, each referencing a differently-valued same-named
+outer parameter, plus two instances of one class, confirming no
+cross-instance or cross-package value confusion) — see
+`ivtest/ivltests/sv_class_method_localparam_outer_param.v`. Local
+six-gate suite clean (UVM 357/0/0, ivtest 5827/0/0 unexplained, VPI
+108/0, negative 148/0, runtime invariants 15/15). The separate,
+still-open "class-in-module bare-name outer-parameter visibility" gap
+noted in the bisection above (a different, pre-existing "Unable to
+bind parameter" diagnostic path) was confirmed NOT to be the same
+mechanism and remains unpursued — genuinely out of scope for this fix.
+Status: fixed.
 
 ### DD-042 — Covergroup cross `select_expression with (...)`: the `with` clause only accepts a bare cross/bins name, not a general `binsof`/`&&`/`||` selector (2026-09-17)
 
