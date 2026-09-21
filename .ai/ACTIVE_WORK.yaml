@@ -45,7 +45,7 @@ ownership:
 validation:
   prior_integrated: PASS before latest enable repair; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
   live_session: 40936
-  current_passed_gates: [json]
+  current_passed_gates: [json, integrated]
   json_evidence: evidence/review-20260920/batch-20260921-conditional-enable/json.run.json
   directory: evidence/review-20260920/batch-20260921-conditional-enable
   order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
