@@ -2456,7 +2456,7 @@ against the same stimulus, proving the composed delay is exactly 5,
 not silently wrong in either direction. Permanent regression:
 `ivtest/ivltests/sv_sva_chained_leading_cycle_delay.v`. Status: fixed.
 
-### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17)
+### DD-040 — `foreach` selected-prefix into an ASSOCIATIVE array silently iterates the wrong keys; the selector is dropped, not applied (2026-09-17, FIXED)
 
 Found via a fresh OpenTitan census against the corrected release pin
 (Earlgrey-PROD-M6): `hw/dv/sv/dv_utils/dv_report_catcher.sv:19`,
@@ -2524,16 +2524,87 @@ outer array with a variable selector iterates the OUTER array's own
 keys into the inner loop variable; other combinations silently
 iterate zero times) — all wrong, none diagnosed, until this fix.
 
-**Fix scope (deliberately narrow — refuse, don't attempt to
-lower):** added a `foreach_target_has_selector_prefix_()` check
-(`elaborate.cc`) gating both reachable dispatch sites
-(`elaborate_signal_array_` and the parallel `elaborate_foreach_target_expr_`-based
-expression route) to refuse with an honest `sorry:` whenever the
-**final** path component being iterated carries a non-empty selector
-index, rather than attempt the real fix (threading a runtime-evaluated
-key expression through `elaborate_assoc_array_`, which `PForeach`'s
-current interface does not support and is out of scope for this
-session).
+**Real fix:** a `foreach_target_has_selector_prefix_()` check
+(`elaborate.cc`, unchanged from the earlier `sorry:` version) still
+identifies whenever the **final** path component being iterated
+carries a non-empty selector index. What changed is the dispatch: a
+selector-prefixed target into an ASSOCIATIVE array (`netqueue_t`,
+`assoc_compat()`) now routes to `elaborate_foreach_target_expr_`,
+which builds a `PEIdent` from the full (selector-included) target path
+and calls `PEIdent::elaborate_expr()` — the exact same
+`elab_assoc_index()`-based lookup machinery every other indexed
+reference to an associative array already uses. That machinery
+re-evaluates the selector at RUNTIME on every loop entry (not baked in
+once at elaboration time), so it correctly tracks a selector whose
+value changes across outer-loop iterations (see the `successors[s].
+m_predecessors[pred]` UVM shape below) or across repeated executions
+of the same `foreach` statement. `elaborate_signal_array_()`'s own
+associative-array branch is now reached ONLY for a genuinely
+unselected target (no index on the final component at all), where
+wrapping the whole array signal and handing it to
+`elaborate_assoc_array_()` is correct as-is.
+
+**A second, pre-existing bug found and fixed in the same pass (loop
+variable type):** the runtime fix above only mattered for a VARIABLE
+selector (`m[id][msg]`); a real discriminating-population test showed
+a LITERAL/constant selector (`m["a"][msg]`) still iterated zero times
+regardless. Root cause was upstream of `elaborate.cc` entirely: the
+pre-existing `parse.y` grammar rule for this shape
+(`K_foreach '(' foreach_array_identifier '[' expression ']' '['
+loop_variables ']' ')'`) always passed `nullptr` as the array name to
+`pform_make_foreach_declarations`, forcing the loop variable (`msg`)
+to be typed plain `int` regardless of the array's real key type. For a
+string-keyed associative array this made the vvp code generator emit
+the wrong opcode variant (`%aa/first/sv` instead of `%aa/first/str`,
+confirmed by direct `.vvp` bytecode inspection via `iverilog -d
+elaborate`), which iterates zero elements with no diagnostic at all —
+not even a wrong answer, just silence. Fixed by attaching the fixed
+selector's index onto the array name BEFORE calling
+`pform_make_foreach_declarations` (instead of after, once the body had
+already been parsed) and passing that real, indexed name through, so
+`foreach_index_type_t::elaborate_type_raw`'s existing "selected" branch
+(already used by the undotted-selector grammar rule above) resolves
+the loop variable's true declared type instead of falling back to
+`int`.
+
+**A third, pre-existing bug found and fixed in the same pass (plain
+static arrays):** the loop-variable-type fix above is lazy — it only
+changes what type gets attached to the loop variable, so on its own it
+should not have touched anything about how the array TARGET itself is
+resolved. But re-running the full verification suite after landing it
+caught a real regression anyway: `foreach (A[0][j])` over a plain
+`int A[2][3]` (no associative array anywhere) started failing with
+"Array A['sd0] needs 2 indices, but got only 1." where it had
+previously compiled. The actual cause was independent of the loop-var
+fix and had been latent since the FIRST version of this session's
+routing change (the one gating `elaborate.cc`'s `hier_sig` fast path
+on `foreach_target_has_selector_prefix_`): that gate was written to
+force ANY selector-prefixed target through the expression route, not
+just associative ones. For a plain static array, the expression
+route's `PEIdent::elaborate_expr()` refuses a PARTIAL index into a
+signal outright (`elaborate_expr_net_word_` demands a complete,
+element-addressing index count) — a restriction that exists precisely
+because ordinary expression elaboration has no use for a "half
+selected" array. Before this session's DD-040 work, this exact shape
+went through `elaborate_signal_array_()` via the same fast path as
+every other plain array, which DID compile — but a discriminating
+runtime check newly written to confirm the fix showed it had ALWAYS
+silently iterated the wrong (already-fixed) dimension, ignoring the
+selector's value entirely: the same "drop the selector" bug class as
+DD-040's headline bug, just for a signal instead of a queue, and never
+previously caught because the only check on record for this shape was
+`exit==0`, not actual output. Fixed by narrowing the routing gate to
+send only a selector-prefixed target into an ASSOCIATIVE signal
+through the expression route; a selector-prefixed target into any
+other (plain static or dynamic) signal still uses the fast path, and
+`elaborate_signal_array_()` now drops the leading N selected
+dimensions (N = the selector's index count — only the COUNT matters
+here, never the selector's actual value, since the loop bounds for the
+remaining dimensions don't depend on which slice was picked) before
+computing loop bounds for the remaining ones. Verified with a real
+discriminating-population runtime test: two different selector values
+(`A[0][j]` and `A[1][k]`) each correctly iterate the same REMAINING
+dimension (size 3), never the fixed one (size 2).
 
 **A near-miss worth recording as its own lesson:** the first version
 of this gate checked whether ANY component of the target path had a
@@ -2557,25 +2628,33 @@ actually iterated) before landing; UVM regression is 357/0/0 with the
 corrected gate. See `sv_foreach_nested_assoc_no_selector.v` for the
 permanent regression protecting this exact shape.
 
-**Closure requirements:** thread a runtime-evaluated selector key
-expression through `elaborate_assoc_array_()` so the correct sub-array
-is looked up on every loop entry (not baked in once at elaboration
-time, since the selector's value can change between separate `foreach`
-executions or — per the near-miss case above — across outer-loop
-iterations). This does not by itself unblock the OpenTitan UVM/runtime
-census jobs that hit `dv_report_catcher.sv`: a `sorry:` still
-increments `error_count`, so those cores remain `FAIL`, just with an
-honest, specific diagnostic instead of a raw `syntax error`. Status:
-recorded, not selected.
+**Resolution:** all three bugs above (the associative-array selector
+never being applied, the literal-selector loop variable being
+mistyped, and the plain-static-array selector silently iterating the
+wrong dimension) are fixed and verified with real discriminating-
+population runtime checks, not just compile checks. This unblocks the
+OpenTitan UVM/runtime census jobs that hit `dv_report_catcher.sv`
+(`m_changed_sev[id][msg]`) — that construct now elaborates and runs
+correctly instead of failing with a `sorry:`. Local six-gate suite
+(UVM: 357/0/0, ivtest: 5827 passed/0 failed/0 unexplained, VPI: 108/0,
+negative: 148/0, runtime invariants: 15/15) and `bison --report=state`
+conflict-state comparison against origin/main (572 shift/reduce, 1122
+reduce/reduce, identical per-state signatures, zero new conflicts) all
+clean. Status: fixed.
 
-Tests: `ivtest/ivltests/sv_foreach_selected_prefix_assoc_fail.v`
-(undotted selector into a nested associative array, `sorry:`,
-gold-verified), `sv_foreach_undotted_selected_prefix_fail.v`
-(undeclared selector identifier, real elaboration error, gold-verified),
+Tests: `ivtest/ivltests/sv_foreach_selected_prefix_assoc.v` (renamed
+from `..._fail.v` now that the construct passes — both a variable
+selector `m[id][msg]` and a literal one `m["a"][msg]`, real runtime
+check with a discriminating population of disjoint inner key sets),
+`sv_foreach_undotted_selected_prefix_fail.v` (undeclared selector
+identifier, still correctly a real elaboration error, gold-verified),
 `sv_foreach_nested_assoc_no_selector.v` (the UVM-shaped false-positive
 protection, real clocked runtime check with a discriminating population
 — two outer keys with disjoint inner key sets — not just a compile
-check).
+check), `sv_foreach_selected_prefix_static_array.v` (the plain-static-
+array sibling bug found while fixing this, real runtime check with two
+different selector values each iterating the correct remaining
+dimension).
 
 ### DD-041 — Crash: `ivl_assert` failure evaluating a class-method `localparam` initialized from a bare-name outer-scope parameter (2026-09-17, FIXED)
 
