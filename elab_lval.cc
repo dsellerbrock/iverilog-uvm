@@ -1693,6 +1693,7 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       NetExpr*canon_index = 0;
       list<NetExpr*>unpacked_indices;
       list<long>unpacked_indices_const;
+      string unpacked_indices_text;
       indices_flags flags;
 	if (fixed_container_leaf) {
 	      const netsarray_t*fixed_type =
@@ -1720,6 +1721,12 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 		   name_tail.index, reg->unpacked_dimensions(), false,
 		   flags, unpacked_indices, unpacked_indices_const);
 
+            // Checked canonicalization consumes the expressions. Preserve
+            // their spelling for later scalar-select diagnostics.
+            ostringstream index_text;
+            index_text << as_indices(unpacked_indices);
+            unpacked_indices_text = index_text.str();
+
 	    if (flags.invalid) {
 		  // Nothing to do.
 	    } else if (flags.undefined) {
@@ -1742,9 +1749,20 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 			     == reg->unpacked_dimensions());
                   const netsarray_t*fixed_type =
                         dynamic_cast<const netsarray_t*>(reg->array_type());
+                  bool wide_index = false;
+                  for (NetExpr*index : unpacked_indices) {
+                        const NetEConst*constant = dynamic_cast<const NetEConst*>(index);
+                        if (constant && constant->value().len() > sizeof(long)*8)
+                              wide_index = true;
+                  }
                   if (fixed_type) {
                         canon_index = make_checked_canonical_property_index(
                               des, this, unpacked_indices, flags, fixed_type);
+                        const NetEConst*constant = dynamic_cast<const NetEConst*>(canon_index);
+                        if (constant && !constant->value().is_defined()) {
+                              delete canon_index;
+                              canon_index = nullptr;
+                        }
                   } else {
                         canon_index = normalize_variable_unpacked(
                               reg, unpacked_indices_const);
@@ -1752,8 +1770,12 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 		  if (canon_index == 0) {
 			cerr << get_fileline() << ": warning: "
 			     << "ignoring out of bounds l-value array access "
-			     << reg->name() << as_indices(unpacked_indices_const)
-			     << "." << endl;
+                             << reg->name();
+                        if (wide_index)
+                              cerr << unpacked_indices_text;
+                        else
+                              cerr << as_indices(unpacked_indices_const);
+                        cerr << "." << endl;
 		  }
 	    }
       }
@@ -1910,7 +1932,7 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 	    if (reg->data_type() == IVL_VT_REAL) cerr << "real";
 	    else cerr << "scalar";
 	    cerr << " array word: " << reg->name()
-	         << as_indices(unpacked_indices) << endl;
+	         << unpacked_indices_text << endl;
 	    des->errors += 1;
 	    return 0;
       }

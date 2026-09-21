@@ -1,2 +1,3 @@
 warning: verinum::as_long() truncated 80 bits to 63, returns 0
+./ivltests/sv_wide_word_positive_oob.v:12: warning: ignoring out of bounds l-value array access mem[80'b00000000000000010000000000000000000000000000000000000000000000000000000000000000].
 PASS

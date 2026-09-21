@@ -475,3 +475,18 @@ current_broad_gate_run:
   source_state: Frozen; all46focus cases pass both harnesses and160synthesis neighbors pass.
   next: Poll session12410; inspect per-gate run.json/status/log. Do not restart a live process. Stop serial driver on first nonzero gate.
   qualification: Pending; fresh application evidence predates only the constant-index single-evaluation cleanup.
+
+broad_gate_elaboration_regressions:
+  status: REPRODUCED_UNDER_REPAIR_PRIVATE_ONLY
+  source_revision: f5928785b
+  regressions: [pr1833024, sv_uarray_partial_index_oob]
+  evidence: evidence/review-20260920/batch-20260921/first-regressions
+  diagnostic_owner: Coordinator; consumed expression list loses scalar-word index error detail in elab_lval.cc.
+  row_owner: row_async_reset, Terra medium, private patch for false OOB row mixed-driver rejection in elab_lval.cc.
+  shared_scope: No shared source edits/builds until live gate12410 completes; integrate both private fixes sequentially.
+  acceptance: Existing negative diagnostic exact output and invalid-row no-write runtime; valid row/mixed-driver rejection and current46case focus.
+
+batch_gate_completed_with_regressions:
+  evidence: docs/conformance/session_logs/2026-09-21_batch_gate_regressions.json
+  session12410: Completed; integrated failed with6legacy regressions, later gates notrun.
+  next: Repair diagnostic preservation and invalid-row driver check; focusedvalidation before fresh broadgate directory.
