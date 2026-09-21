@@ -13,7 +13,7 @@ next_batch:
   revisions: [25653fdc0, acb786965, 346b48f68, c8e6cb97c, e42f114cd]
   evidence_index: docs/conformance/CURRENT_WORK.md
   pending: Required broad gates near10fixes, then coherent PR; no next-batch PR yet.
-  processes: Release retests completed; Terra private event implementation active, VPI assessment delivered.
+  processes: Release retests completed; Terra private event implementation active, Sol private VPI packed-element implementation authorized.
 applications:
   pins: OpenTitan Earlgrey-PROD-M6; Caliptra v2.1.2 and AdamsBridgev2.0.3. Sources unchanged.
   release_replay: docs/conformance/session_logs/2026-09-21_current_release_retest.json
@@ -30,4 +30,6 @@ resume:
   exact_check: git status --short --branch
   ownership: Coordinator shared integration/builds; lower-model workers private disjoint patches.
 
-selected_event_lane: COMPOUND-VIF-EDGE-EVENTS; Terra medium private elaborate.cc fix authorized after paired failing reducer. VPI packed-element assessment remains with Sol medium.
+selected_event_lane: COMPOUND-VIF-EDGE-EVENTS; Terra medium private elaborate.cc fix authorized after paired failing reducer. VPI packed-element implementation now authorized for Sol medium; scope and acceptance in ACTIVE_WORK.
+
+parallel_boundary_evidence: docs/conformance/session_logs/2026-09-21_parallel_pwrmgr_boundaries.json

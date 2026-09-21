@@ -1,5 +1,5 @@
 id: SV-UVM-NEXT-BATCH-20260921
-status: PARALLEL_BLOCKER_SELECTION
+status: PARALLEL_IMPLEMENTATION
 objective: Full IEEE1800-2017/2023 compiler semantics and independent UVM compatibility; unmodified stable OpenTitan and Caliptra applications.
 authority: User-authorized continuous campaign; coordinator selects implementation only after reducer/spec/root cause.
 branch: agent/scope-sva-next-20260921
@@ -48,3 +48,21 @@ selected_implementation:
   acceptance: Paired runtime edge counts, no early execution, predicate unchanged on operand mutation, rearming, packed field/select,4state transitions, rebind semantics grounded in LRM, real-edge rejection.
   forbidden: Remove warnings without semantics, broaden sensitivity to all operands, skip waits, modify application sources.
   dependencies: Disjoint from VPI declaration/runtime proposal; coordinator shared build/install/tests.
+
+selected_vpi_implementation:
+  id: VPI-PACKED-ELEMENT-ACCESS
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED
+  owner: constraint_guard_semantics, Sol medium
+  standards: IEEE1800-2017/2023 38.19 and38.21; verify chapter37 object properties against selected integral type.
+  evidence: evidence/review-20260920/next-vpi-packed-element-assessment/RESULTS.md
+  reproducer: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/probe.sv plus probe.c; paired runtime failures retained.
+  expected: Legal indexed packed elements expose the declared remaining width and real read/write/force/release semantics; invalid selects return null.
+  root: tgt-vvp discards packed dimensions; VVP signal indexing returns flattened bits and name lookup has no indexed descent.
+  scope: Private patch in tgt-vvp/vvp_scope.c, vvp/lexor.lex, vvp/parse.y, vvp/compile.h, vvp/words.cc, vvp/vpi_priv.h, vvp/vpi_signal.cc, vvp/vpi_priv.cc, vvp/array_common.h, vvp/array.cc, vvp/vpi_callback.cc. Propose additional files first.
+  architecture: Preserve ordered declaration metadata without changing flattened value storage; reuse existing selected-value machinery, stable handle ownership, and callbacks. Verify observable VPI types and properties from normative object model.
+  acceptance: Paired2017/2023 nets/variables, ascending/descending/nonzero/negative ranges, nested selectors, unpacked words, escaped identifiers, invalid indices, XZ, get/deposit/force/release and callbacks; unchanged pwrmgr22-bit element paths.
+  forbidden: Path-check exceptions, dummy handles, forged values, application edits, metadata-only success claims.
+  dependencies: Disjoint from Terra elaborate.cc; coordinator owns builds, shared source integration and regression directories.
+  boundary: Integral packed selection via by-name and by-index; no full VPI object-model qualification or multi-index API completion claim.
+
+  scope_refinement: IEEE chapter37 requires packed prefix handles retain net/variable type, not part-select type. vpi_callback.cc is authorized solely to route these real selected handles through existing filtered signal/array callback machinery.
