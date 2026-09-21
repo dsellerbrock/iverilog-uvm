@@ -16,9 +16,10 @@ This does not establish support for every recursively clocked property operator.
 ## Validation
 
 `sv_assert_grouped_clocked_consequent.v` compares grouped and ungrouped forms
-and independently checks exact pass/fail counts for six cases: distinct clocks
+and independently checks exact pass/fail counts for seven cases: distinct clocks
 with both implication operators, coincident clocks with both operators, disabled
-pending obligation, and a false consequent. Triple parentheses exercise nesting.
+pending obligation, a false consequent, and a third-clock transition after the
+explicit consequent clock. Triple parentheses exercise nesting.
 Both `-g2017` and `-g2023` pass: legacy harness 2/2, JSON harness 2/2.
 Existing multiclock JSON neighbors: 252 run, zero failures.
 Bison conflict counts remain 572 shift/reduce and 1122 reduce/reduce.
