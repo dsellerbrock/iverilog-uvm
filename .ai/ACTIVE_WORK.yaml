@@ -2,7 +2,7 @@ id: SV-UVM-BATCH-20260921
 status: VALIDATING
 objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
 authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
-semantic_revision: bbb3a9d30
+semantic_revision: 8ab943352
 branch: agent/reviewed-main-baseline-20260920
 history: docs/conformance/session_logs/2026-09-21_prevalidation_ACTIVE_WORK.yaml
 
@@ -38,15 +38,15 @@ ownership:
   workers: No active implementation assignments; dffsynth4 repair focused-tested.
   reusable_agents:
     row_async_reset: Terra medium; array elaboration and bounded fixtures; completed latest repair.
-    synthesis_nba_completion: Sol medium; synthesis mechanism; active private dffsynth4 repair.
+    synthesis_nba_completion: Sol medium; synthesis mechanism; completed dffsynth4 repair.
     constraint_guard_semantics: Sol medium; cast and distribution solver; completed.
   routing: Explicit cheapest capable worker model and effort; compact handoff; reuse existing agents and disjoint file ownership.
 
 validation:
-  integrated: PASS; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
-  last_session: 22845
-  directory: evidence/review-20260920/batch-20260921-repaired
-  order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
+  prior_integrated: PASS before latest enable repair; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
+  live_session: 40936
+  directory: evidence/review-20260920/batch-20260921-conditional-enable
+  order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
   rule: Inspect actual status/run.json/log; driver stops at first nonzero gate. Never restart a live process.
   focused_evidence:
     - docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
@@ -63,9 +63,9 @@ active_regression:
   id: SYNTHESIS-EMPTY-TRUE-NBA-ELSE
   test: ivtest/ivltests/dffsynth4.v
   reproducer: local-install/bin/iverilog -S -o evidence/review-20260920/next-blocking-index/dffsynth4-repair/test.vvp ivtest/ivltests/dffsynth4.v
-  actual: Compiler asserts at t-dll.cc1924 missing logic nexus t_cookie.
+  original_failure: Compiler asserted at t-dll.cc1924 missing logic nexus t_cookie.
   expected: Else-only NBA captures D when ce is false and holds Q when ce is true.
-  owner: synthesis_nba_completion; retained Sol medium, private patch only; coordinator integration/build.
+  owner: Coordinator integrated reviewed Sol patch; focused tests pass, broad gates running.
   scope: Trace directly implicated synth2.cc branch-enable/netlist connectivity; preserve all B/P semantics.
   evidence: evidence/review-20260920/next-blocking-index/dffsynth4-repair
   acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.
