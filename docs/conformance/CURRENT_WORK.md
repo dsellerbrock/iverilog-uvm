@@ -1,5 +1,7 @@
 # Current evidence and work
 
+Latest compiler qualification: [PR312 required local gates](session_logs/2026-09-21_pr312_local_qualification.json) pass on repair source `0b1aeaee6`, identical to `b5bc2864f` for compiler/test inputs. CI remains pending. This supersedes pending local-gate statements below; application outcomes retain their recorded provenance.
+
 Latest PR309 evidence: [required local qualification](session_logs/2026-09-21_pr309_local_qualification.json) passes on `09316da3d`; PR309 merged as `cb6f35b56` while CI was still running. This supersedes the earlier pending-local-gate notes below without changing their historical results or claiming full application qualification.
 
 Documentation checkpoint: **2026-09-14**, reviewed against `main` revision
