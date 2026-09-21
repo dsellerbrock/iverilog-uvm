@@ -1,0 +1,2 @@
+ivltests/sv_enum_bare_num_string_fail.v:5: error: String concatenation operand 1 must be a string literal or an expression of string type: value.num
+Elaboration failed

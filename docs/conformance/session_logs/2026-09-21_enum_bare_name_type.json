@@ -1,0 +1,26 @@
+{
+  "blocker": "ENUM-NAME-BARE-CONCAT-TYPE",
+  "state": "IMPLEMENTED_FOCUSED_TESTED; broad gates pending",
+  "standards": {
+    "2017": [
+      "5.13",
+      "6.19"
+    ],
+    "2023": [
+      "5.13",
+      "6.19"
+    ]
+  },
+  "root_cause": "PEIdent::resolve_type_ omitted string result for the built-in enum name method; runtime lowering already existed.",
+  "fix": "Add name -> netstring_t mapping beside existing integral enum method types.",
+  "source_sha256": "1ca41e8ba1eaf12b77029a55edd232e6465da1127bd317a417b4862826ae5003",
+  "tests": {
+    "red": "bare string concat fails both editions; parenthesized control runs successfully",
+    "legacy_focus": "4/4 pass, paired positive and negative",
+    "json_focus": "4/4 pass, paired positive and negative",
+    "legacy_neighbors": "120/120 enum cases pass"
+  },
+  "coverage": "Direct/local/class-member enum names; runtime comparison to parenthesized form; unnamed enum value gives empty string; num/first/last/next/prev unchanged; integer num remains rejected in string concatenation.",
+  "evidence": "evidence/review-20260920/next-enum-name-concat-assessment",
+  "limits": "Focused shared type-resolution fix, not complete enum or application qualification. Package-shadow repair and signed coverage remain independent pending work."
+}

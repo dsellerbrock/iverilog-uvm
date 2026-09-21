@@ -1,0 +1,9 @@
+{
+  "head": "dba4f4dc3",
+  "active": "COMPOUND-VIF-EDGE-EVENTS",
+  "standards": "IEEE1800-2017/2023 9.4.2: detect expression-result edges, not arbitrary operand activity",
+  "observation": "Armed posedge(a&&b), b=1, a blocking0->1->0 within one active process loses pulse. Both static and virtual-interface variants fail in both editions; dynamic baseline also warns event skipped.",
+  "root_evidence": "vvp_fun_boolean_::update uses schedule_functor outside context initialization and coalesces intermediate states.",
+  "raw": "evidence/review-20260920/next-pwrmgr-event-assessment/boolean-pulse-baseline.json",
+  "next": "Worker must propose smallest event-cone synchronous propagation scope for data and validity; no global gate scheduler change or deferred null-at-arm check."
+}

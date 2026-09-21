@@ -3031,6 +3031,10 @@ sv_packed_element_write_synth normal,-g2017,-S ivltests
 sv_synth_empty_implicit_sensitivity normal,-g2017,-S ivltests
 sv_synth_empty_implicit_sensitivity_forced_fail CE,-g2017,-S,-tnull ivltests gold=sv_synth_empty_implicit_sensitivity_forced_fail.gold
 sv_package_qualified_subroutine_lookup normal,-g2017 ivltests gold=sv_package_qualified_subroutine_lookup.gold
+sv_self_package_enum_cast normal,-g2017,-s,test ivltests gold=sv_self_package_enum_cast.gold
+sv_self_package_enum_cast_2023 normal,-g2023,-s,test ivltests gold=sv_self_package_enum_cast.gold
+sv_self_package_enum_cast_unknown_type_fail CE,-g2017 ivltests gold=sv_self_package_enum_cast_unknown_type_fail.gold
+sv_self_package_enum_cast_unknown_type_fail_2023 CE,-g2023 ivltests gold=sv_self_package_enum_cast_unknown_type_fail.gold
 sv_missing_package_task_fail CE,-g2017 ivltests gold=sv_missing_package_task_fail.gold
 sv_missing_package_task_shadow_fail CE,-g2017 ivltests gold=sv_missing_package_task_shadow_fail.gold
 sv_missing_package_self_task_fail CE,-g2017 ivltests gold=sv_missing_package_self_task_fail.gold
@@ -4076,3 +4080,31 @@ sv_uarray_invalid_row_mixed_driver_2023 normal,-g2023 ivltests gold=sv_uarray_in
 
 dffsynth4_2017 normal,-S,-g2017 ivltests
 dffsynth4_2023 normal,-S,-g2023 ivltests
+sv_constraint_object_method_receiver normal,-g2017,-s,test ivltests gold=sv_constraint_object_method_receiver.gold
+sv_constraint_object_method_receiver_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_object_method_receiver.gold
+sv_constraint_object_method_state_fail normal,-g2017,-s,test ivltests gold=sv_constraint_object_method_state_fail.gold
+sv_constraint_object_method_state_fail_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_object_method_state_fail.gold
+sv_constraint_object_method_impure_override_fail CE,-g2017,-s,test ivltests gold=sv_constraint_object_method_impure_override_fail.gold
+sv_constraint_object_method_impure_override_fail_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_object_method_impure_override_fail.gold
+sv_enum_bare_name_concat normal,-g2017,-s,test ivltests gold=sv_enum_bare_name_concat.gold
+sv_enum_bare_name_concat_2023 normal,-g2023,-s,test ivltests gold=sv_enum_bare_name_concat.gold
+sv_enum_bare_num_string_fail CE,-g2017,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
+sv_enum_bare_num_string_fail_2023 CE,-g2023,-s,test ivltests gold=sv_enum_bare_num_string_fail.gold
+
+sv_covergroup_signed_ranges normal,-g2017,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
+sv_covergroup_signed_ranges_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_ranges.gold
+sv_covergroup_signed_range_resolution normal,-g2017,-s,test ivltests gold=sv_covergroup_signed_range_resolution.gold
+sv_covergroup_signed_range_resolution_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_range_resolution.gold
+sv_covergroup_signed_cross normal,-g2017,-s,test ivltests gold=sv_covergroup_signed_cross.gold
+sv_covergroup_signed_cross_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_cross.gold
+sv_covergroup_inside_unsigned_comparison normal,-g2017,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
+sv_covergroup_inside_unsigned_comparison_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
+sv_covergroup_signed_range_cap CE,-g2017,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
+sv_covergroup_signed_range_cap_2023 CE,-g2023,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
+sv_constraint_divmod_zero normal,-g2017 ivltests gold=sv_constraint_divmod_zero.gold
+sv_constraint_divmod_zero_2023 normal,-g2023 ivltests gold=sv_constraint_divmod_zero.gold
+
+sv_randomize_joint_ordered_randc normal,-g2017 ivltests gold=sv_randomize_joint_ordered_randc.gold
+sv_randomize_joint_ordered_randc_2023 normal,-g2023 ivltests gold=sv_randomize_joint_ordered_randc.gold
+sv_randomize_joint_ordered_randc_fail normal,-g2017 ivltests gold=sv_randomize_joint_ordered_randc_fail.gold
+sv_randomize_joint_ordered_randc_fail_2023 normal,-g2023 ivltests gold=sv_randomize_joint_ordered_randc_fail.gold

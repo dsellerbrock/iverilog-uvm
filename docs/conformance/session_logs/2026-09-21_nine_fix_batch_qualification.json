@@ -1,0 +1,243 @@
+{
+  "semantic_revision": "c1635efe9780fc78b8d03d8750df1c56f36023dd",
+  "recording_head": "32b15dc8776800c1151e331c0f6dcd6789aa4c56",
+  "integrated_fixes": 9,
+  "state": "REQUIRED_LOCAL_GATES_PASS",
+  "gates": {
+    "integrated": {
+      "command": [
+        "bash",
+        ".github/ivtest_gate.sh"
+      ],
+      "start": 1790001537.124607,
+      "end": 1790001932.269422,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    },
+    "json": {
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "regress-vvp.list"
+      ],
+      "start": 1790001934.6059,
+      "end": 1790002204.3695328,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    },
+    "nfa": {
+      "command": [
+        "bash",
+        "tests/sva_nfa/run.sh"
+      ],
+      "start": 1790002204.413446,
+      "end": 1790002207.2177532,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    },
+    "frontend": {
+      "command": [
+        "bash",
+        ".github/uvm_frontend_test.sh"
+      ],
+      "start": 1790002207.260811,
+      "end": 1790002228.373445,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    },
+    "uvm": {
+      "command": [
+        "bash",
+        ".github/uvm_test.sh"
+      ],
+      "start": 1790002228.416992,
+      "end": 1790002804.559765,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    },
+    "releases": {
+      "command": [
+        "python3",
+        "scripts/uvm_release_matrix.py",
+        "--prefix",
+        "local-install"
+      ],
+      "start": 1790002804.604388,
+      "end": 1790002830.23597,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    },
+    "makecheck": {
+      "command": [
+        "make",
+        "check"
+      ],
+      "start": 1790002830.2828789,
+      "end": 1790002831.434388,
+      "exit": 0,
+      "installed_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "installed_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "f9b93da4dbe44fa7b23de64640e7de7b82c4eec1d7391a7a1fae666492bfc64b",
+        "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47",
+        "local-install/lib/ivl/vvp.tgt": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9",
+        "local-install/lib/ivl/uvm_dpi.vpi": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9",
+        "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+      },
+      "stable": true
+    }
+  },
+  "results": {
+    "integrated": {
+      "total": 6012,
+      "passed": 6007,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3,
+      "vpi_passed": 116,
+      "negative_passed": 148,
+      "runtime_invariants": 15
+    },
+    "json": {
+      "ran": 2922,
+      "failed": 0
+    },
+    "nfa": {
+      "passed": 58,
+      "failed": 0
+    },
+    "frontend": "all scenarios passed",
+    "uvm": {
+      "passed": 357,
+      "failed": 0,
+      "skipped": 0,
+      "dpi": "real umbrella",
+      "generation": "2012"
+    },
+    "releases": "14 pinned releases SMOKE_PASS",
+    "makecheck": "PASS"
+  },
+  "source_freeze": "Compiler/tests unchanged after semantic revision; later commits only evidence and operational records. External AGENTS.md changes excluded. Private candidates not integrated.",
+  "first_failures": [
+    "Old ordered-randc rejection expectation corrected by81ea0fab5, preserving illegal-order negative and requiring real cycles.",
+    "Packed metadata emitted for handleless synthesis temporaries repaired byc1635efe9; visible/local-array/local-variable metadata retained."
+  ],
+  "limits": [
+    "Local revision-scoped compiler validation, not complete IEEE1800/1800.2/application/formal qualification.",
+    "GitHub CI and final application retest recorded separately.",
+    "Private event/multidist/rootseed/strict-regex/string candidates excluded."
+  ],
+  "raw_evidence": "evidence/review-20260920/batch-nine-20260921-repaired",
+  "log_sha256": {
+    "integrated": "cfbe7dd691599ff6374b90c299a55d316b68f70b10ab61d45718a03e831aa2ee",
+    "json": "e0925f0dfdfb9555a565778b7885f7c08d4fb90581f0556e6fcffdd1b07b34a7",
+    "nfa": "209e37555a28f8dd530630a35d5f73806d7d1255cee2e98c9a622ea03a645763",
+    "frontend": "db876f9688737db20393ccef1cf293936fb6aea181483063e960a1da3003f2a8",
+    "uvm": "b53f4f9917fdb2b1d552ff98039012405a36be7290ffb7766262e1c6268182ff",
+    "releases": "a81f7951a84b26a35a18b218e6a11db807551136f92f2e11d090ca096c75b261",
+    "makecheck": "736116373aeca58f1c7ec944245a64ee5c317cbad30b8dd3643679f2141c290f"
+  }
+}

@@ -76,6 +76,7 @@ struct __vpiArrayWord {
 	    void vpi_get_value(p_vpi_value vp) override;
 	    vpiHandle vpi_put_value(p_vpi_value vp, int flags) override;
 	    vpiHandle vpi_handle(int code) override;
+	    vpiHandle vpi_index(int idx) override;
       } as_word;
 
       struct as_index_t : public __vpiHandle {

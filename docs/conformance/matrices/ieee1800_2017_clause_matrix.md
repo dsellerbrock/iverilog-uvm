@@ -1582,3 +1582,34 @@ owns test scope and limitations. Required broad qualification remains pending;
 this does not establish complete procedural synthesis or array support.
 
 The [September 21 local batch qualification](../session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.
+
+### September21 next-batch focused implementation
+
+Clause18.12 scope randomization now rejects solver UNKNOWN without committing
+values or process RNG state; see the [repair evidence](../session_logs/2026-09-21_scope_solver_unknown_fix.json).
+Clause16.9.2 fixed antecedents use the existing age pipeline beyond the former
+128-cycle restriction; see [runtime and cover evidence](../session_logs/2026-09-21_long_fixed_antecedent_fix.json).
+These are implemented subsets with focused evidence, not broad qualification
+or completion of either clause.
+
+Clause18.5.12 class constraints now capture pure integral state-object method
+calls, including nested receivers and virtual dispatch, with null/X rejection
+and transactional failure. Indexed receivers remain unsupported. See the
+[paired-edition focused evidence](../session_logs/2026-09-21_constraint_object_method_receiver.json); broad qualification remains pending.
+
+Clauses5.13/6.19: enum `name` without parentheses now resolves to string in
+concatenations through the shared type walker. See [paired focused evidence](../session_logs/2026-09-21_enum_bare_name_type.json); broad gates remain pending.
+
+Clauses6.24.1/26 self-package type casts and19.5.1/19.5.7 signed static bin ranges now have focused implementation evidence. See the [cast record](../session_logs/2026-09-21_self_package_type_cast.json) and [coverage record](../session_logs/2026-09-21_signed_cover_range_resolution.json) for boundaries and pending qualification.
+
+### 2026-09-21 packed VPI selection refinement
+
+Clauses37/38.19/38.21/38.36.1 remain PARTIAL overall. Declared integral packed selections now have runtime-tested width, range, value and selected callback behavior; [paired evidence and explicit limits](../session_logs/2026-09-21_packed_vpi_integration.json). Full batch qualification is pending.
+
+### September21 constraint arithmetic error refinement
+
+Clauses11.3.4/11.3.5/18.3: division and remainder by zero now use guard-aware constraint error checks, preserving legal nonzero models and failure rollback. The [paired2017/2023 evidence](../session_logs/2026-09-21_constraint_divmod_zero.json) covers this implemented subset; broad qualification and overall clause completion remain pending.
+
+### September21 joint cyclic ordering refinement
+
+Clauses18.4.2/18.5.10: the joint solver supports implicit cyclic-variable priority followed by ordinary solve-before stages, including a single coupled ordinary distribution with prefix preflight. See [paired evidence and remaining limits](../session_logs/2026-09-21_joint_ordered_randc.json). The broader randomization requirements remain PARTIAL; batch qualification is pending.

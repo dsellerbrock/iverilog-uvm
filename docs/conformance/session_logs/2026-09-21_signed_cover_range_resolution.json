@@ -1,0 +1,26 @@
+{
+  "blocker": "SIGNED-COVER-BINS-CROSS-ZERO",
+  "state": "IMPLEMENTED_FOCUSED_TESTED; broad gates pending",
+  "standards": [
+    "IEEE1800-2017/2023 19.5.1,19.5.7,19.11"
+  ],
+  "fix": "Resolve static bin endpoints using source width/sign and effective coverpoint domain, clip/exclude with required diagnostics, preserve signed range ordering in encoded interval splits. Empty excluded explicit bins do not create automatic bins. Unchanged counter caps now reject compilation instead of successfully dropping requested bins.",
+  "source_sha256": "4aadc2917cc72db510ec3ad7cadfebfe459b8a84a8b9c0268b3fe95d1fa77636",
+  "tests": {
+    "legacy_focus": "10/10",
+    "json_focus": "10/10",
+    "legacy_neighbors": "130/130 before final cap-only error-count addition",
+    "json_neighbors": "119/119 before final cap-only error-count addition",
+    "semantics": "Per-sample open/fixed bins, overlap deduplication, exact cross25/50/75/100, signed/unsigned clipping denominators, ignore/illegal carving, XZ exclusion, inside comparison isolation; paired cap compile rejection."
+  },
+  "review_corrections": [
+    "Removed incorrect reuse of bin conversion rules for inside predicate operands.",
+    "Restored accidentally removed pre-existing explicit-family flag; failing denominator logs preserved.",
+    "Replaced normal cap runtime test with compilation rejection for open and fixed counter limits."
+  ],
+  "limitations": [
+    "Full signed/wide coverage qualification remains pending.",
+    "Existing with-predicate expression semantics unchanged; broad unsupported coverage forms remain separate work."
+  ],
+  "evidence": "evidence/review-20260920/next-signed-cover-fix"
+}

@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "sv_enum_bare_name_concat.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_enum_bare_name_concat"
+}

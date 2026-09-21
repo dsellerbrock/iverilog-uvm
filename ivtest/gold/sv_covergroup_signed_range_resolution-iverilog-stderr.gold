@@ -1,0 +1,4 @@
+ivltests/sv_covergroup_signed_range_resolution.v:4: warning: covergroup bin 'clipped' has a value outside its effective signed 3-bit coverpoint type; the affected range is intersected with that type's domain.
+ivltests/sv_covergroup_signed_range_resolution.v:9: warning: covergroup bin 'excluded' has a value outside its effective unsigned 3-bit coverpoint type; the affected range is intersected with that type's domain.
+ivltests/sv_covergroup_signed_range_resolution.v:10: warning: covergroup bin 'clipped' has a value outside its effective unsigned 3-bit coverpoint type; the affected range is intersected with that type's domain.
+ivltests/sv_covergroup_signed_range_resolution.v:25: warning: covergroup bin 'bad' has an X/Z endpoint; the affected range is excluded.

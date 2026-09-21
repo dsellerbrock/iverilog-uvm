@@ -1,0 +1,74 @@
+{
+  "blocker": "COMPOUND-VIF-EDGE-EVENTS",
+  "shared_revision": "f3e75bb25",
+  "status": "PRIVATE_CANDIDATE_REJECTED_PENDING_ATOMIC_PROPAGATION",
+  "baseline": [
+    {
+      "case": "static",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_log": "",
+      "runtime_exit": 0,
+      "runtime_log": "PASSED atomic expression transitions\n"
+    },
+    {
+      "case": "static",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_log": "",
+      "runtime_exit": 0,
+      "runtime_log": "PASSED atomic expression transitions\n"
+    },
+    {
+      "case": "dynamic",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_log": "evidence/review-20260920/next-pwrmgr-event-assessment/boolean_atomic_dynamic.sv:7: warning: Failed to synthesize event expression (compile-progress: event skipped).\n",
+      "runtime_exit": 1,
+      "runtime_log": "FATAL: evidence/review-20260920/next-pwrmgr-event-assessment/boolean_atomic_dynamic.sv:12: real edge missing hits=0\n       Time: 5  Scope: test\n"
+    },
+    {
+      "case": "dynamic",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_log": "evidence/review-20260920/next-pwrmgr-event-assessment/boolean_atomic_dynamic.sv:7: warning: Failed to synthesize event expression (compile-progress: event skipped).\n",
+      "runtime_exit": 1,
+      "runtime_log": "FATAL: evidence/review-20260920/next-pwrmgr-event-assessment/boolean_atomic_dynamic.sv:12: real edge missing hits=0\n       Time: 5  Scope: test\n"
+    }
+  ],
+  "fixtures": {
+    "static": {
+      "source": "interface atomic_if; logic [1:0] value; endinterface\nclass atomic_cfg; virtual atomic_if vif; endclass\nmodule test;\n atomic_if bus(); atomic_cfg cfg; int hits;\n initial begin\n  cfg=new; cfg.vif=bus; bus.value=1; #1;\n  fork begin @(posedge (bus.value[0] && bus.value[1])); hits++; end join_none\n  #1; bus.value=2;\n  #1; bus.value=1;\n  #1; if(hits!=0) $fatal(1,\"atomic assignment fabricated edge hits=%0d\",hits);\n  bus.value=3;\n  #1; if(hits!=1) $fatal(1,\"real edge missing hits=%0d\",hits);\n  $display(\"PASSED atomic expression transitions\");\n end\nendmodule\n",
+      "sha256": "2453ce3947e5f64e4eebc49c42d35ba128c54d5f73ccdff68fef639ac1ae9e06"
+    },
+    "dynamic": {
+      "source": "interface atomic_if; logic [1:0] value; endinterface\nclass atomic_cfg; virtual atomic_if vif; endclass\nmodule test;\n atomic_if bus(); atomic_cfg cfg; int hits;\n initial begin\n  cfg=new; cfg.vif=bus; bus.value=1; #1;\n  fork begin @(posedge (cfg.vif.value[0] && cfg.vif.value[1])); hits++; end join_none\n  #1; bus.value=2;\n  #1; bus.value=1;\n  #1; if(hits!=0) $fatal(1,\"atomic assignment fabricated edge hits=%0d\",hits);\n  bus.value=3;\n  #1; if(hits!=1) $fatal(1,\"real edge missing hits=%0d\",hits);\n  $display(\"PASSED atomic expression transitions\");\n end\nendmodule\n",
+      "sha256": "f3509a30bfc1359712fd13d8995c917cf1d7ebb392f45102ff9241ae1f0ef98d"
+    }
+  },
+  "worker_reported_candidate_result": "Event-only synchronous part and Boolean gates pass same-slot pulse controls, but fabricate an edge on atomic01-to10-to01 in both static/dynamic controls and both editions. Candidate remains private.",
+  "root_cause": "Source fanout exposes intermediate selected-bit values to a synchronous Boolean gate. Complete watched expression remains zero across each atomic vector assignment.",
+  "authorized_next": "Bounded event-cone source fanout transaction, final validity-before-edge publication, lifecycle and nested callback-write boundary validation.",
+  "other_pending": "Automatic context root seeding; full focused tests and batch gates.",
+  "callback_boundary_baseline": [
+    {
+      "vpi_compile_exit": 0,
+      "log": "Compiling boolean_callback_atomic.c...\nMaking boolean_callback_atomic.vpi from  boolean_callback_atomic.o...\nboolean_callback_atomic.c:23:35: warning: missing field 'value' initializer [-Wmissing-field-initializers]\n   23 |  s_vpi_value value={vpiSuppressVal};\n      |                                   ^\n1 warning generated.\n"
+    },
+    {
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_log": "",
+      "runtime_exit": 1,
+      "runtime_log": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/boolean_callback_atomic.sv:10: callback-origin pulse lost hits=0\n       Time: 3  Scope: test\n"
+    },
+    {
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_log": "",
+      "runtime_exit": 1,
+      "runtime_log": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/boolean_callback_atomic.sv:10: callback-origin pulse lost hits=0\n       Time: 3  Scope: test\n"
+    }
+  ],
+  "callback_review": "filter_mask_ invokes VPI callbacks before downstream dispatch returns; candidate must preserve nested source-write pulses without flushing partial original fanout as a fabricated edge."
+}

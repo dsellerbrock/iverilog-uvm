@@ -3021,3 +3021,98 @@ exclusion for solver UNKNOWN was too broad: class and scope routes differ.
 IEEE 1800-2017/2023 clause 18 constraint satisfaction remains required; a
 warning cannot establish a legal solution. Source-confirmed, runtime UNKNOWN
 reproducer not yet established, record-only pending separate selection.
+
+#### Scope UNKNOWN reproduction update — 2026-09-21
+
+On semantic revision `8ab943352`, a controlled dynamic-library interposer
+makes `Z3_optimize_check` return UNKNOWN. In both `-g2017` and `-g2023`,
+`std::randomize(x) with { x == 7; }` returns 1 and writes 1652484268,
+violating the hard constraint. The identical non-injected control returns
+1 and writes 7. This proves the error-path defect, not a naturally occurring
+application solver failure. IEEE 1800-2017/2023 18.12 requires success only
+when all randomized variables receive valid values. The caller already
+restores RNG state when the solver returns false. Source, interposer and
+paired logs: `evidence/review-20260920/scope-unknown-assessment/`.
+No compiler repair is integrated yet; PR307's qualified source remains frozen.
+
+### 2026-09-21 OpenTitan power-manager 138-cycle antecedent rejection
+
+Current semantic revision `8ab943352` still rejects unmodified
+Earlgrey-PROD-M6 `lowrisc:dv:pwrmgr_sim:0.1` at
+`pwrmgr_sec_cm_checker_assert.sv:121`: the escalation-clock checker uses
+`(!clk_esc_i && io_clk_en)[*(128 + 8 + 2)] |=> ...`.
+A fresh replay of the retained runtime-lane compile command exits 1.
+A two-line isolated `a[*138] |=> b` assertion reproduces in both2017/2023;
+128 and129 repetitions compile, so the diagnostic's stated128-cycle limit
+is not itself the exact repetition boundary. These are compile observations,
+not runtime qualification. Applicable sequence semantics are clause16.9.2;
+implementation selection must preserve every overlapping assertion attempt,
+disable behavior and sampled-value timing, rather than just raise a cap.
+Commands, logs and paired boundary results are retained under
+`evidence/review-20260920/pwrmgr-current-assessment/`.
+This is a next-candidate assessment; no compiler edit integrated.
+
+#### Power-manager follow-on diagnostics — 2026-09-21
+
+With the private long-antecedent repair integrated for testing, the exact
+unmodified power-manager compile gets past the original assertion rejection
+but exits13 during elaboration. Distinct diagnostics concern a package enum
+type cast and enum name expressions in `pwrmgr_env_cov.sv:172-174`, constraint
+calls to UVM `get_reset` in `pwrmgr_smoke_vseq.sv:21-25`, and an open covergroup
+bin requiring more than65536 counters. These are record-only next candidates,
+not selected work or proof of root cause. Current log:
+`evidence/review-20260920/next-long-antecedent/pwrmgr-compile.log`.
+
+### 2026-09-21 signed cover-bin ranges crossing zero are misinterpreted
+
+A fresh standalone reducer of OpenTitan's `bins close[] = {[-4:4]}`
+compiles with a diagnostic claiming more than65536 counters, drops the bin,
+and returns3.125% after all nine intended values are sampled. This reproduces
+in both2017 and2023; `[-1:1]` also fails while `[-4:-1]` and `[0:4]` controls
+pass. Thus the application diagnostic does not establish a genuinely large
+range. `netclass_t::elaborate`'s `eval_ranges` lambda at elaborate.cc33145
+converts endpoints with `as_ulong64()` and swaps by unsigned comparison,
+turning a signed zero-crossing interval into its enormous complement.
+Selection must account for effective coverpoint width/sign, empty and unknown
+ranges, duplicate bins and carving; merely raising a bin cap is incorrect.
+IEEE1800-2017/2023 clause19.5 bin semantics apply (exact conversion clauses
+must be verified before implementation). Evidence:
+`evidence/review-20260920/next-signed-cover-assessment/`.
+This also demonstrates unsafe fallback to automatic bins after dropping an
+explicit family; implementation must not manufacture coverage when a bin
+cannot be represented. No fix is integrated yet.
+
+### 2026-09-21 power-manager remaining blockers reduced
+
+The enum cast failure reduces to a class inside package `p` using
+`p::wakeup_e'(i)` before that package body closes. External-package control
+casts pass. Coordinator `-g2017` and worker `-g2023` runs fail with the same
+hierarchical-size-cast diagnostic as the application. Earlier worker `-g2012`
+runs are not2017 evidence. See
+`evidence/review-20260920/next-package-enum-context/coordinator-real-2017.json`.
+Parser self-package resolution is selected in ACTIVE_WORK.
+
+The constraint failure reduces to a pure `box.get_value()` call through a
+state object handle. Direct and nested receiver cases fail both editions;
+current-object calls, including the UVM default-string/associative-array/64bit
+return shape, pass and observe state updates. Impure calls remain rejected.
+See `evidence/review-20260920/next-constraint-method-assessment/RESULTS.md`.
+Receiver resolution before existing state-call capture is selected separately
+with exclusive elaborate.cc ownership. Neither repair is integrated yet.
+
+Generated application input files for the two original failures were compared
+byte-for-byte with the pinned clean release sources; provenance is retained in
+`evidence/review-20260920/next-batch-20260921/pwrmgr-source-provenance.json`.
+
+### 2026-09-21 VPI force callback object fidelity
+
+Review under VPI-PACKED-ELEMENT-ACCESS confirmed IEEE1800-2017/2023 38.36.1 requires statement objects for compiled force/release callbacks and prohibits variable-bit registrations. New packed variable leaves reject registration; inherited legacy variable-bit acceptance and compiled statement-object fidelity remain record-only debt. VPI-origin forces have no SV statement; selected-object callback behavior is an Icarus policy. See [scoped evidence](session_logs/2026-09-21_packed_vpi_integration.json).
+
+## UVM-STRICT-REGEX-GLOB-FALLBACK — 2026-09-21
+
+- Active work: nine-fix batch qualification; read-only GPIO DPI assessment.
+- Observation: the modern Icarus UVM DPI wrapper retries invalid strict regular expressions as globs even when the caller passes deglob=0. A paired 2017/2023 direct-DPI reducer fails because `uvm_re_comp("*_shadowed", 0)` returns a compiled handle. Explicit deglob=1 and valid strict `.*_shadowed` controls succeed.
+- Root: `uvm_dpi/uvm_dpi_iverilog.cc::uvm_ivl_regcomp` fallback overrides the explicit mode passed through the unmodified upstream UVM regex API.
+- Authority: pinned `uvm-core/src/dpi/uvm_regex.{svh,cc}` explicitly distinguishes strict matching from requested glob conversion; this is a UVM-library semantic issue, not an IEEE1800 language-feature count. Exact IEEE1800.2 clause mapping remains unassessed.
+- Evidence: `evidence/review-20260920/next-uvm-regex-assessment/current-results.json` and `strict_regex.sv`; installed binary, real DPI, no corpus edits.
+- Triage: reproduced, suitable for a bounded removal of the fallback with strict-invalid, valid regex, explicit glob, bracket and length/error controls. Keep legacy API strict. GPIO's observed legacy errors need independent classification and are not fixed by loosening regex semantics.

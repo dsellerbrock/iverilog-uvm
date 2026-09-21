@@ -1,0 +1,86 @@
+{
+  "date": "2026-09-21",
+  "head": "ac9d49877",
+  "purpose": "Coordinator independent four-state event oracle and parallel implementation authorization",
+  "results": [
+    {
+      "kind": "dynamic",
+      "edition": "2017",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/table-dynamic-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv"
+      ],
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:21: warning: Failed to synthesize event expression (compile-progress: event skipped).\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:22: warning: Failed to synthesize event expression (compile-progress: event skipped).\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:23: warning: Failed to synthesize event expression (compile-progress: event skipped).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:32: edge table 0->1 got 0/0/0 expected 1/0\n       Time: 6  Scope: test.$unm_blk_2.$unm_blk_4\n"
+    },
+    {
+      "kind": "dynamic",
+      "edition": "2023",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/table-dynamic-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv"
+      ],
+      "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:21: warning: Failed to synthesize event expression (compile-progress: event skipped).\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:22: warning: Failed to synthesize event expression (compile-progress: event skipped).\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:23: warning: Failed to synthesize event expression (compile-progress: event skipped).\n",
+      "runtime": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table.sv:32: edge table 0->1 got 0/0/0 expected 1/0\n       Time: 6  Scope: test.$unm_blk_2.$unm_blk_4\n"
+    },
+    {
+      "kind": "static",
+      "edition": "2017",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/table-static-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table_static_control.sv"
+      ],
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED 16 four-state transitions\n"
+    },
+    {
+      "kind": "static",
+      "edition": "2023",
+      "compile": 0,
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/table-static-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/edge_transition_table_static_control.sv"
+      ],
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED 16 four-state transitions\n"
+    }
+  ],
+  "interpretation": "Static indexed-interface event control passes all16 transitions in both editions. Class-to-virtual-interface selected-bit event control fails0->1 after first cancelled wait. This is additional boundary evidence, not proof that its entire root cause matches compound-edge skipping.",
+  "fixture_correction": "Initial attempt armed before interface drive settled and failed even the static control; preserved old logs are not valid red proof. Final fixtures settle one tick before arm.",
+  "source_hashes": {
+    "edge_transition_table.sv": "6a034c5cbb7fbb485a67e386c3628635c5839108c4c3b41038729b7f39b37db6",
+    "edge_transition_table_static_control.sv": "8316d3676fdc28bc4b52326e842fa8d41541b067d1926c62ae88b4c62ad62541"
+  },
+  "lanes": {
+    "event": "Terra medium, elaborate.cc private implementation; evaluate edge table/rearm and scheduling boundaries",
+    "vpi": "Sol medium, metadata and selected handle pipeline plus vpi_callback.cc; normative prefix type must remain net/variable"
+  },
+  "validation": "No implementation integrated in this turn; six existing fixes still await broad batch gates."
+}

@@ -1,0 +1,11 @@
+{
+  "head": "1a340208c4132df11a3e1414399b22e234d87404",
+  "release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+  "source_modified": false,
+  "application": "rej_bounded_tb with10vectors; generator copied unchanged outside corpus, native Python supplied",
+  "result": "Compile0, runtime0 but errors and max-cycle termination: continuous string filenames appear as vpiNet and fopen fails. FAIL, not pass.",
+  "minimal_reproducer": "evidence/review-20260920/next-caliptra-debt-assessment/continuous_string.sv",
+  "paired_result": "Both2017/2023 compile0 then runtimeSIGABRT in of_LOAD_STR.",
+  "raw": "evidence/review-20260920/next-caliptra-debt-assessment/continuous-string-results.json",
+  "next": "Standards/root-cause assessment and file-ownership check before implementation; avoid overlap with structural event lane."
+}

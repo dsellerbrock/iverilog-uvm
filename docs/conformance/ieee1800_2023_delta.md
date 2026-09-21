@@ -274,3 +274,22 @@ invalid fixed-array indexing uses 2023 7.4.5 versus 2017 7.4.6.
 records the current PARTIAL implementation and pending broad qualification.
 
 The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.
+
+### September21 shared fixes
+
+The scope UNKNOWN failure path and long fixed antecedent repairs have paired
+2023 runtime evidence alongside2017. See the shared
+[scope record](session_logs/2026-09-21_scope_solver_unknown_fix.json) and
+[SVA record](session_logs/2026-09-21_long_fixed_antecedent_fix.json) for semantics,
+revision scope and limits. No edition-wide completion or broad qualification
+is established by these focused checks.
+
+The [object-method constraint evidence](session_logs/2026-09-21_constraint_object_method_receiver.json) pairs 2023 clause18.5.11 with 2017 clause18.5.12. This is shared implementation evidence with separate generation modes, not full clause qualification.
+
+The [bare enum-name evidence](session_logs/2026-09-21_enum_bare_name_type.json) checks shared clauses5.13/6.19 separately under 2017 and2023 modes.
+
+Paired 2023 evidence shares the [self-package cast](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range](session_logs/2026-09-21_signed_cover_range_resolution.json) implementation records with2017; broad edition qualification remains pending.
+
+2026-09-21: packed-VPI selected-element behavior has separate 2023 runs in the [shared integration evidence](session_logs/2026-09-21_packed_vpi_integration.json). No edition-specific rule change is asserted; whole-clause status remains partial.
+
+The [joint cyclic-ordering evidence](session_logs/2026-09-21_joint_ordered_randc.json) covers both editions: 2023 clauses18.4.2/18.5.9 correspond to2017 clauses18.4.2/18.5.10. This is shared subset evidence, with broad qualification pending.

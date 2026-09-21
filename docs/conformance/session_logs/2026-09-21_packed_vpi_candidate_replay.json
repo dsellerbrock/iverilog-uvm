@@ -1,0 +1,30 @@
+{
+  "head": "d8e3fd378ca2f01ed18007126df5df6b6c098f6e",
+  "candidate": "Uncommitted packed VPI candidate plus forward/value delta; not integrated or qualified",
+  "pins": {
+    "opentitan": {
+      "release": "Earlgrey-PROD-M6",
+      "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "status": ""
+    },
+    "caliptra": {
+      "release": "v2.1.2",
+      "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "status": ""
+    },
+    "adams_bridge": {
+      "release": "v2.0.3",
+      "head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "status": ""
+    }
+  },
+  "binary_sha256": {
+    "local-install/bin/vvp": "2c15e8a84e83ae57c952c394d931140457e67999ae3f79c6e7afdca040e4ad18",
+    "local-install/lib/ivl/ivl": "759828bad2d59b80d6b2108b3662b80291f88a6ceacfc7c47cfe365ab871ee47"
+  },
+  "forward_net": "2017/2023 compile and behavioral runtime PASS",
+  "caliptra": "v2.1.2 / Adams Bridge v2.0.3 power2round: fresh compile and runtime; generator PATH restored; 2048 cases PASS. Earlier environment mistakes retained as failed harness evidence.",
+  "pwrmgr": "Fresh compile succeeds; deferred packed metadata startup regression repaired. Runtime enters UVM but UVM_FATAL BUILDERR, REGEX_INV errors; FAIL despite exit0.",
+  "raw_evidence": "evidence/review-20260920/next-vpi-packed-element-fix",
+  "qualification": "Bounded application replay only; no whole-application or language-edition qualification."
+}

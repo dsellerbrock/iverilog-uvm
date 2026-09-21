@@ -3357,3 +3357,31 @@ IBEX-ROW-ASYNC-RESET-SYNTHESIS has [focused and neighboring runtime evidence](se
 The [synthesis and wide-index focused checkpoint](session_logs/2026-09-21_synthesis_and_wide_index_focus.json) records paired-edition runtime and neighboring-test evidence. Required broad batch gates remain pending.
 
 The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.
+
+CONSTRAINT-OBJECT-METHOD-RECEIVER is implemented and focused-tested;
+required broad batch gates remain pending. Scope, indexed-receiver limits and
+application failures are recorded in the [receiver evidence](session_logs/2026-09-21_constraint_object_method_receiver.json).
+
+ENUM-NAME-BARE-CONCAT-TYPE has [focused paired evidence](session_logs/2026-09-21_enum_bare_name_type.json), with required broad batch gates pending.
+
+SELF-PACKAGE-TYPE-CAST and SIGNED-COVER-BINS-CROSS-ZERO are focused-tested, with required batch gates pending. The [self-package cast repair](session_logs/2026-09-21_self_package_type_cast.json) and [signed coverage range repair](session_logs/2026-09-21_signed_cover_range_resolution.json) have paired focused evidence. Required broad batch gates remain pending.
+
+The [pwrmgr follow-up reducers](session_logs/2026-09-21_pwrmgr_followup_blockers.json) confirm missing indexed packed VPI handles and skipped compound virtual-interface edge waits. These remain open; current selection and ownership are in ACTIVE_WORK.
+
+VARIABLE-OUTPUT-PORT-DIRECTION is reproduced in both editions: external net resolution feeds back into an output variable across a collapsed port. See the [runtime reducer and net/variable controls](session_logs/2026-09-21_variable_output_port_direction.json). This is awaiting selection; removing the pwrmgr warning alone would not fix the demonstrated semantics.
+
+VPI-PACKED-ELEMENT-ACCESS is focused-tested with permanent paired-edition regressions and the affected VPI suite. See [integration evidence and remaining boundaries](session_logs/2026-09-21_packed_vpi_integration.json). Required batch gates remain pending; this is not whole-VPI or application qualification.
+
+CONTINUOUS-STRING-ASSIGN is reproduced in both editions from the unchanged stable Caliptra/Adams Bridge rejection-sampling testbench. The [paired runtime failure](session_logs/2026-09-21_caliptra_continuous_string.json) is under standards/root-cause assessment; no implementation selected yet.
+
+### September21 constraint division/remainder by zero
+
+CONSTRAINT-DIVMOD-ZERO is implemented and focused-tested, awaiting required batch gates. Active zero divisors produce constraint evaluation errors; guarded inactive branches remain legal. See [paired evidence and rollback tests](session_logs/2026-09-21_constraint_divmod_zero.json).
+
+### September21 joint ordering with active cyclic variables
+
+JOINT-ORDERED-ACTIVE-RANDC is implemented and focused-tested, pending batch gates. DD-001/Z01 no longer blanket-rejects ordinary ordering alongside cyclic variables. Multiple coupled ordinary distributions in a cyclic component remain open. See [evidence and limits](session_logs/2026-09-21_joint_ordered_randc.json).
+
+The [packed-VPI synthesis regression repair](session_logs/2026-09-21_packed_vpi_synthesis_regression.json) passes paired runtime controls and focused synthesis/VPI suites; required broad rerun remains pending. This repairs VPI-PACKED-ELEMENT-ACCESS and adds no feature count.
+
+The [nine-fix batch qualification](session_logs/2026-09-21_nine_fix_batch_qualification.json) completes required local gates for the integrated September21 fixes through `c1635efe9`. Broader clause/application blockers and private candidates remain open; CI/publication tracked in CAMPAIGN.

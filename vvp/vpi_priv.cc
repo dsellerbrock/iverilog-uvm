@@ -35,6 +35,7 @@
 # include  <cstdlib>
 # include  <cmath>
 # include  <iostream>
+# include  <climits>
 
 using namespace std;
 
@@ -1484,6 +1485,37 @@ static vpiHandle find_name(const char *name, vpiHandle handle)
       return rtn;
 }
 
+static vpiHandle find_indexed_name_(const string&leaf, vpiHandle scope)
+{
+      string base;
+      const char*suffix = 0;
+      if (!leaf.empty() && leaf[0] == '\\') {
+            size_t end = leaf.find(' ');
+            if (end == string::npos) return 0;
+            base = leaf.substr(1, end - 1);
+            suffix = leaf.c_str() + end + 1;
+      } else {
+            size_t open = leaf.find('[');
+            if (open == string::npos) return 0;
+            base = leaf.substr(0, open);
+            suffix = leaf.c_str() + open;
+      }
+      if (!suffix || *suffix != '[' || base.empty()) return 0;
+      vpiHandle obj = find_name(base.c_str(), scope);
+      if (!obj) return 0;
+      while (*suffix) {
+            if (*suffix++ != '[') return 0;
+            char*end = 0;
+            long index = strtol(suffix, &end, 10);
+            if (end == suffix || *end != ']' || index < INT_MIN ||
+                index > INT_MAX) return 0;
+            obj = vpi_handle_by_index(obj, static_cast<PLI_INT32>(index));
+            if (!obj) return 0;
+            suffix = end + 1;
+      }
+      return obj;
+}
+
 // Find the end of the escaped identifier or simple identifier
 static char * find_rest(char *name)
 {
@@ -1552,7 +1584,12 @@ static char * find_next(char *name)
       char *next;
       if (*name == '\\') {
 	    next = strchr(name, ' ');
-	    if (next && *++next == 0) next = 0;
+	    if (next) {
+		  ++next;
+		  /* A packed selection follows the escaped leaf; only a dot
+		     continues the hierarchical path. */
+		  if (*next != '.') next = 0;
+	    }
       } else {
 	    next = strchr(name, '.');
       }
@@ -1704,6 +1741,7 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	    hand = tmp;
       }
 
+	string indexed_leaf(nm_base);
 	// find_name() expects escaped identifiers to be stripped
       if (*nm_base == '\\') {
 	    // Skip the \ at the beginning
@@ -1716,8 +1754,18 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	    }
       }
 
-	// Now we have the correct scope, look for the item.
-      vpiHandle out = find_name(nm_base, hand);
+	// Now we have the correct scope, look for the item.  The stripped
+	// escaped base may itself exist, but an index suffix after its terminating
+	// space still needs to be consumed before returning it.
+      size_t escaped_end = indexed_leaf.empty() ? string::npos
+	    : indexed_leaf.find(' ');
+      bool escaped_indexed = !indexed_leaf.empty() && indexed_leaf[0] == '\\'
+	    && escaped_end != string::npos
+	    && escaped_end + 1 < indexed_leaf.size()
+	    && indexed_leaf[escaped_end + 1] == '[';
+      vpiHandle out = escaped_indexed ? 0 : find_name(nm_base, hand);
+	if (out == 0)
+	    out = find_indexed_name_(indexed_leaf, hand);
 
 	// M12: fall back to class-member descent for dotted paths
 	// whose prefix is a class variable in this scope.

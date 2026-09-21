@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_enum_bare_num_string_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_enum_bare_num_string_fail"
+}

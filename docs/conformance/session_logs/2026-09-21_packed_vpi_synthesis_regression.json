@@ -1,0 +1,47 @@
+{
+  "blocker": "VPI-PACKED-ELEMENT-ACCESS-SYNTH-REGRESSION",
+  "base_revision": "81ea0fab561fb68590cea423ac317d7758824707",
+  "scope": "Regression repair within packed VPI fix, not an additional implemented feature",
+  "standard": "IEEE1800-2017/2023 chapters37/38 VPI object metadata; synthesized compiler temporaries are implementation objects, not user declarations",
+  "root": "Standalone compiler-local nets intentionally have no VPI handle; emitting .packed_dims for them created invalid bytecode. Net array words and local variables retain handles.",
+  "change": "Emit net packed metadata only for nonlocal signals or unpacked net arrays. Keep runtime malformed-bytecode rejection unchanged.",
+  "permanent_reducer": "ivtest/ivltests/synth_interface_member_transfer.v with existing synthesis JSON and synthesis-focused legacy registrations",
+  "red_evidence": "evidence/review-20260920/batch-nine-20260921/json-first-failure",
+  "focused": [
+    {
+      "edition": "2017",
+      "synthesis": true,
+      "exit": 0,
+      "metadata_records": 33,
+      "local_scalar_net_metadata": 0
+    },
+    {
+      "edition": "2017",
+      "synthesis": false,
+      "exit": 0,
+      "metadata_records": 8,
+      "local_scalar_net_metadata": 0
+    },
+    {
+      "edition": "2023",
+      "synthesis": true,
+      "exit": 0,
+      "metadata_records": 33,
+      "local_scalar_net_metadata": 0
+    },
+    {
+      "edition": "2023",
+      "synthesis": false,
+      "exit": 0,
+      "metadata_records": 8,
+      "local_scalar_net_metadata": 0
+    },
+    {
+      "harnesses": "11 synthesis legacy,11 synthesis JSON,6 packed VPI",
+      "exit": 0,
+      "target_sha256": "7aad7e5f638d91a8ad18fec6cc3e2a775b381bad0296339c793ad96815ec5ae9"
+    }
+  ],
+  "pending": "Required broad gates after this target-only repair; earlier application evidence scoped to81ea0fab5",
+  "source_sha256": "712d6356696bc105e97dad04244b8c028c892e3a9c9164fb76bcdc67fcaabc27"
+}

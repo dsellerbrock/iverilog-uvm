@@ -97,7 +97,7 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_EXPORT K_EXTEND_S K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
-%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_PV
+%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_PV K_PACKED_DIMS
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -210,7 +210,10 @@ statement
 	   label, return signature letter, argument signature string,
 	   return-net label ("" for void/task), and a space-separated list
 	   of argument-net labels. */
-	: K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
+	: K_PACKED_DIMS T_SYMBOL ',' T_STRING ';'
+		{ compile_packed_dims($2, $4); }
+
+	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
 
 	| T_LABEL K_FUNCTOR T_SYMBOL T_NUMBER ',' symbols ';'

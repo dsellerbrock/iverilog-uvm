@@ -1,84 +1,273 @@
-id: SV-UVM-BATCH-20260921
-status: LOCAL_QUALIFIED_CI_PENDING
-objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
-authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
-semantic_revision: 8ab943352
-branch: agent/reviewed-main-baseline-20260920
-history: docs/conformance/session_logs/2026-09-21_prevalidation_ACTIVE_WORK.yaml
+id: SV-UVM-NEXT-BATCH-20260921
+status: PARALLEL_IMPLEMENTATION
+objective: Full IEEE1800-2017/2023 compiler semantics and independent UVM compatibility; unmodified stable OpenTitan and Caliptra applications.
+authority: User-authorized continuous campaign; coordinator selects implementation only after reducer/spec/root cause.
+branch: agent/scope-sva-next-20260921
+head_checkpoint: dba0473b6
+history: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/before-ACTIVE_WORK.yaml
+completed_focused_subsets:
+  - SCOPE-RANDOMIZE-UNKNOWN (25653fdc0)
+  - OT-PWRMGR-LONG-FIXED-ANTECEDENT (acb786965)
+  - CONSTRAINT-OBJECT-METHOD-RECEIVER (346b48f68)
+  - ENUM-NAME-BARE-CONCAT-TYPE (c8e6cb97c)
+  - SELF-PACKAGE-TYPE-CAST (e42f114cd)
+  - SIGNED-COVER-BINS-CROSS-ZERO (e42f114cd)
+  - VPI-PACKED-ELEMENT-ACCESS (1a340208c)
+  - CONSTRAINT-DIVMOD-ZERO (86a2e967d)
+  - JOINT-ORDERED-ACTIVE-RANDC (dba0473b6)
+validation: All seven required local gates passed for nine integrated fixes through c1635efe9; see2026-09-21_nine_fix_batch_qualification.json. Private candidates await separate integration/validation. No completed-clause/full-application claim.
+coordination:
+  owner: Coordinator owns selection, source integration, shared build/install, tests and final review.
+  workers: At most2implementation agents with disjoint file ownership; private patches only.
+  preservation: External AGENTS.md and unique evidence remain untouched; no new worktrees.
+  forbidden: Dropped semantics, fabricated outputs, application changes to conceal compiler defects, weakened tests.
+assessments:
+  packed_vpi:
+    owner: constraint_guard_semantics, Sol medium
+    state: REPRODUCED_ROOT_TRACE
+    evidence: evidence/review-20260920/next-pwrmgr-hdl-path-assessment
+    observation: Packed multidimensional element paths do not resolve; by_index returns one bit instead of whole element. Actual pwrmgr cnt_q root44bits exists, element paths absent.
+    scope: Trace declaration metadata, VPI lookup/index/select handles and get/put/force/release semantics; proposal before implementation.
+    standards: IEEE1800-2017/2023 VPI packed array model and38.21 handle_by_name; verify corresponding index clauses.
+  vif_event:
+    owner: package_enum_context, Terra medium
+    state: APPLICATION_REDUCTION
+    evidence: evidence/review-20260920/next-pwrmgr-event-assessment
+    observation: pwrmgr scoreboard compound virtual-interface edge expressions are skipped with compile-progress warnings.
+    scope: Reproduce exact edge semantics and trace existing event lowering; proposal before implementation.
+    acceptance_basis: Observe expression transitions, not every operand change; no skipped waits.
+next_action: Integrate reviewed VPI corrections and structural event implementation, run focused semantic tests, then select the next reproduced application/debt/IEEE blocker.
 
-scope:
-  integrated_items:
-    - DD042-RECURSIVE-WITH
-    - SVA-GROUPED-CLOCKED-CONSEQUENT
-    - OT-MASKED-RUNTIME-MEMORY-WRITE
-    - IBEX-VARIABLE-ROW-ASSIGNMENT
-    - DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
-    - RESET-ONLY-SYNTHESIS
-    - IBEX-ROW-ASYNC-RESET-SYNTHESIS
-    - CONSTRAINT-INTEGRAL-CAST-IR
-    - JOINT-MULTIPLE-DISTRIBUTIONS
-    - BLOCKING-INDEX-SYNTHESIS-DATAFLOW
-    - OVERSIZED-CONSTANT-ARRAY-WORD
-  implementation_state: All seven local gates passed; GitHub CI pending.
-  allowed: Diagnose concrete gate failures, record root cause and repair scope, validate and document fixes; publish coherent PR after required gates.
-  frozen: Compiler source and installed binaries frozen for the next broad validation run.
-  forbidden: Application source edits, weakened tests, invented passing evidence, silent semantic fallback, unrelated feature implementation.
-  discoveries: Record unrelated findings in DISCOVERED_DEBT; select next independent blockers only after this batch is validated.
+selected_implementation:
+  id: COMPOUND-VIF-EDGE-EVENTS
+  status: PRIVATE_IMPLEMENTATION_UNDER_REVIEW
+  owner: vif_proxy_implementation, Sol medium
+  standard: IEEE1800-2017/2023 9.4.2 event expression and edge transitions
+  reproducer: evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv
+  red: Both editions compile0 but fail at time1 because reduction/equality/selected-bit waits were skipped.
+  expected: Wait until the complete expression has the requested edge; operand changes alone do not imply an edge.
+  root: PEventStatement::elaborate_st compound class-to-VIF expressions fall through static synthesis and are skipped.
+  scope: Structural implementation scope and coordinator glue are defined in event_structural_expansion below; procedural resampling proposal rejected.
+  acceptance: Paired runtime edge counts, no early execution, predicate unchanged on operand mutation, rearming, packed field/select,4state transitions, rebind semantics grounded in LRM, real-edge rejection.
+  forbidden: Remove warnings without semantics, broaden sensitivity to all operands, skip waits, modify application sources.
+  dependencies: Disjoint from VPI declaration/runtime proposal; coordinator shared build/install/tests.
 
-standards:
-  authority: Applicable licensed IEEE edition; independent simulators are differential evidence only.
-  references: [evidence/dd018-assessment/1800-2017.txt, evidence/dd018-assessment/1800-2023.txt]
-  edition_scope: Track2017 and2023 separately; IEEE1800.2 separately; preserve1364, defer1801.
-  invalid_array_index: IEEE1800-2017 7.4.6 and IEEE1800-2023 7.4.5; invalid writes have no effect.
-  procedural_assignments: Clause10.4; preserve blocking-visible values and captured NBA data/enables.
-  constraints: Clauses6.24,11.6,11.8.2,18.3; distribution and solve-before2017 18.5.4/18.5.10 versus2023 18.5.3/18.5.9.
+selected_vpi_implementation:
+  id: VPI-PACKED-ELEMENT-ACCESS
+  status: FOCUSED_TESTED_BATCH_GATES_PENDING
+  owner: constraint_guard_semantics, Sol medium
+  standards: IEEE1800-2017/2023 38.19 and38.21; verify chapter37 object properties against selected integral type.
+  evidence: evidence/review-20260920/next-vpi-packed-element-assessment/RESULTS.md
+  reproducer: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/probe.sv plus probe.c; paired runtime failures retained.
+  expected: Legal indexed packed elements expose the declared remaining width and real read/write/force/release semantics; invalid selects return null.
+  root: tgt-vvp discards packed dimensions; VVP signal indexing returns flattened bits and name lookup has no indexed descent.
+  scope: Private patch in tgt-vvp/vvp_scope.c, vvp/lexor.lex, vvp/parse.y, vvp/compile.h, vvp/words.cc, vvp/vpi_priv.h, vvp/vpi_signal.cc, vvp/vpi_priv.cc, vvp/array_common.h, vvp/array.cc, vvp/vpi_callback.cc. Propose additional files first.
+  architecture: Preserve ordered declaration metadata without changing flattened value storage; reuse existing selected-value machinery, stable handle ownership, and callbacks. Verify observable VPI types and properties from normative object model.
+  acceptance: Paired2017/2023 nets/variables, ascending/descending/nonzero/negative ranges, nested selectors, unpacked words, escaped identifiers, invalid indices, XZ, get/deposit/force/release and callbacks; unchanged pwrmgr22-bit element paths.
+  forbidden: Path-check exceptions, dummy handles, forged values, application edits, metadata-only success claims.
+  dependencies: Disjoint from structural event worker files; coordinator owns shared glue, integration, builds and regression directories.
+  boundary: Integral packed selection via by-name and by-index; no full VPI object-model qualification or multi-index API completion claim.
 
-ownership:
-  coordinator: Selection, difficult reasoning, integration, shared build/install/test directories, final review and PR.
-  workers: No active implementation assignments; dffsynth4 repair focused-tested.
-  reusable_agents:
-    row_async_reset: Terra medium; array elaboration and bounded fixtures; completed latest repair.
-    synthesis_nba_completion: Sol medium; synthesis mechanism; completed dffsynth4 repair.
-    constraint_guard_semantics: Sol medium; cast and distribution solver; completed.
-  routing: Explicit cheapest capable worker model and effort; compact handoff; reuse existing agents and disjoint file ownership.
+  scope_refinement: IEEE chapter37 requires packed prefix handles retain net/variable type, not part-select type. vpi_callback.cc is authorized solely to route these real selected handles through existing filtered signal/array callback machinery.
 
-validation:
-  prior_integrated: PASS before latest enable repair; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
-  completed_session: 40936
-  current_passed_gates: [json, integrated, uvm, nfa, releases, frontend, makecheck]
-  json_evidence: evidence/review-20260920/batch-20260921-conditional-enable/json.run.json
-  directory: evidence/review-20260920/batch-20260921-conditional-enable
-  order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
-  rule: Inspect actual status/run.json/log; driver stops at first nonzero gate. Never restart a live process.
-  focused_evidence:
-    - docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
-    - docs/conformance/session_logs/2026-09-21_synthesis_and_wide_index_focus.json
-    - docs/conformance/session_logs/2026-09-21_batch_gate_regressions.json
-    - docs/conformance/session_logs/2026-09-21_row_oob_regression_repair.json
-  applications: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
-  limits: Integrated gate and application subset passes are not full language/UVM/application qualification.
+event_scope_review:
+  evidence: docs/conformance/session_logs/2026-09-21_vif_event_pulse_boundary.json
+  rejected: Procedural post-wake filter loses same-timeslot pulses; private exploratory patch remains unapplied.
+  next: Read-only trace of synchronous dynamic expression capture and exact runtime scope proposal before further edits.
 
-next_action: Publish coherent batch PR with final evidence, then inspect exact-head CI and follow user merge authority.
-completion: Required gates, source review, docs and exact revision evidence; qualified batch does not complete the full mission.
+event_structural_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  reason: Procedural resampling loses intermediate edges; use synchronous structural proxy and existing expression/edge networks.
+  design: evidence/review-20260920/next-compound-vif-edge-fix/RUNTIME_SCOPE_PROPOSAL.md
+  worker: vif_proxy_implementation, Sol medium
+  worker_files: elaborate.cc, expr_synth.cc, netlist.h, netlist.cc, emit.cc, target.h, target.cc, t-dll.h, t-dll.cc, t-dll-api.cc, ivl_target.h, vvp/vvp_vinterface.h, vvp/vvp_vinterface.cc, vvp/event.h, vvp/event.cc
+  coordinator_glue: tgt-vvp/vvp_scope.c, tgt-vvp/draw_net_input.c (new LPM output nexus linkage), and VVP directive parser/compiler registration; worker must supply exact descriptor/API requirements, not edit Sol-owned files.
+  ownership: Sol remains sole private editor of shared packed-VPI file set; coordinator integrates common glue after reviewing both patches.
+  acceptance: Existing compound/table/pulse fixtures; simultaneous automatic activations; changed and unchanged handle rebind; alias mutation propagation; old-source unlink; scope teardown; no VM reentry; no side-effect or function semantics lost.
+  boundary: No general runtime interpreter or AST clone framework; preserve unsupported forms with focused diagnostics. Propose further files before editing.
 
-active_regression:
-  id: SYNTHESIS-EMPTY-TRUE-NBA-ELSE
-  test: ivtest/ivltests/dffsynth4.v
-  reproducer: local-install/bin/iverilog -S -o evidence/review-20260920/next-blocking-index/dffsynth4-repair/test.vvp ivtest/ivltests/dffsynth4.v
-  original_failure: Compiler asserted at t-dll.cc1924 missing logic nexus t_cookie.
-  expected: Else-only NBA captures D when ce is false and holds Q when ce is true.
-  owner: Coordinator integrated reviewed Sol patch; focused tests pass, broad gates running.
-  scope: Trace directly implicated synth2.cc branch-enable/netlist connectivity; preserve all B/P semantics.
-  evidence: evidence/review-20260920/next-blocking-index/dffsynth4-repair
-  acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.
+event_worker_escalation: Terra completed repeated planning-only turns with no structural source changes; replaced with Sol medium for the authorized cross-stage structural implementation. Existing findings and fixtures retained.
 
-empty_branch_repair_evidence: docs/conformance/session_logs/2026-09-21_empty_branch_enable_repair.json
+vpi_force_overlap_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  owner: constraint_guard_semantics, Sol medium
+  invariant: Packed selections share root storage but force/release callbacks must identify the affected selection; sibling callbacks cannot fire spuriously.
+  root: Existing signal force callback registry discards affected slice; local selected-handle routing alone cannot preserve overlap semantics.
+  additional_files: vvp/vvp_vpi_callback.h, vvp/vvp_net_sig.cc, vvp/vthread.cc
+  scope: Extend existing callback dispatch with exact force mask and release range; preserve whole-object and real callbacks. Private patches only.
+  acceptance: Paired sibling/prefix/leaf exact callback counts and values; sparse masks; registration/removal during dispatch; legacy force neighbors.
+  dependencies: Disjoint from structural event worker; coordinator owns shared integration/builds.
 
-read_only_assessment:
-  objective: Identify at most2 next Caliptra compiler blockers from exact pinned-release evidence.
-  owner: caliptra_next_blocker; Luna low; independent evidence extraction only.
-  scope: Existing logs, manifests and corpus revision attribution; one compact private report.
-  forbidden: Compiler/application edits, new builds or broad sweeps, shared test directories, feature activation before current batch validation.
-  output: evidence/review-20260920/caliptra-next-assessment
+selection_priority:
+  authority: User reiterated debt, unmodified stable OpenTitan/Caliptra, and missing IEEE1800 semantics as next work.
+  current: Finish two selected application-driven compiler fixes; do not count review-only or compile-only results as integrated fixes.
+  ready: VARIABLE-OUTPUT-PORT-DIRECTION has paired failing runtime and explicit-wire control; select when elaborate.cc ownership becomes free.
+  assessment: caliptra_next_blocker, Luna low, read-only current stable-release failure selection; no third implementation lane.
 
-local_qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
+event_validity_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  reason: IEEE2017/2023 25.9 null dereference fatal must occur only when expression is evaluated; 11.3.5 preserves short-circuit behavior.
+  worker: vif_proxy_implementation, Sol medium, existing authorized files only.
+  design: Structural data plus validity, expression-aware short-circuit propagation, arm-aware final waitable event validity input; no procedural post-wake resampling.
+  coordinator_glue: Target emission and .eventvalid parser/compiler registration; worker supplies exact APIs and descriptors.
+  acceptance: Dormant null permitted; armed null fatal; guarded null branches valid; four-state conditional evaluation; validity/data propagation must not create transient false fatal or lose same-slot pulses; automatic lifecycle tests.
+  constraint: Reuse existing synthesis helpers; no general expression interpreter or speculative framework; no silent unsupported expression validity fallback.
+
+ready_continuous_string:
+  id: CONTINUOUS-STRING-ASSIGN
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_AWAITING_FILE_OWNERSHIP
+  standards: IEEE1800-2017/2023 6.5,6.16,10.3.2
+  evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
+  root: String variable coerced to unresolved net and lowered through fixed-width vector synthesis.
+  proposed: Preserve complete string variable storage and reuse behavioral continuous-variable lowering with time-zero evaluation and RHS sensitivity.
+  dependency: elaborate.cc remains owned by structural event lane; no concurrent edits authorized.
+  acceptance: Paired constant,dynamic,empty,resized strings; existing multi-driver rejection; unmodified stable Caliptra rej_bounded_tb replay.
+
+selected_constraint_divzero:
+  id: CONSTRAINT-DIVMOD-ZERO
+  status: FOCUSED_TESTED_BATCH_GATES_PENDING
+  owner: constraint_guard_semantics, Sol medium
+  standards: IEEE1800-2017/2023 11.3.4,11.3.5,18.3
+  reproducer: evidence/review-20260920/next-constraint-array-assessment/state_selected_divzero.sv
+  red: Both editions incorrectly randomize successfully with active10/0==-1.
+  expected: Active X-producing division/remainder fails with focused constraint evaluation error; inactive short-circuit paths remain sifted; legal nonzero solutions remain available.
+  root: Common Z3 div/mod builder uses totalized bit-vector operations without existing guard-aware state checks.
+  scope: Private vvp/vvp_z3.cc patch only; permanent focused regression additions; coordinator shared builds/integration.
+  design: Reuse existing StateCheck and typed error placeholder machinery; accepted models must exclude active zero divisor, never accept placeholder values.
+  acceptance: Signed/unsigned divide/remainder, inactive implication/logic/conditional, random legal divisor, forced-zero focused diagnostics,wide values,transactional value/RNG/randc behavior; paired editions.
+  dependencies: Disjoint from all structural event files; continuous-string and output-port fixes remain awaiting elaborate.cc ownership.
+
+event_synchronous_cone_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  owner: vif_proxy_implementation, Sol medium
+  additional_worker_files: vvp/logic.h, vvp/logic.cc
+  coordinator_files: tgt-vvp/vvp_scope.c, tgt-vvp/draw_mux.c
+  root: Deferred boolean/mux gates lose event-expression pulses and leave guarded validity stale at wait entry.
+  design: Mark only gates newly synthesized for event data/validity cones; carry event_synchronous property to target; existing functor symbols with /event suffix select synchronous runtime propagation.
+  forbidden: Global change to ordinary combinational scheduling; delayed arm validation that rescues null dereference after later same-slot assignment.
+  acceptance: Static/dynamic AND pulses,guarded null and same-root rebind,null-at-arm rescue negative,XZ conditional,automatic context reset/teardown; full prior edge fixtures.
+
+event_part_select_expansion:
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  owner: vif_proxy_implementation, Sol medium
+  additional_worker_files: vvp/part.h, vvp/part.cc
+  coordinator_files: tgt-vvp/vvp_scope.c, vvp/lexor.lex, vvp/parse.y, vvp/compile.h
+  root: Constant part-select SA functors defer propagation independently of AND/event and lose the reproduced same-slot pulse.
+  design: Event-only part-select marker and synchronous propagation; preserve ordinary part-select scheduling. Worker supplies factory signature before coordinator glue.
+  acceptance: Static and dynamic selected-bit Boolean pulses in both editions; atomic vector01-to10-to01 must not fabricate an AND edge; existing select bounds, XZ, automatic context lifetime and event validity tests.
+
+selected_ordered_randc:
+  id: JOINT-ORDERED-ACTIVE-RANDC
+  debt: DD-001/Z01
+  status: FOCUSED_TESTED_BATCH_GATES_PENDING
+  owner: constraint_guard_semantics, Sol medium
+  standards: IEEE1800-2017/2023 18.4.2; ordering18.5.10 in2017 and18.5.9 in2023.
+  reproducer: evidence/review-20260920/next-constraint-ordered-randc-assessment/joint_ordered_active_randc.sv
+  red: Both editions blanket-reject legal ordering of ordinary rand variables whenever a separate active randc exists; ingredient controls pass.
+  root: Joint exact sampler rejects active randc instead of respecting implicit randc-first priority before explicit ordinary stages.
+  scope: Private vvp/vvp_z3.cc patch and paired permanent regressions only; coordinator owns integration/build/install.
+  design: Reuse complete component tables and transactional randc machinery; establish implicit cyclic stage before ordered ordinary stages. Retain preflight caps and RNG ownership.
+  semantic_boundary: 18.4.2 permits failures caused by cyclic ordering; do not infer universal success or prematurely reset histories merely to obtain a satisfiable ordinary-stage model.
+  acceptance: Full/restricted cycles,coupled and independent cyclic subjects,disabled randc,illegal explicit randc ordering,mathematically justified ordinary conditional distributions,seed replay,cap/UNKNOWN/UNSAT value/history/RNG/callback rollback.
+  forbidden: Remove rejection without correct priority; cap increases; arbitrary model selection or biased successful subsets; event/elaboration edits.
+  dependencies: Disjoint from event worker; divmod integrated86a2e967d.
+
+event_atomic_fanout_expansion:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, Sol medium
+  additional_worker_files: vvp/vvp_net_sig.cc
+  root: Synchronous event-cone gates fabricate edges from partial fanout of one atomic vector update; static baseline does not.
+  design: Signal-source nesting boundary with event-cone recompute queue and final validity-before-edge publication; no queue survives source dispatch. Existing pure_comb evaluation transaction is too broad and must remain separate.
+  constraints: Defer only marked event-cone consumers; ordinary events, signal writes and VPI callbacks keep their behavior. Hook declarations must avoid event.h/net.h include cycles. Context teardown removes pending references.
+  acceptance: Both atomic and pulse controls; static/dynamic/automatic/XZ/rebind/null tests; independent same-slot NBA updates; nested callback-origin source writes must remain distinct from derived fanout.
+  review: Source-only nesting cannot silently coalesce reentrant procedural/VPI writes; trace and test this boundary before integration. Default-root seeding must not leak one automatic activation into another.
+
+event_callback_boundary_review:
+  root: filter_mask_ invokes callbacks inside downstream signal dispatch; object callback ordering alone does not prove reentrant write separation.
+  candidate: Worker private callback suspend/resume refinement in vvp_net_sig.cc; no shared application yet.
+  acceptance: boolean_callback_atomic fixture captures distinct callback writes; callback suspension must not publish a partially propagated original vector as a false edge. Test fanout order permutations and original-source plus callback-source transitions.
+  status: Architecture risk remains open until boundary evidence is reviewed.
+
+batch_qualification:
+  state: REQUIRED_LOCAL_GATES_PASS_PUBLICATION_PENDING
+  revision: dba0473b6
+  integrated_fixes: 9
+  reason: Approximately-ten cadence and full-UVM policy threshold; event patch stays private until acceptance passes.
+  coordinator: Owns serial broad suites and PR preparation; no source integration/build/install until gates terminate.
+
+selected_runtime_root_seed:
+  id: DV-RUNTIME-ROOT-SEED
+  status: PRIVATE_PATCH_PREPARED_AWAITING_COORDINATOR_VALIDATION
+  owner: caliptra_next_blocker, retained Luna low for mechanical historical-patch rebase; coordinator owns semantic review and runtime validation.
+  objective: Restore application-selectable runtime root seeding without changing default streams or hierarchical random stability.
+  standard_boundary: IEEE1800-2017/2023 random stability and explicit seeding are invariants; +ntb_random_seed syntax is a vendor-compatible DV extension, not a normative IEEE option.
+  red: evidence/review-20260920/rootseed-baseline-audit/current-runtime.json shows seed1 and seed2 produce identical four random words in both editions; option parser absent.
+  root: Historical a8b831496 feature was not integrated in current main lineage; do not blindly cherry-pick unrelated files or cite old qualification.
+  scope: Private mechanical rebase of vvp/compile.cc, vvp/vthread.cc, vvp/vthread.h and root-seed regressions from a8b831496; no shared source/build/install changes during qualification.
+  acceptance: Compare actual random payloads, not echoed seed labels; same-seed replay, different-seed variation, default compatibility, hierarchy/sibling stability, explicit overrides, numeric boundaries and focused invalid-option errors before simulation; both editions.
+  dependencies: Disjoint from event worker files; integration after frozen batch qualification. No new worktree.
+
+selected_ordered_randc_multidist:
+  id: JOINT-ORDERED-RANDC-MULTIDIST
+  status: PRIVATE_FOCUSED_TESTED_ADDITIONAL_FAILURE_BOUNDARY_AUDIT
+  owner: constraint_guard_semantics, retained Sol medium
+  standards: Both editions18.4.2; 2017 18.5.4/18.5.10 and2023 18.5.3/18.5.9.
+  reproducer: evidence/review-20260920/next-constraint-ordered-randc-multidist-assessment/joint_ordered_randc_multiple_dist.sv
+  root: Multi-distribution preflight omits implicit cyclic and intermediate weighted prefixes; current implementation rejects this valid combination before drawing.
+  scope: Private vvp/vvp_z3.cc patch and focused regressions only. No shared edits/build/install during frozen batch qualification.
+  design: Reuse exact distribution resolver, expose nonmutating positive support and prove existing-cap complete component prefix tree before any draw; then reuse transactional cyclic and ordinary staged sampling.
+  policy: Conflicting statistical weights may follow existing documented priority under the full IEEE exceptions; all hard domains and zero-weight exclusions remain mandatory. No mandated-product or cross-vendor-identical probability claim.
+  acceptance: Paired weighted/cyclic/order interactions, zero/excluded fibers, caps, replay and complete value/RNG/history/callback rollback; preserve edition-specific range rules and single-dist marginal tests.
+  forbidden: Drop hard constraints, silently fallback, increase caps, choose only successful unsupported prefixes, alter shared frozen source.
+  dependencies: Rootseed mechanical rebase is complete and waiting; only event and this solver lane actively implement.
+
+event_callback_replay_scope:
+  state: PRIVATE_REVIEW_PENDING
+  files: vvp/vvp_net.h and vvp/vvp_net_sig.cc in addition to existing event/logic/part ownership.
+  purpose: Source transaction boundaries and ordered callback-origin marked-cone replay preserve parent atomicity and separate nested source pulses while ordinary storage/callback execution stays synchronous.
+  acceptance: Parent-fanout low/high/reordered callback taps, automatic context liveness/recycling and active-null negatives; no shared integration before full focused matrix and coordinator review.
+
+packed_metadata_synthesis_regression:
+  id: VPI-PACKED-ELEMENT-ACCESS-SYNTH-REGRESSION
+  status: FOCUSED_TESTED_AWAITING_BROAD_RERUN
+  owner: Coordinator integrated reviewed Sol patch
+  trigger: Broad JSON synth_interface_member_transfer-S fails runtime with four packed dimension metadata target is not integral storage diagnostics.
+  evidence: evidence/review-20260920/batch-nine-20260921/json-first-failure
+  scope: Private trace and minimal repair of integrated packed-metadata emission/resolution; tgt-vvp/vvp_scope.c, vvp/words.cc, tests. Propose other files before editing.
+  acceptance: Original synthesis runtime reducer, matching nonsynthesis control, paired 2017/2023 packed VPI controls, exact metadata widths and alias handling; no metadata omission to conceal unsupported semantics.
+  coordination: Multidist patch frozen pending integration; this is its replacement lane. Shared broad process60589 terminated on JSON failure; coordinator owns build/install and validation.
+
+selected_strict_uvm_regex:
+  id: UVM-STRICT-REGEX-GLOB-FALLBACK
+  status: PRIVATE_FOCUSED_TESTED_AWAITING_NEXT_BATCH_INTEGRATION
+  owner: caliptra_next_blocker, retained Luna low for bounded removal after coordinator root-cause proof
+  objective: Honor explicit strict/deglob mode in the real UVM DPI API without application-specific fallback.
+  scope: Private copy of uvm_dpi/uvm_dpi_iverilog.cc and focused tests only. No shared source/build/install modifications during qualification.
+  standard_boundary: Pinned UVM API behavior; IEEE1800.2 clause mapping unassessed, no IEEE1800 language qualification claim.
+  evidence: evidence/review-20260920/next-uvm-regex-assessment/current-results.json
+  root: regcomp wrapper retries invalid strict expressions as globs despite deglob=0.
+  acceptance: Invalid strict pattern returns null; same pattern explicitly deglobbed succeeds; valid regex matching/nonmatching, slash-bracket behavior, bounds, legacy strict behavior remain unchanged; paired real DPI.
+  dependencies: Event, multidist and rootseed patches frozen; this is the only active implementation lane. Coordinator alone builds private DPI candidate after review.
+
+rootseed_threadless_validation_boundary:
+  status: PRIVATE_FOCUSED_TESTED_ENTRY_HOOK_REPAIR
+  owner: caliptra_next_blocker, retained Luna low; coordinator validated original private runtime
+  evidence: evidence/review-20260920/rootseed-rebase/coordinator-build/threadless-boundary.json
+  root: Option validation runs only from compile_thread, so designs with no threads silently accept invalid root-seed options.
+  scope: Replace compile.cc hook with one vvp/lib_main.cc::vvp_run hook after lifecycle check and before compile_design. Keep vthread.cc/h parser and default RNG unchanged. Private files only.
+  acceptance: Existing paired seed driver plus threadless invalid, duplicate, valid-boundary, and no-option controls; no shared build/install.
+  dependency: Regex patch frozen; this is its replacement implementation lane, alongside solver boundary tests.
+
+selected_continuous_string:
+  id: CONTINUOUS-STRING-ASSIGN
+  status: REPRODUCED_SPEC_GROUNDED_ROOT_CAUSED_PRIVATE_IMPLEMENTATION
+  owner: vif_proxy_implementation, retained Sol medium with elaboration context
+  standards: IEEE1800-2017/2023 6.5,6.16,10.3.2
+  evidence: evidence/review-20260920/next-caliptra-debt-assessment/CONTINUOUS_STRING_ASSESSMENT.md
+  reproducer: continuous_string.sv and continuous_string_dynamic.sv in assessment directory; both editions abort instead of preserving string values.
+  root: Continuous-assignment elaboration promotes string REG to vector-oriented UWIRE and lowers via scalar net/BUFZ; runtime lacks valid string storage.
+  scope: Private elaborate.cc patch and focused regressions only. Reuse existing continuous-variable initialization/sensitivity lowering before lnet promotion. Reserve driver identity and preserve all assignment restrictions.
+  acceptance: Paired constant,dynamic,empty,resized,concat,function-dependency,time-zero cases; duplicate continuous/procedural-overlap rejection; delayed/selected/member forms must have correct behavior or focused existing unsupported diagnostic, never crash. Retained stable Caliptra rej_bounded_tb is integration acceptance.
+  forbidden: App changes, string truncation, fabricated paths, weakened driver checks, global scheduler changes, shared build/install/source changes.
+  event_dependency: Event candidate392b50c66ed9e918c3e8fbaed13df195f2b74ee57e061c6511cf4484bb0e8eac safely suspended immutable pending integration. No event worker edits remain; elaborate.cc ownership transferred for this separate private candidate. Coordinator resolves final patch order after broad gate/publication.
+  lanes: This lane and solver failure-boundary fixtures; rootseed/regex/event immutable awaiting integration.

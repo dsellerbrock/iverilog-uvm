@@ -397,6 +397,49 @@ static PCallTask* pform_receiver_method_task(const struct vlltype&loc,
       return tmp;
 }
 
+static PPackage* pform_self_package_scope(const pform_scoped_name_t&full)
+{
+      if (full.package || full.name.size() < 2
+          || !full.name.front().index.empty())
+            return 0;
+
+      PPackage*enclosing_package = nullptr;
+      bool shadowed_by_type = false;
+      const perm_string head_name = full.name.front().name;
+      for (LexicalScope*cur_scope = pform_peek_scope(); cur_scope;
+           cur_scope = cur_scope->parent_scope()) {
+            LexicalScope::typedef_map_t::const_iterator local_type =
+                  cur_scope->typedefs.find(head_name);
+            if (local_type != cur_scope->typedefs.end() && local_type->second)
+                  shadowed_by_type = true;
+
+            if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(cur_scope)) {
+                  std::map<perm_string,PClass*>::const_iterator local_class =
+                        scopex->classes.find(head_name);
+                  if (local_class != scopex->classes.end() && local_class->second)
+                        shadowed_by_type = true;
+            }
+
+            std::map<perm_string,PPackage*>::const_iterator imported =
+                  cur_scope->explicit_imports.find(head_name);
+            if (imported != cur_scope->explicit_imports.end() && imported->second) {
+                  LexicalScope::typedef_map_t::const_iterator imported_type =
+                        imported->second->typedefs.find(head_name);
+                  if (imported_type != imported->second->typedefs.end()
+                      && imported_type->second)
+                        shadowed_by_type = true;
+            }
+
+            PPackage*candidate = dynamic_cast<PPackage*>(cur_scope);
+            if (candidate && candidate->pscope_name() == head_name) {
+                  if (!shadowed_by_type)
+                        enclosing_package = candidate;
+                  break;
+            }
+      }
+      return enclosing_package;
+}
+
 /* A recursive scoped carrier stores the type prefix, static property and
    following object members in one PEIdent so every l-value suffix retains
    specialization provenance.  Arbitrary-receiver method dispatch, however,
@@ -419,47 +462,8 @@ static PExpr* pform_scoped_method_receiver(const struct vlltype&loc,
          package-owned PEIdent follows the established hierarchical method
          path; explicit class specialization remains distinct because it
          carries leading type arguments. */
-      if (carrier->has_scoped_type_prefix() && !full.package
-          && !carrier->leading_type_args() && full.name.size() >= 2
-          && full.name.front().index.empty()) {
-            PPackage*enclosing_package = nullptr;
-            bool shadowed_by_type = false;
-            for (LexicalScope*cur_scope = pform_peek_scope(); cur_scope;
-                 cur_scope = cur_scope->parent_scope()) {
-                  const perm_string head_name = full.name.front().name;
-                  LexicalScope::typedef_map_t::const_iterator local_type =
-                        cur_scope->typedefs.find(head_name);
-                  if (local_type != cur_scope->typedefs.end()
-                      && local_type->second)
-                        shadowed_by_type = true;
-
-                  if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(cur_scope)) {
-                        std::map<perm_string,PClass*>::const_iterator local_class =
-                              scopex->classes.find(head_name);
-                        if (local_class != scopex->classes.end()
-                            && local_class->second)
-                              shadowed_by_type = true;
-                  }
-
-                  std::map<perm_string,PPackage*>::const_iterator imported =
-                        cur_scope->explicit_imports.find(head_name);
-                  if (imported != cur_scope->explicit_imports.end()
-                      && imported->second) {
-                        LexicalScope::typedef_map_t::const_iterator imported_type =
-                              imported->second->typedefs.find(head_name);
-                        if (imported_type != imported->second->typedefs.end()
-                            && imported_type->second)
-                              shadowed_by_type = true;
-                  }
-
-                  PPackage*candidate = dynamic_cast<PPackage*>(cur_scope);
-                  if (candidate && candidate->pscope_name()
-                        == head_name) {
-                        if (!shadowed_by_type)
-                              enclosing_package = candidate;
-                        break;
-                  }
-            }
+      if (carrier->has_scoped_type_prefix() && !carrier->leading_type_args()) {
+            PPackage*enclosing_package = pform_self_package_scope(full);
             if (enclosing_package) {
                   pform_name_t package_path;
                   pform_name_t::const_iterator cur = full.name.begin();
@@ -728,6 +732,37 @@ static void delete_parmvalue_t(struct parmvalue_t*parms)
       }
 
       delete parms;
+}
+
+
+/* A current package is not registered until its body has finished, so a
+   self-qualified type cast reaches this action as a scoped PEIdent. Reuse the
+   same scope resolution as a self-qualified method receiver and recover only
+   an explicit two-component :: carrier. */
+static PExpr* pform_self_package_type_cast(const struct vlltype&loc,
+                                           PExpr*target, PExpr*base)
+{
+      PEIdent*ident = dynamic_cast<PEIdent*>(target);
+      if (!ident || !ident->has_scoped_type_prefix()
+          || ident->leading_type_args() || ident->path().size() != 2
+          || !ident->path().name.back().index.empty())
+            return 0;
+
+      PPackage*package = pform_self_package_scope(ident->path());
+      if (!package)
+            return 0;
+
+      typedef_t*type = pform_test_type_identifier(
+            package, ident->path().name.back().name.str());
+      if (!type)
+            return 0;
+
+      typeref_t*dtype = new typeref_t(type, package);
+      FILE_NAME(dtype, loc);
+      PECastType*cast = new PECastType(dtype, base);
+      FILE_NAME(cast, loc);
+      delete target;
+      return cast;
 }
 
 static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
@@ -13553,9 +13588,14 @@ expr_primary
   | expr_primary '\'' '(' expression ')'
       { PExpr*base = $4;
 	if (pform_requires_sv(@1, "Size cast")) {
-	      PECastSize*tmp = new PECastSize($1, base);
-	      FILE_NAME(tmp, @1);
-	      $$ = tmp;
+	      PExpr*tmp = pform_self_package_type_cast(@1, $1, base);
+	      if (tmp) {
+	            $$ = tmp;
+	      } else {
+	            tmp = new PECastSize($1, base);
+	            FILE_NAME(tmp, @1);
+	            $$ = tmp;
+	      }
 	} else {
 	      $$ = base;
 	}

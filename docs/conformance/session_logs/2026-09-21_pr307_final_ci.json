@@ -1,0 +1,15 @@
+{
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/307",
+  "run": 35588718454,
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    "Ubuntu22.04",
+    "Ubuntu24.04",
+    "macOS",
+    "CLANG64",
+    "UCRT64",
+    "MINGW64"
+  ],
+  "scope": "Merged baseline only; does not qualify current seven-fix batch"
+}

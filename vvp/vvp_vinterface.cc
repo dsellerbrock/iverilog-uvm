@@ -83,7 +83,7 @@ static __vpiSignal* resolve_signal_index_(__vpiSignal*sig, size_t idx)
 
       vpiHandle word = sig->vpi_index((int)idx);
       __vpiSignal*word_sig = dynamic_cast<__vpiSignal*>(word);
-      return word_sig ? word_sig : sig;
+      return word_sig && !word_sig->packed_parent ? word_sig : sig;
 }
 
 static __vpiBaseVar* resolve_basevar_index_(__vpiBaseVar*var, size_t idx)

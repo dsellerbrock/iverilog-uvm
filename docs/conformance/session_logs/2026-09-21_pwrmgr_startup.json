@@ -1,0 +1,65 @@
+{
+  "application": "OpenTitan Earlgrey-PROD-M6 pwrmgr_smoke",
+  "source_modified": false,
+  "compile": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-spwrmgr_bind",
+      "-spwrmgr_cov_bind",
+      "-spwrmgr_unit_only_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-signed-cover-fix/pwrmgr.vvp",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-iverilog.scr"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+    "exit": 0,
+    "elapsed": 2.153104782104492,
+    "source_hashes": {
+      "parse.y": "06c7651f15716ef22bb91714b31293affe4c9021eba90749e3c752b88d7a0beb",
+      "elaborate.cc": "4aadc2917cc72db510ec3ad7cadfebfe459b8a84a8b9c0268b3fe95d1fa77636",
+      "elab_expr.cc": "1ca41e8ba1eaf12b77029a55edd232e6465da1127bd317a417b4862826ae5003"
+    }
+  },
+  "runtime": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-signed-cover-fix/pwrmgr.vvp",
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1",
+      "+test_timeout_ns=1000000",
+      "+smoke_test=1",
+      "+UVM_TESTNAME=pwrmgr_base_test",
+      "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+    "exit": 0,
+    "elapsed": 1.0967981815338135,
+    "purpose": "Diagnostic startup replay using retained DvSim runtime metadata; compile fallback warnings exclude qualification."
+  },
+  "passed": false,
+  "first_failure": "UVM_FATAL at time0: prim_count_if.sv54 uvm_hdl_check_path(signal_forced)",
+  "qualification_excluded": "Compiler still emitted semantic fallback diagnostics, including multiply-driven uwire treated as wire; runtime fatal despite exit0.",
+  "evidence": "evidence/review-20260920/next-signed-cover-fix",
+  "log_hashes": {
+    "pwrmgr-compile.log": "dc7fbb1a0b5dac9040d6a9b5a160f197ed61522f5a54d0ea426608726c8797db",
+    "pwrmgr-runtime.log": "6a9069f0a914f377adc79a811807b548ce0fd50314fd5984832a5c21f497aae3"
+  }
+}

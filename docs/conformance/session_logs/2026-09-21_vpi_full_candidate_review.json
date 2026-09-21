@@ -1,0 +1,16 @@
+{
+  "suite": {
+    "total": 110,
+    "passed": 106,
+    "failed": 4,
+    "evidence": "evidence/review-20260920/next-vpi-packed-element-fix/vpi-full-candidate.json"
+  },
+  "failure_analysis": "All four value_change_cb golds expected decimal10 for p4[1:0] after p4=10; correct selected value is2 per IEEE1800-2017/2023 38.36.1 Table38-5. Updated expectations and stale fixture comment.",
+  "rerun": {
+    "passed": 4,
+    "failed": 0,
+    "evidence": "evidence/review-20260920/next-vpi-packed-element-fix/partselect-callbacks.json"
+  },
+  "remaining": "New variable packed leaf force/release registrations must reject per38.36.1; legal prefix regression patch pending integration. VPI-origin object policy separate from unqualified compiled-statement object fidelity.",
+  "caliptra": "New compress_tb runtime probe currently blocked at missing ntt_defines_pkg dependency in upstream filelist; no source modifications, harness dependency assessment active."
+}

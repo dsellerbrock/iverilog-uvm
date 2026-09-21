@@ -140,6 +140,8 @@ char *generic_get_str(int code, vpiHandle ref, const char *name, const char *ind
 static vpiHandle fill_in_net4(struct __vpiSignal*obj, __vpiScope*scope,
                               const char*name, int msb, int lsb,
                               bool signed_flag, vvp_net_t*node);
+static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
+                                            unsigned base, unsigned width);
 
 static vpiHandle fill_in_var4(struct __vpiSignal*obj,
                               const char*name, int msb, int lsb,
@@ -665,6 +667,7 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
       switch (code) {
 
 	  case vpiParent:
+	    if (rfp->packed_parent) return rfp->packed_parent;
 	    return rfp->is_netarray? rfp->within.parent : NULL;
 
 	  case vpiIndex:
@@ -738,6 +741,41 @@ vpiHandle __vpiSignal::get_index(int idx)
 	    norm_idx = lsb.get_value() - idx;
       }
 
+      if (!packed_ranges.empty() && packed_depth < packed_ranges.size()) {
+            if (packed_children.empty()) {
+                  int64_t left = msb.get_value();
+                  int64_t right = lsb.get_value();
+                  uint64_t count = static_cast<uint64_t>(
+                        left >= right ? left - right : right - left) + 1;
+                  assert(count <= UINT_MAX);
+                  packed_children.resize(static_cast<size_t>(count), nullptr);
+            }
+            if (!packed_children[norm_idx]) {
+                  unsigned remaining = 1;
+                  for (size_t dim = packed_depth + 1;
+                       dim < packed_ranges.size(); dim += 1) {
+                        const packed_range_t&range = packed_ranges[dim];
+                        int64_t left = range.left;
+                        int64_t right = range.right;
+                        uint64_t count = static_cast<uint64_t>(
+                              left >= right ? left - right : right - left) + 1;
+                        assert(count <= UINT_MAX &&
+                               remaining <= UINT_MAX / count);
+                        remaining *= static_cast<unsigned>(count);
+                  }
+                  packed_children[norm_idx] = make_packed_signal_view_(
+                        this, idx, value_base + norm_idx * remaining,
+                        remaining);
+            }
+            return packed_children[norm_idx];
+      }
+
+      /* A scalar is the final selected packed element. It has no further
+         indexable packed dimension even though its declared index is kept
+         in msb/lsb for VPI range properties. */
+      if (!packed_ranges.empty() && packed_depth >= packed_ranges.size())
+            return 0;
+
       if (bits == NULL) make_bits();
 
       return &(bits[norm_idx].as_bit);
@@ -745,7 +783,7 @@ vpiHandle __vpiSignal::get_index(int idx)
 
 void __vpiSignal::get_bit_value(const struct __vpiBit*bit, p_vpi_value vp)
 {
-      unsigned index = bit->get_norm_index();
+      unsigned index = value_base + bit->get_norm_index();
 
       vvp_signal_value*vsig = dynamic_cast<vvp_signal_value*>(node->fil);
       assert(vsig);
@@ -808,7 +846,7 @@ void __vpiSignal::get_bit_value(const struct __vpiBit*bit, p_vpi_value vp)
 
 vpiHandle __vpiSignal::put_bit_value(struct __vpiBit*bit, p_vpi_value vp, int flags)
 {
-      unsigned index = bit->get_norm_index();
+      unsigned index = value_base + bit->get_norm_index();
       vvp_net_ptr_t dest(node, 0);
       vvp_vector4_t val = vec4_from_vpi_value(vp, 1);
 
@@ -835,7 +873,7 @@ vpiHandle __vpiSignal::put_bit_value(struct __vpiBit*bit, p_vpi_value vp, int fl
 			node->fil->release(dest, net_flag);
 		  else
 			node->fil->release_pv(dest, index, 1, net_flag);
-		  node->fil->run_force_callbacks(cbRelease);
+		  node->fil->run_force_callbacks(cbRelease, index, 1);
 		  node->fun->force_flag(true);
 		  return &bit->as_bit;
 	    }
@@ -874,16 +912,12 @@ static vpiHandle signal_index(int idx, vpiHandle ref)
 {
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
-
-	/* We can only get the bit for a net or reg. */
-      PLI_INT32 type = vpi_get(vpiType, ref);
-      if ((type != vpiNet) && (type != vpiReg)) return 0;
-
       return rfp->get_index(idx);
 }
 
 unsigned __vpiSignal::width(void) const
 {
+      if (value_width) return value_width;
       unsigned wid = (msb.get_value() >= lsb.get_value())
 	    ? (msb.get_value() - lsb.get_value() + 1)
 	    : (lsb.get_value() - msb.get_value() + 1);
@@ -902,6 +936,7 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
       assert(rfp);
 
       unsigned wid = rfp->width();
+      unsigned base = rfp->value_base;
 
       vvp_signal_value*vsig = dynamic_cast<vvp_signal_value*>(rfp->node->fil);
       assert(vsig);
@@ -909,52 +944,52 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
       switch (vp->format) {
 
 	  case vpiIntVal:
-	    format_vpiIntVal(vsig, 0, wid, rfp->signed_flag, vp);
+	    format_vpiIntVal(vsig, base, wid, rfp->signed_flag, vp);
 	    break;
 
 	  case vpiScalarVal:
-	    format_vpiScalarVal(vsig, 0, vp);
+	    format_vpiScalarVal(vsig, base, vp);
 	    break;
 
 	  case vpiStrengthVal:
-	    format_vpiStrengthVal(vsig, 0, wid, vp);
+	    format_vpiStrengthVal(vsig, base, wid, vp);
 	    break;
 
 	  case vpiBinStrVal:
-	    format_vpiBinStrVal(vsig, 0, wid, vp);
+	    format_vpiBinStrVal(vsig, base, wid, vp);
 	    break;
 
 	  case vpiHexStrVal:
-	    format_vpiHexStrVal(vsig, 0, wid, vp);
+	    format_vpiHexStrVal(vsig, base, wid, vp);
 	    break;
 
 	  case vpiOctStrVal:
-	    format_vpiOctStrVal(vsig, 0, wid, vp);
+	    format_vpiOctStrVal(vsig, base, wid, vp);
 	    break;
 
 	  case vpiDecStrVal:
-	    format_vpiDecStrVal(vsig, 0, wid, rfp->signed_flag, vp);
+	    format_vpiDecStrVal(vsig, base, wid, rfp->signed_flag, vp);
 	    break;
 
 	  case vpiStringVal:
-	    format_vpiStringVal(vsig, 0, wid, vp);
+	    format_vpiStringVal(vsig, base, wid, vp);
 	    break;
 
 	  case vpiVectorVal:
-	    format_vpiVectorVal(vsig, 0, wid, vp);
+	    format_vpiVectorVal(vsig, base, wid, vp);
 	    break;
 
 	  case vpiRealVal:
-	    format_vpiRealVal(vsig, 0, wid, rfp->signed_flag, vp);
+	    format_vpiRealVal(vsig, base, wid, rfp->signed_flag, vp);
 	    break;
 
 	  case vpiObjTypeVal:
 	    if (wid == 1) {
 		  vp->format = vpiScalarVal;
-		  format_vpiScalarVal(vsig, 0, vp);
+		  format_vpiScalarVal(vsig, base, vp);
 	    } else {
 		  vp->format = vpiVectorVal;
-		  format_vpiVectorVal(vsig, 0, wid, vp);
+		  format_vpiVectorVal(vsig, base, wid, vp);
 	    }
 	    break;
 
@@ -1003,12 +1038,17 @@ static vvp_vector4_t from_stringval(const char*str, unsigned wid)
 
 static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
 {
-      unsigned wid;
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
       vvp_net_ptr_t dest(rfp->node, 0);
-
-      bool net_flag = ref->get_type_code()==vpiNet;
+      bool net_flag = ref->get_type_code()==vpiNet ||
+                      ref->get_type_code()==vpiNetBit;
+      unsigned wid = rfp->width();
+      unsigned base = rfp->value_base;
+      vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(rfp->node->fil);
+      assert(sig);
+      unsigned full_width = sig->value_size();
+      bool full_sig = base == 0 && wid == full_width;
 
 	/* If this is a release, then we are not really putting a
 	   value. Instead, issue a release "command" to the signal
@@ -1019,8 +1059,9 @@ static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
       if (flags == vpiReleaseFlag) {
 	    assert(rfp->node->fil);
 	    rfp->node->fil->force_unlink();
-	    rfp->node->fil->release(dest, net_flag);
-	    rfp->node->fil->run_force_callbacks(cbRelease);
+	    if (full_sig) rfp->node->fil->release(dest, net_flag);
+	    else rfp->node->fil->release_pv(dest, base, wid, net_flag);
+	    rfp->node->fil->run_force_callbacks(cbRelease, base, wid);
 	    rfp->node->fun->force_flag(true);
 	    signal_get_value(ref, vp);
 	    return ref;
@@ -1029,19 +1070,29 @@ static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
 	/* Make a vvp_vector4_t vector to receive the translated value
 	   that we are going to poke. This will get populated
 	   differently depending on the format. */
-      wid = (rfp->msb.get_value() >= rfp->lsb.get_value())
-	    ? (rfp->msb.get_value() - rfp->lsb.get_value() + 1)
-	    : (rfp->lsb.get_value() - rfp->msb.get_value() + 1);
-
       vvp_vector4_t val = vec4_from_vpi_value(vp, wid);
 
       if (flags == vpiForceFlag) {
-	    vvp_vector2_t mask (vvp_vector2_t::FILL1, wid);
-	    rfp->node->force_vec4(val, mask);
+	    if (full_sig) {
+	          vvp_vector2_t mask(vvp_vector2_t::FILL1, full_width);
+	          rfp->node->force_vec4(val, mask);
+	    } else {
+	          vvp_vector2_t mask(vvp_vector2_t::FILL0, full_width);
+	          for (unsigned idx = 0; idx < wid; idx += 1)
+	                mask.set_bit(base + idx, 1);
+	          vvp_vector4_t tmp(full_width, BIT4_Z);
+	          sig->vec4_value(tmp);
+	          tmp.set_vec(base, val);
+	          rfp->node->force_vec4(tmp, mask);
+	    }
       } else if (net_flag && !dynamic_cast<vvp_island_port*>(rfp->node->fun)) {
-	    rfp->node->send_vec4(val, vthread_get_wt_context());
+	    if (full_sig) rfp->node->send_vec4(val, vthread_get_wt_context());
+	    else rfp->node->send_vec4_pv(val, base, full_width,
+	                                vthread_get_wt_context());
       } else {
-	    vvp_send_vec4(dest, val, vthread_get_wt_context());
+	    if (full_sig) vvp_send_vec4(dest, val, vthread_get_wt_context());
+	    else vvp_send_vec4_pv(dest, val, base, full_width,
+	                         vthread_get_wt_context());
       }
       return ref;
 }
@@ -1155,6 +1206,7 @@ struct signal_bitvar : public __vpiSignal {
       int get_type_code(void) const override { return vpiBitVar; }
 };
 
+
 struct signal_shortint : public __vpiSignal {
       inline signal_shortint() { }
       int get_type_code(void) const override { return vpiShortIntVar; }
@@ -1169,6 +1221,54 @@ struct signal_longint : public __vpiSignal {
       inline signal_longint() { }
       int get_type_code(void) const override { return vpiLongIntVar; }
 };
+
+struct signal_packed_net_bit : public __vpiSignal {
+      int get_type_code(void) const override { return vpiNetBit; }
+};
+
+struct signal_packed_reg_bit : public __vpiSignal {
+      int get_type_code(void) const override { return vpiRegBit; }
+};
+
+
+static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
+                                            unsigned base, unsigned width)
+{
+      __vpiSignal*obj = 0;
+      unsigned next_depth = parent->packed_depth + 1;
+      if (next_depth == parent->packed_ranges.size()) {
+            int type = parent->get_type_code();
+            bool net = type == vpiNet || type == vpiNetBit;
+            obj = net ? static_cast<__vpiSignal*>(new signal_packed_net_bit)
+                      : static_cast<__vpiSignal*>(new signal_packed_reg_bit);
+      } else switch (parent->get_type_code()) {
+          case vpiNet: obj = new signal_net; break;
+          case vpiBitVar: obj = new signal_bitvar; break;
+          case vpiByteVar: obj = new signal_byte; break;
+          case vpiShortIntVar: obj = new signal_shortint; break;
+          case vpiIntVar: obj = new signal_int; break;
+          case vpiLongIntVar: obj = new signal_longint; break;
+          default: obj = new signal_reg; break;
+      }
+
+      std::string name = vpi_get_str(vpiName, parent);
+      name += "[" + std::to_string(index) + "]";
+      int left = index, right = index;
+      if (next_depth < parent->packed_ranges.size()) {
+            left = parent->packed_ranges[next_depth].left;
+            right = parent->packed_ranges[next_depth].right;
+      }
+      fill_in_net4(obj, vpip_scope(parent), name.c_str(), left, right,
+                   false, parent->node);
+      obj->automatic_storage = parent->automatic_storage;
+      obj->packed_ranges = parent->packed_ranges;
+      obj->packed_depth = next_depth;
+      obj->value_base = base;
+      obj->value_width = width;
+      obj->packed_parent = parent->packed_parent
+            ? parent->packed_parent : static_cast<vpiHandle>(parent);
+      return obj;
+}
 
 
 /*
@@ -1293,6 +1393,16 @@ void __vpiSignal::operator delete(void*)
 }
 
 #ifdef CHECK_WITH_VALGRIND
+void signal_handle_delete(vpiHandle item);
+
+static void packed_signal_children_delete_(__vpiSignal*obj)
+{
+      for (vpiHandle child : obj->packed_children)
+            if (child) signal_handle_delete(child);
+      std::vector<vpiHandle>().swap(obj->packed_children);
+      std::vector<__vpiSignal::packed_range_t>().swap(obj->packed_ranges);
+}
+
 void signal_delete(vpiHandle item)
 {
       struct __vpiSignal *obj = static_cast<__vpiSignal *> (item);
@@ -1306,6 +1416,7 @@ void signal_delete(vpiHandle item)
 	    obj->bits -= 1;
 	    delete [] obj->bits;
       }
+      packed_signal_children_delete_(obj);
       signal_dels += 1;
       VALGRIND_MEMPOOL_FREE(reinterpret_cast<vpiSignal_plug *>(obj)->pool, obj);
 }
@@ -1322,6 +1433,7 @@ void signal_handle_delete(vpiHandle item)
             obj->bits -= 1;
             delete [] obj->bits;
       }
+      packed_signal_children_delete_(obj);
       signal_dels += 1;
       VALGRIND_MEMPOOL_FREE(reinterpret_cast<vpiSignal_plug *>(obj)->pool, obj);
 }
@@ -1363,6 +1475,8 @@ static vpiHandle fill_in_net4(struct __vpiSignal*obj, __vpiScope*scope,
       obj->is_netarray = 0;
       obj->automatic_storage = 0;
       obj->node = node;
+      obj->value_base = 0;
+      obj->value_width = ((msb > lsb)? msb-lsb : lsb-msb) + 1;
 
 	// Place this object within a scope. If this object is
 	// attached to an array, then this value will be replaced with

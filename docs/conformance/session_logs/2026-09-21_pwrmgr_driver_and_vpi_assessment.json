@@ -1,0 +1,165 @@
+{
+  "date": "2026-09-21",
+  "head": "99459bcc9",
+  "vpi_oracle": [
+    {
+      "edition": "2017",
+      "compile_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle/shape-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle/shape.sv"
+      ],
+      "run_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+        "-M/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle",
+        "-mshape",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle/shape-2017.vvp"
+      ],
+      "exit": 0,
+      "output": "FAIL missing test.desc[0]\nFAIL missing test.desc[1]\nFAIL missing test.desc[0][2]\nFAIL missing test.desc[1][0]\nFAIL missing test.mixed[3]\nFAIL missing test.mixed[4]\nFAIL missing test.mixed[3][-1]\nFAIL missing test.mixed[3][-2]\nFAIL missing test.mixed[4][-2][3]\nFAIL missing test.net_desc[0]\nFAIL missing test.net_desc[1]\nSHAPE_RESULT failures=11\n"
+    },
+    {
+      "edition": "2023",
+      "compile_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle/shape-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle/shape.sv"
+      ],
+      "run_argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/vvp/vvp",
+        "-M/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle",
+        "-mshape",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-vpi-packed-element-assessment/root-oracle/shape-2023.vvp"
+      ],
+      "exit": 0,
+      "output": "FAIL missing test.desc[0]\nFAIL missing test.desc[1]\nFAIL missing test.desc[0][2]\nFAIL missing test.desc[1][0]\nFAIL missing test.mixed[3]\nFAIL missing test.mixed[4]\nFAIL missing test.mixed[3][-1]\nFAIL missing test.mixed[3][-2]\nFAIL missing test.mixed[4][-2][3]\nFAIL missing test.net_desc[0]\nFAIL missing test.net_desc[1]\nSHAPE_RESULT failures=11\n"
+    }
+  ],
+  "driver_assessment": {
+    "date": "2026-09-21",
+    "evidence": "evidence/review-20260920/retest-20260921-current-release/pwrmgr-compile.log",
+    "warnings": [
+      {
+        "signal": "esc_rx_o",
+        "source": "application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/src/lowrisc_prim_esc_0/rtl/prim_esc_receiver.sv:54,167-168",
+        "decl": "output esc_rx_t esc_rx_o",
+        "drivers": "continuous assignments to esc_rx_o.resp_p and esc_rx_o.resp_n; output is a packed struct net port",
+        "diagnostic": "vvp.tgt warning: uwire esc_rx_o has 2 drivers (treated as wire)",
+        "assessment": "Retained nexus dump confirms a second driver: DUT NetConcat8 plus interface NetMux _ivl_71. The interface source intentionally selects a value or 'z' by mode; the remaining question is whether parent/interface collapse is represented as uwire instead of a resolved wire/tri nexus.",
+        "ownership": "diagnostic is emitted by tgt-vvp/draw_net_input.c:~860 in draw_net_input_x(), after ivl nexus driver counting; upstream driver/nexus construction remains to be traced"
+      },
+      {
+        "signal": "d2h",
+        "source": "application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/src/lowrisc_fpv_pwrmgr_csr_assert_0/pwrmgr_csr_assert_fpv.sv:25,86+",
+        "decl": "input tl_d2h_t d2h",
+        "drivers": "input port is driven by its parent connection; assertions read d2h fields",
+        "diagnostic": "vvp.tgt warning: uwire d2h has 2 drivers (treated as wire)",
+        "assessment": "Retained nexus dump confirms a second driver: DUT output-reg path plus interface NetMux _ivl_15. tl_if.sv explicitly assigns d2h = (if_mode == Device) ? d2h_int : 'z; this is intentional tri-state topology, so classification depends on correct resolved-net handling.",
+        "ownership": "diagnostic is emitted by tgt-vvp/draw_net_input.c:~860 in draw_net_input_x(), after ivl nexus driver counting; upstream driver/nexus construction remains to be traced"
+      }
+    ],
+    "standard_scope": "IEEE 1800-2017/2023 6.7 (net types and unresolved uwire semantics), 23.2-23.3 (port declarations and connections), and 23.3.3.7/Table 23-1 (collapsed net-port behavior). A uwire requires one driver on the resolved nexus; distinct packed members are separate selected nets when their driver nexuses are disjoint.",
+    "tiny_reducer": "module t(input logic a, input logic b, output pair_t o); typedef struct packed {logic p; logic n;} pair_t; assign o.p=a; assign o.n=b; endmodule; separately instantiate t with one parent connection and no duplicate connection for an input pair_t.",
+    "topology_observations": [
+      "prim_esc_receiver.esc_rx_o is an aggregate output connected to pwrmgr.esc_rst_rx_o, which is then connected to tb.esc_if.esc_rx; the receiver assigns only esc_rx_o.resp_p and esc_rx_o.resp_n (prim_esc_receiver.sv:167-168).",
+      "pwrmgr_bind.sv binds pwrmgr_csr_assert_fpv with d2h(tl_o); the bound module declares input tl_d2h_t d2h and only reads it. No second source driver was found in the bind topology.",
+      "The valid paired packed-struct reducer struct_ports.sv emits no warnings in either edition, so disjoint packed fields alone do not reproduce esc_rx_o. The actual reproducing factor is nested aggregate ports plus interface value/'z' mux drivers."
+    ],
+    "verification": "Nexus identities are retained in nexus-driver-excerpts.txt. No compile or shared-tool rerun performed. The two drivers are confirmed; only correct net-type resolution remains to be established.",
+    "qualification": "Warnings remain semantic fallback evidence; no application qualification claim."
+  },
+  "driver_control": [
+    {
+      "edition": "2017",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/struct-ports-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/struct_ports.sv"
+      ],
+      "compile": 0,
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED disjoint packed struct drivers\n"
+    },
+    {
+      "edition": "2023",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "test",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/struct-ports-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/struct_ports.sv"
+      ],
+      "compile": 0,
+      "compile_output": "",
+      "runtime": 0,
+      "output": "PASSED disjoint packed struct drivers\n"
+    }
+  ],
+  "diagnostic_compile": {
+    "argv": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-N",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/pwrmgr.netlist",
+      "-g2012",
+      "-stb",
+      "-spwrmgr_bind",
+      "-spwrmgr_cov_bind",
+      "-spwrmgr_unit_only_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-driver-assessment/pwrmgr.vvp",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-iverilog.scr"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+    "exit": 0,
+    "elapsed": 24.15373682975769
+  },
+  "cleanup": {
+    "removed": [
+      {
+        "path": "evidence/review-20260920/next-pwrmgr-driver-assessment/pwrmgr.netlist",
+        "bytes": 7843204604,
+        "reason": "Generated diagnostic replay output; commands/logs and scoped netlist excerpts retained"
+      },
+      {
+        "path": "evidence/review-20260920/next-pwrmgr-driver-assessment/pwrmgr.vvp",
+        "bytes": 49441752,
+        "reason": "Generated diagnostic replay output; commands/logs and scoped netlist excerpts retained"
+      }
+    ],
+    "excerpt_hashes": {
+      "driver-netlist-excerpts.txt": "2d9dbf5b76cf0d74f36af5b3f7254d6309e13967d2b1cdfa950187b9486e38ff",
+      "nexus-driver-excerpts.txt": "f67cef5999ec5a0f46b72479e7e03a26a582a612a2efc605e7a30fc4e6230259"
+    }
+  },
+  "driver_conclusion": "Confirmed DUT+interface mux drivers; earlier disjoint-field-only hypothesis contradicted. Resolved net type across aggregate port collapse remains to be checked; no fix selected.",
+  "implementation": "VPI private patch ongoing; event structural worker replaced after repeated no-code handoffs. No new semantic fix integrated."
+}

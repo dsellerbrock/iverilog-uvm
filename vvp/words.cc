@@ -32,10 +32,124 @@
 # include  <cctype>
 # include  <cerrno>
 # include  <limits>
+# include  <climits>
 # include  <iostream>
 # include  <cassert>
 
 using namespace std;
+
+class packed_dims_resolv_t : public resolv_list_s {
+    public:
+      packed_dims_resolv_t(char*label,
+            const vector<__vpiSignal::packed_range_t>&ranges,
+            unsigned width)
+      : resolv_list_s(label), ranges_(ranges), width_(width), obj_(0)
+      {
+            if (__vpiArray*array = array_find(label)) obj_ = array;
+      }
+
+      void resolve_handle()
+      { compile_vpi_lookup(&obj_, strdup(label())); }
+
+      bool resolve(bool message_flag) override
+      {
+            if (!obj_) {
+                  if (message_flag)
+                        yyerror("unresolved packed dimension metadata target");
+                  return false;
+            }
+            if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(obj_)) {
+                  if (width_ != sig->width()) {
+                        yyerror("packed dimension metadata width mismatch");
+                        compile_errors += 1;
+                  } else {
+                        sig->packed_ranges = ranges_;
+                        sig->packed_depth = 0;
+                        sig->value_base = 0;
+                        sig->value_width = width_;
+                        sig->msb.set_value(ranges_[0].left);
+                        sig->lsb.set_value(ranges_[0].right);
+                  }
+            } else if (__vpiArray*array = dynamic_cast<__vpiArray*>(obj_)) {
+                  if (width_ != static_cast<unsigned>(array->get_word_size())) {
+                        yyerror("packed array dimension metadata width mismatch");
+                        compile_errors += 1;
+                  } else {
+                        array->packed_ranges = ranges_;
+                  }
+            } else {
+                  yyerror("packed dimension metadata target is not integral storage");
+                  compile_errors += 1;
+            }
+            return true;
+      }
+
+    private:
+      vector<__vpiSignal::packed_range_t> ranges_;
+      unsigned width_;
+      vpiHandle obj_;
+};
+
+void compile_packed_dims(char*label, char*layout)
+{
+      vector<__vpiSignal::packed_range_t> ranges;
+      const char*cur = layout;
+      bool syntax_valid = true;
+      while (*cur) {
+            char*end = 0;
+            long left = strtol(cur, &end, 10);
+            if (end == cur || *end != ':') break;
+            cur = end + 1;
+            long right = strtol(cur, &end, 10);
+            if (end == cur || (*end != ',' && *end != 0)) break;
+            if (left < INT_MIN || left > INT_MAX ||
+                right < INT_MIN || right > INT_MAX) break;
+            __vpiSignal::packed_range_t range;
+            range.left = static_cast<int>(left);
+            range.right = static_cast<int>(right);
+            ranges.push_back(range);
+            if (*end == ',' && end[1] == 0) {
+                  syntax_valid = false;
+                  cur = end + 1;
+                  break;
+            }
+            cur = *end ? end + 1 : end;
+      }
+
+      uint64_t width = 1;
+      bool valid = syntax_valid && !ranges.empty() && *cur == 0;
+      for (const auto&range : ranges) {
+            int64_t left = range.left;
+            int64_t right = range.right;
+            uint64_t dim = static_cast<uint64_t>(
+                  left >= right ? left - right : right - left) + 1;
+            if (dim == 0 || width > UINT_MAX / dim) valid = false;
+            else width *= dim;
+      }
+
+      if (!valid) {
+            yyerror("invalid packed dimension metadata");
+            compile_errors += 1;
+            free(label);
+      } else {
+            packed_dims_resolv_t*res = new packed_dims_resolv_t(
+                  label, ranges, static_cast<unsigned>(width));
+            if (array_find(label)) {
+                  resolv_submit(res);
+            } else {
+                  /* Queue this consumer before its handle lookup.  Both use
+                     the same label, so targeted resolution and the final
+                     cleanup pass visit the producer first.  The consumer's
+                     obj_ storage consequently remains live until the nested
+                     lookup has either found the forward net or installed its
+                     focused null sentinel. */
+                  resolv_submit(res);
+                  res->resolve_handle();
+            }
+      }
+
+      delete[] layout;
+}
 
 static bool use_automatic_storage_(int lifetime_flag)
 {

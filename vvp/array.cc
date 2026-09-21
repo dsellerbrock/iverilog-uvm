@@ -264,6 +264,149 @@ struct __vpiArrayVthrAPV : public __vpiHandle {
       unsigned part_wid;
 };
 
+vpiHandle __vpiArrayWord::as_word_t::vpi_index(int idx)
+{
+      return vpip_array_word_packed_index(this, idx);
+}
+
+static bool packed_index_slice_(
+      const vector<__vpiSignal::packed_range_t>&ranges, unsigned depth,
+      int index, unsigned&ordinal, unsigned&remaining)
+{
+      if (depth >= ranges.size()) return false;
+      const __vpiSignal::packed_range_t&range = ranges[depth];
+      if (range.left >= range.right) {
+            if (index > range.left || index < range.right) return false;
+            ordinal = static_cast<unsigned>(index - range.right);
+      } else {
+            if (index < range.left || index > range.right) return false;
+            ordinal = static_cast<unsigned>(range.right - index);
+      }
+      remaining = 1;
+      for (size_t dim = depth + 1; dim < ranges.size(); dim += 1) {
+            const __vpiSignal::packed_range_t&next = ranges[dim];
+            int64_t left = next.left;
+            int64_t right = next.right;
+            uint64_t count = static_cast<uint64_t>(
+                  left >= right ? left - right : right - left) + 1;
+            assert(count <= UINT_MAX && remaining <= UINT_MAX / count);
+            remaining *= static_cast<unsigned>(count);
+      }
+      return true;
+}
+
+static vpiHandle array_packed_index_(__vpiArray*array, vpiHandle parent,
+                                     unsigned word, unsigned base,
+                                     unsigned depth,
+                                     const vector<int>&prefix, int idx)
+{
+      unsigned ordinal = 0, remaining = 0;
+      if (!packed_index_slice_(array->packed_ranges, depth, idx,
+                               ordinal, remaining)) return 0;
+      vector<int>indices = prefix;
+      indices.push_back(idx);
+      string key = to_string(word);
+      for (int item : indices) key += ":" + to_string(item);
+      auto found = array->packed_views.find(key);
+      if (found != array->packed_views.end()) return found->second;
+
+      __vpiArrayPackedView*view = new __vpiArrayPackedView;
+      view->array = array;
+      view->packed_parent = parent;
+      view->word = word;
+      view->base = base + ordinal * remaining;
+      view->width = remaining;
+      view->depth = depth + 1;
+      view->indices = indices;
+      array->packed_views[key] = view;
+      return view;
+}
+
+vpiHandle vpip_array_word_packed_index(vpiHandle ref, int idx)
+{
+      __vpiArrayWord*word = array_var_word_from_handle(ref);
+      if (!word) return 0;
+      __vpiArray*array = dynamic_cast<__vpiArray*>(word->get_parent());
+      if (!array || array->packed_ranges.empty() || array->nets) return 0;
+      vector<int>prefix;
+      return array_packed_index_(array, ref, word->get_index(), 0, 0,
+                                 prefix, idx);
+}
+
+int __vpiArrayPackedView::get_type_code(void) const
+{
+      if (depth == array->packed_ranges.size()) return vpiRegBit;
+      return array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL
+            ? vpiBitVar : vpiReg;
+}
+
+int __vpiArrayPackedView::vpi_get(int code)
+{
+      switch (code) {
+          case vpiSize: return static_cast<int>(width);
+          case vpiSigned: return 0;
+          case vpiScalar: return width == 1;
+          case vpiVector: return width != 1;
+          case vpiConstantSelect: return 1;
+          case vpiAutomatic: return array->automatic_storage ? 1 : 0;
+          case vpiIndex: return indices.empty() ? vpiUndefined : indices.back();
+          case vpiLeftRange:
+          case vpiRightRange:
+            if (depth < array->packed_ranges.size()) {
+                  const auto&range = array->packed_ranges[depth];
+                  return code == vpiLeftRange ? range.left : range.right;
+            }
+            return indices.empty() ? vpiUndefined : indices.back();
+          default: return vpiUndefined;
+      }
+}
+
+char*__vpiArrayPackedView::vpi_get_str(int code)
+{
+      if (code == vpiFile) return simple_set_rbuf_str(file_names[0]);
+      if (code != vpiName && code != vpiFullName) return 0;
+      string name = ::vpi_get_str(code, packed_parent);
+      for (int index : indices) name += "[" + to_string(index) + "]";
+      return simple_set_rbuf_str(name.c_str());
+}
+
+void __vpiArrayPackedView::vpi_get_value(p_vpi_value val)
+{
+      vvp_vector4_t use = array->get_word(word).subvalue(base, width);
+      vpip_vec4_get_value(use, width, false, val);
+}
+
+vpiHandle __vpiArrayPackedView::vpi_put_value(p_vpi_value val, int flags)
+{
+      if (!array->is_forceable_vec4_array()) return 0;
+      if (flags == vpiReleaseFlag) {
+            array->release_word(word, base, width);
+            vpi_get_value(val);
+            return this;
+      }
+      vvp_vector4_t use = vec4_from_vpi_value(val, width);
+      if (flags == vpiForceFlag) array->force_word(word, base, use);
+      else array->set_word(word, base, use);
+      return this;
+}
+
+vpiHandle __vpiArrayPackedView::vpi_handle(int code)
+{
+      switch (code) {
+          case vpiParent: return packed_parent;
+          case vpiScope: return array->get_scope();
+          case vpiModule: return vpip_module(array->get_scope());
+          case vpiArray: return array;
+          default: return 0;
+      }
+}
+
+vpiHandle __vpiArrayPackedView::vpi_index(int idx)
+{
+      return array_packed_index_(array, packed_parent, word, base, depth,
+                                 indices, idx);
+}
+
 bool is_net_array(vpiHandle obj)
 {
       struct __vpiArray*rfp = dynamic_cast<__vpiArray*> (obj);
@@ -1049,6 +1192,7 @@ void __vpiArray::force_word(unsigned address, unsigned off,
 
       if (!old_visible.eeq(get_word(address)))
             word_change(address);
+      run_packed_force_callbacks(cbForce, address, off, value.size());
 }
 
 void __vpiArray::force_link_word(unsigned address, unsigned off, unsigned wid,
@@ -1173,6 +1317,50 @@ void __vpiArray::release_word(unsigned address, unsigned off, unsigned wid)
       // as a defensive check for clipped or future mixed-kind extensions.
       if (!visible.eeq(get_word(address)))
             word_change(address);
+      run_packed_force_callbacks(cbRelease, address, off, wid);
+}
+
+void __vpiArray::add_packed_force_callback(value_callback*cb, unsigned word,
+                                           unsigned base, unsigned width)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->add_packed_force_callback(cb, word, base, width);
+            return;
+      }
+      packed_force_callback_t item = { cb, word, base, width };
+      packed_force_callbacks_.push_back(item);
+}
+
+void __vpiArray::run_packed_force_callbacks(int reason, unsigned word,
+                                            unsigned base, unsigned width)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (owner != this) {
+            owner->run_packed_force_callbacks(reason, word, base, width);
+            return;
+      }
+      unsigned end = base + width;
+      size_t pending = packed_force_callbacks_.size();
+      for (auto it = packed_force_callbacks_.begin();
+           it != packed_force_callbacks_.end() && pending; pending -= 1) {
+            value_callback*cb = it->cb;
+            if (!cb->cb_data.cb_rtn) {
+                  delete cb;
+                  it = packed_force_callbacks_.erase(it);
+                  continue;
+            }
+            unsigned cb_end = it->base + it->width;
+            if (cb->cb_data.reason == reason && it->word == word &&
+                base < cb_end && it->base < end) {
+                  if (cb->cb_data.value &&
+                      cb->cb_data.value->format != vpiSuppressVal &&
+                      cb->cb_data.obj)
+                        cb->cb_data.obj->vpi_get_value(cb->cb_data.value);
+                  callback_execute(cb);
+            }
+            ++it;
+      }
 }
 
 /* R11: record what this word held when the current time step began, the
@@ -2276,9 +2464,13 @@ void __vpiArray::word_change_local_(unsigned long addr)
 		  if (cur->test_value_callback_ready()) {
 			if (cur->cb_data.value
 			    && cur->cb_data.value->format != vpiSuppressVal) {
+			      __vpiArrayPackedView*view =
+			            dynamic_cast<__vpiArrayPackedView*>(cur->cb_data.obj);
 			      int declared = get_word_declared_index((unsigned)addr);
 			      vpiHandle changed_word = vpi_index(declared);
-			      if (changed_word)
+			      if (view)
+			            view->vpi_get_value(cur->cb_data.value);
+			      else if (changed_word)
 				    changed_word->vpi_get_value(cur->cb_data.value);
 			      else
 				    cur->cb_data.value->format = vpiSuppressVal;
@@ -2407,15 +2599,15 @@ array_word_part_callback::array_word_part_callback(p_cb_data data, long addr)
 : array_word_value_callback(data, addr)
 {
 	// Get the initial value of the part, to use as a reference.
-      struct __vpiArrayVthrAPV*apvword = dynamic_cast<__vpiArrayVthrAPV*>(data->obj);
       s_vpi_value tmp_value;
       tmp_value.format = vpiBinStrVal;
-      apvword->vpi_get_value(&tmp_value);
+      data->obj->vpi_get_value(&tmp_value);
 
-      value_bits_ = new char[apvword->part_wid+1];
+      unsigned width = ::vpi_get(vpiSize, data->obj);
+      value_bits_ = new char[width+1];
 
-      memcpy(value_bits_, tmp_value.value.str, apvword->part_wid);
-      value_bits_[apvword->part_wid] = 0;
+      memcpy(value_bits_, tmp_value.value.str, width);
+      value_bits_[width] = 0;
 }
 
 array_word_part_callback::~array_word_part_callback()
@@ -2425,19 +2617,17 @@ array_word_part_callback::~array_word_part_callback()
 
 bool array_word_part_callback::test_value_callback_ready(void)
 {
-      struct __vpiArrayVthrAPV*apvword = dynamic_cast<__vpiArrayVthrAPV*>(cb_data.obj);
-      assert(apvword);
-
 	// Get a reference value that can be used to compare with an
 	// updated value.
       s_vpi_value tmp_value;
       tmp_value.format = vpiBinStrVal;
-      apvword->vpi_get_value(&tmp_value);
+      cb_data.obj->vpi_get_value(&tmp_value);
 
-      if (memcmp(value_bits_, tmp_value.value.str, apvword->part_wid) == 0)
+      unsigned width = ::vpi_get(vpiSize, cb_data.obj);
+      if (memcmp(value_bits_, tmp_value.value.str, width) == 0)
 	    return false;
 
-      memcpy(value_bits_, tmp_value.value.str, apvword->part_wid);
+      memcpy(value_bits_, tmp_value.value.str, width);
       return true;
 
 }
@@ -2532,6 +2722,11 @@ value_callback*vpip_array_word_change_target(p_cb_data data, vpiHandle target)
 	  } else if (struct __vpiArrayVthrAPV*apvword = dynamic_cast<__vpiArrayVthrAPV*>(target)) {
 	    parent = apvword->array;
 	    cbh = new array_word_part_callback(data, apvword->word_sel);
+
+	  } else if (struct __vpiArrayPackedView*packed =
+	             dynamic_cast<__vpiArrayPackedView*>(target)) {
+	    parent = packed->array;
+	    cbh = new array_word_part_callback(data, packed->word);
       }
 
       assert(cbh);
@@ -2639,6 +2834,7 @@ void compile_array_alias(char*label, char*name, char*src)
       obj->vals_words = mem->vals_words;
       obj->value_kind = mem->value_kind;
       obj->automatic_storage = mem->automatic_storage;
+      obj->packed_ranges = mem->packed_ranges;
 	/* The canonical owner applies this metadata to shared word storage, but
 	 * retain it on every VPI alias as well for consistent introspection. */
       obj->element_container_layout_ =
@@ -2788,7 +2984,12 @@ void memory_delete(vpiHandle item)
 	    delete arr->vpi_callbacks;
 	    arr->vpi_callbacks = tmp;
       }
-
+      for (auto&item : arr->packed_force_callbacks_)
+            delete item.cb;
+      arr->packed_force_callbacks_.clear();
+      for (auto&item : arr->packed_views)
+            delete item.second;
+      arr->packed_views.clear();
       delete arr;
 }
 

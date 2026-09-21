@@ -1,0 +1,2 @@
+ivltests/sv_constraint_object_method_impure_override_fail.v:14: error: Function 'state.read' used in a constraint is not pure: writes class, container, or indirect state.
+1 error(s) during elaboration.

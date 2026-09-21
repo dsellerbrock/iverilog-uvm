@@ -1,0 +1,65 @@
+{
+  "revision": "e42f114cd",
+  "state": "REPRODUCED; not implemented",
+  "vpi": {
+    "results": [
+      {
+        "edition": "2017",
+        "exit": 0,
+        "output": "test.cnt_q size=4 value=9\ntest.cnt_q[0] MISSING\ntest.cnt_q[1] MISSING\ntest.flat[0] MISSING\nby_index cnt_q[0] size=1 expected=2\n"
+      },
+      {
+        "edition": "2023",
+        "exit": 0,
+        "output": "test.cnt_q size=4 value=9\ntest.cnt_q[0] MISSING\ntest.cnt_q[1] MISSING\ntest.flat[0] MISSING\nby_index cnt_q[0] size=1 expected=2\n"
+      }
+    ],
+    "application_probe": {
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-M/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-hdl-path-assessment",
+        "-mappprobe",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-signed-cover-fix/pwrmgr.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+      "exit": 0
+    },
+    "actual_path": "tb.dut.u_esc_rx.u_prim_count.cnt_q",
+    "application_observation": "Root object44bits exists; indexed paths[0] and[1] missing.",
+    "evidence": "evidence/review-20260920/next-pwrmgr-hdl-path-assessment",
+    "next": "Sol medium traces packed dimension metadata and existing get/put/force/release selection machinery; proposal before implementation."
+  },
+  "events": {
+    "results": [
+      {
+        "edition": "2017",
+        "compile_exit": 0,
+        "runtime_exit": 1,
+        "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv:24: event wait skipped: 0 1 1 1\n       Time: 1  Scope: test\n"
+      },
+      {
+        "edition": "2023",
+        "compile_exit": 0,
+        "runtime_exit": 1,
+        "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv:24: event wait skipped: 0 1 1 1\n       Time: 1  Scope: test\n"
+      }
+    ],
+    "evidence": "evidence/review-20260920/next-pwrmgr-event-assessment",
+    "next": "Terra medium selected for compound virtual-interface edge semantics using existing mechanisms; allowed elaborate.cc, dependent scope needs coordinator review."
+  },
+  "source_hashes": {
+    "evidence/review-20260920/next-pwrmgr-hdl-path-assessment/probe.c": "c265b29b2b700ff997286ef4a0f7323b2ad310b8b029c9fbf964aad2925b7354",
+    "evidence/review-20260920/next-pwrmgr-hdl-path-assessment/probe.sv": "b8b04e479423edd7ce049ce27a05c5efec0b65cdda03b90e4e15c4db9bb24f7a",
+    "evidence/review-20260920/next-pwrmgr-hdl-path-assessment/appprobe.c": "2bf09a5be03ac4e3132e938ca8d21d45640ceaf6245b4a875c677b87b9856f75",
+    "evidence/review-20260920/next-pwrmgr-event-assessment/compound_edges.sv": "895bb26f8e3f956d5bc857b77572e2ca38dd40192fd0e9a89e4fb65799926c9f"
+  },
+  "qualification": "Neither process exit0 nor compile success establishes an application pass; retained pwrmgr startup has a UVM_FATAL and compiler fallback warnings."
+}

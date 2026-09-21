@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_joint_ordered_randc_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_randomize_joint_ordered_randc_fail"
+}

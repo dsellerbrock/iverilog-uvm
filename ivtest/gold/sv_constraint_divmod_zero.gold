@@ -1,0 +1,9 @@
+ERROR: constraint state read: division by zero in constraint.
+ERROR: constraint state read: remainder by zero in constraint.
+ERROR: constraint state read: division by zero in constraint.
+ERROR: constraint state read: remainder by zero in constraint.
+ERROR: constraint state read: division by zero in constraint.
+ERROR: constraint state read: division by zero in constraint.
+ERROR: constraint state read: remainder by zero in constraint.
+ERROR: constraint state read: division by zero in constraint.
+PASSED

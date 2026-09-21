@@ -611,6 +611,20 @@ static const char *storage_flag_str(ivl_signal_t sig)
       }
 }
 
+static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
+{
+      unsigned dims = ivl_signal_packed_dimensions(sig);
+      if (dims < 2)
+            return;
+      fprintf(vvp_out, " .packed_dims v%p%s, \"", sig, suffix);
+      for (unsigned idx = 0; idx < dims; idx += 1) {
+            if (idx) fputc(',', vvp_out);
+            fprintf(vvp_out, "%d:%d", ivl_signal_packed_msb(sig, idx),
+                    ivl_signal_packed_lsb(sig, idx));
+      }
+      fprintf(vvp_out, "\";\n");
+}
+
 static const char *event_storage_flag_str(ivl_event_t event)
 {
       switch (ivl_event_lifetime(event)) {
@@ -988,6 +1002,12 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb,
 		    ivl_signal_local(sig)? " Local signal" : "" );
       }
+
+      if (ivl_signal_data_type(sig) == IVL_VT_BOOL ||
+          ivl_signal_data_type(sig) == IVL_VT_LOGIC) {
+            emit_packed_dims_(sig,
+                  ivl_signal_dimensions(sig) > 0 ? "" : "_0");
+      }
 }
 
 
@@ -1117,6 +1137,7 @@ static void draw_net_in_scope(ivl_signal_t sig)
 			        sig, vvp_mangle_name(ivl_signal_basename(sig)),
 			        nex_data->net,
 			        ivl_signal_basename(nex_data->net));
+			emit_packed_dims_(sig, "");
 			break;
 
 		    /* An alias for an individual word. */
@@ -1160,6 +1181,18 @@ static void draw_net_in_scope(ivl_signal_t sig)
 				nex_data->drivers_count,
 				strength_aware_flag?", strength-aware":"");
 	    }
+
+          /* Standalone local nets have no VPI handle. Array words and
+             variables retain handles even when compiler-generated. */
+          if ((!ivl_signal_local(sig) || dimensions > 0)
+              && (ivl_signal_data_type(sig) == IVL_VT_BOOL
+                  || ivl_signal_data_type(sig) == IVL_VT_LOGIC)) {
+                char suffix[32];
+                snprintf(suffix, sizeof suffix, "_%u", iword);
+                emit_packed_dims_(sig, suffix);
+                if (dimensions > 0 && iword == 0)
+                      emit_packed_dims_(sig, "");
+          }
       }
 }
 

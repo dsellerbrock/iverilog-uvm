@@ -1,0 +1,67 @@
+{
+  "blocker": "UVM-STRICT-REGEX-GLOB-FALLBACK",
+  "state": "PRIVATE_FOCUSED_TESTED_NOT_INTEGRATED",
+  "base_revision": "c1635efe9780fc78b8d03d8750df1c56f36023dd",
+  "change": "Remove strict-regex retry-as-glob; retain trace, native regcomp, explicit upstream deglob mode and legacy strict path.",
+  "authority": "Pinned UVM library API; exact IEEE1800.2 clause mapping unassessed. No IEEE1800 language conformance claim.",
+  "patch": "evidence/review-20260920/next-uvm-regex-assessment/private/uvm_dpi-strict-reviewed.patch",
+  "patch_sha256": "ba285a1380df953ff3eb3a39b2f1fd5f7212833467ff565b1245d231bcf07292",
+  "build": "Existing build_uvm_dpi.sh used in private output directory; installed bundle unchanged.",
+  "validation": [
+    {
+      "edition": "2017",
+      "kind": "baseline",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-d",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/uvm_dpi.vpi",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/2017.vvp"
+      ],
+      "exit": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/strict_regex_exec.sv:9: strict glob accepted\n       Time: 0  Scope: test\n",
+      "bundle_sha256": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9"
+    },
+    {
+      "edition": "2017",
+      "kind": "candidate",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-d",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/build/uvm_dpi.vpi",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/2017.vvp"
+      ],
+      "exit": 0,
+      "output": "UVM/DPI/REGEX_INV: repetition-operator operand invalid\nPASSED\n",
+      "bundle_sha256": "6715aa5dc710a8e62ccc813dbfa7258d8855f72f06602c608733d1d9cddf9a3d"
+    },
+    {
+      "edition": "2023",
+      "kind": "baseline",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-d",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/lib/ivl/uvm_dpi.vpi",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/2023.vvp"
+      ],
+      "exit": 1,
+      "output": "FATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/strict_regex_exec.sv:9: strict glob accepted\n       Time: 0  Scope: test\n",
+      "bundle_sha256": "e0247ca8173bbd094bbe7290d023e1c9604d63809320b685b250d6ee101a45b9"
+    },
+    {
+      "edition": "2023",
+      "kind": "candidate",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-d",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/build/uvm_dpi.vpi",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-uvm-regex-assessment/private/2023.vvp"
+      ],
+      "exit": 0,
+      "output": "UVM/DPI/REGEX_INV: repetition-operator operand invalid\nPASSED\n",
+      "bundle_sha256": "6715aa5dc710a8e62ccc813dbfa7258d8855f72f06602c608733d1d9cddf9a3d"
+    }
+  ],
+  "review": "Use *[ as portable invalid strict expression; leading-star-only behavior varies by native regex implementation. Normal bracket wrappers and2048/2049length controls included. Existing single-slash upstream debt remains out of scope.",
+  "application_boundary": "GPIO legacy errors are not fixed by this change; no application retest or success claim.",
+  "pending": "Permanent test registration, integration after current batch gates/publication, applicable UVM regression; do not count in current nine fixes."
+}

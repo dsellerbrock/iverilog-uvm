@@ -1,0 +1,8 @@
+{
+    "type": "CE",
+    "source": "sv_self_package_enum_cast_unknown_type_fail.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_self_package_enum_cast_unknown_type_fail"
+}

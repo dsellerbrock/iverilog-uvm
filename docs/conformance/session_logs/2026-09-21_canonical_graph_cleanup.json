@@ -1,0 +1,46 @@
+{
+  "baseline": "3d3f8086b91bb41c8833dd72b46e5e3655b89559",
+  "canonical": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-svtests-qualified-if-20260813",
+  "shared_pointer": "/Users/danielellerbrock/projects/iverilog_uvm/graphify-out",
+  "graph_sha256": "aee93aee30ebbcaee04b6323cbe78affaeadd54bbea1a2953258a8800c4435b0",
+  "nodes": 50210,
+  "retired": "iverilog-uvm-scoped-class-shadow-20260916",
+  "retired_kib": 530488,
+  "branch_preserved": "agent/local-integration-dd040-043-20260917",
+  "notes": [
+    "Fresh audit found one eligible tree. Shell continued after initial pre-add assertion and created canonical checkout before retirement; subsequent dry-run reviewed and completed retirement safely.",
+    "Graph updated once from canonicalmain, shared artifacts relocated without duplicate graph.",
+    "22files partially parsed; graph visualization size limit reached; code graph/query succeeds."
+  ],
+  "canonical_git_status": "",
+  "followup_audit": {
+    "date": "2026-09-21",
+    "scope": "read-only sibling repository/worktree and generated-artifact audit",
+    "candidates": [],
+    "already_retired": [
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/build-param-vif-agent",
+        "size_kib": 342772
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/build/opentitan-baseline-tools-x86-retired-20260822",
+        "size_kib": 32788
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan/matrix",
+        "size_kib": 60476
+      },
+      {
+        "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-scoped-class-shadow-20260916",
+        "size_kib": 530488
+      }
+    ],
+    "safeguards": [
+      "cleanup.json records prior removals and retained worktrees",
+      "canonical-graph-restore/result.json records one canonical graph and clean canonical status",
+      "cleanup-followup/ASSESSMENT-20260921.md records the empty campaign-20260914 directory already absent",
+      "build/svtests-final-parity, tmp, evidence, corpora, active installs, private lanes, and dirty/divergent worktrees preserved"
+    ],
+    "action": "none; no deletion or source/build mutation performed"
+  }
+}

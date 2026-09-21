@@ -1,0 +1,15 @@
+{
+  "topic": "Coupled distribution interpretation review",
+  "observed": "Two same-seeded equality-coupled graphs produce identical1000draws after changing only later weights1:1-to1:9 in both editions.",
+  "initial_concern": "Read in isolation,2017 monotonic-weighting language appeared to conflict with first-binding priority.",
+  "correction": "Full2017 clause18.5.4 and2023 clause18.5.3 permit satisfying hard constraints when requested statistical distributions conflict. Equality-coupled1:1 and1:9 marginals cannot both be satisfied. The measured priority alone therefore does not prove a conformance defect.",
+  "primary_interpretive_source": {
+    "url": "https://accellera.org/images/eda/sv-ec/2109.html",
+    "date": "2004-10-17",
+    "scope": "Committee-author explanation of equality-coupled conflicting distributions; corroboration only, current IEEE editions remain normative.",
+    "summary": "Different solver priorities are permitted for conflicting distributions; hard domains and zero-weight exclusions still apply."
+  },
+  "policy": "Retain documented Icarus stable ordering for conflicting weight requests; do not invent a mandated product rule or claim an industry-identical joint distribution. Single distribution ratios, hard domains, zero-weight exclusions and explicit solve-before obligations remain enforced.",
+  "evidence": "evidence/review-20260920/next-constraint-multidist-monotonic-assessment/RESULTS.md",
+  "implementation_status": "No source changes for this interpretation review."
+}

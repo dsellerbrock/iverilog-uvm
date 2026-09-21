@@ -1,0 +1,16 @@
+{
+  "pr": 307,
+  "head": "319178ffdd3709016e0a2d76cf1f33453c75761f",
+  "merge_commit": "3d3f8086b91bb41c8833dd72b46e5e3655b89559",
+  "merged_at": "2026-09-21T10:51:29Z",
+  "authority": "User requested merge after one complete green exact-head CI; local all-seven gates passed.",
+  "green_job": "Ubuntu24.04 /106297989358",
+  "other_jobs": "Still running at merge; inspect later failures for follow-up repair.",
+  "next_batch_branch": "agent/scope-sva-next-20260921",
+  "local_merge": "933093510957fc65052b9f229ae4296e96ccb46a",
+  "next_batch_fixes": [
+    "25653fdc0",
+    "acb786965"
+  ],
+  "graph_update": "Deferred: mandated canonical checkout iverilog-uvm-svtests-qualified-if-20260813 is absent; controlling checkout is dirty on an active agent branch. Shared graph was not regenerated from feature tree."
+}
