@@ -3,7 +3,7 @@ status: PARALLEL_IMPLEMENTATION
 objective: Full IEEE1800-2017/2023 compiler semantics and independent UVM compatibility; unmodified stable OpenTitan and Caliptra applications.
 authority: User-authorized continuous campaign; coordinator selects implementation only after reducer/spec/root cause.
 branch: agent/scope-sva-next-20260921
-head_checkpoint: 1a340208c
+head_checkpoint: dba0473b6
 history: evidence/review-20260920/next-pwrmgr-hdl-path-assessment/before-ACTIVE_WORK.yaml
 completed_focused_subsets:
   - SCOPE-RANDOMIZE-UNKNOWN (25653fdc0)
@@ -14,7 +14,7 @@ completed_focused_subsets:
   - SIGNED-COVER-BINS-CROSS-ZERO (e42f114cd)
   - VPI-PACKED-ELEMENT-ACCESS (1a340208c)
   - CONSTRAINT-DIVMOD-ZERO (86a2e967d)
-  - JOINT-ORDERED-ACTIVE-RANDC (current local checkpoint)
+  - JOINT-ORDERED-ACTIVE-RANDC (dba0473b6)
 validation: Focused evidence linked by docs/conformance/CURRENT_WORK.md; required broad batch gates pending near10fixes or earlier for concrete risk. No completed-clause/full-application claim.
 coordination:
   owner: Coordinator owns selection, source integration, shared build/install, tests and final review.
@@ -187,3 +187,10 @@ event_callback_boundary_review:
   candidate: Worker private callback suspend/resume refinement in vvp_net_sig.cc; no shared application yet.
   acceptance: boolean_callback_atomic fixture captures distinct callback writes; callback suspension must not publish a partially propagated original vector as a false edge. Test fanout order permutations and original-source plus callback-source transitions.
   status: Architecture risk remains open until boundary evidence is reviewed.
+
+batch_qualification:
+  state: SHARED_SEMANTIC_TREE_FROZEN
+  revision: dba0473b6
+  integrated_fixes: 9
+  reason: Approximately-ten cadence and full-UVM policy threshold; event patch stays private until acceptance passes.
+  coordinator: Owns serial broad suites and PR preparation; no source integration/build/install until gates terminate.
