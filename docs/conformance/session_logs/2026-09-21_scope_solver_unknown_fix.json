@@ -1,0 +1,32 @@
+{
+  "id": "SCOPE-RANDOMIZE-UNKNOWN",
+  "status": "IMPLEMENTED_FOCUSED_TESTED",
+  "revision": "25653fdc0fa55bb7998898271e582c6990baa7b0",
+  "standards": {
+    "2017": "18.12",
+    "2023": "18.12"
+  },
+  "change": "Reject solver UNKNOWN before returning randomized values; caller restores process RNG on failure.",
+  "tests": {
+    "command": "python3 tests/vvp_runtime/run_scope_solver_unknown.py",
+    "focused_checks": 6,
+    "neighbor_checks": 10,
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "baseline": "Same permanent test fails on original installed vvp: returns1 and illegal x=1652484268.",
+    "injection": "Test-only dynamic interposer, not a naturally occurring application failure."
+  },
+  "limitations": [
+    "macOS executed; Linux interposer provided but not executed here; Windows injection unsupported.",
+    "Broad next-batch gates pending; previous PR qualification does not qualify this revision."
+  ],
+  "evidence": "evidence/review-20260920/next-scope-unknown",
+  "hashes": {
+    "vvp/vvp": "9007613071f94aca9a69cc909f7e56db736f432fe10e5015f02002b30f6b623f",
+    "evidence/review-20260920/next-scope-unknown/permanent-test.log": "eb43cbc0a43f391dd58fdd178c88437f4d19ddcfa2a6ff09395de7f671f48491",
+    "evidence/review-20260920/next-scope-unknown/permanent-test-baseline.log": "3166fa18b9ca043c62ec2e2fb4004a9ee7da22dcb954bb72f40e218f5afa6ca4",
+    "evidence/review-20260920/next-scope-unknown/neighbors.json": "d5297d2bedce7c516cb697fce1755f182772c97fe0efdc3dda2038fb54cfe502"
+  }
+}

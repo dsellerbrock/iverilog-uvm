@@ -274,3 +274,12 @@ invalid fixed-array indexing uses 2023 7.4.5 versus 2017 7.4.6.
 records the current PARTIAL implementation and pending broad qualification.
 
 The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.
+
+### September21 shared fixes
+
+The scope UNKNOWN failure path and long fixed antecedent repairs have paired
+2023 runtime evidence alongside2017. See the shared
+[scope record](session_logs/2026-09-21_scope_solver_unknown_fix.json) and
+[SVA record](session_logs/2026-09-21_long_fixed_antecedent_fix.json) for semantics,
+revision scope and limits. No edition-wide completion or broad qualification
+is established by these focused checks.

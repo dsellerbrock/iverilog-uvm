@@ -1,0 +1,37 @@
+{
+  "id": "OT-PWRMGR-LONG-FIXED-ANTECEDENT",
+  "status": "IMPLEMENTED_FOCUSED_TESTED",
+  "semantic_revision": "acb786965",
+  "standards": {
+    "2017": "16.9.2 consecutive repetition; implication and assertion action semantics",
+    "2023": "16.9.2 consecutive repetition; 16.14.8 nonvacuity; 20.12 assertion controls"
+  },
+  "change": "Reuse existing per-age antecedent pipeline for fixed chains without128-cycle limit, preserving overlapping attempts and disable cancellation. Retain preexisting single-step vacuity path.",
+  "validation": {
+    "permanent_vpi": "2paired editions passed via regress-long-fixed-antecedent-vpi-focus.list",
+    "assertions": "138 cycles:7successful and7failing endpoints;257cycles:8successful endpoints; reset abort and default one-step vacuous actions checked",
+    "cover": "VPI reads unique internal match counter:7,7,7 across success/reset/failure phases; no unsupported cover action used",
+    "nfa_neighbors": "58passed0failed",
+    "vacuity_control_neighbors": "6paired runs passed"
+  },
+  "application": {
+    "release": "Earlgrey-PROD-M6",
+    "compile_exit": 13,
+    "original_long_antecedent_diagnostic": "removed",
+    "remaining": "Enumcasts, UVM constraint get_reset calls, large open covergroup bin; recorded separately, not fixed or claimed passing"
+  },
+  "limitations": [
+    "Parser finite repetition expansion retains independent1024step limit.",
+    "Cover action blocks remain unsupported; only actual match counting verified.",
+    "No full application or new broad compiler qualification."
+  ],
+  "evidence": "evidence/review-20260920/next-long-antecedent",
+  "hashes": {
+    "local-install/lib/ivl/ivl": "0995fe09493a454f907f8a28d99cfb53ca64871b472e3bc5eec4a904ab7d30a7",
+    "local-install/bin/vvp": "9007613071f94aca9a69cc909f7e56db736f432fe10e5015f02002b30f6b623f",
+    "evidence/review-20260920/next-long-antecedent/permanent-vpi-corrected-gold.log": "68e9b672b38ab027dea338ba5975a4f30c832066e05bf465101446f5c9c85aa2",
+    "evidence/review-20260920/next-long-antecedent/nfa-neighbors.log": "209e37555a28f8dd530630a35d5f73806d7d1255cee2e98c9a622ea03a645763",
+    "evidence/review-20260920/next-long-antecedent/control-neighbors.json": "ef3634312ef8858d6a934a8b79bc0b9f94f8c83a8495709975107f3e6342d281",
+    "evidence/review-20260920/next-long-antecedent/pwrmgr-compile.log": "21622cd256276238efcffd94f7fd167f79c4d6bd7c439b058da773acee1914ea"
+  }
+}

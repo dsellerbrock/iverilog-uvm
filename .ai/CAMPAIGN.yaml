@@ -1,49 +1,38 @@
 status: active
-phase: publish_locally_qualified_batch
-objective: Full compiler/UVM/SVA mission remains active; no full IEEE or application completion claim.
+phase: two_next_batch_fixes_focused_tested
+objective: Full IEEE1800-2017/2023 compiler, UVM and SVA mission remains incomplete; no full application qualification.
 worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
-branch: agent/reviewed-main-baseline-20260920
-semantic_revision: 8ab943352
-last_recorded_main: 0998f058a4a549b9e988f5a1784bdfbbec1246a8
+branch: agent/scope-sva-next-20260921
+main_baseline: 3d3f8086b91bb41c8833dd72b46e5e3655b89559
+local_main_integration: 933093510957fc65052b9f229ae4296e96ccb46a
 selected_work: .ai/ACTIVE_WORK.yaml
-history: docs/conformance/session_logs/2026-09-21_prevalidation_CAMPAIGN.yaml
-
 preservation:
-  dirty_user_file: AGENTS.md; preserve uncommitted.
-  original_patch: Named git stash and evidence/review-20260920/preserved-opentitan-matrix.patch retained.
-  cleanup: Disposable passing binaries removed with hashes; active/dirty/divergent repositories and unique evidence retained.
-  worktrees: No new trees; all9registered trees protected by previous audit. Reaudit before creation or retirement.
-  graph: /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json; never duplicate in worktrees.
-
-validation:
-  completed_session: 40936
-  runner: evidence/review-20260920/batch-20260921-conditional-enable/run_gate.py
-  process: Session40936 completed; all seven gates passed with stable installed binaries.
-  order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
-  integrated_evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
-  previous_failed_run: evidence/review-20260920/batch-20260921; six regressions repaired, never count that run as qualification.
-  toolchain: Native ARM64 local-install; absolute PATH; coordinator owns builds and installs.
-  current_qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
-
-applications:
-  evidence: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
-  source_policy: Exact clean unmodified release tags; no source accommodation of compiler defects.
-  opentitan: Earlgrey-PROD-M6 at a78922f14a8cc20c7ee569f322a04626f2ac6127.
-  caliptra: v2.1.2 at49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; AdamsBridgev2.0.3.
-  scope: Crossbar UVMsmoke andpower2round pass; GPIO fails; no full-chip qualification.
-
+  user_file: AGENTS.md remains dirty, uncommitted and untouched.
+  history: evidence/review-20260920/next-batch-20260921/pre-merge-consolidation-CAMPAIGN.yaml
+  worktrees: No new tree; active/dirty/divergent trees retained.
 publication:
-  merged_prior_prs: [301,302,303,304,305,306]
-  current_batch_pr: None; last GitHub listing had no openPR.
-  draft_body: evidence/review-20260920/batch-20260921/pr-body.md
-  pending: Publish batch PR and verify exact-head CI. Remote main unchanged at last fetch.
-  cadence: Approximately10integrated fixes; current batch has11focused items plus prerequisite/regression repairs.
-  merge_authority: User authorized merge after one complete green exact-head CI and local correctness gates; subsequent CI failures require follow-up repair PR.
-
+  merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
+  record: docs/conformance/session_logs/2026-09-21_pr307_merge.json
+  exact_head_green_job: Ubuntu24.04 at319178ffdd3709016e0a2d76cf1f33453c75761f
+  remaining_ci: Run35588718454 had5other jobs running at merge; inspect terminal results and repair any failures in follow-up PR.
+  prior_batch_fixes: 11
+next_batch:
+  integrated_fixes: 2
+  revisions: [25653fdc0, acb786965]
+  scope_evidence: docs/conformance/session_logs/2026-09-21_scope_solver_unknown_fix.json
+  sva_evidence: docs/conformance/session_logs/2026-09-21_long_fixed_antecedent_fix.json
+  validation: Focused paired runtime checks and relevant neighbors pass; broad gates pending near10integrated fixes or sooner for concrete risk.
+  processes: No local build/test active; both workers completed.
+  binaries: Installed compiler/runtime contain both fixes; prior broad qualification is for8ab943352 only.
+applications:
+  latest_retest: docs/conformance/session_logs/2026-09-21_published_candidate_release_retest.json
+  pins: Clean Earlgrey-PROD-M6 and Caliptrav2.1.2 with AdamsBridgev2.0.3; no source modifications.
+  latest_pwrmgr: Long antecedent diagnostic removed; compile exits13 on separate enumcast/constraint-call/coverage blockers, recorded in DISCOVERED_DEBT.
+graph:
+  shared: /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json
+  refresh_pending: Mandated canonical checkout is absent; controlling checkout dirty on agent branch. Do not rebuild from feature tree or overwrite dirty work.
 resume:
-  first: Publish reviewed coherent batch PR and inspect exact-head CI. Local gates complete.
-  then: Inspect gate run.json stable hashes and status; preserve failed logs; select concrete regression repair only if necessary.
-  after_gates: Record final revision-scoped evidence, finalize PRbody, publish coherent PR and report exact scope/limits.
-  after_merge: Refresh main, update canonical graph from canonical checkout only, respect worktree cleanup safeguards, select next standards-grounded blockers.
-
-active_regression: SYNTHESIS-EMPTY-TRUE-NBA-ELSE; see ACTIVE_WORK.
+  first: Inspect remaining PR307 CI by gh run view35588718454.
+  next: Reduce exact-release pwrmgr enum-cast and constraint-call failures; select independent concrete blockers before implementation.
+  ownership: Coordinator integrates/reviews/builds; explicit lower-model workers own disjoint private patches.
+  cadence: Approximately10fixes per broad-gated PR; never weaken semantics or application sources.

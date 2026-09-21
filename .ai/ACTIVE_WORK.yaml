@@ -1,84 +1,53 @@
-id: SV-UVM-BATCH-20260921
-status: LOCAL_QUALIFIED_CI_PENDING
-objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
-authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
-semantic_revision: 8ab943352
-branch: agent/reviewed-main-baseline-20260920
-history: docs/conformance/session_logs/2026-09-21_prevalidation_ACTIVE_WORK.yaml
-
-scope:
-  integrated_items:
-    - DD042-RECURSIVE-WITH
-    - SVA-GROUPED-CLOCKED-CONSEQUENT
-    - OT-MASKED-RUNTIME-MEMORY-WRITE
-    - IBEX-VARIABLE-ROW-ASSIGNMENT
-    - DD044-STATE-SELECTED-FIXED-ARRAY-CONSTRAINT
-    - RESET-ONLY-SYNTHESIS
-    - IBEX-ROW-ASYNC-RESET-SYNTHESIS
-    - CONSTRAINT-INTEGRAL-CAST-IR
-    - JOINT-MULTIPLE-DISTRIBUTIONS
-    - BLOCKING-INDEX-SYNTHESIS-DATAFLOW
-    - OVERSIZED-CONSTANT-ARRAY-WORD
-  implementation_state: All seven local gates passed; GitHub CI pending.
-  allowed: Diagnose concrete gate failures, record root cause and repair scope, validate and document fixes; publish coherent PR after required gates.
-  frozen: Compiler source and installed binaries frozen for the next broad validation run.
-  forbidden: Application source edits, weakened tests, invented passing evidence, silent semantic fallback, unrelated feature implementation.
-  discoveries: Record unrelated findings in DISCOVERED_DEBT; select next independent blockers only after this batch is validated.
-
+id: SV-UVM-NEXT-BATCH-20260921
+status: TWO_FIXES_FOCUSED_TESTED_NEXT_SELECTION
+objective: Repair scope solver UNKNOWN failure semantics and OpenTitan long fixed antecedent lowering, preserving the full compiler/UVM mission.
+authority: Coordinator-selected work under the user-authorized continuous campaign.
+branch: agent/scope-sva-next-20260921
+base: 319178ffdd3709016e0a2d76cf1f33453c75761f
+history: evidence/review-20260920/next-batch-20260921/before-ACTIVE_WORK.yaml
+prior_batch:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/307
+  state: MERGED
+  semantic_revision: 8ab943352
+  qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
+  frozen: Remote PR307 head remains unchanged; next-batch source changes belong on the new branch.
 standards:
-  authority: Applicable licensed IEEE edition; independent simulators are differential evidence only.
   references: [evidence/dd018-assessment/1800-2017.txt, evidence/dd018-assessment/1800-2023.txt]
-  edition_scope: Track2017 and2023 separately; IEEE1800.2 separately; preserve1364, defer1801.
-  invalid_array_index: IEEE1800-2017 7.4.6 and IEEE1800-2023 7.4.5; invalid writes have no effect.
-  procedural_assignments: Clause10.4; preserve blocking-visible values and captured NBA data/enables.
-  constraints: Clauses6.24,11.6,11.8.2,18.3; distribution and solve-before2017 18.5.4/18.5.10 versus2023 18.5.3/18.5.9.
+  editions: Separate2017 and2023 evidence; UVM separate, preserve1364, defer1801.
+coordination:
+  owner: Coordinator owns source integration, shared builds/install, review and test manifests.
+  workers: Two disjoint private patch lanes; no shared source edits or new worktrees.
+  user_work: Preserve AGENTS.md uncommitted and all unique evidence.
+  tests: Focused positive, negative, boundary and semantic runtime tests per fix; broad required gates near10fixes or earlier for concrete risk.
+  discovery: Unrelated findings recorded only; next items require coordinator selection.
+latest_release_retest: docs/conformance/session_logs/2026-09-21_published_candidate_release_retest.json
+next_action: Inspect remaining merged-PR307 CI and select the next independent reproduced blockers; both listed lanes are implemented and focused-tested.
+parallel_preparation:
+  authority: Coordinator selection under continuous campaign; prior batch all local gates passed and PR307 frozen awaiting CI.
+  supersedes: Prior prohibition on new implementation applies to the published shared source; isolated patches for these two selected blockers are now authorized.
+  integration_rule: Workers submit private patches; coordinator may integrate reviewed changes on current next-batch branch. No shared edits, index writes, builds or installs by workers.
+  lanes:
+    scope_unknown:
+      id: SCOPE-RANDOMIZE-UNKNOWN
+      owner: caliptra_next_blocker, Luna low, mechanical repair after established root cause
+      status: IMPLEMENTED_FOCUSED_TESTED
+      revision: 25653fdc0
+      standard: IEEE1800-2017 and2023 18.12; return success only for valid randomized values
+      root_cause: vvp_z3_randomize_scope copies random targets and returns true on Z3 UNKNOWN
+      scope: Private vvp/vvp_z3.cc patch and private positive, UNSAT, UNKNOWN value/RNG rollback fixtures
+      evidence: evidence/review-20260920/scope-unknown-assessment
+      acceptance: Both editions SAT legal values; UNSAT and injected UNKNOWN fail atomically with focused diagnostic; preserve class solver and all constraint semantics
+    long_antecedent:
+      id: OT-PWRMGR-LONG-FIXED-ANTECEDENT
+      owner: synthesis_nba_completion, Sol medium, sequence semantic tracing
+      status: IMPLEMENTED_FOCUSED_TESTED
+      revision: acb786965
+      standard: IEEE1800-2017 and2023 16.9.2 consecutive repetition plus implication scheduling
+      root_cause_hypothesis: Fixed antecedent expansion imposes an implementation length cap
+      scope: Private pform.cc and directly implicated SVA lowering patch, private assertion regression fixtures; report additional file needs before editing
+      forbidden: Arbitrarily larger cap, bounded attempt loss, weakened assertions, application edits
+      evidence: evidence/review-20260920/pwrmgr-current-assessment
+      acceptance: Both editions runtime checks for138 and larger repeats, passing/failing consequent, overlapping attempts and disable; exact unmodified pwrmgr compile; relevant SVA neighbors
 
-ownership:
-  coordinator: Selection, difficult reasoning, integration, shared build/install/test directories, final review and PR.
-  workers: No active implementation assignments; dffsynth4 repair focused-tested.
-  reusable_agents:
-    row_async_reset: Terra medium; array elaboration and bounded fixtures; completed latest repair.
-    synthesis_nba_completion: Sol medium; synthesis mechanism; completed dffsynth4 repair.
-    constraint_guard_semantics: Sol medium; cast and distribution solver; completed.
-  routing: Explicit cheapest capable worker model and effort; compact handoff; reuse existing agents and disjoint file ownership.
-
-validation:
-  prior_integrated: PASS before latest enable repair; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
-  completed_session: 40936
-  current_passed_gates: [json, integrated, uvm, nfa, releases, frontend, makecheck]
-  json_evidence: evidence/review-20260920/batch-20260921-conditional-enable/json.run.json
-  directory: evidence/review-20260920/batch-20260921-conditional-enable
-  order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
-  rule: Inspect actual status/run.json/log; driver stops at first nonzero gate. Never restart a live process.
-  focused_evidence:
-    - docs/conformance/session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json
-    - docs/conformance/session_logs/2026-09-21_synthesis_and_wide_index_focus.json
-    - docs/conformance/session_logs/2026-09-21_batch_gate_regressions.json
-    - docs/conformance/session_logs/2026-09-21_row_oob_regression_repair.json
-  applications: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
-  limits: Integrated gate and application subset passes are not full language/UVM/application qualification.
-
-next_action: Publish coherent batch PR with final evidence, then inspect exact-head CI and follow user merge authority.
-completion: Required gates, source review, docs and exact revision evidence; qualified batch does not complete the full mission.
-
-active_regression:
-  id: SYNTHESIS-EMPTY-TRUE-NBA-ELSE
-  test: ivtest/ivltests/dffsynth4.v
-  reproducer: local-install/bin/iverilog -S -o evidence/review-20260920/next-blocking-index/dffsynth4-repair/test.vvp ivtest/ivltests/dffsynth4.v
-  original_failure: Compiler asserted at t-dll.cc1924 missing logic nexus t_cookie.
-  expected: Else-only NBA captures D when ce is false and holds Q when ce is true.
-  owner: Coordinator integrated reviewed Sol patch; focused tests pass, broad gates running.
-  scope: Trace directly implicated synth2.cc branch-enable/netlist connectivity; preserve all B/P semantics.
-  evidence: evidence/review-20260920/next-blocking-index/dffsynth4-repair
-  acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.
-
-empty_branch_repair_evidence: docs/conformance/session_logs/2026-09-21_empty_branch_enable_repair.json
-
-read_only_assessment:
-  objective: Identify at most2 next Caliptra compiler blockers from exact pinned-release evidence.
-  owner: caliptra_next_blocker; Luna low; independent evidence extraction only.
-  scope: Existing logs, manifests and corpus revision attribution; one compact private report.
-  forbidden: Compiler/application edits, new builds or broad sweeps, shared test directories, feature activation before current batch validation.
-  output: evidence/review-20260920/caliptra-next-assessment
-
-local_qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
+merge_record: docs/conformance/session_logs/2026-09-21_pr307_merge.json
+next_selection: Reduce one of the newly exposed exact-release pwrmgr enum-cast or constraint-call failures; no additional implementation authorized yet.

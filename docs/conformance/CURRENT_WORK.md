@@ -18,7 +18,17 @@ identifies the three reproduced defects and their repairs. PR306 restored
 the reviewed compiler/test tree to main. Resumption and
 validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
+## Latest merged baseline
+
+[PR307 merge record](session_logs/2026-09-21_pr307_merge.json): main is `3d3f8086b`, with the eleven-fix locally qualified batch merged after Ubuntu24.04 CI passed. Other CI jobs were still running at merge.
+
+## Current focused implementation
+
+The [scope solver UNKNOWN repair](session_logs/2026-09-21_scope_solver_unknown_fix.json) is focused-tested on the next-batch branch. The [long fixed antecedent repair](session_logs/2026-09-21_long_fixed_antecedent_fix.json) is also focused-tested. Broad next-batch qualification is pending; both fixes are separate from PR307.
+
 ## Latest recorded compiler qualification
+
+The [published-candidate release retest](session_logs/2026-09-21_published_candidate_release_retest.json) records the latest bounded OpenTitan and Caliptra runtime results on semantic revision `8ab943352`, with clean release pins and artifact cleanup. The September 20 static census remains separate historical evidence.
 
 The [September 21 batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records all seven local gates passing for semantic revision `8ab943352`. It supersedes the earlier batch checkpoints below for local compiler validation; GitHub CI and application revision limits remain separate.
 

@@ -3021,3 +3021,44 @@ exclusion for solver UNKNOWN was too broad: class and scope routes differ.
 IEEE 1800-2017/2023 clause 18 constraint satisfaction remains required; a
 warning cannot establish a legal solution. Source-confirmed, runtime UNKNOWN
 reproducer not yet established, record-only pending separate selection.
+
+#### Scope UNKNOWN reproduction update — 2026-09-21
+
+On semantic revision `8ab943352`, a controlled dynamic-library interposer
+makes `Z3_optimize_check` return UNKNOWN. In both `-g2017` and `-g2023`,
+`std::randomize(x) with { x == 7; }` returns 1 and writes 1652484268,
+violating the hard constraint. The identical non-injected control returns
+1 and writes 7. This proves the error-path defect, not a naturally occurring
+application solver failure. IEEE 1800-2017/2023 18.12 requires success only
+when all randomized variables receive valid values. The caller already
+restores RNG state when the solver returns false. Source, interposer and
+paired logs: `evidence/review-20260920/scope-unknown-assessment/`.
+No compiler repair is integrated yet; PR307's qualified source remains frozen.
+
+### 2026-09-21 OpenTitan power-manager 138-cycle antecedent rejection
+
+Current semantic revision `8ab943352` still rejects unmodified
+Earlgrey-PROD-M6 `lowrisc:dv:pwrmgr_sim:0.1` at
+`pwrmgr_sec_cm_checker_assert.sv:121`: the escalation-clock checker uses
+`(!clk_esc_i && io_clk_en)[*(128 + 8 + 2)] |=> ...`.
+A fresh replay of the retained runtime-lane compile command exits 1.
+A two-line isolated `a[*138] |=> b` assertion reproduces in both2017/2023;
+128 and129 repetitions compile, so the diagnostic's stated128-cycle limit
+is not itself the exact repetition boundary. These are compile observations,
+not runtime qualification. Applicable sequence semantics are clause16.9.2;
+implementation selection must preserve every overlapping assertion attempt,
+disable behavior and sampled-value timing, rather than just raise a cap.
+Commands, logs and paired boundary results are retained under
+`evidence/review-20260920/pwrmgr-current-assessment/`.
+This is a next-candidate assessment; no compiler edit integrated.
+
+#### Power-manager follow-on diagnostics — 2026-09-21
+
+With the private long-antecedent repair integrated for testing, the exact
+unmodified power-manager compile gets past the original assertion rejection
+but exits13 during elaboration. Distinct diagnostics concern a package enum
+type cast and enum name expressions in `pwrmgr_env_cov.sv:172-174`, constraint
+calls to UVM `get_reset` in `pwrmgr_smoke_vseq.sv:21-25`, and an open covergroup
+bin requiring more than65536 counters. These are record-only next candidates,
+not selected work or proof of root cause. Current log:
+`evidence/review-20260920/next-long-antecedent/pwrmgr-compile.log`.
