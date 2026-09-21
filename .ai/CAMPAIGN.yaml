@@ -108,3 +108,15 @@ latest_validation:
   applications: docs/conformance/session_logs/2026-09-21_shared_six_release_retest.json
   processes: Sessions21340 and54476 completed; no shared test/build process active.
   priority: Repair event and port regressions in the six-fix batch before any further broad escalation or publication.
+
+repair_resumption:
+  head: 5afa75823
+  completed: Historical implicit-glob test reproduced red, corrected to explicit UVM conversion; wrapper and strict-rejection tests both pass with real DPI.
+  event_lane: constraint_guard_semantics Sol medium; authorized private vvp/part.cc owner-context fix. Also owns event-rooted partselsynth and packed-struct reset investigation. Mixed class/VIF dropped dependency requires elaborate owner handoff.
+  port_lane: vif_proxy_implementation Sol medium; real output carrier misses initial propagation; investigating VHDL time-zero and br_gh169b metadata. Private elaborate.cc owner; root-cause proposal required before source patch.
+  pwrmgr_reducer: Both editions pass dynamic indexed-path read/force/release. Actual pwrmgr now passes old HDL-path point but fails legacy regex/build errors.
+  ci308_latest: Ubuntu22, Ubuntu24, UCRT64 passed; macOS, MINGW64 and CLANG64 still running; no failed CI observed.
+  next_action: Collect retained agents private repair proposals/evidence, review disjoint scope, integrate after focused semantic checks, rebuild shared only once, rerun failed cases before broad escalation.
+  exact_status_command: git status --short --untracked-files=no
+  shared_processes: None running.
+  preserve: AGENTS.md remains user-owned87-line addition; never stage it. Existing failed gate and fresh application evidence are committed and raw logs retained.

@@ -351,3 +351,21 @@ shared_six_regression_repair:
     owner: vif_proxy_implementation, retained Sol medium
     scope: Read-only diagnosis and isolated reproducers under evidence/review-20260920/shared-six-port-repair; shortreal/output-port, partselsynth, packed struct reset and VHDL arithmetic regression paths. No shared edits/builds.
   acceptance: Standards-grounded root cause and minimal proposed patch with per-file ownership before implementation; preserve current failures and all new passing semantics.
+
+shared_six_event_part_repair:
+  status: COORDINATOR_AUTHORIZED_PRIVATE_IMPLEMENTATION
+  owner: constraint_guard_semantics, retained Sol medium
+  root: Automatic part/event indexes ancestor-owned state with incoming nested activation context; concurrent activations miss selected-local edges.
+  files: vvp/part.cc; vvp/part.h only if necessary.
+  scope: Private source/object overlay and patch under shared-six-event-repair, no shared source/build/install changes.
+  acceptance: Concurrent activations, ancestor/fork, recursion, teardown, default activation, and prior new compound VIF pulse/callback semantics; assess remaining NBA/interface failures separately.
+  dependency: elaborate.cc belongs to port lane; mixed class/VIF dropped dependency proposal goes to that owner and coordinator.
+
+strict_regex_wrapper_regression_alignment:
+  owner: Coordinator
+  status: COORDINATOR_AUTHORIZED_TEST_REPAIR
+  reproducer: Existing uvm_regex_legacy_glob_test fails current strict implementation with REGEX error; before.log preserved under strict-regex-wrapper-repair.
+  authority: Pinned UVM1.2 src/dpi/uvm_regex.cc uses strict POSIX regcomp; bundled uvm_regex.svh has explicit deglob or glob conversion API.
+  root: Historical test requires removed implicit fallback, contrary to selected strict-regex semantics.
+  scope: tests/uvm_regex_legacy_glob_test.sv only; use explicit uvm_glob_to_re, retain positive/negative glob and normal regex checks. New strict rejection test remains unchanged. No application/compiler/library edits.
+  acceptance: Actual real-DPI before failure and both wrapper/strict tests pass afterward, explicit conversion checked at runtime.
