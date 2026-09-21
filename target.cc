@@ -107,6 +107,13 @@ bool target_t::bufz(const NetBUFZ*)
       return false;
 }
 
+bool target_t::vif_proxy(const NetVifProxy*obj)
+{
+      cerr << obj->get_fileline() << ": error: target (" << typeid(*this).name()
+           << "): Unhandled NetVifProxy." << endl;
+      return false;
+}
+
 void target_t::udp(const NetUDP*)
 {
       cerr << "target (" << typeid(*this).name() <<  "): "

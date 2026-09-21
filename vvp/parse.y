@@ -95,9 +95,10 @@ static struct __vpiModPath*modpath_dst = 0;
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR
 %token K_EXPORT K_EXTEND_S K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH
+%token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
-%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_PV K_PACKED_DIMS
+%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -215,6 +216,13 @@ statement
 
 	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
+
+        | T_LABEL K_VIF_PROXY T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ';'
+                { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, 0, nullptr); }
+        | T_LABEL K_VIF_PROXY T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' numbers ';'
+                { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, $15.cnt, $15.nvec); }
+        | K_EVENT_VALID T_SYMBOL ',' T_SYMBOL ';'
+                { compile_event_valid($2, $4); }
 
 	| T_LABEL K_FUNCTOR T_SYMBOL T_NUMBER ',' symbols ';'
 		{ compile_functor($1, $3, $4, 6, 6, $6.cnt, $6.vect); }
@@ -347,6 +355,9 @@ statement
 
 	| T_LABEL K_PART T_SYMBOL ',' T_NUMBER ',' T_NUMBER ';'
 		{ compile_part_select($1, $3, $5, $7); }
+
+	| T_LABEL K_PART_EVENT T_SYMBOL ',' T_NUMBER ',' T_NUMBER ';'
+		{ compile_part_select($1, $3, $5, $7, true); }
 
 	| T_LABEL K_PART_PV T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ';'
 		{ compile_part_select_pv($1, $3, $5, $7, $9); }

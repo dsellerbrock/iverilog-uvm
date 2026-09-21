@@ -1,0 +1,2 @@
+./ivltests/sv_string_synthesis_boundary_2023.v:6: sorry: A continuous assignment to a string variable is not currently supported in synthesis.
+1 error(s) during elaboration.

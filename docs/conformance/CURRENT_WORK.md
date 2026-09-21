@@ -20,9 +20,19 @@ validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
 ## Latest merged baseline
 
-[PR307 merge record](session_logs/2026-09-21_pr307_merge.json): main is `3d3f8086b`, with the eleven-fix locally qualified batch merged after Ubuntu24.04 CI passed. Other CI jobs were still running at merge.
+[PR308 merge record](session_logs/2026-09-21_pr308_merge.json): main is `482c3c89d`, with the nine-fix locally qualified batch merged after both Ubuntu CI jobs passed. Four other jobs were still running at observation. The [PR307 record](session_logs/2026-09-21_pr307_merge.json) retains the preceding baseline.
 
 ## Current focused implementation
+
+The [port regression repair](session_logs/2026-09-21_port_regression_repair.json) removes the unnecessary behavioral carrier and preserves structural propagation. Shared qualification remains pending the event repairs.
+
+The [six-fix installed focus](session_logs/2026-09-21_shared_six_focus.json) records the shared rebuild and passing permanent regressions. The [broad gate failed](session_logs/2026-09-21_shared_six_gate_failure.json), so qualification is pending repair. The [fresh stable-release replay](session_logs/2026-09-21_shared_six_release_retest.json) records current application results.
+
+The [variable-output review](session_logs/2026-09-21_variable_output_integration_review.json) records private semantic and integration checks; shared qualification is pending.
+
+The [Caliptra boundary trace](session_logs/2026-09-21_caliptra_rej_boundary_trace.json) records evidence for the remaining testbench scheduling race; the test still fails.
+
+The [private Caliptra string replay](session_logs/2026-09-21_caliptra_string_private_replay.json) records progress past filename/vector generation and the remaining scoreboard failure. It is candidate evidence, not an integrated application pass. The [synthesis review](session_logs/2026-09-21_caliptra_string_synthesis_review.json) records the corrected candidate and its replay.
 
 The [scope solver UNKNOWN repair](session_logs/2026-09-21_scope_solver_unknown_fix.json) is focused-tested on the next-batch branch. The [long fixed antecedent repair](session_logs/2026-09-21_long_fixed_antecedent_fix.json) is also focused-tested. Broad next-batch qualification is pending; both fixes are separate from PR307.
 
@@ -165,3 +175,9 @@ The [constraint divide/remainder error repair](session_logs/2026-09-21_constrain
 The [joint ordered-randc repair](session_logs/2026-09-21_joint_ordered_randc.json) has paired runtime, distribution and rollback evidence; batch gates remain pending.
 
 Latest bounded stable-application replay: [qualified nine-fix candidate](session_logs/2026-09-21_qualified_nine_release_retest.json). Exact corpus pins, binary fingerprints, commands, pass/failure evidence and scope limits are in that record.
+
+Draft review checkpoint: [PR #309](https://github.com/dsellerbrock/iverilog-uvm/pull/309) publishes `b03bccdf9` for review. It is not a qualified baseline; the PR lists the preserved local regression failures and required repair/requalification. Current private repair lanes and the uncommitted automatic-context integration are recorded in `.ai/CAMPAIGN.yaml`.
+
+[Event runtime repair checkpoint](session_logs/2026-09-21_event_runtime_regression_repair.json) supersedes the runtime failure status above for its recorded source/tools. Synthesis repairs and broad requalification remain pending; PR #309 stays draft.
+
+[Synthesis event repair evidence](session_logs/2026-09-21_synthesis_event_regression_repair.json) records the successful replay of all earlier failing legacy/VPI cases and new paired boundary tests. [Fresh pinned release replay](session_logs/2026-09-21_repaired_release_replay.json) and [initial PR309 CI classification](session_logs/2026-09-21_pr309_initial_ci.json) preserve application limitations and the Windows export repair. Full repaired-revision gates are pending.

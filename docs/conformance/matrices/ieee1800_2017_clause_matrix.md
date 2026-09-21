@@ -1613,3 +1613,9 @@ Clauses11.3.4/11.3.5/18.3: division and remainder by zero now use guard-aware co
 ### September21 joint cyclic ordering refinement
 
 Clauses18.4.2/18.5.10: the joint solver supports implicit cyclic-variable priority followed by ordinary solve-before stages, including a single coupled ordinary distribution with prefix preflight. See [paired evidence and remaining limits](../session_logs/2026-09-21_joint_ordered_randc.json). The broader randomization requirements remain PARTIAL; batch qualification is pending.
+
+## September 21 application foundation focused checkpoint
+
+The [installed six-fix record](../session_logs/2026-09-21_shared_six_focus.json) records paired language-mode reducers for compound virtual-interface event expressions, continuous string assignments (6.5, 6.16, 10.3.2), directional variable output ports (23.2.2.3, 23.3.3.2), and ordered cyclic constraints with multiple distributions (18.4.2, 18.5.4, 18.5.10). These are focused implemented subsets with broad regression qualification pending; the surrounding requirements remain PARTIAL. String synthesis and solver support beyond the documented complete-enumeration boundary are not claimed. Runtime root-seed option spelling is vendor-defined; the strict-regex repair is pinned UVM API compatibility evidence, not a new IEEE language claim.
+
+The [event runtime repair checkpoint](../session_logs/2026-09-21_event_runtime_regression_repair.json) adds focused evidence for automatic activation routing (6.21/9.4.2), NBA/Re-NBA expression settling (4.4/9.4.2), and initialized literal operands at the first event wait. Synthesis interactions and broad requalification remain open; no overall clause-status upgrade is made.

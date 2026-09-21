@@ -293,3 +293,9 @@ Paired 2023 evidence shares the [self-package cast](session_logs/2026-09-21_self
 2026-09-21: packed-VPI selected-element behavior has separate 2023 runs in the [shared integration evidence](session_logs/2026-09-21_packed_vpi_integration.json). No edition-specific rule change is asserted; whole-clause status remains partial.
 
 The [joint cyclic-ordering evidence](session_logs/2026-09-21_joint_ordered_randc.json) covers both editions: 2023 clauses18.4.2/18.5.9 correspond to2017 clauses18.4.2/18.5.10. This is shared subset evidence, with broad qualification pending.
+
+## September 21 paired application foundation evidence
+
+The [shared implementation checkpoint](matrices/ieee1800_2017_clause_matrix.md#september-21-application-foundation-focused-checkpoint) includes explicit 2023 focused runs. The distribution and ordering references are 18.5.3 and 18.5.9 in this edition; cyclic-variable rules remain 18.4.2. This records paired evidence rather than new edition differences or full qualification.
+
+The [shared event runtime repair record](session_logs/2026-09-21_event_runtime_regression_repair.json) includes separate 2023 runs for activation, NBA/Re-NBA, startup, and callback cases. No edition-specific semantic difference is asserted.

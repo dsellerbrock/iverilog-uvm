@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_output_variable_multiple_driver.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "test"
+  ],
+  "gold": "sv_output_variable_multiple_driver"
+}

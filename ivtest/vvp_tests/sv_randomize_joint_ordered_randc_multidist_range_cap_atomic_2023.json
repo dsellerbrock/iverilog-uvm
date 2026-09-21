@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_randomize_joint_ordered_randc_multidist_range_cap_atomic_2023.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_randomize_joint_ordered_randc_multidist_range_cap_atomic_2023"
+}

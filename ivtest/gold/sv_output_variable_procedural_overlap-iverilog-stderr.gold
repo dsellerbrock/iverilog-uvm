@@ -1,0 +1,2 @@
+ivltests/sv_output_variable_procedural_overlap.v:8: error: Cannot perform procedural assignment to variable 'value' because it is also continuously assigned.
+Elaboration failed

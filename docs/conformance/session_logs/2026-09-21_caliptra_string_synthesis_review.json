@@ -1,0 +1,14 @@
+{
+  "date": "2026-09-21",
+  "baseline": "568856f200eb269df129ac9cfdeb027f5af4cd05",
+  "blocker": "CONTINUOUS-STRING-ASSIGN",
+  "patch": "evidence/review-20260920/next-caliptra-continuous-string-fix/CODE.review-corrected.patch",
+  "sha256": "ac9f5b95680357737dec7635734a59d8a290b01d594ab070d745de9c222f5b02",
+  "review": "Removed dead metadata and added explicit unsupported-synthesis diagnostic. Without correction a dynamic update could be silently lost, or target string lowering aborted. No synthesis support claimed.",
+  "focused_evidence": "evidence/review-20260920/next-caliptra-continuous-string-fix/results/synthesis-boundary-internal.tsv",
+  "application_evidence": "evidence/review-20260920/next-caliptra-continuous-string-fix/replay-private-corrected/results.json",
+  "application_result": "FAIL, eight queue-underflow checks; fresh generated vectors identical to original private replay; release sources clean.",
+  "next_hypothesis": "Independent scoreboard and zeroize processes may race in Active region; external trace pending; not yet attributed conclusively.",
+  "ordering": "Corrected patch applies cleanly after four event patch layers in private copies; combined runtime validation pending.",
+  "status": "PRIVATE_FOCUSED_TESTED; integrated regressions and publication pending."
+}

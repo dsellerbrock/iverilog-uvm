@@ -1,0 +1,10 @@
+{
+  "date": "2026-09-21",
+  "blocker": "UVM-STRICT-REGEX-GLOB-FALLBACK",
+  "manifest": "evidence/review-20260920/next-uvm-regex-assessment/private/permanent-reviewed/manifest-reviewed.json",
+  "paired_candidate_passes": 2,
+  "paired_baseline_expected_failures": 2,
+  "raw": "evidence/review-20260920/next-uvm-regex-assessment/private/permanent-reviewed",
+  "scope": "Private permanent fixture preparation, not shared integration or IEEE1800.2 full qualification.",
+  "initial_packaging_failure": "Expected legacy invalid-regex diagnostic routed through UVM_ERROR when bundled package linked. Test now asserts exact expected report counts with narrowly scoped ID action; original failure retained."
+}

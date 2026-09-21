@@ -161,6 +161,11 @@ bool NetPartSelect::emit_node(struct target_t*tgt) const
       return tgt->part_select(this);
 }
 
+bool NetVifProxy::emit_node(struct target_t*tgt) const
+{
+      return tgt->vif_proxy(this);
+}
+
 bool NetPow::emit_node(struct target_t*tgt) const
 {
       tgt->lpm_pow(this);

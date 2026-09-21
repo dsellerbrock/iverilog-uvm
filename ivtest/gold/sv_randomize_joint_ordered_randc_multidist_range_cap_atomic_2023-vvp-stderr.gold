@@ -1,0 +1,2 @@
+Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed).
+ERROR: global constraint sampling failed: a coupled distribution cannot be sampled exactly.

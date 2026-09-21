@@ -24,8 +24,26 @@
 # include  "vthread.h"
 # include  "config.h"
 # include  <set>
+# include  <map>
+# include  <functional>
 
 class scalar_event_history;
+
+/* A source update is one signal/object publication and all combinational
+   fanout caused by it. Event-cone functors settle once at the boundary;
+   separate publications in the same time slot retain separate boundaries. */
+extern void vvp_event_source_begin();
+extern void vvp_event_source_end();
+extern void vvp_event_callback_begin();
+extern void vvp_event_callback_end();
+extern bool vvp_event_defer_callback_cone(const std::function<void()>&);
+extern void vvp_event_enqueue_comb(void*, vvp_context_t,
+                                   const std::function<void()>&);
+extern void vvp_event_enqueue_valid(void*, vvp_context_t,
+                                   const std::function<void()>&);
+extern void vvp_event_enqueue_edge(void*, vvp_context_t, unsigned,
+                                  const std::function<void()>&);
+extern bool vvp_event_cone_dispatch_active();
 
 class evctl {
 
@@ -129,11 +147,31 @@ struct waitable_hooks_s {
 
       virtual vthread_t add_waiting_thread(vthread_t thread) = 0;
 
+      void attach_vif_validity();
+      void recv_vif_validity(const vvp_vector4_t&value,
+                             vvp_context_t context);
+
       evctl*event_ctls;
       evctl**last;
 
     protected:
       void run_waiting_threads_(vthread_t&threads);
+      bool validate_vif_arm_(vvp_context_t context);
+      void clear_vif_validity_(vvp_context_t context);
+      virtual bool vif_has_waiters_(vvp_context_t) const { return false; }
+      virtual void vif_cancel_waiters_(vvp_context_t) { }
+      virtual vvp_context_t vif_context_(vvp_context_t context) const
+            { return context; }
+      virtual bool vif_context_live_(vvp_context_t) const { return true; }
+      virtual void vif_each_context_(
+            const std::function<void(vvp_context_t)>&visit) const
+            { visit(0); }
+
+    private:
+      bool has_vif_validity_ = false;
+      bool has_default_vif_validity_ = false;
+      bool default_vif_validity_ = false;
+      std::map<vvp_context_t,bool> vif_validity_;
 };
 
 /* Remove THR from every VIF multi-event side-table registration. Ordinary
@@ -207,6 +245,9 @@ class vvp_fun_edge_sa : public vvp_fun_edge {
 			unsigned base, unsigned vwid, vvp_context_t context) override;
 
     private:
+      bool vif_has_waiters_(vvp_context_t) const override
+            { return threads_ || !multi_threads_.empty(); }
+      void vif_cancel_waiters_(vvp_context_t) override;
       friend bool vvp_cancel_multi_waiting_thread(vthread_t thread);
       void run_multi_waiting_threads_();
       vthread_t threads_;
@@ -238,6 +279,12 @@ class vvp_fun_edge_aa : public vvp_fun_edge, public automatic_hooks_s {
                        vvp_context_t context) override;
 
     private:
+      bool vif_has_waiters_(vvp_context_t) const override;
+      void vif_cancel_waiters_(vvp_context_t) override;
+      vvp_context_t vif_context_(vvp_context_t) const override;
+      bool vif_context_live_(vvp_context_t) const override;
+      void vif_each_context_(
+            const std::function<void(vvp_context_t)>&) const override;
       __vpiScope*context_scope_;
       unsigned context_idx_;
       scalar_event_history*history_;
@@ -296,6 +343,9 @@ class vvp_fun_anyedge_sa : public vvp_fun_anyedge {
 		       vvp_context_t context) override;
 
     private:
+      bool vif_has_waiters_(vvp_context_t) const override
+            { return threads_ || !multi_threads_.empty(); }
+      void vif_cancel_waiters_(vvp_context_t) override;
       friend bool vvp_cancel_multi_waiting_thread(vthread_t thread);
       void run_multi_waiting_threads_();
       vthread_t threads_;
@@ -332,6 +382,12 @@ class vvp_fun_anyedge_aa : public vvp_fun_anyedge, public automatic_hooks_s {
 		       vvp_context_t context) override;
 
     private:
+      bool vif_has_waiters_(vvp_context_t) const override;
+      void vif_cancel_waiters_(vvp_context_t) override;
+      vvp_context_t vif_context_(vvp_context_t) const override;
+      bool vif_context_live_(vvp_context_t) const override;
+      void vif_each_context_(
+            const std::function<void(vvp_context_t)>&) const override;
       __vpiScope*context_scope_;
       unsigned context_idx_;
       scalar_event_history*history_;
@@ -368,6 +424,9 @@ class vvp_fun_event_or_sa : public vvp_fun_event_or {
                      vvp_context_t context) override;
 
     private:
+      bool vif_has_waiters_(vvp_context_t) const override
+            { return threads_ != 0; }
+      void vif_cancel_waiters_(vvp_context_t) override;
       vthread_t threads_;
 };
 
@@ -392,6 +451,12 @@ class vvp_fun_event_or_aa : public vvp_fun_event_or, public automatic_hooks_s {
                      vvp_context_t context) override;
 
     private:
+      bool vif_has_waiters_(vvp_context_t) const override;
+      void vif_cancel_waiters_(vvp_context_t) override;
+      vvp_context_t vif_context_(vvp_context_t) const override;
+      bool vif_context_live_(vvp_context_t) const override;
+      void vif_each_context_(
+            const std::function<void(vvp_context_t)>&) const override;
       __vpiScope*context_scope_;
       unsigned context_idx_;
 };
@@ -496,5 +561,11 @@ class vvp_named_event_dyn : public vvp_named_event {
  * normal named-event wait/trigger machinery. See vvp/event.cc.
  */
 extern class vvp_net_t* event_array_slot_net(uint32_t slot);
+
+extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
+                              char*root,
+                              unsigned root_word, unsigned member,
+                              unsigned word, unsigned path_count, long*path);
+extern void compile_event_valid(char*event_label, char*valid_label);
 
 #endif /* IVL_event_H */

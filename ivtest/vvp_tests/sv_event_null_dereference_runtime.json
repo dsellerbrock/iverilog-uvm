@@ -1,0 +1,8 @@
+{
+  "type": "RE",
+  "source": "sv_event_null_dereference_runtime.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_event_null_dereference_runtime"
+}

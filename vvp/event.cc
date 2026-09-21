@@ -21,8 +21,11 @@
 # include  "scalar_event_history.h"
 # include  "compile.h"
 # include  "vthread.h"
+# include  "vvp_net_sig.h"
 # include  "schedule.h"
 # include  "vpi_priv.h"
+# include  "vvp_cobject.h"
+# include  "vvp_vinterface.h"
 # include  "config.h"
 # include  <cstring>
 # include  <cassert>
@@ -31,9 +34,220 @@
 # include  <map>
 # include  <set>
 # include  <vector>
+# include  <functional>
+# include  <iterator>
 
 # include <iostream>
 # include <memory>
+
+namespace {
+typedef std::pair<void*,vvp_context_t> event_work_key_t;
+typedef std::pair<event_work_key_t,unsigned> event_sink_key_t;
+struct event_source_transaction_s {
+      std::map<event_work_key_t,std::function<void()> > comb;
+      std::map<event_work_key_t,std::function<void()> > valid;
+      std::map<event_sink_key_t,std::function<void()> > edge;
+      std::vector<std::vector<std::function<void()> > > replay;
+      std::vector<std::function<void()> > ingress;
+};
+static unsigned event_source_depth_ = 0;
+static bool event_source_flushing_ = false;
+static bool event_cone_dispatch_ = false;
+static bool event_callback_capture_ = false;
+static bool event_callback_replay_ = false;
+static size_t event_callback_source_replay_start_ = 0;
+static event_source_transaction_s event_source_transaction_;
+struct event_source_saved_s {
+      unsigned depth;
+      bool flushing;
+      bool cone_dispatch;
+      bool callback_capture;
+      bool callback_replay;
+      size_t callback_source_replay_start;
+      event_source_transaction_s transaction;
+};
+static std::vector<event_source_saved_s> event_source_saved_;
+static std::map<event_work_key_t,std::function<void()> > nba_pending_comb_;
+static bool nba_comb_flush_scheduled_ = false;
+
+static void flush_event_source_transaction_()
+{
+      if (event_source_flushing_)
+            return;
+      event_source_flushing_ = true;
+      for (;;) {
+            while (!event_source_transaction_.comb.empty()) {
+                  std::map<event_work_key_t,std::function<void()> > work;
+                  work.swap(event_source_transaction_.comb);
+                  event_cone_dispatch_ = true;
+                  for (auto&item : work)
+                        item.second();
+                  event_cone_dispatch_ = false;
+            }
+            std::map<event_work_key_t,std::function<void()> > valid;
+            valid.swap(event_source_transaction_.valid);
+            for (auto&item : valid)
+                  item.second();
+            std::map<event_sink_key_t,std::function<void()> > edge;
+            edge.swap(event_source_transaction_.edge);
+            for (auto&item : edge)
+                  item.second();
+
+            if (event_source_transaction_.replay.empty())
+                  break;
+            std::vector<std::function<void()> > replay =
+                  std::move(event_source_transaction_.replay.front());
+            event_source_transaction_.replay.erase(
+                  event_source_transaction_.replay.begin());
+            event_callback_replay_ = true;
+            for (auto&item : replay)
+                  item();
+            event_callback_replay_ = false;
+      }
+      event_source_flushing_ = false;
+}
+
+struct nba_comb_flush_s : vvp_gen_event_s {
+      void run_run() override
+      {
+            nba_comb_flush_scheduled_ = false;
+            assert(event_source_depth_ == 0);
+            assert(!event_source_flushing_);
+            assert(event_source_transaction_.comb.empty());
+            event_source_transaction_.comb.swap(nba_pending_comb_);
+            flush_event_source_transaction_();
+      }
+};
+static nba_comb_flush_s nba_comb_flush_;
+
+static void defer_nba_comb_()
+{
+      for (auto&item : event_source_transaction_.comb)
+            nba_pending_comb_[item.first] = std::move(item.second);
+      event_source_transaction_.comb.clear();
+      if (!nba_comb_flush_scheduled_) {
+            nba_comb_flush_scheduled_ = true;
+            schedule_at_active_sync(&nba_comb_flush_);
+      }
+}
+}
+
+void vvp_event_source_begin()
+{
+      if (!event_source_depth_ && event_callback_capture_
+          && !event_callback_replay_)
+            event_callback_source_replay_start_ =
+                  event_source_transaction_.replay.size();
+      event_source_depth_ += 1;
+}
+void vvp_event_source_end()
+{
+      assert(event_source_depth_);
+      if (--event_source_depth_ != 0)
+            return;
+      if (event_callback_capture_ && !event_callback_replay_) {
+            if (!event_source_transaction_.ingress.empty()) {
+                  event_source_transaction_.replay.insert(
+                        event_source_transaction_.replay.begin()
+                              + event_callback_source_replay_start_,
+                        std::move(event_source_transaction_.ingress));
+                  event_source_transaction_.ingress.clear();
+            }
+      } else {
+            if (schedule_in_nba_update_region()
+                && !event_source_transaction_.comb.empty())
+                  defer_nba_comb_();
+            flush_event_source_transaction_();
+      }
+}
+void vvp_event_callback_begin()
+{
+      event_source_saved_s saved;
+      saved.depth = event_source_depth_;
+      saved.flushing = event_source_flushing_;
+      saved.cone_dispatch = event_cone_dispatch_;
+      saved.callback_capture = event_callback_capture_;
+      saved.callback_replay = event_callback_replay_;
+      saved.callback_source_replay_start =
+            event_callback_source_replay_start_;
+      saved.transaction = std::move(event_source_transaction_);
+      event_source_saved_.push_back(std::move(saved));
+      event_source_depth_ = 0;
+      event_source_flushing_ = false;
+      event_cone_dispatch_ = false;
+      event_callback_capture_ =
+            event_source_saved_.back().depth != 0
+            || event_source_saved_.back().flushing;
+      event_callback_replay_ = false;
+      event_callback_source_replay_start_ = 0;
+      event_source_transaction_ = event_source_transaction_s();
+}
+void vvp_event_callback_end()
+{
+      if (event_source_depth_ || (!event_callback_capture_
+                                  && (!event_source_transaction_.comb.empty()
+                                      || !event_source_transaction_.valid.empty()
+                                      || !event_source_transaction_.edge.empty())))
+            flush_event_source_transaction_();
+      assert(!event_source_saved_.empty());
+      std::vector<std::vector<std::function<void()> > > replay =
+            std::move(event_source_transaction_.replay);
+      event_source_saved_s saved = std::move(event_source_saved_.back());
+      event_source_saved_.pop_back();
+      event_source_depth_ = saved.depth;
+      event_source_flushing_ = saved.flushing;
+      event_cone_dispatch_ = saved.cone_dispatch;
+      event_callback_capture_ = saved.callback_capture;
+      event_callback_replay_ = saved.callback_replay;
+      event_callback_source_replay_start_ =
+            saved.callback_source_replay_start;
+      event_source_transaction_ = std::move(saved.transaction);
+      event_source_transaction_.replay.insert(
+            event_source_transaction_.replay.end(),
+            std::make_move_iterator(replay.begin()),
+            std::make_move_iterator(replay.end()));
+}
+bool vvp_event_defer_callback_cone(const std::function<void()>&work)
+{
+      if (!event_callback_capture_ || event_callback_replay_)
+            return false;
+      event_source_transaction_.ingress.push_back(work);
+      return true;
+}
+void vvp_event_enqueue_comb(void*key, vvp_context_t context,
+                            const std::function<void()>&work)
+{
+      if (!event_source_depth_ && !event_source_flushing_) {
+            work();
+            return;
+      }
+      if (context) {
+            uint64_t generation = vthread_context_generation(context);
+            if (!generation)
+                  return;
+            event_source_transaction_.comb[event_work_key_t(key, context)] =
+                  [context, generation, work]() {
+                        if (vthread_context_generation(context) == generation)
+                              work();
+                  };
+      } else {
+            event_source_transaction_.comb[event_work_key_t(key, context)] = work;
+      }
+}
+void vvp_event_enqueue_valid(void*key, vvp_context_t context,
+                             const std::function<void()>&work)
+{
+      if (!event_cone_dispatch_) work();
+      else event_source_transaction_.valid[event_work_key_t(key, context)] = work;
+}
+void vvp_event_enqueue_edge(void*key, vvp_context_t context, unsigned port,
+                            const std::function<void()>&work)
+{
+      if (!event_cone_dispatch_) work();
+      else event_source_transaction_.edge[
+            event_sink_key_t(event_work_key_t(key, context), port)] = work;
+}
+bool vvp_event_cone_dispatch_active() { return event_cone_dispatch_; }
 
 static bool event_trace_enabled_()
 {
@@ -288,6 +502,70 @@ void waitable_hooks_s::run_waiting_threads_(vthread_t&threads)
       vthread_schedule_event_waiters(threads);
 }
 
+static void vif_null_event_error_()
+{
+      fprintf(stderr, "runtime error: event expression attempted to use a null virtual interface\n");
+      vpip_set_return_value(1);
+      if (!schedule_finished())
+            schedule_finish(0);
+}
+
+void waitable_hooks_s::attach_vif_validity()
+{
+      has_vif_validity_ = true;
+}
+
+void waitable_hooks_s::recv_vif_validity(const vvp_vector4_t&value,
+                                         vvp_context_t context)
+{
+      if (context && !vif_context_live_(context))
+            return;
+      bool valid = value.size() && value.value(0) == BIT4_1;
+      vvp_context_t raw_context = context;
+      context = vif_context_(context);
+      if (!raw_context && !context) {
+            has_default_vif_validity_ = true;
+            default_vif_validity_ = valid;
+            bool cancelled = false;
+            vif_each_context_([this, valid, &cancelled](vvp_context_t item) {
+                  vif_validity_[item] = valid;
+                  if (!valid && vif_has_waiters_(item)) {
+                        vif_cancel_waiters_(item);
+                        cancelled = true;
+                  }
+            });
+            if (cancelled)
+                  vif_null_event_error_();
+            return;
+      }
+      vif_validity_[context] = valid;
+      if (!valid && vif_has_waiters_(context)) {
+            vif_cancel_waiters_(context);
+            vif_null_event_error_();
+      }
+}
+
+bool waitable_hooks_s::validate_vif_arm_(vvp_context_t context)
+{
+      if (!has_vif_validity_)
+            return true;
+      context = vif_context_(context);
+      std::map<vvp_context_t,bool>::const_iterator found =
+            vif_validity_.find(context);
+      if (found != vif_validity_.end() && found->second)
+            return true;
+      if (found == vif_validity_.end()
+          && has_default_vif_validity_ && default_vif_validity_)
+            return true;
+      vif_null_event_error_();
+      return false;
+}
+
+void waitable_hooks_s::clear_vif_validity_(vvp_context_t context)
+{
+      vif_validity_.erase(vif_context_(context));
+}
+
 evctl::evctl(unsigned long ecount)
 {
       ecount_ = ecount;
@@ -512,7 +790,15 @@ vvp_fun_edge_sa::~vvp_fun_edge_sa()
 
 vthread_t vvp_fun_edge_sa::add_waiting_thread(vthread_t thread)
 {
+      if (!validate_vif_arm_(0))
+            return 0;
       return vthread_add_event_wait(thread, &threads_);
+}
+
+void vvp_fun_edge_sa::vif_cancel_waiters_(vvp_context_t)
+{
+      while (threads_)
+            vthread_cancel_event_wait(threads_);
 }
 
 void vvp_fun_edge_sa::add_multi_waiting_thread(vthread_t thread)
@@ -546,6 +832,12 @@ void vvp_fun_edge_sa::run_multi_waiting_threads_()
 void vvp_fun_edge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t)
 {
+      if (vvp_event_cone_dispatch_active()) {
+            vvp_event_enqueue_edge(this, 0, port.port(), [this, port, bit]() {
+                  recv_vec4(port, bit, 0);
+            });
+            return;
+      }
       if (recv_vec4_(bit, bits_[port.port()], threads_)) {
 	    run_multi_waiting_threads_();
 	    vvp_net_t*net = port.ptr();
@@ -556,6 +848,13 @@ void vvp_fun_edge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 void vvp_fun_edge_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 				   unsigned base, unsigned vwid, vvp_context_t)
 {
+      if (vvp_event_cone_dispatch_active()) {
+            vvp_event_enqueue_edge(this, 0, port.port(),
+                  [this, port, bit, base, vwid]() {
+                  recv_vec4_pv(port, bit, base, vwid, 0);
+            });
+            return;
+      }
       assert(base == 0);
       if (recv_vec4_(bit, bits_[port.port()], threads_)) {
 	    run_multi_waiting_threads_();
@@ -584,6 +883,7 @@ void vvp_fun_edge_aa::alloc_instance(vvp_context_t context)
 
 void vvp_fun_edge_aa::reset_instance(vvp_context_t context)
 {
+      clear_vif_validity_(context);
       vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
@@ -610,7 +910,45 @@ vthread_t vvp_fun_edge_aa::add_waiting_thread(vthread_t thread)
             (vthread_get_wt_context_item_scoped(context_idx_,
                                                 context_scope_));
 
+      if (!validate_vif_arm_(vthread_get_wt_context()))
+            return 0;
       return vthread_add_event_wait(thread, &state->threads);
+}
+
+vvp_context_t vvp_fun_edge_aa::vif_context_(vvp_context_t context) const
+{
+      return vthread_recover_context_for_scope(context, context_scope_);
+}
+
+bool vvp_fun_edge_aa::vif_context_live_(vvp_context_t context) const
+{
+      return !context
+            || vthread_context_live_matches_scope(context, context_scope_);
+}
+
+void vvp_fun_edge_aa::vif_each_context_(
+      const std::function<void(vvp_context_t)>&visit) const
+{
+      for (vvp_context_t context = context_scope_->live_contexts; context;
+           context = vvp_get_next_context(context))
+            visit(context);
+}
+
+bool vvp_fun_edge_aa::vif_has_waiters_(vvp_context_t context) const
+{
+      context = vif_context_(context);
+      vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>(
+            vvp_get_context_item(context, context_idx_));
+      return state && state->threads;
+}
+
+void vvp_fun_edge_aa::vif_cancel_waiters_(vvp_context_t context)
+{
+      context = vif_context_(context);
+      vvp_fun_edge_state_s*state = static_cast<vvp_fun_edge_state_s*>(
+            vvp_get_context_item(context, context_idx_));
+      while (state && state->threads)
+            vthread_cancel_event_wait(state->threads);
 }
 
 void vvp_fun_edge_aa::recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t)
@@ -621,6 +959,26 @@ void vvp_fun_edge_aa::recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t)
 void vvp_fun_edge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
+      if (vvp_event_cone_dispatch_active()) {
+            __vpiScope*source_scope =
+                  automatic_event_source_scope_(context, context_scope_);
+            vvp_context_t owner = scalar_event_native_context_(
+                  context, source_scope, context_scope_);
+            if (context && !source_scope && !owner)
+                  return;
+            vvp_context_t live_context = source_scope ? context : owner;
+            __vpiScope*live_scope = source_scope ? source_scope
+                                                 : (owner ? context_scope_ : 0);
+            vvp_event_enqueue_edge(this, context, port.port(),
+                  [this, port, bit, context, live_context, live_scope]() {
+                  if (live_scope
+                      && !vthread_context_live_matches_scope(
+                              live_context, live_scope))
+                        return;
+                  recv_vec4(port, bit, context);
+            });
+            return;
+      }
       uint64_t stamp = history_->next();
       vvp_context_t source = context;
       __vpiScope*source_scope = automatic_event_source_scope_(source, context_scope_);
@@ -944,7 +1302,15 @@ vvp_fun_anyedge_sa::~vvp_fun_anyedge_sa()
 
 vthread_t vvp_fun_anyedge_sa::add_waiting_thread(vthread_t thread)
 {
+      if (!validate_vif_arm_(0))
+            return 0;
       return vthread_add_event_wait(thread, &threads_);
+}
+
+void vvp_fun_anyedge_sa::vif_cancel_waiters_(vvp_context_t)
+{
+      while (threads_)
+            vthread_cancel_event_wait(threads_);
 }
 
 void vvp_fun_anyedge_sa::add_multi_waiting_thread(vthread_t thread)
@@ -1009,6 +1375,12 @@ void vvp_fun_anyedge_sa::run_multi_waiting_threads_()
 void vvp_fun_anyedge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t)
 {
+      if (vvp_event_cone_dispatch_active()) {
+            vvp_event_enqueue_edge(this, 0, port.port(), [this, port, bit]() {
+                  recv_vec4(port, bit, 0);
+            });
+            return;
+      }
       anyedge_vec4_value*value = get_vec4_value(last_value_[port.port()]);
       assert(value);
 	  vvp_vector4_t previous;
@@ -1025,6 +1397,13 @@ void vvp_fun_anyedge_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 void vvp_fun_anyedge_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 				      unsigned base, unsigned vwid, vvp_context_t)
 {
+      if (vvp_event_cone_dispatch_active()) {
+            vvp_event_enqueue_edge(this, 0, port.port(),
+                  [this, port, bit, base, vwid]() {
+                  recv_vec4_pv(port, bit, base, vwid, 0);
+            });
+            return;
+      }
       anyedge_vec4_value*value = get_vec4_value(last_value_[port.port()]);
       assert(value);
 	  vvp_vector4_t previous;
@@ -1109,6 +1488,7 @@ void vvp_fun_anyedge_aa::alloc_instance(vvp_context_t context)
 
 void vvp_fun_anyedge_aa::reset_instance(vvp_context_t context)
 {
+      clear_vif_validity_(context);
       vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
@@ -1138,12 +1518,70 @@ vthread_t vvp_fun_anyedge_aa::add_waiting_thread(vthread_t thread)
             (vthread_get_wt_context_item_scoped(context_idx_,
                                                 context_scope_));
 
+      if (!validate_vif_arm_(vthread_get_wt_context()))
+            return 0;
       return vthread_add_event_wait(thread, &state->threads);
+}
+
+vvp_context_t vvp_fun_anyedge_aa::vif_context_(vvp_context_t context) const
+{
+      return vthread_recover_context_for_scope(context, context_scope_);
+}
+
+bool vvp_fun_anyedge_aa::vif_context_live_(vvp_context_t context) const
+{
+      return !context
+            || vthread_context_live_matches_scope(context, context_scope_);
+}
+
+void vvp_fun_anyedge_aa::vif_each_context_(
+      const std::function<void(vvp_context_t)>&visit) const
+{
+      for (vvp_context_t context = context_scope_->live_contexts; context;
+           context = vvp_get_next_context(context))
+            visit(context);
+}
+
+bool vvp_fun_anyedge_aa::vif_has_waiters_(vvp_context_t context) const
+{
+      context = vif_context_(context);
+      vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>(
+            vvp_get_context_item(context, context_idx_));
+      return state && state->threads;
+}
+
+void vvp_fun_anyedge_aa::vif_cancel_waiters_(vvp_context_t context)
+{
+      context = vif_context_(context);
+      vvp_fun_anyedge_state_s*state = static_cast<vvp_fun_anyedge_state_s*>(
+            vvp_get_context_item(context, context_idx_));
+      while (state && state->threads)
+            vthread_cancel_event_wait(state->threads);
 }
 
 void vvp_fun_anyedge_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t context)
 {
+      if (vvp_event_cone_dispatch_active()) {
+            __vpiScope*source_scope =
+                  automatic_event_source_scope_(context, context_scope_);
+            vvp_context_t owner = scalar_event_native_context_(
+                  context, source_scope, context_scope_);
+            if (context && !source_scope && !owner)
+                  return;
+            vvp_context_t live_context = source_scope ? context : owner;
+            __vpiScope*live_scope = source_scope ? source_scope
+                                                 : (owner ? context_scope_ : 0);
+            vvp_event_enqueue_edge(this, context, port.port(),
+                  [this, port, bit, context, live_context, live_scope]() {
+                  if (live_scope
+                      && !vthread_context_live_matches_scope(
+                              live_context, live_scope))
+                        return;
+                  recv_vec4(port, bit, context);
+            });
+            return;
+      }
       if (event_trace_enabled_()) {
             fprintf(stderr, "trace anyedge-aa recv_vec4 net=%p ctx=%p wid=%u\n",
                     (void*)port.ptr(), context, bit.size());
@@ -1400,7 +1838,15 @@ vvp_fun_event_or_sa::~vvp_fun_event_or_sa()
 
 vthread_t vvp_fun_event_or_sa::add_waiting_thread(vthread_t thread)
 {
+      if (!validate_vif_arm_(0))
+            return 0;
       return vthread_add_event_wait(thread, &threads_);
+}
+
+void vvp_fun_event_or_sa::vif_cancel_waiters_(vvp_context_t)
+{
+      while (threads_)
+            vthread_cancel_event_wait(threads_);
 }
 
 void vvp_fun_event_or_sa::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
@@ -1428,6 +1874,7 @@ void vvp_fun_event_or_aa::alloc_instance(vvp_context_t context)
 
 void vvp_fun_event_or_aa::reset_instance(vvp_context_t context)
 {
+      clear_vif_validity_(context);
       waitable_state_s*state = static_cast<waitable_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
@@ -1450,7 +1897,45 @@ vthread_t vvp_fun_event_or_aa::add_waiting_thread(vthread_t thread)
             (vthread_get_wt_context_item_scoped(context_idx_,
                                                 context_scope_));
 
+      if (!validate_vif_arm_(vthread_get_wt_context()))
+            return 0;
       return vthread_add_event_wait(thread, &state->threads);
+}
+
+vvp_context_t vvp_fun_event_or_aa::vif_context_(vvp_context_t context) const
+{
+      return vthread_recover_context_for_scope(context, context_scope_);
+}
+
+bool vvp_fun_event_or_aa::vif_context_live_(vvp_context_t context) const
+{
+      return !context
+            || vthread_context_live_matches_scope(context, context_scope_);
+}
+
+void vvp_fun_event_or_aa::vif_each_context_(
+      const std::function<void(vvp_context_t)>&visit) const
+{
+      for (vvp_context_t context = context_scope_->live_contexts; context;
+           context = vvp_get_next_context(context))
+            visit(context);
+}
+
+bool vvp_fun_event_or_aa::vif_has_waiters_(vvp_context_t context) const
+{
+      context = vif_context_(context);
+      waitable_state_s*state = static_cast<waitable_state_s*>(
+            vvp_get_context_item(context, context_idx_));
+      return state && state->threads;
+}
+
+void vvp_fun_event_or_aa::vif_cancel_waiters_(vvp_context_t context)
+{
+      context = vif_context_(context);
+      waitable_state_s*state = static_cast<waitable_state_s*>(
+            vvp_get_context_item(context, context_idx_));
+      while (state && state->threads)
+            vthread_cancel_event_wait(state->threads);
 }
 
 void vvp_fun_event_or_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -1643,6 +2128,401 @@ void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 */
 
 static void compile_event_or(char*label, unsigned argc, struct symb_s*argv);
+
+namespace {
+
+struct vif_proxy_state_s {
+      explicit vif_proxy_state_s(unsigned width)
+      : source(0), relay(0), value(width, BIT4_X) { }
+
+      vvp_net_t*source;
+      vvp_net_t*relay;
+      vvp_object_t root;
+      vvp_vector4_t value;
+};
+
+class vvp_fun_vif_proxy;
+
+class vvp_fun_vif_proxy_source : public vvp_net_fun_t {
+    public:
+      vvp_fun_vif_proxy_source(vvp_fun_vif_proxy*owner,
+                               vif_proxy_state_s*state,
+                               vvp_context_t context, __vpiScope*scope)
+      : owner_(owner), state_(state), context_(context), scope_(scope) { }
+
+      void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
+                     vvp_context_t) override;
+      void recv_vec4_pv(vvp_net_ptr_t, const vvp_vector4_t&, unsigned,
+                        unsigned, vvp_context_t) override;
+
+    private:
+      vvp_fun_vif_proxy*owner_;
+      vif_proxy_state_s*state_;
+      vvp_context_t context_;
+      __vpiScope*scope_;
+};
+
+class vvp_fun_vif_proxy : public vvp_net_fun_t {
+    public:
+      vvp_fun_vif_proxy(vvp_net_t*net, vvp_net_t*valid_net, unsigned width,
+                        const std::vector<unsigned>&path,
+                        unsigned member, unsigned word)
+      : net_(net), valid_net_(valid_net), width_(width), path_(path),
+        member_(member), word_(word) { }
+
+      void source_vec4(vif_proxy_state_s*state, vvp_net_t*relay,
+                       const vvp_vector4_t&value, vvp_context_t context)
+      {
+            if (!state || state->relay != relay || !state->source)
+                  return;
+            state->value = value;
+            net_->send_vec4(value, context);
+      }
+
+      void source_vec4_pv(vif_proxy_state_s*state, vvp_net_t*relay,
+                          const vvp_vector4_t&value, unsigned base,
+                          vvp_context_t context)
+      {
+            if (!state || state->relay != relay || !state->source)
+                  return;
+            state->value.set_vec(base, value);
+            net_->send_vec4(state->value, context);
+      }
+
+    protected:
+      void initialize_state(vif_proxy_state_s*state, vvp_context_t context,
+                            __vpiScope*scope)
+      {
+            assert(state && !state->relay);
+            state->relay = new vvp_net_t;
+            state->relay->fun =
+                  new vvp_fun_vif_proxy_source(this, state, context, scope);
+      }
+
+      void unbind(vif_proxy_state_s*state)
+      {
+            if (state->source && state->relay)
+                  state->source->unlink(vvp_net_ptr_t(state->relay, 0));
+            state->source = 0;
+            state->root.reset();
+      }
+
+      void dispose_state(vif_proxy_state_s*state)
+      {
+            unbind(state);
+            if (state->relay) {
+                  delete state->relay->fun;
+                  delete state->relay;
+                  state->relay = 0;
+            }
+      }
+
+      void bind(vif_proxy_state_s*state, const vvp_object_t&root,
+                vvp_context_t context)
+      {
+            if (!state)
+                  return;
+            unbind(state);
+            state->root = root;
+
+            vvp_object_t object = root;
+            for (unsigned idx = 0; idx < path_.size(); ++idx) {
+                  vvp_cobject*cobj = object.peek<vvp_cobject>();
+                  if (!cobj) {
+                        publish_x_(state, context);
+                        return;
+                  }
+                  vvp_object_t next;
+                  cobj->get_object(path_[idx], next, 0);
+                  object = next;
+            }
+
+            vvp_vinterface*vif = object.peek<vvp_vinterface>();
+            vvp_net_t*source = 0;
+            vvp_vector4_t seed;
+            if (!vif || !vif->get_vec4_source(member_, word_, source, seed)) {
+                  publish_x_(state, context);
+                  return;
+            }
+
+            state->source = source;
+            state->value = seed;
+            source->link(vvp_net_ptr_t(state->relay, 0));
+            net_->send_vec4(seed, context);
+            valid_net_->send_vec4(vvp_vector4_t(1, BIT4_1), context);
+      }
+
+    private:
+      void publish_x_(vif_proxy_state_s*state, vvp_context_t context)
+      {
+            state->value = vvp_vector4_t(width_, BIT4_X);
+            valid_net_->send_vec4(vvp_vector4_t(1, BIT4_0), context);
+            net_->send_vec4(state->value, context);
+      }
+
+    protected:
+      vvp_net_t*net_;
+      vvp_net_t*valid_net_;
+      unsigned width_;
+      std::vector<unsigned> path_;
+      unsigned member_;
+      unsigned word_;
+};
+
+void vvp_fun_vif_proxy_source::recv_vec4(vvp_net_ptr_t port,
+                                         const vvp_vector4_t&value,
+                                         vvp_context_t)
+{
+      if (context_
+          && vthread_recover_context_for_scope(context_, scope_) != context_)
+            return;
+      owner_->source_vec4(state_, port.ptr(), value, context_);
+}
+
+void vvp_fun_vif_proxy_source::recv_vec4_pv(vvp_net_ptr_t port,
+                                            const vvp_vector4_t&value,
+                                            unsigned base, unsigned,
+                                            vvp_context_t)
+{
+      if (context_
+          && vthread_recover_context_for_scope(context_, scope_) != context_)
+            return;
+      owner_->source_vec4_pv(state_, port.ptr(), value, base, context_);
+}
+
+class vvp_fun_vif_proxy_sa : public vvp_fun_vif_proxy {
+    public:
+      vvp_fun_vif_proxy_sa(vvp_net_t*net, vvp_net_t*valid_net, unsigned width,
+                           const std::vector<unsigned>&path,
+                           unsigned member, unsigned word)
+      : vvp_fun_vif_proxy(net, valid_net, width, path, member, word), state_(width)
+      {
+            initialize_state(&state_, 0, 0);
+      }
+
+      ~vvp_fun_vif_proxy_sa() override { dispose_state(&state_); }
+
+      void recv_object(vvp_net_ptr_t, vvp_object_t value,
+                       vvp_context_t) override
+      {
+            bind(&state_, value, 0);
+      }
+
+    private:
+      vif_proxy_state_s state_;
+};
+
+class vvp_fun_vif_proxy_aa : public vvp_fun_vif_proxy,
+                             public automatic_hooks_s {
+    public:
+      vvp_fun_vif_proxy_aa(vvp_net_t*net, vvp_net_t*valid_net, unsigned width,
+                           const std::vector<unsigned>&path,
+                           unsigned member, unsigned word)
+      : vvp_fun_vif_proxy(net, valid_net, width, path, member, word),
+        root_net_(0)
+      {
+            context_scope_ = vpip_peek_context_scope();
+            context_idx_ = vpip_add_item_to_context(this, context_scope_);
+      }
+
+      vvp_net_t**root_ref() { return &root_net_; }
+
+      void alloc_instance(vvp_context_t context) override
+      {
+            vif_proxy_state_s*state = new vif_proxy_state_s(width_);
+            initialize_state(state, context, context_scope_);
+            vvp_set_context_item(context, context_idx_, state);
+      }
+
+      void initialize_instance(vvp_context_t context) override
+      {
+            bind(get_state_(context), default_root_, context);
+      }
+
+      void reset_instance(vvp_context_t context) override
+      {
+            vif_proxy_state_s*state = get_state_(context);
+            if (state) {
+                  unbind(state);
+                  state->value = vvp_vector4_t(width_, BIT4_X);
+            }
+      }
+
+#ifdef CHECK_WITH_VALGRIND
+      void free_instance(vvp_context_t context) override
+      {
+            vif_proxy_state_s*state = get_state_(context);
+            if (state)
+                  dispose_state(state);
+            delete state;
+      }
+#endif
+
+      void recv_object(vvp_net_ptr_t, vvp_object_t value,
+                       vvp_context_t context) override
+      {
+            bool automatic_source = root_net_
+                  && dynamic_cast<vvp_fun_signal_object_aa*>(
+                        root_net_->fun) != 0;
+            __vpiScope*source_scope = automatic_source
+                  ? automatic_event_source_scope_(context, context_scope_) : 0;
+            /* A static source is shared by all activations and is the only
+               valid seed for activations created after this publication.
+               Never seed one automatic activation from another's root. */
+            if (!source_scope)
+                  default_root_ = value;
+            vvp_context_t resolved = scalar_event_native_context_(
+                  context, source_scope, context_scope_);
+            if (resolved) {
+                  bind(get_state_(resolved), value, resolved);
+                  return;
+            }
+
+            /* A static root changes every activation and seeds future ones.
+               An ancestor-automatic root changes only descendants of that
+               source activation. */
+            for (vvp_context_t scan = context_scope_->live_contexts; scan;
+                 scan = vvp_get_next_context(scan)) {
+                  if (source_scope
+                      && vthread_recover_stacked_context_for_scope(
+                              scan, source_scope) != context)
+                        continue;
+                  vif_proxy_state_s*state = get_state_(scan);
+                  if (state)
+                        bind(state, value, scan);
+            }
+      }
+
+    private:
+      vif_proxy_state_s*get_state_(vvp_context_t context) const
+      {
+            return static_cast<vif_proxy_state_s*>(
+                  vvp_get_context_item(context, context_idx_));
+      }
+
+      __vpiScope*context_scope_;
+      unsigned context_idx_;
+      vvp_object_t default_root_;
+      vvp_net_t*root_net_;
+};
+
+} // namespace
+
+namespace {
+
+class vvp_fun_event_valid : public vvp_net_fun_t {
+    public:
+      vvp_fun_event_valid() : target_(0), attached_(false) { }
+
+      vvp_net_t**target_ref() { return &target_; }
+      void set_target(vvp_net_t*target) { target_ = target; }
+      void mark_attached() { attached_ = true; }
+
+      void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&value,
+                     vvp_context_t context) override
+      {
+            if (vvp_event_cone_dispatch_active()) {
+                  vvp_event_enqueue_valid(this, context,
+                        [this, value, context]() {
+                        recv_valid_(value, context);
+                  });
+                  return;
+            }
+            recv_valid_(value, context);
+      }
+
+    private:
+      void recv_valid_(const vvp_vector4_t&value, vvp_context_t context)
+      {
+            waitable_hooks_s*waitable = target_
+                  ? dynamic_cast<waitable_hooks_s*>(target_->fun) : 0;
+            if (!waitable) {
+                  fprintf(stderr, "runtime error: .eventvalid target is not waitable\n");
+                  if (!schedule_finished())
+                        schedule_finish(1);
+                  return;
+            }
+            if (!attached_) {
+                  waitable->attach_vif_validity();
+                  attached_ = true;
+            }
+            waitable->recv_vif_validity(value, context);
+      }
+
+      vvp_net_t*target_;
+      bool attached_;
+};
+
+} // namespace
+
+void compile_event_valid(char*event_label, char*valid_label)
+{
+      vvp_net_t*monitor = new vvp_net_t;
+      vvp_fun_event_valid*fun = new vvp_fun_event_valid;
+      monitor->fun = fun;
+      vvp_net_t*target = vvp_net_lookup(event_label);
+      if (target) {
+            fun->set_target(target);
+            waitable_hooks_s*waitable =
+                  dynamic_cast<waitable_hooks_s*>(target->fun);
+            if (waitable) {
+                  waitable->attach_vif_validity();
+                  fun->mark_attached();
+            }
+            free(event_label);
+      } else {
+            functor_ref_lookup(fun->target_ref(), event_label);
+      }
+      input_connect(monitor, 0, valid_label);
+}
+
+void compile_vif_proxy(char*label, char*valid_label, unsigned width, char*root,
+                       unsigned root_word, unsigned member, unsigned word,
+                       unsigned path_count, long*raw_path)
+{
+      std::vector<unsigned> path;
+      path.reserve(path_count);
+      for (unsigned idx = 0; idx < path_count; ++idx) {
+            if (raw_path[idx] < 0
+                || static_cast<unsigned long>(raw_path[idx]) > UINT_MAX) {
+                  fprintf(stderr, ".vifproxy path component out of range\n");
+                  compile_errors += 1;
+                  free(raw_path);
+                  free(root);
+                  free(valid_label);
+                  free(label);
+                  return;
+            }
+            path.push_back(static_cast<unsigned>(raw_path[idx]));
+      }
+      free(raw_path);
+      /* The target has already selected ROOT_WORD in the root input nexus.
+         Keep it in the textual descriptor for diagnostics/compatibility; the
+         runtime must bind the connected root rather than index it again. */
+      (void)root_word;
+
+      vvp_net_t*net = new vvp_net_t;
+      vvp_net_t*valid_net = new vvp_net_t;
+      __vpiScope*scope = vpip_peek_context_scope();
+      vvp_net_t*root_net = vvp_net_lookup(root);
+      bool automatic_root = root_net
+            ? dynamic_cast<vvp_fun_signal_object_aa*>(root_net->fun) != 0
+            : scope && scope->has_automatic_context();
+      if (automatic_root) {
+            vvp_fun_vif_proxy_aa*fun = new vvp_fun_vif_proxy_aa(
+                  net, valid_net, width, path, member, word);
+            net->fun = fun;
+            functor_ref_lookup(fun->root_ref(), strdup(root));
+      } else
+            net->fun = new vvp_fun_vif_proxy_sa(
+                  net, valid_net, width, path, member, word);
+
+      define_functor_symbol(label, net);
+      define_functor_symbol(valid_label, valid_net);
+      free(label);
+      free(valid_label);
+      input_connect(net, 0, root);
+}
 
 void compile_event(char*label, char*type, unsigned argc, struct symb_s*argv)
 {

@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_output_variable_unpacked_actual.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "test"
+  ],
+  "gold": "sv_output_variable_unpacked_actual"
+}

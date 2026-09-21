@@ -3368,11 +3368,11 @@ SELF-PACKAGE-TYPE-CAST and SIGNED-COVER-BINS-CROSS-ZERO are focused-tested, with
 
 The [pwrmgr follow-up reducers](session_logs/2026-09-21_pwrmgr_followup_blockers.json) confirm missing indexed packed VPI handles and skipped compound virtual-interface edge waits. These remain open; current selection and ownership are in ACTIVE_WORK.
 
-VARIABLE-OUTPUT-PORT-DIRECTION is reproduced in both editions: external net resolution feeds back into an output variable across a collapsed port. See the [runtime reducer and net/variable controls](session_logs/2026-09-21_variable_output_port_direction.json). This is awaiting selection; removing the pwrmgr warning alone would not fix the demonstrated semantics.
+VARIABLE-OUTPUT-PORT-DIRECTION is reproduced in both editions: external net resolution feeds back into an output variable across a collapsed port. See the [runtime reducer and net/variable controls](session_logs/2026-09-21_variable_output_port_direction.json). The directional port fix is now integrated and focused-tested; see the [installed six-fix evidence](session_logs/2026-09-21_shared_six_focus.json). Broad gates and fresh pwrmgr replay remain pending.
 
 VPI-PACKED-ELEMENT-ACCESS is focused-tested with permanent paired-edition regressions and the affected VPI suite. See [integration evidence and remaining boundaries](session_logs/2026-09-21_packed_vpi_integration.json). Required batch gates remain pending; this is not whole-VPI or application qualification.
 
-CONTINUOUS-STRING-ASSIGN is reproduced in both editions from the unchanged stable Caliptra/Adams Bridge rejection-sampling testbench. The [paired runtime failure](session_logs/2026-09-21_caliptra_continuous_string.json) is under standards/root-cause assessment; no implementation selected yet.
+CONTINUOUS-STRING-ASSIGN is reproduced in both editions from the unchanged stable Caliptra/Adams Bridge rejection-sampling testbench. The [paired runtime failure](session_logs/2026-09-21_caliptra_continuous_string.json) now has an integrated, focused-tested fix; see [installed evidence](session_logs/2026-09-21_shared_six_focus.json). Broad gates remain pending. Caliptra rejection sampling still has a separately recorded testbench race; fixing string semantics does not establish application success.
 
 ### September21 constraint division/remainder by zero
 
@@ -3385,3 +3385,11 @@ JOINT-ORDERED-ACTIVE-RANDC is implemented and focused-tested, pending batch gate
 The [packed-VPI synthesis regression repair](session_logs/2026-09-21_packed_vpi_synthesis_regression.json) passes paired runtime controls and focused synthesis/VPI suites; required broad rerun remains pending. This repairs VPI-PACKED-ELEMENT-ACCESS and adds no feature count.
 
 The [nine-fix batch qualification](session_logs/2026-09-21_nine_fix_batch_qualification.json) completes required local gates for the integrated September21 fixes through `c1635efe9`. Broader clause/application blockers and private candidates remain open; CI/publication tracked in CAMPAIGN.
+
+### September 21 application foundation batch
+
+COMPOUND-VIF-EDGE-EVENTS, JOINT-ORDERED-RANDC-MULTIDIST, DV-RUNTIME-ROOT-SEED, UVM-STRICT-REGEX-GLOB-FALLBACK, CONTINUOUS-STRING-ASSIGN, and VARIABLE-OUTPUT-PORT-DIRECTION are integrated and FOCUSED_TESTED. The [installed evidence](session_logs/2026-09-21_shared_six_focus.json) owns current results and scope. Required broad gates and fresh pinned application replay are pending; these items are not yet DONE.
+
+The [six-fix broad gate](session_logs/2026-09-21_shared_six_gate_failure.json) found regressions in automatic events and port/synthesis behavior; these are active repair obligations before qualification. The [fresh release replay](session_logs/2026-09-21_shared_six_release_retest.json) advances pwrmgr past its old HDL-path fatal to legacy regex/build errors. OpenTitan crossbar and Caliptra power2round pass their bounded checks; GPIO, pwrmgr and rejection sampling remain failing.
+
+At `1d7e38ce5`, [runtime and startup repairs](session_logs/2026-09-21_event_runtime_regression_repair.json) have focused evidence. COMPOUND-VIF-EDGE-EVENTS remains open for synthesis boundary repairs and complete regression requalification. These repairs add no feature count.

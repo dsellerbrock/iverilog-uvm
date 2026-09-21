@@ -18,6 +18,7 @@
  */
 
 # include  "logic.h"
+# include  "event.h"
 # include  "scalar_event_history.h"
 # include  "compile.h"
 # include  "bufif.h"
@@ -104,7 +105,14 @@ void vvp_fun_boolean_::update(vvp_context_t context, unsigned port,
             value->input[port] = bit;
       }
       if (!changed) return;
-      if (vthread_context_is_initializing(context)) {
+      if (event_synchronous_) {
+            vvp_event_enqueue_comb(this, context, [this, context]() {
+                  if (context && scope_
+                      && !vthread_context_live_matches_scope(context, scope_))
+                        return;
+                  output_->send_vec4(calculate(state(context)->input), context);
+            });
+      } else if (vthread_context_is_initializing(context)) {
             output_->send_vec4(calculate(value->input), context);
       } else {
             value->dirty = true;
@@ -118,6 +126,20 @@ void vvp_fun_boolean_::update(vvp_context_t context, unsigned port,
 void vvp_fun_boolean_::receive(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       vvp_context_t source, unsigned base, bool partial)
 {
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone(
+                [this, ptr, bit, source, base, partial]() {
+                      if (source && scope_) {
+                            __vpiScope*source_scope =
+                                  automatic_event_source_scope_(source, scope_);
+                            if (source_scope
+                                && !vthread_context_live_matches_scope(
+                                      source, source_scope))
+                                  return;
+                      }
+                      receive(ptr, bit, source, base, partial);
+                }))
+            return;
       unsigned port = ptr.port();
       if (scope_) {
             uint64_t stamp = history_->next();
@@ -148,7 +170,12 @@ void vvp_fun_boolean_::receive(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
             changed = !input_[port].eeq(bit);
             input_[port] = bit;
       }
-      if (changed && !net_) {
+      if (changed && event_synchronous_) {
+            vvp_net_t*out = ptr.ptr();
+            vvp_event_enqueue_comb(this, source, [this, out, source]() {
+                  out->send_vec4(calculate(input_), source);
+            });
+      } else if (changed && !net_) {
             net_ = ptr.ptr();
             schedule_functor(this);
       }
@@ -491,8 +518,13 @@ vvp_fun_muxz::~vvp_fun_muxz()
 }
 
 void vvp_fun_muxz::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
-                             vvp_context_t)
+                             vvp_context_t context)
 {
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone([this, ptr, bit, context]() {
+                recv_vec4(ptr, bit, context);
+          }))
+            return;
       switch (ptr.port()) {
 	  case 0:
 	    if (a_ .eeq(bit) && has_run_) return;
@@ -524,15 +556,27 @@ void vvp_fun_muxz::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 	    return;
       }
 
-      if (net_ == 0) {
+      if (event_synchronous_) {
+            has_run_ = true;
+            vvp_net_t*out = ptr.ptr();
+            vvp_event_enqueue_comb(this, context, [this, out, context]() {
+                  send_output(out, context);
+            });
+      } else if (net_ == 0) {
 	    net_ = ptr.ptr();
 	    schedule_functor(this);
       }
 }
 
 void vvp_fun_muxz::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
-				unsigned base, unsigned vwid, vvp_context_t)
+				unsigned base, unsigned vwid, vvp_context_t context)
 {
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone(
+                [this, ptr, bit, base, vwid, context]() {
+                      recv_vec4_pv(ptr, bit, base, vwid, context);
+                }))
+            return;
       assert(base + bit.size() <= vwid);
       bool flag;
 
@@ -549,11 +593,18 @@ void vvp_fun_muxz::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 	    break;
 	  case 2:
 	    assert((base == 0) && (bit.size() == 1));
-	    recv_vec4(ptr, bit, 0);
+	    recv_vec4(ptr, bit, context);
+	    return;
 	  default:
 	    return;
       }
-      if (net_ == 0) {
+      if (event_synchronous_) {
+            has_run_ = true;
+            vvp_net_t*out = ptr.ptr();
+            vvp_event_enqueue_comb(this, context, [this, out, context]() {
+                  send_output(out, context);
+            });
+      } else if (net_ == 0) {
 	    net_ = ptr.ptr();
 	    schedule_functor(this);
       }
@@ -565,12 +616,18 @@ void vvp_fun_muxz::run_run()
       vvp_net_t*ptr = net_;
       net_ = 0;
 
+      send_output(ptr, 0);
+}
+
+void vvp_fun_muxz::send_output(vvp_net_t*ptr, vvp_context_t context)
+{
+
       switch (select_) {
 	  case SEL_PORT0:
-	    ptr->send_vec4(a_, 0);
+	    ptr->send_vec4(a_, context);
 	    break;
 	  case SEL_PORT1:
-	    ptr->send_vec4(b_, 0);
+	    ptr->send_vec4(b_, context);
 	    break;
 	  default:
 	      {
@@ -593,7 +650,7 @@ void vvp_fun_muxz::run_run()
 		    for (unsigned idx = min_size ;  idx < max_size ;  idx += 1)
 			  res.set_bit(idx, BIT4_X);
 
-		    ptr->send_vec4(res, 0);
+		    ptr->send_vec4(res, context);
 	      }
 	    break;
       }
@@ -700,6 +757,15 @@ void compile_functor(char*label, char*type, unsigned width,
 {
       vvp_net_fun_t* obj = 0;
       bool strength_aware = false;
+      bool event_synchronous = false;
+      static const char event_suffix[] = "/event";
+      size_t type_len = strlen(type);
+      size_t suffix_len = sizeof event_suffix - 1;
+      if (type_len > suffix_len
+          && strcmp(type + type_len - suffix_len, event_suffix) == 0) {
+            type[type_len - suffix_len] = 0;
+            event_synchronous = true;
+      }
 
       if (strcmp(type, "OR") == 0) {
 	    obj = new vvp_fun_or(width, false);
@@ -790,8 +856,26 @@ void compile_functor(char*label, char*type, unsigned width,
       assert(argc <= 4);
       vvp_net_t*net = new vvp_net_t;
       net->fun = obj;
-      if (auto*boolean = dynamic_cast<vvp_fun_boolean_*>(obj)) boolean->bind_net(net);
+      if (auto*boolean = dynamic_cast<vvp_fun_boolean_*>(obj)) {
+            boolean->bind_net(net);
+            boolean->event_synchronous(event_synchronous);
+      }
+      if (auto*mux = dynamic_cast<vvp_fun_muxz*>(obj))
+            mux->event_synchronous(event_synchronous);
 
+      /* A synchronous event cone must have its literal support settled
+       * before time-zero waiters are armed. input_connect uses the leading
+       * case to distinguish init constants from ordinary Active updates. */
+      if (event_synchronous) {
+            for (unsigned idx = 0; idx < argc; idx += 1) {
+                  char*text = argv[idx].text;
+                  if (text && text[0] == 'C'
+                      && (text[1] == '4' || text[1] == '8'
+                          || text[1] == 'r')
+                      && text[2] == '<')
+                        text[0] = 'c';
+            }
+      }
       inputs_connect(net, argc, argv);
       free(argv);
 

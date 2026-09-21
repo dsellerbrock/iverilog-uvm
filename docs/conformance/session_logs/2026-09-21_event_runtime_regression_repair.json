@@ -1,0 +1,208 @@
+{
+  "base": "b03bccdf94e539eb5bbee34fd79092dfdc311af4",
+  "status": "FOCUSED_TESTED; two synthesis regressions and broad requalification pending",
+  "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/309",
+  "repairs": [
+    "Normalize automatic selected-event source contexts and preserve ancestor/descendant routing.",
+    "Defer marked combinational work originating in NBA/ReNBA to existing Active-sync processing; generation tokens reject reused automatic activations.",
+    "Initialize event-cone literal support before pushed waiters using existing pre-simulation constant mechanism; keep null validation synchronous."
+  ],
+  "build": {
+    "head": "b03bccdf94e539eb5bbee34fd79092dfdc311af4",
+    "patch_sha256": "90011d95d06c4f2c3364bba13b3658756a2398398275ab395c4f2f8de2873ba1",
+    "started": 1790011064.3459709,
+    "stages": [
+      {
+        "name": "build",
+        "argv": [
+          "make",
+          "-j1",
+          "YACC=/opt/homebrew/opt/bison/bin/bison",
+          "LEX=/usr/bin/flex"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "install",
+        "argv": [
+          "make",
+          "install"
+        ],
+        "exit": 0
+      }
+    ]
+  },
+  "focused": [
+    {
+      "name": "legacy",
+      "argv": [
+        "perl",
+        "vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repair-all-focus/legacy.list"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "json",
+      "argv": [
+        "python3",
+        "vvp_reg.py",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repair-all-focus/vvp.list"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "vpi",
+      "argv": [
+        "perl",
+        "vpi_reg.pl",
+        "regress-event-vpi.list"
+      ],
+      "exit": 0
+    }
+  ],
+  "totals": {
+    "legacy": [
+      110,
+      110,
+      0
+    ],
+    "json": [
+      110,
+      110,
+      0
+    ],
+    "vpi": [
+      10,
+      10,
+      0
+    ]
+  },
+  "prior_failure_replay": {
+    "legacy_passed": 13,
+    "legacy_failed": [
+      "partselsynth",
+      "synth_packed_struct_async_reset"
+    ],
+    "vpi_passed": 1
+  },
+  "startup_paired": [
+    {
+      "edition": "2017",
+      "phase": "compile",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/event-constant-init/cast-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_member_cast_sensitivity.v"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "edition": "2017",
+      "phase": "run",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/event-constant-init/cast-2017.vvp"
+      ],
+      "exit": 0,
+      "output": "PASSED\n"
+    },
+    {
+      "edition": "2023",
+      "phase": "compile",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/event-constant-init/cast-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_interface_member_cast_sensitivity.v"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "edition": "2023",
+      "phase": "run",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/event-constant-init/cast-2023.vvp"
+      ],
+      "exit": 0,
+      "output": "PASSED\n"
+    }
+  ],
+  "callback_paired": [
+    {
+      "edition": "2017",
+      "phase": "compile",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repair-all-focus/callback-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/boolean_callback_atomic.sv"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "edition": "2017",
+      "phase": "run",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-M",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment",
+        "-m",
+        "boolean_callback_atomic",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repair-all-focus/callback-2017.vvp"
+      ],
+      "exit": 0,
+      "output": "PASSED callback-origin source assignments\n"
+    },
+    {
+      "edition": "2023",
+      "phase": "compile",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-o",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repair-all-focus/callback-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment/boolean_callback_atomic.sv"
+      ],
+      "exit": 0,
+      "output": ""
+    },
+    {
+      "edition": "2023",
+      "phase": "run",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-M",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/next-pwrmgr-event-assessment",
+        "-m",
+        "boolean_callback_atomic",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repair-all-focus/callback-2023.vvp"
+      ],
+      "exit": 0,
+      "output": "PASSED callback-origin source assignments\n"
+    }
+  ],
+  "tool_hashes": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "cf776a978a5c7a5a6565c7c13c5108e20b8f023e34d08ad59a6b2e0154418a98",
+    "local-install/lib/ivl/ivl": "47016acdd5c4b25f19c2520d8e8001d7821e8c10f81d198504dac69e3e4a6814",
+    "local-install/lib/ivl/vvp.tgt": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af",
+    "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb"
+  },
+  "limits": [
+    "No broad requalification on this repair revision yet.",
+    "Private generation-disabled experiment did not produce an observable failure; address reuse/generation mismatch was directly traced, and guard remains a lifetime invariant.",
+    "Earlier callback failure report was stale; fresh exact invocation passes in both editions.",
+    "Initial literal-init experiment on functor padding alone did not cure upstream BUFT initialization; both pieces are required.",
+    "First repair build stopped on an ambiguous verinum constructor; corrected to the explicit bit-value constructor before successful build.",
+    "Masked-null/rebind fixtures use NBA-triggered Active handle assignments; direct NBA assignments to virtual-interface properties remain explicitly unsupported in both editions (direct-vif-nba-results.json)."
+  ]
+}

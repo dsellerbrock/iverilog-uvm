@@ -1,0 +1,8 @@
+{
+  "type": "RE",
+  "source": "sv_event_null_dereference_runtime_2023.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "sv_event_null_dereference_runtime_2023"
+}

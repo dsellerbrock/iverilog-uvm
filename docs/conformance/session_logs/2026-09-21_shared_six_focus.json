@@ -1,0 +1,99 @@
+{
+  "baseline": "482c3c89d815ad98ba549507184bf389b14b3ac9",
+  "branch": "agent/application-foundation-batch-20260921",
+  "status": "FOCUSED_TESTED; broad gates and release replay pending",
+  "build": {
+    "base": "482c3c89d815ad98ba549507184bf389b14b3ac9",
+    "branch": "agent/application-foundation-batch-20260921",
+    "stages": [
+      {
+        "stage": "clean",
+        "argv": [
+          "make",
+          "clean"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "autoconf",
+        "argv": [
+          "sh",
+          "autoconf.sh"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "configure",
+        "argv": [
+          "./configure",
+          "--prefix=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install",
+          "--enable-libveriuser"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "build",
+        "argv": [
+          "make",
+          "-j1",
+          "YACC=/opt/homebrew/opt/bison/bin/bison",
+          "LEX=/usr/bin/flex"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "install",
+        "argv": [
+          "make",
+          "install"
+        ],
+        "exit": 0
+      },
+      {
+        "stage": "install-fpga",
+        "argv": [
+          "make",
+          "-C",
+          "tgt-fpga",
+          "install"
+        ],
+        "exit": 0
+      }
+    ],
+    "external_agents_sha256": "61cc17d6e74e35ff6dc8de44502973672383643b9f8e4c2c7fb5732ed678d3f1",
+    "tool_hashes": {
+      "bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "bin/vvp": "21ffd74b8f30c63739c784bc111df69e1a33629fb53b971a19ed25e2a477387f",
+      "lib/ivl/ivl": "73e2e2d2948bf1e02bc142ae8a2082de14d6d2d38a6f798434cebc53865fc834",
+      "lib/ivl/vvp.tgt": "2e78ed3d8ae9bf680de4a6779ba5e503190c4bc8fd88e2dd4067c235c25268ed",
+      "lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb"
+    }
+  },
+  "results": {
+    "legacy": {
+      "total": 96,
+      "passed": 96,
+      "failed": 0
+    },
+    "json": {
+      "total": 96,
+      "failed": 0
+    },
+    "vpi": {
+      "total": 10,
+      "passed": 10,
+      "failed": 0
+    },
+    "rootseed": "PASS",
+    "strict_regex_uvm": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "mode": "g2012 REAL DPI"
+    }
+  },
+  "raw_evidence": "evidence/review-20260920/shared-six-focus",
+  "scope": "Six fixes: compound VIF edge events; ordered randc multiple distributions; runtime root seed vendor option; strict UVM regex; continuous string assignments; variable output port direction. No full language/application qualification.",
+  "semantic_commit": "779de5464da2d40bab998035855e67b5224cb3ad",
+  "commit_relation": "Commit records unchanged compiler/test sources used by the shared build and focus; operational documentation and user AGENTS edits are separate."
+}

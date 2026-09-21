@@ -23,6 +23,7 @@ ivl_const_real
 ivl_const_scope
 ivl_const_signed
 ivl_const_type
+ivl_const_event_synchronous
 ivl_const_width
 
 ivl_discipline_domain
@@ -126,6 +127,7 @@ ivl_logic_scope
 ivl_logic_type
 ivl_logic_udp
 ivl_logic_width
+ivl_logic_event_synchronous
 ivl_logic_port_buffer
 
 ivl_lpm_array
@@ -160,6 +162,13 @@ ivl_lpm_sync_set
 ivl_lpm_trigger
 ivl_lpm_type
 ivl_lpm_width
+ivl_lpm_event_synchronous
+ivl_lpm_vif_root_word
+ivl_lpm_vif_validity
+ivl_lpm_vif_member
+ivl_lpm_vif_word
+ivl_lpm_vif_path_count
+ivl_lpm_vif_path
 
 ivl_lval_dynamic_part_carrier
 ivl_lval_idx
@@ -500,6 +509,7 @@ ivl_event_vif_pre_N
 ivl_event_vif_path_count
 ivl_event_vif_path_index
 ivl_event_vif_root_pin
+ivl_event_vif_validity
 ivl_event_is_obj_mutation
 ivl_event_obj_N
 ivl_event_obj_pre_N

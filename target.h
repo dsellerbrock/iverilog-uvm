@@ -153,6 +153,7 @@ struct target_t {
       virtual bool concat(const NetConcat*);
       virtual bool part_select(const NetPartSelect*);
       virtual bool replicate(const NetReplicate*);
+      virtual bool vif_proxy(const NetVifProxy*);
 
 	/* Output a gate (called for each gate) */
       virtual void logic(const NetLogic*);

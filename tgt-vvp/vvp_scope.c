@@ -1423,7 +1423,7 @@ static void draw_equiv_impl_in_scope(ivl_net_logic_t lptr)
 	    ltype = "IMPL";
       }
 
-      fprintf(vvp_out, "L_%p .functor %s 1, %s, %s, C4<0>, C4<0>;\n", lptr, ltype, lval, rval);
+      fprintf(vvp_out, "L_%p .functor %s%s 1, %s, %s, C4<0>, C4<0>;\n", lptr, ltype, ivl_logic_event_synchronous(lptr) ? "/event" : "", lval, rval);
 }
 
 static void draw_logic_in_scope(ivl_net_logic_t lptr)
@@ -1577,6 +1577,14 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 
       if (!lcasc)
 	lcasc = ltype;
+      char event_type[32], event_cascade[32];
+      if (ivl_logic_event_synchronous(lptr)) {
+            snprintf(event_type, sizeof event_type, "%s/event", ltype);
+            snprintf(event_cascade, sizeof event_cascade, "%s/event", lcasc);
+            ltype = event_type;
+            lcasc = event_cascade;
+      }
+
 
 	/* Get all the input label that I will use for parameters to
 	   the functor that I create later. */
@@ -2712,7 +2720,8 @@ static void draw_lpm_part(ivl_lpm_t net)
       sel = ivl_lpm_data(net,1);
 
       if (sel == 0) {
-	    fprintf(vvp_out, "L_%p%s .part %s", net, dly, input);
+	    fprintf(vvp_out, "L_%p%s .part%s %s", net, dly,
+                    ivl_lpm_event_synchronous(net) ? "/event" : "", input);
 	    fprintf(vvp_out, ", %u, %u;\n", base, width);
       } else {
 	    const char*sel_symbol = draw_net_input(sel);
@@ -2769,9 +2778,24 @@ static void draw_lpm_sign_ext(ivl_lpm_t net)
 	      net, dly, ivl_lpm_width(net), input);
 }
 
+static void draw_lpm_vif_proxy(ivl_lpm_t net)
+{
+      const char*root = draw_net_input(ivl_lpm_data(net, 0));
+      unsigned idx;
+      fprintf(vvp_out, "L_%p .vifproxy L_%p/valid, %u, %s, %u, %u, %u",
+              net, net, ivl_lpm_width(net), root, ivl_lpm_vif_root_word(net),
+              ivl_lpm_vif_member(net), ivl_lpm_vif_word(net));
+      for (idx = 0; idx < ivl_lpm_vif_path_count(net); idx += 1)
+            fprintf(vvp_out, ", %u", ivl_lpm_vif_path(net, idx));
+      fprintf(vvp_out, ";\n");
+}
+
 static void draw_lpm_in_scope(ivl_lpm_t net)
 {
       switch (ivl_lpm_type(net)) {
+          case IVL_LPM_VIF_PROXY:
+            draw_lpm_vif_proxy(net);
+            return;
 
 	  case IVL_LPM_ABS:
 	    draw_lpm_abs(net);
@@ -3418,6 +3442,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       for (idx = 0 ;  idx < ivl_scope_events(net) ;  idx += 1) {
 	    ivl_event_t event = ivl_scope_event(net, idx);
 	    draw_event_in_scope(event);
+            if (ivl_event_vif_validity(event))
+                  fprintf(vvp_out, " .eventvalid E_%p, %s;\n", event,
+                          draw_net_input(ivl_event_vif_validity(event)));
       }
 
       for (idx = 0 ;  idx < ivl_scope_lpms(net) ;  idx += 1) {

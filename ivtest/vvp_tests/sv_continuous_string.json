@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_continuous_string.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "test"
+  ],
+  "gold": "sv_continuous_string"
+}

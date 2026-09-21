@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_event_edge_transition_table.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_event_edge_transition_table"
+}

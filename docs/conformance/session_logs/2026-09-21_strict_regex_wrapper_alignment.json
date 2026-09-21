@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-21",
+  "blocker": "UVM-STRICT-REGEX-GLOB-FALLBACK",
+  "source_baseline": "779de5464",
+  "changed": "tests/uvm_regex_legacy_glob_test.sv",
+  "reason": "Historical test demanded implicit glob retry deliberately removed by strict API repair. Pinned UVM1.2 uvm_regex.cc calls strict POSIX regcomp; bundled SV API exposes explicit deglob and uvm_glob_to_re.",
+  "before": "Existing wrapper test fails with REGEX error under real DPI",
+  "after": "Wrapper uses explicit uvm_glob_to_re; positive and negative globs and normal regex assertions preserved. Separate strict malformed-regex rejection/diagnostic test unchanged. Both tests PASS, zero failures/skips, g2012 real DPI.",
+  "evidence": "evidence/review-20260920/strict-regex-wrapper-repair",
+  "boundary": "Test expectation correction for existing selected repair; no feature count, application edits or upstream-library edits. Broad qualification remains blocked by separate event/port regressions."
+}

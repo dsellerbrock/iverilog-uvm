@@ -1,0 +1,45 @@
+{
+  "blocker": "JOINT-ORDERED-RANDC-MULTIDIST",
+  "state": "PRIVATE_ADDITIONAL_FAILURE_BOUNDARIES_VALIDATED",
+  "prefix_unknown": [
+    {
+      "edition": "2017",
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "injected_solver_check": 135,
+      "output": "INJECTED: Z3_solver_check UNKNOWN at call 135\nERROR: global constraint sampling failed: a coupled randc distribution prefix could not be proved exactly.\nPASSED\n",
+      "passed": true
+    },
+    {
+      "edition": "2023",
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "injected_solver_check": 135,
+      "output": "INJECTED: Z3_solver_check UNKNOWN at call 135\nERROR: global constraint sampling failed: a coupled randc distribution prefix could not be proved exactly.\nPASSED\n",
+      "passed": true
+    }
+  ],
+  "range_cap": [
+    {
+      "edition": "2017",
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "compile_output": "",
+      "runtime_output": "Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed).\nERROR: global constraint sampling failed: a coupled distribution cannot be sampled exactly.\nPASSED\n",
+      "passed": true
+    },
+    {
+      "edition": "2023",
+      "compile_exit": 0,
+      "runtime_exit": 0,
+      "compile_output": "",
+      "runtime_output": "Warning: dist range exceeds the 256-member exact-sampling cap; using the weighted-soft fallback (further similar warnings suppressed).\nERROR: global constraint sampling failed: a coupled distribution cannot be sampled exactly.\nPASSED\n",
+      "passed": true
+    }
+  ],
+  "test_patch_sha256": "f2692b6227216e99cda6b50759f51d1792009fff33d26a219d2ee4d594426bd5",
+  "scope": "Test-only macOS dyld interposer; real private runtime. Direct original-symbol forwarding after dlsym recursion issue. Exact diagnostic confirms newly added prefix branch, not just initial preflight.",
+  "portability": "Linux/Windows fault-injection not executed; call135 is specific to this test/runtime trace. Permanent integration must require the exact target diagnostic and not assume other platforms share that call index.",
+  "invariants": "Failed solve preserves values, owner/child RNG, callbacks and randc history; four subsequent draws match seeded twin.",
+  "limits": "Private implementation still awaits permanent integration and applicable regression gates."
+}

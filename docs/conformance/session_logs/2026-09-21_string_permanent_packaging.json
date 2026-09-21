@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-21",
+  "blocker": "CONTINUOUS-STRING-ASSIGN",
+  "scope": "Permanent regression packaging verified privately against corrected candidate, shared compiler unchanged.",
+  "manifest": "evidence/review-20260920/next-caliptra-continuous-string-fix/permanent-reviewed/manifest-reviewed.json",
+  "validation": {
+    "legacy": {
+      "total": 22,
+      "failed": 0
+    },
+    "json": {
+      "total": 22,
+      "failed": 0
+    }
+  },
+  "raw": "evidence/review-20260920/next-caliptra-continuous-string-fix/permanent-reviewed",
+  "oracles": "Existing self-checking fixtures and exact independently observed stdout/diagnostics; only source pathname adjusted for permanent layout. Synthesis case uses corrected internal-string fixture and focused diagnostic.",
+  "pending": "Append focus entries to repository main legacy/JSON manifests, run installed compiler tests and required gates."
+}

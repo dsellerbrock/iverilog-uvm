@@ -6710,6 +6710,61 @@ static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
  */
 static uint64_t design_root_rng_state_ = 0x9E3779B97F4A7C15ull;
 
+bool vthread_init_design_root_seed()
+{
+      enum seed_status_t { SEED_UNCHECKED, SEED_READY, SEED_INVALID };
+      static seed_status_t status = SEED_UNCHECKED;
+      if (status != SEED_UNCHECKED) return status == SEED_READY;
+
+      s_vpi_vlog_info info;
+      if (!vpi_get_vlog_info(&info)) {
+	    status = SEED_READY;
+	    return true;
+      }
+      static const char prefix[] = "+ntb_random_seed=";
+      bool found = false;
+      uint32_t seed = 0;
+      const char*reason = 0;
+      for (int idx = 0; idx < info.argc; idx++) {
+	    const char*arg = info.argv[idx];
+	    if (!arg || strncmp(arg, prefix, sizeof prefix - 1) != 0) continue;
+	    if (found) { reason = "duplicate option"; break; }
+	    found = true;
+	    const char*cur = arg + sizeof prefix - 1;
+	    if (!*cur) { reason = "empty value"; break; }
+	    uint64_t value = 0;
+	    for (; *cur; cur++) {
+		  if (*cur < '0' || *cur > '9') {
+			reason = "value must be unsigned decimal";
+			break;
+		  }
+		  unsigned digit = (unsigned)(*cur - '0');
+		  if (value > UINT32_MAX / 10
+		      || (value == UINT32_MAX / 10 && digit > UINT32_MAX % 10)) {
+			reason = "value exceeds uint32"; break;
+		  }
+		  value = value * 10 + digit;
+	    }
+	    if (reason) break;
+	    seed = (uint32_t)value;
+      }
+      if (reason) {
+	    cerr << "ERROR: invalid +ntb_random_seed: " << reason << "." << endl;
+	    compile_errors += 1;
+	    status = SEED_INVALID;
+	    return false;
+      }
+      if (found) {
+	    uint64_t z = (uint64_t)seed + UINT64_C(0x9E3779B97F4A7C15);
+	    z = (z ^ (z >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
+	    z = (z ^ (z >> 27)) * UINT64_C(0x94D049BB133111EB);
+	    z ^= z >> 31;
+	    design_root_rng_state_ = z ? z : UINT64_C(0x9E3779B97F4A7C15);
+      }
+      status = SEED_READY;
+      return true;
+}
+
 static uint32_t design_root_rng_next_()
 {
       uint64_t x = design_root_rng_state_;
@@ -9341,6 +9396,8 @@ template vvp_vector4_t coerce_to_width(const vvp_vector4_t&that,
 static unordered_map<vvp_context_t, __vpiScope*> automatic_context_owner;
 static unordered_map<vvp_context_t, unsigned> automatic_context_refcount;
 static unordered_set<vvp_context_t> live_automatic_contexts;
+static unordered_map<vvp_context_t, uint64_t> automatic_context_generation;
+static uint64_t next_automatic_context_generation = 1;
 
 static void retain_automatic_context_(vvp_context_t context)
 {
@@ -9415,6 +9472,9 @@ static vvp_context_t vthread_alloc_context(__vpiScope*scope)
       automatic_context_owner[context] = scope;
       automatic_context_refcount[context] = 1;
       live_automatic_contexts.insert(context);
+      automatic_context_generation[context] = next_automatic_context_generation++;
+      if (next_automatic_context_generation == 0)
+            next_automatic_context_generation = 1;
 
       return context;
 }
@@ -9466,6 +9526,7 @@ static void vthread_free_context(vvp_context_t context, __vpiScope*scope)
             automatic_context_refcount.erase(ref_it);
       }
       live_automatic_contexts.erase(context);
+      automatic_context_generation.erase(context);
 
       auto context_in_list = [](vvp_context_t head, vvp_context_t needle) -> bool {
             for (vvp_context_t cur = head ; cur ; cur = vvp_get_next_context(cur)) {
@@ -11330,6 +11391,15 @@ bool vthread_context_live_matches_scope(vvp_context_t context,
                                         __vpiScope*scope)
 {
       return context_live_matches_scope_(context, scope);
+}
+
+uint64_t vthread_context_generation(vvp_context_t context)
+{
+      if (!context_live_in_owner(context))
+            return 0;
+      unordered_map<vvp_context_t, uint64_t>::const_iterator found =
+            automatic_context_generation.find(context);
+      return found == automatic_context_generation.end() ? 0 : found->second;
 }
 
 vvp_context_t vthread_recover_stacked_context_for_scope(

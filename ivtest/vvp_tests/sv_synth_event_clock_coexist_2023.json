@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_synth_event_clock_coexist_2023.v",
+  "iverilog-args": [
+    "-S",
+    "-g2023"
+  ],
+  "gold": "sv_synth_event_clock_coexist_2023"
+}

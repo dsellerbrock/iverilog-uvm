@@ -1,0 +1,4 @@
+./ivltests/sv_output_variable_selected_actual_overlap_2023.v:8: error: Variable 'actual' cannot have multiple drivers.
+./ivltests/sv_output_variable_selected_actual_overlap_2023.v:8: error: Output port expression must support a continuous assignment.
+./ivltests/sv_output_variable_selected_actual_overlap_2023.v:8:      : Port 1 (out) of selected_source is connected to test.actual['sd2:'sd1]
+2 error(s) during elaboration.

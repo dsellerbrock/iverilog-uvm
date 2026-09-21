@@ -106,9 +106,12 @@ echo "=== VVP runtime invariants ==="
 runtime_vvp=$(command -v vvp 2>/dev/null || true)
 runtime_iverilog=$(command -v iverilog 2>/dev/null || true)
 if [ -z "$runtime_vvp" ] || [ -z "$runtime_iverilog" ] \
+   || ! IVERILOG="$runtime_iverilog" VVP="$runtime_vvp" \
+        python3 ivtest/runtime_root_seed.py \
+        > "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_rand_mode_stack_underflow.sh \
-        > "$WORK/vvp-runtime.log" 2>&1 \
+        >> "$WORK/vvp-runtime.log" 2>&1 \
    || ! VVP="$runtime_vvp" \
         bash tests/vvp_runtime/run_prop_const_init_malformed.sh \
         >> "$WORK/vvp-runtime.log" 2>&1 \

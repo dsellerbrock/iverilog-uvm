@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sv_string_synthesis_boundary_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "string_synthesis_boundary",
+    "-S"
+  ],
+  "gold": "sv_string_synthesis_boundary_2023"
+}

@@ -20,6 +20,8 @@
 # define __STDC_LIMIT_MACROS
 # include  "compile.h"
 # include  "part.h"
+# include  "event.h"
+# include  "scalar_event_history.h"
 # include  <cstdlib>
 # include  <climits>
 # include  <stdint.h>
@@ -43,8 +45,9 @@ vvp_fun_part::~vvp_fun_part()
 {
 }
 
-vvp_fun_part_sa::vvp_fun_part_sa(unsigned base, unsigned wid)
-: vvp_fun_part(base, wid)
+vvp_fun_part_sa::vvp_fun_part_sa(unsigned base, unsigned wid,
+                                 bool event_synchronous)
+: vvp_fun_part(base, wid), event_synchronous_(event_synchronous)
 {
       net_ = 0;
 }
@@ -56,6 +59,11 @@ vvp_fun_part_sa::~vvp_fun_part_sa()
 void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                 vvp_context_t)
 {
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone([this, port, bit]() {
+                recv_vec4(port, bit, 0);
+          }))
+            return;
       assert(port.port() == 0);
 
       vvp_vector4_t tmp (bit, base_, wid_);
@@ -64,7 +72,12 @@ void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 
       val_ = tmp;
 
-      if (net_ == 0) {
+      if (event_synchronous_) {
+            vvp_net_t*out = port.ptr();
+            vvp_event_enqueue_comb(this, 0, [this, out]() {
+                  out->send_vec4(val_, 0);
+            });
+      } else if (net_ == 0) {
 	    net_ = port.ptr();
 	    schedule_functor(this);
       }
@@ -92,8 +105,9 @@ void vvp_fun_part_sa::run_run()
       ptr->send_vec4(val_, 0);
 }
 
-vvp_fun_part_aa::vvp_fun_part_aa(unsigned base, unsigned wid)
-: vvp_fun_part(base, wid)
+vvp_fun_part_aa::vvp_fun_part_aa(unsigned base, unsigned wid,
+                                 bool event_synchronous)
+: vvp_fun_part(base, wid), event_synchronous_(event_synchronous)
 {
       context_scope_ = vpip_peek_context_scope();
       context_idx_ = vpip_add_item_to_context(this, context_scope_);
@@ -126,30 +140,69 @@ void vvp_fun_part_aa::free_instance(vvp_context_t context)
 #endif
 
 void vvp_fun_part_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
-                                vvp_context_t context)
+                                vvp_context_t source)
 {
-      if (context) {
-            assert(port.port() == 0);
+      __vpiScope*source_scope =
+            automatic_event_source_scope_(source, context_scope_);
+      vvp_context_t context =
+            scalar_event_native_context_(source, source_scope, context_scope_);
+      if (source && !source_scope && !context)
+            return;
+      if (event_synchronous_) {
+            vvp_context_t live_context = source_scope ? source : context;
+            __vpiScope*live_scope = source_scope ? source_scope
+                                                 : (context ? context_scope_ : 0);
+            if (vvp_event_defer_callback_cone(
+                  [this, port, bit, source, live_context, live_scope]() {
+                        if (live_scope
+                            && !vthread_context_live_matches_scope(
+                                  live_context, live_scope))
+                              return;
+                        recv_vec4(port, bit, source);
+                  }))
+                  return;
+      }
 
+      assert(port.port() == 0);
+      auto update = [this, port, &bit](vvp_context_t target) mutable {
             vvp_vector4_t*val = static_cast<vvp_vector4_t*>
-                  (vvp_get_context_item(context, context_idx_));
+                  (vvp_get_context_item(target, context_idx_));
 
             vvp_vector4_t tmp (wid_, BIT4_X);
-            for (unsigned idx = 0 ;  idx < wid_ ;  idx += 1) {
+            for (unsigned idx = 0 ; idx < wid_ ; idx += 1) {
                   if (idx + base_ < bit.size())
                         tmp.set_bit(idx, bit.value(base_+idx));
             }
-            if (!val->eeq( tmp )) {
-                  *val = tmp;
-                  port.ptr()->send_vec4(tmp, context);
+            if (val->eeq(tmp)) return;
+            *val = tmp;
+            if (event_synchronous_) {
+                  vvp_net_t*out = port.ptr();
+                  vvp_event_enqueue_comb(this, target,
+                        [this, out, target]() {
+                              if (!vthread_context_live_matches_scope(
+                                    target, context_scope_))
+                                    return;
+                              const vvp_vector4_t*value =
+                                    static_cast<vvp_vector4_t*>(
+                                          vvp_get_context_item(
+                                                target, context_idx_));
+                              out->send_vec4(*value, target);
+                        });
+            } else {
+                  port.ptr()->send_vec4(tmp, target);
             }
-      } else {
-            context = context_scope_->live_contexts;
-            while (context) {
-                  recv_vec4(port, bit, context);
-                  context = vvp_get_next_context(context);
-            }
+      };
+
+      if (context) {
+            update(context);
+            return;
       }
+      for (context = context_scope_->live_contexts; context;
+           context = vvp_get_next_context(context))
+            if (!source_scope
+                || vthread_recover_stacked_context_for_scope(
+                      context, source_scope) == source)
+                  update(context);
 }
 
 /*
@@ -159,24 +212,33 @@ void vvp_fun_part_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
  * defined behavior.
  */
 void vvp_fun_part_aa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
-				   unsigned base, unsigned vwid, vvp_context_t context)
+                                   unsigned base, unsigned vwid,
+                                   vvp_context_t source)
 {
+      __vpiScope*source_scope =
+            automatic_event_source_scope_(source, context_scope_);
+      vvp_context_t context =
+            scalar_event_native_context_(source, source_scope, context_scope_);
+      if (source && !source_scope && !context)
+            return;
+      auto update = [this, port, &bit, base, vwid](vvp_context_t target) mutable {
+            const vvp_vector4_t*val = static_cast<vvp_vector4_t*>
+                  (vvp_get_context_item(target, context_idx_));
+            vvp_vector4_t tmp (vwid, BIT4_Z);
+            tmp.set_vec(base_, *val);
+            tmp.set_vec(base, bit);
+            recv_vec4(port, tmp, target);
+      };
       if (context) {
-	    const vvp_vector4_t*val = static_cast<vvp_vector4_t*>
-	                                         (vvp_get_context_item(context,
-	                                                               context_idx_));
-
-	    vvp_vector4_t tmp (vwid, BIT4_Z);
-	    tmp.set_vec(base_, *val);
-	    tmp.set_vec(base, bit);
-	    recv_vec4(port, tmp, context);
-      } else {
-	    context = context_scope_->live_contexts;
-	    while (context) {
-		  recv_vec4_pv(port, bit, base, vwid, context);
-		  context = vvp_get_next_context(context);
-	    }
+            update(context);
+            return;
       }
+      for (context = context_scope_->live_contexts; context;
+           context = vvp_get_next_context(context))
+            if (!source_scope
+                || vthread_recover_stacked_context_for_scope(
+                      context, source_scope) == source)
+                  update(context);
 }
 
 vvp_fun_part_pv::vvp_fun_part_pv(unsigned b, unsigned w, unsigned v)
@@ -414,14 +476,14 @@ void link_node_1(char*label, char*source, vvp_net_fun_t*fun)
 }
 
 void compile_part_select(char*label, char*source,
-			 unsigned base, unsigned wid)
+			 unsigned base, unsigned wid, bool event_synchronous)
 {
       vvp_fun_part*fun = 0;
       __vpiScope*owner = vpip_peek_context_scope();
       if (owner && owner->has_automatic_context()) {
-            fun = new vvp_fun_part_aa(base, wid);
+            fun = new vvp_fun_part_aa(base, wid, event_synchronous);
       } else {
-            fun = new vvp_fun_part_sa(base, wid);
+            fun = new vvp_fun_part_sa(base, wid, event_synchronous);
       }
       link_node_1(label, source, fun);
 }
