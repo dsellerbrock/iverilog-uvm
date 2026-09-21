@@ -503,3 +503,8 @@ repaired_broad_gate_run:
   order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
   next: Poll session22845; inspect statuses and logs; do not restart a live gate or mutate installed binaries.
   previous_run: batch-20260921 integrated failed, six regressions repaired; never count it as qualified.
+
+repaired_integrated_gate_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
+  status: IntegratedPASS; JSONsuite running in same session22845.
+  next: Poll existing session; remaining gatespending, do notpublish qualification yet.

@@ -475,3 +475,8 @@ repaired_candidate_application_retest:
   evidence: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
   session77217: Complete; crossbar andpower2round pass, GPIO fails.
   broad_session: 22845 stillactive; poll existing handle.
+
+repaired_integrated_gate_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
+  status: IntegratedPASS; JSONsuite running in same session22845.
+  next: Poll existing session; remaining gatespending, do notpublish qualification yet.
