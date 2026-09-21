@@ -120,3 +120,13 @@ variable_row_assignment_lane:
   dependency: Disjoint from constraint lane; coordinator alone integrates tracked files and builds.
   acceptance: Blocking and NBA row copies, distinct values, selected-index and RHS capture, nonzero/descending bounds, invalid index no writes, shape errors, constant-row neighbors; both editions.
   forbidden: Shared edits/builds, application changes, scalarized source workarounds, dropped assignments.
+
+clocked_property_group_lane:
+  id: SVA-GROUPED-CLOCKED-CONSEQUENT
+  status: REPRODUCED
+  reproducer: evidence/review-20260920/next-clocked-property/repro.sv
+  control: Unparenthesized form compiles; grouped consequent fails syntax.
+  standards: IEEE1800-2017/2023 AnnexA.2.10 and16.13 clock flow.
+  owns: evidence/review-20260920/next-clocked-property/patch; proposed parse.y and parser property helpers only.
+  acceptance: Equivalent grouped/ungrouped multiclock implication verdicts, distinct and coincident clocks, nonoverlap boundary, failing consequent, disable iff, nested groups; both editions.
+  exclusions: No changes to shared source/builds, constraint solver or row-assignment lane files; coordinator applies private patch.
