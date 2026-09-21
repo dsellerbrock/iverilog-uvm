@@ -1,0 +1,2 @@
+ivltests/sv_foreach_selector_unresolved.v:3: error: No function named `missing_selector' found in this context (main.$ivl_foreach0).
+1 error(s) during elaboration.
