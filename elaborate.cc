@@ -26487,6 +26487,17 @@ static constraint_source_type_t constraint_foreach_source_type_(
 	    if (!result.type)
 		  return result;
       }
+	/* DD-043: a nil member_name marks the undotted selected-prefix form
+	   (`arr[id][loopvars]', no `.member' between the brackets) -- the
+	   prefix selected one leading dimension of `arr' itself, and there
+	   is no member to look up; the remaining dimension(s) of the SAME
+	   array are what the trailing loop variables iterate. Return the
+	   already-reduced element type/remaining-dimensions as-is instead
+	   of falling into the member-lookup path below, which assumes the
+	   prefix fully consumed every array dimension and expects a
+	   scalar class/struct instance to search a member in. */
+      if (foreach->member_name().nil())
+	    return result;
       if (result.unpacked_dimensions)
 	    return constraint_source_type_t();
 
@@ -31004,12 +31015,42 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (cfe->loop_vars().empty())
 		  return "";
 
+            // Selected-prefix names designate existing values, not new
+            // iterators. Validate them even when the body never uses them.
+            if (cfe->has_hierarchical_target() && cfe->member_name().nil()) {
+                  for (perm_string name : cfe->prefix_names()) {
+                        if (loop_env && loop_env->count(name)) continue;
+                        PEIdent selector(name, UINT_MAX);
+                        selector.set_line(*cfe);
+                        constraint_source_type_t type = constraint_source_expr_type_(
+                              &selector, cls, value_slots, scope);
+                        if (!type.type || type.unpacked_dimensions
+                            || !type.type->packed()
+                            || (type.type->base_type() != IVL_VT_BOOL
+                                && type.type->base_type() != IVL_VT_LOGIC)) {
+                              cerr << cfe->get_fileline() << ": error: Constraint foreach selector `"
+                                   << name << "' must name an existing integral value." << endl;
+                              if (constraint_ir_design_ctx_)
+                                    constraint_ir_design_ctx_->errors += 1;
+                              return "";
+                        }
+                  }
+            }
+
             /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: capture
              * the full caller-state collection, never just its root array.
              * Target-member roots and selectors need target-first resolution
              * (18.7.1); leave unsupported shapes on the diagnostic path. */
             if (stateforeach_emit_ctx_) return ""; // nested templates need separate bindings
-	    if (cfe->has_hierarchical_target()) {
+	      /* DD-043: a nil member_name marks the undotted selected-prefix
+	         form (`arr[id][loopvars]', no dotted member) -- it is NOT a
+	         hierarchical/queue target at all, just a plain static array
+	         with some leading dimensions already fixed by the prefix.
+	         Fall through to the ordinary static-array unroll below
+	         (which offsets past the fixed prefix dimensions) instead of
+	         the qforeach/dotted-member machinery, which assumes a real
+	         member and a dynamic-array (queue) element type. */
+	    if (cfe->has_hierarchical_target() && !cfe->member_name().nil()) {
                   if (cfe->loop_vars().size() != 1
                       || cfe->loop_vars()[0].nil()) return "";
                   if (!cls || !value_slots || !scope_randomize_object_slots_
@@ -31190,7 +31231,20 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			+ " " + body + ")";
 	    }
 	    const netranges_t&dims = ua->static_dimensions();
-	    if (cfe->loop_vars().size() > dims.size())
+	      /* DD-043: a selected-prefix target (has_hierarchical_target()
+		 with a nil member_name, guarded above) already consumed
+		 `prefix_names().size()' LEADING dimensions -- each one fixed
+		 by an already-bound outer variable, not iterated here. Offset
+		 past them so the trailing loop variables unroll the array's
+		 REMAINING dimensions instead of restarting at dimension 0
+		 (which would silently reiterate the fixed dimension and never
+		 reach the one the selector actually meant to leave open). The
+		 fixed prefix names are not re-bound into env2: they are
+		 already present in the incoming loop_env, seeded from the
+		 enclosing foreach's own unroll(). */
+	    size_t prefix_dims = cfe->has_hierarchical_target()
+		  ? cfe->prefix_names().size() : 0;
+	    if (prefix_dims + cfe->loop_vars().size() > dims.size())
 		  return "";
 	    string acc;
 	    map<perm_string,uint64_t> env2;
@@ -31216,10 +31270,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			unroll(dim + 1);
 			return;
 		  }
-		  long first = dims[dim].get_msb();
-		  long step = first <= dims[dim].get_lsb() ? 1 : -1;
+		  const netrange_t&drange = dims[prefix_dims + dim];
+		  long first = drange.get_msb();
+		  long step = first <= drange.get_lsb() ? 1 : -1;
 		  for (unsigned long digit = 0;
-		       digit < dims[dim].width(); ++digit) {
+		       digit < drange.width(); ++digit) {
 			auto prior = env2.find(loop);
 			bool had_prior = prior != env2.end();
 			uint64_t prior_value = had_prior ? prior->second : 0;
