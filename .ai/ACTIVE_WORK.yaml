@@ -487,3 +487,22 @@ next_opentitan_regex_assessment:
   owner: Retained caliptra_next_blocker, Luna low
   objective: Verify concrete caller/conversion chain behind pinned GPIO/pwrmgr strict regex failures before classifying them as upstream-invalid source.
   scope: Read pinned OpenTitan/UVM and local wrappers; write bounded evidence under next-opentitan-regex-assessment only. No source edits or application modifications.
+
+next_opentitan_regex_private_trace:
+  owner: Retained Luna low
+  status: COORDINATOR_AUTHORIZED_ASSESSMENT
+  scope: Private umbrella copy and generated VVP copies under next-opentitan-regex-assessment/trace only; reuse existing regex trace helper in legacy entry point. No shared source, installed binary, application source, or test-output changes.
+  reason: Several located source calls run after build, so they do not prove attribution of time-zero REGEX_INV errors. Capture exact runtime patterns before classifying the current blocker.
+
+next_vpi_force_callback_assessment:
+  status: COORDINATOR_AUTHORIZED_READ_ONLY_ASSESSMENT
+  owner: Retained caliptra_next_blocker, Luna low
+  scope: Canonical graph and current source navigation, local IEEE38.36.1 references, private reducers under evidence/review-20260920/next-vpi-force-callback-assessment only. No shared source, tests, builds, install or corpus edits.
+  objective: Revalidate recorded compiled force/release callback statement-object fidelity and variable-bit registration debt on installed09316; provide smallest failing positive, rejection and boundary observations before next selection.
+
+pr309_required_local_qualification_complete:
+  head: 09316da3d48f2d0e24e710a47bc63e19f94a586a
+  evidence: docs/conformance/session_logs/2026-09-21_pr309_local_qualification.json
+  status: ALL_SEVEN_LOCAL_GATES_PASS_CI_PENDING
+  session: 12449 completed exit0; do not poll or restart.
+  next: Publish evidence-only commit, update PR, inspect exact-head CI; no merge without required local evidence and user-authorized green-CI boundary.

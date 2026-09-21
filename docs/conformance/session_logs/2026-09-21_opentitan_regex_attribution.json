@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-21",
+  "revision": "09316da3d48f2d0e24e710a47bc63e19f94a586a",
+  "status": "APPLICATION_FAILURE_ATTRIBUTED_NOT_QUALIFIED",
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "method": "Private copy of installed DPI umbrella routes the legacy regcomp call through existing tracing helper; copied compiled images load only that private module. No application sources changed.",
+  "results": {
+    "gpio": {
+      "errors": 20,
+      "all_error_predecessors": "*_shadowed",
+      "log_sha256": "47b360743e3411ae229df32cadaadb75642bd02ccaf5c5c36948557105b44c68"
+    },
+    "pwrmgr": {
+      "errors": 38,
+      "all_error_predecessors": "*_shadowed",
+      "log_sha256": "67ab4bfb0cf9fd92a953d1f12ed2b84e8b2aec8d13033270b21cdcbcb94829d0"
+    }
+  },
+  "source": "hw/dv/sv/dv_base_reg/dv_base_reg_field.sv:249, create_cov calls uvm_re_match(\"*_shadowed\", csr_name) directly.",
+  "reference": "Pinned Accellera UVM1.2 src/dpi/uvm_regex.cc:40-105 passes uvm_re_match input directly to regcomp(REG_EXTENDED), stripping optional slash delimiters without implicit glob conversion. Local legacy adapter follows that strict path.",
+  "classification": "Pinned application/API usage compatibility blocker: glob-shaped input is rejected by native strict regex. No compiler semantic correction established by this trace.",
+  "limits": [
+    "Exact runtime caller identity for each occurrence is not instrumented; source attribution combines the unique literal and observed runtime pattern.",
+    "intr_test* also reaches the strict entry point but is syntactically accepted; accepted syntax alone does not prove intended matching semantics.",
+    "Neither suppression nor implicit glob fallback is authorized; application sources remain unmodified."
+  ],
+  "private_evidence": "evidence/review-20260920/next-opentitan-regex-assessment/trace/assessment.json"
+}
