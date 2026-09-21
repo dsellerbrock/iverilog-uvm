@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sv_synth_event_clock_coexist.v",
+  "iverilog-args": [
+    "-S",
+    "-g2017"
+  ],
+  "gold": "sv_synth_event_clock_coexist"
+}

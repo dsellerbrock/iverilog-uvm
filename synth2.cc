@@ -5613,6 +5613,19 @@ bool NetCondit::synth_sync(Design*des, NetScope*scope,
       return synth_async(des, scope, nex_map, nex_out, ff_ce, bitmasks);
 }
 
+namespace {
+class synthesis_event_marker_guard_t {
+    public:
+      explicit synthesis_event_marker_guard_t(bool enable)
+      : previous_(net_expr_event_synchronous(enable)) { }
+      ~synthesis_event_marker_guard_t()
+      { net_expr_event_synchronous(previous_); }
+
+    private:
+      bool previous_;
+};
+}
+
 bool NetEvWait::synth_sync(Design*des, NetScope*scope,
 			   bool&ff_negedge,
 			   NetNet*ff_clk, NetBus&ff_ce,
@@ -5696,7 +5709,19 @@ bool NetEvWait::synth_sync(Design*des, NetScope*scope,
 		 << "Found and synthesized the FF clock." << endl;
       }
 
-      connect(ff_clk->pin(0), pclk->pin(0));
+      NetNet*hardware_clock = 0;
+      if (NetExpr*clock_expr = pclk->synthesis_expr()) {
+	    synthesis_event_marker_guard_t marker_guard(false);
+	    hardware_clock = clock_expr->synthesize(des, scope, clock_expr);
+	    if (!hardware_clock) {
+		  cerr << get_fileline() << ": error: Failed to synthesize "
+		       << "the hardware clock expression." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+      connect(ff_clk->pin(0), hardware_clock
+	    ? hardware_clock->pin(0) : pclk->pin(0));
       if (pclk->edge() == NetEvProbe::NEGEDGE) {
 	    ff_negedge = true;
 

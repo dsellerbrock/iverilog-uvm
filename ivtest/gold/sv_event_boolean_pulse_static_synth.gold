@@ -1,0 +1,2 @@
+./ivltests/sv_event_boolean_pulse_static_synth.v:5: warning: Process not synthesized.
+PASSED captured same-slot pulse

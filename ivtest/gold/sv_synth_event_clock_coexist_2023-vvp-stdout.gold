@@ -1,0 +1,2 @@
+PASSED surviving event and hardware clock
+ivltests/sv_synth_event_clock_coexist_2023.v:51: $finish called at 4 (1s)

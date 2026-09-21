@@ -29,7 +29,7 @@ module nba_vif_guard_settle;
     null1 <= 1; bus1.wake <= 1; enable1 <= 0;
     #1;
     if (hits0 || hits1) $fatal(1, "inactive null NBA woke %0d %0d", hits0, hits1);
-    // Rebinding and enabling in one NBA must publish the settled true result.
+    // An NBA-triggered Active rebind and enable update must settle to true.
     bind0 <= 1; enable0 <= 1;
     enable1 <= 1; bind1 <= 1;
     #1;

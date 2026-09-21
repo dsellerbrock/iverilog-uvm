@@ -542,6 +542,12 @@ NetEvProbe::NetEvProbe(NetScope*s, perm_string n, NetEvent*tgt,
       event_->probes_ = this;
 }
 
+void NetEvProbe::set_synthesis_expr(const NetExpr*expr)
+{
+      delete synthesis_expr_;
+      synthesis_expr_ = expr ? expr->dup_expr() : 0;
+}
+
 void NetEvProbe::set_obj_handle_change()
 {
       ivl_assert(*this, edge_ == ANYEDGE);
@@ -703,6 +709,7 @@ void NetEvProbe::add_obj_mutation(unsigned N, unsigned pre_N,
 
 NetEvProbe::~NetEvProbe()
 {
+      delete synthesis_expr_;
       for (NetExpr*expr : obj_mutation_property_word_expr_)
             delete expr;
       for (NetExpr*expr : obj_mutation_property_bit_expr_)

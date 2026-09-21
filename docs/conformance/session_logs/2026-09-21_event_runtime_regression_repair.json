@@ -202,6 +202,7 @@
     "Private generation-disabled experiment did not produce an observable failure; address reuse/generation mismatch was directly traced, and guard remains a lifetime invariant.",
     "Earlier callback failure report was stale; fresh exact invocation passes in both editions.",
     "Initial literal-init experiment on functor padding alone did not cure upstream BUFT initialization; both pieces are required.",
-    "First repair build stopped on an ambiguous verinum constructor; corrected to the explicit bit-value constructor before successful build."
+    "First repair build stopped on an ambiguous verinum constructor; corrected to the explicit bit-value constructor before successful build.",
+    "Masked-null/rebind fixtures use NBA-triggered Active handle assignments; direct NBA assignments to virtual-interface properties remain explicitly unsupported in both editions (direct-vif-nba-results.json)."
   ]
 }

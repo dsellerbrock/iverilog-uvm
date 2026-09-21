@@ -20992,8 +20992,6 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  }
 	    }
 
-	    delete tmp;
-
 	    unsigned pins = (expr_[idx]->type() == PEEvent::ANYEDGE)
 		  ? expr->pin_count() : 1;
 
@@ -21028,6 +21026,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
 	    for (unsigned p = 0 ;  p < pr->pin_count() ; p += 1)
 		  connect(pr->pin(p), expr->pin(p));
+
+	    if (expr_[idx]->type() == PEEvent::POSEDGE
+	        || expr_[idx]->type() == PEEvent::NEGEDGE)
+		  pr->set_synthesis_expr(tmp);
+	    delete tmp;
 
 	    des->add_node(pr);
 	    expr_count += 1;

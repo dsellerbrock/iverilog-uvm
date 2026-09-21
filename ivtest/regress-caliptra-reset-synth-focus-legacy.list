@@ -12,3 +12,7 @@ synth_packed_struct_async_event_orders normal,-S,-g2012 ivltests gold=synth_pack
 synth_dual_async_initial_events normal,-S,-g2012 ivltests
 synth_dual_async_priority normal,-S,-g2012 ivltests
 synth_multiple_clocks_reject CE,-S,-g2012 ivltests gold=synth_multiple_clocks_reject.gold
+sv_synth_event_clock_coexist normal,-S,-g2017 ivltests gold=sv_synth_event_clock_coexist.gold
+sv_synth_event_clock_coexist_2023 normal,-S,-g2023 ivltests gold=sv_synth_event_clock_coexist_2023.gold
+sv_event_boolean_pulse_static_synth normal,-S,-g2017 ivltests gold=sv_event_boolean_pulse_static_synth.gold
+sv_event_boolean_pulse_static_synth_2023 normal,-S,-g2023 ivltests gold=sv_event_boolean_pulse_static_synth_2023.gold

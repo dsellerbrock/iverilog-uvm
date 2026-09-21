@@ -158,3 +158,20 @@ event_runtime_repair_checkpoint:
   focused: 110legacy,110JSON,10VPI pass; cast startup and callback pulse pass both editions.
   prior_failure_replay: 13of15legacy pass; both synthesis failures remain; priorVPIcase passes.
   next: Review synthesis patch, integrate, rebuild, replay synthesis tests and required broad gates. PR309 remains draft.
+
+synthesis_integration_build:
+  status: SHARED_BUILD_RUNNING
+  process_session: 87387
+  source: 1d7e38ce5 plus reviewed five-file synthesis patch; build record under shared-six-synthesis-repair-build.
+  private_result: Both editions pass original synthesis failures and retained behavioral pulse boundary.
+  next: Wait same build session, integrate reviewed test package, replay prior failures and focus, then run prepared shared-six-repaired-qualification/run_gate.py gates on frozen source.
+  cleanup: Nine worktrees audited against refreshed482c3c89d; none eligible. Preserve dirty, divergent, active and canonical trees. Audit under worktree-audit-current/audit.json.
+
+repaired_batch_qualification_start:
+  state: SOURCE_FREEZE_FOR_REQUIRED_GATES
+  local_checks: All15priorlegacyfailures and1VPI pass; new synthesis boundary4legacy4JSON pass. Earlier runtime110legacy110JSON10VPI pass.
+  evidence: docs/conformance/session_logs/2026-09-21_synthesis_event_regression_repair.json
+  release_replay: Completed on current native tools; stable clean pins, crossbar/power2round pass; GPIO/pwrmgr/rejection sampling fail semantically.
+  pending: integrated,json,nfa,frontend,uvm,releases,makecheck; then exact-head CI review. No merge or qualification claim before gates.
+  command: python3 evidence/review-20260920/shared-six-repaired-qualification/run_gate.py integrated
+  agents: Implementation lanes frozen; retained Luna completed read-only regex assessment. No worker source edits pending.

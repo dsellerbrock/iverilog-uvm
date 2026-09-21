@@ -1,0 +1,356 @@
+{
+  "source_base": "1d7e38ce5",
+  "source_patch_sha256": "329fbd047e46f383eb1fcb3311cea58a5dbacaebefd136c927367cf995c9248c",
+  "source_scope": "Reviewed synthesis patch atop runtime checkpoint; exact installed tools in replay payload. Subsequent Windows export-only edits do not change these native tools.",
+  "status": "Bounded unmodified-release replay; not whole-application qualification",
+  "replay": {
+    "timeout_seconds_per_command": 300,
+    "tool_sha256_before": {
+      "iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "vvp": "cf776a978a5c7a5a6565c7c13c5108e20b8f023e34d08ad59a6b2e0154418a98",
+      "ivl": "a32de7b56af15d867daaa451d0aafc5edd31713778940dd7d0efaba4f74a9425",
+      "vvp.tgt": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af",
+      "uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb"
+    },
+    "tool_sha256_after": {
+      "iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "vvp": "cf776a978a5c7a5a6565c7c13c5108e20b8f023e34d08ad59a6b2e0154418a98",
+      "ivl": "a32de7b56af15d867daaa451d0aafc5edd31713778940dd7d0efaba4f74a9425",
+      "vvp.tgt": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af",
+      "uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb"
+    },
+    "environment_overrides": {
+      "IVL_SVA_NFA": "1",
+      "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+      "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge"
+    },
+    "before": {
+      "campaign": {
+        "head": "1d7e38ce5aa25064d2af98bf94e98a6af86910b2",
+        "status": "M .ai/CAMPAIGN.yaml\n M AGENTS.md\n M docs/conformance/BLOCKERS.md\n M docs/conformance/ieee1800_2023_delta.md\n M docs/conformance/matrices/ieee1800_2017_clause_matrix.md\n M docs/conformance/session_logs/2026-09-21_event_runtime_regression_repair.json\n M elaborate.cc\n M ivtest/ivltests/sv_event_nba_vif_guard_settle.v\n M ivtest/ivltests/sv_event_nba_vif_guard_settle_2023.v\n M net_event.cc\n M netlist.h\n M synth2.cc\n M tgt-vvp/vvp-s.conf.in\n?? 1\n?? evidence/application-check-20260915/\n?? evidence/array-packed-incdec-l68/\n?? evidence/batch-20260914-after-l74/\n?? evidence/batch-20260914-after-l84/\n?? evidence/batch-20260914-l43-l52/\n?? evidence/batch-20260914-l53-l62/\n?? evidence/batch-20260914-l64/\n?? evidence/batch-20260914-l74/\n?? evidence/batch-20260914-l84/\n?? evidence/batch-20260915-after-l95/\n?? evidence/batch-20260915-l106-l116/\n?? evidence/campaign-20260908/\n?? evidence/ci-strcmp-header/\n?? evidence/class-array-packed-incdec-l70/\n?? evidence/class-packed-incdec-l69/\n?? evidence/constant-assignment-expression-assessment/\n?? evidence/constraint-multidim-reductions-l65/\n?? evidence/dd018-assessment/\n?? evidence/dd030-current-assessment/\n?? evidence/dd031-current-assessment/\n?? evidence/dynamic-mixed-driver-assessment/\n?? evidence/l85-agent-diagnostic/\n?? evidence/next-batch-after-l84/\n?? evidence/next-constant-assessment/\n?? evidence/opentitan-runtime-assessment/\n?? evidence/parallel-batch-l71-l72/\n?? evidence/pr-l43-l64-publication/\n?? evidence/review-20260920/\n?? evidence/runtime-array-increment-assessment/\n?? evidence/runtime-assignment-conversion-assessment/\n?? evidence/runtime-property-increment-assessment/\n?? evidence/runtime-selected-increment-assessment/\n?? evidence/runtime-string-array-index-assessment/\n?? evidence/string-array-character-assessment/\n?? evidence/string-array-character-compound-assessment/\n?? evidence/string-array-character-incdec-assessment/\n?? evidence/string-select-assessment/\n?? evidence/unresolved-task-assessment/\n?? evidence/uvm-release-regression-assessment/\n?? ivtest/sv_constraint_state_selected_fixed_array.v"
+      },
+      "caliptra": {
+        "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+        "status": ""
+      },
+      "adams_bridge": {
+        "head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+        "status": ""
+      },
+      "opentitan": {
+        "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+        "status": ""
+      }
+    },
+    "after": {
+      "campaign": {
+        "head": "1d7e38ce5aa25064d2af98bf94e98a6af86910b2",
+        "status": "M .ai/CAMPAIGN.yaml\n M AGENTS.md\n M docs/conformance/BLOCKERS.md\n M docs/conformance/ieee1800_2023_delta.md\n M docs/conformance/matrices/ieee1800_2017_clause_matrix.md\n M docs/conformance/session_logs/2026-09-21_event_runtime_regression_repair.json\n M elaborate.cc\n M ivtest/ivltests/sv_event_nba_vif_guard_settle.v\n M ivtest/ivltests/sv_event_nba_vif_guard_settle_2023.v\n M net_event.cc\n M netlist.h\n M synth2.cc\n M tgt-vvp/vvp-s.conf.in\n?? 1\n?? evidence/application-check-20260915/\n?? evidence/array-packed-incdec-l68/\n?? evidence/batch-20260914-after-l74/\n?? evidence/batch-20260914-after-l84/\n?? evidence/batch-20260914-l43-l52/\n?? evidence/batch-20260914-l53-l62/\n?? evidence/batch-20260914-l64/\n?? evidence/batch-20260914-l74/\n?? evidence/batch-20260914-l84/\n?? evidence/batch-20260915-after-l95/\n?? evidence/batch-20260915-l106-l116/\n?? evidence/campaign-20260908/\n?? evidence/ci-strcmp-header/\n?? evidence/class-array-packed-incdec-l70/\n?? evidence/class-packed-incdec-l69/\n?? evidence/constant-assignment-expression-assessment/\n?? evidence/constraint-multidim-reductions-l65/\n?? evidence/dd018-assessment/\n?? evidence/dd030-current-assessment/\n?? evidence/dd031-current-assessment/\n?? evidence/dynamic-mixed-driver-assessment/\n?? evidence/l85-agent-diagnostic/\n?? evidence/next-batch-after-l84/\n?? evidence/next-constant-assessment/\n?? evidence/opentitan-runtime-assessment/\n?? evidence/parallel-batch-l71-l72/\n?? evidence/pr-l43-l64-publication/\n?? evidence/review-20260920/\n?? evidence/runtime-array-increment-assessment/\n?? evidence/runtime-assignment-conversion-assessment/\n?? evidence/runtime-property-increment-assessment/\n?? evidence/runtime-selected-increment-assessment/\n?? evidence/runtime-string-array-index-assessment/\n?? evidence/string-array-character-assessment/\n?? evidence/string-array-character-compound-assessment/\n?? evidence/string-array-character-incdec-assessment/\n?? evidence/string-select-assessment/\n?? evidence/unresolved-task-assessment/\n?? evidence/uvm-release-regression-assessment/\n?? ivtest/sv_constraint_state_selected_fixed_array.v"
+      },
+      "caliptra": {
+        "head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+        "status": ""
+      },
+      "adams_bridge": {
+        "head": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+        "status": ""
+      },
+      "opentitan": {
+        "head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+        "status": ""
+      }
+    },
+    "results": [
+      {
+        "row": "xbar-compile",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-stb",
+          "-uvm",
+          "-DUVM",
+          "-DUVM_NO_DEPRECATED",
+          "-DUVM_REG_ADDR_WIDTH=32",
+          "-DUVM_REG_DATA_WIDTH=32",
+          "-DUVM_REG_BYTENABLE_WIDTH=4",
+          "-DSIMULATION",
+          "-DDUT_HIER=tb.dut",
+          "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "-ssec_cm_prim_count_bind",
+          "-ssec_cm_prim_double_lfsr_bind",
+          "-ssec_cm_prim_onehot_check_bind",
+          "-ssec_cm_prim_sparse_fsm_flop_bind",
+          "-sxbar_peri_bind",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/xbar.vvp",
+          "-c",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/matrix-iverilog.scr"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+        "env_overrides": {
+          "IVL_SVA_NFA": "1"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 2.4858062267303467,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/compile.log"
+      },
+      {
+        "row": "xbar-runtime",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/xbar.vvp",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=xbar_base_test",
+          "+UVM_TEST_SEQ=xbar_smoke_vseq"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+        "env_overrides": {
+          "IVL_SVA_NFA": "1"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 28.841238975524902,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/runtime.log"
+      },
+      {
+        "row": "gpio-compile",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-stb",
+          "-uvm",
+          "-DUVM",
+          "-DUVM_NO_DEPRECATED",
+          "-DUVM_REG_ADDR_WIDTH=32",
+          "-DUVM_REG_DATA_WIDTH=32",
+          "-DUVM_REG_BYTENABLE_WIDTH=4",
+          "-DSIMULATION",
+          "-DDUT_HIER=tb.dut",
+          "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "-ssec_cm_prim_count_bind",
+          "-ssec_cm_prim_double_lfsr_bind",
+          "-ssec_cm_prim_onehot_check_bind",
+          "-ssec_cm_prim_sparse_fsm_flop_bind",
+          "-sgpio_bind",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/gpio/gpio.vvp",
+          "-c",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/matrix-iverilog.scr"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/sim-icarus",
+        "env_overrides": {
+          "IVL_SVA_NFA": "1"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 1.924248218536377,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/gpio/compile.log"
+      },
+      {
+        "row": "gpio-runtime",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/gpio/gpio.vvp",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=gpio_base_test",
+          "+UVM_TEST_SEQ=gpio_smoke_vseq"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_gpio_sim_0.1/sim-icarus",
+        "env_overrides": {
+          "IVL_SVA_NFA": "1"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 1.5630018711090088,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/gpio/runtime.log"
+      },
+      {
+        "row": "pwrmgr-compile",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-stb",
+          "-uvm",
+          "-DUVM",
+          "-DUVM_NO_DEPRECATED",
+          "-DUVM_REG_ADDR_WIDTH=32",
+          "-DUVM_REG_DATA_WIDTH=32",
+          "-DUVM_REG_BYTENABLE_WIDTH=4",
+          "-DSIMULATION",
+          "-DDUT_HIER=tb.dut",
+          "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "-ssec_cm_prim_count_bind",
+          "-ssec_cm_prim_double_lfsr_bind",
+          "-ssec_cm_prim_onehot_check_bind",
+          "-ssec_cm_prim_sparse_fsm_flop_bind",
+          "-spwrmgr_bind",
+          "-spwrmgr_cov_bind",
+          "-spwrmgr_unit_only_bind",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/pwrmgr/pwrmgr.vvp",
+          "-c",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-iverilog.scr"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+        "env_overrides": {
+          "IVL_SVA_NFA": "1"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 2.108431816101074,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/pwrmgr/compile.log"
+      },
+      {
+        "row": "pwrmgr-runtime",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/pwrmgr/pwrmgr.vvp",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_LOW",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+test_timeout_ns=1000000",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+        "env_overrides": {
+          "IVL_SVA_NFA": "1"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 1.7461681365966797,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/pwrmgr/runtime.log"
+      },
+      {
+        "row": "power2round-compile",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-gassertions",
+          "-s",
+          "power2round_tb",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round/power2round.vvp",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round",
+        "env_overrides": {
+          "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+          "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge",
+          "PATH": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg0tktJa8:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 0.02393174171447754,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round/compile.log"
+      },
+      {
+        "row": "power2round-runtime",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round/power2round.vvp"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round",
+        "env_overrides": {
+          "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+          "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge",
+          "PATH": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg0tktJa8:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 0.1499638557434082,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/power2round/runtime.log"
+      },
+      {
+        "row": "rej_bounded-compile",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-gassertions",
+          "-s",
+          "rej_bounded_tb",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded/rej_bounded.vvp",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_bounded/config/rej_bounded_tb.vf"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded",
+        "env_overrides": {
+          "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+          "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge",
+          "PATH": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg0tktJa8:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 0.02395796775817871,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded/compile.log"
+      },
+      {
+        "row": "rej_bounded-runtime",
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded/rej_bounded.vvp",
+          "+VEC_CNT=10"
+        ],
+        "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded",
+        "env_overrides": {
+          "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+          "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge",
+          "PATH": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg0tktJa8:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources"
+        },
+        "exit": 0,
+        "timeout": false,
+        "elapsed": 0.08970999717712402,
+        "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/rej_bounded/runtime.log"
+      }
+    ],
+    "semantic_checks": "Not automated by this runner; inspect retained logs for completion/failure markers."
+  },
+  "semantic_results": {
+    "opentitan_xbar": {
+      "status": "PASS",
+      "requests": 180,
+      "scoreboard_items": 354,
+      "uvm_warnings": 0,
+      "uvm_errors": 0,
+      "uvm_fatals": 0
+    },
+    "opentitan_gpio": {
+      "status": "FAIL",
+      "regex_errors_before_build_fatal": 20
+    },
+    "opentitan_pwrmgr": {
+      "status": "FAIL",
+      "regex_errors_before_build_fatal": 38
+    },
+    "caliptra_power2round": {
+      "status": "PASS",
+      "vectors": 2048
+    },
+    "caliptra_rej_bounded": {
+      "status": "FAIL",
+      "completed_cases": 10,
+      "reported_errors": 8,
+      "message": "Not enough valid samples in the queue"
+    }
+  },
+  "limits": [
+    "Fresh randomized vectors differ across runs; error-count differences are not progress evidence.",
+    "UVM final assertions also run after the build fatal; these runs never qualify as successful DV.",
+    "All compile/runtime process exits are zero, demonstrating why semantic log checks are required."
+  ],
+  "tools_stable": true,
+  "corpora_clean_unchanged": true
+}

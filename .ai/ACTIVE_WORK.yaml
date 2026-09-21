@@ -473,3 +473,17 @@ synthesized_clock_expression_repair:
   root: Synthesized hardware clock reused event-synchronous selected expression and sampled before ordinary structural data cone settled.
   fix: Preserve an owned duplicate of elaborated event expression on its probe; resynthesize selected hardware clock with ordinary propagation while leaving surviving behavioral event cone unchanged. Reuse expression synthesis and marker restoration.
   acceptance: Packed-struct clock/reset runtime, original partselsynth, retained same-slot pulses, shared hardware clock plus behavioral watcher, paired editions.
+
+windows_event_api_exports:
+  owner: Coordinator
+  status: COORDINATOR_AUTHORIZED_IMPLEMENTATION
+  root: PR309 CLANG64 and UCRT64 fail linking vvp.tgt because nine new event/VIF target API functions are absent from ivl.def.
+  scope: ivl.def only; add exact declared and defined exports. No semantic changes or toolchain workaround.
+  acceptance: Compare every newly added target API declaration against definitions and unique export entries; exact-head Windows CI remains required platform evidence.
+  evidence: evidence/review-20260920/pr309-initial-ci/assessment.json
+
+next_opentitan_regex_assessment:
+  status: READ_ONLY_ASSESSMENT_NOT_IMPLEMENTATION
+  owner: Retained caliptra_next_blocker, Luna low
+  objective: Verify concrete caller/conversion chain behind pinned GPIO/pwrmgr strict regex failures before classifying them as upstream-invalid source.
+  scope: Read pinned OpenTitan/UVM and local wrappers; write bounded evidence under next-opentitan-regex-assessment only. No source edits or application modifications.

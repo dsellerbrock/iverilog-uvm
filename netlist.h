@@ -4537,6 +4537,10 @@ class NetEvProbe  : public NetNode {
       void set_vif_validity(NetNet*net) { vif_validity_ = net; }
       NetNet* vif_validity() const { return vif_validity_; }
 
+      void set_synthesis_expr(const NetExpr*expr);
+      NetExpr* synthesis_expr() { return synthesis_expr_; }
+      const NetExpr* synthesis_expr() const { return synthesis_expr_; }
+
       void find_similar_probes(std::list<NetEvProbe*>&);
 
       // VIF edge support: @(posedge/negedge/edge vif.signal)
@@ -4623,6 +4627,7 @@ class NetEvProbe  : public NetNode {
 	// The NetEvent class uses this to list me.
       NetEvProbe*enext_;
       NetNet*vif_validity_ = 0;
+      NetExpr*synthesis_expr_ = 0;
       bool is_vif_posedge_ = false;
       bool is_vif_negedge_ = false;
       bool is_vif_anyedge_ = false;
