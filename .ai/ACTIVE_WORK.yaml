@@ -466,3 +466,12 @@ compiler_batch_focused_checkpoint:
   evidence: docs/conformance/session_logs/2026-09-21_synthesis_and_wide_index_focus.json
   implementation: Blocking-visible and pending NBA synthesis plus full-width constant array indexing.
   next: Run seven broad batch gates serially; stop and repair real regressions before publication.
+
+current_broad_gate_run:
+  semantic_revision: f5928785b
+  session: 12410
+  runner: evidence/review-20260920/batch-20260921/run_gate.py
+  order: [integrated, json, uvm, nfa, releases, frontend, makecheck]
+  source_state: Frozen; all46focus cases pass both harnesses and160synthesis neighbors pass.
+  next: Poll session12410; inspect per-gate run.json/status/log. Do not restart a live process. Stop serial driver on first nonzero gate.
+  qualification: Pending; fresh application evidence predates only the constant-index single-evaluation cleanup.

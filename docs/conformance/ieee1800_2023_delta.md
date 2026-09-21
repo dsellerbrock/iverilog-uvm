@@ -267,3 +267,8 @@ Integral constraint casts use shared 6.24, 11.6, 11.8.2 and 18.3 semantics;
 records separate 2017/2023 runs. Distribution and solve-before references
 move from 2017 18.5.4/18.5.10 to 2023 18.5.3/18.5.9. No broader edition
 qualification is implied by the focused checkpoint.
+
+Procedural assignment synthesis follows shared clause 10.4 semantics;
+invalid fixed-array indexing uses 2023 7.4.5 versus 2017 7.4.6.
+[Shared scope and paired-edition evidence](matrices/ieee1800_2017_clause_matrix.md#september-21-procedural-synthesis-and-full-width-array-indices)
+records the current PARTIAL implementation and pending broad qualification.

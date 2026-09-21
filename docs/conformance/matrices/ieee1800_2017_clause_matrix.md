@@ -1562,3 +1562,21 @@ supported domain are rejected rather than sampled from a truncated prefix.
 This does not establish all distribution, soft-constraint or probability
 families. The [focused checkpoint](../session_logs/2026-09-21_constraint_cast_distribution_checkpoint.json)
 owns paired-edition test evidence. Broad batch qualification is pending.
+
+### September 21 procedural synthesis and full-width array indices
+
+Revision `f5928785b` extends the PARTIAL procedural synthesis implementation
+under clause 10.4: blocking assignments update the value seen by subsequent
+expressions, while nonblocking assignments capture data and per-bit enables
+for the later update. The exercised subset covers ordered assignments,
+conditional/case paths, loops, partial writes, and asynchronous reset.
+Dedicated memory-write ports preserve their write enables and old-value reads.
+Untouched synthesized unpacked words preserve logic X and bit zero initial values.
+
+Under 7.4.6, oversized constant fixed-array lvalue indices are checked at their
+full width before canonical selection; invalid indices perform no write.
+The existing checked-index helper consumes already-elaborated expressions.
+The ordinary dynamic signal-index path remains unchanged.
+The [focused checkpoint](../session_logs/2026-09-21_synthesis_and_wide_index_focus.json)
+owns test scope and limitations. Required broad qualification remains pending;
+this does not establish complete procedural synthesis or array support.
