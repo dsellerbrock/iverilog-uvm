@@ -89,7 +89,14 @@ UVM_EXTRA_DEFINES = {
     # Matches SVA_EXTRA_DEFINES's aes_sva entry above; picks the
     # EN_MASKING=1 variant as the default, same as that one.
     "lowrisc:dv:aes_sim:0.1": ("-DEN_MASKING=1",),
+    # spi_device_sim.core has no SRAM mode; its bare target represents the
+    # documented RTL default. The separate 2p HJSON configuration is not
+    # covered by this row.
+    "lowrisc:dv:spi_device_sim:0.1": (
+        "-DSRAM_TYPE=spi_device_pkg::SramType1r1w",
+    ),
 }
+UVM_REGEX_NO_DPI_BUILD_OPTION = "+define+UVM_REGEX_NO_DPI"
 DEFAULT_TOPS = {
     "earlgrey": "lowrisc:systems:top_earlgrey:0.1",
     "darjeeling": "lowrisc:systems:top_darjeeling:0.1",
@@ -2093,6 +2100,12 @@ def compile_command(
                     "-DUVM_REG_BYTENABLE_WIDTH=4",
                 ]
             )
+            # Earlgrey-PROD-M6's common dvsim configuration selects UVM 1.2's
+            # documented SV glob matcher with this define. Forward only this
+            # known option when discovery retained it; other tool-specific
+            # dvsim build options are not Icarus command-line arguments.
+            if UVM_REGEX_NO_DPI_BUILD_OPTION in job.simulation.build_options:
+                command.append("-DUVM_REGEX_NO_DPI")
         command.extend(["-DSIMULATION", "-DDUT_HIER=tb.dut"])
         command.extend(UVM_EXTRA_DEFINES.get(job.core.vlnv, ()))
     if uvm_home is not None and "-uvm" in command:
@@ -2640,6 +2653,61 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
     )
     assert "-uvm" in uvm_runtime_compile
     assert "-DUVM" in uvm_runtime_compile
+    assert "-DUVM_REGEX_NO_DPI" not in uvm_runtime_compile
+    assert "--uvm-no-dpi" not in uvm_runtime_compile
+    assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in uvm_runtime_compile
+    regex_uvm_target = dataclasses.replace(
+        uvm_target,
+        build_options=(
+            *uvm_target.build_options,
+            UVM_REGEX_NO_DPI_BUILD_OPTION,
+        ),
+    )
+    for lane in ("uvm", "runtime"):
+        regex_uvm_compile = compile_command(
+            Job(lane, Core(parsed[0], ""), regex_uvm_target),
+            Path("iverilog"),
+            Path("regex-uvm.scr"),
+            [],
+            Path("regex-uvm.vvp"),
+        )
+        assert "-uvm" in regex_uvm_compile
+        assert "-DUVM_REGEX_NO_DPI" in regex_uvm_compile
+        assert "--uvm-no-dpi" not in regex_uvm_compile
+    regex_rtl_compile = compile_command(
+        Job("rtl", Core(parsed[0], ""), regex_uvm_target),
+        Path("iverilog"),
+        Path("regex-rtl.scr"),
+        [],
+        Path("regex-rtl.vvp"),
+    )
+    assert "-DUVM_REGEX_NO_DPI" not in regex_rtl_compile
+    regex_sva_compile = compile_command(
+        Job("sva", Core(parsed[0], ""), regex_uvm_target),
+        Path("iverilog"),
+        Path("regex-sva.scr"),
+        [],
+        Path("regex-sva.vvp"),
+    )
+    assert "-DUVM_REGEX_NO_DPI" not in regex_sva_compile
+    spi_device_core = Core("lowrisc:dv:spi_device_sim:0.1", "")
+    for lane in ("uvm", "runtime"):
+        spi_device_compile = compile_command(
+            Job(lane, spi_device_core, uvm_target),
+            Path("iverilog"),
+            Path("spi-device.scr"),
+            [],
+            Path("spi-device.vvp"),
+        )
+        assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" in spi_device_compile
+    spi_device_rtl_compile = compile_command(
+        Job("rtl", spi_device_core),
+        Path("iverilog"),
+        Path("spi-device-rtl.scr"),
+        [],
+        Path("spi-device-rtl.vvp"),
+    )
+    assert "-DSRAM_TYPE=spi_device_pkg::SramType1r1w" not in spi_device_rtl_compile
     directed_runtime_compile = compile_command(
         Job("runtime", directed_core, directed_target),
         Path("iverilog"),

@@ -29,5 +29,5 @@ sv_randc_constraint_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_
 # Constraint-provenance extensions: implementation-only focused coverage.
 sv_randc_constraint_provenance_extension_fail CE,-g2012 ivltests gold=sv_randc_constraint_provenance_extension_fail.gold
 sv_randc_constraint_iterator_provenance_fail CE,-g2012 ivltests gold=sv_randc_constraint_iterator_provenance_fail.gold
-sv_randc_constraint_iterator_extension normal,-g2012 ivltests gold=sv_randc_constraint_iterator_extension.gold
+sv_randc_constraint_iterator_extension CE,-g2012 ivltests gold=sv_randc_constraint_iterator_extension.gold
 sv_randc_constraint_hierarchy_extension normal,-g2012 ivltests gold=sv_randc_constraint_hierarchy_extension.gold

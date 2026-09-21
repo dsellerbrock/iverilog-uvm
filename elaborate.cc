@@ -14004,25 +14004,67 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 			      noop->set_line(*this);
 			      return noop;
 			}
+			NetExpr*leaf_expr = nullptr;
+			uint64_t leaf_count = 0;
 			if (!field_comp.index.empty()) {
-			      cerr << get_fileline() << ": sorry: rand_mode() on an "
-				   << "indexed unpacked-struct member is not supported "
-				   << "yet." << endl;
-			      des->errors += 1;
-			      delete obj_expr;
-			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			      noop->set_line(*this);
-			      return noop;
+			      const netuarray_t*array_type =
+				    dynamic_cast<const netuarray_t*>(member.net_type);
+			      const netranges_t*dims = array_type
+				    ? &array_type->static_dimensions() : nullptr;
+			      if (!array_type || dims->size() != 1
+				  || field_comp.index.size() != 1) {
+				    cerr << get_fileline() << ": error: rand_mode() "
+					 << "index is only valid for an unpacked array "
+					 << "struct member." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
+			      std::list<index_component_t>word_indices;
+			      for (const index_component_t&index : field_comp.index) {
+				    if (index.sel != index_component_t::SEL_BIT) {
+					  cerr << get_fileline() << ": sorry: rand_mode() "
+					       << "on an unpacked-array slice is not "
+					       << "supported yet." << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+					  noop->set_line(*this);
+					  return noop;
+				    }
+				    word_indices.push_back(index);
+			      }
+			      leaf_expr = make_canonical_index(des, scope, this,
+				    word_indices, array_type, false);
+			      if (!leaf_expr) {
+				    delete obj_expr;
+				    NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
+				    noop->set_line(*this);
+				    return noop;
+			      }
+			      leaf_count = 1;
+			      for (size_t dim = field_comp.index.size();
+				   dim < dims->size(); ++dim)
+				    leaf_count *= (*dims)[dim].width();
 			}
 			NetExpr *mode_expr = elab_sys_task_arg(des, scope,
 			      peek_tail_name(path_), 0, parms_[0].parm);
 			NetExpr *pid_expr = new NetEConst(
 			      verinum((uint64_t)pid, 32));
 			pid_expr->set_line(*this);
-			vector<NetExpr*> argv(3);
+			vector<NetExpr*> argv(leaf_expr ? 5 : 3);
 			argv[0] = obj_expr;
 			argv[1] = mode_expr;
 			argv[2] = pid_expr;
+			if (leaf_expr) {
+			      argv[3] = leaf_expr;
+			      NetExpr*count_expr = new NetEConst(
+				    verinum(leaf_count, 64));
+			      count_expr->set_line(*this);
+			      argv[4] = count_expr;
+			}
 			NetSTask *sys = new NetSTask(
 			      "$ivl_class_method$rand_mode",
 			      IVL_SFUNC_AS_TASK_IGNORE, argv);
@@ -25150,7 +25192,7 @@ static unsigned constraint_dist_ir_leaf_width_(const string&tok)
 	  || fields[0] == "r"
 	  || fields[0] == "v")
 	    return field_width(2);
-      if (fields[0] == "m") return field_width(3);
+      if (fields[0] == "m" || fields[0] == "a") return field_width(3);
       if (fields[0] == "e") return field_width(2);
       if (fields[0] == "s") return 32;
 	/* dynforeach's delem header is P:W[:s], without an alphabetic
@@ -25179,6 +25221,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  || tok.compare(0, 2, "p:") == 0
 		  || tok.compare(0, 3, "pp:") == 0
 		  || tok.compare(0, 2, "m:") == 0
+		  || tok.compare(0, 2, "a:") == 0
 		  || tok.compare(0, 2, "e:") == 0
 		  || tok.compare(0, 2, "r:") == 0
 		  || tok.compare(0, 2, "v:") == 0
@@ -25192,6 +25235,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 	    out.solver_storage = tok.compare(0, 2, "p:") == 0
 		  || tok.compare(0, 3, "pp:") == 0
 		  || tok.compare(0, 2, "m:") == 0
+		  || tok.compare(0, 2, "a:") == 0
 		  || tok.compare(0, 2, "e:") == 0
 		  || tok.compare(0, 2, "r:") == 0
 		  || tok.compare(0, 2, "v:") == 0;
@@ -25991,7 +26035,7 @@ static bool constraint_ir_references_randc_(const string&ir,
 		  continue;
 	    }
 
-	    if (p[0] == 'm' && p[1] == ':') {
+	    if ((p[0] == 'm' || p[0] == 'a') && p[1] == ':') {
 		  char*end = nullptr;
 		  unsigned long outer = strtoul(p + 2, &end, 10);
 		  if (end != p + 2 && *end == ':') {
@@ -30140,14 +30184,52 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      pform_name_t::const_iterator after = member;
 			      if (after != id->path().name.end()) ++after;
 			      one_level = one_level
-				    && after == id->path().name.end()
-				    && member->index.empty();
+				    && after == id->path().name.end();
 			      unsigned midx = one_level
 				    ? st->member_index(member->name) : (unsigned)-1;
 			      const netstruct_t::member_t*mem =
 				    midx < st->members().size()
 				    ? &st->members()[midx] : nullptr;
 			      ivl_type_t mtype = mem ? mem->net_type : nullptr;
+			      const netuarray_t*marray =
+				    dynamic_cast<const netuarray_t*>(mtype);
+			      if (one_level && mem && marray
+				  && member->index.size() == 1) {
+				    const netranges_t&dims = marray->static_dimensions();
+				    const index_component_t&select =
+					  member->index.front();
+				    ivl_type_t etype = marray->element_type();
+				    ivl_variable_type_t ebase = etype
+					  ? etype->base_type() : IVL_VT_NO_TYPE;
+				    unsigned ewidth = etype && etype->packed()
+					  ? etype->packed_width() : 0;
+				    bool integral = etype
+					  && (ebase == IVL_VT_BOOL
+					      || ebase == IVL_VT_LOGIC
+					      || dynamic_cast<const netenum_t*>(etype));
+				    string index_ir = select.msb && !select.lsb
+					  && select.sel == index_component_t::SEL_BIT
+					  ? pexpr_to_constraint_ir(select.msb, cls,
+						value_slots, scope, loop_env) : "";
+				    constraint_const_ir_t index;
+				    uint64_t digit = 0;
+				    long low = dims.size() == 1
+					  ? std::min(dims[0].get_msb(),
+						     dims[0].get_lsb()) : 0;
+				    if (dims.size() == 1 && integral
+					  && ewidth > 0 && ewidth <= 64
+					  && constraint_parse_const_ir_(index_ir, index)
+					  && index.width <= 64
+					  && constraint_fixed_index_offset_(index,
+						(int64_t)low, dims[0].width(), digit)) {
+					  string token = "a:" + to_string(pidx) + ":"
+						+ to_string(midx) + ":"
+						+ to_string(ewidth) + ":"
+						+ to_string(digit);
+					  if (etype->get_signed()) token += ":s";
+					  return token;
+				    }
+			      }
 			      ivl_variable_type_t mbase = mtype
 				    ? mtype->base_type() : IVL_VT_NO_TYPE;
 			      unsigned mwidth = mtype && mtype->packed()
@@ -30155,7 +30237,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      bool integral = mtype
 				    && (mbase == IVL_VT_BOOL || mbase == IVL_VT_LOGIC
 					|| dynamic_cast<const netenum_t*>(mtype));
-			      if (one_level && mem && integral
+			      if (one_level && mem && member->index.empty() && integral
 				  && mwidth > 0 && mwidth <= 64) {
 				    string token = "m:" + to_string(pidx) + ":"
 					  + to_string(midx) + ":"
@@ -30170,7 +30252,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    cerr << "." << member->name;
 			      cerr << "' selects an unsupported unpacked-struct "
 				   << "constraint path; only one-level scalar integral "
-				   << "or enum members up to 64 bits are supported."
+				   << "or enum members and selected elements of one-"
+				   << "dimensional fixed integral member arrays up to 64 "
+				   << "bits are supported."
 				   << endl;
 			      if (constraint_ir_design_ctx_)
 				    constraint_ir_design_ctx_->errors += 1;
@@ -31806,6 +31890,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // each remains a distribution directive after lowering.
 			if (s.compare(0, 2, "p:") != 0
 			    && s.compare(0, 2, "m:") != 0
+			    && s.compare(0, 2, "a:") != 0
 			    && s.compare(0, 2, "e:") != 0
 			    && s.compare(0, 2, "s:") != 0
 			    && s.compare(0, 7, "(delem ") != 0)
@@ -31826,6 +31911,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					|| cls->get_prop_qual((size_t)outer).test_randc());
 			      if (!outer_rand
 				  || !stype || member >= stype->members().size()
+				  || (!stype->members()[member].qualifier.test_rand()
+				      && !stype->members()[member].qualifier.test_randc()))
+				    constraint_order_nonrandom_error_(item);
+			}
+			if (s.compare(0, 2, "a:") == 0 && cls) {
+			      const char*p = s.c_str() + 2;
+			      char*end = nullptr;
+			      unsigned long outer = strtoul(p, &end, 10);
+			      p = end; if (*p == ':') ++p;
+			      unsigned long member = strtoul(p, &end, 10);
+			      ivl_type_t outer_type = outer < cls->get_properties()
+				    ? cls->get_prop_type((size_t)outer) : nullptr;
+			      const netstruct_t*stype =
+				    dynamic_cast<const netstruct_t*>(outer_type);
+			      bool outer_rand = outer < cls->get_properties()
+				    && (cls->get_prop_qual((size_t)outer).test_rand()
+					|| cls->get_prop_qual((size_t)outer).test_randc());
+			      if (!outer_rand || !stype
+				  || member >= stype->members().size()
 				  || (!stype->members()[member].qualifier.test_rand()
 				      && !stype->members()[member].qualifier.test_randc()))
 				    constraint_order_nonrandom_error_(item);
@@ -31900,6 +32004,66 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	         the qforeach/dotted-member machinery, which assumes a real
 	         member and a dynamic-array (queue) element type. */
 	    if (cfe->has_hierarchical_target() && !cfe->member_name().nil()) {
+		  /* A direct unpacked-struct member fixed array is a value within
+		   * the randomized object. Unroll its declared index range here;
+		   * selected leaves retain distinct solver identities at runtime. */
+		  if (cfe->prefix_names().empty() && cls) {
+			int outer = cls->property_idx_from_name(cfe->array_name());
+			ivl_type_t otype = outer >= 0
+			      ? cls->get_prop_type((size_t)outer) : nullptr;
+			const netstruct_t*record =
+			      dynamic_cast<const netstruct_t*>(otype);
+			unsigned member = record && !record->packed()
+			      ? record->member_index(cfe->member_name()) : (unsigned)-1;
+			ivl_type_t mtype = member < (record ? record->members().size() : 0)
+			      ? record->members()[member].net_type : nullptr;
+			const netuarray_t*array =
+			      dynamic_cast<const netuarray_t*>(mtype);
+			if (array) {
+			      const netranges_t&dims = array->static_dimensions();
+			      ivl_type_t etype = array->element_type();
+			      ivl_variable_type_t base = etype
+				    ? etype->base_type() : IVL_VT_NO_TYPE;
+			      bool integral = etype && etype->packed()
+				    && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+					|| dynamic_cast<const netenum_t*>(etype));
+			      if (dims.size() != 1 || cfe->loop_vars().size() != 1
+				  || cfe->loop_vars()[0].nil() || !integral
+				  || !etype->packed_width()
+				  || etype->packed_width() > 64) {
+				    cerr << cfe->get_fileline() << ": sorry: constraint "
+					 << "foreach over unpacked-struct member '"
+					 << cfe->array_name() << "."
+					 << cfe->member_name()
+					 << "' supports one-dimensional fixed integral "
+					 << "arrays with one iterator and elements up to "
+					 << "64 bits." << endl;
+				    if (constraint_ir_design_ctx_)
+					  constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      string acc;
+			      map<perm_string,uint64_t> env2;
+			      if (loop_env) env2 = *loop_env;
+			      const netrange_t&range = dims.front();
+			      long first = range.get_msb();
+			      long step = first <= range.get_lsb() ? 1 : -1;
+			      for (unsigned long digit = 0; digit < range.width();
+				   ++digit) {
+				    env2[cfe->loop_vars()[0]] =
+					  (uint64_t)(first + step * (long)digit);
+				    for (const PExpr*item : cfe->items()) {
+					  if (!item) continue;
+					  string ir = pexpr_to_constraint_ir(
+						item, cls, value_slots, scope, &env2);
+					  if (ir.empty()) return "";
+					  acc = acc.empty() ? ir
+						: "(and " + acc + " " + ir + ")";
+				    }
+			      }
+			      return acc;
+			}
+		  }
                   if (cfe->loop_vars().size() != 1
                       || cfe->loop_vars()[0].nil()) return "";
                   if (!cls || !value_slots || !scope_randomize_object_slots_

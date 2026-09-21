@@ -52,6 +52,15 @@ installed UVM source tree when present. Hashing only the `iverilog` driver is
 insufficient because that binary can remain unchanged when the compiler engine
 is rebuilt. A dirty OpenTitan tree is reported rather than modified.
 
+For UVM and runtime jobs, the runner forwards
+`-DUVM_REGEX_NO_DPI` only when discovery retained the exact
+`+define+UVM_REGEX_NO_DPI` option from the selected dvsim metadata. Earlgrey-
+PROD-M6 defines it in `hw/dv/tools/dvsim/common_sim_cfg.hjson`; pinned UVM 1.2
+then uses its documented SystemVerilog glob matcher for `uvm_re_match`.
+Normal `-uvm` DPI support remains enabled, and the runner does not translate
+arbitrary dvsim or VCS build options. RTL, SVA, and UVM metadata without this
+option do not receive the define.
+
 The Python interpreter used for FuseSoC API discovery is equally part of the
 fingerprint. The runner records its logical virtual-environment path, real
 executable, SHA-256, Python version, imported FuseSoC version, and HJSON version
@@ -149,6 +158,22 @@ lowering pass or an orphan compiler to consume the remainder of the campaign.
 The default reports are `opentitan-matrix.json` and `opentitan-matrix.md` under
 the build root.  `DEBT` and all failure/timeout statuses make the runner return
 nonzero, allowing the matrix to become a genuine zero-debt gate.
+
+## Per-core simulation setup
+
+FuseSoC literal `sim` targets do not carry every build option that OpenTitan
+dvsim configuration files apply.  The UVM/runtime command builder therefore
+supplies a small, explicit per-core define table only when a bare target needs
+one to represent its documented default RTL configuration.
+
+`lowrisc:dv:spi_device_sim:0.1` receives
+`-DSRAM_TYPE=spi_device_pkg::SramType1r1w`. Its core target has no SRAM-mode
+parameter, while `spi_device_pkg::DefaultSramType` is `SramType1r1w`. This
+selects the documented default DUT configuration for the bare-core row.
+OpenTitan also defines a distinct `spi_device_2p_sim_cfg.hjson`
+configuration with
+`SRAM_TYPE=spi_device_pkg::SramType2p`; that variant is not covered or claimed
+by the bare-core matrix row. It requires a future variant-aware matrix entry.
 
 ## Historical checkpoints
 

@@ -1,6 +1,6 @@
-// The supported unpacked-struct constraint leaf is deliberately one-level
-// and scalar. Keep deeper aggregate traversal and an indexed unpacked member
-// compile-time-loud instead of dropping either constraint.
+// Keep deeper aggregate traversal, wide leaves and indexed outer structs
+// compile-time-loud. The selected one-dimensional member-array constraint
+// is now legal and has separate positive runtime coverage.
 typedef struct {
   rand bit [7:0] scalar;
 } constrained_inner_t;

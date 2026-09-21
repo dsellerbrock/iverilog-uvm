@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_struct_array_constraint_state.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "sv_struct_array_constraint_state"
+}

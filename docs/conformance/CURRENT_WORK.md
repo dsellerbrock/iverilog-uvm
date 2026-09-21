@@ -185,3 +185,11 @@ Draft review checkpoint: [PR #309](https://github.com/dsellerbrock/iverilog-uvm/
 [Synthesis event repair evidence](session_logs/2026-09-21_synthesis_event_regression_repair.json) records the successful replay of all earlier failing legacy/VPI cases and new paired boundary tests. [Fresh pinned release replay](session_logs/2026-09-21_repaired_release_replay.json) and [initial PR309 CI classification](session_logs/2026-09-21_pr309_initial_ci.json) preserve application limitations and the Windows export repair. Full repaired-revision gates are pending.
 
 The [OpenTitan regex trace](session_logs/2026-09-21_opentitan_regex_attribution.json) attributes the current GPIO/pwrmgr startup errors to a direct glob-shaped argument reaching the strict legacy regex API. It establishes no application pass or new compiler fix.
+
+The [OpenTitan crossbar expansion](session_logs/2026-09-21_opentitan_crossbar_expansion.json) records the upstream zero-delay variant pass and random-test timeout without workload reduction. It does not qualify the full suite.
+
+The [PR309 CI checkpoint](session_logs/2026-09-21_pr309_ci_checkpoint.json) records Ubuntu 24.04 success on the merged compiler revision; remaining platforms were still running at capture.
+
+Latest SPI Host compiler checkpoint: [fixed member-array constraint evidence](session_logs/2026-09-21_spi_host_member_array_focus.json). Required broader checks and application blockers remain explicit in the record.
+
+The [OpenTitan configuration correction and replay](session_logs/2026-09-21_opentitan_regex_configuration.json) supersedes the earlier no-configuration-mismatch conclusion. Application qualification remains limited as recorded there.

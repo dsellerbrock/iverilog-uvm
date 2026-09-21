@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "sv_struct_array_randc_rollback.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "sv_struct_array_randc_rollback"
+}

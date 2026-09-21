@@ -1059,8 +1059,10 @@ PEConstraintForeach::~PEConstraintForeach()
 void PEConstraintForeach::dump(std::ostream&out) const
 {
       out << "foreach (" << array_name_;
-      if (has_hierarchical_target())
-	    out << "[...]." << member_name_;
+      if (!prefix_names_.empty())
+	    out << "[...]";
+      if (!member_name_.nil())
+	    out << "." << member_name_;
       out << "[...]) { ... }";
 }
 

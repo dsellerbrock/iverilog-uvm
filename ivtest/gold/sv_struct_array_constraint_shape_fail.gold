@@ -1,0 +1,3 @@
+./ivltests/sv_struct_array_constraint_shape_fail.v:7: sorry: constraint foreach over unpacked-struct member 'cfg.matrix' supports one-dimensional fixed integral arrays with one iterator and elements up to 64 bits.
+./ivltests/sv_struct_array_constraint_shape_fail.v:8: sorry: constraint reference 'cfg.lane' selects an unsupported unpacked-struct constraint path; only one-level scalar integral or enum members and selected elements of one-dimensional fixed integral member arrays up to 64 bits are supported.
+2 error(s) during elaboration.

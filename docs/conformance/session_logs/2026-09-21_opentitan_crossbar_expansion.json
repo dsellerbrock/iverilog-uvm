@@ -1,0 +1,125 @@
+{
+  "date": "2026-09-21",
+  "source": {
+    "compiler_semantic_revision": "09316da3d48f2d0e24e710a47bc63e19f94a586a",
+    "current_head": "9e3fa4bea5c19fa39f7292fae98d247d8c35e54f",
+    "corpus_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "corpus_status": "",
+    "hashes": {
+      "local-install/bin/vvp": "cf776a978a5c7a5a6565c7c13c5108e20b8f023e34d08ad59a6b2e0154418a98",
+      "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+      "evidence/review-20260920/shared-six-repaired-release-replay/xbar/xbar.vvp": "ed1a89f3ec393bdb2537c0019bca8039c1c0f5af6854d97c05ae5bf95576d0d2"
+    },
+    "scope": "Existing freshly compiled09316 unmodified source image; upstream named test variants with explicit seed1. No smoke_test reduction flag. Runtime marker checks preliminary until traffic/scoreboard review."
+  },
+  "tests": [
+    {
+      "name": "xbar_smoke_zero_delays",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/xbar.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+UVM_TESTNAME=xbar_base_test",
+        "+UVM_TEST_SEQ=xbar_smoke_vseq",
+        "+ntb_random_seed=1",
+        "+zero_delays=1"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+      "env": {
+        "IVL_SVA_NFA": "1"
+      },
+      "exit": 0,
+      "elapsed": 25.628257989883423,
+      "preliminary_semantic_pass": true,
+      "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-priority-xbar/xbar_smoke_zero_delays.log",
+      "log_sha256": "0ee85c3857b241f50856848f2604d5b5d65f4016c3528ae8ca36f70dfe4d24ac"
+    },
+    {
+      "name": "xbar_random",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/xbar.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+UVM_TESTNAME=xbar_base_test",
+        "+UVM_TEST_SEQ=xbar_random_vseq",
+        "+ntb_random_seed=1"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+      "env": {
+        "IVL_SVA_NFA": "1"
+      },
+      "exit": 124,
+      "elapsed": 300.06950092315674,
+      "preliminary_semantic_pass": false,
+      "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-priority-xbar/xbar_random.log",
+      "log_sha256": "168f1b4cb8426d4c07c9a9a7897b2a650a2a1e082e76e7194aeb588aa054e10f"
+    }
+  ],
+  "review": {
+    "xbar_smoke_zero_delays": {
+      "status": "PASS",
+      "seed": 1,
+      "requests": 135,
+      "scoreboard_items": 270,
+      "uvm_warnings": 0,
+      "uvm_errors": 0,
+      "uvm_fatals": 0,
+      "normal_finish": true
+    },
+    "xbar_random": {
+      "status": "RUNTIME_TIMEOUT",
+      "seed": 1,
+      "limit_wall_seconds": 300,
+      "functional_failure_proven": false
+    },
+    "xbar_unmapped_addr": {
+      "status": "NOT_RUN",
+      "reason": "stopped after random test timeout"
+    }
+  },
+  "scope": "Upstream named variants on unmodified pinned Earlgrey-PROD-M6; no smoke_test reduction flag. Only listed seed qualified. No full suite pass.",
+  "tools_and_corpus_unchanged": true,
+  "cost_assessment": "evidence/review-20260920/opentitan-priority-random-cost/ASSESSMENT.md",
+  "delay_variants": [
+    {
+      "name": "xbar_smoke_large_delays",
+      "argv": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-i",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/shared-six-repaired-release-replay/xbar/xbar.vvp",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_LOW",
+        "+cdc_instrumentation_enabled=1",
+        "+UVM_TESTNAME=xbar_base_test",
+        "+UVM_TEST_SEQ=xbar_smoke_vseq",
+        "+ntb_random_seed=1",
+        "+max_host_req_delay=1000",
+        "+max_host_rsp_delay=1000",
+        "+max_device_req_delay=1000",
+        "+max_device_rsp_delay=1000",
+        "+max_host_valid_len=2000",
+        "+max_device_valid_len=2000"
+      ],
+      "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/application-replay/opentitan-uvm12/matrix/runtime/lowrisc_dv_top_earlgrey_xbar_peri_sim_0.1/sim-icarus",
+      "env": {
+        "IVL_SVA_NFA": "1"
+      },
+      "exit": 124,
+      "elapsed": 300.0738482475281,
+      "preliminary_semantic_pass": false,
+      "log": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-priority-xbar/delays/xbar_smoke_large_delays.log",
+      "log_sha256": "9ade7c225e67fc0f6b431e655d3a8f7bc06c587c1a38ba1d54239f8c05a820b8"
+    }
+  ],
+  "delay_review": {
+    "xbar_smoke_large_delays": "RUNTIME_TIMEOUT at300wallseconds, no functional failure proven",
+    "xbar_smoke_slow_rsp": "NOT_RUN after prior timeout"
+  }
+}

@@ -14624,10 +14624,95 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      zero->set_line(*this);
 			      return zero;
 			}
+			const netuarray_t*array_type =
+			      dynamic_cast<const netuarray_t*>(member.net_type);
+			if (array_type) {
+			      const netranges_t&dims = array_type->static_dimensions();
+			      if (dims.size() != 1) {
+				    cerr << get_fileline() << ": sorry: rand_mode() query on "
+					 << "an unpacked-struct member supports one-dimensional "
+					 << "fixed arrays only." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetEConst*zero = new NetEConst(
+					  verinum((uint64_t)0, 1));
+				    zero->set_line(*this);
+				    return zero;
+			      }
+			      if (field_comp.index.size() != 1) {
+				    cerr << get_fileline() << ": error: rand_mode() query "
+					 << "requires one selected element of unpacked-struct "
+					 << "member `" << fname << "'." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetEConst*zero = new NetEConst(
+					  verinum((uint64_t)0, 1));
+				    zero->set_line(*this);
+				    return zero;
+			      }
+			      ivl_type_t element_type = array_type->element_type();
+			      ivl_variable_type_t element_base = element_type
+				    ? element_type->base_type() : IVL_VT_NO_TYPE;
+			      bool integral = element_type && element_type->packed()
+				    && (element_base == IVL_VT_BOOL
+					|| element_base == IVL_VT_LOGIC
+					|| dynamic_cast<const netenum_t*>(element_type));
+			      if (!integral || !element_type->packed_width()) {
+				    cerr << get_fileline() << ": error: rand_mode() query "
+					 << "requires an integral unpacked-struct member array `"
+					 << fname << "'." << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetEConst*zero = new NetEConst(
+					  verinum((uint64_t)0, 1));
+				    zero->set_line(*this);
+				    return zero;
+			      }
+			      std::list<index_component_t>word_indices;
+			      for (const index_component_t&index : field_comp.index) {
+				    if (index.sel != index_component_t::SEL_BIT) {
+					  cerr << get_fileline() << ": sorry: rand_mode() query on "
+					       << "an unpacked-array slice is not supported yet."
+					       << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  NetEConst*zero = new NetEConst(
+						verinum((uint64_t)0, 1));
+					  zero->set_line(*this);
+					  return zero;
+				    }
+				    word_indices.push_back(index);
+			      }
+			      NetExpr*leaf_expr = make_canonical_index(des, scope, this,
+				    word_indices, array_type, false);
+			      if (!leaf_expr) {
+				    cerr << get_fileline() << ": error: Invalid index for rand "
+					 << "unpacked-struct member array `" << fname << "'."
+					 << endl;
+				    des->errors += 1;
+				    delete obj_expr;
+				    NetEConst*zero = new NetEConst(
+					  verinum((uint64_t)0, 1));
+				    zero->set_line(*this);
+				    return zero;
+			      }
+			      NetEConst*pe = new NetEConst(verinum((uint64_t)pid, 32));
+			      pe->set_line(*this);
+			      NetEConst*count = new NetEConst(verinum((uint64_t)1, 64));
+			      count->set_line(*this);
+			      NetESFunc*tmp = new NetESFunc(
+				    "$ivl_class_method$rand_mode_get", IVL_VT_BOOL, 1, 4);
+			      tmp->set_line(*this);
+			      tmp->parm(0, obj_expr);
+			      tmp->parm(1, pe);
+			      tmp->parm(2, leaf_expr);
+			      tmp->parm(3, count);
+			      return tmp;
+			}
 			if (!field_comp.index.empty()) {
-			      cerr << get_fileline() << ": sorry: rand_mode() query on "
-				   << "an indexed unpacked-struct member is not "
-				   << "supported yet." << endl;
+			      cerr << get_fileline() << ": error: rand_mode() query index "
+				   << "is only valid for an unpacked array struct member."
+				   << endl;
 			      des->errors += 1;
 			      delete obj_expr;
 			      NetEConst*zero = new NetEConst(

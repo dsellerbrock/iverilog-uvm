@@ -1970,7 +1970,8 @@ class PEConstraintForeach : public PExpr {
       ~PEConstraintForeach() override;
 
       perm_string array_name() const { return array_name_; }
-      bool has_hierarchical_target() const { return !prefix_names_.empty(); }
+      bool has_hierarchical_target() const
+            { return !prefix_names_.empty() || !member_name_.nil(); }
       const std::vector<perm_string>& prefix_names() const { return prefix_names_; }
       perm_string member_name() const { return member_name_; }
       const std::vector<perm_string>& loop_vars() const { return loop_vars_; }

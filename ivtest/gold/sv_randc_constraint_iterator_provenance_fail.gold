@@ -1,7 +1,11 @@
-./ivltests/sv_randc_constraint_iterator_provenance_fail.v:45: error: 'randc' variables cannot be used in 'soft' constraints.
 ./ivltests/sv_randc_constraint_iterator_provenance_fail.v:27: error: 'randc' variables cannot be used in 'soft' constraints.
-./ivltests/sv_randc_constraint_iterator_provenance_fail.v:35: error: 'randc' variables cannot be used in 'soft' constraints.
-./ivltests/sv_randc_constraint_iterator_provenance_fail.v:38: error: 'randc' variables cannot be used in 'soft' constraints.
 ./ivltests/sv_randc_constraint_iterator_provenance_fail.v:31: error: 'randc' variables cannot be used in 'soft' constraints.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:35: error: 'randc' variables cannot be used in 'soft' constraints.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:35: error: Function call 'size' used in a class constraint is unresolved or has an unsupported receiver, argument, or result form.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:38: error: 'randc' variables cannot be used in 'soft' constraints.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:39: error: Function call 'size' used in a class constraint is unresolved or has an unsupported receiver, argument, or result form.
 ./ivltests/sv_randc_constraint_iterator_provenance_fail.v:42: error: 'randc' variables cannot be used in 'soft' constraints.
-6 error(s) during elaboration.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:42: error: Selected fixed-array iterator method expression used in a constraint is unresolved, impure, or has an unsupported result.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:45: error: 'randc' variables cannot be used in 'soft' constraints.
+./ivltests/sv_randc_constraint_iterator_provenance_fail.v:46: error: Function call 'size' used in a class constraint is unresolved or has an unsupported receiver, argument, or result form.
+10 error(s) during elaboration.
