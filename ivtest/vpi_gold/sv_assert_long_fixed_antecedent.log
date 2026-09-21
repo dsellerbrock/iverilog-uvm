@@ -1,0 +1,6 @@
+Compiling vpi/sv_assert_long_fixed_antecedent.c...
+Making sv_assert_long_fixed_antecedent.vpi from  sv_assert_long_fixed_antecedent.o...
+PASS: long cover count=7
+PASS: long cover count=7
+PASS: long cover count=7
+PASSED p138=274 f138=7 p257=400 f257=0 p1=657 f1=0

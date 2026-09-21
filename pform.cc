@@ -18754,11 +18754,15 @@ static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst
 		  return value;
 	    };
 	    if (!checks[k].empty()) {
-		  PExpr*dead = sva_logic_(loc, 'a', gate(), sva_not_(loc, truth()));
-		  PExpr*add = new PEBinary('+', sva_id_(loc, vac_req), sva_num32_(loc, 1));
-		  FILE_NAME(add, loc);
-		  body.push_back(sva_if_(loc, dead,
-			    sva_assign_(loc, vac_req, add), nullptr));
+		  if (!vac_req.nil()) {
+			PExpr*dead = sva_logic_(
+			      loc, 'a', gate(), sva_not_(loc, truth()));
+			PExpr*add = new PEBinary(
+			      '+', sva_id_(loc, vac_req), sva_num32_(loc, 1));
+			FILE_NAME(add, loc);
+			body.push_back(sva_if_(loc, dead,
+			      sva_assign_(loc, vac_req, add), nullptr));
+		  }
 	    }
 	    body.push_back(sva_assign_(loc,
 		  k+1 == checks.size() ? match : state[k],
@@ -25402,6 +25406,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   marked antecedent steps are diagnosed. */
       PExpr*ante = nullptr;
       long ante_span = 0;
+      bool fixed_antecedent_pipeline = track_vacuity;
       if (prop->op_type == 0 || negated) {
 	    ante = sva_bit_(loc, 1);
       } else if (prop->antecedent && prop->antecedent->size() == 1
@@ -25421,16 +25426,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  }
 		  pa += st.delay_lo;
 	    }
-	    if (!ok || pa > 128) {
+	    if (!ok) {
 		  cerr << loc << ": sorry: this assertion antecedent "
-		       << "shape is not supported (fixed-delay sequence "
-		       << "chains up to 128 cycles only); the assertion "
+		       << "shape is not supported (a fixed-delay sequence "
+		       << "chain is required); the assertion "
 		       << "is dropped." << endl;
 		  error_count += 1;
 		  delete fail_stmt; delete pass_stmt;
 		  return;
 	    }
 	    ante_span = pa;
+	    fixed_antecedent_pipeline = true;
       }
 
 	/* |=> is |-> with one extra leading cycle. */
@@ -25583,7 +25589,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   boolean (and the antecedent) into 1-bit sample registers at
 	   the top of the checker. */
       std::vector<std::vector<perm_string> > ante_checks(ante_span+1);
-      if (track_vacuity) {
+      if (fixed_antecedent_pipeline) {
 	    long offset = 0;
 	    for (size_t j = 0; j < prop->antecedent->size(); ++j) {
 		  const sva_seq_step_t&step = (*prop->antecedent)[j];
@@ -25636,7 +25642,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    ante = conj;
       }
       perm_string r_ante = sva_make_reg_(loc, inst, "b", 999);
-      if (!track_vacuity)
+      if (!fixed_antecedent_pipeline)
 	    pre.push_back(sva_assign_(loc, r_ante, ante));
       std::vector<perm_string> r_b (seq.size());
       for (size_t j = 0 ; j < seq.size() ; j += 1) {
@@ -25698,7 +25704,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       std::vector<Statement*> ante_body;
       std::vector<perm_string> ante_state;
       perm_string ante_match;
-      if (track_vacuity)
+      if (fixed_antecedent_pipeline)
 	    ante_match = sva_fixed_antecedent_(loc, inst, ante_checks,
 		  vac_req, init_zero, ante_body, ante_state);
       auto clear_attempt_state = [&]() -> Statement* {
@@ -25726,7 +25732,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* g is the current tick's newly launched attempt. Off suppresses only
 	   this injection; older pipeline/window tokens continue to mature. */
 	body.push_back(sva_assign_(loc, r_g,
-	      track_vacuity ? (PExpr*)sva_id_(loc, ante_match)
+	      fixed_antecedent_pipeline ? (PExpr*)sva_id_(loc, ante_match)
 		: sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
 			 sva_id_(loc, r_ante))));
       for (size_t j = 0 ; j < nfixed ; j += 1) {
