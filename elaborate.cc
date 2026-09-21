@@ -2265,14 +2265,6 @@ struct pending_string_variable_continuous_driver_t {
 static vector<pending_string_variable_continuous_driver_t>
       pending_string_variable_continuous_drivers_;
 
-struct pending_output_variable_port_driver_t {
-      NetNet*signal;
-      const LineInfo*location;
-};
-
-static vector<pending_output_variable_port_driver_t>
-      pending_output_variable_port_drivers_;
-
 /* An ordinary net/variable driven from an interface-member expression keeps
  * normal continuous-assignment semantics through a structural BUFZ. A local
  * variable is updated by the event-driven property-read processes above; the
@@ -2568,18 +2560,6 @@ static void finalize_interface_continuous_drivers_(Design*des)
       }
       pending_string_variable_continuous_drivers_.clear();
 
-      for (const pending_output_variable_port_driver_t&pending :
-	   pending_output_variable_port_drivers_) {
-	    unsigned msb = pending.signal->vector_width() - 1;
-	    if (!pending.signal->test_part_procedurally_driven(msb, 0, 0))
-		  continue;
-	    cerr << pending.location->get_fileline() << ": error: Variable '"
-		 << pending.signal->name()
-		 << "' cannot be driven by an output port and a procedural "
-		    "assignment." << endl;
-	    des->errors += 1;
-      }
-      pending_output_variable_port_drivers_.clear();
 }
 
 static NetNet* direct_identifier_net_(const LineInfo*loc, Design*des,
@@ -5943,8 +5923,6 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	      // that connects to the port.
 
 	    NetNet*sig = 0;
-	    NetNet*output_actual_variable = 0;
-	    NetNet::Type output_actual_variable_type = NetNet::NONE;
 	    NetNet::PortType ptype;
 	    if (prts.empty())
 		   ptype = NetNet::NOT_A_PORT;
@@ -6219,20 +6197,6 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		       assignment, as the port will continuous assign
 		       into the port. */
 
-		    /* A module output port can drive a variable. Let the ordinary
-		       continuous-lvalue path perform overlap checks and reserve its
-		       single driver, then restore the declared variable kind. The
-		       connection below inserts the implied one-way assignment. */
-		  bool selected_actual = false;
-		  output_actual_variable = direct_identifier_net_(
-			this, des, scope, pins[idx], selected_actual);
-		  if (selected_actual || !output_actual_variable
-		      || (output_actual_variable->type() != NetNet::REG
-			  && output_actual_variable->type() != NetNet::IMPLICIT_REG)) {
-			output_actual_variable = 0;
-		  } else {
-			output_actual_variable_type = output_actual_variable->type();
-		  }
 		  sig = pins[idx]->elaborate_lnet(des, scope, true);
 		  if (sig == 0) {
 			cerr << pins[idx]->get_fileline() << ": error: "
@@ -6245,37 +6209,6 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			des->errors += 1;
 			continue;
 		  }
-		  if (output_actual_variable && sig == output_actual_variable) {
-			sig->type(output_actual_variable_type);
-
-			/* A structural driver attached directly to a variable is
-			   resolved together with the variable's stored value, which
-			   feeds X/Z from the destination back into the implied port
-			   assignment. Drive an ordinary carrier from the child and
-			   copy that carrier into the variable with the established
-			   time-zero plus implicit-sensitivity lowering instead. */
-			NetNet*carrier = new NetNet(
-			      scope, scope->local_symbol(), NetNet::WIRE,
-			      output_actual_variable->net_type());
-			carrier->local_flag(true);
-			carrier->attribute(perm_string::literal(
-			      "_ivl_implicit_sensitivity"), verinum(1));
-			carrier->set_line(*pins[idx]);
-			unique_ptr<PEIdent>carrier_id(
-			      new PEIdent(carrier->name(), UINT_MAX, true));
-			carrier_id->set_line(*pins[idx]);
-			if (!elaborate_vif_member_assign_(
-			      des, scope, pins[idx],
-			      const_cast<PExpr*>(pins[idx]), carrier_id.get(),
-			      output_actual_variable, true))
-			      continue;
-			pending_output_variable_port_driver_t pending = {
-			      output_actual_variable, pins[idx]
-			};
-			pending_output_variable_port_drivers_.push_back(pending);
-			sig = carrier;
-		  }
-
 		    // If we have a real port driving a bit/vector signal
 		    // then we convert the real value using the appropriate
 		    // width cast. Since a real is only one bit the whole
@@ -6351,8 +6284,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 #ifndef NDEBUG
 	    if ((! prts.empty())
-		&& (ptype != NetNet::PINPUT)
-		&& !(ptype == NetNet::POUTPUT && output_actual_variable)) {
+		&& (ptype != NetNet::PINPUT)) {
 		  ivl_assert(*this, sig->type() != NetNet::REG);
 	    }
 #endif
@@ -6476,8 +6408,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // the delay being applied to other drivers of
 		    // the external signal.
 		  if ((ptype == NetNet::POUTPUT
-		       && (is_variable_output_port_(prts[0])
-			   || output_actual_variable)) ||
+		       && is_variable_output_port_(prts[0])) ||
 		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
@@ -6512,8 +6443,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // connect the sig to all the ports identically.
 		  for (unsigned ldx = 0 ;  ldx < prts.size() ;	ldx += 1) {
 			if ((ptype == NetNet::POUTPUT
-			     && (is_variable_output_port_(prts[ldx])
-				 || output_actual_variable))
+			     && is_variable_output_port_(prts[ldx]))
 			    || prts[ldx]->delay_paths() > 0) {
 			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype);
 			} else {
@@ -19312,6 +19242,13 @@ static void collect_class_property_mutation_deps_(
       }
 }
 
+static bool has_class_property_mutation_dep_(const NetExpr*expr)
+{
+      std::vector<class_property_mutation_dep_t> deps;
+      collect_class_property_mutation_deps_(expr, deps);
+      return !deps.empty();
+}
+
 /* A direct property (or one selected packed bit) is completely filtered by
    the mutation key itself. Compound event expressions need the procedural
    value filter built by PEventStatement::elaborate_st below. */
@@ -20490,7 +20427,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                wakeups during UVM construction. */
             if (gn_system_verilog()
                 && expr_[idx]->type() == PEEvent::ANYEDGE
-                && dynamic_cast<NetEProperty*>(tmp)) {
+                && (dynamic_cast<NetEProperty*>(tmp)
+                    || has_class_property_mutation_dep_(tmp))) {
 	                  std::vector<vif_member_path_t> vif_paths;
 	                  collect_vif_member_paths_(tmp, vif_paths);
 	                  std::vector<class_property_mutation_dep_t> object_deps;
@@ -37187,8 +37125,6 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_continuous_drivers_.clear();
       pending_interface_variable_continuous_drivers_.clear();
       pending_string_variable_continuous_drivers_.clear();
-
-      pending_output_variable_port_drivers_.clear();
 
 	// Create NetScope objects for compilation units first so that
 	// unit_scopes is populated before packages are processed.

@@ -1,2 +1,2 @@
-./ivltests/sv_output_variable_procedural_overlap.v:7: error: Variable 'value' cannot be driven by an output port and a procedural assignment.
-1 error(s) during elaboration.
+./ivltests/sv_output_variable_procedural_overlap.v:8: error: Cannot perform procedural assignment to variable 'value' because it is also continuously assigned.
+Elaboration failed

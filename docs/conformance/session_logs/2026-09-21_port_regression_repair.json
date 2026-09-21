@@ -1,0 +1,14 @@
+{
+  "blocker": "VARIABLE-OUTPUT-PORT-DIRECTION",
+  "base": "779de5464",
+  "status": "Reviewed private repair integrated into shared source; shared rebuild pending",
+  "patch": "evidence/review-20260920/shared-six-port-repair/CODE.patch",
+  "patch_sha256": "a82c19a1cf91a57a5c46b00a5b521b4aefb2eb6f3f5a61587ec4c4cbe17a2b48",
+  "root": "Behavioral copy from port carrier adds scheduling boundary, losing real initialization and immediate integer/VHDL propagation. Existing lnet coercion plus directional formal isolation provides correct semantics without carrier.",
+  "implementation": "Remove behavioral output carrier and its pending driver audit. Preserve original variable identity for formal one-way isolation. Existing lnet mixed-driver diagnostic remains precise and rejects same illegal cases at offending assignment.",
+  "gold_review": "Eight legacy/split gold files intentionally adopt existing diagnostic and location; no assertion/acceptance weakening. Restore-REG/no-carrier failed10cases; datatype-exclusion workaround rejected in favor of full deletion.",
+  "private_validation": "26 legacy and26 JSON pass; real/integer paired checks, negative conflicts, shortreal, VHDL arithmetic and exact br_gh169b VPI pass. Mixed class/VIF diagnostic restored without rejecting supported ordinary-signal/VIF expressions.",
+  "evidence": "evidence/review-20260920/shared-six-port-repair/FINAL_REPORT.md",
+  "coordinator_tidy": "Only joined the split assertion-condition closing parenthesis after applying patch.",
+  "pending": "Integrated compiler rebuild, failing-case rerun and broad qualification. Event timing and interface startup obligations remain."
+}
