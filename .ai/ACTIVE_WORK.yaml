@@ -1,9 +1,9 @@
 id: OPENTITAN-DV-PRIORITY-20260921
-status: FOCUSED_REPAIR_PASS_BROAD_RERUN_PENDING
+status: INTEGRATED_PASS_JSON_RUNNING
 objective: Full IEEE1800-2017 and2023 independently, IEEE1800.2/UVM separately, ordinary RTL and standards-correct SVA/formal frontend, unmodified stable OpenTitan/Caliptra.
 authority: User-authorized continuous campaign; coordinator selects standards-grounded reproduced blockers and preserves all semantics.
-branch: agent/opentitan-dv-priority-20260921
-head_checkpoint: 1c18cd83c
+branch: agent/constraint-dependency-kind-repair-20260921
+head_checkpoint: 0b1aeaee6c42e2d8fdc783aa86c112b9afa91027
 history: docs/conformance/session_logs/2026-09-21_pre_spi_host_publication_ACTIVE_WORK.yaml
 coordination:
   coordinator: Selection, hard semantic reasoning, integration, shared build/install/test directories, final review and publication.
@@ -44,10 +44,10 @@ qualification:
   risk: HIGH because shared constraint IR and element sampling changed.
   focused: New12cases pass legacy in2017 and2023 and24pairedJSON; declaration15, array-mode8 andtransaction29perharness pass.
   expectation_reconciliation: b04404191 reconciles four stale focus-only extension golds; unsupported iterator remains a compile-negative, all randc-soft rejections preserved. Audit is source-history based, not exact-baseline binary replay.
-  active_gate: Integrated ivtest/VPI/negative/runtime via evidence/review-20260920/spi-host-qualification/run_gate.py integrated, session88117.
+  active_gate: Repaired integrated gate42301 passed; full JSON running as session99700 in spi-host-repaired-qualification.
   pending_gates: Full JSON, mapped UVM/smoke/full UVM, NFA, frontend and makecheck according to risk; CI before promotion.
   source_freeze: No shared compiler/runtime edits or installation during gates; assess next blockers read-only.
-next_action: Publish coherent review PR with focused evidence and explicit pending broad gates; finish gates and select next reproduced OpenTitan blocker through coordinator.
+next_action: Publish dependency-kind repair follow-up because PR311 merged before repair; finish existing required gates before next implementation selection.
 assessments_during_qualification:
   gpio_dist:
     owner: Retained Terra medium, read-only compiler/app navigation and private reducers.
@@ -72,4 +72,4 @@ qualification_enum_regression:
 repair_validation:
   evidence: docs/conformance/session_logs/2026-09-21_spi_host_dependency_kind_repair.json
   results: All42priorfailures pass; expandedmemberfocus16peredition and32pairedJSON pass.
-  next: Rerun required broad gate on repairedruntime in newoutputdirectory; no qualification until checkscomplete.
+  next: Integrated repaired gate passed; JSON session99700 running. Remaining UVM/NFA/frontend/makecheck and CI pending.

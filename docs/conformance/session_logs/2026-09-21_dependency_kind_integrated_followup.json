@@ -1,0 +1,54 @@
+{
+  "date": "2026-09-21",
+  "source_commit": "0b1aeaee6c42e2d8fdc783aa86c112b9afa91027",
+  "original_repair_commit": "b5bc2864f",
+  "base": "5e4bd136c",
+  "merged_pr": 311,
+  "merged_pr_head": "9444f3c55",
+  "explanation": "PR311 merged externally before repair; follow-up contains identical compiler and test sources to repaired integrated run.",
+  "integrated": {
+    "command": [
+      "bash",
+      ".github/ivtest_gate.sh"
+    ],
+    "start": 1790018670.757395,
+    "end": 1790019085.6926,
+    "exit": 0,
+    "installed_before": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "6b426d817610c12171fa364fe82407948cf0ab7369fc6c0f0c677a12e5c58677",
+      "local-install/lib/ivl/ivl": "46e9dd4f0c0c4e34efcdeb3fb7e53bb47609ec071ab017138d00ded1299ab7df",
+      "local-install/lib/ivl/vvp.tgt": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af",
+      "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "installed_after": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "6b426d817610c12171fa364fe82407948cf0ab7369fc6c0f0c677a12e5c58677",
+      "local-install/lib/ivl/ivl": "46e9dd4f0c0c4e34efcdeb3fb7e53bb47609ec071ab017138d00ded1299ab7df",
+      "local-install/lib/ivl/vvp.tgt": "a6c142aafa9f300404cf275696a4f50eb97ad0b3faf87d7e68c3bbab87e0b0af",
+      "local-install/lib/ivl/uvm_dpi.vpi": "860e3af923062a2c257eb4af9580c16b3cac042886c8f7b009b92257ce73d0bb",
+      "local-install/include/iverilog/svdpi.h": "1407eb83e3afcf294b6ef29b7be25e0658389ec5a77bdee049158224075c301d"
+    },
+    "stable": true
+  },
+  "counts": {
+    "legacy_total": 6138,
+    "legacy_pass": 6133,
+    "legacy_fail": 0,
+    "legacy_not_implemented": 2,
+    "legacy_expected_fail": 3,
+    "vpi_pass": 126,
+    "negative_pass": 148,
+    "runtime_invariants_pass": 15
+  },
+  "pending": [
+    "full JSON session99700",
+    "NFA",
+    "UVM including real DPI",
+    "frontend",
+    "makecheck",
+    "CI"
+  ],
+  "full_qualification": false
+}
