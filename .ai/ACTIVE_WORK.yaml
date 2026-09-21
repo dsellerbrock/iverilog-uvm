@@ -436,3 +436,11 @@ synthesis_neighbor_regression_checkpoint:
   constraints: Preserve all expected values; no gold weakening; both lanes private, coordinator sharedbuild/testing.
   shared_processes: No build/test running.
   next: Integrate regression repairs, repeat affectedfocus and160neighbors, then required broad batch gates.
+
+memory_regression_controlled_attribution:
+  evidence: docs/conformance/session_logs/2026-09-21_memory_regression_attribution.json
+  conclusion: Bothmemoryfailures persist with committed elaborator; checkedindex change notnecessary to reproduce.
+  source_state: Candidatehybrid elab_lval.cc restored.
+  installed_state: Baselineelaborator isolation variant; rebuild candidate before qualification.
+  ownership: Sol owns synthesiscode for allsix failures; Terra private memoryport runtime/netlisttrace only, no implementationedits.
+  next: Integrate concrete synthesisrepair, rebuild candidate, rerun sixfailures plusfocused/wide suites.
