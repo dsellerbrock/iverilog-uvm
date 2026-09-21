@@ -3355,3 +3355,5 @@ constraint and is not closed by selector validation.
 IBEX-ROW-ASYNC-RESET-SYNTHESIS has [focused and neighboring runtime evidence](session_logs/2026-09-21_row_async_reset.json); required batch gates remain pending. Ordinary blocking-index dataflow is separate recorded debt.
 
 The [synthesis and wide-index focused checkpoint](session_logs/2026-09-21_synthesis_and_wide_index_focus.json) records paired-edition runtime and neighboring-test evidence. Required broad batch gates remain pending.
+
+The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.

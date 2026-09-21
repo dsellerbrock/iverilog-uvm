@@ -1580,3 +1580,5 @@ The ordinary dynamic signal-index path remains unchanged.
 The [focused checkpoint](../session_logs/2026-09-21_synthesis_and_wide_index_focus.json)
 owns test scope and limitations. Required broad qualification remains pending;
 this does not establish complete procedural synthesis or array support.
+
+The [September 21 local batch qualification](../session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.

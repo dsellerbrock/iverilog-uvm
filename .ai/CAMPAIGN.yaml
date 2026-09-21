@@ -1,5 +1,5 @@
 status: active
-phase: broad_batch_validation
+phase: publish_locally_qualified_batch
 objective: Full compiler/UVM/SVA mission remains active; no full IEEE or application completion claim.
 worktree: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908
 branch: agent/reviewed-main-baseline-20260920
@@ -16,14 +16,14 @@ preservation:
   graph: /Users/danielellerbrock/projects/iverilog_uvm/graphify-out/graph.json; never duplicate in worktrees.
 
 validation:
-  live_session: 40936
+  completed_session: 40936
   runner: evidence/review-20260920/batch-20260921-conditional-enable/run_gate.py
-  process: Session40936 JSON andintegrated passed with stable binaries; UVMrunning, remaining gatespending. Source frozen at8ab943352.
+  process: Session40936 completed; all seven gates passed with stable installed binaries.
   order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
   integrated_evidence: docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json
   previous_failed_run: evidence/review-20260920/batch-20260921; six regressions repaired, never count that run as qualification.
   toolchain: Native ARM64 local-install; absolute PATH; coordinator owns builds and installs.
-  current_qualification: Incomplete; JSON andintegrated passed, remaining five gates must finish before publication.
+  current_qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
 
 applications:
   evidence: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
@@ -36,12 +36,12 @@ publication:
   merged_prior_prs: [301,302,303,304,305,306]
   current_batch_pr: None; last GitHub listing had no openPR.
   draft_body: evidence/review-20260920/batch-20260921/pr-body.md
-  pending: Final gates and source review; refresh remote/PRstate before publishing.
+  pending: Publish batch PR and verify exact-head CI. Remote main unchanged at last fetch.
   cadence: Approximately10integrated fixes; current batch has11focused items plus prerequisite/regression repairs.
   merge_authority: User authorized merge after one complete green exact-head CI and local correctness gates; subsequent CI failures require follow-up repair PR.
 
 resume:
-  first: Poll session40936 and inspect actual per-gate run.json/status/log; never restart a live job.
+  first: Publish reviewed coherent batch PR and inspect exact-head CI. Local gates complete.
   then: Inspect gate run.json stable hashes and status; preserve failed logs; select concrete regression repair only if necessary.
   after_gates: Record final revision-scoped evidence, finalize PRbody, publish coherent PR and report exact scope/limits.
   after_merge: Refresh main, update canonical graph from canonical checkout only, respect worktree cleanup safeguards, select next standards-grounded blockers.

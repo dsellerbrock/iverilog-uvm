@@ -20,6 +20,8 @@ validation state belong to ACTIVE_WORK and CAMPAIGN linked below.
 
 ## Latest recorded compiler qualification
 
+The [September 21 batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records all seven local gates passing for semantic revision `8ab943352`. It supersedes the earlier batch checkpoints below for local compiler validation; GitHub CI and application revision limits remain separate.
+
 The [restored-baseline qualification](session_logs/2026-09-20_restored_baseline_qualification.json)
 records all seven local gates passing for semantic revision `e90059a07`,
 whose compiler/test tree matches merged main `0998f058a`. Counts, commands,

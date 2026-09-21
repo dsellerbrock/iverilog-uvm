@@ -272,3 +272,5 @@ Procedural assignment synthesis follows shared clause 10.4 semantics;
 invalid fixed-array indexing uses 2023 7.4.5 versus 2017 7.4.6.
 [Shared scope and paired-edition evidence](matrices/ieee1800_2017_clause_matrix.md#september-21-procedural-synthesis-and-full-width-array-indices)
 records the current PARTIAL implementation and pending broad qualification.
+
+The [September 21 local batch qualification](session_logs/2026-09-21_compiler_batch_qualification.json) records the completed regression gates for the documented batch subsets at `8ab943352`. Earlier pending-gate notes describe their dated checkpoints. Overall language and UVM support remain PARTIAL; publication CI is pending.

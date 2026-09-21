@@ -1,5 +1,5 @@
 id: SV-UVM-BATCH-20260921
-status: VALIDATING
+status: LOCAL_QUALIFIED_CI_PENDING
 objective: Complete qualification and publication of the eleven integrated compiler fixes without weakening semantics.
 authority: User-authorized continuous full IEEE1800-2017/2023 and UVM campaign; current work is validation, regression repair, and publication.
 semantic_revision: 8ab943352
@@ -19,7 +19,7 @@ scope:
     - JOINT-MULTIPLE-DISTRIBUTIONS
     - BLOCKING-INDEX-SYNTHESIS-DATAFLOW
     - OVERSIZED-CONSTANT-ARRAY-WORD
-  implementation_state: Integrated and focused-tested; broad qualification incomplete.
+  implementation_state: All seven local gates passed; GitHub CI pending.
   allowed: Diagnose concrete gate failures, record root cause and repair scope, validate and document fixes; publish coherent PR after required gates.
   frozen: Compiler source and installed binaries frozen for the next broad validation run.
   forbidden: Application source edits, weakened tests, invented passing evidence, silent semantic fallback, unrelated feature implementation.
@@ -44,8 +44,8 @@ ownership:
 
 validation:
   prior_integrated: PASS before latest enable repair; see docs/conformance/session_logs/2026-09-21_repaired_integrated_gate.json.
-  live_session: 40936
-  current_passed_gates: [json, integrated]
+  completed_session: 40936
+  current_passed_gates: [json, integrated, uvm, nfa, releases, frontend, makecheck]
   json_evidence: evidence/review-20260920/batch-20260921-conditional-enable/json.run.json
   directory: evidence/review-20260920/batch-20260921-conditional-enable
   order: [json, integrated, uvm, nfa, releases, frontend, makecheck]
@@ -58,7 +58,7 @@ validation:
   applications: docs/conformance/session_logs/2026-09-21_repaired_candidate_release_retest.json
   limits: Integrated gate and application subset passes are not full language/UVM/application qualification.
 
-next_action: Run all seven gates on repaired enable topology; inspect actual statuses before qualification or publication.
+next_action: Publish coherent batch PR with final evidence, then inspect exact-head CI and follow user merge authority.
 completion: Required gates, source review, docs and exact revision evidence; qualified batch does not complete the full mission.
 
 active_regression:
@@ -73,3 +73,12 @@ active_regression:
   acceptance: Existing dffsynth4 runtime checks in default/2017/2023 modes, conditional synthesis neighbors and current focused regression cluster; rerun affected broad gates.
 
 empty_branch_repair_evidence: docs/conformance/session_logs/2026-09-21_empty_branch_enable_repair.json
+
+read_only_assessment:
+  objective: Identify at most2 next Caliptra compiler blockers from exact pinned-release evidence.
+  owner: caliptra_next_blocker; Luna low; independent evidence extraction only.
+  scope: Existing logs, manifests and corpus revision attribution; one compact private report.
+  forbidden: Compiler/application edits, new builds or broad sweeps, shared test directories, feature activation before current batch validation.
+  output: evidence/review-20260920/caliptra-next-assessment
+
+local_qualification: docs/conformance/session_logs/2026-09-21_compiler_batch_qualification.json
