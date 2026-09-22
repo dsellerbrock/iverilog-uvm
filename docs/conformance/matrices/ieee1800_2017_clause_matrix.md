@@ -1647,3 +1647,7 @@ IEEE 1800-2017 §9.4.2 remains PARTIAL overall. Integral event expressions using
 ### Selected virtual-interface edge expressions — locally regression-tested
 
 The 9.4.2/25.9 candidate implements selected packed VIF edge expressions through the synchronous observer, including live selector/rebinding dependencies, four-state edges and cancellation. Broader requirements remain PARTIAL; see the [revision-scoped evidence and completed local gates](../session_logs/2026-09-21_selected_vif_edge_focus.json).
+
+### 2026-09-21 — implication until continuation candidate
+
+The §16.6, §16.9.2.1 and §16.12.12 candidate corrects Boolean truth, zero-inclusive repetition concatenation, and continuing `until` obligations for the recorded implication subset. [Revision-scoped evidence](../session_logs/2026-09-21_until_continuation_focus.json) owns paired-edition checks, passing local gates and pending CI. Broader assertion support remains PARTIAL; this is not full clause qualification.

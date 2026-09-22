@@ -1,96 +1,93 @@
-blocker: OT-SPI-SELECTED-VIF-EDGE
-status: REGRESSION_TESTED
-base: 50cda4fdf; preceding event-list fix frozen with focused and mapped UVM gates passing.
-objective: Implement correct selected packed VIF edge event semantics and remove the SPI compiler crash.
-reproducer: evidence/review-20260920/spi-event-list-next/crash-assessment/reducer_vif_select_direct.sv
-red: Compiler exits139 in 2012/2017/2023; full SPI LLDB stack NetESelect synthesize to NetPartSelect to NetPins pin.
-clauses:
-- IEEE 1800-2017 9.4.2 edge-sensitive events and 25 virtual interfaces
-- IEEE 1800-2023 9.4.2 edge-sensitive events and 25 virtual interfaces
-expected: A posedge of the selected packed interface bit resumes the waiter exactly once; nonselected changes do not; preserve four-state edge rules and live expression dependencies.
-root_hypothesis: Structural event synthesis receives a dynamic class-property selector without a signal net; route through existing VIF/class event expression mechanisms instead of synthesizing the class index.
+blocker: SVA-IMPLICATION-UNTIL-CONTINUATION
+status: DOCUMENTED
+base: 3dce24ac755506ce57e5e1fce9d051890e78529d
+parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/318
+objective: Preserve continuous until obligations after good consequent samples and correct shared empty-match concatenation semantics.
+authorization: User compiler/SVA mission and seed3 investigation; coordinator selects next blocker after all selected-VIF local gates passed and PR318 published.
+standards:
+- IEEE1800-2017 16.12.12 until properties and16.9.2.1 empty concatenation
+- IEEE1800-2023 16.12.12 until properties and16.9.2.1 empty concatenation
+reproducer: evidence/review-20260920/sva-until-continuation-next/until_implication_continuation.sv
+red: Corrected regression-fixed-2017/2023.run.log; four late misses, late q until_with misses, empty##0/##1 reversed; strong/weakEOScontrols pass.
+expected: p holds before q for until and through q for until_with; strong requires eventualq. Empty##0 has no match; empty##n for n>0 shifts by n-1.
+root: Forbidden consequent uses good-prefix fused via##0 with contradictory bad terminal; zero-inclusive NFA concatenation also fails to split empty/nonempty branches.
 allowed_files:
-- elaborate.cc
-- expr_synth.cc only if a shared null-result propagation defect is proven; no suppressing valid event semantics
-- private evidence/review-20260920/spi-selected-vif-edge/
-- owning regressions and documentation at integration
+- pform.cc
+- pform_sva_nfa.cc
+- directly necessary private focused tests and owning permanent regressions/docs after coordinator integration
 forbidden:
-- No application edits, queue type relaxation, assertion suppression, broad edge sensitivity or compile-only completion.
-- Runtime scope revised below after confirmed missing selected-edge metadata; unrelated fixes remain forbidden.
+- Application/checker changes
+- Assertion weakening, altered success criteria, sample-region changes without proven need
+- Unrelated SVA refactoring or speculative architecture
 lanes:
   implementation:
-    owner: canonical_graph_refresh Terra/medium
-    files: elaborate.cc and optional justified expr_synth.cc; private implementation notes
-    task: Trace root cause, reuse existing mechanisms, smallest complete fix; report dependencies before scope expansion.
-  tests:
-    owner: vif_proxy_implementation Sol/medium
-    files: private spi-selected-vif-edge/tests only
-    task: Paired semantic positive/negative/boundary tests; no shared builds or harnesses.
-coordinator: Source review, shared build/install/harnesses, standards decisions, permanent registration and integration.
+    owner: selected_vif_relay_lifetime Terra/medium
+    files: pform.cc and pform_sva_nfa.cc; private sva-until-continuation-next tests
+    plan: Retain p&&!q good prefix, positive-delay bad terminal; correct shared empty/nonempty concat split using existing mechanisms.
+  coordinator:
+    owner: root
+    files: shared build/install/harnesses, review, permanent registration, docs and PR integration
 acceptance:
-- Both editions reproduce red then compile and execute meaningful selected posedge/negedge checks.
-- Nonselected bit suppression, dynamic index changes, nested receiver/VIF rebinding and four-state transitions verified as applicable.
-- Automatic context, cancellation, ordinary selected event control and invalid selections/type diagnostics covered.
-- Fresh pristine SPI compile verifies crash removed without hiding remaining diagnostics.
-- Focused adjacent and mapped UVM gates pass; broad suites at batch checkpoint unless risk escalates.
+- Paired corrected immediate/late/first-q/late-q/disable/weak-strongEOS regression passes.
+- Empty repetition##0/##1 controls and neighboring finite/unbounded sequence behavior pass.
+- Focused NFA existing suite and mapped SVA/UVM tests pass; required broader validation per risk and regression policy.
+- No checker overlay is needed to demonstrate compiler semantics; application overlay followup remains separately classified.
+risk: HIGH shared NFA concatenation semantics; coordinator assesses full required gates before promotion.
+stop_after_completion: Freeze patch and return to coordinator selection under continuous campaign.
 
-root_cause_confirmed:
-  issue: VIF member synthesizes through proxy, ordinary class-property index does not; unchecked null offset enters NetPartSelect.
-  guard_limit: Null guard alone skips event downstream and is not a semantic fix.
-expanded_runtime_scope:
-  owner: canonical_graph_refresh Terra/medium
-  files: netlist.h, net_event.cc, t-dll.cc, t-dll.h, t-dll-api.cc, ivl_target.h, ivl.def, tgt-vvp/vvp_process.c, vvp/compile.cc, vvp/compile.h, vvp/vthread.cc, vvp/event.cc, vvp/event.h and directly necessary opcode declarations.
-  design: Reuse synchronous event-expression evaluator and VIF signal registration/lifetime mechanisms; extend metadata/runtime only as required for full selected edge semantics.
-  constraint: Unknown/out-of-range packed selectors yield X, which participates in the standard edge table; do not treat these as inactive.
-  risk: HIGH runtime/event registration change; full applicable gates required before promotion.
-  authorization: Explicit user crash-fix request plus coordinator root-cause scoped expansion; proceed without another approval.
+parallel_boundary_test_lane:
+  owner: eval_evidence_audit Luna/low
+  files: evidence/review-20260920/sva-until-empty-boundaries only
+  purpose: Independent positive/negative empty repetition concatenation boundaries; exact counts in both editions.
+  constraints: No compiler edits,sharedbuilds,sharedharnesses,or edits to Terra private test files.
 
-resumed_after_qwen_evaluation:
-  coordinator: Reviews existing source patch, owns build and all shared validation.
-  regression_lane: eval_evidence_audit Luna/low owns private same-signal waiter regression only.
-  integration_corrections: Export observer edge API on Windows and sort opcode table before first build.
-  next: Serial build/install then paired selected-VIF semantic matrix.
+first_build_review:
+  result: OpenTitan late-drop/stopped/held/live controls8/8pass; broaderpairedmatrixcompilefails.
+  root: nfa_chain_fragment_ treats valid emptylanguage as unsupported before pform implication can preserve deadconsequent.
+  coordinator_correction: Preserve unreachableacceptstate for valid emptylanguage; both direct/treechaincallerschecked.
+  evidence: evidence/review-20260920/sva-until-continuation-next/candidate1/results.json
 
-post_build2_parallel_repair:
-  runtime_lane: selected_vif_relay_lifetime Terra/medium owns vvp/vthread.cc relay allocation and teardown only.
-  coordinator_lane: elaborate.cc null-VIF selected event routing and shared build/tests.
-  regression_lane: Luna private same-signal regressions complete.
-  evidence: tests/candidate-build2 has allocator assertion on VIF updates; null-at-arm unexpectedly exits zero.
-  invariant: Bounded registration lifetime, safe fanout callbacks, no semantic suppression or per-occurrence leaks.
+nondegeneracy_oracle_correction:
+  clause: IEEE2017/2023 16.12.22(a); a sequence used as property must be nondegenerate.
+  invalidated: Directempty##0 property expecting runtimefailure; it must be rejected. Prior mixed matrices versioned, notqualificationevidence.
+  source: Keep internal empty-language NFA for legalORcomposition; restore existing property nondegeneracyguard.
+  tests: v2 until matrix separates invalidnegative, boundarymatrix uses legalnondegenerateORcomposition.
+  build2: Preserved transient candidate; no qualificationclaim.
 
-null_vif_root_cause:
-  evidence: Generated recipe replaces null VIF property read with X, bypassing runtime error and blocking forever.
-  coordinator_scope: tgt-vvp/eval_vec4.c plus recipe-active query in vvp_process.c/vvp_priv.h; no elaborator change needed.
-  fix: Preserve raw property read within observer recipe so existing runtime null diagnostic terminates simulation.
+coordinator_build3_review:
+  evidence: evidence/review-20260920/sva-until-continuation-next/candidate3 and build3-extra
+  result: Application controls 8/8 pass; legal leading-empty implication fails; four-state until misses all four violations in both editions.
+  refined_root: Flat implication fusion conflates property boundary with sequence concatenation; logical negation does not complement four-state property truth.
+  correction: Reuse separate antecedent/consequence NFA route for leading direct zero-inclusive repetition; normalize until operands to two-state Boolean property truth before complementing.
+  owner: Coordinator; worker source edits remain frozen.
 
-called_function_null_boundary:
-  red: null-function-review/results.json; null VIF inside called selector silently returns default in both editions.
-  root: Function code is generated outside recipe emission, so compile-time recipe flag cannot guard its property reads.
-  correction: Runtime property-null guard opcode distinguishes actual dereference from lawful null comparison and reuses observer diagnostic.
-  scope: eval_vec4.c, vvp/codes.h, vvp/compile.cc, vvp/vthread.cc; paired negative and guarded-positive regressions.
-  qualification: Initial broad run interrupted deliberately; no completed broad result claimed.
+leading_delay_review:
+  root: nfa_add_step_ used fixed-1 delay ticks for both first and continuation steps, aliasing leading ##1 to ##0.
+  correction: Consume anchor before first positive delay; preserve continuation delay and zero fusion.
+  evidence: build4-v3 exactempty##2 failures; fixture timing checked independently.
 
-qualification_readonly_lane:
-  owner: selected_vif_relay_lifetime Terra/medium
-  purpose: Assess remaining pristine SPI queue-output type errors for next coordinator selection.
-  allowed: Canonical graph/source reads and private spi-queue-type-next reproducers using installed tools.
-  forbidden: Compiler edits, shared builds/harnesses, application changes; current implementation remains frozen.
+build7_checkpoint:
+  source: evidence/review-20260920/sva-until-continuation-next/build7/build.json
+  truth: Logical-not case-equal zero preserves integral and real Boolean truth under16.6; reduction-OR draft rejected real operands and was corrected.
+  permanent: Six paired families,12/12 legacy and12/12 JSON; NFA58/58.
+  qualification: In progress, not qualified; integrated session91368 and full UVM session59116.
+  incomplete_prior: Build5 broad runs invalidated and confirmed terminated; build6 redundant source record.
 
-seed3_user_requested_revalidation:
-  authorization: User explicitly requests seed3 fix and investigation of seed validity and VCS quirks; necessary downstream checker correction authorized.
-  owner: selected_vif_relay_lifetime Terra/medium, private assessment and focused tests only while selected-VIF compiler patch qualifies.
-  scope: Audit existing clock-activity checker patch and replay isolated overlay; preserve pristine release and assertion strength.
-  coordinator: Public vendor evidence, shared tools and final integration.
-  selected_vif_checkpoint: Build6 private38/38, legacy171/171, JSON171/171; broad gates pending.
+parallel_evidence_lane:
+  owner: eval_evidence_audit Luna/low
+  scope: Private review-build7-evidence.json from existing logs; no tests, builds, or source edits.
+  coordinator: Owns semantic review, frozen shared gate processes and durable documentation.
 
-until_continuation_assessment:
-  owner: selected_vif_relay_lifetime Terra/medium
-  purpose: Trace reproduced late-drop continuous until failure in official OpenTitan checker overlay.
-  scope: Read compiler sources and local normative clauses; isolated reducers only in evidence/review-20260920/sva-until-continuation-next.
-  forbidden: No compiler edits or shared builds while selected-VIF build6 qualifies.
-  next: Coordinator selects implementation only after current validated checkpoint or explicit safe suspension.
+uvm_oracle_review:
+  finding: Existing positive local-variable until test left a four-state enum uninitialized. At t15 its assigned past value is X, so the Boolean comparison is X and must fail.
+  evidence: localvar-coordinator/trace.log under active evidence root; paired initialized-positive and original-uninitialized-negative checks pass.
+  correction: Initialize positive state to Reset; preserve original stimulus as paired permanent negatives requiring exactly one assertion failure.
+  standards: IEEE1800 6.8 Table6-7 and16.6; compiler source unchanged from build7.
+  gates: Integrated completed; UVM andJSON stopped on discovered failure, require rerun after test-oracle correction.
 
-qualification_build6_final:
-  state: REGRESSION_TESTED, documented; publication pending.
-  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
-  all_required_gates: Passed; session29234 terminal0.
+final_local_checkpoint:
+  source: Build7, unchanged after qualification; all required local gates pass.
+  evidence: docs/conformance/session_logs/2026-09-21_until_continuation_focus.json
+  recovery: UVM349+9 exacttestcoverage; JSON1337+1919 exacttestcoverage; interrupted and relocation-invalidated runs retained separately.
+  publication: Pending; parentPR318 merged ca29b1237 after two CI successes.
+  next: Commit reviewed paths and publish SVA PR against main; monitor CI before selection.

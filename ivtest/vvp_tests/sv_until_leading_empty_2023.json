@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_until_leading_empty_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "leading_empty_repeat_boundary_v3"
+  ],
+  "gold": "sv_until_leading_empty_2023"
+}

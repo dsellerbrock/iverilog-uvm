@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_until_continuation_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "until_implication_continuation"
+  ],
+  "gold": "sv_until_continuation_2017"
+}

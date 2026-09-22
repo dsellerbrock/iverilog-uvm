@@ -3444,3 +3444,7 @@ IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector ch
 - **Observation:** Merged PR317 Windows jobs fail the strict-regex test with no captured output; both Linux jobs pass. The UVM runner discards VVP exit status, preventing distinction between loader/exception/callback/matcher failures.
 - **Next discriminator:** Preserve and report process status, then replay the isolated Windows test and malformed-regex callback reducer. macOS controls pass and do not establish Windows behavior.
 - **Evidence:** `evidence/review-20260920/pr317-late-ci/evidence.json` and `ASSESSMENT.md`. No regex semantic fix or Windows recovery claimed.
+
+### SVA-IMPLICATION-UNTIL-CONTINUATION — locally regression-tested; publication pending
+
+The upstream OpenTitan checker backport exposed missed late `until` violations. The compiler correction covers property truth, empty/nonempty repetition concatenation and independent consequent timing. [Revision-scoped evidence](session_logs/2026-09-21_until_continuation_focus.json) owns the exact subset, tests and pending gates. This does not qualify the pristine application or the complete assertion language.

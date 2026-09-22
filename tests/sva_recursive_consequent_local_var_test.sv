@@ -16,6 +16,7 @@ module sva_recursive_consequent_local_var_test;
     ; else failures++;
 
   initial begin
+    state = Reset; // The positive case captures a known previous state.
     rst = 1;
     @(negedge clk);
     rst = 0;
