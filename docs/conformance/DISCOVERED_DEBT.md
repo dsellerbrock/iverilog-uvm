@@ -3192,3 +3192,33 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Evidence: `evidence/review-20260920/spi-external-cfg-constraint-next/build3/target-red/receiver_once-2023.compile.log` and `fixtures.json`; paired 2017 observation agrees. Sources are in `target-fixtures/receiver_once.sv` and `receiver_once_control.sv` under that evidence root.
 - Alternative lifetime acceptance probe `coordinator/target_index_once.sv` parses an indexed receiver with an observable index-function call count and reaches the selected unsupported target-function diagnostic.
 - Possible standard scope: IEEE 1800-2017/2023 18.7 inline constraints and method-call grammar. Status: reproduced, parser root cause and complete grammar disposition unassessed; record only, no parser change authorized.
+- Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD.
+- Observation: IEEE 1800-2017/2023 18.3 makes X/Z values in constraints illegal. Inline caller-state value slots (`vvp/vthread.cc` `%randomize/with` pop loops near lines 6028 and 6181) keep only BIT4_1 bits, so `lanes == x` with `x = 'x` succeeds with `lanes == 0`. The class-state `r:` read (`vvp/vvp_z3.cc` `parse_state_path`) drops X/Z the same way. Class function captures, guards, container elements and associative reads already reject X/Z.
+- Evidence: 2017 private reducer with `logic [2:0] x = 'x` in the caller prints `x-slot ret=1 lanes=0`; installed build of main `1af223c8`.
+- Triage: reproduced; a cross-path 18.3 blocker candidate. Rejection must stay guard-aware (inactive implication/if branches), like the existing `qbad:` path.
+
+### 2026-09-22 method call and property read through a null handle execute silently
+
+- Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD.
+- Observation: `r = c.get_size();` with `c == null` runs the body and returns a value built from zero-valued properties (prints 2). An inline constraint reading `cfg.mode` through a null caller handle succeeds with 0. IEEE 1800-2017/2023 8.4 makes accessing nonstatic members through null illegal. The class-constraint capture path guards this explicitly; ordinary expressions and inline caller slots do not.
+- Evidence: private reducers `nullcall.sv` and `null_slot.sv` (commands in the active session log).
+- Triage: reproduced; general runtime/elaboration 8.4 candidate. The inline caller-method subset excludes null receivers until this is fixed.
+
+### 2026-09-22 OpenTitan matrix runner mis-parses edalize v0.4.0 TOPLEVEL
+
+- Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (application reproduction).
+- Observation: pinned M6 `python-requirements.txt` edalize v0.4.0 writes `TOPLEVEL := tb` and uses `-s$(TOPLEVEL)` in its recipe. `scripts/opentitan_matrix.py::parse_makefile` passes TOPLEVEL tokens through verbatim, so the compile command gets a bare `tb` source argument ("tb: No such file or directory"). The historical Mac environment evidently used an edalize emitting `-s` inside TOPLEVEL.
+- Triage: harness defect, not compiler semantics. The manual equivalent compile (`-s tb`, run from `sim-icarus/`) is used meanwhile. Fix in the runner with a recorded ticket.
+
+### 2026-09-22 dropped DPI export `sorry` still exits successfully
+
+- Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (negative-gate differential).
+- Observation: `tests/negative/m10_dpi_export_class_handle_argument.sv` and `m10_dpi_export_open_array_argument.sv` print `sorry: ... The export is dropped; calls from C will not link.`, then write stubs to `<output>.dpiexport.c` and exit 0. The negative suite passes in CI only because a non-root user cannot create `/dev/null.dpiexport.c`, which fails the run. As root, both tests report "accepted or no diagnostic". This is identical on a baseline `ivl` built from `1af223c8` `elaborate.cc`, so it is independent of the active patch.
+- Triage: reproduced. A dropped export is a semantic loss, so the compile should fail. The negative suite's pass is currently environment-dependent.
+
+### 2026-09-22 vvp extended arguments rejected on glibc (compatibility regression)
+
+- Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (JSON-gate differential).
+- Observation: `vvp/main.cc` uses `getopt(argc, argv, "d:hil:M:m:nNqsvV")` without a leading `+`, deliberately allowing permutation (commit `b6cb9eea`). glibc then parses Icarus extended arguments that follow the input file, such as `vvp x.vvp -vcd -dumpfile=foo`, as vvp options: `vvp: invalid option -- 'c'`. JSON tests `br_gh710a`, `br_gh710b`, `br_gh710c`, `dumpfile` and `sdf_header` fail on Linux. macOS getopt does not permute, so the Mac JSON gate passed. The vvp binary is unchanged by the active patch.
+- Evidence: `python3 ./vvp_reg.py` on this Linux container (cloud session log for this checkpoint); the tests fail identically when rerun alone.
+- Triage: reproduced upstream-compatibility regression, Linux only. A fix must keep plusarg/option interleaving for dvsim while stopping option parsing at the input file for extended arguments. Selected as VVP-EXTENDED-ARGS-GLIBC-PERMUTE (see BLOCKERS).

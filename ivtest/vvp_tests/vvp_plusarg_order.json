@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "vvp_plusarg_order.v",
+    "vvp-args" : [ "+pre", "-n" ],
+    "vvp-args-extended" : [ "-none", "+post=7" ]
+}

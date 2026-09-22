@@ -3440,7 +3440,7 @@ IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector ch
 
 ### CI-WIN-UVM-REGEX-NOOUTPUT — strict-regex test crashes under MSYS2 TRE regex
 
-- **Status:** FOCUSED_TESTED locally; Windows CI confirmation pending.
+- **Status:** DONE. Merged in PR321 (`3ccd5d73`) after all six CI jobs passed; MINGW64/UCRT64/CLANG64 report `uvm_regex_strict_exec_test PASS` and UVM 358/358.
 - **Observation:** Every MSYS2 job since merged PR317 fails `uvm_regex_strict_exec_test` with no captured output; Linux and macOS pass.
 - **Root cause:** Vendored `uvm_re_comp` calls `regfree` on a `regex_t` whose `regcomp` failed. POSIX leaves that undefined; TRE (libsystre) segfaults on the test's first invalid pattern. TRE also rejects legal 2048-character patterns with REG_ESPACE when submatch tracking is on.
 - **Fix:** The fork-owned wrapper skips `regfree` for exactly the buffer that failed to compile. It adds `REG_NOSUB`, which leaves every match result unchanged because the vendored `regexec` passes `nmatch=0`. The UVM runner now reports the vvp exit status for no-output failures. Pinned UVM sources are unchanged.
@@ -3459,3 +3459,18 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Status:** PATCHED and FOCUSED_TESTED; staged random-variable arguments and required broad gates remain open.
 - **Requirement:** IEEE 1800-2017 §18.5.12 / 2023 §18.5.11 function calls in inline randomize constraints, with §18.7 call semantics.
 - **Evidence:** [Revision-scoped focused record](session_logs/2026-09-23_inline_state_function_focus.json). The bounded state-only caller/target/self path preserves post-`pre_randomize` state, four-state rejection, virtual dispatch, and retained target identity. The record lists remaining argument and width limits; no complete clause or SPI DV qualification is claimed.
+- **Status:** REGRESSION_TESTED locally; publication and CI pending.
+- **Requirement:** IEEE 1800-2017 18.5.12/18.7 and 1800-2023 18.5.11/18.7. Inline names resolve target-first, then in the caller. A function in a constraint is called before solving, and its result is a state value.
+- **Reproducer:** pristine Earlgrey-PROD-M6 `spi_device_cmd_rsp_seq.sv:117` (`num_lanes == cfg.get_sio_size()`) and `evidence/inline-caller-method/caller_method.sv`. Both editions reported "could not be translated".
+- **Root cause:** Object-method state capture existed only for declared class constraints (`constraint_ir_state_calls_ctx_`). Inline caller-scope method calls had no lowering.
+- **Fix:** When target lookup declines an unindexed, argument-free dotted call, capture the whole call as an existing caller value slot, elaborated in the caller.
+- **Boundaries:** Target-member receivers, indexed receivers and calls with arguments keep the loud diagnostic (the target-collision CE test is permanent). Null receivers are excluded pending the recorded 8.4 and scalar X/Z debts.
+- **Evidence:** [Revision-scoped record](session_logs/2026-09-22_inline_caller_object_method.json). The pristine SPI Host compile drops from 4 to 3 errors; no DV claim.
+
+### VVP-EXTENDED-ARGS-GLIBC-PERMUTE — vvp extended arguments parsed as options on glibc
+
+- **Status:** REGRESSION_TESTED locally; publication and CI pending.
+- **Authority:** `Documentation/usage/vvp_flags.rst` (Extended Arguments) and `vvp.man`: options precede the design file; everything after it is an extended argument.
+- **Root cause:** `vvp/main.cc` dropped upstream's leading `+` from the getopt string, so glibc permutation parsed post-file arguments such as `-vcd`/`-none` as vvp options. JSON tests `br_gh710a/b/c`, `dumpfile` and `sdf_header` failed on Linux; macOS getopt hides this.
+- **Fix:** Parse options in order and set aside `+plusargs` that precede the options (dvsim ordering) until the input file. The simulation then sees the file, all plusargs in command-line order, then the extended arguments.
+- **Evidence:** [Revision-scoped record](session_logs/2026-09-22_vvp_extended_args.json); new permanent JSON test `vvp_plusarg_order`.

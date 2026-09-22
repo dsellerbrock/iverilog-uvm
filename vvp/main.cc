@@ -23,6 +23,7 @@ const char COPYRIGHT[] =
 # include  "compile.h"
 # include  <cstdio>
 # include  <cstdlib>
+# include  <vector>
 
 #if defined(HAVE_GETOPT_H)
 # include  <getopt.h>
@@ -57,6 +58,25 @@ const char*module_tab[64];
 static unsigned dpi_lib_cnt = 0;
 static const char*dpi_lib_tab[64];
 
+/* Options precede the input file and everything after it is an extended
+ * argument (Documentation/usage/vvp_flags.rst), so parse in order ("+"
+ * disables GNU permutation, which would consume e.g. `-vcd').  Test
+ * runners such as dvsim may place +plusargs ahead of the options; set
+ * those aside and keep parsing up to the input file. */
+static int next_option(int argc, char*argv[], vector<char*>&plusargs)
+{
+      for (;;) {
+	    int opt = getopt(argc, argv, "+d:hil:M:m:nNqsvV");
+	    if (opt != EOF) return opt;
+	    if (optind < argc && argv[optind][0] == '+') {
+		  plusargs.push_back(argv[optind]);
+		  optind += 1;
+		  continue;
+	    }
+	    return EOF;
+      }
+}
+
 #if !defined(__MINGW32__)
 static void sigusr1_dump(int)
 {
@@ -89,12 +109,8 @@ int main(int argc, char*argv[])
       }
 #endif
 
-      // No leading "+" in the optstring — let getopt permute argv so
-      // options (`-n`, `-M`) can be intermixed with the input file and
-      // `+plusargs`. dvsim places test plusargs ahead of our run_opts,
-      // so without permutation getopt stops at the first `+arg` and
-      // mistakes the plusarg for an input filename.
-      while ((opt = getopt(argc, argv, "d:hil:M:m:nNqsvV")) != EOF) switch (opt) {
+      vector<char*> leading_plusargs;
+      while ((opt = next_option(argc, argv, leading_plusargs)) != EOF) switch (opt) {
          case 'h':
            fprintf(stderr,
                    "Usage: vvp [options] input-file [+plusargs...]\n"
@@ -184,29 +200,16 @@ int main(int argc, char*argv[])
 	    return -1;
       }
 
-      // The first non-option argument that does NOT start with `+` is the
-      // input file; everything else (both before and after) is a plusarg.
-      // dvsim and other test runners often pass `+plusargs` interleaved
-      // with the input file path, so we can't rely on the conventional
-      // ordering of [options] [file] [+plusargs].
-      int input_idx = -1;
-      for (int i = optind; i < argc; ++i) {
-	    if (argv[i][0] != '+') { input_idx = i; break; }
-      }
-      if (input_idx < 0) {
-	    fprintf(stderr, "%s: no input file.\n", argv[0]);
-	    return -1;
-      }
-      // Reorder: move the input file to argv[optind] so vvp_init/vvp_run
-      // see the same layout they used to. Plusargs are passed via argv as
-      // a contiguous list (excluding the input file itself).
-      if (input_idx != optind) {
-	    char* in_arg = argv[input_idx];
-	    for (int i = input_idx; i > optind; --i) argv[i] = argv[i-1];
-	    argv[optind] = in_arg;
-      }
+      // The simulation sees the input file first, then every plusarg in
+      // command-line order, then the remaining extended arguments.
+      static vector<char*> sim_argv;
+      sim_argv.push_back(argv[optind]);
+      sim_argv.insert(sim_argv.end(), leading_plusargs.begin(),
+		      leading_plusargs.end());
+      sim_argv.insert(sim_argv.end(), argv + optind + 1, argv + argc);
+      sim_argv.push_back(nullptr);
 
-      vvp_init(logfile_name, argc - optind, argv + optind);
+      vvp_init(logfile_name, sim_argv.size() - 1, sim_argv.data());
 
       for (unsigned idx = 0 ;  idx < module_cnt ;  idx += 1)
 	    vpip_load_module(module_tab[idx]);
@@ -214,5 +217,5 @@ int main(int argc, char*argv[])
       for (unsigned idx = 0 ;  idx < dpi_lib_cnt ;  idx += 1)
 	    vvp_dpi_load_lib(dpi_lib_tab[idx]);
 
-      return vvp_run(argv[optind]);
+      return vvp_run(sim_argv[0]);
 }
