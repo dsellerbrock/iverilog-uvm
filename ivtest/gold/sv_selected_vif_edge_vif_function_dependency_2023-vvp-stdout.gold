@@ -1,0 +1,2 @@
+PASS VIF function dependency
+ivltests/sv_selected_vif_edge_vif_function_dependency_2023.v:47: $finish called at 7 (1s)

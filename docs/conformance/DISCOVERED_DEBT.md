@@ -3166,3 +3166,14 @@ IEEE1800-2017/2023 §8.4 declares null access to non-static members illegal, its
 ### 2026-09-21 SPI selected-event synthesis crash localized
 
 On the current SPI event-list candidate, the earlier compound class-property diagnostic is gone, but pristine M6 compilation still exits139 after the two queue element-equivalence diagnostics. LLDB identifies `NetPins::pin` called by `NetPartSelect`, `NetESelect::synthesize`, and `PEventStatement::elaborate_st` in class-task elaboration. This identifies the failing compiler path, not yet the exact source event or the causal role of earlier diagnostics. Private trace: `evidence/review-20260920/spi-event-list-next/crash-assessment/lldb-backtrace.log`. The compound event itself passes standalone; a selected VIF event is under bounded assessment. No crash fix or application success is claimed.
+
+### 2026-09-21 SPI output queue state-type mismatch
+
+Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is removed, pristine stable M6 SPI Host calls at spi_host_driver.sv:156/256 copy back an `output bit [7:0]` queue into `rsp.data`, a `logic [7:0]` queue. IEEE 1800-2017/2023 6.22.2 and 7.6 require equivalent array element types, including state representation. Private equivalent/mismatched controls confirm the distinction in 2017/2023 modes. Evidence: `evidence/review-20260920/spi-queue-type-next/ASSESSMENT.md`, including `results/2017-confirmation.json`. Classification: application-language incompatibility, not standards-required compiler acceptance. No application edits or type-rule relaxation selected; any documented commercial compatibility extension would require separately specified conversion semantics and evidence.
+
+### 2026-09-21 continuous until consequent misses a late failure
+
+- Active blocker: OT-SPI-SELECTED-VIF-EDGE (frozen during qualification).
+- Observation: The official OpenTitan checker backport uses `$rose(dead_count == 138) |=> timeout until !rst_lc_ni`. With timeout true on the first consequent sample and false later, installed NFA mode reports no assertion failure; a negative reducer requires one. Both 2017 and 2023 reproduce; legacy mode does not provide an alternate passing implementation.
+- Evidence: `evidence/review-20260920/pwrmgr-seed3-revalidation/ASSESSMENT.md`, `upstream_counter_repro.sv`, corrected `focused-results/dropped_timeout-*-nfa1.run.log`. Initial parameter-override harness mistake is preserved separately and not counted.
+- Status: Reproduced; bounded root-cause assessment of forbidden-until NFA lowering underway. Parser precedence checked. No implementation change or qualification claim yet; do not weaken the upstream check or treat smoke success as proof of continuation semantics.

@@ -1,0 +1,2 @@
+PASS dynamic index
+ivltests/sv_selected_vif_edge_dynamic_index_2017.v:27: $finish called at 5 (1s)

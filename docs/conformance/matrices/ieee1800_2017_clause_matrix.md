@@ -1643,3 +1643,7 @@ IEEE 1800-2017 §9.4.2 remains PARTIAL overall. Integral event expressions using
 ### September 21 compound class-property event lists
 
 §9.4.2 remains PARTIAL. [Focused evidence](../session_logs/2026-09-21_spi_class_event_list_focus.json) covers atomic arming and value-change delivery for pure integral ANYEDGE lists containing class-property reads, including nested receivers and mixed ordinary operands. This extends the earlier separate-list boundary only for the recorded subset. Mapped UVM and permanent regression validation pass; broad qualification remains at the batch checkpoint. Other event families and full application DV remain open.
+
+### Selected virtual-interface edge expressions — locally regression-tested
+
+The 9.4.2/25.9 candidate implements selected packed VIF edge expressions through the synchronous observer, including live selector/rebinding dependencies, four-state edges and cancellation. Broader requirements remain PARTIAL; see the [revision-scoped evidence and completed local gates](../session_logs/2026-09-21_selected_vif_edge_focus.json).

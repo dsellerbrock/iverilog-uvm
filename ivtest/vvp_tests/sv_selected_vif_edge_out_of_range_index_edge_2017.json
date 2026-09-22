@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_selected_vif_edge_out_of_range_index_edge_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "out_of_range_index_edge"
+  ],
+  "gold": "sv_selected_vif_edge_out_of_range_index_edge_2017"
+}

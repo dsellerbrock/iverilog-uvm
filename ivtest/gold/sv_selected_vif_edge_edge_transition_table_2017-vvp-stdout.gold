@@ -1,0 +1,2 @@
+PASS complete four-state edge table
+ivltests/sv_selected_vif_edge_edge_transition_table_2017.v:43: $finish called at 32 (1s)

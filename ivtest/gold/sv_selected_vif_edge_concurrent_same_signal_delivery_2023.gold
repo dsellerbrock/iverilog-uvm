@@ -1,0 +1,2 @@
+PASS concurrent same-signal delivery
+./ivltests/sv_selected_vif_edge_concurrent_same_signal_delivery_2023.v:52: $finish called at 8 (1s)

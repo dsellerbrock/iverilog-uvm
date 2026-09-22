@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_selected_vif_edge_class_index_ordinary_vector_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "class_index_ordinary_vector"
+  ],
+  "gold": "sv_selected_vif_edge_class_index_ordinary_vector_2017"
+}

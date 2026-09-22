@@ -19324,6 +19324,21 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
       return !deps.empty();
 }
 
+/* A structural selected net keeps its ordinary NetPartSelect edge probe.
+   Only a selected VIF member needs the expression observer to rebind the
+   member when its handle changes; class-property dependencies likewise have
+   no static NetNet input. */
+static bool selected_edge_requires_observer_(const NetExpr*expr)
+{
+      if (has_class_property_mutation_dep_(expr))
+            return true;
+      if (!dynamic_cast<const NetESelect*>(expr))
+            return false;
+      std::vector<vif_member_path_t> vif_paths;
+      collect_vif_member_paths_(expr, vif_paths);
+      return !vif_paths.empty();
+}
+
 /* A direct property (or one selected packed bit) is completely filtered by
    the mutation key itself. Compound event expressions need the procedural
    value filter built by PEventStatement::elaborate_st below. */
@@ -20711,6 +20726,55 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	                        delete tmp;
 	                        continue;
 	                  }
+            }
+
+            /* An edge expression with a class-selected value cannot use the
+               structural synthesizer: a class property has no NetNet input
+               for NetPartSelect.  The synchronous observer evaluates the
+               complete expression at each VIF/class source occurrence and
+               applies the requested four-state edge table to its scalar
+               result.  Keep the backing probe ANYEDGE because its class
+               handle pins are only an auxiliary source; the observer carries
+               the actual edge qualifier. */
+            if (gn_system_verilog()
+                && (expr_[idx]->type() == PEEvent::POSEDGE
+                    || expr_[idx]->type() == PEEvent::NEGEDGE)
+                && selected_edge_requires_observer_(tmp)) {
+                  const NetESelect*selected = dynamic_cast<const NetESelect*>(tmp);
+                  if (selected && selected->select()
+                      && selected->select()->expr_type() == IVL_VT_REAL) {
+                        cerr << selected->select()->get_fileline() << ": error: "
+                             << "real expression cannot select an event value." << endl;
+                        des->errors += 1;
+                        delete tmp;
+                        continue;
+                  }
+                  if (tmp->expr_type() != IVL_VT_BOOL
+                      && tmp->expr_type() != IVL_VT_LOGIC) {
+                        cerr << tmp->get_fileline() << ": error: edge event "
+                             << "expression must be integral." << endl;
+                        des->errors += 1;
+                        delete tmp;
+                        continue;
+                  }
+                  NexusSet*prop_set = tmp->nex_input(true,
+                        expr_has_user_function_call_(tmp));
+                  if (prop_set && prop_set->size() > 0) {
+                        NetEvProbe*pr = new NetEvProbe(scope,
+                              scope->local_symbol(), ev,
+                              NetEvProbe::ANYEDGE, prop_set->size());
+                        for (unsigned pin = 0; pin < prop_set->size(); ++pin)
+                              connect(prop_set->at(pin).lnk, pr->pin(pin));
+                        pr->set_event_observer_expr(tmp,
+                              expr_[idx]->type() == PEEvent::POSEDGE
+                              ? NetEvProbe::POSEDGE : NetEvProbe::NEGEDGE);
+                        tmp = nullptr;
+                        delete prop_set;
+                        des->add_node(pr);
+                        expr_count += 1;
+                        continue;
+                  }
+                  delete prop_set;
             }
 
             /* Class-property event expressions cannot be synthesized into a

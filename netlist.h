@@ -4540,8 +4540,9 @@ class NetEvProbe  : public NetNode {
       void set_synthesis_expr(const NetExpr*expr);
       NetExpr* synthesis_expr() { return synthesis_expr_; }
       const NetExpr* synthesis_expr() const { return synthesis_expr_; }
-      void set_event_observer_expr(NetExpr*expr);
+      void set_event_observer_expr(NetExpr*expr, edge_t edge = ANYEDGE);
       const NetExpr* event_observer_expr() const { return event_observer_expr_; }
+      edge_t event_observer_edge() const { return event_observer_edge_; }
 
       void find_similar_probes(std::list<NetEvProbe*>&);
 
@@ -4637,6 +4638,7 @@ class NetEvProbe  : public NetNode {
       NetNet*vif_validity_ = 0;
       NetExpr*synthesis_expr_ = 0;
       NetExpr*event_observer_expr_ = 0;
+      edge_t event_observer_edge_ = ANYEDGE;
       bool is_vif_posedge_ = false;
       bool is_vif_negedge_ = false;
       bool is_vif_anyedge_ = false;

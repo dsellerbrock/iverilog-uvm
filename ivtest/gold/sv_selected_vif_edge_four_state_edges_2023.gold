@@ -1,0 +1,2 @@
+PASS four state edges
+./ivltests/sv_selected_vif_edge_four_state_edges_2023.v:28: $finish called at 8 (1s)

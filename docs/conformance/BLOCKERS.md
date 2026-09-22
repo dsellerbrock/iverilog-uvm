@@ -3410,13 +3410,12 @@ Exact interval sampling replaces the large ground-range weighted-soft fallback f
 
 IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector changes because class-mutation lowering omitted the ordinary dependency. Synchronous combined registration fixed arming, but a deferred value filter still lost same-slot pulses. The current patch evaluates the complete expression at occurrence time using the existing VVP evaluator, captures selectors/owners once in their original evaluation order, refreshes precise subscriptions on equal values, and schedules the original process only on a value change. Cancellation, context isolation and Reactive arming have focused regressions. [Current revision-scoped evidence](session_logs/2026-09-21_occurrence_event_focus.json) owns results and remaining gates; [candidate1 evidence](session_logs/2026-09-21_mixed_event_focus.json) preserves the earlier failure. All required local gates pass; publication is pending. The unmodified pwrmgr seed3 assertion remains separately recorded debt; no application workaround is selected.
 
-### OT-PWRMGR-SEED3-ESC-TIMEOUT — diagnosed upstream checker phase assumption
+### OT-PWRMGR-SEED3-ESC-TIMEOUT — valid seed; upstream checker defect confirmed
 
-- **State:** OPEN (application failure; no compiler defect demonstrated).
-- **Evidence:** [Pinned seed-3 signal trace and paired reducer](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json). A deliberately phase-randomized running clock remains low at every assertion sample; level sampling aliases activity.
-- **Boundary:** Seed3 remains FAIL. Keep the release corpus and assertion unchanged; do not force phases or suppress the failure to qualify DV. Any upstream checker correction needs separate review.
-
-The user-requested [separate checker correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) resolves the phase assumption in a private source overlay. It preserves the timeout assertion and passes seed3; pristine-release qualification remains open. The patch updates both template and generated checker and has not been applied to the release corpus.
+- **State:** Minimal checker correction validated in a separate overlay; pristine-release failure remains visible.
+- **Evidence:** [Current revalidation](session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json) records valid randomized clock phases, fresh positive/negative checks and seed replays. [Original signal trace](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json) and [earlier correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) remain historical evidence.
+- **Upstream confirmation:** [OpenTitan PR28474](https://github.com/lowRISC/opentitan/pull/28474) fixes this exact sampled-clock failure. Its subsequent port-connection correction is required when evaluating that backport. No VCS differential or VCS-specific defect is established.
+- **Boundary:** User authorizes necessary downstream repair. Preserve the pristine stable corpus and report checker-overlay runs separately. The minimal activity correction retains the original assertion contract. The stronger official heartbeat/`until` backport passes smoke but exposes a separate continuation negative-test failure requiring investigation before full validation.
 
 ### OT-WHOLE-FUNCTION-CLASS-EVENT — class-method event dependencies
 
@@ -3431,3 +3430,17 @@ The user-requested [separate checker correction](session_logs/2026-09-21_pwrmgr_
 - **Semantics:** IEEE 1800-2017/2023 §9.4.2, pure integral event lists containing class-property reads.
 - **Evidence:** [Scoped implementation and validation](session_logs/2026-09-21_spi_class_event_list_focus.json).
 - **Application boundary:** Pristine M6 SPI Host advances past this event-list diagnostic but still fails compilation; queue type diagnostics and a selected-event synthesis crash remain.
+
+### OT-SPI-SELECTED-VIF-EDGE — selected virtual-interface edge expressions
+
+- **Status:** REGRESSION_TESTED; all required local gates pass; publication/CI pending.
+- **Requirement:** IEEE 1800-2017/2023 9.4.2 and 25.9. Evaluate the complete selected expression with live receiver/index dependencies and the four-state edge table; cancel all registrations on wake/kill.
+- **Root cause:** Structural synthesis received a class-property selector without a signal net. The candidate routes selected edge expressions through the synchronous observer and subscribes to actual VIF signal reads.
+- **Evidence and qualification:** [Revision-scoped record](session_logs/2026-09-21_selected_vif_edge_focus.json). Pristine stable SPI compilation advances to explicit queue/constraint diagnostics; no SPI DV pass.
+
+### CI-WIN-UVM-REGEX-NOOUTPUT — strict-regex test lacks runtime result evidence
+
+- **Status:** ASSESSED; not selected while selected-VIF qualification is active.
+- **Observation:** Merged PR317 Windows jobs fail the strict-regex test with no captured output; both Linux jobs pass. The UVM runner discards VVP exit status, preventing distinction between loader/exception/callback/matcher failures.
+- **Next discriminator:** Preserve and report process status, then replay the isolated Windows test and malformed-regex callback reducer. macOS controls pass and do not establish Windows behavior.
+- **Evidence:** `evidence/review-20260920/pr317-late-ci/evidence.json` and `ASSESSMENT.md`. No regex semantic fix or Windows recovery claimed.

@@ -663,6 +663,12 @@ extern "C" ivl_expr_t ivl_event_observer_expr(ivl_event_t net)
       return net->observer_expr;
 }
 
+extern "C" unsigned ivl_event_observer_edge(ivl_event_t net)
+{
+      assert(net);
+      return net->observer_edge;
+}
+
 extern "C" const char* ivl_expr_bits(ivl_expr_t net)
 {
       assert(net);

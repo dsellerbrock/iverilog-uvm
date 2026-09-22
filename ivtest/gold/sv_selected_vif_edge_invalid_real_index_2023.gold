@@ -1,0 +1,2 @@
+./ivltests/sv_selected_vif_edge_invalid_real_index_2023.v:5: error: real expression cannot select an event value.
+1 error(s) during elaboration.

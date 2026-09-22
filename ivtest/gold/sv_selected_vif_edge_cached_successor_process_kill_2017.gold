@@ -1,0 +1,2 @@
+PASS cached successor process kill
+./ivltests/sv_selected_vif_edge_cached_successor_process_kill_2017.v:62: $finish called at 2 (1s)

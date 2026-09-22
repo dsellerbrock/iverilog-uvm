@@ -354,3 +354,87 @@ spi_local_checkpoint_20260921:
   state: Local validated checkpoint, no fresh broad qualification or SPI DV pass.
   branch_base: Synced6e8bf2268 with identical source tree; active patch preserved.
   next: Complete selected-VIF crash assessment, then select the next standards-grounded compiler blocker.
+
+selected_vif_edge_20260921:
+  predecessor: 50cda4fdf local checkpoint frozen.
+  blocker: OT-SPI-SELECTED-VIF-EDGE
+  state: REPRODUCED; coordinator selected under explicit user crash-fix request.
+  lanes: Terra implementation elaborate.cc; Sol private semantic tests; coordinator shared builds and integration.
+  next: Trace selected-event lowering and implement existing mechanism reuse, then fresh reducer execution.
+
+selected_vif_scope_expansion:
+  cause: Null structural offset from class-property selector; VIF member proxy alone insufficient.
+  owner: Terra retained implementation lane, Sol independent tests.
+  scope: Synchronous expression observer plus selected VIF registration metadata/runtime; full gates before promotion.
+  status: End-to-end implementation authorized; no guard-only or compile-progress fallback accepted.
+
+compiler_resume_after_qwen:
+  evaluation: evidence/qwen-agent-eval-20260921/REPORT.md; partial, stopped at user request.
+  preserved: Compiler patch byte-identical before resuming; credentials removed from evaluation temporary storage.
+  active: OT-SPI-SELECTED-VIF-EDGE; source-ready candidate not yet validated.
+  lanes: Coordinator integration/build; Luna private same-signal regression.
+  next: Build candidate after export and opcode-order corrections, then focused matrix.
+
+selected_vif_build2:
+  build: PASS serial build/install, sources stable.
+  matrix: 6/28 pass; VIF updates abort in permanent-heap functor delete; null-at-arm exits zero. Not qualified.
+  lanes: Terra vvp/vthread.cc relay lifetime; coordinator elaborate.cc null-VIF routing.
+  next: Integrate independent repairs then build3 and rerun matrix.
+
+selected_vif_build4_checkpoint:
+  source: Build4 frozen; serial build/install pass.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  qualification: Focused semantic and lifetime checks pass; required broad gates pending.
+  active_lanes: Luna permanent regression registration; coordinator final tests and integration; Terra runtime repair complete.
+  application: Build3 clean stable SPI compile exits5 diagnostics instead139; build4 fresh compile in session71696.
+  next: Validate permanent and adjacent legacy/JSON, then full applicable gates before publication.
+
+selected_vif_build5_qualification:
+  state: FOCUSED_TESTED; source frozen, no broad qualification yet.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  focused: 38/38 paired checks; permanent plus adjacent legacy153/153 and JSON153/153.
+  live_session: 63927
+  qualification: qualification-build5/run_gate.py integrated,json,nfa,uvm,frontend,makecheck,rootseed serially; stops on first failure.
+  application_session: 4483
+  next: Poll63927 and4483 without restarting; review failures before source changes. Required gates precede PR.
+
+selected_vif_parallel_validation:
+  qualification: Session63927 live, integrated sweep, source frozen.
+  applications: Session8721 fresh pinned pristine pwrmgr seeds1/3 and Caliptra power2round/rej_bounded in applications-build5.
+  spi: Build5 compile complete exit5 explicit queue/constraint errors, no crash.
+  queue_assessment: spi-queue-type-next/ASSESSMENT.md plus2017confirmation; bit/logic element mismatch is not standards-required acceptance.
+  late_ci: PR317 Windows strict-regex test fails with no output; pr317-late-ci evidence; Terra read-only diagnosis.
+
+selected_vif_build5_integrated_failure:
+  terminal_session: 63927
+  result: Integrated exit1; 6294pass,10fail,2NI,3expected; VPI126,negative148,runtime15pass.
+  registration: Five existing test names corrupted by unbounded substring replacement; original manifest rows restored, only intended38added/twoobsolete removed.
+  compiler: Five ordinary selected clock/reset synthesis regressions; Terra owns elaborate.cc eligibility narrowing.
+  applications: Session8721 complete; pristine pwrmgrseed1 passes25matched/drained,seed3knowncheckererror; Caliptrapower2round2048pass,rej_bounded8errors/10cases.
+  next: Build narrowed observer eligibility; run focused synthesis and selected-VIF tests before restarting broad gates.
+
+seed3_upstream_revalidation_20260921:
+  user_priority: Fix valid seed3 and investigate possible VCS quirk; necessary downstream repair authorized.
+  result: Upstream PR28474 confirms exact phase-alias checker defect; no demonstrated VCS-specific behavior.
+  minimal_fix: Existing timestamp activity patch freshly passes60/60 focus plus seed3 and1, with38/25 matched and drained transactions and zero UVM errors/fatals.
+  official_backport: Both91a8481 andb13c9cd applied in private overlay; smoke passes but dropped-timeout until continuation negative fails, assessment pending.
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json
+  corpus: Stable M6 remains pristine; patched replay is explicitly separate application evidence.
+  compiler_checkpoint: Build6 integrated gate terminal0,6309total6304pass2NI3expectedfail;VPI126/126,negative148/148,invariants15/15.
+  live_session: 29234 serial remaining json,nfa,uvm,frontend,makecheck,rootseed. Poll before shared work; no source changes while qualifying.
+
+selected_vif_build6_checkpoint:
+  classification: Progress; fresh pristine application replays, full JSON and NFA gates passed; coordinator source review and exact tool/source hashes recorded.
+  tests: Legacy6304pass0fail2NI3expected;JSON3240pass;NFA58pass;VPI126pass;negative148pass;invariants15pass.
+  live_session: 29234 currently real-DPI UVM, then frontend/makecheck/rootseed; no restarting on poll timeout.
+  completed_sessions: 24750 applications and SPI compile;30335 fetch;49805 integrated gate.
+  application: Fresh pristineSPIcompileexit5withoutcrash;fiveexplicitqueue/constraintdiagnostics. Pristinepwrmgrseed1PASS,seed3knowncheckerFAIL;Caliptrapower2roundPASS,rej_boundedFAIL.
+  source_stable: Build6 source hashes verified unchanged.
+  review: evidence/review-20260920/spi-selected-vif-edge/coordinator-review-build6.json
+  publication: No open PR currently; origin/main6e8bf2268,HEAD50cda4fdf includes unpublished atomic class event-list fix. PR must describe both fixes plus selected-VIF work after required gates.
+  next_assessment: Terra/medium tracing SVA until late-drop gap; no source edits before current qualified checkpoint.
+
+selected_vif_publication_ready:
+  state: Allrequiredlocalgatespassed;29234terminal0.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  next: CommitexplicitreviewedpathsandpublishcoherenteventPR;keepAGENTSuserpatchuntouched.

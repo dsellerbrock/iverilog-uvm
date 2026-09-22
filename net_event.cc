@@ -548,10 +548,11 @@ void NetEvProbe::set_synthesis_expr(const NetExpr*expr)
       synthesis_expr_ = expr ? expr->dup_expr() : 0;
 }
 
-void NetEvProbe::set_event_observer_expr(NetExpr*expr)
+void NetEvProbe::set_event_observer_expr(NetExpr*expr, edge_t edge)
 {
       delete event_observer_expr_;
       event_observer_expr_ = expr;
+      event_observer_edge_ = edge;
 }
 
 void NetEvProbe::set_obj_handle_change()

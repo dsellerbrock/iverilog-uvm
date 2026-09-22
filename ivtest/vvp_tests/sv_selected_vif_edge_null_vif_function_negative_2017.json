@@ -1,0 +1,10 @@
+{
+  "type": "RE",
+  "source": "sv_selected_vif_edge_null_vif_function_negative_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "null_vif_function_negative"
+  ],
+  "gold": "sv_selected_vif_edge_null_vif_function_negative_2017"
+}

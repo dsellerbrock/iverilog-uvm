@@ -1,0 +1,2 @@
+PASS automatic cancel
+ivltests/sv_selected_vif_edge_automatic_cancel_2017.v:25: $finish called at 2 (1s)

@@ -1753,6 +1753,7 @@ void dll_target::event(const NetEvent*net)
       obj->obj_pre_N = UINT_MAX;
       obj->obj_mutation_paths.clear();
       obj->observer_expr = 0;
+      obj->observer_edge = NetEvProbe::ANYEDGE;
       obj->is_array = net->is_event_array();
       obj->array_base = net->array_base_slot();
       obj->array_count = net->array_count();
@@ -1767,6 +1768,7 @@ void dll_target::event(const NetEvent*net)
 			assert(expr_ == 0);
 			observer_expr->expr_scan(this);
 			obj->observer_expr = expr_;
+                        obj->observer_edge = pr->event_observer_edge();
 			expr_ = 0;
 		  }
 		  if (pr->vif_validity()) {

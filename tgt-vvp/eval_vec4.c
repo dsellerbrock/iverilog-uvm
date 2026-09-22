@@ -1047,7 +1047,8 @@ static void draw_property_vec4(ivl_expr_t expr)
 
       if (sig) {
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", sig);
-      } else if (base_expr && ivl_expr_type(base_expr) == IVL_EX_NULL) {
+      } else if (base_expr && ivl_expr_type(base_expr) == IVL_EX_NULL
+                 && !event_expr_recipe_active()) {
 	      /* Compile-progress fallback: null receiver property access
 	         yields all-zero vector value. */
 	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(expr));
@@ -1058,7 +1059,9 @@ static void draw_property_vec4(ivl_expr_t expr)
       } else {
 	    draw_eval_object(base_expr);
       }
-      fprintf(vvp_out, "    %%test_nul/obj;\n");
+      /* Unlike a null comparison, this guard precedes a property read.
+         Diagnose it inside observer recipes, including called functions. */
+      fprintf(vvp_out, "    %%test_nul/obj/prop;\n");
       fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_null);
       if (idx_x_flag >= 0) {
 	    fprintf(vvp_out,

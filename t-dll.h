@@ -334,6 +334,7 @@ struct ivl_event_s {
       unsigned obj_pre_N;
       std::vector<ivl_obj_mutation_path_s> obj_mutation_paths;
       ivl_expr_t observer_expr;
+      unsigned observer_edge;
       // Named-event array support (IEEE 1800-2017 6.20): see
       // ivl_event_is_array() et al. in ivl_target.h.
       bool is_array;

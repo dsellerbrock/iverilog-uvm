@@ -669,6 +669,7 @@ extern bool of_TEST_NUL(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_A(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_CLASS(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_TEST_NUL_OBJ_PROP(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_PROP(vthread_t thr, vvp_code_t code);
 extern bool of_VPI_CALL(vthread_t thr, vvp_code_t code);
 extern bool of_VIF_FATAL(vthread_t thr, vvp_code_t code);
@@ -690,6 +691,8 @@ extern bool of_WAIT_OBJ_MUTATION_FILTERED(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION_FILTERED_MULTI(vthread_t thr,
                                                 vvp_code_t code);
 extern bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_OBJ_EXPR_POSEDGE(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_OBJ_EXPR_NEGEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_SAVE_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_LOAD_VEC4(vthread_t thr, vvp_code_t code);
