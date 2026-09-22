@@ -38,10 +38,10 @@ if ! cmp -s "$work_dir/expected-stdout" "$work_dir/actual-stdout" ||
     exit 1
 fi
 
-for case in valid outside stack; do
+for case in valid outside stack zero zero_vec zero_object; do
     fixture="tests/vvp_runtime/mixed_wait_recipe_$case.vvp"
     expected_rc=1
-    if [ "$case" = valid ]; then expected_rc=0; fi
+    case "$case" in valid|zero) expected_rc=0 ;; esac
     set +e
     "$vvp" "$fixture" > "$work_dir/stdout" 2> "$work_dir/stderr"
     rc=$?
@@ -60,4 +60,4 @@ for case in valid outside stack; do
     done
 done
 
-echo "PASS mixed wait recipe ABI invariants (7/7)"
+echo "PASS mixed wait recipe ABI invariants (10/10)"

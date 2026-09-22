@@ -1,0 +1,1 @@
+ivltests/sv_mixed_event_disable_during_sample_2023.v:7: warning: cannot determine the precise sensitivity for the select of @.<0>; using conservative whole-expression sensitivity.

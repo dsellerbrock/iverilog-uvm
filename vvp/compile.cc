@@ -3051,10 +3051,6 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
 	    }
       }
 
-      if (op->opcode == of_EVENT_EXPR_RETURN && code->number == 0) {
-            yyerror("%event/expr/return path count must be nonzero");
-            compile_errors += 1;
-      }
       if (op->opcode == of_EVENT_EXPR_LOAD_VEC4 && code->bit_idx[0] == 0) {
             yyerror("%event/expr/load/v width must be nonzero");
             compile_errors += 1;

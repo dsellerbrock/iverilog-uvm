@@ -1,0 +1,2 @@
+PASS factory rebind
+ivltests/sv_whole_function_event_factory_rebind_2023.v:18: $finish called at 4 (1s)

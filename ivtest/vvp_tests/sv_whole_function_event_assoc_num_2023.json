@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_whole_function_event_assoc_num_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_whole_function_event_assoc_num"
+  ],
+  "gold": "sv_whole_function_event_assoc_num_2023"
+}

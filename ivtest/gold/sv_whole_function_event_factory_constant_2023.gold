@@ -1,0 +1,2 @@
+PASS whole-function-factory-constant
+./ivltests/sv_whole_function_event_factory_constant_2023.v:26: $finish called at 3 (1s)

@@ -1,0 +1,213 @@
+{
+  "tools_before": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "fcc1cb33f5aca815d65b70e1645c8e4c7e08401d403af4ff45f0ca1ac23d4696",
+    "local-install/lib/ivl/ivl": "8409f0e103662d67e8501073b256bec2a3c8c0bab98b1513d5611a962357b7d9",
+    "local-install/lib/ivl/vvp.tgt": "3d0c962f72d81e145c770c5f35e7bf5581392056fdbd9ccec413ae76b9013604"
+  },
+  "corpora": {
+    "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34": {
+      "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "clean": true
+    },
+    "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl": {
+      "revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+      "clean": true
+    },
+    "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge": {
+      "revision": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+      "clean": true
+    }
+  },
+  "pwrmgr": [
+    {
+      "seed": 1,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/pwrmgr-fresh.vvp",
+        "+ntb_random_seed=1",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "exit": 0,
+      "elapsed": 4.672628879547119,
+      "log_sha256": "c1762a328d933127246825c001cc0c7c8ee1f61b98920afd67e11ab319d02736",
+      "matches_audited_build2_log": false,
+      "semantic_checks": {
+        "a_items": 25,
+        "d_items": 25,
+        "ordered_matches": true,
+        "drained_responses": 25,
+        "UVM_ERROR": 0,
+        "UVM_FATAL": 0,
+        "pass_banner": true,
+        "fail_banner": false,
+        "failure_lines": []
+      },
+      "passed": true
+    },
+    {
+      "seed": 3,
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/pwrmgr-fresh.vvp",
+        "+ntb_random_seed=3",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "exit": 0,
+      "elapsed": 4.2892560958862305,
+      "log_sha256": "82ecf5d26a91fdc7b8c8af69e61bd0ba2c847113fefedb9c022feb2e9b0c7134",
+      "matches_audited_build2_log": false,
+      "semantic_checks": {
+        "a_items": 37,
+        "d_items": 37,
+        "ordered_matches": true,
+        "drained_responses": 37,
+        "UVM_ERROR": 1,
+        "UVM_FATAL": 0,
+        "pass_banner": false,
+        "fail_banner": true,
+        "failure_lines": [
+          "UVM_ERROR @  26220918 ps: (pwrmgr_sec_cm_checker_assert.sv:120) [ASSERT FAILED] EscClkStopEscTimeout_A"
+        ]
+      },
+      "passed": false
+    }
+  ],
+  "compile": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-spwrmgr_bind",
+      "-spwrmgr_cov_bind",
+      "-spwrmgr_unit_only_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/pwrmgr-fresh.vvp",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-candidate1/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/matrix-iverilog.scr"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/opentitan-mixed-wait-implementation/pwrmgr-candidate1/matrix/runtime/lowrisc_dv_pwrmgr_sim_0.1/sim-icarus",
+    "exit": 0
+  },
+  "image_sha256": "2bea33e431bf74a8de8a2d005fca14bea87608df3cebd58c4f4ac32dddf46aec",
+  "image_provenance": "Fresh unmodified release compile on current frozen whole-function build; same pinned source manifest.",
+  "power2round": {
+    "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+    "source_modified": false,
+    "commands": {
+      "compile": {
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-gassertions",
+          "-s",
+          "power2round_tb",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/power2round-runtime/power2round_tb.vvp",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/power2round/config/power2round_tb.vf"
+        ],
+        "exit": 0,
+        "elapsed": 0.041543006896972656
+      },
+      "runtime": {
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/power2round-runtime/power2round_tb.vvp"
+        ],
+        "exit": 0,
+        "elapsed": 0.21000218391418457
+      }
+    },
+    "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "generator_sha256": "33bc1c0faee9897ad5c3e36fd71b7b875d2fe3e5780002c0e66ebdf398f214cf",
+    "pass_marker": true,
+    "failure_marker": false,
+    "passed": true,
+    "vector_files": {
+      "coeff_low.hex": "a2ce6f28d55f172fcb970b129a4950e31a0b811f27faba1e8f6249bb9989c720",
+      "coeff_input.hex": "8a0fb2cb9a169ebd075e6ef4687d675d160f4e3b6d163d55061bdeeaaa4ad953",
+      "coeff_high.hex": "e861c5749fdc61a30b015b99e146155258439ab3004dcad6534cb2a2199365a1"
+    }
+  },
+  "rej_bounded": {
+    "source_release": "Caliptra v2.1.2 / Adams Bridge v2.0.3",
+    "source_modified": false,
+    "commands": {
+      "compile": {
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-gassertions",
+          "-s",
+          "rej_bounded_tb",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/rej_bounded-runtime/rej_bounded_tb.vvp",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge/src/rej_bounded/config/rej_bounded_tb.vf"
+        ],
+        "exit": 0,
+        "elapsed": 0.02396678924560547
+      },
+      "runtime": {
+        "argv": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/whole-function-event-next/qualification/final/rej_bounded-runtime/rej_bounded_tb.vvp",
+          "+VEC_CNT=10"
+        ],
+        "exit": 0,
+        "elapsed": 0.0900871753692627
+      }
+    },
+    "python": "/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "generator_sha256": "f64511a39e29e4d21db02d35e7a8ee9ed66a832d77f8cce88cc25c3dbc5a1c8a",
+    "pass_marker": false,
+    "failure_marker": true,
+    "passed": false,
+    "vector_files": {}
+  },
+  "tools_after": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "fcc1cb33f5aca815d65b70e1645c8e4c7e08401d403af4ff45f0ca1ac23d4696",
+    "local-install/lib/ivl/ivl": "8409f0e103662d67e8501073b256bec2a3c8c0bab98b1513d5611a962357b7d9",
+    "local-install/lib/ivl/vvp.tgt": "3d0c962f72d81e145c770c5f35e7bf5581392056fdbd9ccec413ae76b9013604"
+  },
+  "stable": true,
+  "classification": "FRESH_PINNED_UNMODIFIED_APPLICATION_REPLAY_NOT_FULL_DV_QUALIFICATION",
+  "compiler_head": "6a2b8b0cb4ed3292e68376fac1abf886ef0a60ae",
+  "compiler_patch_provenance": "docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json (build4 uncommitted patch)",
+  "evidence_directory": "evidence/review-20260920/whole-function-event-next/qualification/final",
+  "limits": [
+    "OpenTitan pwrmgr seed3 fails the upstream checker; checker-overlay passing evidence is separate.",
+    "Caliptra rejection sampling exits0 but reports8 errors across10 cases; classified FAIL.",
+    "Power2round covers2048 cases, not the complete Caliptra DV suite."
+  ]
+}

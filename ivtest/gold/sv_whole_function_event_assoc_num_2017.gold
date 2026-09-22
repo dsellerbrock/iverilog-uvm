@@ -1,0 +1,2 @@
+PASS whole-function-assoc-num
+./ivltests/sv_whole_function_event_assoc_num_2017.v:15: $finish called at 1 (1s)

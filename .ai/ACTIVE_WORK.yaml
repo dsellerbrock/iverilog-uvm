@@ -1,29 +1,111 @@
-id: OT-PWRMGR-SEED3-CHECKER-ACTIVITY
-status: FOCUSED_AND_PATCHED_DV_TESTED
-authority: User explicitly said Still fix seed3 after diagnosis. Prepare and validate a separate upstream checker
-  patch; keep pristine corpus unchanged.
-baseline: 7c30c69c412817872c911103648c9aef12ecc78e
-reproducer: Stable unmodified Earlgrey-PROD-M6 pwrmgr_smoke_vseq seed3; evidence/review-20260920/opentitan-observer-qualification/pwrmgr-seed3.log
-expected: Determine whether 138 consecutive sampled antecedent cycles occurred and whether the non-overlapped
-  consequent is false; distinguish compiler defect, application scheduling, and RTL/stimulus.
-hypothesis: Level sampling aliases deliberately randomized clock phase. A timestamp of the most recent rising
-  edge records activity independently of sampled clock level.
+id: OT-WHOLE-FUNCTION-CLASS-EVENT
+status: REGRESSION_TESTED_DOCUMENTED_PUBLICATION_PENDING
+baseline: 175dcb65d76ffdbae78e64ba45beee95217e8773
+authority: Coordinator selection under user-authorized continuous compiler campaign, after closure/preservation
+  of separate seed3checker task.
+objective: Correct integral event expressions involving class-method calls, preserving value-change, ordinary
+  dependencies, lifetime and synchronous arming.
+reproducer: evidence/review-20260920/whole-function-event-next/method_selector.sv
+expected: Event expression is evaluated with class receiver semantics; changes to relevant observed value wake
+  once, equal values remain waiting. No object-to-vector abort.
+root_hypothesis: Missing NetEUFunc receiver metadata routes object inputs to structural vectorufunc. Receiver-only
+  subscriptions also miss nested function member reads.
+clauses:
+- IEEE1800-2017/2023 9.4.2
 allowed_files:
-- Private evidence/review-20260920/pwrmgr-seed3-checker-fix/
-- Owning documentation and resumption records
-forbidden: No pristine application edits, forced clock phases, disabled assertions, changed timeout bounds,
-  or compiler semantics changes. Patched DV must be labeled patched.
+- elaborate.cc
+- Private evidence/review-20260920/whole-function-event-next/
+- Owning tests/registrations/documentation after coordinator review
+- vvp/vthread.cc
+- vvp/vthread.h
+- vvp/vvp_cobject.cc
+- vvp/vvp_cobject.h
+- tgt-vvp/vvp_process.c
+- net_event.cc
+- tests/vvp_runtime/mixed_wait_recipe_stack.stderr
+- t-dll.cc
+- t-dll-expr.cc
+- vvp/compile.cc
+- tests/vvp_runtime/mixed_wait_malformed.vvp
+- tests/vvp_runtime/mixed_wait_malformed.stderr
+forbidden: No application edits, fork/helper observer, new expression interpreter, discarded side effects,
+  fabricated values or weak tests. Broader scope requires coordinator root-cause review.
 lanes:
-  review:
+  implementation:
     owner: vif_proxy_implementation Sol/medium
-    scope: Review phase-independent clock activity check and acceptance boundaries
-  graph:
+    files:
+    - elaborate.cc
+    - vvp/vthread.cc
+    - vvp/vthread.h
+    - vvp/vvp_cobject.cc
+    - vvp/vvp_cobject.h
+    - private implementation/
+  tests:
     owner: canonical_graph_refresh Terra/medium
-    scope: Canonical graph refresh after PR315; no checker/build ownership
-coordinator: Prepare minimal isolated upstream patch, compile overlay and run positive/negative/boundary checks
-  and real UVM smoke.
-preservation: PR315 frozen; external AGENTS patch and unrelated artifacts untouched.
-conclusion: Separate upstream checker timestamp patch passes60 focusedchecks and seed1/seed3smoke; pristine
-  release untouched, no compilerfix.
-evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json
-pending: Traffic audit passed; patch ready for review. No patch applied to pristine source.
+    files:
+    - private tests/
+coordinator: Shared builds/install/tests, standards interpretation, source scope, integration/manifests/docs
+  and final review. Own tgt-vvp/vvp_process.c wildcard descriptor emission; no concurrent edits with implementation
+  lane.
+preservation: External AGENTS87-line patch and unrelated artifacts untouched. No newworktree. Previous sourcequalifiedPR315
+  is frozen baseline.
+architecture: Reuse synchronous expressionobserver; capture actual classmember reads during existing evaluator
+  execution, retain/merge dynamic subscriptions, restore capture context for nested evaluation. No new interpreter.
+validation_pending:
+- Build4 is frozen; focused paired-edition, permanent legacy/JSON, adjacent and runtime ABI checks passed.
+- Integrated legacy/VPI/negative/runtime gate passed; full JSON3186 tests passed with0 failures.
+- NFA, real-DPI UVM, frontend, makecheck and rootseed are running serially under session31844.
+- Pristine application replays completed; seed3 checker and rejection-sampling failures remain open.
+- Virtual-interface method reads remain explicitly unsupported; no qualification claim for them.
+scope_expansion:
+  evidence: evidence/review-20260920/whole-function-event-next/focus1/results.json
+  invariant: Event expression export may precede callee scope export; target references require initialized scope records.
+  correction: Reuse idempotent target scope creation for referenced callees and parent scopes; coordinator owns t-dll files.
+  runtime: Agent may extend existing object mutation subscriptions and callframe error cleanup; report exact files before edits.
+remaining_boundaries:
+- Virtual-interface member reads inside observer functions remain explicitly unsupported.
+- Compound event lists and broader result types remain outside this fix; no closure claimed.
+- Historical factory/zero-static-path failures were corrected and covered by build4 regressions.
+factory_scope_authorization:
+  root_cause: Class-valued factory receiver has no static root; observer selection incorrectly requires a statically addressable class root.
+  design: Retain null-root dependency marker and execute existing recipe with zero static descriptors; dynamically captured property reads supply mutation subscriptions. Never invent a source root.
+  lane: Sol owns elaborate.cc and vvp/vthread.cc; coordinator owns target emission and vvp/compile.cc ABI guard; Terra owns private tests only.
+  acceptance: Paired factory, no-input source, receiver rebind, one-evaluation and existing focus. Positive zero-path bytecode plus malformed stack and missing operand rejection.
+zero_pin_followup:
+  evidence: focus3 factory_no_inputs compiler pin(0) out of bounds(0).
+  root: NetEvProbe::find_similar_probes assumes a static pin and compares only nexus links; dynamically captured observers require distinct recipe identity.
+  coordinator: net_event.cc guards zero-pin and observer probes against structural coalescing.
+current_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json
+  installed: build4 source frozen; no later compiler edits.
+  tests_lane: Terra registers permanent ivtest cases and focused/main manifests; no shared harness execution.
+  next: Complete remaining broad gates and pristine application replay; compiler source remains frozen.
+permanent_test_ownership:
+  Terra: ivtest/ivltests and gold/vvp_tests for sv_whole_function_event_*, focused lists and regress-sv.list/regress-vvp.list only.
+  coordinator: tests/vvp_runtime/mixed_wait_recipe_zero*.vvp and split gold; run_mixed_wait_malformed.sh extends existing ABI checks.
+qualification_live:
+  integrated_session: 96267
+  integrated_result: PASS
+  json_session: 90403
+  json_result: PASS3186 tests,0 failures
+  remaining_gate_session: 31844
+  command: python3 evidence/review-20260920/whole-function-event-next/qualification/final/run_gate.py integrated
+  source: Build4 frozen; all seven compiler source hashes rechecked equal after permanent registration.
+  focused: Permanent legacy46/46, JSON46/46, adjacent52/52, ABI10/10. Two VIF negative diagnostics are unsupported boundaries, not implementation gains.
+  next: Integrated session96267 completed PASS (6250/6255,0 failures,2 NI,3 expected; VPI126,negative148,runtime15 pass). JSON completed PASS3186/0 failures. Poll serial session31844 (nfa,uvm,frontend,makecheck,rootseed); do not restart. Pristine application replays completed with known failures retained.
+parallel_ci_repair:
+  authority: Standing user instruction to publish follow-up PRs for later CI failures.
+  defect: PR315 omitted existing ivl_event_observer_expr from Windows export list; all three Windows linkers fail that symbol.
+  scope: ivl.def only, independent branch/commit and PR316; no current worktree source changes.
+  coordinator: Tiny one-line repair handled directly; current compiler qualification stays frozen.
+diagnostic_expectations:
+  scope: ivtest/gold/sv_mixed_event_{conditional_capture,disable_during_sample}_{2017,2023}.gold and corresponding -iverilog-stderr.gold only.
+  reason: Newly traversed function bodies retain existing conservative-sensitivity warnings; exact output update only, all behavioral assertions preserved.
+  evidence: evidence/review-20260920/whole-function-event-next/qualification/sensitivity-warning-assessment.json
+  checked: Affected legacy and JSON focused lists both44/44.
+
+final_local_qualification:
+  session: 31844 completed exit0
+  result: UVM358/358 real DPI,frontend all scenarios,makecheck and rootseed passed; earlier integrated/JSON/NFA all passed.
+  source: Seven compiler source hashes match build4; no new edits after qualification.
+  next: Commit explicit reviewed paths and publish coherent PR, then inspect CI.

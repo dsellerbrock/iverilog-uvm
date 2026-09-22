@@ -13,9 +13,10 @@ source:
   source_patch_sha256: 77051d66fe5870a466750b07dc14048f10055b8d54b5908d9c30a55307dfc1b7
   runtime_sha256: 4a7c289baba4cf14bdea489771a862739a30cb177cc42c98ff0a50cd474b3ec0
   evidence: docs/conformance/session_logs/2026-09-21_occurrence_event_focus.json
-  compiler_edits: Observer-build3 frozen; unpublished superseded opcode removed; no unbuilt compiler edits.
+  compiler_edits: Whole-function build4 installed and source-frozen; focused evidence in docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json. Broad qualification pending.
   gates: All seven local gates passed; exact counts and hashes in source.evidence.
-live_sessions: {}
+live_sessions:
+  whole_function_integrated: 96267
 terminal_sessions:
   integrated_first:
     id: 34824
@@ -150,20 +151,17 @@ applications:
   pwrmgr: 'Observer-build3 stable M6 replay: seed1 normal completion, seed3 EscClkStopEscTimeout_A remains.
     Final traffic audit confirms25 matched/drained A/D and zero UVM errors/fatals for seed1; no full DV claim.'
 next:
-- Preserve separately patched seed3 checker validation; unmodified release remains failing on that checker.
-- Resume SPI Host event-list/whole-function-event assessment from preserved evidence; select root-caused compiler
-  blocker before edits.
+- Root-cause and fix OT-WHOLE-FUNCTION-CLASS-EVENT through existing eventobserver, after recorded scope review.
 agents:
-  canonical_graph_refresh: 'Terra medium: target recipe with in-order frame-local selector/owner captures;
-    exact files ACTIVE_WORK.'
-  vif_proxy_implementation: 'Sol medium: authorized synchronous observer runtime; exact files ACTIVE_WORK.'
+  canonical_graph_refresh: 'Terra medium: permanent ivtest registration complete; idle.'
+  vif_proxy_implementation: 'Sol medium: implementation frozen; idle.'
 graph: Canonicalmain175dcb65d7,51607nodes94609links; atomiccutover validated, oldgeneratedartifactretired.
   Evidence/review-20260920/post-pr315-graph/result.json.
 publication:
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/315
   head: 7c30c69c412817872c911103648c9aef12ecc78e
   state: MERGED_EXTERNALLY
-  ci_status: Six jobs QUEUED; no pass yet.
+  ci_status: Ubuntu22.04/24.04 SUCCESS; three Windows jobs failed missing ivl_event_observer_expr export; macOS IN_PROGRESS at latest check.
   local_validation: All seven required gates passed, source/tool hashes verified.
   merge_authority: User authorizes merge after one CI pass, with required local gates passed. Inspect fresh
     checks; later failures get follow-up PR.
@@ -179,5 +177,110 @@ vcs_quirks:
     failure alone.
   candidate: Caliptra rej_bounded Active-region race is a comparison candidate, not a confirmed VCS dependency;
     see evidence/review-20260920/caliptra-rej-underflow-next/ASSESSMENT.md.
-exact_next_tool: Read checker-fix/traffic-audit.json; update durable evidence, then coordinator next compiler
-  blocker selection.
+exact_next_tool: Poll integrated rerun session96267 using write_stdin; never restart on observation timeout. On success run qualification/final/run_gate.py json, nfa, uvm, frontend, makecheck, rootseed serially, then final/run_final_apps.py (fresh pinned source compile).
+seed3_fix:
+  commit: 6a2b8b0cb
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json
+  result: Separate checker overlay passes seeds 3 and 1, with 60 focused checks. Pristine seed3 still fails.
+  publication: Local commit only; no upstream application PR published.
+whole_function_progress:
+  build1: Serial build/install passed; source and tool hashes preserved.
+  focused: 14/20 original checks passed; static/null target export aborts, queue diagnostic then runtime abort.
+  additional: Receiver expression and no-parentheses paired cases pass; static forward/later 2017 pass.
+  adjacent: 52/52 existing observer checks pass on build1.
+  evidence: evidence/review-20260920/whole-function-event-next/
+  boundary: Not integrated, no broad gates yet; queue and virtual-interface reads remain incomplete.
+whole_function_build2:
+  build: Passed serial build/install with stable source snapshot.
+  focused: 30/34; remaining factory receiver failures and explicit VIF unsupported results excluded from passes.
+  additional: Dynamic-size, associative-num and class-factory constant paired cases pass; free factory no-input cases fail.
+  adjacent: 52/52 existing observer checks pass.
+  clean_error: Null nested method aborts without later side-effect marker or native assertion.
+  next_correction: Zero-static-path observer selection and ABI support; sources not frozen yet.
+latest_checkpoint:
+  evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json
+  source: Build4 supersedes intermediate source and test notes above; no later compiler edits.
+  focused: 44 passing cases; two VIF unsupported probes excluded. Adjacent52 and ABI10 pass.
+  pending: Permanent regression harnesses, broad gates, final review and PR.
+whole_function_permanent:
+  legacy: 46/46
+  json: 46/46
+  classification: 38 normal,2 compile-negative,4 null runtime-negative,2 explicitly unsupported VIF diagnostics.
+  abi: 10/10 permanent checks.
+  source_frozen: Seven compiler source hashes match build4 snapshot.
+  integrated_live: 33194
+ci_followup:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/316
+  branch: agent/ci-event-observer-export-20260921
+  commit: 64efa3bef20e583edce80cf94c93bea9a0ad099b
+  scope: One ivl.def export for existing accessor, matching all three Windows linker failures after PR315.
+  preservation: Independent commit from refreshed origin/main via temporary index; current branch, index, compiler patch and running qualification untouched. No new worktree.
+  evidence: evidence/review-20260920/post-pr315-ci/local-review.json
+  pending: Inspect fresh CI and merge under standing user authorization after a passing check, with failures triaged. Windows link validation is specifically outstanding.
+next_assessment:
+  evidence: evidence/review-20260920/spi-event-list-next/assessment2/ASSESSMENT.md
+  status: Read-only assessment complete; no new compiler work selected before current qualification.
+whole_function_broad_followup:
+  first_integrated_session: 33194
+  first_integrated_exit: 1
+  first_results: 6255 total,6246 pass,4 diagnostic-output mismatches,2 NI,3 expected fail; VPI126,negative148,runtime15 pass.
+  assessment: qualification/sensitivity-warning-assessment.json; existing sensitivity traversal reports conservative class selects. IEEE9.4.2 allows this reevaluation; behavioral checks/output unchanged.
+  correction: Eight exact golden-output files updated to include truthful compiler warnings. No test assertions, source or compiler changes.
+  affected_focus: Legacy44/44 and JSON44/44 pass after correction.
+  rerun_session: 96267
+  rerun_path: evidence/review-20260920/whole-function-event-next/qualification/final/
+  applications_prepared: final/run_final_apps.py fresh-compiles unmodified M6 pwrmgr then replays seeds1/3; fresh Caliptra v2.1.2/ABv2.0.3 power2round and rej_bounded scripts copied. Not run yet.
+
+seed3_current_recheck:
+  evidence: evidence/review-20260920/pwrmgr-seed3-checker-fix/current-build4-recheck/results.json
+  result: Fresh build4 compilation and checker-overlay seeds3/1 PASS with 38/25 matched A/D pairs, drained responses, zero UVM errors/fatals. Pristine corpus remains clean; not pristine qualification.
+  integrated_gate: Session96267 completed PASS; 6250 passes,0 failures,2 NI,3 expected failures; VPI126,negative148,runtime15 pass.
+  pending: Remaining compiler qualification gates and pristine application replay; compiler patch remains frozen.
+
+qualification_resume_checkpoint:
+  previous_turn: Progress; fresh seed3 checker-overlay compilation/replays and integrated gate result verified.
+  source: Build4 unchanged; final coordinator diff review in progress.
+  live_session: 90403
+  command: python3 evidence/review-20260920/whole-function-event-next/qualification/final/run_gate.py json
+  next: Poll existing session90403 without restarting. Then run nfa,uvm,frontend,makecheck,rootseed serially via the same driver and run_final_apps.py.
+  pr316: OPEN; all six CI jobs pending/in progress at latest check, no passing check yet.
+
+whole_function_fresh_applications:
+  evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_applications.json
+  status: Fresh compile/replay completed with stable tool hashes and clean pinned corpora.
+  opentitan: Pristine M6 pwrmgr seed1 PASS25 matched/drained A/D pairs; seed3 FAIL at known EscClkStopEscTimeout_A,37 matched pairs before error.
+  caliptra: Unmodified v2.1.2 with ABv2.0.3 power2round PASS2048 cases; rej_bounded FAIL8 errors across10 cases despite process exit0.
+  qualification_live: JSON session90403 remains running; do not restart.
+  spi_assessment: Private concat reducer passes both editions; stronger suppression/four-state assessment assigned to retained Terra agent, no implementation selected.
+
+qualification_serial_followup:
+  previous_turn: Progress; completed fresh unmodified application evidence and SPI feasibility checks.
+  json_result: PASS3186 tests,0 failures,stable tool hashes; session90403 completed exit0.
+  live_session: 31844
+  command: Serial Python subprocess chain of final/run_gate.py nfa,uvm,frontend,makecheck,rootseed; stops on first failure.
+  next: Poll31844 without restarting; inspect any failed gate before further work.
+  spi_feasibility: Both editions pass equal0/X/Z suppression and0-to-X/X-to-Z value changes; comma syntax remains unfixed.
+
+qualification_nfa_checkpoint:
+  nfa: PASS58/58,0 failures,stable installed hashes.
+  live_session: 31844
+  live_gate: Real-DPI UVM; frontend,makecheck,rootseed follow automatically and stop on failure.
+  next: Poll existing31844; no restart or new compiler edits.
+
+whole_function_final_review:
+  pr_draft: evidence/review-20260920/whole-function-event-next/qualification/final/pr-body-draft.md
+  pending_probe: Retained Sol/medium agent checks whether null receiver methods returning object,real,string,void can run inside an integral observer through currently unguarded CALLF variants.
+  constraint: Private reproducers only; build4 compiler source and running UVM session31844 remain unchanged.
+  next: Inspect Sol evidence before publication. Continue existing qualification session without restarting.
+
+whole_function_null_review_disposition:
+  result: Eight paired-edition probes establish missing diagnostics for illegal null receiver object/real/string/void methods; IEEE8.4 makes results indeterminate and diagnostics optional.
+  disposition: Recorded in DISCOVERED_DEBT; current qualification explicitly limited to tested integral-return/null-property diagnostics. No valid-source regression established, no compiler edits.
+  live_session: 31844
+  next: Continue existing UVM/frontend/makecheck/rootseed chain; publish after required gates pass and final evidence review.
+
+whole_function_ready_to_publish:
+  previous_turn: Progress; final review classified illegal-source diagnostic debt and preserved source hashes.
+  qualification: All required local gates PASS; serial session31844 completed exit0.
+  evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json
+  next: Stage explicit compiler/tests/owning-doc paths, excluding external AGENTS patch and unrelated artifacts; commit,push,publish PR.

@@ -3632,12 +3632,13 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		                   cascade_counter, ev);
 		  fprintf(vvp_out, "    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
-	    } else if (ivl_event_is_obj_mutation(ev)) {
+	    } else if (ivl_event_is_obj_mutation(ev)
+                       || ivl_event_observer_expr(ev)) {
 		  /* Class-property sensitivity can span multiple objects. Load
 		   * every distinct root/owner path and suspend on their combined
 		   * mutation set so a change to ANY operand re-evaluates wait(). */
 		  unsigned path_count = ivl_event_obj_mutation_count(ev);
-		  if (path_count == 0)
+		  if (path_count == 0 && !ivl_event_observer_expr(ev))
 			path_count = 1; /* Compatibility with older target records. */
 		  int has_property_filter = 0;
 		  if (ivl_event_obj_mutation_count(ev)) {
@@ -3651,7 +3652,7 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
                   ivl_expr_t observer = ivl_event_observer_expr(ev);
                   unsigned observer_label = 0;
                   if (observer) {
-                        assert(has_property_filter && !event_expr_captures_);
+                        assert(!event_expr_captures_);
                         observer_label = cascade_counter++;
                         for (unsigned path = 0; path < path_count; ++path) {
                               ivl_expr_t owner = ivl_event_obj_mutation_owner_expr(ev, path);
@@ -3702,7 +3703,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 					    (pre_N != UINT_MAX)
 					    + (obj_N != UINT_MAX));
 			}
-			if (has_property_filter) {
+			/* An observer also encodes wildcard receiver dependencies. */
+			if (has_property_filter || observer) {
 			      unsigned property_N =
 				    ivl_event_obj_mutation_property_N(ev, path);
 			      unsigned property_word =

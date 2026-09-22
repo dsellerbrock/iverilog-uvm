@@ -1,0 +1,2 @@
+PASS whole-function-queue-size
+./ivltests/sv_whole_function_event_queue_size_2023.v:16: $finish called at 1 (1s)

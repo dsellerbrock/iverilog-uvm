@@ -3417,3 +3417,10 @@ IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector ch
 - **Boundary:** Seed3 remains FAIL. Keep the release corpus and assertion unchanged; do not force phases or suppress the failure to qualify DV. Any upstream checker correction needs separate review.
 
 The user-requested [separate checker correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) resolves the phase assumption in a private source overlay. It preserves the timeout assertion and passes seed3; pristine-release qualification remains open. The patch updates both template and generated checker and has not been applied to the release corpus.
+
+### OT-WHOLE-FUNCTION-CLASS-EVENT — class-method event dependencies
+
+- **State:** REGRESSION_TESTED; required local gates pass for the documented integral-expression subset. Publication/CI pending.
+- **Semantics:** IEEE 1800-2017/2023 §9.4.2 integral event expressions and class method receivers.
+- **Evidence:** [Revision-scoped implementation and focused results](session_logs/2026-09-21_whole_function_event_focus.json), including retained baseline failures. Virtual-interface reads inside methods remain explicitly unsupported.
+- **Closure:** Correct value-change behavior, ordinary dependency tracking, receiver lifetime/rebinding, unchanged-value suppression and required regression gates. Reuse the existing expression observer; no source workaround.
