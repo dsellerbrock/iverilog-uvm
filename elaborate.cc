@@ -25047,6 +25047,7 @@ struct stateforeach_emit_ctx_t {
       const PEConstraintForeach*source;
       ivl_type_t element_type;
       unsigned object_slot;
+      bool direct_collection;
 };
 static const stateforeach_emit_ctx_t*stateforeach_emit_ctx_ = nullptr;
 
@@ -30000,6 +30001,22 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                       && !constraint_array_iter_ctx_find_(loop))
                         return "L";
                   if (!id->path().package && !id->has_scoped_type_prefix()
+                      && ctx.direct_collection && path.size() == 1
+                      && path.front().name == fe->array_name()
+                      && path.front().index.size() == 1) {
+                        const index_component_t&ic = path.front().index.front();
+                        unsigned width = ctx.element_type ? ctx.element_type->packed_width() : 0;
+                        if (!width || width > 64 || ic.sel != index_component_t::SEL_BIT
+                            || !ic.msb || ic.lsb) return "";
+                        string index = pexpr_to_constraint_ir(
+                              ic.msb, cls, value_slots, scope, loop_env);
+                        if (index.empty()) return "";
+                        return "(qfield qf:" + to_string(ctx.object_slot) + ":"
+                              + to_string(UINT_MAX) + ":" + to_string(width)
+                              + (ctx.element_type->get_signed() ? ":s" : "")
+                              + " " + index + ")";
+                  }
+                  if (!id->path().package && !id->has_scoped_type_prefix()
                       && path.size() == 3) {
                         auto root = path.begin();
                         auto queue = next(root);
@@ -30044,7 +30061,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                                     + (type->get_signed() ? ":s" : "") + " " + index + ")";
                         }
                   }
-                  if (id->refs_name(loop) && !constraint_array_iter_ctx_find_(loop))
+                  /* A direct caller collection may constrain a target
+                   * queue element with the same runtime iterator. Let that
+                   * target path reach the established delem template below;
+                   * retain the old guard for owner/member templates. */
+                  if (!ctx.direct_collection && id->refs_name(loop)
+                      && !constraint_array_iter_ctx_find_(loop))
                         return "";
             }
 	      /* One scalar PROPERTY of an element of the OBJECT array iterated
@@ -32196,6 +32218,56 @@ string pexpr_to_constraint_ir(const PExpr*expr,
              * Target-member roots and selectors need target-first resolution
              * (18.7.1); leave unsupported shapes on the diagnostic path. */
             if (stateforeach_emit_ctx_) return ""; // nested templates need separate bindings
+            /* A direct caller-owned queue/darray has no owner member path.
+             * Capture its object value once; qforeach's UINT_MAX member is
+             * the existing template's direct-collection spelling. Target
+             * names have already won lookup, so never capture a target
+             * property as caller state. */
+            if (!cfe->has_hierarchical_target() && cfe->prefix_names().empty()
+                && cfe->loop_vars().size() == 1 && !cfe->loop_vars()[0].nil()
+                && cls && value_slots && scope_randomize_object_slots_
+                && constraint_ir_design_ctx_ && scope
+                && !constraint_target_declares_(cls, cfe->array_name())) {
+                  pform_name_t path;
+                  path.push_back(name_component_t(cfe->array_name()));
+                  PEIdent selected(path, UINT_MAX);
+                  selected.set_line(*cfe);
+                  NetScope*caller = const_cast<NetScope*>(scope);
+                  ivl_type_t type = selected.test_type_of_ident(
+                        constraint_ir_design_ctx_, caller);
+                  const netdarray_t*array = dynamic_cast<const netdarray_t*>(type);
+                  ivl_type_t etype = array ? array->element_type() : nullptr;
+                  unsigned width = etype ? etype->packed_width() : 0;
+                  ivl_variable_type_t base = etype ? etype->base_type() : IVL_VT_NO_TYPE;
+                  if (array && etype && etype->packed() && width && width <= 64
+                      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+                          || dynamic_cast<const netenum_t*>(etype))) {
+                        NetExpr*object = elab_and_eval(constraint_ir_design_ctx_, caller,
+                                                        &selected, -1, false);
+                        if (!object) return "";
+                        unsigned slot = scope_randomize_object_slots_->size();
+                        scope_randomize_object_slots_->push_back(object);
+                        stateforeach_emit_ctx_t ctx = {cfe, etype, slot, true};
+                        stateforeach_emit_ctx_ = &ctx;
+                        string body;
+                        bool ok = true;
+                        for (const PExpr*item : cfe->items()) {
+                              if (!item) continue;
+                              string ir = pexpr_to_constraint_ir(
+                                    item, cls, value_slots, scope, loop_env);
+                              if (ir.empty()) { ok = false; break; }
+                              body = body.empty() ? ir : "(and " + body + " " + ir + ")";
+                        }
+                        stateforeach_emit_ctx_ = nullptr;
+                        if (!ok || body.empty()) {
+                              delete scope_randomize_object_slots_->back();
+                              scope_randomize_object_slots_->pop_back();
+                              return "";
+                        }
+                        return "(qforeach " + to_string(slot) + " "
+                              + to_string(UINT_MAX) + " " + body + ")";
+                  }
+            }
 	      /* DD-043: a nil member_name marks the undotted selected-prefix
 	         form (`arr[id][loopvars]', no dotted member) -- it is NOT a
 	         hierarchical/queue target at all, just a plain static array
@@ -32309,7 +32381,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   if (!object) return "";
                   unsigned slot = scope_randomize_object_slots_->size();
                   scope_randomize_object_slots_->push_back(object);
-                  stateforeach_emit_ctx_t ctx = {cfe, array->element_type(), slot};
+                  stateforeach_emit_ctx_t ctx = {cfe, array->element_type(), slot, false};
                   stateforeach_emit_ctx_ = &ctx;
                   string body;
                   bool ok = true;

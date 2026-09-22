@@ -4442,3 +4442,11 @@ sv_until_empty_or_2017 normal,-g2017,-gassertions,-sempty_or ivltests gold=sv_un
 sv_until_empty_or_2023 normal,-g2023,-gassertions,-sempty_or ivltests gold=sv_until_empty_or_2023.gold
 sv_until_unknown_local_snapshot_2017 normal,-g2017,-gassertions,-ssva_recursive_consequent_local_var_test ivltests gold=sv_until_unknown_local_snapshot_2017.gold
 sv_until_unknown_local_snapshot_2023 normal,-g2023,-gassertions,-ssva_recursive_consequent_local_var_test ivltests gold=sv_until_unknown_local_snapshot_2023.gold
+
+# Caller-owned integral queue/dynamic-array inline foreach.
+sv_constraint_caller_queue normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue.gold
+sv_constraint_caller_queue_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue.gold
+sv_constraint_caller_queue_rollback normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue_rollback.gold
+sv_constraint_caller_queue_rollback_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue_rollback.gold
+sv_constraint_caller_queue_boundaries normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue_boundaries.gold
+sv_constraint_caller_queue_boundaries_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue_boundaries.gold

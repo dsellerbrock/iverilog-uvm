@@ -319,3 +319,7 @@ The [shared class-method event subset](matrices/ieee1800_2017_clause_matrix.md#s
 #### 2026-09-21: §9.4.2 compound class-property event lists
 
 The [shared event-list subset](matrices/ieee1800_2017_clause_matrix.md#september-21-compound-class-property-event-lists) has separate 2023 tests. Current validation and limitations are recorded in its shared evidence; no edition difference or full-clause qualification is asserted.
+
+### 2026-09-22 — caller-owned integral collection constraints
+
+The 2023 §18.7 / §18.5.7.1 subset shares implementation with the [2017 scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-22--caller-owned-integral-collection-constraints). Paired 2023 tests have the same observed behavior; [qualification status](session_logs/2026-09-22_caller_queue_foreach_focus.json) remains scoped; required local gates pass.

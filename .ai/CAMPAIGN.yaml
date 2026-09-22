@@ -469,3 +469,21 @@ pr318_published_next_selected:
 # UVM358 exact union349+9, JSON3256 unique evaluated1337+1919, zero failures; NI/EF remain distinct.
 # Frontend/rootseed/makecheck passed. Final seed3/1 upstream overlay38/25 matched traffic; pristine unchanged.
 # Invalidated fixture/relocation runs retained. Publication pending; canonical graph update delegated Terra.
+
+
+caller_foreach_checkpoint:
+  blocker: OT-SPI-INLINE-CALLER-QUEUE-FOREACH
+  branch: agent/spi-caller-foreach-20260921
+  base: b9befcb735cbbbb56feacfbb9fbdbd120b622f55
+  status: All required local gates passed; source frozen at build3; publication pending.
+  evidence: docs/conformance/session_logs/2026-09-22_caller_queue_foreach_focus.json
+  private_root: evidence/review-20260920/spi-caller-foreach-next
+  historical_checkpoints: evidence/review-20260920/spi-caller-foreach-next/campaign-checkpoint-history.txt
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/319
+  parent_pr_state: Open; all six CI jobs pending at last check. Local qualification passed.
+  live_sessions: {}
+  next: Publish focused caller-foreach patch with PR319 dependency; monitor CI.
+  workers: Terra implementation/test handoff complete; Luna invalid fixtures retained but excluded.
+  safeguards: Preserve external AGENTS patch; no new worktrees; never overlap frontend with tests.
+  graph: Shared canonical refreshed at ca29b1237; no feature graph.
+  application: Pristine SPI caller-foreach diagnostic removed; four independent errors remain. No DV qualification.

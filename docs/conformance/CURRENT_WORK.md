@@ -1,6 +1,8 @@
 # Current evidence and work
 
-The [until continuation candidate](session_logs/2026-09-21_until_continuation_focus.json) records the compiler correction and passing required local validation. Publication and CI remain pending; broader assertion and application qualification remains open.
+The [caller-owned queue foreach candidate](session_logs/2026-09-22_caller_queue_foreach_focus.json) records passing required local gates and removal of the corresponding pristine SPI compile error. Publication/CI are pending; independent SPI errors remain.
+
+The [until continuation candidate](session_logs/2026-09-21_until_continuation_focus.json) records the compiler correction and passing required local validation. Published in [PR319](https://github.com/dsellerbrock/iverilog-uvm/pull/319); CI remains pending. Broader assertion and application qualification remains open.
 
 The [selected-VIF edge candidate](session_logs/2026-09-21_selected_vif_edge_focus.json) records the current compiler patch, passing required local gates and stable-release application replays. Merged in [PR318](https://github.com/dsellerbrock/iverilog-uvm/pull/318) as `ca29b1237` after both Ubuntu CI jobs passed; remaining platform checks were still running.
 
