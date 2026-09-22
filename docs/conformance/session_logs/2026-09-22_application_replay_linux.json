@@ -1,0 +1,73 @@
+{
+  "date": "2026-09-22",
+  "host": "Claude Code cloud Linux container",
+  "compiler_head": "f0d2a04b258f2aa413a0a6532f773dd0e6573af6",
+  "tools": {
+    "local-install/bin/iverilog": "7af0eb2d8e2eca5b90611d1e1b450039dcfd1c569e4ad7eb4d46d0540ce93cf9",
+    "local-install/lib/ivl/ivl": "f1aa7b84d8f54705996561e3b5897a943ff05d29b56c23c61514acb48690bf33",
+    "local-install/bin/vvp": "a396c032fa0ff30a7d8254af28466863a72dfa4295c1e36e3c01eb84314e06ed"
+  },
+  "opentitan": {
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "uvm": "Accellera UVM 1.2 via scripts/uvm_release_matrix.py",
+    "env": "Python 3.13 venv from M6 hashed requirements minus chipwhisperer/lxml/libcst/premailer; fusesoc ot-0.5.dev0 78decf1a, edalize v0.4.0 2a70c442 from tag clones",
+    "harness": "scripts/opentitan_matrix.py parse_makefile normalizes edalize v0.4.0 bare TOPLEVEL to -s<top>",
+    "pwrmgr_pristine": {
+      "seed1": {
+        "status": "DEBT (11 known compile warnings)",
+        "UVM_ERROR": 0,
+        "UVM_FATAL": 0,
+        "pass_banner": true,
+        "a_items": 25,
+        "d_items": 25,
+        "objections_drained": true
+      },
+      "seed3": {
+        "status": "RUNTIME_FAIL",
+        "failure": "UVM_ERROR @ 26620918 ps pwrmgr_sec_cm_checker_assert.sv:120 EscClkStopEscTimeout_A"
+      }
+    },
+    "pwrmgr_upstream_checker_overlay": {
+      "commits": [
+        "91a848109090f4b17b9c8598be103497a3136407",
+        "b13c9cd9cc488ccebc7cc5070423a3889e3fb4cf"
+      ],
+      "applied_to": "hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv only (separate git worktree; pinned checkout clean)",
+      "checker_sha256": "727306551f4cc6ca4a94d4813c61aba0f989324231584d9cf985daec0edecee4",
+      "seed3": {
+        "UVM_ERROR": 0,
+        "UVM_FATAL": 0,
+        "pass_banner": true,
+        "a_items": 39,
+        "d_items": 39
+      },
+      "seed1": {
+        "UVM_ERROR": 0,
+        "UVM_FATAL": 0,
+        "pass_banner": true,
+        "a_items": 25,
+        "d_items": 25
+      },
+      "classification": "patched-DV evidence with the official upstream checker fix; not pristine qualification"
+    },
+    "spi_host_compile": "pristine compile exit 3 (queue element-type x2, unpacked-struct solve-before path)"
+  },
+  "caliptra": {
+    "revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e (v2.1.2)",
+    "adams_bridge": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0 (v2.0.3)",
+    "clean": true,
+    "power2round": {
+      "result": "PASS",
+      "vectors": 2048,
+      "generator": "unmodified power2round.py copied to run dir; numpy 2.4.6",
+      "invalidated_first_run": "Without numpy the generator failed, no vectors existed, and the TB still printed TESTCASE PASSED; excluded as zero-traffic"
+    },
+    "rej_bounded": {
+      "result": "FAIL",
+      "errors": 8,
+      "vec_cnt": 10,
+      "note": "matches recorded Active-region race candidate; unresolved"
+    }
+  },
+  "claims": "Application evidence only; no full DV qualification."
+}

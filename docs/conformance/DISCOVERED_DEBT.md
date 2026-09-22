@@ -3217,3 +3217,14 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Observation: `vvp/main.cc` uses `getopt(argc, argv, "d:hil:M:m:nNqsvV")` without a leading `+`, deliberately allowing permutation (commit `b6cb9eea`). glibc then parses Icarus extended arguments that follow the input file, such as `vvp x.vvp -vcd -dumpfile=foo`, as vvp options: `vvp: invalid option -- 'c'`. JSON tests `br_gh710a`, `br_gh710b`, `br_gh710c`, `dumpfile` and `sdf_header` fail on Linux. macOS getopt does not permute, so the Mac JSON gate passed. The vvp binary is unchanged by the active patch.
 - Evidence: `python3 ./vvp_reg.py` on this Linux container (cloud session log for this checkpoint); the tests fail identically when rerun alone.
 - Triage: reproduced upstream-compatibility regression, Linux only. A fix must keep plusarg/option interleaving for dvsim while stopping option parsing at the input file for extended arguments. Selected as VVP-EXTENDED-ARGS-GLIBC-PERMUTE (see BLOCKERS).
+
+### 2026-09-22 Caliptra power2round testbench passes with zero vectors
+
+- Active work: application replay after VVP-EXTENDED-ARGS-GLIBC-PERMUTE.
+- Observation: unmodified Adams Bridge v2.0.3 `power2round_tb.sv` runs `python power2round.py` via `$system`. If the generator fails (for example without numpy), `$fopen` of the vector files fails and the testbench still prints `TESTCASE PASSED`.
+- Triage: application-harness hazard, not a compiler defect. Replays must confirm the generated vector files exist (2048 lines each) before counting a pass; `2026-09-22_application_replay_linux.json` records the invalidated first run.
+
+### 2026-09-22 opentitan_matrix self-test timeout-descendant check fails in container
+
+- Observation: `scripts/opentitan_matrix.py --self-test` asserts "timed-out command left a descendant running" on this Linux container, both before and after the TOPLEVEL normalization change.
+- Triage: environment or harness issue; not yet root-caused.

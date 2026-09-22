@@ -1848,7 +1848,11 @@ def parse_makefile(work_root: Path) -> tuple[Path, list[str]]:
             continue
         source_list = makefile.parent / f"{target}.scr"
         if source_list.is_file():
-            return source_list, shlex.split(assignments.get("TOPLEVEL", ""))
+            # Pinned OpenTitan edalize (v0.4.0) writes `TOPLEVEL := tb' and
+            # adds `-s' in its recipe; newer releases put `-stb' in TOPLEVEL.
+            tops = shlex.split(assignments.get("TOPLEVEL", ""))
+            return source_list, [top if top.startswith("-") else "-s" + top
+                                 for top in tops]
     raise FileNotFoundError(f"no generated Icarus Makefile/source list below {work_root}")
 
 
@@ -2845,6 +2849,14 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "TEST FAILED UVM_CHECKS", OPENTITAN_RUNTIME_FAIL_PATTERNS
     )
     assert NO_TOPLEVEL_RE.search("ERROR: x:y:z:0 : Target 'default' has no toplevel")
+    with tempfile.TemporaryDirectory() as tmp:
+        for toplevel in ("tb", "-stb"):
+            work = Path(tmp) / toplevel.lstrip("-")
+            work.mkdir()
+            (work / "Makefile").write_text(
+                f"TARGET := core\nTOPLEVEL := {toplevel}\n")
+            (work / "core.scr").write_text("")
+            assert parse_makefile(work)[1] == ["-stb"], toplevel
     assert MODULE_DECL_RE.findall("module foo;\nendmodule\n  module bar #(p) (x);\n") == [
         "foo",
         "bar",
