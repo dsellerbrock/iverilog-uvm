@@ -32166,6 +32166,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				      && !stype->members()[member].qualifier.test_randc()))
 				    constraint_order_nonrandom_error_(item);
 			}
+			if (s.compare(0, 2, "e:") == 0 && cls) {
+			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+			      int prop = id && id->path().name.size() == 1
+				    ? cls->property_idx_from_name(
+					  id->path().name.front().name) : -1;
+			      if (prop >= 0) {
+				    property_qualifier_t qual =
+					  cls->get_prop_qual((size_t)prop);
+				    if (!qual.test_rand() && !qual.test_randc())
+					  constraint_order_nonrandom_error_(item);
+			      }
+			}
 			if (s.compare(0, 2, "a:") == 0 && cls) {
 			      const char*p = s.c_str() + 2;
 			      char*end = nullptr;
@@ -32201,8 +32213,91 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  return acc;
 	    };
-	    string bef = vars_to_ir(co->before_items());
-	    string aft = vars_to_ir(co->after_items());
+	      /* A whole fixed unpacked array names each of its integral
+	       * elements, as Slang also accepts (18.5.10 restricts ordered
+	       * variables to integral values). Expand a class-property or
+	       * unpacked-struct-member array to its constant-selected elements,
+	       * which the item lowering above already represents; other whole
+	       * fixed-array shapes are rejected instead of reaching the runtime
+	       * as a scalar. */
+	    bool expand_ok = true;
+	    auto expand_fixed_arrays = [&](const std::list<PExpr*>&items) {
+		  std::list<PExpr*> out;
+		  for (PExpr*item : items) {
+			const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+			const pform_name_t*path = id ? &id->path().name : nullptr;
+			bool plain = cls && id && !id->path().package
+			      && !id->has_scoped_type_prefix()
+			      && (path->size() == 1 || path->size() == 2);
+			for (const name_component_t&component : plain ? *path
+			      : pform_name_t())
+			      if (component.local_scope || !component.index.empty())
+				    plain = false;
+			ivl_type_t type = nullptr;
+			bool random = false;
+			if (plain) {
+			      int prop = cls->property_idx_from_name(path->front().name);
+			      type = prop < 0 ? nullptr : cls->get_prop_type((size_t)prop);
+			      property_qualifier_t qual = prop < 0
+				    ? property_qualifier_t::make_none()
+				    : cls->get_prop_qual((size_t)prop);
+			      random = qual.test_rand() || qual.test_randc();
+			      if (path->size() == 2) {
+				    const netstruct_t*stype =
+					  dynamic_cast<const netstruct_t*>(type);
+				    type = nullptr;
+				    if (stype && !stype->packed())
+					  for (const netstruct_t::member_t&member
+						     : stype->members())
+						if (member.name == path->back().name) {
+						      type = member.net_type;
+						      random = random
+							    && (member.qualifier.test_rand()
+								|| member.qualifier.test_randc());
+						}
+			      }
+			}
+			const netuarray_t*array =
+			      dynamic_cast<const netuarray_t*>(type);
+			if (!array) {
+			      out.push_back(item);
+			      continue;
+			}
+			if (!random) {
+			      constraint_order_nonrandom_error_(item);
+			      expand_ok = false;
+			      continue;
+			}
+			if (array->static_dimensions().size() != 1) {
+			      cerr << item->get_fileline() << ": sorry: 'solve before' "
+				   << "names a whole multidimensional fixed array; name "
+				   << "its elements instead." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      expand_ok = false;
+			      continue;
+			}
+			const netrange_t&range = array->static_dimensions().front();
+			int64_t low = std::min(range.get_msb(), range.get_lsb());
+			for (int64_t idx = low; idx < low + (int64_t)range.width(); ++idx) {
+			      pform_name_t element_path = *path;
+			      index_component_t select;
+			      select.sel = index_component_t::SEL_BIT;
+			      select.msb = new PENumber(new verinum(idx));
+			      select.msb->set_line(*item);
+			      element_path.back().index.push_back(select);
+			      PEIdent*element = new PEIdent(element_path, UINT_MAX);
+			      element->set_line(*item);
+			      out.push_back(element);
+			}
+		  }
+		  return out;
+	    };
+	    std::list<PExpr*> before_items = expand_fixed_arrays(co->before_items());
+	    std::list<PExpr*> after_items = expand_fixed_arrays(co->after_items());
+	    if (!expand_ok) return "";
+	    string bef = vars_to_ir(before_items);
+	    string aft = vars_to_ir(after_items);
 	    if (bef.empty() || aft.empty())
 		  return "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";

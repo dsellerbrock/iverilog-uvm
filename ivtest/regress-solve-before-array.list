@@ -1,0 +1,4 @@
+sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
+sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
+sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
+sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold

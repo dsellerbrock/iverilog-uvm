@@ -1,22 +1,16 @@
-blocker: VVP-EXTENDED-ARGS-GLIBC-PERMUTE
-status: REGRESSION_TESTED
-base: da6dab52 (claude/iverilog-uvm-takeover-n1v3u6)
-predecessors: CI-WIN-UVM-REGEX-NOOUTPUT in PR321 (Ubuntu/UCRT64 CI pass, other jobs pending); OT-SPI-INLINE-CALLER-OBJECT-METHOD local commit da6dab52, REGRESSION_TESTED, unpublished (docs/conformance/session_logs/2026-09-22_inline_caller_object_method.json).
-objective: Restore documented vvp command-line semantics on glibc. Options precede the design file; every argument after it is an extended argument. Keep the fork's support for +plusargs placed before the file (dvsim ordering).
-authorization: Continuous campaign coordinator selection; Verilog/Icarus compatibility preservation (AGENTS mission).
-authority:
-- Documentation/usage/vvp_flags.rst "Extended Arguments" (options before the input file; extended arguments after it) and vvp/vvp.man.in EXTENDED ARGUMENTS.
-reproducer: ivtest JSON br_gh710a, br_gh710b, br_gh710c, dumpfile, sdf_header; `vvp x.vvp -vcd -dumpfile=foo` -> "vvp: invalid option -- 'c'".
-root: vvp/main.cc getopt optstring lacks upstream's leading '+', so glibc permutes and parses post-file extended arguments as vvp options (commit b6cb9eea). macOS getopt does not permute.
-allowed_files:
-- vvp/main.cc option parsing and argv layout
-- ivtest/test registration for a direct plusarg-before-file regression if not already covered
-- owning docs/records
-forbidden:
-- Changing extended-argument semantics, plusarg visibility or option meanings
-- Test gold edits
-acceptance:
-- Five JSON tests pass on Linux; plusargs before and after the file remain visible in order; options interleaved with leading plusargs still apply.
-- Full JSON, legacy ivtest, VPI, UVM regressions pass.
-risk: LOW-MEDIUM (runtime command-line only).
+blocker: SOLVE-BEFORE-FIXED-ARRAY
+status: FOCUSED_TESTED
+base: 4eeb409a (claude/iverilog-uvm-takeover-n1v3u6; PR322 open with OT-SPI-INLINE-CALLER-OBJECT-METHOD and VVP-EXTENDED-ARGS-GLIBC-PERMUTE, both REGRESSION_TESTED)
+objective: A whole fixed unpacked rand array named in solve-before (class property, or unpacked-struct member as in pristine SPI spi_host_upper_range_clkdiv_vseq.sv:14) orders every element. Unsupported whole-array shapes are compile-time errors, not runtime failures of every randomize().
+standards:
+- IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: solve-before variables shall be rand, not randc, integral (2023 also real, array.size). Arrays are interpreted element-wise, like Slang 11 (enforces rand/randc but accepts rand arrays and struct-member arrays); labeled interpretation.
+reproducer: /tmp probes recorded in evidence/solve-before-array/ (plain array compiles then every randomize fails "constraint model width 32 does not match property width"; struct member array -> sorry).
+root: vars_to_ir lowers an unselected array identifier to a scalar p: token (plain) or rejects the struct path; explicit constant-selected elements already work (~50% ordered marginal).
+allowed_files: elaborate.cc solve-before vars_to_ir; permanent tests; owning docs.
+forbidden: Changing ordering semantics for scalars; ignoring or approximating ordering.
+acceptance: Paired editions: plain and struct-member whole arrays give ordered marginals about 1/2 (IEEE Table 18-2 analogue); non-rand/randc arrays keep existing errors; unsupported shapes are loud at compile time; pristine SPI compile loses the diagnostic.
 stop_after_completion: Freeze and return to coordinator selection.
+latest_validation:
+  focused: Paired 2017/2023 whole-array ordering (plain, struct member, [3:1]) about 50% marginals, 0 failures; negatives (non-rand whole/element/struct member, randc, multidimensional) loud; permanent legacy 4/4 and JSON 4/4; baseline ivl fails the positive test.
+  application: Pristine SPI Host compile now 2 errors (IEEE-invalid queue element types; DISCOVERED_DEBT 2026-09-22).
+  pending: Integrated chain (ivtest gate, full JSON, negative, full UVM) was interrupted before reporting; rerun with bash <scratch>/ev5/chain.sh equivalent before REGRESSION_TESTED.

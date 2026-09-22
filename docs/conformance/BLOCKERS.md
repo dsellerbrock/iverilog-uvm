@@ -3471,3 +3471,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Root cause:** `vvp/main.cc` dropped upstream's leading `+` from the getopt string, so glibc permutation parsed post-file arguments such as `-vcd`/`-none` as vvp options. JSON tests `br_gh710a/b/c`, `dumpfile` and `sdf_header` failed on Linux; macOS getopt hides this.
 - **Fix:** Parse options in order and set aside `+plusargs` that precede the options (dvsim ordering) until the input file. The simulation then sees the file, all plusargs in command-line order, then the extended arguments.
 - **Evidence:** [Revision-scoped record](session_logs/2026-09-22_vvp_extended_args.json); new permanent JSON test `vvp_plusarg_order`.
+
+### CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS — unordered solutions are not uniform
+
+- **Status:** REPRODUCED; not selected. Risk is CRITICAL because it touches core solver sampling architecture.
+- **Requirement:** IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: "The solver shall assure that the random values are selected to give a uniform value distribution over legal value combinations."
+- **Reproducer:** `evidence/solve-before-array/ieee_table_18_2_uniformity.sv`, the standard's class B (`s -> d == 0`, 32-bit `d`). The current build gives `s == 1` in 251 of 1000 unordered draws, where IEEE expects about 1/(1+2^32). With `solve s before d` it gives 489 of 1000, matching Table 18-2. The same bias appears with dynamic arrays (103 of 400 against about 0).
+- **Root cause (assessed):** exact joint enumeration (`z3_enumerate_joint_`) is used only for bounded coupled components with distributions or ordering. The default path steers Z3 optimize toward random soft targets per variable, which gives per-variable diversity but not uniform complete combinations.
+- **Closure bar:** uniform sampling over legal combinations for coupled components beyond the enumeration cap (for example exact counting per case split, or a proven uniform-hashing sampler), paired statistical oracles, deterministic seeds, unchanged RNG ownership. Raising the enumeration cap is not a fix.

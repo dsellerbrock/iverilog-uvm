@@ -1,0 +1,6 @@
+ivltests/sv_constraint_solve_before_fixed_array_neg.v:4: error: target of 'solve before' constraint must be a random variable.
+ivltests/sv_constraint_solve_before_fixed_array_neg.v:5: error: target of 'solve before' constraint must be a random variable.
+ivltests/sv_constraint_solve_before_fixed_array_neg.v:6: error: target of 'solve before' constraint must be a random variable.
+ivltests/sv_constraint_solve_before_fixed_array_neg.v:7: error: 'randc' variables cannot be used in 'solve before' constraints.
+ivltests/sv_constraint_solve_before_fixed_array_neg.v:8: sorry: 'solve before' names a whole multidimensional fixed array; name its elements instead.
+5 error(s) during elaboration.

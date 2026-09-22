@@ -3228,3 +3228,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 - Observation: `scripts/opentitan_matrix.py --self-test` asserts "timed-out command left a descendant running" on this Linux container, both before and after the TOPLEVEL normalization change.
 - Triage: environment or harness issue; not yet root-caused.
+
+### 2026-09-22 SPI Host remaining compile errors are IEEE-invalid source
+
+- Active blocker: SOLVE-BEFORE-FIXED-ARRAY (application recompile).
+- Observation: after this batch, pristine Earlgrey-PROD-M6 SPI Host fails only at `spi_host_driver.sv:156` and `:256`. `issue_data(req.data, rsp.data, ...)` binds `logic [7:0] data[$]` actuals to `bit [7:0] ...[$]` formals. IEEE 1800-2017/2023 7.6 requires equivalent element types for unpacked array assignment compatibility, and 6.22.2 makes 2-state and 4-state vectors non-equivalent. Slang 11 independently rejects the same shape ("no implicit conversion ... are you missing a cast?"), and Icarus rejects both argument directions consistently.
+- Triage: upstream-invalid source relying on commercial-simulator leniency. Per the campaign `vcs_quirks` policy, any accommodation would be a separately labeled vendor-compatibility extension, not an IEEE fix. It needs documented vendor behavior before selection; pristine sources stay unmodified.
