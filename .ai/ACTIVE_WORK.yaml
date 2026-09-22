@@ -1,32 +1,22 @@
-blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD
+blocker: VVP-EXTENDED-ARGS-GLIBC-PERMUTE
 status: REGRESSION_TESTED
-base: 50323146 (claude/iverilog-uvm-takeover-n1v3u6; compiler sources identical to main 1af223c8)
-predecessor: CI-WIN-UVM-REGEX-NOOUTPUT frozen in draft PR321; local gates passed, MSYS2 CI pending. Its patch touches only the UVM DPI shim and runner, independent of this compiler path.
-objective: Honor inline randomize-with constraints whose operands call methods of caller-scope object handles (pristine SPI spi_device_cmd_rsp_seq.sv:117 num_lanes == cfg.get_sio_size()).
-authorization: Continuous campaign coordinator selection from reproduced pristine SPI Host compile errors.
-standards:
-- IEEE 1800-2017 18.5.12 functions in constraints, 18.7 in-line constraints scope resolution, 8.4/8.20 method call and virtual dispatch
-- IEEE 1800-2023 18.5.11 functions in constraints, 18.7 in-line constraints scope resolution
-reproducer: evidence/inline-caller-method/caller_method.sv
-red: Both editions report "constraint `(lanes)==(cfg.get_size())' could not be translated and the randomize call cannot be compiled."
-expected: Names resolve target-first, then caller scope. A caller object's method is called before solving and its value is a state constant (virtual dispatch through the runtime handle). Unsatisfiable results fail and keep the previous values.
-root: Hypothesis - CONSTRAINT-OBJECT-METHOD-RECEIVER added state object-method capture for class constraints only ("scope object calls not expanded"); the inline caller-scope operand path does not route method calls through that capture.
+base: da6dab52 (claude/iverilog-uvm-takeover-n1v3u6)
+predecessors: CI-WIN-UVM-REGEX-NOOUTPUT in PR321 (Ubuntu/UCRT64 CI pass, other jobs pending); OT-SPI-INLINE-CALLER-OBJECT-METHOD local commit da6dab52, REGRESSION_TESTED, unpublished (docs/conformance/session_logs/2026-09-22_inline_caller_object_method.json).
+objective: Restore documented vvp command-line semantics on glibc. Options precede the design file; every argument after it is an extended argument. Keep the fork's support for +plusargs placed before the file (dvsim ordering).
+authorization: Continuous campaign coordinator selection; Verilog/Icarus compatibility preservation (AGENTS mission).
+authority:
+- Documentation/usage/vvp_flags.rst "Extended Arguments" (options before the input file; extended arguments after it) and vvp/vvp.man.in EXTENDED ARGUMENTS.
+reproducer: ivtest JSON br_gh710a, br_gh710b, br_gh710c, dumpfile, sdf_header; `vvp x.vvp -vcd -dumpfile=foo` -> "vvp: invalid option -- 'c'".
+root: vvp/main.cc getopt optstring lacks upstream's leading '+', so glibc permutes and parses post-file extended arguments as vvp options (commit b6cb9eea). macOS getopt does not permute.
 allowed_files:
-- elaborate.cc / elab_expr.cc inline constraint caller-state capture and object-method receiver capture
-- necessary declarations only after recording their direct dependency
-- directly related permanent regressions and owning documents
+- vvp/main.cc option parsing and argv layout
+- ivtest/test registration for a direct plusarg-before-file regression if not already covered
+- owning docs/records
 forbidden:
-- OpenTitan/UVM source edits
-- Treating unknown calls as unconstrained or constant-folding them at compile time
-- Indexed-receiver or non-integral-return expansion beyond what the reducer needs
-- Unrelated constraint shapes (unpacked-struct constraint paths, queue element-type equivalence)
+- Changing extended-argument semantics, plusarg visibility or option meanings
+- Test gold edits
 acceptance:
-- Paired 2017/2023 reducer: mode values, virtual dispatch, zero, unsat rollback, target-first collision.
-- Existing object-method receiver, caller-state and randomize regressions pass.
-- Required integrated gates per REGRESSION_POLICY; risk MEDIUM-HIGH (shared constraint IR).
-stop_after_completion: Freeze validated patch and return to coordinator selection; full mission remains active.
-environment_notes: Cloud Linux container. OpenTitan a78922f14 at /home/user/work/opentitan (not in repo); Python 3.13 venv /home/user/work/ot-venv313 from hashed M6 requirements minus chipwhisperer/lxml/libcst/premailer, fusesoc/edalize from pinned tag clones. Matrix runner mis-parses edalize v0.4.0 bare TOPLEVEL (harness debt).
-latest_validation:
-  evidence: docs/conformance/session_logs/2026-09-22_inline_caller_object_method.json
-  completed: Build3 paired reducers, permanent legacy/JSON 6/6, ivtest legacy 6337 (0 fail), VPI 126, full UVM 358/358; JSON/negative residue classified pre-existing environment debt.
-  pending: Publication and CI.
+- Five JSON tests pass on Linux; plusargs before and after the file remain visible in order; options interleaved with leading plusargs still apply.
+- Full JSON, legacy ivtest, VPI, UVM regressions pass.
+risk: LOW-MEDIUM (runtime command-line only).
+stop_after_completion: Freeze and return to coordinator selection.

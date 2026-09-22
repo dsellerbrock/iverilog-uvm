@@ -1,0 +1,39 @@
+{
+  "blocker": "VVP-EXTENDED-ARGS-GLIBC-PERMUTE",
+  "status": "REGRESSION_TESTED locally; publication and CI pending",
+  "authority": "Documentation/usage/vvp_flags.rst Extended Arguments; vvp/vvp.man.in EXTENDED ARGUMENTS",
+  "red": "Linux glibc: `vvp x.vvp -vcd -dumpfile=foo` -> invalid option; JSON br_gh710a/b/c, dumpfile, sdf_header fail; pre-patch vvp rejects vvp_plusarg_order ('invalid option -- o/e')",
+  "root_cause": "vvp/main.cc getopt optstring lacked leading '+' (b6cb9eea), enabling GNU permutation of post-file extended arguments",
+  "fix": "In-order option parsing; +plusargs before the options are set aside until the input file; simulation argv = file, plusargs in order, remaining extended args",
+  "focused": "dvsim order (+pre -n file +post), -vcd/-dumpfile after file, -l between plusargs, -- terminator, plusargs-only -> no input file",
+  "gates": {
+    "ivtest_legacy": {
+      "total": 6337,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "vpi": "126/126",
+    "json_full": {
+      "ran": 3269,
+      "failed": 0
+    },
+    "negative": {
+      "passed": 146,
+      "failed": 2,
+      "note": "pre-existing root-environment DPI export debt, unchanged"
+    },
+    "uvm_full": {
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "dpi": "REAL"
+    }
+  },
+  "permanent": "ivtest JSON vvp_plusarg_order (regress-vvp.list)",
+  "host": "Claude Code cloud Linux container",
+  "fingerprints": {
+    "vvp/main.cc": "9bbfa07a0cd5c8d6c4b6947b12493388b94df92c78c558fd15f300f23476d564",
+    "local-install/bin/vvp": "a396c032fa0ff30a7d8254af28466863a72dfa4295c1e36e3c01eb84314e06ed"
+  }
+}
