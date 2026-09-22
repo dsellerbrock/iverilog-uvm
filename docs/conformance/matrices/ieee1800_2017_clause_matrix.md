@@ -1655,3 +1655,7 @@ The §16.6, §16.9.2.1 and §16.12.12 candidate corrects Boolean truth, zero-inc
 ### 2026-09-22 — caller-owned integral collection constraints
 
 §18.7 and §18.5.8.1 remain PARTIAL overall. Direct caller-owned integral queues and dynamic arrays now have focused paired-edition evidence for runtime foreach bounds, target-first lookup, explicit caller qualification, signed values, and failure without target writeback. [Revision-scoped evidence](../session_logs/2026-09-22_caller_queue_foreach_focus.json) owns the supported subset, diagnostics and completed local qualification. Compilation progress in pristine SPI does not qualify its DV suite.
+
+### 2026-09-22 — caller-scope object methods in inline constraints
+
+§18.5.12 and §18.7 remain PARTIAL. In an inline `with` constraint, an unindexed, argument-free method call on a caller-scope object that target-first lookup does not claim (for example `lanes == cfg.get_size()`) is now captured as a caller state value. Evaluation uses ordinary call semantics, including virtual dispatch, per randomize call. `local::` receivers are included. Target-member receivers, indexed receivers and calls with arguments keep the existing loud diagnostic. Null receivers are outside the claimed subset because general null-dereference and scalar X/Z state handling are recorded debt. [Revision-scoped evidence](../session_logs/2026-09-22_inline_caller_object_method.json) owns the tests and gates.

@@ -3453,3 +3453,13 @@ The upstream OpenTitan checker backport exposed missed late `until` violations. 
 ### OT-SPI-INLINE-CALLER-QUEUE-FOREACH — locally regression-tested
 
 Direct caller-owned integral queue/dynamic-array iteration now has paired focused evidence, including target-first lookup, signed values, invalid-state rejection and rollback. The pristine SPI compile no longer rejects this foreach; independent errors remain. [Revision-scoped evidence](session_logs/2026-09-22_caller_queue_foreach_focus.json) owns results and passing required local gates. Merged in PR320 (`1af223c8`); Linux/macOS CI jobs passed on the preceding main run, and the MSYS2 failure is CI-WIN-UVM-REGEX-NOOUTPUT. No full application qualification is claimed.
+
+### OT-SPI-INLINE-CALLER-OBJECT-METHOD — caller-scope object methods in inline constraints
+
+- **Status:** REGRESSION_TESTED locally; publication and CI pending.
+- **Requirement:** IEEE 1800-2017 18.5.12/18.7 and 1800-2023 18.5.11/18.7. Inline names resolve target-first, then in the caller. A function in a constraint is called before solving, and its result is a state value.
+- **Reproducer:** pristine Earlgrey-PROD-M6 `spi_device_cmd_rsp_seq.sv:117` (`num_lanes == cfg.get_sio_size()`) and `evidence/inline-caller-method/caller_method.sv`. Both editions reported "could not be translated".
+- **Root cause:** Object-method state capture existed only for declared class constraints (`constraint_ir_state_calls_ctx_`). Inline caller-scope method calls had no lowering.
+- **Fix:** When target lookup declines an unindexed, argument-free dotted call, capture the whole call as an existing caller value slot, elaborated in the caller.
+- **Boundaries:** Target-member receivers, indexed receivers and calls with arguments keep the loud diagnostic (the target-collision CE test is permanent). Null receivers are excluded pending the recorded 8.4 and scalar X/Z debts.
+- **Evidence:** [Revision-scoped record](session_logs/2026-09-22_inline_caller_object_method.json). The pristine SPI Host compile drops from 4 to 3 errors; no DV claim.

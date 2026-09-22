@@ -31667,6 +31667,34 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			return scope_randomize_value_slot_(
 			      call, nullptr, value_slots, 32);
 	    }
+	      /* IEEE 1800-2017 18.5.12/18.7 (2023 18.5.11/18.7): an inline
+	       * constraint's method call on a caller-scope object, such as
+	       *
+	       *   it.randomize() with { lanes == cfg.get_size(); }
+	       *
+	       * is evaluated before solving and its result is a state value.
+	       * Once target lookup has declined the receiver root, capture the
+	       * complete call in the caller like any other caller-state value;
+	       * ordinary call elaboration keeps virtual dispatch. Arguments and
+	       * receiver indices could name target members, so they stay on the
+	       * loud path below. */
+	    bool unindexed_path = true;
+	    for (const name_component_t&component : cpath)
+		  if (!component.index.empty()) unindexed_path = false;
+	    if (cls && value_slots && !constraint_ir_state_calls_ctx_
+		&& !call_iter_ctx && !call_foreach_shadow && unindexed_path
+		&& !call->receiver_expr() && !call->path().package
+		&& !call->has_scoped_type_prefix() && cpath.size() > 1
+		&& cpath.back().name.str()[0] != '$'
+		&& call->get_parms().empty()
+		&& call->with_constraints().empty()) {
+		  const netclass_t*target_owner = nullptr;
+		  pform_name_t::const_iterator target_component;
+		  if (!constraint_target_path_begin_(
+			call->path(), cls, target_owner, target_component))
+			return scope_randomize_value_slot_(
+			      call, nullptr, value_slots, 32);
+	    }
 	      /* In scope randomization, a non-random container's size is an
 	       * ordinary state value sampled at the call. Unlike a selected
 	       * element, it does not depend on a solver variable. */

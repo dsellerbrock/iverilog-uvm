@@ -4450,3 +4450,11 @@ sv_constraint_caller_queue_rollback normal,-g2017,-s,test ivltests gold=sv_const
 sv_constraint_caller_queue_rollback_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue_rollback.gold
 sv_constraint_caller_queue_boundaries normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue_boundaries.gold
 sv_constraint_caller_queue_boundaries_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue_boundaries.gold
+
+# Caller-scope object method calls in inline constraints.
+sv_constraint_caller_method normal,-g2017,-s,top ivltests gold=sv_constraint_caller_method.gold
+sv_constraint_caller_method_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_caller_method.gold
+sv_constraint_caller_method_local normal,-g2017,-s,top ivltests gold=sv_constraint_caller_method_local.gold
+sv_constraint_caller_method_local_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_caller_method_local.gold
+sv_constraint_caller_method_collision CE,-g2017,-s,top ivltests gold=sv_constraint_caller_method_collision.gold
+sv_constraint_caller_method_collision_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_caller_method_collision.gold
