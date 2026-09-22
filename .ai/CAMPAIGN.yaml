@@ -438,3 +438,34 @@ selected_vif_publication_ready:
   state: Allrequiredlocalgatespassed;29234terminal0.
   evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
   next: CommitexplicitreviewedpathsandpublishcoherenteventPR;keepAGENTSuserpatchuntouched.
+
+pr318_published_next_selected:
+  publication: https://github.com/dsellerbrock/iverilog-uvm/pull/318
+  head: 3dce24ac755506ce57e5e1fce9d051890e78529d
+  local_qualification: Allrequiredgatespass;358realDPIUVM,3240JSON,6304legacy,58NFA,VPI126,negative148,invariants15,frontend,makecheck,rootseed.
+  ci: Sixplatformjobsinprogress;mergeafteronepassesperuserauthorization,recordlaterfailuresforfollowup.
+  next_branch: agent/sva-until-continuation-20260921 in same worktree, no new clone.
+  selected: SVA-IMPLICATION-UNTIL-CONTINUATION;Terra/medium owns pform.cc/pform_sva_nfa.cc;coordinator sharedbuilds/review.
+  external_work: AGENTS87linepatchpreserved;unrelatedevidenceuntouched.
+
+# 2026-09-21 until build4 checkpoint: active, not qualified.
+# Fresh upstream-checker overlay pwrmgr seeds3/1 pass; corpus untouched.
+# until continuation and four-state controls pass both editions; NFA58/58 clean-env.
+# First NFA run inherited IVL_SVA_NFA=1 and invalidated legacy comparisons; retained.
+# Boundary v2 fixture unsupported syntax preserved; worker preparing isolated v3.
+# Pending: v3 boundaries, permanent regression registration, required integrated gates.
+# Evidence: evidence/review-20260920/sva-until-continuation-next/{build4,candidate4,build4-extra,application-build4}
+# build4-v3: multibit/X/Z until passed paired; exact empty##2 boundary still fails, inspect stimulus then delayed-entry semantics. Evidence retained; active blocker remains open.
+
+# Build7 checkpoint: focused-tested, not qualified. Paired12/12 legacy andJSON; NFA58/58.
+# Real Boolean truth fixed using (!expr)===0; positive and early/late boundary controls permanent.
+# Integrated session91368 and UVM59116 running on frozen build7. Poll exact handles before any install.
+# Earlier build5 broad gates terminated143, invalidated due mid-run install; no claims from them.
+# Next: inspect integrated/UVM; then fullJSON/frontend/makecheck/rootseed as required and fresh seed3/1 overlay replay.
+
+# Final local SVA checkpoint: all required local gates passed on build7; source fingerprints stable.
+# PR318 merged ca29b1237 after Ubuntu22.04/24.04 success; main tree equals tested parent3dce24ac7.
+# Tests16paired, NFA58; integrated6321+focused additions, VPI126, negative148, invariants15.
+# UVM358 exact union349+9, JSON3256 unique evaluated1337+1919, zero failures; NI/EF remain distinct.
+# Frontend/rootseed/makecheck passed. Final seed3/1 upstream overlay38/25 matched traffic; pristine unchanged.
+# Invalidated fixture/relocation runs retained. Publication pending; canonical graph update delegated Terra.

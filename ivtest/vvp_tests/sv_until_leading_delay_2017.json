@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_until_leading_delay_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "leading_delay_boundary_v4"
+  ],
+  "gold": "sv_until_leading_delay_2017"
+}

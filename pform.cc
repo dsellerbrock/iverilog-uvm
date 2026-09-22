@@ -15639,7 +15639,7 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 
 	/* p until q is violated by the first !p&&!q tick; until_with is
 	   violated by !p, including the q tick. Encode the good prefix as
-	   (p&&!q)[*0:$] and fuse the bad terminal with ##0. q kills every
+	   (p&&!q)[*0:$] and check the bad terminal on the next tick. q kills every
 	   remaining path, discharging a weak obligation. A strong-until
 	   property marks a still-looping path as an end-of-simulation fail. */
       if (conseq->op_type >= 4 && conseq->op_type <= 7
@@ -15667,6 +15667,19 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 		  pform_sva_destroy_property(conseq);
 		  return nullptr;
 	    }
+	    /* Property truth is two-state: X/Z do not satisfy either operand.
+	       Use logical conversion for every permitted Boolean operand type. */
+	    auto property_truth = [&loc](PExpr*expr) -> PExpr* {
+		  PEUnary*value = new PEUnary('!', expr);
+		  FILE_NAME(value, loc);
+		  PEBComp*truth = new PEBComp('E', value, sva_bit_(loc, 0));
+		  FILE_NAME(truth, loc);
+		  return truth;
+	    };
+	    ps.expr = property_truth(ps.expr);
+	    qs.expr = property_truth(qs.expr);
+	    pc = property_truth(pc);
+	    qc = property_truth(qc);
 	    PExpr*loop = sva_logic_(loc, 'a', ps.expr,
 				     sva_not_(loc, qc));
 	    ps.expr = nullptr;
@@ -15695,8 +15708,13 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    bad_seq->push_back(good_prefix);
 	    sva_seq_step_t terminal;
 	    terminal.expr = bad;
-	    terminal.delay_lo = 0;
-	    terminal.delay_hi = 0;
+	    /* The good prefix may be empty.  Its nonempty alternatives end
+	       on a p&&!q tick, so the bad terminal must be on the NEXT tick;
+	       ##0 would fuse p with !p and make every continued violation
+	       unreachable.  nfa_chain_suffix_ handles the empty [*0] branch
+	       under 16.9.2.1, where empty ##1 tail becomes same-tick tail. */
+	    terminal.delay_lo = 1;
+	    terminal.delay_hi = 1;
 	    bad_seq->push_back(terminal);
 
 	    sva_property_t*p = new sva_property_t;
@@ -16767,6 +16785,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  if (!prop->seq || !sva_nfa_unique_wait_implication_(
 			*prop->antecedent, *prop->seq, prop->op_type))
 			return false;
+		  linear_wait_implication = true;
+	    } else if ((*prop->seq)[0].rep_kind == 3
+		       && (*prop->seq)[0].rep_lo == 0
+		       && !(*prop->seq)[0].grouped_repeat
+		       && !(*prop->seq)[0].group_repeat_start
+		       && (*prop->seq)[0].group_repeat_opens.empty()) {
+		  /* An implication boundary is not sequence ##0 fusion. Keep
+		     the consequent's leading empty alternative at its own start. */
 		  linear_wait_implication = true;
 	    } else {
 		  std::vector<sva_seq_step_t> conseq = *prop->seq;

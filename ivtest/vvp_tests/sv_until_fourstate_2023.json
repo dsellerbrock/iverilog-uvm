@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_until_fourstate_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "until_implication_fourstate"
+  ],
+  "gold": "sv_until_fourstate_2023"
+}

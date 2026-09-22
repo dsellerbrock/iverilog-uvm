@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_until_real_truth_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "until_real_truth"
+  ],
+  "gold": "sv_until_real_truth_2017"
+}

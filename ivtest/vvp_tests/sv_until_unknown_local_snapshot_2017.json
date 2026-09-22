@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "sv_until_unknown_local_snapshot_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "sva_recursive_consequent_local_var_test"
+  ],
+  "gold": "sv_until_unknown_local_snapshot_2017"
+}

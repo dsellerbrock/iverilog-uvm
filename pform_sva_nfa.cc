@@ -195,8 +195,9 @@ static unsigned nfa_add_step_(sva_nfa_t&nfa, unsigned cur,
 	    return exit;
       }
 
-	// (fixed-1) pure delay ticks, then the guarded tick.
-      for (long k = 1; k < fixed; k += 1) {
+	// The first step consumes the anchor tick before a positive delay.
+	// Later steps already have a consumed arrival tick: fixed-1 waits.
+      for (long k = first ? 0 : 1; k < fixed; k += 1) {
 	    unsigned nxt = nfa.new_state();
 	    nfa.tick(cur, nxt, nullptr);
 	    cur = nxt;
@@ -609,6 +610,103 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
       bool tagged = !steps[k].group_repeat_opens.empty();
       if (!tagged && !steps[k].group_repeat_start) {
             if (steps[k].grouped_repeat) return false;
+	    /* IEEE 1800-2017 16.9.2.1 requires a zero-inclusive
+	       consecutive repetition to split before concatenation. The
+	       empty branch has no ##0 match; for a positive delay, remove
+	       the empty interval and shorten the combined delay by one.
+	       The nonempty branch retains the ordinary repetition builder.
+
+	       Besides implementing the empty-match rule generally, this
+	       keeps `p[*0:$] ##1 bad' exact: empty checks bad on the
+	       current tick, while every nonempty p prefix checks bad on its
+	       following tick. */
+	    const sva_seq_step_t&rep = steps[k];
+	    if (rep.rep_kind == 3 && rep.rep_lo == 0) {
+		  unsigned join = nfa.new_state();
+		  bool any = false;
+
+		  /* Nonempty alternatives: [*1:hi]. */
+		  if (rep.rep_hi < 0 || rep.rep_hi >= 1) {
+			std::vector<sva_seq_step_t>nonempty(steps.begin()+k,
+							    steps.end());
+			nonempty[0].rep_lo = 1;
+			unsigned nonempty_exit = 0;
+			if (!nfa_chain_suffix_(nfa, nonempty, 0, cur, first,
+						       nonempty_exit)) return false;
+			if (nonempty_exit != ~0u) {
+			      nfa.eps(nonempty_exit, join);
+			      any = true;
+			}
+		  }
+
+		  /* A terminal empty alternative follows the companion rules in
+		     16.9.2.1: ##0 is illegal after a nonempty prefix, while
+		     ##d empty (d>0) ends one tick earlier than d. */
+		  if (k + 1 == steps.size()) {
+			static const long construction_limit = 1024;
+			long lo = rep.delay_lo;
+			long hi = rep.delay_hi;
+			if (lo < 0 || hi < -1 || lo > construction_limit
+			    || (hi >= 0 && hi > construction_limit)) return false;
+			if (first && lo == 0) {
+			      nfa.eps(cur, join);
+			      any = true;
+			}
+			long d = std::max(lo, 1L);
+			if (hi < 0 || d <= hi) {
+			      /* Keep an unbounded loop off cur: cur may also feed a
+			         sibling alternative in the caller. */
+			      unsigned z = nfa.new_state();
+			      nfa.eps(cur, z);
+			      for (long tick = 1; tick < d; ++tick) {
+			            unsigned zn = nfa.new_state();
+			            nfa.tick(z, zn, nullptr);
+			            z = zn;
+			      }
+			      nfa.eps(z, join);
+			      any = true;
+			      if (hi < 0) {
+			            nfa.tick(z, z, nullptr);
+			      } else {
+			            for (long more = d + 1; more <= hi; ++more) {
+			                  unsigned zn = nfa.new_state();
+			                  nfa.tick(z, zn, nullptr);
+			                  z = zn;
+			                  nfa.eps(z, join);
+			            }
+			      }
+			}
+			exit = any ? join : ~0u;
+			return true;
+		  }
+
+		  /* Empty alternative: use the same 16.9.2.1 algebra as the
+		     grouped-repetition split below. Both concatenations adjacent
+		     to empty must be positive, except the leading chain boundary;
+		     their composed delay is d1+d2-1. */
+		  std::vector<sva_seq_step_t>empty(steps.begin()+k+1,
+						       steps.end());
+		  long ol = std::max(rep.delay_lo, first ? 0L : 1L);
+		  long nl = std::max(empty[0].delay_lo, 1L);
+		  long oh = rep.delay_hi;
+		  long nh = empty[0].delay_hi;
+		  bool outer_ok = oh < 0 || oh >= ol;
+		  bool next_ok = nh < 0 || nh >= nl;
+		  if (outer_ok && next_ok) {
+			empty[0].delay_lo = ol + nl - 1;
+			empty[0].delay_hi = (oh < 0 || nh < 0)
+			      ? -1 : oh + nh - 1;
+			unsigned empty_exit = 0;
+			if (!nfa_chain_suffix_(nfa, empty, 0, cur, first,
+						       empty_exit)) return false;
+			if (empty_exit != ~0u) {
+			      nfa.eps(empty_exit, join);
+			      any = true;
+			}
+		  }
+		  exit = any ? join : ~0u;
+		  return true;
+	    }
             unsigned next = nfa_add_step_(nfa, cur, steps[k], first);
             if (next == ~0u) return false;
             return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
@@ -740,8 +838,13 @@ static bool nfa_chain_fragment_(sva_nfa_t&nfa,
                                 unsigned&start, unsigned&exit)
 {
       start = nfa.new_state();
-      return nfa_chain_suffix_(nfa, steps, 0, start, true, exit)
-          && exit != ~0u;
+      if (!nfa_chain_suffix_(nfa, steps, 0, start, true, exit))
+            return false;
+      /* Preserve the empty language inside sequence composition (for
+         example an OR alternative). Property uses still require the
+         nondegeneracy check in pform_sva_nfa_try_assertion. */
+      if (exit == ~0u) exit = nfa.new_state();
+      return true;
 }
 
 static bool nfa_accepts_empty_(const sva_nfa_t&nfa)

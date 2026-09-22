@@ -1,6 +1,8 @@
 # Current evidence and work
 
-The [selected-VIF edge candidate](session_logs/2026-09-21_selected_vif_edge_focus.json) records the current compiler patch, passing required local gates and stable-release application replays. Publication remains pending; the refreshed merged baseline is PR317 (`6e8bf2268`).
+The [until continuation candidate](session_logs/2026-09-21_until_continuation_focus.json) records the compiler correction and passing required local validation. Publication and CI remain pending; broader assertion and application qualification remains open.
+
+The [selected-VIF edge candidate](session_logs/2026-09-21_selected_vif_edge_focus.json) records the current compiler patch, passing required local gates and stable-release application replays. Merged in [PR318](https://github.com/dsellerbrock/iverilog-uvm/pull/318) as `ca29b1237` after both Ubuntu CI jobs passed; remaining platform checks were still running.
 
 The [seed-3 upstream revalidation](session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json) confirms valid stimulus and an upstream checker defect, separately validates the minimal checker overlay, and records the stronger backport's uncovered `until` continuation gap. Patched results do not qualify the pristine release.
 
