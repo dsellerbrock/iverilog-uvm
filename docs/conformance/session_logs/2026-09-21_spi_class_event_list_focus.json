@@ -1,0 +1,122 @@
+{
+  "blocker": "OT-SPI-COMPOUND-EVENT-LIST",
+  "status": "REGRESSION_TESTED_LOCAL_CHECKPOINT",
+  "base_head": "a52e3f677f09f72632a88c758d13784d187a70cc",
+  "synced_main": "6e8bf226895377ade89bbd239a2a4f54779e64e8",
+  "clauses": [
+    "IEEE 1800-2017 9.4.2",
+    "IEEE 1800-2023 9.4.2"
+  ],
+  "scope": "Pure integral unqualified ANYEDGE event lists with at least one class-property dependency, including mixed static/ordinary/constant operands. Reuse one source-order concatenation and existing synchronous value-change observer.",
+  "source_files": [
+    "elaborate.cc"
+  ],
+  "build": {
+    "head": "a52e3f677f09f72632a88c758d13784d187a70cc",
+    "source_before": {
+      "elaborate.cc": "b8b9619d8a411bba97b2360f8917a5e1668b576083e1662f7237d593a733e69b"
+    },
+    "start": 1790038735.547595,
+    "patch_sha256": "a8ebb43b5471a7735bcfd1a6bbc21d75cdba4e91450a72f0e634339ffb133938",
+    "build": {
+      "command": [
+        "make",
+        "-j1",
+        "YACC=/opt/homebrew/opt/bison/bin/bison",
+        "LEX=/usr/bin/flex"
+      ],
+      "exit": 0
+    },
+    "source_after": {
+      "elaborate.cc": "b8b9619d8a411bba97b2360f8917a5e1668b576083e1662f7237d593a733e69b"
+    },
+    "install": {
+      "command": [
+        "make",
+        "install"
+      ],
+      "exit": 0
+    },
+    "fpga": {
+      "command": [
+        "make",
+        "-C",
+        "tgt-fpga",
+        "install"
+      ],
+      "exit": 0
+    },
+    "end": 1790038744.011028,
+    "installed": {
+      "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+      "local-install/bin/vvp": "fcc1cb33f5aca815d65b70e1645c8e4c7e08401d403af4ff45f0ca1ac23d4696",
+      "local-install/lib/ivl/ivl": "0dc00de15ba67314d02403ba9d86fc7599eba38dfaf81a5ef321d3bde2baa51c",
+      "local-install/lib/ivl/vvp.tgt": "3d0c962f72d81e145c770c5f35e7bf5581392056fdbd9ccec413ae76b9013604"
+    }
+  },
+  "permanent": {
+    "normal_cases": 16,
+    "compile_error_cases": 2,
+    "legacy_passed": 18,
+    "json_passed": 18,
+    "inputs_unchanged_during_harness": true,
+    "evidence": "evidence/review-20260920/spi-event-list-next/build1/permanent-final/results.json",
+    "review": "Equal-valued owner rebind followed by immediate selected mutation; stale-owner and unselected writes now checked with second waiter actively armed."
+  },
+  "adjacent": [
+    {
+      "kind": "legacy",
+      "entries": 117,
+      "exit": 0,
+      "command": [
+        "perl",
+        "vvp_reg.pl",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/spi-event-list-next/build1/adjacent/legacy.list"
+      ]
+    },
+    {
+      "kind": "vvp",
+      "entries": 117,
+      "exit": 0,
+      "command": [
+        "python3",
+        "vvp_reg.py",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/spi-event-list-next/build1/adjacent/vvp.list"
+      ]
+    }
+  ],
+  "private_evidence": "evidence/review-20260920/spi-event-list-next",
+  "limits": [
+    "No runtime ABI changes.",
+    "Edge, iff, named-event, VIF, real/string and call-bearing leaves retain existing paths; no implementation claim for those paths.",
+    "Baseline edge crash and real compile failure retained as debt, not counted as passing implementations.",
+    "Original prequeued fixture omitted its program from selected hierarchy; corrected fixture instantiates it. Old image versus new source comparison was invalid and is not compiler defect evidence."
+  ],
+  "application": {
+    "release": "Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "pristine": true,
+    "spi_host": "Compound event diagnostic removed; two queue formal type diagnostics and NetESelect synthesis SIGSEGV remain. No compile or DV pass."
+  },
+  "pending": [
+    "Batched broad checkpoint and publication; current focused/mapped results do not establish full simulator or DV qualification."
+  ],
+  "broad_baseline": "Prior PR317 full gates passed before this patch; not fresh broad qualification of current source.",
+  "uvm": {
+    "selected": 76,
+    "passed": 76,
+    "failed": 0,
+    "skipped": 0,
+    "dpi": "REAL",
+    "generation_mode": "g2012",
+    "groups": [
+      "scheduler",
+      "classes",
+      "uvm_seq_tlm",
+      "smoke"
+    ],
+    "evidence": "evidence/review-20260920/spi-event-list-next/build1/uvm-targeted/results.json"
+  },
+  "risk": "MEDIUM local elaboration routing; no runtime, ABI or architecture change",
+  "review": "Coordinator reviewed helper call sites, cached-expression ownership, integral purity/width eligibility, source ordering and semantic regressions. No runtime ABI or application changes."
+}

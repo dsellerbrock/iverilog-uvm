@@ -1,0 +1,2 @@
+PASS selected suppression
+ivltests/sv_selected_vif_edge_selected_suppression_2017.v:29: $finish called at 4 (1s)

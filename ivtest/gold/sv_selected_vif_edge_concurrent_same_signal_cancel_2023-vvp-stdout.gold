@@ -1,0 +1,2 @@
+PASS concurrent same-signal cancellation
+ivltests/sv_selected_vif_edge_concurrent_same_signal_cancel_2023.v:42: $finish called at 4 (1s)

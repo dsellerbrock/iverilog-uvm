@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_selected_vif_edge_four_state_edges_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "four_state_edges"
+  ],
+  "gold": "sv_selected_vif_edge_four_state_edges_2017"
+}

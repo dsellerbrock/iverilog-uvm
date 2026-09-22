@@ -284,3 +284,157 @@ whole_function_ready_to_publish:
   qualification: All required local gates PASS; serial session31844 completed exit0.
   evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json
   next: Stage explicit compiler/tests/owning-doc paths, excluding external AGENTS patch and unrelated artifacts; commit,push,publish PR.
+
+whole_function_publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/317
+  head: a52e3f677f09f72632a88c758d13784d187a70cc
+  semantic_commit: fdf66d7d9
+  qualification: All required local gates pass with retained seven-source build4 hashes.
+  prerequisite: Merged existing64efa3bef PR316 Windows export repair into branch, adding only ivl.def entry; no local semantic rerun justified, WindowsCI pending.
+  preserved: External AGENTS87-line patch and unrelated artifacts untouched; no new worktree.
+  next: Check PR316/317CI at meaningful interval; merge after a passing check under standing authorization with failures triaged. Then fetch baseline and activate assessed SPI event-list work.
+  resumption_note: Publication pointer edits are intentionally local until next coherent checkpoint, avoiding a CI rerun for URLs alone.
+
+spi_event_list_selection:
+  id: OT-SPI-COMPOUND-EVENT-LIST
+  branch: agent/spi-event-list-20260921
+  baseline: a52e3f677f09f72632a88c758d13784d187a70cc
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/317
+  parent_state: Local qualification complete; CI pending, parent branch preserved.
+  red: Fresh paired-edition baseline rejects compound class-property list; implementation/baseline.json.
+  lanes: Terra/medium owns elaborate.cc; retained Sol/medium owns isolated semantic tests; coordinator shared tools/manifests.
+  next: Review small concat-observer lowering and focused tests before building. No runtime/application edits authorized.
+
+spi_build1_checkpoint:
+  baseline_application: Fresh clean M6 compile records event-list line48 error,queue type errors156/256 and exit139; no DV success claim.
+  source: elaborate.cc only,+105/-1; pure integral class-plus-ordinary list combines through existing observer,no runtime ABI changes.
+  scope_proof: Parent PR317 ordinary/class combined observer evidence plus concat OR equality for side-effect-free leaves.
+  live_session: 22103
+  exact_command: python3 evidence/review-20260920/spi-event-list-next/build_candidate.py build1
+  next: Poll existing22103 without restart; run paired focused checks then fresh application compile.
+
+spi_build1_focused_checkpoint:
+  build: PASS build/install/FPGA,session22103 completed.
+  original: Paired original reducer now compiles and simulates PASS.
+  adjacent: Both legacy and JSON117/117,session9852 completed.
+  focused_failure: core_prequeued_regions wakes1 rather than2,paired editions; agent isolates write/arming timing without source edits.
+  application: candidate1-application removes event-list diagnostic but queue type errors and139remain.
+  pr316: Merged362751c05ae0cafa4bde2a8eaa10d36a4cd6f362 after Ubuntu24.04 CIpassed; Windowsall reached regression steps, laterCIstillpending.
+  pr317: Published parentCIpending; current branch is separate local dependent work.
+  next: Inspect Sol trace and resolve focused failure; refresh canonical graph after merge checkpoint, no feature graph.
+
+spi_focused_resolution:
+  prequeued: Fixture-only issue; selected -s excluded standalone program. Corrected instantiated program trace proves both expected wakes; no compiler edit.
+  caution: Coordinator concat control read corrected source while old failing image used original topology; discard that apparent lowering differential.
+  results: candidate-build1-final2 has16 core semantic passes,12 preserved boundary statuses. Two edge aborts andtwo real failures remain open outside subset.
+  permanent_lane: Sol registers8 core families plus null diagnostic negative,paired editions; no shared harness execution by agent.
+  next: Coordinator permanent legacy/JSON checks and scoped documentation after registration; build1 frozen.
+
+seed3_user_requested_recheck_20260921:
+  status: CORRECTED_CHECKER_PASSES_PRISTINE_STILL_FAILS
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_current_build_recheck.json
+  preserved_work: SPI event-list compiler patch and regressions untouched; no shared build active.
+  scope: Revalidated existing checker correction; no compiler or application corpus edits.
+  next: Resume coordinator permanent SPI event-list harness validation.
+
+pr317_merged_and_spi_gate_20260921:
+  previous_goal_turn: progress; fresh seed3 checker/pristine comparison and permanent evidence recorded.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/317
+  merged: 6e8bf226895377ade89bbd239a2a4f54779e64e8
+  authorization: User merge-after-one-CI policy; Ubuntu24.04 passed; other platform jobs pending.
+  current_branch: agent/spi-event-list-20260921; separate branch and dirty work preserved.
+  permanent: 16/16 legacy and 16/16 JSON pass; paired invalid-member negatives pending.
+  uvm_session: 7686
+  uvm_evidence: evidence/review-20260920/spi-event-list-next/build1/uvm-targeted/
+  next: Poll existing UVM session, run added negative regressions, document and commit SPI fix.
+
+spi_local_checkpoint_20260921:
+  source: elaborate.cc unchanged from build1; installed hashes rechecked.
+  result: 18/18 permanent legacy and JSON; 117/117 adjacent each; 76/76 real-DPI mapped UVM plus smoke.
+  state: Local validated checkpoint, no fresh broad qualification or SPI DV pass.
+  branch_base: Synced6e8bf2268 with identical source tree; active patch preserved.
+  next: Complete selected-VIF crash assessment, then select the next standards-grounded compiler blocker.
+
+selected_vif_edge_20260921:
+  predecessor: 50cda4fdf local checkpoint frozen.
+  blocker: OT-SPI-SELECTED-VIF-EDGE
+  state: REPRODUCED; coordinator selected under explicit user crash-fix request.
+  lanes: Terra implementation elaborate.cc; Sol private semantic tests; coordinator shared builds and integration.
+  next: Trace selected-event lowering and implement existing mechanism reuse, then fresh reducer execution.
+
+selected_vif_scope_expansion:
+  cause: Null structural offset from class-property selector; VIF member proxy alone insufficient.
+  owner: Terra retained implementation lane, Sol independent tests.
+  scope: Synchronous expression observer plus selected VIF registration metadata/runtime; full gates before promotion.
+  status: End-to-end implementation authorized; no guard-only or compile-progress fallback accepted.
+
+compiler_resume_after_qwen:
+  evaluation: evidence/qwen-agent-eval-20260921/REPORT.md; partial, stopped at user request.
+  preserved: Compiler patch byte-identical before resuming; credentials removed from evaluation temporary storage.
+  active: OT-SPI-SELECTED-VIF-EDGE; source-ready candidate not yet validated.
+  lanes: Coordinator integration/build; Luna private same-signal regression.
+  next: Build candidate after export and opcode-order corrections, then focused matrix.
+
+selected_vif_build2:
+  build: PASS serial build/install, sources stable.
+  matrix: 6/28 pass; VIF updates abort in permanent-heap functor delete; null-at-arm exits zero. Not qualified.
+  lanes: Terra vvp/vthread.cc relay lifetime; coordinator elaborate.cc null-VIF routing.
+  next: Integrate independent repairs then build3 and rerun matrix.
+
+selected_vif_build4_checkpoint:
+  source: Build4 frozen; serial build/install pass.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  qualification: Focused semantic and lifetime checks pass; required broad gates pending.
+  active_lanes: Luna permanent regression registration; coordinator final tests and integration; Terra runtime repair complete.
+  application: Build3 clean stable SPI compile exits5 diagnostics instead139; build4 fresh compile in session71696.
+  next: Validate permanent and adjacent legacy/JSON, then full applicable gates before publication.
+
+selected_vif_build5_qualification:
+  state: FOCUSED_TESTED; source frozen, no broad qualification yet.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  focused: 38/38 paired checks; permanent plus adjacent legacy153/153 and JSON153/153.
+  live_session: 63927
+  qualification: qualification-build5/run_gate.py integrated,json,nfa,uvm,frontend,makecheck,rootseed serially; stops on first failure.
+  application_session: 4483
+  next: Poll63927 and4483 without restarting; review failures before source changes. Required gates precede PR.
+
+selected_vif_parallel_validation:
+  qualification: Session63927 live, integrated sweep, source frozen.
+  applications: Session8721 fresh pinned pristine pwrmgr seeds1/3 and Caliptra power2round/rej_bounded in applications-build5.
+  spi: Build5 compile complete exit5 explicit queue/constraint errors, no crash.
+  queue_assessment: spi-queue-type-next/ASSESSMENT.md plus2017confirmation; bit/logic element mismatch is not standards-required acceptance.
+  late_ci: PR317 Windows strict-regex test fails with no output; pr317-late-ci evidence; Terra read-only diagnosis.
+
+selected_vif_build5_integrated_failure:
+  terminal_session: 63927
+  result: Integrated exit1; 6294pass,10fail,2NI,3expected; VPI126,negative148,runtime15pass.
+  registration: Five existing test names corrupted by unbounded substring replacement; original manifest rows restored, only intended38added/twoobsolete removed.
+  compiler: Five ordinary selected clock/reset synthesis regressions; Terra owns elaborate.cc eligibility narrowing.
+  applications: Session8721 complete; pristine pwrmgrseed1 passes25matched/drained,seed3knowncheckererror; Caliptrapower2round2048pass,rej_bounded8errors/10cases.
+  next: Build narrowed observer eligibility; run focused synthesis and selected-VIF tests before restarting broad gates.
+
+seed3_upstream_revalidation_20260921:
+  user_priority: Fix valid seed3 and investigate possible VCS quirk; necessary downstream repair authorized.
+  result: Upstream PR28474 confirms exact phase-alias checker defect; no demonstrated VCS-specific behavior.
+  minimal_fix: Existing timestamp activity patch freshly passes60/60 focus plus seed3 and1, with38/25 matched and drained transactions and zero UVM errors/fatals.
+  official_backport: Both91a8481 andb13c9cd applied in private overlay; smoke passes but dropped-timeout until continuation negative fails, assessment pending.
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json
+  corpus: Stable M6 remains pristine; patched replay is explicitly separate application evidence.
+  compiler_checkpoint: Build6 integrated gate terminal0,6309total6304pass2NI3expectedfail;VPI126/126,negative148/148,invariants15/15.
+  live_session: 29234 serial remaining json,nfa,uvm,frontend,makecheck,rootseed. Poll before shared work; no source changes while qualifying.
+
+selected_vif_build6_checkpoint:
+  classification: Progress; fresh pristine application replays, full JSON and NFA gates passed; coordinator source review and exact tool/source hashes recorded.
+  tests: Legacy6304pass0fail2NI3expected;JSON3240pass;NFA58pass;VPI126pass;negative148pass;invariants15pass.
+  live_session: 29234 currently real-DPI UVM, then frontend/makecheck/rootseed; no restarting on poll timeout.
+  completed_sessions: 24750 applications and SPI compile;30335 fetch;49805 integrated gate.
+  application: Fresh pristineSPIcompileexit5withoutcrash;fiveexplicitqueue/constraintdiagnostics. Pristinepwrmgrseed1PASS,seed3knowncheckerFAIL;Caliptrapower2roundPASS,rej_boundedFAIL.
+  source_stable: Build6 source hashes verified unchanged.
+  review: evidence/review-20260920/spi-selected-vif-edge/coordinator-review-build6.json
+  publication: No open PR currently; origin/main6e8bf2268,HEAD50cda4fdf includes unpublished atomic class event-list fix. PR must describe both fixes plus selected-VIF work after required gates.
+  next_assessment: Terra/medium tracing SVA until late-drop gap; no source edits before current qualified checkpoint.
+
+selected_vif_publication_ready:
+  state: Allrequiredlocalgatespassed;29234terminal0.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  next: CommitexplicitreviewedpathsandpublishcoherenteventPR;keepAGENTSuserpatchuntouched.

@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_selected_vif_edge_invalid_real_index_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "invalid_real_index"
+  ],
+  "gold": "sv_selected_vif_edge_invalid_real_index_2017"
+}

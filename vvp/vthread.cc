@@ -333,20 +333,27 @@ struct event_expr_path_s {
       bool active;
 };
 
+struct event_expr_vif_source_s {
+      vvp_net_t*source;
+};
+
 struct event_expr_observer_s {
       enum phase_t { ARMING, ARMED, EVALUATING, DONE };
       vthread_t waiter;
       vvp_net_t*source_net;
       vvp_code_t recipe;
       vvp_vector4_t last_value;
+      vvp_fun_edge::edge_t edge;
+      std::vector<event_expr_vif_source_s>vif_sources;
+      std::vector<vvp_net_t*>vif_relays;
       phase_t phase;
       bool have_last;
       bool recipe_failed;
       unsigned refs;
 
       event_expr_observer_s(vthread_t waiter, vvp_net_t*source_net,
-                            vvp_code_t recipe)
-      : waiter(waiter), source_net(source_net), recipe(recipe), phase(ARMING),
+                            vvp_code_t recipe, vvp_fun_edge::edge_t edge = vvp_edge_none)
+      : waiter(waiter), source_net(source_net), recipe(recipe), edge(edge), phase(ARMING),
         have_last(false), recipe_failed(false), refs(1)
       { }
 };
@@ -998,6 +1005,7 @@ struct vthread_s {
       std::map<unsigned,vvp_object_t>event_expr_object_slots;
       vvp_vector4_t event_expr_result;
       std::vector<event_expr_path_s>event_expr_result_paths;
+      std::vector<event_expr_vif_source_s>event_expr_result_vif_sources;
       bool event_expr_recipe_complete;
       bool event_expr_recipe_failed;
 	/* Save the file/line information when available. */
@@ -10147,6 +10155,7 @@ vthread_t vthread_add_event_wait(vthread_t thr, vthread_t*head)
 }
 
 static bool event_expr_source_occurrence_(vthread_t thr);
+static void unregister_event_expr_vif_sources_(event_expr_observer_s*observer);
 
 static void unlink_event_wait_only_(vthread_t thr)
 {
@@ -10170,6 +10179,7 @@ static void cancel_event_expr_observer_(vthread_t thr)
       thr->event_expr_observer = 0;
       observer->phase = event_expr_observer_s::DONE;
 
+      unregister_event_expr_vif_sources_(observer);
       unlink_event_wait_only_(thr);
       vvp_object::cancel_mutation_waiter(thr);
       thr->waiting_for_event = 0;
@@ -25883,14 +25893,30 @@ static bool event_expr_null_property_read_(vthread_t thr)
       return true;
 }
 
-static bool event_expr_vif_property_read_(vthread_t thr)
+static bool event_expr_vif_property_read_(vthread_t thr,
+                                           const vvp_object_t&object,
+                                           unsigned property, unsigned word)
 {
-      if (!event_expr_recipe_frame_(thr))
+      vthread_t frame = event_expr_recipe_frame_(thr);
+      if (!frame)
             return false;
-      event_expr_runtime_error_(
-            thr, "virtual-interface member read inside an event expression "
-                 "function is not supported");
-      return true;
+
+      vvp_vinterface*vif = object.peek<vvp_vinterface>();
+      vvp_net_t*source = 0;
+      vvp_vector4_t seed;
+      if (!vif || !vif->get_vec4_source(property, word, source, seed)) {
+            event_expr_runtime_error_(
+                  thr, "unsupported virtual-interface member read in event expression");
+            return true;
+      }
+
+      for (std::vector<event_expr_vif_source_s>::const_iterator cur =
+                 frame->event_expr_result_vif_sources.begin();
+           cur != frame->event_expr_result_vif_sources.end(); ++cur)
+            if (cur->source == source)
+                  return false;
+      frame->event_expr_result_vif_sources.push_back({source});
+      return false;
 }
 
 struct fixed_prop_receiver_t {
@@ -26270,7 +26296,7 @@ bool of_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
       fixed_prop_receiver_t recv = {
 	    obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
       };
-      if (recv.vif && event_expr_vif_property_read_(thr))
+      if (recv.vif && event_expr_vif_property_read_(thr, obj, (unsigned)pid, 0))
             return true;
       const class_type*defn = recv.defn();
       if (!defn || pid >= defn->property_count()
@@ -26308,7 +26334,7 @@ bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/obj", pid, idx, obj, has_propobj);
-      if (vif && event_expr_vif_property_read_(thr))
+      if (vif && event_expr_vif_property_read_(thr, obj, (unsigned)pid, idx))
             return true;
       if (!has_propobj) {
 	    if (event_expr_null_property_read_(thr))
@@ -26580,7 +26606,7 @@ static bool prop(vthread_t thr, vvp_code_t cp)
       vvp_process*proc = obj.peek<vvp_process>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/*", pid, 0, obj, has_propobj);
-      if (vif && event_expr_vif_property_read_(thr))
+      if (vif && event_expr_vif_property_read_(thr, obj, (unsigned)pid, 0))
             return true;
       if (!has_propobj && proc) {
 	    ELEM val;
@@ -26660,7 +26686,7 @@ static bool prop_i(vthread_t thr, vvp_code_t cp)
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/*/i", pid, idx, obj, has_propobj);
-      if (vif && event_expr_vif_property_read_(thr))
+      if (vif && event_expr_vif_property_read_(thr, obj, (unsigned)pid, idx))
             return true;
       if (!has_propobj) {
 	    if (event_expr_null_property_read_(thr))
@@ -26730,7 +26756,7 @@ bool of_PROP_V_I(vthread_t thr, vvp_code_t cp)
       vvp_process*proc = obj.peek<vvp_process>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/v/i", pid, idx, obj, has_propobj);
-      if (vif && event_expr_vif_property_read_(thr))
+      if (vif && event_expr_vif_property_read_(thr, obj, (unsigned)pid, idx))
             return true;
       if (!has_propobj && proc) {
 	    vvp_vector4_t val;
@@ -31101,6 +31127,14 @@ bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_TEST_NUL_OBJ_PROP(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->peek_object().test_nil()
+          && event_expr_null_property_read_(thr))
+            return true;
+      return of_TEST_NUL_OBJ(thr, cp);
+}
+
 bool of_TEST_NUL_OBJ(vthread_t thr, vvp_code_t)
 {
       if (thr->peek_object().test_nil())
@@ -31820,6 +31854,88 @@ bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+static bool event_expr_source_occurrence_(vthread_t thr);
+static void unregister_event_expr_vif_sources_(event_expr_observer_s*observer);
+
+class vvp_fun_event_expr_vif_source : public vvp_net_fun_t {
+    public:
+      explicit vvp_fun_event_expr_vif_source(event_expr_observer_s*observer)
+      : observer_(observer) { }
+
+      /* VIF relays are transient subscriptions, unlike the permanent
+       * functors normally installed by the compiler. */
+      static void* operator new(std::size_t size) { return ::operator new(size); }
+      static void operator delete(void*ptr) { ::operator delete(ptr); }
+
+      void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&, vvp_context_t) override
+      {
+            event_expr_observer_s*observer = observer_;
+            if (!observer || observer->phase != event_expr_observer_s::ARMED)
+                  return;
+            vthread_t waiter = observer->waiter;
+            unregister_event_expr_vif_sources_(observer);
+            vvp_object::cancel_mutation_waiter(waiter);
+            vthread_schedule_mutation_waiter(waiter);
+      }
+
+    private:
+      event_expr_observer_s*observer_;
+};
+
+static vvp_net_t*new_event_expr_vif_relay_()
+{
+      void*storage = ::operator new(sizeof(vvp_net_t));
+      return ::new (storage) vvp_net_t;
+}
+
+static void delete_event_expr_vif_relay_(vvp_net_t*relay)
+{
+      relay->~vvp_net_t();
+      ::operator delete(relay);
+}
+
+class event_expr_vif_relay_reap_s : public vvp_gen_event_s {
+    public:
+      event_expr_vif_relay_reap_s(vvp_net_t*relay, vvp_net_fun_t*fun)
+      : relay_(relay), fun_(fun) { }
+
+      void run_run() override
+      {
+            delete fun_;
+            delete_event_expr_vif_relay_(relay_);
+      }
+
+      void single_step_display() override { }
+
+    private:
+      vvp_net_t*relay_;
+      vvp_net_fun_t*fun_;
+};
+
+static void unregister_event_expr_vif_sources_(event_expr_observer_s*observer)
+{
+      if (!observer)
+            return;
+      for (unsigned idx = 0; idx < observer->vif_sources.size(); ++idx) {
+            vvp_net_t*source = observer->vif_sources[idx].source;
+            vvp_net_t*relay = observer->vif_relays[idx];
+            if (relay) {
+                  vvp_net_ptr_t successor = relay->port[0];
+                  if (source)
+                        source->unlink(vvp_net_ptr_t(relay, 0));
+                  /* A concurrent source fanout may already have cached this
+                   * relay. Keep its successor chain valid, but make it inert. */
+                  relay->port[0] = successor;
+                  vvp_net_fun_t*fun = relay->fun;
+                  relay->fun = 0;
+                  schedule_generic(new event_expr_vif_relay_reap_s(relay, fun),
+                                   0, false, false, true);
+            }
+      }
+      observer->vif_sources.clear();
+      observer->vif_relays.clear();
+}
+
 static void register_event_expr_sources_(event_expr_observer_s*observer,
                                          const std::vector<event_expr_path_s>&paths)
 {
@@ -31838,6 +31954,15 @@ static void register_event_expr_sources_(event_expr_observer_s*observer,
                                               path->active);
       }
 
+      for (std::vector<event_expr_vif_source_s>::const_iterator source =
+                 observer->vif_sources.begin(); source != observer->vif_sources.end();
+           ++source) {
+            vvp_net_t*relay = new_event_expr_vif_relay_();
+            relay->fun = new vvp_fun_event_expr_vif_source(observer);
+            source->source->link(vvp_net_ptr_t(relay, 0));
+            observer->vif_relays.push_back(relay);
+      }
+
       waitable_hooks_s*event = dynamic_cast<waitable_hooks_s*>(
             observer->source_net->fun);
       assert(event);
@@ -31849,7 +31974,8 @@ static void register_event_expr_sources_(event_expr_observer_s*observer,
 
 static bool run_event_expr_recipe_(event_expr_observer_s*observer,
                                    vvp_vector4_t&result,
-                                   std::vector<event_expr_path_s>&paths)
+                                   std::vector<event_expr_path_s>&paths,
+                                   std::vector<event_expr_vif_source_s>&vif_sources)
 {
       vthread_t waiter = observer->waiter;
       observer->recipe_failed = false;
@@ -31891,6 +32017,7 @@ static bool run_event_expr_recipe_(event_expr_observer_s*observer,
       if (complete) {
             result = eval->event_expr_result;
             paths.swap(eval->event_expr_result_paths);
+            vif_sources.swap(eval->event_expr_result_vif_sources);
       }
 
       running_thread = saved_running;
@@ -31923,15 +32050,20 @@ static bool event_expr_source_occurrence_(vthread_t thr)
       if (!observer || observer->phase == event_expr_observer_s::DONE)
             return true;
 
-      /* The source owner detached both registration families before entering
-         here. Keep this observer unarmed while its own recipe executes: a
+      /* The source owner detached ordinary/object registrations before entering
+         here. A VIF relay has a separate subscription and must be removed
+         before re-evaluation so a same-slot sibling update cannot recurse. */
+      unregister_event_expr_vif_sources_(observer);
+
+      /* Keep this observer unarmed while its own recipe executes: a
          selector function that mutates its receiver is part of this one
          evaluation, not a recursively armed second occurrence. Other armed
          observers still run synchronously through their own source paths. */
       observer->phase = event_expr_observer_s::EVALUATING;
       vvp_vector4_t value;
       std::vector<event_expr_path_s>paths;
-      if (!run_event_expr_recipe_(observer, value, paths)) {
+      std::vector<event_expr_vif_source_s>vif_sources;
+      if (!run_event_expr_recipe_(observer, value, paths, vif_sources)) {
             if (thr->event_expr_observer == observer) {
                   bool recipe_failed = observer->recipe_failed;
                   cancel_event_expr_observer_(thr);
@@ -31948,7 +32080,12 @@ static bool event_expr_source_occurrence_(vthread_t thr)
       if (thr->event_expr_observer != observer)
             return false;
 
-      bool changed = observer->have_last && !observer->last_value.eeq(value);
+      observer->vif_sources.swap(vif_sources);
+      bool changed = observer->have_last
+            && (observer->edge == vvp_edge_none
+                ? !observer->last_value.eeq(value)
+                : ((observer->edge & VVP_EDGE(observer->last_value.value(0),
+                                               value.value(0))) != 0));
       observer->last_value = value;
       observer->have_last = true;
       if (!changed) {
@@ -31965,7 +32102,8 @@ static bool event_expr_source_occurrence_(vthread_t thr)
       return true;
 }
 
-bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t cp)
+static bool wait_obj_expr_(vthread_t thr, vvp_code_t cp,
+                           vvp_fun_edge::edge_t edge)
 {
       assert(cp->net);
       assert(cp->cptr2);
@@ -31973,12 +32111,13 @@ bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t cp)
       assert(!thr->waiting_for_event);
 
       event_expr_observer_s*observer =
-            new event_expr_observer_s(thr, cp->net, cp->cptr2);
+            new event_expr_observer_s(thr, cp->net, cp->cptr2, edge);
       thr->event_expr_observer = observer;
 
       vvp_vector4_t initial;
       std::vector<event_expr_path_s>paths;
-      if (!run_event_expr_recipe_(observer, initial, paths)) {
+      std::vector<event_expr_vif_source_s>vif_sources;
+      if (!run_event_expr_recipe_(observer, initial, paths, vif_sources)) {
             bool attached = thr->event_expr_observer == observer;
             bool recipe_failed = attached && observer->recipe_failed;
             cancel_event_expr_observer_(thr);
@@ -31992,10 +32131,26 @@ bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t cp)
             return false;
       }
       observer->last_value = initial;
+      observer->vif_sources.swap(vif_sources);
       observer->have_last = true;
       observer->phase = event_expr_observer_s::ARMED;
       register_event_expr_sources_(observer, paths);
       return false;
+}
+
+bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t cp)
+{
+      return wait_obj_expr_(thr, cp, vvp_edge_none);
+}
+
+bool of_WAIT_OBJ_EXPR_POSEDGE(vthread_t thr, vvp_code_t cp)
+{
+      return wait_obj_expr_(thr, cp, vvp_edge_posedge);
+}
+
+bool of_WAIT_OBJ_EXPR_NEGEDGE(vthread_t thr, vvp_code_t cp)
+{
+      return wait_obj_expr_(thr, cp, vvp_edge_negedge);
 }
 
 /* Filtered class-property @ event. The target pushes pid, canonical unpacked

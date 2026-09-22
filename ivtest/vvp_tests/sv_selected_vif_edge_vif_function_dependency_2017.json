@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_selected_vif_edge_vif_function_dependency_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "vif_function_dependency"
+  ],
+  "gold": "sv_selected_vif_edge_vif_function_dependency_2017"
+}

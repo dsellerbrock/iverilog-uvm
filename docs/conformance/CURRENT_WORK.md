@@ -1,5 +1,13 @@
 # Current evidence and work
 
+The [selected-VIF edge candidate](session_logs/2026-09-21_selected_vif_edge_focus.json) records the current compiler patch, passing required local gates and stable-release application replays. Publication remains pending; the refreshed merged baseline is PR317 (`6e8bf2268`).
+
+The [seed-3 upstream revalidation](session_logs/2026-09-21_pwrmgr_seed3_upstream_revalidation.json) confirms valid stimulus and an upstream checker defect, separately validates the minimal checker overlay, and records the stronger backport's uncovered `until` continuation gap. Patched results do not qualify the pristine release.
+
+The [SPI class event-list checkpoint](session_logs/2026-09-21_spi_class_event_list_focus.json) records paired-edition semantic tests and mapped UVM validation. Pristine SPI Host still fails compilation; this is not application qualification.
+
+The [current-build seed-3 recheck](session_logs/2026-09-21_pwrmgr_seed3_current_build_recheck.json) reconfirms the corrected checker passes and the pristine release fails, with unchanged corpus and recorded dirty compiler-patch provenance.
+
 The [seed-3 checker correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) records a separately patched upstream checker, passing seed1/seed3 smoke, and retained stopped-clock failure checks. The pristine release stays unchanged and its seed3 remains failing; this is patched-DV evidence.
 
 The [pwrmgr seed-3 assessment](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json) identifies a clock-phase assumption in the unchanged upstream assertion. The run remains failing; this is diagnostic evidence, not an application pass or a compiler fix.

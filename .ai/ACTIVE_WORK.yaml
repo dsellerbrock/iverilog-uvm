@@ -1,111 +1,96 @@
-id: OT-WHOLE-FUNCTION-CLASS-EVENT
-status: REGRESSION_TESTED_DOCUMENTED_PUBLICATION_PENDING
-baseline: 175dcb65d76ffdbae78e64ba45beee95217e8773
-authority: Coordinator selection under user-authorized continuous compiler campaign, after closure/preservation
-  of separate seed3checker task.
-objective: Correct integral event expressions involving class-method calls, preserving value-change, ordinary
-  dependencies, lifetime and synchronous arming.
-reproducer: evidence/review-20260920/whole-function-event-next/method_selector.sv
-expected: Event expression is evaluated with class receiver semantics; changes to relevant observed value wake
-  once, equal values remain waiting. No object-to-vector abort.
-root_hypothesis: Missing NetEUFunc receiver metadata routes object inputs to structural vectorufunc. Receiver-only
-  subscriptions also miss nested function member reads.
+blocker: OT-SPI-SELECTED-VIF-EDGE
+status: REGRESSION_TESTED
+base: 50cda4fdf; preceding event-list fix frozen with focused and mapped UVM gates passing.
+objective: Implement correct selected packed VIF edge event semantics and remove the SPI compiler crash.
+reproducer: evidence/review-20260920/spi-event-list-next/crash-assessment/reducer_vif_select_direct.sv
+red: Compiler exits139 in 2012/2017/2023; full SPI LLDB stack NetESelect synthesize to NetPartSelect to NetPins pin.
 clauses:
-- IEEE1800-2017/2023 9.4.2
+- IEEE 1800-2017 9.4.2 edge-sensitive events and 25 virtual interfaces
+- IEEE 1800-2023 9.4.2 edge-sensitive events and 25 virtual interfaces
+expected: A posedge of the selected packed interface bit resumes the waiter exactly once; nonselected changes do not; preserve four-state edge rules and live expression dependencies.
+root_hypothesis: Structural event synthesis receives a dynamic class-property selector without a signal net; route through existing VIF/class event expression mechanisms instead of synthesizing the class index.
 allowed_files:
 - elaborate.cc
-- Private evidence/review-20260920/whole-function-event-next/
-- Owning tests/registrations/documentation after coordinator review
-- vvp/vthread.cc
-- vvp/vthread.h
-- vvp/vvp_cobject.cc
-- vvp/vvp_cobject.h
-- tgt-vvp/vvp_process.c
-- net_event.cc
-- tests/vvp_runtime/mixed_wait_recipe_stack.stderr
-- t-dll.cc
-- t-dll-expr.cc
-- vvp/compile.cc
-- tests/vvp_runtime/mixed_wait_malformed.vvp
-- tests/vvp_runtime/mixed_wait_malformed.stderr
-forbidden: No application edits, fork/helper observer, new expression interpreter, discarded side effects,
-  fabricated values or weak tests. Broader scope requires coordinator root-cause review.
+- expr_synth.cc only if a shared null-result propagation defect is proven; no suppressing valid event semantics
+- private evidence/review-20260920/spi-selected-vif-edge/
+- owning regressions and documentation at integration
+forbidden:
+- No application edits, queue type relaxation, assertion suppression, broad edge sensitivity or compile-only completion.
+- Runtime scope revised below after confirmed missing selected-edge metadata; unrelated fixes remain forbidden.
 lanes:
   implementation:
-    owner: vif_proxy_implementation Sol/medium
-    files:
-    - elaborate.cc
-    - vvp/vthread.cc
-    - vvp/vthread.h
-    - vvp/vvp_cobject.cc
-    - vvp/vvp_cobject.h
-    - private implementation/
-  tests:
     owner: canonical_graph_refresh Terra/medium
-    files:
-    - private tests/
-coordinator: Shared builds/install/tests, standards interpretation, source scope, integration/manifests/docs
-  and final review. Own tgt-vvp/vvp_process.c wildcard descriptor emission; no concurrent edits with implementation
-  lane.
-preservation: External AGENTS87-line patch and unrelated artifacts untouched. No newworktree. Previous sourcequalifiedPR315
-  is frozen baseline.
-architecture: Reuse synchronous expressionobserver; capture actual classmember reads during existing evaluator
-  execution, retain/merge dynamic subscriptions, restore capture context for nested evaluation. No new interpreter.
-validation_pending:
-- Build4 is frozen; focused paired-edition, permanent legacy/JSON, adjacent and runtime ABI checks passed.
-- Integrated legacy/VPI/negative/runtime gate passed; full JSON3186 tests passed with0 failures.
-- NFA, real-DPI UVM, frontend, makecheck and rootseed are running serially under session31844.
-- Pristine application replays completed; seed3 checker and rejection-sampling failures remain open.
-- Virtual-interface method reads remain explicitly unsupported; no qualification claim for them.
-scope_expansion:
-  evidence: evidence/review-20260920/whole-function-event-next/focus1/results.json
-  invariant: Event expression export may precede callee scope export; target references require initialized scope records.
-  correction: Reuse idempotent target scope creation for referenced callees and parent scopes; coordinator owns t-dll files.
-  runtime: Agent may extend existing object mutation subscriptions and callframe error cleanup; report exact files before edits.
-remaining_boundaries:
-- Virtual-interface member reads inside observer functions remain explicitly unsupported.
-- Compound event lists and broader result types remain outside this fix; no closure claimed.
-- Historical factory/zero-static-path failures were corrected and covered by build4 regressions.
-factory_scope_authorization:
-  root_cause: Class-valued factory receiver has no static root; observer selection incorrectly requires a statically addressable class root.
-  design: Retain null-root dependency marker and execute existing recipe with zero static descriptors; dynamically captured property reads supply mutation subscriptions. Never invent a source root.
-  lane: Sol owns elaborate.cc and vvp/vthread.cc; coordinator owns target emission and vvp/compile.cc ABI guard; Terra owns private tests only.
-  acceptance: Paired factory, no-input source, receiver rebind, one-evaluation and existing focus. Positive zero-path bytecode plus malformed stack and missing operand rejection.
-zero_pin_followup:
-  evidence: focus3 factory_no_inputs compiler pin(0) out of bounds(0).
-  root: NetEvProbe::find_similar_probes assumes a static pin and compares only nexus links; dynamically captured observers require distinct recipe identity.
-  coordinator: net_event.cc guards zero-pin and observer probes against structural coalescing.
-current_checkpoint:
-  evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json
-  installed: build4 source frozen; no later compiler edits.
-  tests_lane: Terra registers permanent ivtest cases and focused/main manifests; no shared harness execution.
-  next: Complete remaining broad gates and pristine application replay; compiler source remains frozen.
-permanent_test_ownership:
-  Terra: ivtest/ivltests and gold/vvp_tests for sv_whole_function_event_*, focused lists and regress-sv.list/regress-vvp.list only.
-  coordinator: tests/vvp_runtime/mixed_wait_recipe_zero*.vvp and split gold; run_mixed_wait_malformed.sh extends existing ABI checks.
-qualification_live:
-  integrated_session: 96267
-  integrated_result: PASS
-  json_session: 90403
-  json_result: PASS3186 tests,0 failures
-  remaining_gate_session: 31844
-  command: python3 evidence/review-20260920/whole-function-event-next/qualification/final/run_gate.py integrated
-  source: Build4 frozen; all seven compiler source hashes rechecked equal after permanent registration.
-  focused: Permanent legacy46/46, JSON46/46, adjacent52/52, ABI10/10. Two VIF negative diagnostics are unsupported boundaries, not implementation gains.
-  next: Integrated session96267 completed PASS (6250/6255,0 failures,2 NI,3 expected; VPI126,negative148,runtime15 pass). JSON completed PASS3186/0 failures. Poll serial session31844 (nfa,uvm,frontend,makecheck,rootseed); do not restart. Pristine application replays completed with known failures retained.
-parallel_ci_repair:
-  authority: Standing user instruction to publish follow-up PRs for later CI failures.
-  defect: PR315 omitted existing ivl_event_observer_expr from Windows export list; all three Windows linkers fail that symbol.
-  scope: ivl.def only, independent branch/commit and PR316; no current worktree source changes.
-  coordinator: Tiny one-line repair handled directly; current compiler qualification stays frozen.
-diagnostic_expectations:
-  scope: ivtest/gold/sv_mixed_event_{conditional_capture,disable_during_sample}_{2017,2023}.gold and corresponding -iverilog-stderr.gold only.
-  reason: Newly traversed function bodies retain existing conservative-sensitivity warnings; exact output update only, all behavioral assertions preserved.
-  evidence: evidence/review-20260920/whole-function-event-next/qualification/sensitivity-warning-assessment.json
-  checked: Affected legacy and JSON focused lists both44/44.
+    files: elaborate.cc and optional justified expr_synth.cc; private implementation notes
+    task: Trace root cause, reuse existing mechanisms, smallest complete fix; report dependencies before scope expansion.
+  tests:
+    owner: vif_proxy_implementation Sol/medium
+    files: private spi-selected-vif-edge/tests only
+    task: Paired semantic positive/negative/boundary tests; no shared builds or harnesses.
+coordinator: Source review, shared build/install/harnesses, standards decisions, permanent registration and integration.
+acceptance:
+- Both editions reproduce red then compile and execute meaningful selected posedge/negedge checks.
+- Nonselected bit suppression, dynamic index changes, nested receiver/VIF rebinding and four-state transitions verified as applicable.
+- Automatic context, cancellation, ordinary selected event control and invalid selections/type diagnostics covered.
+- Fresh pristine SPI compile verifies crash removed without hiding remaining diagnostics.
+- Focused adjacent and mapped UVM gates pass; broad suites at batch checkpoint unless risk escalates.
 
-final_local_qualification:
-  session: 31844 completed exit0
-  result: UVM358/358 real DPI,frontend all scenarios,makecheck and rootseed passed; earlier integrated/JSON/NFA all passed.
-  source: Seven compiler source hashes match build4; no new edits after qualification.
-  next: Commit explicit reviewed paths and publish coherent PR, then inspect CI.
+root_cause_confirmed:
+  issue: VIF member synthesizes through proxy, ordinary class-property index does not; unchecked null offset enters NetPartSelect.
+  guard_limit: Null guard alone skips event downstream and is not a semantic fix.
+expanded_runtime_scope:
+  owner: canonical_graph_refresh Terra/medium
+  files: netlist.h, net_event.cc, t-dll.cc, t-dll.h, t-dll-api.cc, ivl_target.h, ivl.def, tgt-vvp/vvp_process.c, vvp/compile.cc, vvp/compile.h, vvp/vthread.cc, vvp/event.cc, vvp/event.h and directly necessary opcode declarations.
+  design: Reuse synchronous event-expression evaluator and VIF signal registration/lifetime mechanisms; extend metadata/runtime only as required for full selected edge semantics.
+  constraint: Unknown/out-of-range packed selectors yield X, which participates in the standard edge table; do not treat these as inactive.
+  risk: HIGH runtime/event registration change; full applicable gates required before promotion.
+  authorization: Explicit user crash-fix request plus coordinator root-cause scoped expansion; proceed without another approval.
+
+resumed_after_qwen_evaluation:
+  coordinator: Reviews existing source patch, owns build and all shared validation.
+  regression_lane: eval_evidence_audit Luna/low owns private same-signal waiter regression only.
+  integration_corrections: Export observer edge API on Windows and sort opcode table before first build.
+  next: Serial build/install then paired selected-VIF semantic matrix.
+
+post_build2_parallel_repair:
+  runtime_lane: selected_vif_relay_lifetime Terra/medium owns vvp/vthread.cc relay allocation and teardown only.
+  coordinator_lane: elaborate.cc null-VIF selected event routing and shared build/tests.
+  regression_lane: Luna private same-signal regressions complete.
+  evidence: tests/candidate-build2 has allocator assertion on VIF updates; null-at-arm unexpectedly exits zero.
+  invariant: Bounded registration lifetime, safe fanout callbacks, no semantic suppression or per-occurrence leaks.
+
+null_vif_root_cause:
+  evidence: Generated recipe replaces null VIF property read with X, bypassing runtime error and blocking forever.
+  coordinator_scope: tgt-vvp/eval_vec4.c plus recipe-active query in vvp_process.c/vvp_priv.h; no elaborator change needed.
+  fix: Preserve raw property read within observer recipe so existing runtime null diagnostic terminates simulation.
+
+called_function_null_boundary:
+  red: null-function-review/results.json; null VIF inside called selector silently returns default in both editions.
+  root: Function code is generated outside recipe emission, so compile-time recipe flag cannot guard its property reads.
+  correction: Runtime property-null guard opcode distinguishes actual dereference from lawful null comparison and reuses observer diagnostic.
+  scope: eval_vec4.c, vvp/codes.h, vvp/compile.cc, vvp/vthread.cc; paired negative and guarded-positive regressions.
+  qualification: Initial broad run interrupted deliberately; no completed broad result claimed.
+
+qualification_readonly_lane:
+  owner: selected_vif_relay_lifetime Terra/medium
+  purpose: Assess remaining pristine SPI queue-output type errors for next coordinator selection.
+  allowed: Canonical graph/source reads and private spi-queue-type-next reproducers using installed tools.
+  forbidden: Compiler edits, shared builds/harnesses, application changes; current implementation remains frozen.
+
+seed3_user_requested_revalidation:
+  authorization: User explicitly requests seed3 fix and investigation of seed validity and VCS quirks; necessary downstream checker correction authorized.
+  owner: selected_vif_relay_lifetime Terra/medium, private assessment and focused tests only while selected-VIF compiler patch qualifies.
+  scope: Audit existing clock-activity checker patch and replay isolated overlay; preserve pristine release and assertion strength.
+  coordinator: Public vendor evidence, shared tools and final integration.
+  selected_vif_checkpoint: Build6 private38/38, legacy171/171, JSON171/171; broad gates pending.
+
+until_continuation_assessment:
+  owner: selected_vif_relay_lifetime Terra/medium
+  purpose: Trace reproduced late-drop continuous until failure in official OpenTitan checker overlay.
+  scope: Read compiler sources and local normative clauses; isolated reducers only in evidence/review-20260920/sva-until-continuation-next.
+  forbidden: No compiler edits or shared builds while selected-VIF build6 qualifies.
+  next: Coordinator selects implementation only after current validated checkpoint or explicit safe suspension.
+
+qualification_build6_final:
+  state: REGRESSION_TESTED, documented; publication pending.
+  evidence: docs/conformance/session_logs/2026-09-21_selected_vif_edge_focus.json
+  all_required_gates: Passed; session29234 terminal0.

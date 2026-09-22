@@ -1,0 +1,2 @@
+PASS nested rebind
+./ivltests/sv_selected_vif_edge_nested_rebind_2017.v:41: $finish called at 8 (1s)

@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_selected_vif_edge_selected_suppression_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "selected_suppression"
+  ],
+  "gold": "sv_selected_vif_edge_selected_suppression_2023"
+}

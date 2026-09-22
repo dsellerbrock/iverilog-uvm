@@ -1,0 +1,2 @@
+PASS guarded null VIF function
+ivltests/sv_selected_vif_edge_null_vif_function_guard_2023.v:18: $finish called at 3 (1s)

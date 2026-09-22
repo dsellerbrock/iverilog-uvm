@@ -1,0 +1,2 @@
+PASS out of range index edge
+./ivltests/sv_selected_vif_edge_out_of_range_index_edge_2023.v:28: $finish called at 10 (1s)

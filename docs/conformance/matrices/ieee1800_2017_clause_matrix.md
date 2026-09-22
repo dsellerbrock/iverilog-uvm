@@ -1639,3 +1639,11 @@ PARTIAL: exact weighted item and feasible-member sampling now has focused eviden
 ### September 21 whole-function class event dependencies
 
 IEEE 1800-2017 §9.4.2 remains PARTIAL overall. Integral event expressions using nonvirtual class methods now have [focused implementation evidence](../session_logs/2026-09-21_whole_function_event_focus.json) for member reads inside function bodies, nested receiver rebinding, container mutation and size changes, ordinary/static inputs, and class-valued factory receivers. Evaluation preserves value-change filtering and original selector/receiver evaluation order. This supersedes the earlier mixed static/global dependency limitation for the evidenced class observer path. Virtual-interface reads inside these methods remain explicitly unsupported; separate compound event lists and broader event-expression result types are not closed by this work. Required local qualification passes in the linked record; this does not close the full clause or application DV.
+
+### September 21 compound class-property event lists
+
+§9.4.2 remains PARTIAL. [Focused evidence](../session_logs/2026-09-21_spi_class_event_list_focus.json) covers atomic arming and value-change delivery for pure integral ANYEDGE lists containing class-property reads, including nested receivers and mixed ordinary operands. This extends the earlier separate-list boundary only for the recorded subset. Mapped UVM and permanent regression validation pass; broad qualification remains at the batch checkpoint. Other event families and full application DV remain open.
+
+### Selected virtual-interface edge expressions — locally regression-tested
+
+The 9.4.2/25.9 candidate implements selected packed VIF edge expressions through the synchronous observer, including live selector/rebinding dependencies, four-state edges and cancellation. Broader requirements remain PARTIAL; see the [revision-scoped evidence and completed local gates](../session_logs/2026-09-21_selected_vif_edge_focus.json).

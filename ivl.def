@@ -56,6 +56,7 @@ ivl_event_nedg
 ivl_event_neg
 ivl_event_nneg
 ivl_event_npos
+ivl_event_observer_edge
 ivl_event_observer_expr
 ivl_event_pos
 ivl_event_scope

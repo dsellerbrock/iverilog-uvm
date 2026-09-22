@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_event_list_rebind_refresh_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "core_rebind_refresh"
+  ],
+  "gold": "sv_class_event_list_rebind_refresh_2017"
+}

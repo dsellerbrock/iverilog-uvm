@@ -222,6 +222,11 @@ class vvp_fun_edge : public vvp_net_fun_t, public waitable_hooks_s {
       edge_t edge_;
 };
 
+inline vvp_fun_edge::edge_t VVP_EDGE(vvp_bit4_t from, vvp_bit4_t to)
+{
+      return 1 << ((from << 2) | to);
+}
+
 extern const vvp_fun_edge::edge_t vvp_edge_edge;
 extern const vvp_fun_edge::edge_t vvp_edge_posedge;
 extern const vvp_fun_edge::edge_t vvp_edge_negedge;

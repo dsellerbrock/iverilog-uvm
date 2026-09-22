@@ -1,0 +1,2 @@
+PASS core prequeued regions
+ivltests/sv_class_event_list_prequeued_regions_2017.v:29: $finish called at 3 (1s)

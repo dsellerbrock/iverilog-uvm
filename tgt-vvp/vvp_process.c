@@ -3588,6 +3588,11 @@ void event_expr_capture_object_result(ivl_expr_t expr)
                   fprintf(vvp_out, "    %%event/expr/save/o %u;\n", cur->slot);
 }
 
+int event_expr_recipe_active(void)
+{
+      return event_expr_capturing_;
+}
+
 int event_expr_capture_active(ivl_expr_t expr)
 {
       if (!event_expr_capturing_) return 0;
@@ -3662,8 +3667,13 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
                               if (word) event_expr_capture_slot_(word, 0);
                               if (bit) event_expr_capture_slot_(bit, 0);
                         }
-                        fprintf(vvp_out, "    %%wait/obj/expr E_%p, Tevent_%u;\n",
-                                ev, observer_label);
+                        const char*observer_wait = "obj/expr";
+                        if (ivl_event_observer_edge(ev) == 1)
+                              observer_wait = "obj/expr/posedge";
+                        else if (ivl_event_observer_edge(ev) == 2)
+                              observer_wait = "obj/expr/negedge";
+                        fprintf(vvp_out, "    %%wait/%s E_%p, Tevent_%u;\n",
+                                observer_wait, ev, observer_label);
                         fprintf(vvp_out, "    %%jmp Tevent_after_%u;\n", observer_label);
                         fprintf(vvp_out, "Tevent_%u ;\n", observer_label);
                         event_expr_capturing_ = 1;

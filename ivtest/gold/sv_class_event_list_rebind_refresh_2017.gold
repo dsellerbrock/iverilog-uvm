@@ -1,0 +1,2 @@
+PASS core rebind refresh
+./ivltests/sv_class_event_list_rebind_refresh_2017.v:34: $finish called at 5 (1s)

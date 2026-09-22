@@ -19324,6 +19324,21 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
       return !deps.empty();
 }
 
+/* A structural selected net keeps its ordinary NetPartSelect edge probe.
+   Only a selected VIF member needs the expression observer to rebind the
+   member when its handle changes; class-property dependencies likewise have
+   no static NetNet input. */
+static bool selected_edge_requires_observer_(const NetExpr*expr)
+{
+      if (has_class_property_mutation_dep_(expr))
+            return true;
+      if (!dynamic_cast<const NetESelect*>(expr))
+            return false;
+      std::vector<vif_member_path_t> vif_paths;
+      collect_vif_member_paths_(expr, vif_paths);
+      return !vif_paths.empty();
+}
+
 /* A direct property (or one selected packed bit) is completely filtered by
    the mutation key itself. Compound event expressions need the procedural
    value filter built by PEventStatement::elaborate_st below. */
@@ -19660,6 +19675,93 @@ static bool prepare_event_list_(Design*des, NetScope*scope,
 	  || (has_vif && has_non_vif);
 }
 
+/* Only this closed set is safe to move into an observer concat. In particular,
+ * reject every unknown NetExpr subclass as well as user/system calls, instead
+ * of assuming an unrecognized expression is side-effect free. */
+static bool event_expr_is_pure_for_concat_(const NetExpr*expr)
+{
+      if (!expr)
+            return true;
+      if (expr->expr_type() == IVL_VT_REAL
+          || expr->expr_type() == IVL_VT_STRING)
+            return false;
+      if (dynamic_cast<const NetEConst*>(expr))
+            return true;
+      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr))
+            return event_expr_is_pure_for_concat_(binary->left())
+                && event_expr_is_pure_for_concat_(binary->right());
+      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr))
+            return event_expr_is_pure_for_concat_(unary->expr());
+      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr))
+            return event_expr_is_pure_for_concat_(ternary->cond_expr())
+                && event_expr_is_pure_for_concat_(ternary->true_expr())
+                && event_expr_is_pure_for_concat_(ternary->false_expr());
+      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+            return event_expr_is_pure_for_concat_(select->sub_expr())
+                && event_expr_is_pure_for_concat_(select->select());
+      if (const NetEProperty*property = dynamic_cast<const NetEProperty*>(expr))
+            return event_expr_is_pure_for_concat_(property->get_base())
+                && event_expr_is_pure_for_concat_(property->get_index());
+      if (const NetESignal*signal = dynamic_cast<const NetESignal*>(expr))
+            return event_expr_is_pure_for_concat_(signal->word_index());
+      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+            for (unsigned idx = 0 ; idx < concat->nparms() ; idx += 1)
+                  if (!event_expr_is_pure_for_concat_(concat->parm(idx)))
+                        return false;
+            return true;
+      }
+      return false;
+}
+
+/* An observer recipe can atomically represent a source-order concatenation
+ * for a pure integral ANYEDGE list with at least one class-property read.
+ * Static/constant operands may share that observer; keep VIF, named,
+ * qualified, edge, and call-bearing leaves on their existing paths. */
+static unique_ptr<NetExpr> prepare_class_property_event_list_concat_(
+	    const std::vector<PEEvent*>&events,
+	    std::vector<prepared_event_leaf_t>&prepared)
+{
+      if (events.size() < 2 || prepared.size() != events.size())
+	    return unique_ptr<NetExpr>();
+
+      bool has_class_property = false;
+      unsigned concat_width = 0;
+      for (unsigned idx = 0 ; idx < events.size() ; idx += 1) {
+	    const PEEvent*event = events[idx];
+	    const NetExpr*expr = prepared[idx].expr.get();
+	    if (!event || event->type() != PEEvent::ANYEDGE || event->condition()
+		|| !prepared[idx].elaborated || prepared[idx].preserve_pform
+		|| prepared[idx].named_event || !expr
+		|| (expr->expr_type() != IVL_VT_BOOL
+		    && expr->expr_type() != IVL_VT_LOGIC)
+		|| expr->expr_width() == 0
+		|| !event_expr_is_pure_for_concat_(expr))
+		  return unique_ptr<NetExpr>();
+	    if (expr->expr_width() > UINT_MAX - concat_width)
+		  return unique_ptr<NetExpr>();
+	    concat_width += expr->expr_width();
+
+	    std::vector<vif_member_path_t>vif_paths;
+	    collect_vif_member_paths_(expr, vif_paths);
+	    if (!vif_paths.empty())
+		  return unique_ptr<NetExpr>();
+
+	    std::vector<class_property_mutation_dep_t>deps;
+	    collect_class_property_mutation_deps_(expr, deps);
+	    has_class_property = has_class_property || !deps.empty();
+      }
+
+      if (!has_class_property)
+	    return unique_ptr<NetExpr>();
+
+      unique_ptr<NetEConcat>concat(
+	    new NetEConcat(events.size(), 1, IVL_VT_LOGIC));
+      concat->set_line(*events.front());
+      for (unsigned idx = 0 ; idx < events.size() ; idx += 1)
+	    concat->set(idx, prepared[idx].expr.release());
+      return unique_ptr<NetExpr>(concat.release());
+}
+
 /* IEEE 1800-2017 9.4.2.3 qualifies each event-expression leaf
  * independently. A simple `if (guard)' around the delayed statement is not
  * sufficient: a one-shot event control must keep waiting when an edge occurs
@@ -19893,12 +19995,29 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
       std::vector<prepared_event_leaf_t>prepared;
 
+      /* A nested class-property leaf needs the occurrence-time observer even
+       * though its outer NetEProperty is syntactically direct. For a pure
+       * integral event-or list, collapse the already elaborated leaves into one
+       * source-order concat and recurse through the established single-observer
+       * lowering. This keeps all subscriptions in the original waiter frame. */
+      bool split_event_list = prepare_event_list_(des, scope, *this, expr_, prepared);
+      if (unique_ptr<NetExpr>concat =
+          prepare_class_property_event_list_concat_(expr_, prepared)) {
+            unique_ptr<PECachedEventExpr>cached_expr(new PECachedEventExpr(
+                  expr_.front()->expr(), std::move(concat)));
+            PEEvent concat_event(PEEvent::ANYEDGE, cached_expr.get());
+            concat_event.set_line(*expr_.front());
+            PEventStatement concat_wait(&concat_event);
+            concat_wait.set_line(*this);
+            return concat_wait.elaborate_st(des, scope, enet);
+      }
+
       /* A dynamically selected class/VIF leaf cannot share one VVP waiter
        * record with an ordinary event family, and a compound dynamic leaf
        * needs the single-leaf value-change filter around its own wait. Lower
        * only those mixed lists as independent one-shot waits under join_any;
        * the ordinary event-list path below remains unchanged. */
-      if (prepare_event_list_(des, scope, *this, expr_, prepared)) {
+      if (split_event_list) {
 	    std::vector<NetProc*>waiters;
 	    for (unsigned idx = 0; idx < expr_.size(); idx += 1) {
 		  PEEvent*event = expr_[idx];
@@ -20607,6 +20726,55 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	                        delete tmp;
 	                        continue;
 	                  }
+            }
+
+            /* An edge expression with a class-selected value cannot use the
+               structural synthesizer: a class property has no NetNet input
+               for NetPartSelect.  The synchronous observer evaluates the
+               complete expression at each VIF/class source occurrence and
+               applies the requested four-state edge table to its scalar
+               result.  Keep the backing probe ANYEDGE because its class
+               handle pins are only an auxiliary source; the observer carries
+               the actual edge qualifier. */
+            if (gn_system_verilog()
+                && (expr_[idx]->type() == PEEvent::POSEDGE
+                    || expr_[idx]->type() == PEEvent::NEGEDGE)
+                && selected_edge_requires_observer_(tmp)) {
+                  const NetESelect*selected = dynamic_cast<const NetESelect*>(tmp);
+                  if (selected && selected->select()
+                      && selected->select()->expr_type() == IVL_VT_REAL) {
+                        cerr << selected->select()->get_fileline() << ": error: "
+                             << "real expression cannot select an event value." << endl;
+                        des->errors += 1;
+                        delete tmp;
+                        continue;
+                  }
+                  if (tmp->expr_type() != IVL_VT_BOOL
+                      && tmp->expr_type() != IVL_VT_LOGIC) {
+                        cerr << tmp->get_fileline() << ": error: edge event "
+                             << "expression must be integral." << endl;
+                        des->errors += 1;
+                        delete tmp;
+                        continue;
+                  }
+                  NexusSet*prop_set = tmp->nex_input(true,
+                        expr_has_user_function_call_(tmp));
+                  if (prop_set && prop_set->size() > 0) {
+                        NetEvProbe*pr = new NetEvProbe(scope,
+                              scope->local_symbol(), ev,
+                              NetEvProbe::ANYEDGE, prop_set->size());
+                        for (unsigned pin = 0; pin < prop_set->size(); ++pin)
+                              connect(prop_set->at(pin).lnk, pr->pin(pin));
+                        pr->set_event_observer_expr(tmp,
+                              expr_[idx]->type() == PEEvent::POSEDGE
+                              ? NetEvProbe::POSEDGE : NetEvProbe::NEGEDGE);
+                        tmp = nullptr;
+                        delete prop_set;
+                        des->add_node(pr);
+                        expr_count += 1;
+                        continue;
+                  }
+                  delete prop_set;
             }
 
             /* Class-property event expressions cannot be synthesized into a

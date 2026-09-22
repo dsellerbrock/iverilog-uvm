@@ -1,0 +1,2 @@
+PASS ordinary VIF control
+ivltests/sv_selected_vif_edge_ordinary_vif_control_2023.v:11: $finish called at 3 (1s)

@@ -1,0 +1,359 @@
+{
+  "id": "OT-PWRMGR-SEED3-ESC-TIMEOUT",
+  "date": "2026-09-21",
+  "classification": "VALID_SEED_APPLICATION_CHECKER_DEFECT",
+  "compiler_head": "50cda4fdf86ed9922b19e9110805b2b5e0604841",
+  "compiler_build": "evidence/review-20260920/spi-selected-vif-edge/build6/build.json",
+  "release": "Earlgrey-PROD-M6",
+  "application_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "seed_validity": "Smoke sequence permits independent randomized phases with equal main/escalation frequency; no seed exclusion found in the searched smoke configuration.",
+  "cause": "A live asynchronous escalation clock can be sampled low on every reference edge, so sampled level does not establish inactivity.",
+  "upstream_sources": [
+    "https://github.com/lowRISC/opentitan/pull/28474",
+    "https://github.com/lowRISC/opentitan/commit/91a848109090f4b17b9c8598be103497a3136407",
+    "https://github.com/lowRISC/opentitan/commit/b13c9cd9cc488ccebc7cc5070423a3889e3fb4cf"
+  ],
+  "vcs": "No VCS available or differential run. Upstream independently fixed this exact checker failure; no demonstrated VCS-specific quirk. Equal seed numbers are not evidence of equal stimulus across tools.",
+  "minimal_activity_correction": {
+    "patch": "docs/conformance/repros/pwrmgr_clock_activity/opentitan-clock-activity.patch",
+    "patch_sha256": "dc4c9b4be456a842e34c41cb002972762395ac0952bcef153d3bca7b4e9af8ec",
+    "preserved_contract": "138 consecutive samples, original nonoverlapped single-cycle consequent, enable/reset; replace level assumption with observed clock activity only.",
+    "focus_passed": 60,
+    "focus_total": 60,
+    "focus_path": "evidence/review-20260920/pwrmgr-seed3-revalidation/activity-focus-build6/focus-results.json",
+    "replay": {
+      "tools_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "2df609d4ed3b668bf9c3e90c4357c1328ef3b61fcf0bde13ea67232cb0bced94",
+        "local-install/lib/ivl/ivl": "c1ca4f9cde22b4c9e058c5b1e183e01221eb05f980814579e37ab7c14b84b069",
+        "local-install/lib/ivl/vvp.tgt": "f92aa717f158962ec2888e3feba9d4162d31d5de59483bf94aa82641b1cee2ab"
+      },
+      "checker": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv",
+      "checker_sha256": "ff1a4385770643f26e9a9ef403364fc55409c4ac65a833b77eff77180287ec98",
+      "runs": [
+        {
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/activity-build6-replay/pwrmgr.vvp",
+            "+ntb_random_seed=3",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_HIGH",
+            "+cdc_instrumentation_enabled=1",
+            "+test_timeout_ns=1000000",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=pwrmgr_base_test",
+            "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+          ],
+          "exit": 0,
+          "seconds": 5.280707120895386,
+          "log_sha256": "a7ff9c185e889c7db0c99d0a78d3ffc364ee167b11d2e62946c1ece2b17a9b4f",
+          "seed": 3,
+          "pass_banner": true,
+          "fail_banner": false
+        },
+        {
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/activity-build6-replay/pwrmgr.vvp",
+            "+ntb_random_seed=1",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_HIGH",
+            "+cdc_instrumentation_enabled=1",
+            "+test_timeout_ns=1000000",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=pwrmgr_base_test",
+            "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+          ],
+          "exit": 0,
+          "seconds": 4.9350621700286865,
+          "log_sha256": "6aa82986ddb04cccf202cfaf1fabdb97af3ed201e0bd91a3676bb9ea8c127a57",
+          "seed": 1,
+          "pass_banner": true,
+          "fail_banner": false
+        }
+      ],
+      "corpus_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-stb",
+          "-spwrmgr_bind",
+          "-spwrmgr_cov_bind",
+          "-spwrmgr_unit_only_bind",
+          "-ssec_cm_prim_count_bind",
+          "-ssec_cm_prim_double_lfsr_bind",
+          "-ssec_cm_prim_onehot_check_bind",
+          "-ssec_cm_prim_sparse_fsm_flop_bind",
+          "-uvm",
+          "-DUVM",
+          "-DUVM_NO_DEPRECATED",
+          "-DUVM_REG_ADDR_WIDTH=32",
+          "-DUVM_REG_DATA_WIDTH=32",
+          "-DUVM_REG_BYTENABLE_WIDTH=4",
+          "-DUVM_REGEX_NO_DPI",
+          "-DSIMULATION",
+          "-DDUT_HIER=tb.dut",
+          "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/activity-build6-replay/pwrmgr.vvp",
+          "-c",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/activity-build6-replay/overlay.scr"
+        ],
+        "exit": 0,
+        "seconds": 2.284088134765625,
+        "log_sha256": "bc0cce7aa5923e06c4c23ee88f5fc66a885e6a88124624c0f4e51d29db8b3904"
+      },
+      "image_sha256": "137b0ed643445556b1c7f9b0a1a83870d65ccd7be7816f1d53f9e9ad9719ac47",
+      "tools_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "2df609d4ed3b668bf9c3e90c4357c1328ef3b61fcf0bde13ea67232cb0bced94",
+        "local-install/lib/ivl/ivl": "c1ca4f9cde22b4c9e058c5b1e183e01221eb05f980814579e37ab7c14b84b069",
+        "local-install/lib/ivl/vvp.tgt": "f92aa717f158962ec2888e3feba9d4162d31d5de59483bf94aa82641b1cee2ab"
+      },
+      "stable": true,
+      "corpus_clean_after": true
+    },
+    "traffic_audit": {
+      "scope": "Read-only audit of activity-build6-replay timestamp-correction logs; this focused replay is not a full official-backport qualification.",
+      "seed1": {
+        "log_sha256": "6aa82986ddb04cccf202cfaf1fabdb97af3ed201e0bd91a3676bb9ea8c127a57",
+        "bytes": 174904,
+        "traffic": {
+          "a_monitor_items": 25,
+          "d_monitor_items": 25,
+          "driver_responses": 25,
+          "outstanding_increment_to_1": 25,
+          "outstanding_decrement_to_0": 25,
+          "source_address_matches": 25,
+          "a_unmatched": 0,
+          "d_unmatched": 0
+        },
+        "summary": {
+          "uvm_errors": 0,
+          "uvm_fatals": 0,
+          "test_passed_checks": 1,
+          "test_failed_checks": 0,
+          "finish_time_ps": 65380465
+        },
+        "line_refs": {
+          "summary": [
+            702,
+            703,
+            735,
+            743
+          ]
+        }
+      },
+      "seed3": {
+        "log_sha256": "a7ff9c185e889c7db0c99d0a78d3ffc364ee167b11d2e62946c1ece2b17a9b4f",
+        "bytes": 235021,
+        "traffic": {
+          "a_monitor_items": 38,
+          "d_monitor_items": 38,
+          "driver_responses": 38,
+          "outstanding_increment_to_1": 38,
+          "outstanding_decrement_to_0": 38,
+          "source_address_matches": 38,
+          "a_unmatched": 0,
+          "d_unmatched": 0
+        },
+        "summary": {
+          "uvm_errors": 0,
+          "uvm_fatals": 0,
+          "test_passed_checks": 1,
+          "test_failed_checks": 0,
+          "finish_time_ps": 53640918
+        },
+        "line_refs": {
+          "summary": [
+            884,
+            885,
+            917,
+            925
+          ]
+        }
+      },
+      "method": "Counted tl_monitor [a_chan]/[d_chan] records, driver responses, and outstanding counter transitions; paired A/D by logged source plus address. No pending-zero count is used as standalone proof of drain.",
+      "limitation": "This evidence covers only the two timestamp-correction replay logs. It does not qualify the full official backport or address separate continuation-negative coverage."
+    }
+  },
+  "official_upstream_backport": {
+    "patch": "docs/conformance/repros/pwrmgr_clock_activity/opentitan-upstream-heartbeat-backport.patch",
+    "replay": {
+      "tools_before": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "2df609d4ed3b668bf9c3e90c4357c1328ef3b61fcf0bde13ea67232cb0bced94",
+        "local-install/lib/ivl/ivl": "c1ca4f9cde22b4c9e058c5b1e183e01221eb05f980814579e37ab7c14b84b069",
+        "local-install/lib/ivl/vvp.tgt": "f92aa717f158962ec2888e3feba9d4162d31d5de59483bf94aa82641b1cee2ab"
+      },
+      "checker": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/overlay/hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv",
+      "checker_sha256": "727306551f4cc6ca4a94d4813c61aba0f989324231584d9cf985daec0edecee4",
+      "runs": [
+        {
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/upstream-build6-replay/pwrmgr.vvp",
+            "+ntb_random_seed=3",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_HIGH",
+            "+cdc_instrumentation_enabled=1",
+            "+test_timeout_ns=1000000",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=pwrmgr_base_test",
+            "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+          ],
+          "exit": 0,
+          "seconds": 4.964760065078735,
+          "log_sha256": "8ec3ded968ea4a2f5b6c3ef27fc299c17d90d2e9ecf849d89aa320f6d20eb455",
+          "seed": 3,
+          "pass_banner": true,
+          "fail_banner": false
+        },
+        {
+          "command": [
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+            "-n",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/upstream-build6-replay/pwrmgr.vvp",
+            "+ntb_random_seed=1",
+            "+UVM_NO_RELNOTES",
+            "+UVM_VERBOSITY=UVM_HIGH",
+            "+cdc_instrumentation_enabled=1",
+            "+test_timeout_ns=1000000",
+            "+smoke_test=1",
+            "+UVM_TESTNAME=pwrmgr_base_test",
+            "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+          ],
+          "exit": 0,
+          "seconds": 4.574322938919067,
+          "log_sha256": "db14bfbbb1c6d4ed461f509bd0431b43d70f3c084b84b663d91d3c7f377b68b0",
+          "seed": 1,
+          "pass_banner": true,
+          "fail_banner": false
+        }
+      ],
+      "corpus_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2012",
+          "-stb",
+          "-spwrmgr_bind",
+          "-spwrmgr_cov_bind",
+          "-spwrmgr_unit_only_bind",
+          "-ssec_cm_prim_count_bind",
+          "-ssec_cm_prim_double_lfsr_bind",
+          "-ssec_cm_prim_onehot_check_bind",
+          "-ssec_cm_prim_sparse_fsm_flop_bind",
+          "-uvm",
+          "-DUVM",
+          "-DUVM_NO_DEPRECATED",
+          "-DUVM_REG_ADDR_WIDTH=32",
+          "-DUVM_REG_DATA_WIDTH=32",
+          "-DUVM_REG_BYTENABLE_WIDTH=4",
+          "-DUVM_REGEX_NO_DPI",
+          "-DSIMULATION",
+          "-DDUT_HIER=tb.dut",
+          "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+          "-o",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/upstream-build6-replay/pwrmgr.vvp",
+          "-c",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-revalidation/upstream-build6-replay/overlay.scr"
+        ],
+        "exit": 0,
+        "seconds": 2.368165969848633,
+        "log_sha256": "cc5d6ded72f4b94efbcfd091f3df40924f7e13dccab17d8f144c00b094faa57c"
+      },
+      "image_sha256": "02e4838bcd17dc05d4f03265c938492e36ca4293f553ec5259da77ce61aa21b8",
+      "tools_after": {
+        "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+        "local-install/bin/vvp": "2df609d4ed3b668bf9c3e90c4357c1328ef3b61fcf0bde13ea67232cb0bced94",
+        "local-install/lib/ivl/ivl": "c1ca4f9cde22b4c9e058c5b1e183e01221eb05f980814579e37ab7c14b84b069",
+        "local-install/lib/ivl/vvp.tgt": "f92aa717f158962ec2888e3feba9d4162d31d5de59483bf94aa82641b1cee2ab"
+      },
+      "stable": true,
+      "corpus_clean_after": true
+    },
+    "limitation": "Smoke passes, but focused dropped-timeout until-continuation negative test fails; investigation pending. Do not count smoke as full validation of this stronger assertion.",
+    "traffic_audit": {
+      "scope": "Read-only audit of the official upstream backport replay logs; no build or rerun performed.",
+      "seed1": {
+        "log_sha256": "db14bfbbb1c6d4ed461f509bd0431b43d70f3c084b84b663d91d3c7f377b68b0",
+        "bytes": 174904,
+        "traffic": {
+          "a_monitor_items": 25,
+          "d_monitor_items": 25,
+          "driver_responses": 25,
+          "pending_zero": 25,
+          "outstanding_increment_to_1": 25,
+          "outstanding_decrement_to_0": 25,
+          "source_address_matches": 25,
+          "a_unmatched": 0,
+          "d_unmatched": 0
+        },
+        "summary": {
+          "uvm_errors": 0,
+          "uvm_fatals": 0,
+          "test_passed_checks": 1,
+          "test_failed_checks": 0,
+          "finish_time_ps": 65380465
+        },
+        "line_refs": {
+          "summary": [
+            702,
+            703,
+            735,
+            743
+          ]
+        }
+      },
+      "seed3": {
+        "log_sha256": "8ec3ded968ea4a2f5b6c3ef27fc299c17d90d2e9ecf849d89aa320f6d20eb455",
+        "bytes": 235021,
+        "traffic": {
+          "a_monitor_items": 38,
+          "d_monitor_items": 38,
+          "driver_responses": 38,
+          "pending_zero": 38,
+          "outstanding_increment_to_1": 38,
+          "outstanding_decrement_to_0": 38,
+          "source_address_matches": 38,
+          "a_unmatched": 0,
+          "d_unmatched": 0
+        },
+        "summary": {
+          "uvm_errors": 0,
+          "uvm_fatals": 0,
+          "test_passed_checks": 1,
+          "test_failed_checks": 0,
+          "finish_time_ps": 53640918
+        },
+        "line_refs": {
+          "summary": [
+            884,
+            885,
+            917,
+            925
+          ]
+        }
+      },
+      "method": "Counted tl_monitor [a_chan] and [d_chan] records, driver Got response lines, outstanding increment/decrement lines, and paired A/D records by logged source plus address. Pending-zero is reported separately and is not treated as a standalone proof of drain.",
+      "conclusion": "Both official-backport replay logs show matched transaction traffic, complete recorded response and outstanding-counter transitions, zero UVM errors/fatals, and TEST PASSED CHECKS. This is log evidence for these two replays only."
+    },
+    "until_followup": {
+      "assessment": "evidence/review-20260920/sva-until-continuation-next/ASSESSMENT.md",
+      "root": "Implication until forbidden sequence fuses a nonempty p&&!q prefix with !p&&!q via##0, requiring p&&!p; later violations become sequence death rather than failure.",
+      "reproducer": "late-drop-offedge-2017/2023; NFA mode1, drop away from sampling clock",
+      "status": "ROOT_CAUSED; compiler implementation awaits active selected-VIF qualification checkpoint",
+      "standards": [
+        "16.12.12",
+        "16.9.2.1"
+      ]
+    }
+  },
+  "pristine_release": "Unmodified release remains failing seed3. Both passing results are explicit checker overlays; source checkout stays clean.",
+  "evidence_root": "evidence/review-20260920/pwrmgr-seed3-revalidation"
+}

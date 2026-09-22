@@ -1,0 +1,2 @@
+PASS core mixed static constant
+ivltests/sv_class_event_list_mixed_static_constant_2023.v:29: $finish called at 8 (1s)
