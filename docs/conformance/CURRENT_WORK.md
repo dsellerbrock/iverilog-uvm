@@ -1,8 +1,10 @@
 # Current evidence and work
 
-The [caller-owned queue foreach candidate](session_logs/2026-09-22_caller_queue_foreach_focus.json) records passing required local gates and removal of the corresponding pristine SPI compile error. Publication/CI are pending; independent SPI errors remain.
+The [MSYS2 strict-regex crash fix](session_logs/2026-09-22_win_regex_tre_fix.json) records the TRE root cause, a Linux red/green reproducer and the local real-DPI UVM results. Windows CI confirmation is pending.
 
-The [until continuation candidate](session_logs/2026-09-21_until_continuation_focus.json) records the compiler correction and passing required local validation. Published in [PR319](https://github.com/dsellerbrock/iverilog-uvm/pull/319); CI remains pending. Broader assertion and application qualification remains open.
+The [caller-owned queue foreach candidate](session_logs/2026-09-22_caller_queue_foreach_focus.json) records passing required local gates and removal of the corresponding pristine SPI compile error. It merged as PR320 (`1af223c8`); independent SPI errors remain.
+
+The [until continuation candidate](session_logs/2026-09-21_until_continuation_focus.json) records the compiler correction and passing required local validation. It merged as [PR319](https://github.com/dsellerbrock/iverilog-uvm/pull/319) (`288132f2`); Ubuntu and macOS CI passed and all three MSYS2 jobs failed only `uvm_regex_strict_exec_test`. Broader assertion and application qualification remains open.
 
 The [selected-VIF edge candidate](session_logs/2026-09-21_selected_vif_edge_focus.json) records the current compiler patch, passing required local gates and stable-release application replays. Merged in [PR318](https://github.com/dsellerbrock/iverilog-uvm/pull/318) as `ca29b1237` after both Ubuntu CI jobs passed; remaining platform checks were still running.
 

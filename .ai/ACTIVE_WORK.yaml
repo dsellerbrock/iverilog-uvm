@@ -1,49 +1,31 @@
-blocker: OT-SPI-INLINE-CALLER-QUEUE-FOREACH
-status: REGRESSION_TESTED
-base: b9befcb735cbbbb56feacfbb9fbdbd120b622f55
-parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/319
-objective: Honor caller-scope lookup and actual caller-state queue iteration in inline randomize constraints used by pristine SPI TPM sequences.
-authorization: Continuous compiler campaign; coordinator freezes published and locally validated SVA patch, selects reproduced SPI compiler blocker.
+blocker: CI-WIN-UVM-REGEX-NOOUTPUT
+status: FOCUSED_TESTED
+base: 1af223c8f45b922dc1b966aa5e399c4f59f8546f
+predecessor: OT-SPI-INLINE-CALLER-QUEUE-FOREACH merged as PR320 (1af223c8); PR319 merged 288132f2. Both frozen.
+objective: Remove the Windows (MSYS2 libsystre/TRE) crash of the strict-regex UVM DPI test without changing regex semantics or the pinned uvm-core sources.
+authorization: Continuous campaign coordinator selection; main CI red on all three MSYS2 jobs since PR317 with this single test failing.
 standards:
-- IEEE 1800-2017 18.7 inline scope resolution, 18.5.8.1 iterative constraints
-- IEEE 1800-2023 18.7 inline scope resolution, 18.5.7.1 iterative constraints
-reproducer: evidence/review-20260920/spi-caller-foreach-next/caller_queue.sv
-red: Both editions reject foreach(data_q[i]) while data_q is a caller-owned queue absent from the randomized item.
-expected: Resolve target first, then caller; snapshot state collection and constrain target elements using actual runtime indices and values. Preserve empty iteration, resizing across calls, failed-solve rollback and four-state semantics.
-root: Simple foreach lowering returns unsupported after target property lookup fails; caller-state collection path currently handles hierarchical object/struct-element arrays only.
+- Pinned uvm-core src/dpi/uvm_regex.cc API contract (UVM_REGEX_MAX_LENGTH 2048; null on compile failure); IEEE 1800.2 clause mapping unassessed.
+- POSIX regcomp/regfree: regfree is defined only for a successfully compiled regex_t; REG_NOSUB affects only submatch reporting.
+reproducer: tests/uvm_regex_strict_exec_test.sv (Windows CI job logs, main 288132f2 run 35691405507); local TRE 0.8.0 proxy under scratch evidence.
+red: MSYS2 MINGW64/UCRT64/CLANG64 report "vvp produced no output at all"; Linux/macOS pass (glibc/libc tolerate regfree after failure).
+expected: 2048-character patterns compile; >2048 and invalid patterns return null with an error; no crash; glob/strict behavior unchanged.
+root: Vendored uvm_re_comp calls uvm_re_free -> regfree on a regex_t whose regcomp failed (POSIX-undefined). TRE leaves a dangling tnfa pointer and segfaults. TRE's submatch-tracking parser also rejects 2048-literal patterns (REG_ESPACE; limit 1463), which triggers that path.
 allowed_files:
-- elaborate.cc constraint foreach lookup and existing caller-state capture/template emission
-- vvp/vvp_z3.cc existing state-foreach expansion if required by the proven representation
-- necessary declarations only after coordinator records their direct dependency
-- directly related private and permanent regressions and owning documents
+- uvm_dpi/uvm_dpi_iverilog.cc regcomp/regfree wrapper around the vendored uvm_regex.cc include
+- .github/uvm_test.sh vvp exit-status reporting (recorded next discriminator for this blocker)
+- owning blocker/debt/evidence/campaign records
 forbidden:
-- OpenTitan or Caliptra source edits
-- Relaxing array element equivalence to bypass valid queue copy-out diagnostics
-- Ignored constraints, changed RNG ownership or failed-solve rollback, arbitrary bounds, invented array elements
-- Unrelated constraint-function or nested-struct implementation
-lanes:
-  implementation:
-    owner: selected_vif_relay_lifetime Terra/medium after current assessment handoff
-    files: elaborate.cc and vvp/vvp_z3.cc; private caller-foreach evidence
-  coordinator:
-    owner: root
-    files: shared build/install/test outputs, standards interpretation, integration, review, documentation
+- uvm-core or third_party UVM source edits
+- Changing strict-vs-glob semantics, length limits, or test expectations
+- Marking the test known-fail or skipping it
 acceptance:
-- Both editions pass exact caller-state queue copy constraints, empty and resized queues.
-- Target-first name collision and explicit caller qualification remain correct.
-- Contradictory constraints fail with target values preserved; invalid paths never silently disappear.
-- Existing caller-state, foreach, scope-resolution and randomization regression groups pass.
-- Required integrated gates per regression policy; risk HIGH for shared constraint IR behavior.
-prerequisite: Trace existing qforeach/state snapshot and operand lowering before editing; record any material scope expansion first.
+- Local TRE-linked umbrella reproduces the crash before and passes after; glibc build unchanged.
+- uvm_regex_strict_exec_test and uvm_regex_legacy_glob_test pass locally (real DPI).
+- Mapped UVM regex/config groups plus smoke pass locally; Windows CI UVM step passes on the PR.
+risk: LOW-MEDIUM (fork-owned DPI shim; affects every regex compile through uvm_re_comp).
 stop_after_completion: Freeze validated patch and return to coordinator selection; full mission remains active.
-
-parallel_test_lane:
-  owner: eval_evidence_audit Luna/low
-  files: evidence/review-20260920/spi-caller-foreach-next/independent-boundaries only
-  task: Independent empty/resizing, name-collision and failed-solve rollback regression sources; no compiler or shared builds.
-
 latest_validation:
-  evidence: docs/conformance/session_logs/2026-09-22_caller_queue_foreach_focus.json
-  source_freeze: Build3; compiler and permanent test sources frozen.
-  completed: Focused paired cases, permanent legacy/JSON focus, mapped constraint UVM, smoke, integrated, rootseed, makecheck, NFA.
-  pending: Publication and CI; all required local gates passed.
+  evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json
+  completed: TRE red/green and ablation; regex pair 2/2; full real-DPI UVM 358/358; UVM front-end all scenarios. Linux container host.
+  pending: MSYS2 CI UVM regression step on the draft PR.

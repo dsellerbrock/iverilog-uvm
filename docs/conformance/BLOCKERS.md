@@ -3438,17 +3438,18 @@ IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector ch
 - **Root cause:** Structural synthesis received a class-property selector without a signal net. The candidate routes selected edge expressions through the synchronous observer and subscribes to actual VIF signal reads.
 - **Evidence and qualification:** [Revision-scoped record](session_logs/2026-09-21_selected_vif_edge_focus.json). Pristine stable SPI compilation advances to explicit queue/constraint diagnostics; no SPI DV pass.
 
-### CI-WIN-UVM-REGEX-NOOUTPUT — strict-regex test lacks runtime result evidence
+### CI-WIN-UVM-REGEX-NOOUTPUT — strict-regex test crashes under MSYS2 TRE regex
 
-- **Status:** ASSESSED; not selected while selected-VIF qualification is active.
-- **Observation:** Merged PR317 Windows jobs fail the strict-regex test with no captured output; both Linux jobs pass. The UVM runner discards VVP exit status, preventing distinction between loader/exception/callback/matcher failures.
-- **Next discriminator:** Preserve and report process status, then replay the isolated Windows test and malformed-regex callback reducer. macOS controls pass and do not establish Windows behavior.
-- **Evidence:** `evidence/review-20260920/pr317-late-ci/evidence.json` and `ASSESSMENT.md`. No regex semantic fix or Windows recovery claimed.
+- **Status:** FOCUSED_TESTED locally; Windows CI confirmation pending.
+- **Observation:** Every MSYS2 job since merged PR317 fails `uvm_regex_strict_exec_test` with no captured output; Linux and macOS pass.
+- **Root cause:** Vendored `uvm_re_comp` calls `regfree` on a `regex_t` whose `regcomp` failed. POSIX leaves that undefined; TRE (libsystre) segfaults on the test's first invalid pattern. TRE also rejects legal 2048-character patterns with REG_ESPACE when submatch tracking is on.
+- **Fix:** The fork-owned wrapper skips `regfree` for exactly the buffer that failed to compile. It adds `REG_NOSUB`, which leaves every match result unchanged because the vendored `regexec` passes `nmatch=0`. The UVM runner now reports the vvp exit status for no-output failures. Pinned UVM sources are unchanged.
+- **Evidence:** [Revision-scoped record](session_logs/2026-09-22_win_regex_tre_fix.json); Linux TRE reproducer `evidence/win-regex-tre/`.
 
-### SVA-IMPLICATION-UNTIL-CONTINUATION — locally regression-tested; publication pending
+### SVA-IMPLICATION-UNTIL-CONTINUATION — locally regression-tested; merged in PR319 (`288132f2`)
 
 The upstream OpenTitan checker backport exposed missed late `until` violations. The compiler correction covers property truth, empty/nonempty repetition concatenation and independent consequent timing. [Revision-scoped evidence](session_logs/2026-09-21_until_continuation_focus.json) owns the exact subset, tests and pending gates. This does not qualify the pristine application or the complete assertion language.
 
 ### OT-SPI-INLINE-CALLER-QUEUE-FOREACH — locally regression-tested
 
-Direct caller-owned integral queue/dynamic-array iteration now has paired focused evidence, including target-first lookup, signed values, invalid-state rejection and rollback. The pristine SPI compile no longer rejects this foreach; independent errors remain. [Revision-scoped evidence](session_logs/2026-09-22_caller_queue_foreach_focus.json) owns results and passing required local gates. Publication/CI remain pending; no full application qualification is claimed.
+Direct caller-owned integral queue/dynamic-array iteration now has paired focused evidence, including target-first lookup, signed values, invalid-state rejection and rollback. The pristine SPI compile no longer rejects this foreach; independent errors remain. [Revision-scoped evidence](session_logs/2026-09-22_caller_queue_foreach_focus.json) owns results and passing required local gates. Merged in PR320 (`1af223c8`); Linux/macOS CI jobs passed on the preceding main run, and the MSYS2 failure is CI-WIN-UVM-REGEX-NOOUTPUT. No full application qualification is claimed.
