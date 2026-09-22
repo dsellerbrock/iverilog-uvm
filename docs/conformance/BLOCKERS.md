@@ -3420,7 +3420,14 @@ The user-requested [separate checker correction](session_logs/2026-09-21_pwrmgr_
 
 ### OT-WHOLE-FUNCTION-CLASS-EVENT — class-method event dependencies
 
-- **State:** REGRESSION_TESTED; required local gates pass for the documented integral-expression subset. Publication/CI pending.
+- **State:** REGRESSION_TESTED; required local gates pass for the documented integral-expression subset. [PR #317](https://github.com/dsellerbrock/iverilog-uvm/pull/317) merged after Ubuntu 24.04 CI passed; remaining platform CI was pending at merge.
 - **Semantics:** IEEE 1800-2017/2023 §9.4.2 integral event expressions and class method receivers.
 - **Evidence:** [Revision-scoped implementation and focused results](session_logs/2026-09-21_whole_function_event_focus.json), including retained baseline failures. Virtual-interface reads inside methods remain explicitly unsupported.
 - **Closure:** Correct value-change behavior, ordinary dependency tracking, receiver lifetime/rebinding, unchanged-value suppression and required regression gates. Reuse the existing expression observer; no source workaround.
+
+### OT-SPI-COMPOUND-EVENT-LIST — atomic class-property event lists
+
+- **State:** REGRESSION_TESTED local checkpoint; permanent and mapped UVM gates pass. Broad suites remain at the authorized batch checkpoint; no full qualification claim.
+- **Semantics:** IEEE 1800-2017/2023 §9.4.2, pure integral event lists containing class-property reads.
+- **Evidence:** [Scoped implementation and validation](session_logs/2026-09-21_spi_class_event_list_focus.json).
+- **Application boundary:** Pristine M6 SPI Host advances past this event-list diagnostic but still fails compilation; queue type diagnostics and a selected-event synthesis crash remain.

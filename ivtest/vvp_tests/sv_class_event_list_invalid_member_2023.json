@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_class_event_list_invalid_member_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_class_event_list_invalid_member"
+  ],
+  "gold": "sv_class_event_list_invalid_member_2023"
+}

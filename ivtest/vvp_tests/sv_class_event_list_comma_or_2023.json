@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_event_list_comma_or_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "core_comma_or"
+  ],
+  "gold": "sv_class_event_list_comma_or_2023"
+}

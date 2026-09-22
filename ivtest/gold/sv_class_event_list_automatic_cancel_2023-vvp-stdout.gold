@@ -1,0 +1,2 @@
+PASS core automatic cancel
+ivltests/sv_class_event_list_automatic_cancel_2023.v:31: $finish called at 2 (1s)

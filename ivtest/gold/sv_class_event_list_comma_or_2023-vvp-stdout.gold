@@ -1,0 +1,2 @@
+PASS core comma or
+ivltests/sv_class_event_list_comma_or_2023.v:35: $finish called at 8 (1s)

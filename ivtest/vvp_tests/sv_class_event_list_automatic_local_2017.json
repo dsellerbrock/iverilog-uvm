@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_event_list_automatic_local_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "core_automatic_local"
+  ],
+  "gold": "sv_class_event_list_automatic_local_2017"
+}

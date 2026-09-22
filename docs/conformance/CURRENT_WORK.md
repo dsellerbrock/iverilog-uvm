@@ -1,5 +1,9 @@
 # Current evidence and work
 
+The [SPI class event-list checkpoint](session_logs/2026-09-21_spi_class_event_list_focus.json) records paired-edition semantic tests and mapped UVM validation. Pristine SPI Host still fails compilation; this is not application qualification.
+
+The [current-build seed-3 recheck](session_logs/2026-09-21_pwrmgr_seed3_current_build_recheck.json) reconfirms the corrected checker passes and the pristine release fails, with unchanged corpus and recorded dirty compiler-patch provenance.
+
 The [seed-3 checker correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) records a separately patched upstream checker, passing seed1/seed3 smoke, and retained stopped-clock failure checks. The pristine release stays unchanged and its seed3 remains failing; this is patched-DV evidence.
 
 The [pwrmgr seed-3 assessment](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json) identifies a clock-phase assumption in the unchanged upstream assertion. The run remains failing; this is diagnostic evidence, not an application pass or a compiler fix.

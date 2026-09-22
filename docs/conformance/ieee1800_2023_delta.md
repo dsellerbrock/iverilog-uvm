@@ -315,3 +315,7 @@ The [shared mixed-event subset](matrices/ieee1800_2017_clause_matrix.md#septembe
 #### 2026-09-21: §9.4.2 whole-function class event evidence
 
 The [shared class-method event subset](matrices/ieee1800_2017_clause_matrix.md#september-21-whole-function-class-event-dependencies) includes separate 2023 execution and negative tests. No edition-specific difference is asserted; limits and qualification status remain in the shared evidence.
+
+#### 2026-09-21: §9.4.2 compound class-property event lists
+
+The [shared event-list subset](matrices/ieee1800_2017_clause_matrix.md#september-21-compound-class-property-event-lists) has separate 2023 tests. Current validation and limitations are recorded in its shared evidence; no edition difference or full-clause qualification is asserted.

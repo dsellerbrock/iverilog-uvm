@@ -1,0 +1,131 @@
+{
+  "classification": "CHECKER_CORRECTION_NOT_PRISTINE_DV_PASS",
+  "head": "a52e3f677f09f72632a88c758d13784d187a70cc",
+  "compiler_patch_sha256": "a8ebb43b5471a7735bcfd1a6bbc21d75cdba4e91450a72f0e634339ffb133938",
+  "corpus_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "corpus_status_before": "",
+  "tools": {
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/lib/ivl/ivl": "0dc00de15ba67314d02403ba9d86fc7599eba38dfaf81a5ef321d3bde2baa51c",
+    "local-install/lib/ivl/vvp.tgt": "3d0c962f72d81e145c770c5f35e7bf5581392056fdbd9ccec413ae76b9013604",
+    "local-install/bin/vvp": "fcc1cb33f5aca815d65b70e1645c8e4c7e08401d403af4ff45f0ca1ac23d4696"
+  },
+  "runs": [
+    {
+      "label": "pristine",
+      "seed": 3,
+      "exit": 0,
+      "image_sha256": "4e62cba8ae994dbcbbffd7256952a7827d74cfa098cfcb7a7acebecac2c1944d",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/current-spi-build1-recheck/pristine.vvp",
+        "+ntb_random_seed=3",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "uvm_errors": [
+        "1"
+      ],
+      "uvm_fatals": [
+        "0"
+      ],
+      "drained_responses": 37,
+      "log_sha256": "82ecf5d26a91fdc7b8c8af69e61bd0ba2c847113fefedb9c022feb2e9b0c7134",
+      "normal_pass_banner": false,
+      "assertion_failure_present": true,
+      "outstanding_decrements_to_zero": 37
+    },
+    {
+      "label": "corrected",
+      "seed": 3,
+      "exit": 0,
+      "image_sha256": "f14b0f856cd8d324422aa0e387875a9e44706e2026f1f2d1e643802bb9b4d83e",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/current-spi-build1-recheck/corrected.vvp",
+        "+ntb_random_seed=3",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "uvm_errors": [
+        "0"
+      ],
+      "uvm_fatals": [
+        "0"
+      ],
+      "drained_responses": 38,
+      "log_sha256": "2cea010075a7cf4ada720802019dd1d64d25641b4574f832a58b1733ad776ae8",
+      "normal_pass_banner": true,
+      "assertion_failure_present": false,
+      "outstanding_decrements_to_zero": 38
+    },
+    {
+      "label": "corrected",
+      "seed": 1,
+      "exit": 0,
+      "image_sha256": "f14b0f856cd8d324422aa0e387875a9e44706e2026f1f2d1e643802bb9b4d83e",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/review-20260920/pwrmgr-seed3-checker-fix/current-spi-build1-recheck/corrected.vvp",
+        "+ntb_random_seed=1",
+        "+UVM_NO_RELNOTES",
+        "+UVM_VERBOSITY=UVM_HIGH",
+        "+cdc_instrumentation_enabled=1",
+        "+test_timeout_ns=1000000",
+        "+smoke_test=1",
+        "+UVM_TESTNAME=pwrmgr_base_test",
+        "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+      ],
+      "uvm_errors": [
+        "0"
+      ],
+      "uvm_fatals": [
+        "0"
+      ],
+      "drained_responses": 25,
+      "log_sha256": "c1762a328d933127246825c001cc0c7c8ee1f61b98920afd67e11ab319d02736",
+      "normal_pass_banner": true,
+      "assertion_failure_present": false,
+      "outstanding_decrements_to_zero": 25
+    }
+  ],
+  "focus_exit": 0,
+  "corpus_status_after": "",
+  "tools_unchanged": true,
+  "focus": {
+    "total": 60,
+    "passed": 60,
+    "editions": [
+      2017,
+      2023
+    ],
+    "nfa_modes": [
+      0,
+      1
+    ],
+    "includes_expected_failures": [
+      "stopped_low",
+      "stopped_high",
+      "overlapping140",
+      "late_enable"
+    ]
+  },
+  "patch": "docs/conformance/repros/pwrmgr_clock_activity/opentitan-clock-activity.patch",
+  "patch_sha256": "dc4c9b4be456a842e34c41cb002972762395ac0952bcef153d3bca7b4e9af8ec",
+  "release": "Earlgrey-PROD-M6",
+  "private_evidence": "evidence/review-20260920/pwrmgr-seed3-checker-fix/current-spi-build1-recheck",
+  "review": "Independent Terra review supports phase alias diagnosis; timeout failure checks retained. No compiler or corpus source changed by this recheck."
+}

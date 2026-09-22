@@ -284,3 +284,73 @@ whole_function_ready_to_publish:
   qualification: All required local gates PASS; serial session31844 completed exit0.
   evidence: docs/conformance/session_logs/2026-09-21_whole_function_event_focus.json
   next: Stage explicit compiler/tests/owning-doc paths, excluding external AGENTS patch and unrelated artifacts; commit,push,publish PR.
+
+whole_function_publication:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/317
+  head: a52e3f677f09f72632a88c758d13784d187a70cc
+  semantic_commit: fdf66d7d9
+  qualification: All required local gates pass with retained seven-source build4 hashes.
+  prerequisite: Merged existing64efa3bef PR316 Windows export repair into branch, adding only ivl.def entry; no local semantic rerun justified, WindowsCI pending.
+  preserved: External AGENTS87-line patch and unrelated artifacts untouched; no new worktree.
+  next: Check PR316/317CI at meaningful interval; merge after a passing check under standing authorization with failures triaged. Then fetch baseline and activate assessed SPI event-list work.
+  resumption_note: Publication pointer edits are intentionally local until next coherent checkpoint, avoiding a CI rerun for URLs alone.
+
+spi_event_list_selection:
+  id: OT-SPI-COMPOUND-EVENT-LIST
+  branch: agent/spi-event-list-20260921
+  baseline: a52e3f677f09f72632a88c758d13784d187a70cc
+  parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/317
+  parent_state: Local qualification complete; CI pending, parent branch preserved.
+  red: Fresh paired-edition baseline rejects compound class-property list; implementation/baseline.json.
+  lanes: Terra/medium owns elaborate.cc; retained Sol/medium owns isolated semantic tests; coordinator shared tools/manifests.
+  next: Review small concat-observer lowering and focused tests before building. No runtime/application edits authorized.
+
+spi_build1_checkpoint:
+  baseline_application: Fresh clean M6 compile records event-list line48 error,queue type errors156/256 and exit139; no DV success claim.
+  source: elaborate.cc only,+105/-1; pure integral class-plus-ordinary list combines through existing observer,no runtime ABI changes.
+  scope_proof: Parent PR317 ordinary/class combined observer evidence plus concat OR equality for side-effect-free leaves.
+  live_session: 22103
+  exact_command: python3 evidence/review-20260920/spi-event-list-next/build_candidate.py build1
+  next: Poll existing22103 without restart; run paired focused checks then fresh application compile.
+
+spi_build1_focused_checkpoint:
+  build: PASS build/install/FPGA,session22103 completed.
+  original: Paired original reducer now compiles and simulates PASS.
+  adjacent: Both legacy and JSON117/117,session9852 completed.
+  focused_failure: core_prequeued_regions wakes1 rather than2,paired editions; agent isolates write/arming timing without source edits.
+  application: candidate1-application removes event-list diagnostic but queue type errors and139remain.
+  pr316: Merged362751c05ae0cafa4bde2a8eaa10d36a4cd6f362 after Ubuntu24.04 CIpassed; Windowsall reached regression steps, laterCIstillpending.
+  pr317: Published parentCIpending; current branch is separate local dependent work.
+  next: Inspect Sol trace and resolve focused failure; refresh canonical graph after merge checkpoint, no feature graph.
+
+spi_focused_resolution:
+  prequeued: Fixture-only issue; selected -s excluded standalone program. Corrected instantiated program trace proves both expected wakes; no compiler edit.
+  caution: Coordinator concat control read corrected source while old failing image used original topology; discard that apparent lowering differential.
+  results: candidate-build1-final2 has16 core semantic passes,12 preserved boundary statuses. Two edge aborts andtwo real failures remain open outside subset.
+  permanent_lane: Sol registers8 core families plus null diagnostic negative,paired editions; no shared harness execution by agent.
+  next: Coordinator permanent legacy/JSON checks and scoped documentation after registration; build1 frozen.
+
+seed3_user_requested_recheck_20260921:
+  status: CORRECTED_CHECKER_PASSES_PRISTINE_STILL_FAILS
+  evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_current_build_recheck.json
+  preserved_work: SPI event-list compiler patch and regressions untouched; no shared build active.
+  scope: Revalidated existing checker correction; no compiler or application corpus edits.
+  next: Resume coordinator permanent SPI event-list harness validation.
+
+pr317_merged_and_spi_gate_20260921:
+  previous_goal_turn: progress; fresh seed3 checker/pristine comparison and permanent evidence recorded.
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/317
+  merged: 6e8bf226895377ade89bbd239a2a4f54779e64e8
+  authorization: User merge-after-one-CI policy; Ubuntu24.04 passed; other platform jobs pending.
+  current_branch: agent/spi-event-list-20260921; separate branch and dirty work preserved.
+  permanent: 16/16 legacy and 16/16 JSON pass; paired invalid-member negatives pending.
+  uvm_session: 7686
+  uvm_evidence: evidence/review-20260920/spi-event-list-next/build1/uvm-targeted/
+  next: Poll existing UVM session, run added negative regressions, document and commit SPI fix.
+
+spi_local_checkpoint_20260921:
+  source: elaborate.cc unchanged from build1; installed hashes rechecked.
+  result: 18/18 permanent legacy and JSON; 117/117 adjacent each; 76/76 real-DPI mapped UVM plus smoke.
+  state: Local validated checkpoint, no fresh broad qualification or SPI DV pass.
+  branch_base: Synced6e8bf2268 with identical source tree; active patch preserved.
+  next: Complete selected-VIF crash assessment, then select the next standards-grounded compiler blocker.

@@ -1,0 +1,2 @@
+PASS core four state widths
+./ivltests/sv_class_event_list_four_state_widths_2017.v:38: $finish called at 9 (1s)

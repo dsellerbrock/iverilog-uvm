@@ -1,0 +1,2 @@
+PASS core ordinary control
+ivltests/sv_class_event_list_ordinary_control_2017.v:12: $finish called at 4 (1s)

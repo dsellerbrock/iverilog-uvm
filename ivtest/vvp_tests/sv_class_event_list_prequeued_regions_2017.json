@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_class_event_list_prequeued_regions_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "core_prequeued_regions"
+  ],
+  "gold": "sv_class_event_list_prequeued_regions_2017"
+}
