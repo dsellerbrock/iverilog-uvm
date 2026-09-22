@@ -1,0 +1,2 @@
+PASS whole-function-no-parens-static
+./ivltests/sv_whole_function_event_no_parens_static_2023.v:19: $finish called at 1 (1s)

@@ -311,3 +311,7 @@ The paired large-range tests retain original declared range mass after hard excl
 #### 2026-09-21: §9.4.2 synchronous mixed event evidence
 
 The [shared mixed-event subset](matrices/ieee1800_2017_clause_matrix.md#september-21-synchronous-mixed-event-dependencies) has separate 2023 semantic and cancellation regressions. No edition-specific difference or full-clause qualification is asserted; required local gates pass in the linked revision-scoped evidence.
+
+#### 2026-09-21: §9.4.2 whole-function class event evidence
+
+The [shared class-method event subset](matrices/ieee1800_2017_clause_matrix.md#september-21-whole-function-class-event-dependencies) includes separate 2023 execution and negative tests. No edition-specific difference is asserted; limits and qualification status remain in the shared evidence.

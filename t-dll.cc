@@ -1650,8 +1650,10 @@ static void materialize_event_selector_signals_(dll_target*target,
 	    for (const Link*cur = nex->first_nlink()
 		       ; cur ; cur = cur->next_nlink()) {
 		  const NetNet*sig = dynamic_cast<const NetNet*>(cur->get_obj());
-		  if (sig)
+		  if (sig) {
+			target->scope(sig->scope());
 			target->signal(sig);
+		  }
 	    }
       }
       delete inputs;
@@ -3504,6 +3506,9 @@ void dll_target::scope(const NetScope*net)
       if (net->parent() != 0) {
             if (find_scope(des_, net))
                   return;
+            /* An event expression can reference a function or signal before
+               the ordinary scope walk reaches its declaring scope. */
+            scope(net->parent());
       }
 
       if (net->parent() == 0) {

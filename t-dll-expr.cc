@@ -817,6 +817,9 @@ void dll_target::expr_ufunc(const NetEUFunc*net)
       expr->super_call_ = net->super_call() ? 1 : 0;
       FILE_NAME(expr, net);
 
+      // Observer expressions are exported during the scope/event pass.
+      // Materialize the callee record before storing its target reference.
+      scope(net->func());
       expr->u_.ufunc_.def = lookup_scope_(net->func());
       if (expr->u_.ufunc_.def == 0) {
 	    cerr << net->get_fileline() << ": internal error: "

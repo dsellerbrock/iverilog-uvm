@@ -1,0 +1,2 @@
+PASS whole-function-selector
+ivltests/sv_whole_function_event_selector_2023.v:57: $finish called at 3 (1s)

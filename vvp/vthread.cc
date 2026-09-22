@@ -120,6 +120,9 @@ static uint32_t thread_rng_next_(vthread_t thr);
 static std::string thread_rng_get_state_(vthread_t thr);
 static bool thread_rng_set_state_(vthread_t thr, const std::string&state);
 static vthread_t logical_process_thread_(vthread_t thr);
+static vthread_t event_expr_recipe_frame_(vthread_t thr);
+static bool event_expr_runtime_error_(vthread_t thr, const char*message);
+static bool do_disable(vthread_t thr, vthread_t match);
 static set<vthread_t> live_threads_registry_;
 
 static bool sched_dump_threads_enabled_(const char*reason)
@@ -338,12 +341,13 @@ struct event_expr_observer_s {
       vvp_vector4_t last_value;
       phase_t phase;
       bool have_last;
+      bool recipe_failed;
       unsigned refs;
 
       event_expr_observer_s(vthread_t waiter, vvp_net_t*source_net,
                             vvp_code_t recipe)
       : waiter(waiter), source_net(source_net), recipe(recipe), phase(ARMING),
-        have_last(false), refs(1)
+        have_last(false), recipe_failed(false), refs(1)
       { }
 };
 static void cancel_event_expr_observer_(vthread_t thr);
@@ -995,6 +999,7 @@ struct vthread_s {
       vvp_vector4_t event_expr_result;
       std::vector<event_expr_path_s>event_expr_result_paths;
       bool event_expr_recipe_complete;
+      bool event_expr_recipe_failed;
 	/* Save the file/line information when available. */
     private:
       char *filenm_;
@@ -1205,6 +1210,7 @@ inline vthread_s::vthread_s()
       event_expr_observer = 0;
       event_expr_recipe_observer = 0;
       event_expr_recipe_complete = false;
+      event_expr_recipe_failed = false;
       last_pause_pc = 0;
 }
 
@@ -13914,6 +13920,34 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
  * those, the placeholder is popped at function end via the
  * release-callf cleanup that runs in do_callf_void's parent
  * unwind. */
+static bool event_expr_method_receiver_valid_(vthread_t thr, vvp_code_t cp)
+{
+      if (!event_expr_recipe_frame_(thr) || !cp || !cp->scope)
+            return true;
+
+      __vpiScope*function_scope = cp->scope;
+      __vpiScope*class_scope = function_scope->scope;
+      if (!class_scope || class_scope->get_type_code() != vpiClassTypespec)
+            return true;
+
+      /* Static methods have no hidden receiver. Instance-method arguments
+       * have already been copied to the hidden @ item before %callf, so this
+       * also catches a null receiver when a constant method body performs no
+       * property load of its own. */
+      vpiHandle receiver_item = lookup_scope_item_(function_scope, "@");
+      if (!receiver_item)
+            return true;
+
+      vvp_object_t receiver;
+      if (!read_handle_object_in_thread_(receiver_item, thr, receiver)
+          || !receiver.peek<vvp_cobject>()) {
+            event_expr_runtime_error_(
+                  thr, "null class handle method call in event expression");
+            return false;
+      }
+      return true;
+}
+
 bool of_CALLF_OBJ(vthread_t thr, vvp_code_t cp)
 {
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
@@ -13975,14 +14009,15 @@ bool of_CALLF_STR_V(vthread_t thr, vvp_code_t cp)
 
 bool of_CALLF_VEC4(vthread_t thr, vvp_code_t cp)
 {
-      vthread_t child = vthread_new(cp->cptr2, cp->scope);
-
       vpiScopeFunction*scope_func = dynamic_cast<vpiScopeFunction*>(cp->scope);
       assert(scope_func);
 
 	// This is the return value. Push a place-holder value. The function
 	// will replace this with the actual value using a %ret/real instruction.
       thr->push_vec4(vvp_vector4_t(scope_func->get_func_width(), scope_func->get_func_init_val()));
+      if (!event_expr_method_receiver_valid_(thr, cp))
+            return true;
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
       child->args_vec4.push_back(0);
 
       return do_callf_void(thr, child);
@@ -13990,13 +14025,14 @@ bool of_CALLF_VEC4(vthread_t thr, vvp_code_t cp)
 
 bool of_CALLF_VEC4_V(vthread_t thr, vvp_code_t cp)
 {
-      vthread_t child = vthread_new(cp->cptr2, cp->scope);
-      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
-
       vpiScopeFunction*scope_func = dynamic_cast<vpiScopeFunction*>(cp->scope);
       assert(scope_func);
 
       thr->push_vec4(vvp_vector4_t(scope_func->get_func_width(), scope_func->get_func_init_val()));
+      if (!event_expr_method_receiver_valid_(thr, cp))
+            return true;
+      vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      maybe_dispatch_virtual_method_call_(thr, cp, child, false);
       child->args_vec4.push_back(0);
 
       return do_callf_void(thr, child);
@@ -25795,6 +25831,67 @@ static const char*prop_trace_obj_kind_(const vvp_object_t&obj);
 static const char*prop_trace_receiver_class_(const vvp_object_t&obj);
 static bool prop_pid_in_range_(const vvp_object_t&obj, size_t pid, size_t*count_out);
 static void prop_trace_log_(vthread_t thr, const char*op, size_t pid, unsigned idx, const vvp_object_t&obj, bool has_propobj);
+static bool event_expr_runtime_error_(vthread_t thr, const char*message);
+
+/* Find the short-lived frame that owns an event-expression recipe. Calls
+ * made by the recipe execute in ordinary callf/fork-v children, so inspecting
+ * only the current thread would miss reads made inside the selected method.
+ * This parent walk remains local to the synchronous call tree and is safe
+ * when another observer recipe runs recursively for a different waiter. */
+static vthread_t event_expr_recipe_frame_(vthread_t thr)
+{
+      while (thr) {
+            if (thr->event_expr_recipe_observer)
+                  return thr;
+            if ((thr->is_callf_child || thr->is_fork_v_child) && thr->parent) {
+                  thr = thr->parent;
+                  continue;
+            }
+            return 0;
+      }
+      return 0;
+}
+
+static void event_expr_record_property_read_(vthread_t thr,
+                                              const vvp_object_t&object,
+                                              unsigned property,
+                                              unsigned word)
+{
+      vthread_t frame = event_expr_recipe_frame_(thr);
+      if (!frame || !object.peek<vvp_object>()
+          || object.peek<vvp_vinterface>())
+            return;
+
+      event_expr_path_s path = {object, property, word, UINT_MAX, true};
+      for (std::vector<event_expr_path_s>::const_iterator cur =
+                 frame->event_expr_result_paths.begin();
+           cur != frame->event_expr_result_paths.end(); ++cur) {
+            if (cur->object == path.object && cur->property == path.property
+                && cur->word == path.word && cur->bit == path.bit
+                && cur->active == path.active)
+                  return;
+      }
+      frame->event_expr_result_paths.push_back(path);
+}
+
+static bool event_expr_null_property_read_(vthread_t thr)
+{
+      if (!event_expr_recipe_frame_(thr))
+            return false;
+      event_expr_runtime_error_(
+            thr, "null class handle dereference in event expression");
+      return true;
+}
+
+static bool event_expr_vif_property_read_(vthread_t thr)
+{
+      if (!event_expr_recipe_frame_(thr))
+            return false;
+      event_expr_runtime_error_(
+            thr, "virtual-interface member read inside an event expression "
+                 "function is not supported");
+      return true;
+}
 
 struct fixed_prop_receiver_t {
       vvp_cobject*cobj;
@@ -26173,13 +26270,19 @@ bool of_PROP_ARR_DAR(vthread_t thr, vvp_code_t cp)
       fixed_prop_receiver_t recv = {
 	    obj.peek<vvp_cobject>(), obj.peek<vvp_vinterface>()
       };
+      if (recv.vif && event_expr_vif_property_read_(thr))
+            return true;
       const class_type*defn = recv.defn();
       if (!defn || pid >= defn->property_count()
 	  || defn->property_dimensions(pid).empty()) {
+	    if (!defn && event_expr_null_property_read_(thr))
+		  return true;
 	    thr->push_object(vvp_object_t(), thr->peek_object_source_net(0),
 			     thr->peek_object_root(0));
 	    return true;
       }
+
+      event_expr_record_property_read_(thr, obj, (unsigned)pid, UINT_MAX);
 
       size_t flat = 0;
       vvp_object_t val = fixed_prop_materialize_(
@@ -26205,7 +26308,11 @@ bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/obj", pid, idx, obj, has_propobj);
+      if (vif && event_expr_vif_property_read_(thr))
+            return true;
       if (!has_propobj) {
+	    if (event_expr_null_property_read_(thr))
+		  return true;
 	    static bool warned = false;
 	    if (!warned) {
 		  const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
@@ -26245,10 +26352,15 @@ bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
       }
 
       vvp_object_t val;
-      if (cobj)
+      if (cobj) {
+            event_expr_record_property_read_(thr, obj, pid, idx);
 	    cobj->get_object(pid, val, idx);
-      else
+	} else
 	    vif->get_object(pid, val, idx);
+
+      if (val.peek<vvp_darray>() || val.peek<vvp_assoc_base>())
+            event_expr_record_property_read_(
+                  thr, val, UINT_MAX, UINT_MAX);
 
       thr->push_object(val, thr->peek_object_source_net(0), thr->peek_object_root(0));
 
@@ -26468,6 +26580,8 @@ static bool prop(vthread_t thr, vvp_code_t cp)
       vvp_process*proc = obj.peek<vvp_process>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/*", pid, 0, obj, has_propobj);
+      if (vif && event_expr_vif_property_read_(thr))
+            return true;
       if (!has_propobj && proc) {
 	    ELEM val;
 	    if (get_from_process_obj(pid, proc, val)) {
@@ -26476,6 +26590,8 @@ static bool prop(vthread_t thr, vvp_code_t cp)
 	    }
       }
       if (!has_propobj) {
+	    if (event_expr_null_property_read_(thr))
+		  return true;
 	    if (!warned_prop_fallback) {
 		  const char*scope_name = scope_name_or_unknown_(thr ? thr->parent_scope : 0);
 		  cerr << thr->get_fileline()
@@ -26493,9 +26609,10 @@ static bool prop(vthread_t thr, vvp_code_t cp)
       }
 
       ELEM val;
-      if (cobj)
+      if (cobj) {
+            event_expr_record_property_read_(thr, obj, pid, 0);
 	    get_from_obj(pid, cobj, val);
-      else
+	} else
 	    get_from_obj(pid, vif, val);
       vthread_push(thr, val);
 
@@ -26543,7 +26660,11 @@ static bool prop_i(vthread_t thr, vvp_code_t cp)
       vvp_vinterface*vif = obj.peek<vvp_vinterface>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/*/i", pid, idx, obj, has_propobj);
+      if (vif && event_expr_vif_property_read_(thr))
+            return true;
       if (!has_propobj) {
+	    if (event_expr_null_property_read_(thr))
+		  return true;
 	    if (!warned_prop_fallback) {
 		  cerr << thr->get_fileline()
 		       << "Warning: %prop/*/i on null/unsupported object handle"
@@ -26557,9 +26678,10 @@ static bool prop_i(vthread_t thr, vvp_code_t cp)
       }
 
       ELEM val;
-      if (cobj)
+      if (cobj) {
+            event_expr_record_property_read_(thr, obj, pid, idx);
 	    get_from_obj(pid, idx, cobj, val);
-      else
+	} else
 	    get_from_obj(pid, idx, vif, val);
       vthread_push(thr, val);
       return true;
@@ -26608,6 +26730,8 @@ bool of_PROP_V_I(vthread_t thr, vvp_code_t cp)
       vvp_process*proc = obj.peek<vvp_process>();
       bool has_propobj = cobj != 0 || vif != 0;
       prop_trace_log_(thr, "%prop/v/i", pid, idx, obj, has_propobj);
+      if (vif && event_expr_vif_property_read_(thr))
+            return true;
       if (!has_propobj && proc) {
 	    vvp_vector4_t val;
 	    if (get_from_process_obj(pid, idx, proc, val)) {
@@ -26616,6 +26740,8 @@ bool of_PROP_V_I(vthread_t thr, vvp_code_t cp)
 	    }
       }
       if (!has_propobj) {
+	    if (event_expr_null_property_read_(thr))
+		  return true;
 	    if (!warned_prop_fallback) {
 		  cerr << thr->get_fileline()
 		       << "Warning: %prop/v/i on null/unsupported object handle"
@@ -26629,9 +26755,10 @@ bool of_PROP_V_I(vthread_t thr, vvp_code_t cp)
       }
 
       vvp_vector4_t val;
-      if (cobj)
+      if (cobj) {
+            event_expr_record_property_read_(thr, obj, pid, idx);
 	    get_from_obj(pid, idx, cobj, val);
-      else
+	} else
 	    get_from_obj(pid, idx, vif, val);
       vthread_push(thr, val);
       return true;
@@ -31560,6 +31687,17 @@ static bool event_expr_runtime_error_(vthread_t thr, const char*message)
 {
       fprintf(stderr, "%serror: %s\n", thr ? thr->get_fileline().c_str() : "",
               message);
+      vthread_t frame = event_expr_recipe_frame_(thr);
+      if (frame) {
+            frame->event_expr_recipe_failed = true;
+            frame->event_expr_recipe_observer->recipe_failed = true;
+            /* Abort the complete synchronous recipe call tree. Returning
+             * false from a property opcode merely parks its callf child and
+             * leaves trampoline state behind; disabling the recipe root uses
+             * the established callframe unwind and prevents later method or
+             * caller side effects from executing after the fatal access. */
+            do_disable(frame, frame);
+      }
       vpip_set_return_value(1);
       schedule_finish(0);
       return false;
@@ -31630,7 +31768,7 @@ bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t cp)
             return event_expr_runtime_error_(
                   thr, "%event/expr/return executed outside an event recipe");
       }
-      if (cp->number == 0 || cp->number > (SIZE_MAX-1)/4
+      if (cp->number > (SIZE_MAX-1)/4
           || thr->vec4_stack_size() != 4*cp->number + 1
           || thr->object_stack_size() != cp->number)
             return event_expr_runtime_error_(
@@ -31655,8 +31793,28 @@ bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t cp)
             };
             reverse_paths.push_back(path);
       }
-      thr->event_expr_result_paths.assign(reverse_paths.rbegin(),
-                                           reverse_paths.rend());
+      /* Property opcodes executed by the recipe (including inside callf
+       * children) have already appended the concrete class members they
+       * read. Merge the statically described receiver/rebind paths instead
+       * of replacing those actual-read dependencies. */
+      for (std::vector<event_expr_path_s>::const_reverse_iterator path =
+                 reverse_paths.rbegin(); path != reverse_paths.rend(); ++path) {
+            bool duplicate = false;
+            for (std::vector<event_expr_path_s>::const_iterator cur =
+                       thr->event_expr_result_paths.begin();
+                 cur != thr->event_expr_result_paths.end(); ++cur) {
+                  if (cur->object == path->object
+                      && cur->property == path->property
+                      && cur->word == path->word
+                      && cur->bit == path->bit
+                      && cur->active == path->active) {
+                        duplicate = true;
+                        break;
+                  }
+            }
+            if (!duplicate)
+                  thr->event_expr_result_paths.push_back(*path);
+      }
       thr->event_expr_result = thr->pop_vec4();
       thr->event_expr_recipe_complete = true;
       return false;
@@ -31673,7 +31831,7 @@ static void register_event_expr_sources_(event_expr_observer_s*observer,
 
       for (std::vector<event_expr_path_s>::const_iterator path = paths.begin();
            path != paths.end(); ++path) {
-            vvp_cobject*object = path->object.peek<vvp_cobject>();
+            vvp_object*object = path->object.peek<vvp_object>();
             if (object)
                   object->add_mutation_waiter(waiter, path->property,
                                               path->word, path->bit,
@@ -31694,6 +31852,7 @@ static bool run_event_expr_recipe_(event_expr_observer_s*observer,
                                    std::vector<event_expr_path_s>&paths)
 {
       vthread_t waiter = observer->waiter;
+      observer->recipe_failed = false;
       retain_event_expr_observer_(observer);
       vthread_t eval = vthread_new_(observer->recipe, waiter->parent_scope,
                                     false);
@@ -31727,7 +31886,8 @@ static bool run_event_expr_recipe_(event_expr_observer_s*observer,
       eval->is_scheduled = 1;
       vthread_run(eval);
 
-      bool complete = eval->event_expr_recipe_complete;
+      bool complete = eval->event_expr_recipe_complete
+                   && !eval->event_expr_recipe_failed;
       if (complete) {
             result = eval->event_expr_result;
             paths.swap(eval->event_expr_result_paths);
@@ -31773,12 +31933,15 @@ static bool event_expr_source_occurrence_(vthread_t thr)
       std::vector<event_expr_path_s>paths;
       if (!run_event_expr_recipe_(observer, value, paths)) {
             if (thr->event_expr_observer == observer) {
+                  bool recipe_failed = observer->recipe_failed;
                   cancel_event_expr_observer_(thr);
-                  fprintf(stderr,
-                          "%serror: event expression recipe did not complete synchronously\n",
-                          thr->get_fileline().c_str());
-                  vpip_set_return_value(1);
-                  schedule_finish(0);
+                  if (!recipe_failed) {
+                        fprintf(stderr,
+                                "%serror: event expression recipe did not complete synchronously\n",
+                                thr->get_fileline().c_str());
+                        vpip_set_return_value(1);
+                        schedule_finish(0);
+                  }
             }
             return false;
       }
@@ -31816,12 +31979,16 @@ bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t initial;
       std::vector<event_expr_path_s>paths;
       if (!run_event_expr_recipe_(observer, initial, paths)) {
+            bool attached = thr->event_expr_observer == observer;
+            bool recipe_failed = attached && observer->recipe_failed;
             cancel_event_expr_observer_(thr);
-            fprintf(stderr,
-                    "%serror: event expression recipe did not complete synchronously\n",
-                    thr->get_fileline().c_str());
-            vpip_set_return_value(1);
-            schedule_finish(0);
+            if (attached && !recipe_failed) {
+                  fprintf(stderr,
+                          "%serror: event expression recipe did not complete synchronously\n",
+                          thr->get_fileline().c_str());
+                  vpip_set_return_value(1);
+                  schedule_finish(0);
+            }
             return false;
       }
       observer->last_value = initial;

@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_whole_function_event_factory_constant_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_whole_function_event_factory_constant"
+  ],
+  "gold": "sv_whole_function_event_factory_constant_2017"
+}

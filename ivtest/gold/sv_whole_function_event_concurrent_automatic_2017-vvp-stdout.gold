@@ -1,0 +1,2 @@
+PASS whole-function-concurrent-automatic
+ivltests/sv_whole_function_event_concurrent_automatic_2017.v:19: $finish called at 1 (1s)

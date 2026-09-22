@@ -1,4 +1,4 @@
-tests/vvp_runtime/mixed_wait_malformed.vvp:9: %event/expr/return path count must be nonzero
+tests/vvp_runtime/mixed_wait_malformed.vvp:9: operand count
 tests/vvp_runtime/mixed_wait_malformed.vvp:10: %event/expr/load/v width must be nonzero
 tests/vvp_runtime/mixed_wait_malformed.vvp:11: operand count
 tests/vvp_runtime/mixed_wait_malformed.vvp:12: operand count

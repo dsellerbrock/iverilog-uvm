@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "sv_whole_function_event_real_negative_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sv_whole_function_event_real_negative"
+  ],
+  "gold": "sv_whole_function_event_real_negative_2017"
+}

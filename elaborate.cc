@@ -19015,7 +19015,11 @@ static void add_class_property_mutation_dep_(
       const NetExpr*property_bit_expr = nullptr,
       const NetExpr*owner_expr = nullptr)
 {
-      if (!root)
+      /* A class-valued function result has no statically nameable root. Keep
+         its exact expression as an observer-selection marker; the recipe
+         records the object and members actually read at run time. Such a
+         marker is never emitted as a static mutation descriptor. */
+      if (!root && !owner_expr)
             return;
       for (const class_property_mutation_dep_t&dep : deps) {
             if (dep.root == root && dep.owner_N == owner_N
@@ -19201,6 +19205,35 @@ static void collect_class_property_mutation_deps_(
                         collect_class_property_mutation_deps_(
                               root_e->word_index(), deps);
                   }
+            }
+            return;
+      }
+
+      if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(e)) {
+            /* A method body can read members through its implicit receiver,
+               and a function can likewise read members through a class
+               argument. The call expression does not expose those body
+               reads in nex_input(false), so keep each actual class object as
+               a wildcard source. The synchronous event recipe records the
+               concrete property reads made by this invocation and refines
+               subsequent registrations, including reads through nested
+               object members. owner_expr must be the exact argument node:
+               the target's expression-capture table then reuses the value
+               evaluated for the call instead of invoking a side-effecting
+               receiver expression twice. */
+            for (unsigned idx = 0; idx < call->parm_count(); idx += 1) {
+                  const NetExpr*parm = call->parm(idx);
+                  if (!parm)
+                        continue;
+                  collect_class_property_mutation_deps_(parm, deps);
+                  const netclass_t*type =
+                        dynamic_cast<const netclass_t*>(parm->net_type());
+                  if (!type || type->is_interface())
+                        continue;
+                  const NetNet*root = class_property_owner_root_(parm);
+                  add_class_property_mutation_dep_(
+                        deps, root, UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX,
+                        nullptr, UINT_MAX, nullptr, parm);
             }
             return;
       }
@@ -20587,8 +20620,17 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                 && expr_[idx]->type() == PEEvent::ANYEDGE) {
                   std::vector<class_property_mutation_dep_t> deps;
                   collect_class_property_mutation_deps_(tmp, deps);
-                  NexusSet*prop_set = deps.empty() ? nullptr : tmp->nex_input();
-                  if (prop_set && prop_set->size() > 0) {
+                  /* Function bodies may read static class members or other
+                     ordinary signals that are absent from the explicit call
+                     operands. The existing always-sensitivity traversal
+                     already finds those body inputs and removes formals;
+                     include them as ordinary pins on the same synchronous
+                     observer event. Dynamic object-property reads are
+                     refined by the recipe at run time. */
+                  NexusSet*prop_set = deps.empty() ? nullptr
+                        : tmp->nex_input(true,
+                              expr_has_user_function_call_(tmp));
+                  if (prop_set) {
                         std::set<const Nexus*> allowed_obj_nexuses;
                         for (const class_property_mutation_dep_t&dep : deps) {
                               if (dep.root) {
@@ -20598,28 +20640,12 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                                                 dep.root->pin(word).nexus());
                               }
                         }
-                        bool mixed_dependency = false;
                         bool has_ordinary_dependency = false;
                         for (unsigned pin = 0 ; pin < prop_set->size(); pin += 1) {
                               const Nexus*nexus = prop_set->at(pin).lnk.nexus();
                               if (!allowed_obj_nexuses.count(nexus)) {
                                     has_ordinary_dependency = true;
-                                    if (!nexus_has_automatic_local_(nexus)) {
-                                          mixed_dependency = true;
-                                          break;
-                                    }
                               }
-                        }
-                        if (mixed_dependency) {
-                              cerr << get_fileline() << ": error: event "
-                                   << "expression mixes class-property mutation "
-                                   << "dependencies with ordinary signal "
-                                   << "dependencies; this combination is not "
-                                   << "yet supported." << endl;
-                              des->errors += 1;
-                              delete prop_set;
-                              delete tmp;
-                              continue;
                         }
 
                         NetEvProbe*pr = new NetEvProbe(
@@ -20629,6 +20655,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                               connect(prop_set->at(pin).lnk, pr->pin(pin));
 
                         for (const class_property_mutation_dep_t&dep : deps) {
+                              if (!dep.root)
+                                    continue;
                               Nexus*root_nexus = const_cast<Nexus*>(
                                     dep.root->pin(0).nexus());
                               for (unsigned pin = 0 ; pin < prop_set->size() ; pin += 1) {
@@ -20646,7 +20674,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                               }
                         }
 
-                        if (pr->obj_mutation_count() > 0) {
+                        if (pr->obj_mutation_count() > 0
+                            || expr_has_user_function_call_(tmp)) {
                               bool precise_direct =
                                     is_direct_class_property_event_expr_(tmp)
                                     && deps.size() == 1

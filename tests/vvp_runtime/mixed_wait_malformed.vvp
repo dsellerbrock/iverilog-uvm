@@ -6,7 +6,7 @@ S_top .scope module, "top" "top" 1 1;
 E_0 .event "event";
     .scope S_top;
 T_0 ;
-    %event/expr/return 0;
+    %event/expr/return;
     %event/expr/load/v 0, 0;
     %wait/obj/expr E_0;
     %event/expr/load/v 0;

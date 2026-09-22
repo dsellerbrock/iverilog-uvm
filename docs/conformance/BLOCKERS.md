@@ -3409,3 +3409,18 @@ Exact interval sampling replaces the large ground-range weighted-soft fallback f
 ### OT-PWRMGR-LOCAL-VECTOR-CLASS-INDEX-EVENT — locally regression-tested, publication pending
 
 IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector changes because class-mutation lowering omitted the ordinary dependency. Synchronous combined registration fixed arming, but a deferred value filter still lost same-slot pulses. The current patch evaluates the complete expression at occurrence time using the existing VVP evaluator, captures selectors/owners once in their original evaluation order, refreshes precise subscriptions on equal values, and schedules the original process only on a value change. Cancellation, context isolation and Reactive arming have focused regressions. [Current revision-scoped evidence](session_logs/2026-09-21_occurrence_event_focus.json) owns results and remaining gates; [candidate1 evidence](session_logs/2026-09-21_mixed_event_focus.json) preserves the earlier failure. All required local gates pass; publication is pending. The unmodified pwrmgr seed3 assertion remains separately recorded debt; no application workaround is selected.
+
+### OT-PWRMGR-SEED3-ESC-TIMEOUT — diagnosed upstream checker phase assumption
+
+- **State:** OPEN (application failure; no compiler defect demonstrated).
+- **Evidence:** [Pinned seed-3 signal trace and paired reducer](session_logs/2026-09-21_pwrmgr_seed3_phase_assessment.json). A deliberately phase-randomized running clock remains low at every assertion sample; level sampling aliases activity.
+- **Boundary:** Seed3 remains FAIL. Keep the release corpus and assertion unchanged; do not force phases or suppress the failure to qualify DV. Any upstream checker correction needs separate review.
+
+The user-requested [separate checker correction](session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json) resolves the phase assumption in a private source overlay. It preserves the timeout assertion and passes seed3; pristine-release qualification remains open. The patch updates both template and generated checker and has not been applied to the release corpus.
+
+### OT-WHOLE-FUNCTION-CLASS-EVENT — class-method event dependencies
+
+- **State:** REGRESSION_TESTED; required local gates pass for the documented integral-expression subset. Publication/CI pending.
+- **Semantics:** IEEE 1800-2017/2023 §9.4.2 integral event expressions and class method receivers.
+- **Evidence:** [Revision-scoped implementation and focused results](session_logs/2026-09-21_whole_function_event_focus.json), including retained baseline failures. Virtual-interface reads inside methods remain explicitly unsupported.
+- **Closure:** Correct value-change behavior, ordinary dependency tracking, receiver lifetime/rebinding, unchanged-value suppression and required regression gates. Reuse the existing expression observer; no source workaround.

@@ -1,0 +1,144 @@
+{
+  "id": "OT-PWRMGR-SEED3-ESC-TIMEOUT",
+  "status": "DIAGNOSED_APPLICATION_CHECKER_PHASE_ASSUMPTION",
+  "compiler_revision": "7c30c69c412817872c911103648c9aef12ecc78e",
+  "release": "Earlgrey-PROD-M6",
+  "source_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "application_unmodified": true,
+  "conclusion": "The assertion level-samples a deliberately phase-randomized running clock. Seed3 selects a phase that is low at every reference negedge, satisfying the antecedent although the escalation clock is toggling. No compiler defect is demonstrated by this failure.",
+  "property": "@(posedge !clk_i) disable iff (reset_or_disable !== 0) (!clk_esc_i && io_clk_en)[*138] |=> esc_timeout || !rst_lc_ni",
+  "standards": [
+    "IEEE1800-2017/2023 16.5.1 sampling",
+    "16.9.2 consecutive repetition",
+    "16.12.7 implication"
+  ],
+  "signal_audit": {
+    "1": {
+      "sample_count": 1248,
+      "longest_low_enabled_samples": 3,
+      "interval_start": 27785259,
+      "interval_end": 27880497,
+      "esc_edges_during_interval": 0,
+      "first_edges": [],
+      "last_samples": [
+        {
+          "time": 27785259,
+          "esc": "0",
+          "enable": "1",
+          "disable": "0",
+          "timeout": "0",
+          "lc_n": "0"
+        },
+        {
+          "time": 27832878,
+          "esc": "0",
+          "enable": "1",
+          "disable": "0",
+          "timeout": "0",
+          "lc_n": "0"
+        },
+        {
+          "time": 27880497,
+          "esc": "0",
+          "enable": "1",
+          "disable": "0",
+          "timeout": "0",
+          "lc_n": "0"
+        }
+      ]
+    },
+    "3": {
+      "sample_count": 508,
+      "longest_low_enabled_samples": 139,
+      "interval_start": 20700918,
+      "interval_end": 26220918,
+      "esc_edges_during_interval": 268,
+      "first_edges": [
+        [
+          20872874,
+          "1"
+        ],
+        [
+          20892874,
+          "0"
+        ],
+        [
+          20912874,
+          "1"
+        ],
+        [
+          20932874,
+          "0"
+        ],
+        [
+          20952874,
+          "1"
+        ],
+        [
+          20972874,
+          "0"
+        ]
+      ],
+      "last_samples": [
+        {
+          "time": 26140918,
+          "esc": "0",
+          "enable": "1",
+          "disable": "0",
+          "timeout": "0",
+          "lc_n": "1"
+        },
+        {
+          "time": 26180918,
+          "esc": "0",
+          "enable": "1",
+          "disable": "0",
+          "timeout": "0",
+          "lc_n": "1"
+        },
+        {
+          "time": 26220918,
+          "esc": "0",
+          "enable": "1",
+          "disable": "0",
+          "timeout": "0",
+          "lc_n": "1"
+        }
+      ]
+    }
+  },
+  "reducer": {
+    "path": "evidence/review-20260920/pwrmgr-seed3-assessment/phase_repro.sv",
+    "sha256": "2ba666ff11bc6425288900243a7d1ae450e618c1ef4bc5b50306555d8ac7e24b",
+    "runs": 24,
+    "passed": 24,
+    "editions": [
+      2017,
+      2023
+    ],
+    "nfa_modes": [
+      0,
+      1
+    ],
+    "cases": [
+      "running clock sampled low",
+      "running clock sampled high",
+      "138-sample boundary",
+      "140-sample overlapping attempts",
+      "stopped clock without timeout",
+      "stopped clock with timeout"
+    ]
+  },
+  "evidence": "evidence/review-20260920/pwrmgr-seed3-assessment",
+  "source_paths": {
+    "assertion": "hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv:120",
+    "random_phase": "hw/dv/sv/common_ifs/clk_rst_if.sv:323",
+    "timeout_logic": "hw/ip/prim/rtl/prim_clock_timeout.sv"
+  },
+  "limitations": [
+    "No VCS differential run or vendor-specific quirk claim.",
+    "Seed3 remains an application FAIL; assertion was not disabled, rewritten or waived.",
+    "No claim that all compiler scheduling/SVA semantics are qualified."
+  ],
+  "next": "Any upstream checker correction must detect clock activity across samples (for example a correctly synchronized edge heartbeat), rather than infer inactivity from sampled level. Keep campaign corpus unchanged unless a separate reviewed upstream fix is authorized."
+}

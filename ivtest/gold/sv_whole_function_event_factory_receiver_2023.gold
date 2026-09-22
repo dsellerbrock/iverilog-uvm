@@ -1,0 +1,2 @@
+PASS factory receiver
+./ivltests/sv_whole_function_event_factory_receiver_2023.v:16: $finish called at 2 (1s)

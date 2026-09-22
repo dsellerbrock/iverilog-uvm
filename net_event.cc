@@ -765,6 +765,10 @@ const NetEvent* NetEvProbe::event() const
  */
 void NetEvProbe::find_similar_probes(list<NetEvProbe*>&plist)
 {
+      // Recipe dependencies and values are not represented by the static pins.
+      // A factory receiver can also have no static inputs at all.
+      if (pin_count() == 0 || event_observer_expr())
+            return;
       Nexus*nex = pin(0).nexus();
 
       for (Link*lcur = nex->first_nlink(); lcur; lcur = lcur->next_nlink()) {
@@ -788,7 +792,8 @@ void NetEvProbe::find_similar_probes(list<NetEvProbe*>&plist)
 	         controls on obj.a and obj.b therefore look structurally identical
 	         here but are not interchangeable. Keep these local events
 	         distinct instead of letting nodangle discard one selector set. */
-	    if (is_obj_mutation() || tmp->is_obj_mutation())
+	    if (is_obj_mutation() || tmp->is_obj_mutation()
+                || tmp->event_observer_expr())
 		  continue;
 
 	    if (edge() != tmp->edge())

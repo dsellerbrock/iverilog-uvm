@@ -1,1 +1,3 @@
+./ivltests/sv_mixed_event_conditional_capture_2023.v:10: warning: cannot determine the precise sensitivity for the select of cfg.<3>.<0>; using conservative whole-expression sensitivity.
+./ivltests/sv_mixed_event_conditional_capture_2023.v:13: warning: cannot determine the precise sensitivity for the select of cfg.<3>.<0>; using conservative whole-expression sensitivity.
 PASS conditional-capture

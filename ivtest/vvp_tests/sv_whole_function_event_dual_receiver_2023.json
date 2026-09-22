@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_whole_function_event_dual_receiver_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sv_whole_function_event_dual_receiver"
+  ],
+  "gold": "sv_whole_function_event_dual_receiver_2023"
+}

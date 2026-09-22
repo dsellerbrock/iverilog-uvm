@@ -1,0 +1,2 @@
+PASS whole-function-static-forward
+./ivltests/sv_whole_function_event_static_forward_2017.v:16: $finish called at 1 (1s)

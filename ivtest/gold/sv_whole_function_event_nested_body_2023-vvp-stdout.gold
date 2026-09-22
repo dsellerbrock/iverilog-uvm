@@ -1,0 +1,2 @@
+PASS whole-function-nested-body
+ivltests/sv_whole_function_event_nested_body_2023.v:43: $finish called at 2 (1s)
