@@ -39,6 +39,8 @@ extern "C" {
 /* Optional diagnostic for the regex crossing. Keep the vendored UVM source
  * unchanged while making the exact POSIX expression visible when debugging a
  * simulator/DPI integration issue. */
+static const regex_t*uvm_ivl_failed_regex = nullptr;
+
 static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
 {
       if (getenv("IVL_UVM_REGEX_TRACE"))
@@ -46,11 +48,30 @@ static int uvm_ivl_regcomp(regex_t*preg, const char*pattern, int flags)
                        pattern ? pattern : "<null>", flags);
 
       // Glob conversion is explicit in the upstream API, never a retry.
-      return regcomp(preg, pattern, flags);
+      // The vendored regexec passes nmatch=0, so REG_NOSUB leaves every
+      // result unchanged; it lets TRE (MSYS2 libsystre) accept the full
+      // UVM_REGEX_MAX_LENGTH pattern instead of failing with REG_ESPACE.
+      int status = regcomp(preg, pattern, flags | REG_NOSUB);
+      uvm_ivl_failed_regex = status ? preg : nullptr;
+      return status;
+}
+
+/* The vendored uvm_re_comp also regfree()s a regex_t whose regcomp failed.
+ * POSIX defines regfree only for compiled expressions; TRE leaves a dangling
+ * pointer there and crashes. Skip exactly that failed buffer. */
+static void uvm_ivl_regfree(regex_t*preg)
+{
+      if (preg == uvm_ivl_failed_regex) {
+            uvm_ivl_failed_regex = nullptr;
+            return;
+      }
+      regfree(preg);
 }
 
 #define regcomp uvm_ivl_regcomp
+#define regfree uvm_ivl_regfree
 #include "uvm_regex.cc"
+#undef regfree
 #undef regcomp
 #include "uvm_svcmd_dpi.c"
 

@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV
   and eventual formal foundation; preserve1364, UPF deferred.
-branch: agent/opentitan-spi-host-next-20260921
+branch: claude/iverilog-uvm-takeover-n1v3u6
 history: docs/conformance/session_logs/2026-09-21_before_exact_dist_qualification_CAMPAIGN.yaml
 baseline:
   main: 175dcb65d76ffdbae78e64ba45beee95217e8773
@@ -151,7 +151,7 @@ applications:
   pwrmgr: 'Observer-build3 stable M6 replay: seed1 normal completion, seed3 EscClkStopEscTimeout_A remains.
     Final traffic audit confirms25 matched/drained A/D and zero UVM errors/fatals for seed1; no full DV claim.'
 next:
-- Root-cause and fix OT-WHOLE-FUNCTION-CLASS-EVENT through existing eventobserver, after recorded scope review.
+- Confirm CI-WIN-UVM-REGEX-NOOUTPUT on MSYS2 CI, then coordinator selection of the next evidence-backed blocker.
 agents:
   canonical_graph_refresh: 'Terra medium: permanent ivtest registration complete; idle.'
   vif_proxy_implementation: 'Sol medium: implementation frozen; idle.'
@@ -177,7 +177,7 @@ vcs_quirks:
     failure alone.
   candidate: Caliptra rej_bounded Active-region race is a comparison candidate, not a confirmed VCS dependency;
     see evidence/review-20260920/caliptra-rej-underflow-next/ASSESSMENT.md.
-exact_next_tool: Poll integrated rerun session96267 using write_stdin; never restart on observation timeout. On success run qualification/final/run_gate.py json, nfa, uvm, frontend, makecheck, rootseed serially, then final/run_final_apps.py (fresh pinned source compile).
+exact_next_tool: Inspect the draft PR CI for branch claude/iverilog-uvm-takeover-n1v3u6 (MSYS2 "UVM regression tests" step); on green, select next blocker per ACTIVE_WORK protocol.
 seed3_fix:
   commit: 6a2b8b0cb
   evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json
@@ -487,3 +487,14 @@ caller_foreach_checkpoint:
   safeguards: Preserve external AGENTS patch; no new worktrees; never overlap frontend with tests.
   graph: Shared canonical refreshed at ca29b1237; no feature graph.
   application: Pristine SPI caller-foreach diagnostic removed; four independent errors remain. No DV qualification.
+
+win_regex_checkpoint_20260922:
+  blocker: CI-WIN-UVM-REGEX-NOOUTPUT
+  host: Claude Code cloud Linux container (x86_64, Ubuntu, Bison 3.8.2, Z3 4.8.12). Mac-local evidence, OpenTitan/Caliptra checkouts and canonical Graphify graph are not present here; Graphify/Ponytail are not installed as tools in this session, so rg/source navigation and the AGENTS Ponytail policy are used.
+  base: 1af223c8f45b922dc1b966aa5e399c4f59f8546f (main, includes merged PR319/PR320)
+  reconciliation: ACTIVE_WORK caller-foreach "publication pending" superseded; PR319 merged 288132f2, PR320 merged 1af223c8. Main CI red since PR317 on the three MSYS2 jobs, single failure uvm_regex_strict_exec_test.
+  root: Vendored uvm_re_comp regfree after failed regcomp (POSIX-undefined) crashes TRE/libsystre; TRE also rejects 2048-literal patterns without REG_NOSUB.
+  fix: uvm_dpi/uvm_dpi_iverilog.cc regcomp/regfree wrapper; .github/uvm_test.sh reports vvp exit status.
+  evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json; evidence/win-regex-tre/
+  build: Fresh serial -j1 build/install/installuvm of the checkout, BUILD_EXIT 0.
+  pending: Windows CI on the draft PR.

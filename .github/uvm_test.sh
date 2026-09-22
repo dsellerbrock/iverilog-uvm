@@ -279,7 +279,10 @@ run_test() {
             >"/tmp/uvm_dpi_${name}.buildlog" 2>&1
         dflags="$dflags -d /tmp/uvm_dpi_${name}.vpi"
     fi
-    $TIMEOUT $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1 || true
+    # Keep the process status: a crash that prints nothing is otherwise
+    # indistinguishable from a silent loader or callback failure.
+    $TIMEOUT $VVP $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1
+    echo $? >"/tmp/uvm_rc_${name}"
 }
 
 for sv in $TESTS/*.sv; do
@@ -336,6 +339,7 @@ for sv in $TESTS/*.sv; do
         else
             echo "      > (vvp produced no output at all)"
         fi
+        echo "      > vvp exit status: $(cat "/tmp/uvm_rc_${name}" 2>/dev/null || echo unknown)"
         if [ -s "/tmp/uvm_dpi_${name}.buildlog" ]; then
             echo "      > per-test DPI build:"
             sed 's/^/      | /' "/tmp/uvm_dpi_${name}.buildlog" | head -4

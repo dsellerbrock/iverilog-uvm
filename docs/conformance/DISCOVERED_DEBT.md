@@ -3177,3 +3177,10 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Observation: The official OpenTitan checker backport uses `$rose(dead_count == 138) |=> timeout until !rst_lc_ni`. With timeout true on the first consequent sample and false later, installed NFA mode reports no assertion failure; a negative reducer requires one. Both 2017 and 2023 reproduce; legacy mode does not provide an alternate passing implementation.
 - Evidence: `evidence/review-20260920/pwrmgr-seed3-revalidation/ASSESSMENT.md`, `upstream_counter_repro.sv`, corrected `focused-results/dropped_timeout-*-nfa1.run.log`. Initial parameter-override harness mistake is preserved separately and not counted.
 - Status: Reproduced; bounded root-cause assessment of forbidden-until NFA lowering underway. Parser precedence checked. No implementation change or qualification claim yet; do not weaken the upstream check or treat smoke success as proof of continuation semantics.
+
+### 2026-09-22 legacy `uvm_re_match` regex capacity on TRE
+
+- Active blocker: CI-WIN-UVM-REGEX-NOOUTPUT.
+- Observation: the fork-owned legacy `uvm_re_match` in `uvm_dpi/uvm_dpi_iverilog.cc` compiles with `REG_EXTENDED` only and never reads submatches. On TRE (MSYS2 libsystre), literal patterns longer than 1463 characters fail with REG_ESPACE without `REG_NOSUB`; glibc accepts them. The active fix covers `uvm_re_comp` only.
+- Evidence: `evidence/win-regex-tre/` harness technique; the capacity limit was measured against Ubuntu TRE 0.8.0. Not reproduced through the legacy SV API, and no Windows run has been made.
+- Triage: recorded only. Check the pinned UVM 1.x legacy source flags before any change; there is no correctness defect on glibc/macOS.

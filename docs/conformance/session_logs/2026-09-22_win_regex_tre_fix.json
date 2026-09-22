@@ -1,0 +1,67 @@
+{
+  "blocker": "CI-WIN-UVM-REGEX-NOOUTPUT",
+  "status": "FOCUSED_TESTED locally; Windows CI confirmation pending",
+  "base": "1af223c8f45b922dc1b966aa5e399c4f59f8546f",
+  "host": "Claude Code cloud Linux container, x86_64 Ubuntu, gcc, Bison 3.8.2, Z3 4.8.12; fresh serial build/install/installuvm, BUILD_EXIT 0",
+  "red_ci": {
+    "run": "https://github.com/dsellerbrock/iverilog-uvm/actions/runs/35691405507",
+    "commit": "288132f2",
+    "jobs": [
+      "MINGW64",
+      "UCRT64",
+      "CLANG64"
+    ],
+    "result": "357 passed, 1 failed: uvm_regex_strict_exec_test, vvp produced no output"
+  },
+  "root_cause": [
+    "Vendored uvm-core src/dpi/uvm_regex.cc uvm_re_comp calls uvm_re_free -> regfree on a regex_t whose regcomp failed; POSIX defines regfree only for compiled expressions. TRE (MSYS2 libsystre) segfaults; glibc/macOS tolerate it.",
+    "TRE 0.8.0 rejects literal patterns longer than 1463 characters with REG_ESPACE unless REG_NOSUB is set, so the legal 2048-character UVM boundary fails."
+  ],
+  "authority": "Pinned uvm-core regex API (UVM_REGEX_MAX_LENGTH 2048, null on failure); POSIX regcomp/regfree/REG_NOSUB. IEEE 1800.2 clause mapping unassessed.",
+  "fix": "uvm_dpi/uvm_dpi_iverilog.cc: regcomp wrapper adds REG_NOSUB (vendored regexec passes nmatch=0, so results are unchanged) and remembers the failed buffer; regfree wrapper skips exactly that buffer. .github/uvm_test.sh records and prints the vvp exit status for no-output failures. No uvm-core edits.",
+  "local_reproducer": {
+    "path": "evidence/win-regex-tre/",
+    "engine": "Ubuntu libtre 0.8.0 behind a libsystre-equivalent function shim, ASan",
+    "pre_fix": "SEGV in regfree from uvm_re_comp on the first invalid pattern '*['",
+    "post_fix": "all harness steps complete; outputs match the glibc build except engine error text",
+    "ablation_without_REG_NOSUB": "no crash, but 2048-character pattern fails with 'Out of memory' (REG_ESPACE)"
+  },
+  "tests": {
+    "regex_pair": {
+      "passed": 2,
+      "failed": 0,
+      "dpi": "REAL",
+      "tests": [
+        "uvm_regex_strict_exec_test",
+        "uvm_regex_legacy_glob_test"
+      ]
+    },
+    "uvm_full": {
+      "command": "PATH=$PWD/local-install/bin:$PATH bash .github/uvm_test.sh",
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "dpi": "REAL",
+      "exit": 0
+    },
+    "uvm_frontend": {
+      "command": ".github/uvm_frontend_test.sh",
+      "result": "ALL SCENARIOS PASSED",
+      "exit": 0
+    }
+  },
+  "not_run": [
+    "Windows execution (no Windows host here; CI is the confirmation)",
+    "ivtest/NFA/makecheck: compiler, runtime and ivtest inputs unchanged from main 1af223c8"
+  ],
+  "fingerprints": {
+    "uvm_dpi/uvm_dpi_iverilog.cc": "97366a3cde56811652efc8a5343bcf955c5505ca472a4c4173105f73c7d3cc8f",
+    ".github/uvm_test.sh": "749036caf986f6575f03e2469462cc7bbfe8a3155707f4fb52f65ce829ce60d5",
+    "local-install/lib/ivl/uvm_dpi.vpi": "4bedcbeb32da663687c734239584e79ce8ee9ba226882baa9c7b80e78036c884",
+    "local-install/bin/vvp": "cd77ad3cbb98ba2186c26e0cf844dec3224c306e26be0a38d13e6790760a6888"
+  },
+  "discoveries": [
+    "Legacy uvm_re_match TRE capacity; DISCOVERED_DEBT 2026-09-22"
+  ],
+  "limitations": "Local TRE is Ubuntu 0.8.0 rather than the MSYS2 build; Windows behavior remains unconfirmed until CI."
+}
