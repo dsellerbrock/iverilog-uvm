@@ -4458,3 +4458,9 @@ sv_constraint_inline_function_once_2017 normal,-g2017,-s,receiver_once ivltests 
 sv_constraint_inline_function_once_2023 normal,-g2023,-s,receiver_once ivltests gold=sv_constraint_inline_function_once_2023.gold
 sv_constraint_inline_function_null_2017 normal,-g2017,-s,null_target_preserve ivltests gold=sv_constraint_inline_function_null_2017.gold
 sv_constraint_inline_function_null_2023 normal,-g2023,-s,null_target_preserve ivltests gold=sv_constraint_inline_function_null_2023.gold
+
+# Whole fixed rand arrays in solve...before.
+sv_constraint_solve_before_fixed_array normal,-g2017,-s,top ivltests
+sv_constraint_solve_before_fixed_array_2023 normal,-g2023,-s,top ivltests
+sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
+sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold

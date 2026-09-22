@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_solve_before_fixed_array.v",
+    "iverilog-args": ["-g2017", "-s", "top"]
+}
