@@ -1,0 +1,5 @@
+ERROR: state foreach constraint: X/Z state value in constraint (IEEE 1800-2017/2023 18.3).
+ERROR: state foreach constraint: out-of-bounds state foreach index.
+PASS signed caller and X rollback
+PASS target-first collision
+PASS caller queue out of bounds rollback

@@ -1651,3 +1651,7 @@ The 9.4.2/25.9 candidate implements selected packed VIF edge expressions through
 ### 2026-09-21 — implication until continuation candidate
 
 The §16.6, §16.9.2.1 and §16.12.12 candidate corrects Boolean truth, zero-inclusive repetition concatenation, and continuing `until` obligations for the recorded implication subset. [Revision-scoped evidence](../session_logs/2026-09-21_until_continuation_focus.json) owns paired-edition checks, passing local gates and pending CI. Broader assertion support remains PARTIAL; this is not full clause qualification.
+
+### 2026-09-22 — caller-owned integral collection constraints
+
+§18.7 and §18.5.8.1 remain PARTIAL overall. Direct caller-owned integral queues and dynamic arrays now have focused paired-edition evidence for runtime foreach bounds, target-first lookup, explicit caller qualification, signed values, and failure without target writeback. [Revision-scoped evidence](../session_logs/2026-09-22_caller_queue_foreach_focus.json) owns the supported subset, diagnostics and completed local qualification. Compilation progress in pristine SPI does not qualify its DV suite.

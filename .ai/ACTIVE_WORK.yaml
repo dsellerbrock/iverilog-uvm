@@ -1,93 +1,49 @@
-blocker: SVA-IMPLICATION-UNTIL-CONTINUATION
-status: DOCUMENTED
-base: 3dce24ac755506ce57e5e1fce9d051890e78529d
-parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/318
-objective: Preserve continuous until obligations after good consequent samples and correct shared empty-match concatenation semantics.
-authorization: User compiler/SVA mission and seed3 investigation; coordinator selects next blocker after all selected-VIF local gates passed and PR318 published.
+blocker: OT-SPI-INLINE-CALLER-QUEUE-FOREACH
+status: REGRESSION_TESTED
+base: b9befcb735cbbbb56feacfbb9fbdbd120b622f55
+parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/319
+objective: Honor caller-scope lookup and actual caller-state queue iteration in inline randomize constraints used by pristine SPI TPM sequences.
+authorization: Continuous compiler campaign; coordinator freezes published and locally validated SVA patch, selects reproduced SPI compiler blocker.
 standards:
-- IEEE1800-2017 16.12.12 until properties and16.9.2.1 empty concatenation
-- IEEE1800-2023 16.12.12 until properties and16.9.2.1 empty concatenation
-reproducer: evidence/review-20260920/sva-until-continuation-next/until_implication_continuation.sv
-red: Corrected regression-fixed-2017/2023.run.log; four late misses, late q until_with misses, empty##0/##1 reversed; strong/weakEOScontrols pass.
-expected: p holds before q for until and through q for until_with; strong requires eventualq. Empty##0 has no match; empty##n for n>0 shifts by n-1.
-root: Forbidden consequent uses good-prefix fused via##0 with contradictory bad terminal; zero-inclusive NFA concatenation also fails to split empty/nonempty branches.
+- IEEE 1800-2017 18.7 inline scope resolution, 18.5.8.1 iterative constraints
+- IEEE 1800-2023 18.7 inline scope resolution, 18.5.7.1 iterative constraints
+reproducer: evidence/review-20260920/spi-caller-foreach-next/caller_queue.sv
+red: Both editions reject foreach(data_q[i]) while data_q is a caller-owned queue absent from the randomized item.
+expected: Resolve target first, then caller; snapshot state collection and constrain target elements using actual runtime indices and values. Preserve empty iteration, resizing across calls, failed-solve rollback and four-state semantics.
+root: Simple foreach lowering returns unsupported after target property lookup fails; caller-state collection path currently handles hierarchical object/struct-element arrays only.
 allowed_files:
-- pform.cc
-- pform_sva_nfa.cc
-- directly necessary private focused tests and owning permanent regressions/docs after coordinator integration
+- elaborate.cc constraint foreach lookup and existing caller-state capture/template emission
+- vvp/vvp_z3.cc existing state-foreach expansion if required by the proven representation
+- necessary declarations only after coordinator records their direct dependency
+- directly related private and permanent regressions and owning documents
 forbidden:
-- Application/checker changes
-- Assertion weakening, altered success criteria, sample-region changes without proven need
-- Unrelated SVA refactoring or speculative architecture
+- OpenTitan or Caliptra source edits
+- Relaxing array element equivalence to bypass valid queue copy-out diagnostics
+- Ignored constraints, changed RNG ownership or failed-solve rollback, arbitrary bounds, invented array elements
+- Unrelated constraint-function or nested-struct implementation
 lanes:
   implementation:
-    owner: selected_vif_relay_lifetime Terra/medium
-    files: pform.cc and pform_sva_nfa.cc; private sva-until-continuation-next tests
-    plan: Retain p&&!q good prefix, positive-delay bad terminal; correct shared empty/nonempty concat split using existing mechanisms.
+    owner: selected_vif_relay_lifetime Terra/medium after current assessment handoff
+    files: elaborate.cc and vvp/vvp_z3.cc; private caller-foreach evidence
   coordinator:
     owner: root
-    files: shared build/install/harnesses, review, permanent registration, docs and PR integration
+    files: shared build/install/test outputs, standards interpretation, integration, review, documentation
 acceptance:
-- Paired corrected immediate/late/first-q/late-q/disable/weak-strongEOS regression passes.
-- Empty repetition##0/##1 controls and neighboring finite/unbounded sequence behavior pass.
-- Focused NFA existing suite and mapped SVA/UVM tests pass; required broader validation per risk and regression policy.
-- No checker overlay is needed to demonstrate compiler semantics; application overlay followup remains separately classified.
-risk: HIGH shared NFA concatenation semantics; coordinator assesses full required gates before promotion.
-stop_after_completion: Freeze patch and return to coordinator selection under continuous campaign.
+- Both editions pass exact caller-state queue copy constraints, empty and resized queues.
+- Target-first name collision and explicit caller qualification remain correct.
+- Contradictory constraints fail with target values preserved; invalid paths never silently disappear.
+- Existing caller-state, foreach, scope-resolution and randomization regression groups pass.
+- Required integrated gates per regression policy; risk HIGH for shared constraint IR behavior.
+prerequisite: Trace existing qforeach/state snapshot and operand lowering before editing; record any material scope expansion first.
+stop_after_completion: Freeze validated patch and return to coordinator selection; full mission remains active.
 
-parallel_boundary_test_lane:
+parallel_test_lane:
   owner: eval_evidence_audit Luna/low
-  files: evidence/review-20260920/sva-until-empty-boundaries only
-  purpose: Independent positive/negative empty repetition concatenation boundaries; exact counts in both editions.
-  constraints: No compiler edits,sharedbuilds,sharedharnesses,or edits to Terra private test files.
+  files: evidence/review-20260920/spi-caller-foreach-next/independent-boundaries only
+  task: Independent empty/resizing, name-collision and failed-solve rollback regression sources; no compiler or shared builds.
 
-first_build_review:
-  result: OpenTitan late-drop/stopped/held/live controls8/8pass; broaderpairedmatrixcompilefails.
-  root: nfa_chain_fragment_ treats valid emptylanguage as unsupported before pform implication can preserve deadconsequent.
-  coordinator_correction: Preserve unreachableacceptstate for valid emptylanguage; both direct/treechaincallerschecked.
-  evidence: evidence/review-20260920/sva-until-continuation-next/candidate1/results.json
-
-nondegeneracy_oracle_correction:
-  clause: IEEE2017/2023 16.12.22(a); a sequence used as property must be nondegenerate.
-  invalidated: Directempty##0 property expecting runtimefailure; it must be rejected. Prior mixed matrices versioned, notqualificationevidence.
-  source: Keep internal empty-language NFA for legalORcomposition; restore existing property nondegeneracyguard.
-  tests: v2 until matrix separates invalidnegative, boundarymatrix uses legalnondegenerateORcomposition.
-  build2: Preserved transient candidate; no qualificationclaim.
-
-coordinator_build3_review:
-  evidence: evidence/review-20260920/sva-until-continuation-next/candidate3 and build3-extra
-  result: Application controls 8/8 pass; legal leading-empty implication fails; four-state until misses all four violations in both editions.
-  refined_root: Flat implication fusion conflates property boundary with sequence concatenation; logical negation does not complement four-state property truth.
-  correction: Reuse separate antecedent/consequence NFA route for leading direct zero-inclusive repetition; normalize until operands to two-state Boolean property truth before complementing.
-  owner: Coordinator; worker source edits remain frozen.
-
-leading_delay_review:
-  root: nfa_add_step_ used fixed-1 delay ticks for both first and continuation steps, aliasing leading ##1 to ##0.
-  correction: Consume anchor before first positive delay; preserve continuation delay and zero fusion.
-  evidence: build4-v3 exactempty##2 failures; fixture timing checked independently.
-
-build7_checkpoint:
-  source: evidence/review-20260920/sva-until-continuation-next/build7/build.json
-  truth: Logical-not case-equal zero preserves integral and real Boolean truth under16.6; reduction-OR draft rejected real operands and was corrected.
-  permanent: Six paired families,12/12 legacy and12/12 JSON; NFA58/58.
-  qualification: In progress, not qualified; integrated session91368 and full UVM session59116.
-  incomplete_prior: Build5 broad runs invalidated and confirmed terminated; build6 redundant source record.
-
-parallel_evidence_lane:
-  owner: eval_evidence_audit Luna/low
-  scope: Private review-build7-evidence.json from existing logs; no tests, builds, or source edits.
-  coordinator: Owns semantic review, frozen shared gate processes and durable documentation.
-
-uvm_oracle_review:
-  finding: Existing positive local-variable until test left a four-state enum uninitialized. At t15 its assigned past value is X, so the Boolean comparison is X and must fail.
-  evidence: localvar-coordinator/trace.log under active evidence root; paired initialized-positive and original-uninitialized-negative checks pass.
-  correction: Initialize positive state to Reset; preserve original stimulus as paired permanent negatives requiring exactly one assertion failure.
-  standards: IEEE1800 6.8 Table6-7 and16.6; compiler source unchanged from build7.
-  gates: Integrated completed; UVM andJSON stopped on discovered failure, require rerun after test-oracle correction.
-
-final_local_checkpoint:
-  source: Build7, unchanged after qualification; all required local gates pass.
-  evidence: docs/conformance/session_logs/2026-09-21_until_continuation_focus.json
-  recovery: UVM349+9 exacttestcoverage; JSON1337+1919 exacttestcoverage; interrupted and relocation-invalidated runs retained separately.
-  publication: Pending; parentPR318 merged ca29b1237 after two CI successes.
-  next: Commit reviewed paths and publish SVA PR against main; monitor CI before selection.
+latest_validation:
+  evidence: docs/conformance/session_logs/2026-09-22_caller_queue_foreach_focus.json
+  source_freeze: Build3; compiler and permanent test sources frozen.
+  completed: Focused paired cases, permanent legacy/JSON focus, mapped constraint UVM, smoke, integrated, rootseed, makecheck, NFA.
+  pending: Publication and CI; all required local gates passed.

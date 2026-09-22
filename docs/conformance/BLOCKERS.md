@@ -3448,3 +3448,7 @@ IEEE 1800-2017/2023 §9.4.2: `@(local_vector[cfg.index])` missed local-vector ch
 ### SVA-IMPLICATION-UNTIL-CONTINUATION — locally regression-tested; publication pending
 
 The upstream OpenTitan checker backport exposed missed late `until` violations. The compiler correction covers property truth, empty/nonempty repetition concatenation and independent consequent timing. [Revision-scoped evidence](session_logs/2026-09-21_until_continuation_focus.json) owns the exact subset, tests and pending gates. This does not qualify the pristine application or the complete assertion language.
+
+### OT-SPI-INLINE-CALLER-QUEUE-FOREACH — locally regression-tested
+
+Direct caller-owned integral queue/dynamic-array iteration now has paired focused evidence, including target-first lookup, signed values, invalid-state rejection and rollback. The pristine SPI compile no longer rejects this foreach; independent errors remain. [Revision-scoped evidence](session_logs/2026-09-22_caller_queue_foreach_focus.json) owns results and passing required local gates. Publication/CI remain pending; no full application qualification is claimed.

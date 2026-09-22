@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_caller_queue.v",
+    "iverilog-args": ["-g2017", "-s", "test"],
+    "gold": "sv_constraint_caller_queue"
+}

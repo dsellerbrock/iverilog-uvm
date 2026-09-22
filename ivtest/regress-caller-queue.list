@@ -1,0 +1,6 @@
+sv_constraint_caller_queue normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue.gold
+sv_constraint_caller_queue_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue.gold
+sv_constraint_caller_queue_rollback normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue_rollback.gold
+sv_constraint_caller_queue_rollback_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue_rollback.gold
+sv_constraint_caller_queue_boundaries normal,-g2017,-s,test ivltests gold=sv_constraint_caller_queue_boundaries.gold
+sv_constraint_caller_queue_boundaries_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_caller_queue_boundaries.gold

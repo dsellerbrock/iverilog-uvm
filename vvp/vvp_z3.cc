@@ -5213,6 +5213,21 @@ class state_foreach_expander_t {
             return object.peek<vvp_darray>();
       }
 
+      /* Direct caller-state collections are integral queues/darrays. Keep
+       * their scalar representation separate from queue_(), whose object
+       * element check protects the existing owner/member field template. */
+      vvp_darray*direct_queue_(unsigned slot, state_foreach_value_t&out)
+      {
+            const vvp_object_t&object = queues_[slot];
+            if (object.test_nil()) return nullptr; // empty, unallocated storage
+            vvp_darray*array = object.peek<vvp_darray>();
+            if (!array) {
+                  error_(out, "direct state foreach collection is not a queue/dynamic array");
+                  return nullptr;
+            }
+            return array;
+      }
+
     public:
       state_foreach_expander_t(const vector<vvp_vector4_t>&slots,
                               const vector<vvp_object_t>&objects,
@@ -5361,19 +5376,24 @@ class state_foreach_expander_t {
                   --template_depth_;
                   string body(begin, parser.p - begin);
                   if (!valid || !parser.expect(')')) return false;
-                  vvp_cobject*owner = objects_[slot].peek<vvp_cobject>();
-                  if (!owner) {
-                        error_(out, "null/non-class state foreach collection owner");
-                        return true;
+                  if (member == UINT_MAX) {
+                        queues_[slot] = objects_[slot];
+                  } else {
+                        vvp_cobject*owner = objects_[slot].peek<vvp_cobject>();
+                        if (!owner) {
+                              error_(out, "null/non-class state foreach collection owner");
+                              return true;
+                        }
+                        const class_type*type = owner->get_defn();
+                        if (member >= type->property_count()
+                            || type->property_array_size(member) != 1) return false;
+                        const string&base_type = type->property_base_type(member);
+                        if (base_type.empty() || (base_type[0] != 'Q' && base_type[0] != 'D'))
+                              return false;
+                        owner->get_object(member, queues_[slot], 0);
                   }
-                  const class_type*type = owner->get_defn();
-                  if (member >= type->property_count()
-                      || type->property_array_size(member) != 1) return false;
-                  const string&base_type = type->property_base_type(member);
-                  if (base_type.empty() || (base_type[0] != 'Q' && base_type[0] != 'D'))
-                        return false;
-                  owner->get_object(member, queues_[slot], 0);
-                  vvp_darray*queue = queue_(slot, out);
+                  vvp_darray*queue = member == UINT_MAX
+                        ? direct_queue_(slot, out) : queue_(slot, out);
                   if (!out.error.empty()) return true;
                   constant_(out, 1);
                   for (size_t i = 0; queue && i < queue->get_size(); ++i) {
@@ -5400,15 +5420,22 @@ class state_foreach_expander_t {
                         error_(out, index.error.empty() ? "non-state index in state foreach" : index.error, width, sign);
                         return true;
                   }
-                  vvp_darray*queue = queue_(slot, out);
+                  vvp_darray*queue = member == UINT_MAX
+                        ? direct_queue_(slot, out) : queue_(slot, out);
                   if (!out.error.empty()) return true;
                   if (negative || !queue || offset >= queue->get_size() || offset > UINT_MAX) {
                         error_(out, "out-of-bounds state foreach index", width, sign);
                         return true;
                   }
-                  vvp_object_t object;
-                  queue->get_word((unsigned)offset, object);
-                  field_(out, object.peek<vvp_cobject>(), member, width, sign);
+                  if (member == UINT_MAX) {
+                        vvp_vector4_t word;
+                        queue->get_word((unsigned)offset, word);
+                        word_(out, word, width, sign);
+                  } else {
+                        vvp_object_t object;
+                        queue->get_word((unsigned)offset, object);
+                        field_(out, object.peek<vvp_cobject>(), member, width, sign);
+                  }
                   return true;
             }
             vector<state_foreach_value_t> args;

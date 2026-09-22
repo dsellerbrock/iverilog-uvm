@@ -1,0 +1,131 @@
+{
+  "blocker": "OT-SPI-INLINE-CALLER-QUEUE-FOREACH",
+  "status": "REGRESSION_TESTED; required local gates pass; publication/CI pending",
+  "base": "b9befcb735cbbbb56feacfbb9fbdbd120b622f55",
+  "source_fingerprints": {
+    "elaborate.cc": "54be8bf273d4290b3906d98cbdced86227be7f1d58e86f09c9e3bfd158bccadb",
+    "vvp/vvp_z3.cc": "f1cd0f9f4c779a8730bb1b0070fd2ef47c3c1567bb742050fb2396e21f837bca",
+    "local-install/bin/iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "local-install/bin/vvp": "25d220cefa80f54e041abf948fdd60d098575ab12175b35d94f144ae94bbf861",
+    "local-install/lib/ivl/ivl": "39790d7d070658b1dd94f6534c20f813d510991e451b4c3ba02953b2ed71fa26",
+    "local-install/lib/ivl/vvp.tgt": "f92aa717f158962ec2888e3feba9d4162d31d5de59483bf94aa82641b1cee2ab"
+  },
+  "standards": {
+    "2017": [
+      "18.7",
+      "18.5.8.1",
+      "18.3"
+    ],
+    "2023": [
+      "18.7",
+      "18.5.7.1",
+      "18.3"
+    ]
+  },
+  "scope": "Direct caller-owned integral queues/dynamic arrays with one foreach iterator; existing target-first lookup, typed state values and actual runtime collection bounds. Other collection/element shapes remain outside this evidence.",
+  "focused": {
+    "paired_runs": 16,
+    "result": "all expected outcomes observed; X/Z and OOB require exact diagnostics and rollback",
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/wide-build3/focused.json"
+  },
+  "legacy_neighbors": {
+    "passed": 6,
+    "failed": 0,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/build3/neighbors.log"
+  },
+  "uvm_constraints": {
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0,
+    "dpi": "REAL",
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/build3/uvm-constraints.log"
+  },
+  "application": {
+    "release": "Earlgrey-PROD-M6",
+    "pristine": true,
+    "result": "caller foreach diagnostic removed; four independent errors and existing warnings remain, compile exit4; no DV qualification",
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/application-build3/result.json"
+  },
+  "pending": [
+    "Publication and CI"
+  ],
+  "invalidated": [
+    "build1 compile failure",
+    "build2 runtime representation errors including false-positive UNSAT exit0",
+    "independent-boundaries v1/v2 invalid test expectations; not qualification"
+  ],
+  "uvm_smoke": {
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0,
+    "dpi": "REAL",
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/build3/uvm-smoke.log"
+  },
+  "permanent_isolated": {
+    "passed": 6,
+    "failed": 0,
+    "checks": "exit status and exact stdout/stderr gold match",
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/permanent-build3/results.json",
+    "wide_extension": {
+      "passed": 2,
+      "failed": 0,
+      "raw": "evidence/review-20260920/spi-caller-foreach-next/permanent-wide-build3/results.json"
+    }
+  },
+  "integrated": {
+    "exit": 0,
+    "legacy": {
+      "total": 6325,
+      "passed": 6320,
+      "not_implemented": 2,
+      "expected_fail": 3,
+      "failed": 0
+    },
+    "vpi_passed": 126,
+    "negative_passed": 148,
+    "runtime_invariants_passed": 15,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/integrated.run.json",
+    "scope": "Before six new manifest entries; these separately passed both focused harnesses."
+  },
+  "permanent_harnesses": {
+    "legacy_passed": 6,
+    "json_passed": 6,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/permanent-harness-build3/results.json"
+  },
+  "rootseed": {
+    "exit": 0,
+    "stable": true,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/rootseed.run.json"
+  },
+  "makecheck": {
+    "exit": 0,
+    "stable": true,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/makecheck.run.json"
+  },
+  "nfa": {
+    "exit": 0,
+    "stable": true,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/nfa.run.json"
+  },
+  "full_json": {
+    "exit": 0,
+    "cases": 3262,
+    "failed": 0,
+    "stable": true,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/json.run.json"
+  },
+  "full_uvm": {
+    "exit": 0,
+    "cases": 358,
+    "failed": 0,
+    "stable": true,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/uvm.run.json",
+    "skipped": 0,
+    "dpi": "REAL"
+  },
+  "frontend": {
+    "exit": 0,
+    "stable": true,
+    "raw": "evidence/review-20260920/spi-caller-foreach-next/qualification-build3/frontend.run.json"
+  }
+}
