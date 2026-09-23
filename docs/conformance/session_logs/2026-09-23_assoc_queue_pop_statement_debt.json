@@ -1,0 +1,82 @@
+{
+  "id": "ASSOC-QUEUE-POP-STATEMENT",
+  "date": "2026-09-23",
+  "classification": "INVALID_ASSOCIATIVE_ARRAY_METHOD_ACCEPTED_IN_STATEMENT_CONTEXT",
+  "expected": "IEEE 1800-2017/2023 7.9 associative arrays have no pop_front/pop_back methods; compilation must reject these calls. Queue controls remain valid.",
+  "scope": "Paired focused compiler probes only; no broad clause qualification and no implementation change.",
+  "head": "2504d1b850ac3e490689c6c40396c39edd8c6371",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "engine_sha256": "148cdbcca0d2b120c845e483cfbc12176754dbb2d5e2ba450c0ed772e42d4105",
+  "cases": [
+    {
+      "edition": "2017",
+      "case": "assoc_direct_no_parens",
+      "source": "module test; int a[int]; initial begin a[1]=7; a.pop_front; end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<assoc_direct_no_parens_2017.sv>:1: warning: method function 'pop_front' is being called as a task.\n"
+    },
+    {
+      "edition": "2017",
+      "case": "assoc_direct_parens",
+      "source": "module test; int a[int]; initial begin a[1]=7; a.pop_back(); end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<assoc_direct_parens_2017.sv>:1: warning: method function 'pop_back' is being called as a task.\n"
+    },
+    {
+      "edition": "2017",
+      "case": "assoc_class_property",
+      "source": "class holder; int a[int]; endclass module test; holder h; initial begin h=new; h.a[1]=7; h.a.pop_front; end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<assoc_class_property_2017.sv>:1: warning: method function 'pop_front' is being called as a task.\n"
+    },
+    {
+      "edition": "2017",
+      "case": "queue_statement_control",
+      "source": "module test; int q[$]; initial begin q.push_back(7); q.pop_front; if (q.size()!=0) $fatal(1); $display(\"PASSED\"); end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<queue_statement_control_2017.sv>:1: warning: method function 'pop_front' is being called as a task.\n",
+      "run_exit": 0,
+      "run_stdout": "PASSED\n",
+      "run_stderr": ""
+    },
+    {
+      "edition": "2023",
+      "case": "assoc_direct_no_parens",
+      "source": "module test; int a[int]; initial begin a[1]=7; a.pop_front; end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<assoc_direct_no_parens_2023.sv>:1: warning: method function 'pop_front' is being called as a task.\n"
+    },
+    {
+      "edition": "2023",
+      "case": "assoc_direct_parens",
+      "source": "module test; int a[int]; initial begin a[1]=7; a.pop_back(); end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<assoc_direct_parens_2023.sv>:1: warning: method function 'pop_back' is being called as a task.\n"
+    },
+    {
+      "edition": "2023",
+      "case": "assoc_class_property",
+      "source": "class holder; int a[int]; endclass module test; holder h; initial begin h=new; h.a[1]=7; h.a.pop_front; end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<assoc_class_property_2023.sv>:1: warning: method function 'pop_front' is being called as a task.\n"
+    },
+    {
+      "edition": "2023",
+      "case": "queue_statement_control",
+      "source": "module test; int q[$]; initial begin q.push_back(7); q.pop_front; if (q.size()!=0) $fatal(1); $display(\"PASSED\"); end endmodule\n",
+      "compile_exit": 0,
+      "stdout": "",
+      "stderr": "<queue_statement_control_2023.sv>:1: warning: method function 'pop_front' is being called as a task.\n",
+      "run_exit": 0,
+      "run_stdout": "PASSED\n",
+      "run_stderr": ""
+    }
+  ]
+}

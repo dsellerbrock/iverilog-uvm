@@ -1706,5 +1706,7 @@ The [revision-scoped evidence](../session_logs/2026-09-23_opentitan_queue_pop_fo
 records focused tests and the pinned SPI compile; broader gates and OpenTitan
 DV remain open.
 The [review boundary](../session_logs/2026-09-23_queue_pop_assoc_boundary.json)
-also rejects queue pops on associative arrays (§7.9) while preserving pops on
-queue-valued associative elements. Broad qualification remains open.
+also rejects queue pops on associative arrays (§7.9) in expression context
+while preserving pops on queue-valued associative elements. Statement-context
+calls still compile incorrectly; [paired evidence](../session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
+keeps that boundary open. Broad qualification remains open.

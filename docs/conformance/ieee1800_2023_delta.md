@@ -9,8 +9,9 @@ The direct zero-argument queue-pop method rule in §§5.13/7.10.2.4 shares the
 2017 implementation. [Paired focused evidence](session_logs/2026-09-23_opentitan_queue_pop_focus.json)
 shows no edition difference for the tested class-property subset; broader
 queue-method qualification remains open.
-The [associative-array rejection boundary](session_logs/2026-09-23_queue_pop_assoc_boundary.json)
-is likewise paired across both editions.
+The [expression-context associative-array rejection boundary](session_logs/2026-09-23_queue_pop_assoc_boundary.json)
+is likewise paired across both editions; [statement-context acceptance](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
+remains a separate defect in both editions.
 
 The September 23 selected-bit property NBA candidate has separate `-g2023`
 positive, negative, and boundary runs alongside its `-g2017` checks; see the
