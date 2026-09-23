@@ -3303,3 +3303,21 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Observation:** The shared parameter-bound validity guard rejects W=-1 in both language modes, but its `-g2023` diagnostic still says `IEEE 1800-2017 16.9.2`. The wording is hardcoded in `sva_parameter_add_bound_guard_` in `pform.cc`; the rejection behavior itself is correct.
 - **Evidence:** Paired direct compiles of `ivtest/ivltests/sv_assert_parameter_consequent_repeat_negative.v` and its 2023 wrapper, both exit 1 with the same 2017 clause text.
 - **Triage status:** diagnostic-only follow-up, not part of the consequent engine's semantic fix.
+
+### OT-AON-EVENT-TRIGGERED-SENSITIVITY — `@(e.triggered)` cannot elaborate
+
+- **Discovered while working:** released OpenTitan application replay at compiler head `f46696830c3056889ab42c72dc7475f89dc36204`.
+- **Observation:** the pinned Earlgrey-PROD-M6 AON timer smoke compile exits 3 at three `@(sample_coverage.triggered)` uses in `aon_timer_scoreboard.sv`, reporting `$ivl_event_method$triggered not defined in system table` and skipping the event expression. Procedural `.triggered` reads already have a `%evtest` runtime path.
+- **File/function:** `elab_expr.cc` produces the internal event-method expression, while `elaborate.cc::PEventStatement::elaborate_event_` sends it to `expr_synth.cc`, which rejects synthesis of that function. A complete fix likely also needs target/runtime wait handling.
+- **Possible clause:** IEEE 1800-2017/2023 §15.5.3. `@(e.triggered)` must detect changes of the persistent time-slot value; treating it as `@(e)` would wake a rearmed waiter on a second trigger in the same slot.
+- **Evidence:** `evidence/opentitan-aon-current-20260923/result.json` and its pinned-source compile log. A future focused regression should cover first trigger, same-slot rearm, next-slot trigger, and `->>`.
+- **Triage status:** root-caused, not selected; `elaborate.cc` and `vvp/vthread.cc` overlap Claude Code's active ownership.
+
+### OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH — three-component source rejected
+
+- **Discovered while working:** released OpenTitan application replay at the same compiler head.
+- **Observation:** the pinned SPI Device compile reports a syntax error at `spi_device_pass_base_vseq.sv:281`, but standalone `find_index() with ('1)` is valid and works. The preceding inline-constraint `foreach (cfg.spi_host_agent_cfg.cmd_infos[j])` reproduces the parser failure; the grammar has productions only for a plain source and a one-member source.
+- **File/function:** `parse.y` has only plain-identifier and one-member `constraint_expression` foreach productions. Representing and resolving the full path likely needs `PEConstraintForeach` in `PExpr.h`/`PExpr.cc` and `elaborate.cc`, so a grammar-only acceptance patch would be incomplete.
+- **Possible clauses:** IEEE 1800-2017 §18.5.8.1 and IEEE 1800-2023 §18.5.7.1 allow a `ps_or_hierarchical_array_identifier` as the constraint-foreach source; both editions' §7.12.1 allow the separate locator `with` expression.
+- **Evidence:** `evidence/opentitan-spi-device-current-20260923/result.json` and its pinned-source compile log; a temporary standalone reducer was run but must be frozen before implementation.
+- **Triage status:** reproduced, not selected; `elaborate.cc` overlaps Claude Code's active ownership. Preserve the locator as a positive control and test empty/nonempty collection boundaries when selected.

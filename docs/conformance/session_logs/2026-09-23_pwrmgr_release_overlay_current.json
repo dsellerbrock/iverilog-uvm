@@ -1,0 +1,23 @@
+{
+  "status": "focused_replay_passed",
+  "compiler_head": "f46696830c3056889ab42c72dc7475f89dc36204",
+  "opentitan_release": "Earlgrey-PROD-M6",
+  "opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "source_snapshot": "Frozen September 21 FuseSoC-generated source tree from the clean pinned release, with the documented clock-activity checker overlay; not freshly regenerated.",
+  "source_list_sha256": "fe700dd7b012801dfb7206cc1f00f8182fb405f923a9e1246ed5b937c976f601",
+  "checker_sha256": "ff1a4385770643f26e9a9ef403364fc55409c4ac65a833b77eff77180287ec98",
+  "ivl_sha256": "1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13",
+  "vvp_sha256": "048dc46297c3ebaf5b5d089e78eb0d51d002ba13578753d3974479fa1dd71b69",
+  "compile": {
+    "exit": 0,
+    "required_command_file_option": "+timescale+1ns/1ps",
+    "compiled_scopes_at_1ns_1ps": 23220
+  },
+  "pwrmgr_smoke_vseq": [
+    {"seed": 1, "exit": 0, "pass_banner": true, "uvm_errors": 0, "uvm_fatals": 0, "tl_a_transactions": 25, "tl_d_transactions": 25},
+    {"seed": 3, "exit": 0, "pass_banner": true, "uvm_errors": 0, "uvm_fatals": 0, "tl_a_transactions": 38, "tl_d_transactions": 38}
+  ],
+  "invalidated_attempt": "An initial replay accidentally omitted the command-file timescale option, yielding zero-time delays; its timeout/failure is invalid compiler evidence.",
+  "raw_local_evidence": "evidence/opentitan-released-pwrmgr-current-20260923/corrected-result.json",
+  "qualification_limit": "Two focused overlay smoke seeds only; neither full OpenTitan DV-suite nor current-main compiler qualification established."
+}
