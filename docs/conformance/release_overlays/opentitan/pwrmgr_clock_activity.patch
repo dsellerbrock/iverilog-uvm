@@ -1,0 +1,60 @@
+--- a/hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv
++++ b/hw/top_earlgrey/ip_autogen/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv
+@@ -33,6 +33,14 @@
+   input prim_mubi_pkg::mubi4_t rom_ctrl_done_i,
+   input prim_mubi_pkg::mubi4_t rom_ctrl_good_i
+ );
++
++  timeunit 1ps;
++  timeprecision 1ps;
++
++  // Record activity rather than sampling the clock level: independently
++  // phased clocks can be low at every reference-clock sample while running.
++  time esc_clk_last_edge = 0;
++  always @(posedge clk_esc_i) esc_clk_last_edge = $time;
+ 
+   bit disable_sva;
+   bit reset_or_disable;
+@@ -114,9 +122,9 @@
+   // disabled, an escalation timeout should be requested until rst_lc_ni goes
+   // active.
+   // The bound of cycles is 128 cycles for the counter, 8 cycles maximum for the
+-  // counter to engage, and 2 cycles for a synchronizer. Use negedge of clk_i
+-  // to sample clk_esc_i as 1 when active, and 0 when inactive.
+-  `ASSERT(EscClkStopEscTimeout_A, !clk_esc_i && io_clk_en [* (128 + 8 + 2)] |=>
++  // counter to engage, and 2 cycles for a synchronizer. Check for no new
++  // escalation-clock rising edge between reference-clock samples.
++  `ASSERT(EscClkStopEscTimeout_A, $stable(esc_clk_last_edge) && io_clk_en [* (128 + 8 + 2)] |=>
+           esc_timeout || !rst_lc_ni, !clk_i, reset_or_disable)
+ 
+   // For testpoints sec_cm_esc_rx_clk_bkgn_chk, sec_cm_esc_rx_clk_local_esc.
+--- a/hw/ip_templates/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv
++++ b/hw/ip_templates/pwrmgr/dv/sva/pwrmgr_sec_cm_checker_assert.sv
+@@ -33,6 +33,14 @@
+   input prim_mubi_pkg::mubi4_t rom_ctrl_done_i,
+   input prim_mubi_pkg::mubi4_t rom_ctrl_good_i
+ );
++
++  timeunit 1ps;
++  timeprecision 1ps;
++
++  // Record activity rather than sampling the clock level: independently
++  // phased clocks can be low at every reference-clock sample while running.
++  time esc_clk_last_edge = 0;
++  always @(posedge clk_esc_i) esc_clk_last_edge = $time;
+ 
+   bit disable_sva;
+   bit reset_or_disable;
+@@ -114,9 +122,9 @@
+   // disabled, an escalation timeout should be requested until rst_lc_ni goes
+   // active.
+   // The bound of cycles is 128 cycles for the counter, 8 cycles maximum for the
+-  // counter to engage, and 2 cycles for a synchronizer. Use negedge of clk_i
+-  // to sample clk_esc_i as 1 when active, and 0 when inactive.
+-  `ASSERT(EscClkStopEscTimeout_A, !clk_esc_i && io_clk_en [* (128 + 8 + 2)] |=>
++  // counter to engage, and 2 cycles for a synchronizer. Check for no new
++  // escalation-clock rising edge between reference-clock samples.
++  `ASSERT(EscClkStopEscTimeout_A, $stable(esc_clk_last_edge) && io_clk_en [* (128 + 8 + 2)] |=>
+           esc_timeout || !rst_lc_ni, !clk_i, reset_or_disable)
+ 
+   // For testpoints sec_cm_esc_rx_clk_bkgn_chk, sec_cm_esc_rx_clk_local_esc.
