@@ -332,3 +332,9 @@ The scalar caller-state X/Z repair uses the shared 18.3 rule in both editions;
 the [2017 scope](matrices/ieee1800_2017_clause_matrix.md#september-23-scalar-caller-state-xz-constraints)
 and [paired evidence](session_logs/2026-09-23_constraint_state_xz_port.json)
 record the tested 2023 cases without a broader qualification claim.
+
+The opt-in `-gcommercial-unsafe` container conversion is likewise a shared
+implementation extension under the strict §7.6 default. Its limits and
+revision-scoped evidence are recorded in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
+separate 2017/2023 focused checks are included, while full-suite and OpenTitan
+DV qualification remain unclaimed.

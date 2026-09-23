@@ -1,0 +1,15 @@
+--- a/submodules/adams-bridge/src/rej_bounded/tb/rej_bounded_tb.sv
++++ b/submodules/adams-bridge/src/rej_bounded/tb/rej_bounded_tb.sv
+@@ -272,0 +273,3 @@
++      if (vld_coeff_ctr == 256) begin
++        zeroize <= 1;
++      end
+@@ -278,0 +282 @@
++      @(posedge zeroize)
+@@ -280,5 +284 @@
+-      if (vld_coeff_ctr == 256) begin
+-        zeroize <= 1;
+-        @(posedge clk_tb)
+-        zeroize <= 0;
+-      end
++      zeroize <= 0;

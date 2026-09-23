@@ -1,5 +1,19 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-REJ-BOUNDED-RUNTIME — scoreboard/zeroize testbench race
+
+- **State:** A minimal downstream testbench patch is focused-tested in an isolated copy. The pristine Caliptra v2.1.2 / Adams Bridge v2.0.3 release remains unmodified and fails this unit test.
+- **Cause:** Independent `posedge clk_tb` processes update and inspect the same blocking counter. IEEE 1800-2017/2023 §4.7 does not order their Active-region execution; the checker can schedule zeroize a cycle late.
+- **Evidence:** [Race-fix record](session_logs/2026-09-23_caliptra_rej_bounded_race_fix.json) and [patch/reducer](repros/caliptra_rej_bounded/README.md). The correction keeps queue underflow and output checks active.
+- **Open work:** [Upstream PR 303](https://github.com/chipsalliance/adams-bridge/pull/303) is open. Use an explicit overlay in application replays until an adopted release contains the correction; keep pristine and patched results separate. Full Caliptra DV has not passed.
+
+### COMMERCIAL-SIM-UNSAFE-FLAG — opt-in packed bit/logic container conversion
+
+- **State:** The compatibility flag is implemented at `9111127532c71fc4eeaf1bab68685ade3c61296f`; strict IEEE type checking remains the default. Focused regression evidence passes, but no full suite was run on this revision.
+- **Requirement:** IEEE 1800-2017/2023 §7.6 array element type equivalence remains strict by default. `-gcommercial-unsafe` is an explicitly nonstandard compatibility extension limited to equal-width, equal-signedness packed `bit`/`logic` value conversion in whole queue/dynamic-array assignment and native task/function value copies.
+- **Evidence:** [Revision-scoped record](session_logs/2026-09-23_commercial_unsafe_flag.json) records the focused tests and exact OpenTitan SPI compile. Enabling the flag clears its strict type errors but leaves nonblocking property assignment codegen errors. OpenTitan DV has not passed.
+- **Open work:** Complete the applicable broader compiler gates and separately resolve the remaining nonblocking property assignment lowering errors before claiming SPI compile or DV success. Do not count flag acceptance as IEEE qualification or VCS equivalence.
+
 This file is a **backlog**, not an authorization to implement. Per
 `AGENTS.md`, only `.ai/ACTIVE_WORK.yaml` (status: `in_progress`, naming a
 blocker ID from this file) authorizes implementation work. Reading a row
