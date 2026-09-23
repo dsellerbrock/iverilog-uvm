@@ -1,22 +1,19 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
 branch: agent/caliptra-param-consequent-repeat-20260923
-baseline: PR329 head 098080821454e9d2119141290cd2408fc76f3a6d; origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
+baseline: PR329 head 098080821454e9d2119141290cd2408fc76f3a6d; origin/main 4f66ed6666683cce1d122a5819145addc46fa286 (PR328 merged)
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: CALIPTRA-PARAM-CONSEQUENT-REPEAT
-  phase: REPRODUCED_ROOT_CAUSED
+  phase: LOCAL_GATES_PASSED_PR_PENDING
   standard: IEEE 1800-2017/2023 16.9.2 and 16.12.7; verify exact edition text before patching.
   evidence: docs/conformance/session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json
-  next: Implement instance-sized consequent repetition with executable paired-edition pass/fail/vacuity/disable tests; do not count compilation alone.
+  next: Review and publish the separate SVA PR from the frozen local-gates-passed source; Caliptra's standalone bind-target error remains separate.
 pending_prs:
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/328
-    head: 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f
-    status: Required broad local gates passed; current-head CI running; merge after one completed passing current-head job.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
     head: 098080821454e9d2119141290cd2408fc76f3a6d
-    status: Paired queue-pop focus and pinned SPI compile passed; current-head CI queued. Earlier heads' queued runs canceled. Merge after PR328 and one current-head passing job.
+    status: Paired queue-pop focus and pinned SPI compile passed; current-head CI running. PR328 merged at 4f66ed666; merge after one current-head passing job.
     separate_boundary: Statement-context associative-array queue pops still compile; ASSOC-QUEUE-POP-STATEMENT is recorded and elaborate.cc remains Claude-owned.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
@@ -24,7 +21,7 @@ release_profiles:
   meaning: Pinned stable sources with selected source overlays and necessary options for the test; neither full DV suite qualified.
 application_status:
   opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
-  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails. Clean v2.1.2 formal file has two dropped parameter-valued consequent repetitions in both editions on current compiler. Full DV and formal qualification remain open; upstream Adams Bridge PR303 is open.
+  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails. On the current SVA candidate, clean v2.1.2 formal file emits no parameter-repeat drops in either edition, but its standalone bind target is absent; paired executable focus, SVA/negative/mapped UVM, and full ivtest local gates pass. Full DV and formal qualification remain open; upstream Adams Bridge PR303 is open.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.

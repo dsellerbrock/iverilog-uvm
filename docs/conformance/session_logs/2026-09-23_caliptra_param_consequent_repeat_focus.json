@@ -1,0 +1,44 @@
+{
+  "date_utc": "2026-09-23",
+  "status": "local gates passed; publication and CI pending",
+  "branch": "agent/caliptra-param-consequent-repeat-20260923",
+  "starting_snapshot": "PR329 head 098080821454e9d2119141290cd2408fc76f3a6d, stacked after PR328 source head 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f",
+  "source_sha256": {
+    "pform.cc": "05f76f8045a27da09a3d9d952013e9b17f3259e6ffdeddec66183a0cf43f889a",
+    "tests/sva_nfa/parameter_consequent_repeat.sv": "49b2c8342d6deabe13c011a19af76c12f0b7244b580e7e966eb976ea16c22fb4",
+    "tests/sva_nfa/parameter_consequent_repeat_timing_nfa_only.sv": "5afc7b50e180ecc2f89e0eb7a17a2d36668fa558d7146163af4321b41fea9157"
+  },
+  "installed_tool_sha256": {
+    "local-install/lib/ivl/ivl": "1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13",
+    "local-install/bin/vvp": "048dc46297c3ebaf5b5d089e78eb0d51d002ba13578753d3974479fa1dd71b69"
+  },
+  "standards": {
+    "2017": "IEEE 1800-2017 16.9.2.1 and 16.12.7: empty repetition/concatenation and separate nonoverlapping consequence per successful antecedent match",
+    "2023": "IEEE 1800-2023 16.9.2.1 and 16.12.7: relevant semantics checked separately in full IEEE PDF copy; no difference affecting this bounded shape",
+    "2017_text_copy": "https://fpga.mit.edu/6205/_static/F25/documentation/1800-2017.pdf",
+    "2023_source": "https://standards.ieee.org/ieee/1800/7743/",
+    "2023_text_copy": "https://iccircle.com/static/upload/img20240319175450.pdf"
+  },
+  "pinned_application": {
+    "caliptra_release": "v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e, clean",
+    "file": "src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv",
+    "baseline": "Both -g2017 and -g2023 drop assertions at lines 53 and 98 with parameter-valued repetition sorry diagnostics; standalone compile also reports missing bind target at line 105",
+    "candidate": "Both -g2017 and -g2023 emit zero parameter-repeat drop diagnostics; standalone compile exits 1 only because bind target ecc_hmac_drbg_interface is absent from that one-file invocation"
+  },
+  "focused_checks": {
+    "positive": "-g2017 and -g2023 executable W=0/2/3 cases pass against per-attempt model; covers overlap, vacuity, early/final failure, X/Z, off-clock and NBA disable",
+    "isolated_literal_timing": "-g2017 and -g2023 executable W=0/2/3 timing control passes; literal NFA used only where same-tick multiple failures do not occur",
+    "invalid_bound": "-g2017 and -g2023 W=-1 wrappers exit 1 with invalid-bound FATAL",
+    "sva_nfa": "60 passed, 0 failed",
+    "negative_suite": "148 passed, 0 failed",
+    "mapped_uvm_sva": "30 passed, 0 failed, 0 skipped with real DPI",
+    "make_check": "passed",
+    "full_ivtest": "PATH=$PWD/local-install/bin:$PATH sh .github/test.sh exited 0; legacy Total=6370 Passed=6365 Failed=0 Not Implemented=2 Expected Fail=3; VPI Total=135 Passed=135 Failed=0 Not Implemented=0; JSON/VVP Ran 3303 Failed 0; both new edition-specific CE tests passed"
+  },
+  "limits": [
+    "This is a focused exact symbolic-consequent shape, not full SVA support or formal qualification.",
+    "The standalone Caliptra file still needs its bind target and application context; full Caliptra DV has not passed.",
+    "Existing literal NFA collapses two same-tick failures; separate debt is recorded in DISCOVERED_DEBT.md.",
+    "The shared bound guard cites 2017 even in -g2023 mode; rejection itself is correct and diagnostic debt is separate."
+  ]
+}

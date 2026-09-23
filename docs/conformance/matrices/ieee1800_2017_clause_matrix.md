@@ -1710,3 +1710,14 @@ also rejects queue pops on associative arrays (§7.9) in expression context
 while preserving pops on queue-valued associative elements. Statement-context
 calls still compile incorrectly; [paired evidence](../session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
 keeps that boundary open. Broad qualification remains open.
+
+### September 23 parameter-valued SVA consequent repetition
+
+The PARTIAL §§16.9.2.1/16.12.7 implementation now evaluates the focused
+`start |=> keep[*W] ##1 finish` shape with each instance's exact parameter
+bound. It preserves empty-repeat timing at W=0, a separate obligation per
+antecedent match, four-state samples, vacuity, and `disable iff` cancellation.
+The [revision-scoped evidence](../session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json)
+owns the paired executable tests and pinned Caliptra formal-file compile.
+Other symbolic consequent shapes, the separate literal-NFA failure-count debt,
+full SVA support, and Caliptra DV/formal qualification remain open.

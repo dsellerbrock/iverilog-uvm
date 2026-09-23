@@ -3289,3 +3289,17 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** `elaborate.cc` statement method lowering accepts `netqueue_t::assoc_compat()` as a queue; PR329's `elab_expr.cc` guard covers expressions only.
 - **Evidence:** [Paired source and tool output](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json).
 - **Triage status:** reproduced, separate implementation ticket. `elaborate.cc` is currently owned by Claude's caller-collection foreach lane; coordinate ownership before selecting this fix. Do not broaden PR329's expression-path claim.
+
+### SVA-LITERAL-OVERLAP-FAILURE-COUNT — same-tick failures collapse
+
+- **Discovered while working:** CALIPTRA-PARAM-CONSEQUENT-REPEAT.
+- **Observation:** In `tests/sva_nfa/parameter_consequent_repeat.sv`, a literal `start |=> !ready[*3] ##1 ready` checker reports only one failure when two distinct live consequences fail their `!ready` step at posedge 65. The independently counted symbolic-bound candidate and per-attempt model report two. IEEE 1800-2017 §16.12.7 evaluates a consequent for each successful antecedent match; the fixed literal NFA's `pform.cc` death branch assigns a one-bit failure flag, collapsing same-tick deaths.
+- **Evidence:** Paired `-g2017`/`-g2023` executable comparison on the current SVA candidate printed `FAILED W=3: symbolic 4/3 model 4/3 literal 4/2 at 71` in both editions; source at `pform.cc` around the literal NFA death branch. The candidate patch does not intercept literal repetitions.
+- **Triage status:** reproduced separate compiler defect, not part of the symbolic-bound blocker. Do not force the new checker to match this undercount; retain an independent per-attempt regression and select a separate ticket to repair literal/NFA verdict multiplicity.
+
+### SVA-BOUND-EDITION-DIAGNOSTIC — 2023 mode cites 2017
+
+- **Discovered while working:** CALIPTRA-PARAM-CONSEQUENT-REPEAT.
+- **Observation:** The shared parameter-bound validity guard rejects W=-1 in both language modes, but its `-g2023` diagnostic still says `IEEE 1800-2017 16.9.2`. The wording is hardcoded in `sva_parameter_add_bound_guard_` in `pform.cc`; the rejection behavior itself is correct.
+- **Evidence:** Paired direct compiles of `ivtest/ivltests/sv_assert_parameter_consequent_repeat_negative.v` and its 2023 wrapper, both exit 1 with the same 2017 clause text.
+- **Triage status:** diagnostic-only follow-up, not part of the consequent engine's semantic fix.

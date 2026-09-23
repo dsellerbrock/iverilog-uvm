@@ -351,3 +351,10 @@ implementation extension under the strict §7.6 default. Its limits and
 revision-scoped evidence are recorded in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 separate 2017/2023 focused checks are included, while full-suite and OpenTitan
 DV qualification remain unclaimed.
+
+The 2023 §§16.9.2.1/16.12.7 rules for empty repetition and separate
+nonoverlapping consequent attempts do not change the [bounded 2017
+implementation scope](matrices/ieee1800_2017_clause_matrix.md#september-23-parameter-valued-sva-consequent-repetition).
+Separate `-g2023` runtime, boundary, and invalid-bound results are in the
+[shared evidence](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json);
+no full SVA or application qualification follows from them.

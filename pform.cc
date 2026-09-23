@@ -24225,6 +24225,227 @@ static bool sva_parameter_window_try_assertion_(
       return true;
 }
 
+/* A Boolean antecedent followed by an exact symbolic consequent repeat:
+ *   start |=> keep[*W] ##1 finish
+ * Bit k records an attempt whose next check is k+1 ticks after its start.
+ * Bit W is due for finish; lower bits are due for keep. The [W:0] range is
+ * elaborated in each instance, so W=0 naturally implements the empty-repeat
+ * rule (empty ##1 finish) without taking a keep sample. */
+static bool sva_parameter_consequent_repeat_try_assertion_(
+      const struct vlltype&loc, sva_property_t*prop,
+      Statement*fail_stmt, Statement*pass_stmt, int kind)
+{
+      if (!prop || kind == 2 || (kind != 0 && kind != 1)
+          || prop->op_type != 2 || prop->tree || prop->ante_tree
+          || prop->seq_clk_evt || prop->mc_prefix
+          || (prop->mc_more && !prop->mc_more->empty())
+          || prop->mc_boundary != -1 || prop->abort_cond
+          || prop->strength != 0 || prop->forbidden_consequent
+          || prop->win_lo != -1 || prop->win_hi != -1
+          || !prop->antecedent || prop->antecedent->size() != 1
+          || !prop->seq || prop->seq->size() != 2)
+            return false;
+      sva_seq_step_t&ante = (*prop->antecedent)[0];
+      sva_seq_step_t&keep = (*prop->seq)[0];
+      sva_seq_step_t&finish = (*prop->seq)[1];
+      if (!ante.expr || ante.delay_lo != 0 || ante.delay_hi != 0
+          || !ante.delay_genvar.nil() || ante.rep_kind != 0
+          || ante.rep_tail != 0 || ante.fm || ante.lv_rhs
+          || !ante.match_calls.empty() || ante.grouped_repeat
+          || !keep.expr || keep.delay_lo != 0 || keep.delay_hi != 0
+          || keep.delay_lo_expr || keep.delay_hi_expr
+          || !keep.delay_genvar.nil() || keep.rep_kind != 4
+          || keep.rep_hi != 0 || !keep.rep_lo_expr || keep.rep_hi_expr
+          || keep.rep_tail != 0 || keep.fm || keep.lv_rhs
+          || !keep.match_calls.empty() || keep.grouped_repeat
+          || !finish.expr || finish.delay_lo != 1 || finish.delay_hi != 1
+          || finish.delay_lo_expr || finish.delay_hi_expr
+          || !finish.delay_genvar.nil() || finish.rep_kind != 0
+          || finish.rep_tail != 0 || finish.fm || finish.lv_rhs
+          || !finish.match_calls.empty() || finish.grouped_repeat)
+            return false;
+
+      sva_parameter_preflight_t prepared;
+      if (!sva_parameter_checker_preflight_(loc, prop,
+            keep.rep_lo_expr, keep.rep_lo_expr, nullptr,
+            nullptr, nullptr, prepared)) return false;
+
+      PEventStatement*clk = prepared.clk;
+      PExpr*disable = prepared.disable_level;
+      PExpr*disable_event = prepared.disable_event;
+      PExpr*invalid = prepared.invalid_bounds;
+      LexicalScope*owner = prepared.guard_owner;
+      prepared.clk = nullptr;
+      prepared.owns_clk = false;
+      prepared.disable_level = nullptr;
+      prepared.disable_event = nullptr;
+      prepared.invalid_bounds = nullptr;
+      prepared.guard_owner = nullptr;
+      delete prop->disable_iff_expr;
+      prop->disable_iff_expr = nullptr;
+
+      unsigned inst = sva_gensym_counter++;
+      sva_parameter_add_bound_guard_(loc, inst, owner, invalid);
+      std::vector<Statement*> pre, post, init;
+      unsigned hist_idx = 0;
+      std::map<std::string, pform_name_t> prep_sampled;
+      unsigned live_operands = 0;
+      auto capture = [&](PExpr*expr, unsigned index) -> perm_string {
+            PExpr*sampled = sva_wrap_preponed_(expr, prep_sampled,
+                  live_operands);
+            PExpr*value = sva_rewrite_sampled_(loc,
+                  sampled ? sampled : expr, inst, hist_idx, pre, post, init);
+            if (!sampled) live_operands += 1;
+            perm_string reg = sva_make_reg_(loc, inst, "cb", index);
+            pre.push_back(sva_assign_(loc, reg, value));
+            return reg;
+      };
+      perm_string r_ante = capture(ante.expr, 0);
+      perm_string r_keep = capture(keep.expr, 1);
+      perm_string r_finish = capture(finish.expr, 2);
+      for (const auto&entry : prep_sampled)
+            init.push_back(sva_hist_on_stmt_(loc, entry.second));
+      if (live_operands)
+            cerr << loc << ": warning: this assertion has " << live_operands
+                 << " operand(s) read live instead of sampled in the "
+                 << "Preponed region (IEEE 1800-2017 16.5.1)." << endl;
+
+      perm_string pipe = sva_make_parameter_pipe_(loc, inst,
+            sva_clone_expr_(keep.rep_lo_expr), "cpipe");
+      perm_string pass_req = sva_make_reg_(loc, inst, "cpass", 0, true);
+      perm_string vac_req = sva_make_reg_(loc, inst, "cvac", 0, true);
+      perm_string fail_req = sva_make_reg_(loc, inst, "cfail", 0, true);
+      perm_string fail_ack = sva_make_reg_(loc, inst, "cfack", 0, true);
+      perm_string fail_due = sva_make_reg_(loc, inst, "cfdue", 0, true);
+      init.push_back(sva_assign_(loc, pipe, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, fail_req, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, fail_ack, sva_num32_(loc, 0)));
+      init.push_back(sva_assign_(loc, fail_due, sva_num32_(loc, 0)));
+      perm_string kill = sva_kill_seen_reg_(loc, inst, 0, init);
+      auto add = [&](perm_string reg, PExpr*count) -> Statement* {
+            PExpr*sum = new PEBinary('+', sva_id_(loc, reg), count);
+            FILE_NAME(sum, loc);
+            return sva_assign_(loc, reg, sum);
+      };
+      auto true_sample = [&](perm_string reg) -> PExpr* {
+            PExpr*truth = new PEBComp('E', sva_id_(loc, reg),
+                  sva_bit_(loc, 1));
+            FILE_NAME(truth, loc);
+            return truth;
+      };
+      auto due = [&]() -> PExpr* {
+            return sva_index_(loc, pipe,
+                  sva_clone_expr_(keep.rep_lo_expr));
+      };
+      auto clear = [&]() -> Statement* {
+            return sva_assign_(loc, pipe, sva_num32_(loc, 0));
+      };
+
+      std::vector<Statement*> body;
+      body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+            sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
+      body.push_back(sva_if_(loc, due(),
+            sva_if_(loc, true_sample(r_finish),
+                  add(pass_req, sva_num32_(loc, 1)),
+                  add(fail_req, sva_num32_(loc, 1))), nullptr));
+      std::list<named_pexpr_t> args;
+      named_pexpr_t arg;
+      arg.parm = sva_id_(loc, pipe);
+      args.push_back(arg);
+      PExpr*ones = new PECallFunction(
+            perm_string::literal("$countones"), args);
+      FILE_NAME(ones, loc);
+      PExpr*keep_due = new PEBinary('-', ones, due());
+      FILE_NAME(keep_due, loc);
+      body.push_back(sva_if_(loc, sva_not_(loc, true_sample(r_keep)),
+            add(fail_req, keep_due), nullptr));
+      std::vector<std::vector<perm_string> >checks(1);
+      checks[0].push_back(r_ante);
+      std::vector<perm_string> ante_state;
+      perm_string match = sva_fixed_antecedent_(loc, inst, checks,
+            vac_req, init, body, ante_state);
+      PExpr*shift = new PEBShift('l', sva_id_(loc, pipe),
+            sva_num32_(loc, 1));
+      FILE_NAME(shift, loc);
+      PExpr*advanced = new PETernary(true_sample(r_keep), shift,
+            sva_num32_(loc, 0));
+      FILE_NAME(advanced, loc);
+      PExpr*next = new PEBinary('|', advanced, sva_id_(loc, match));
+      FILE_NAME(next, loc);
+      body.push_back(sva_assign_(loc, pipe, next));
+
+      std::vector<Statement*>full = pre;
+      full.push_back(sva_observed_wait_(loc));
+      full.push_back(sva_kill_reset_stmt_(loc, inst, kill, clear()));
+      Statement*core = sva_block_(loc, body);
+      if (disable) {
+            PCondit*guard = new PCondit(disable, clear(), core);
+            FILE_NAME(guard, loc);
+            full.push_back(guard);
+      } else full.push_back(core);
+      full.insert(full.end(), post.begin(), post.end());
+      clk->set_statement(sva_block_(loc, full));
+      PProcess*checker = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);
+      FILE_NAME(checker, loc);
+      if (disable_event) {
+            sva_disable_abort_(loc, disable_event, clear());
+            delete disable_event;
+      }
+      init.push_back(sva_register_stmt_(loc, inst, -1, true));
+      PProcess*initializer = pform_make_behavior(IVL_PR_INITIAL,
+            sva_block_(loc, init), nullptr);
+      FILE_NAME(initializer, loc);
+      sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
+      if (!fail_stmt) {
+            std::list<named_pexpr_t> no_args;
+            fail_stmt = new PCallTask(perm_string::literal("$error"), no_args);
+            FILE_NAME(fail_stmt, loc);
+      }
+      /* A permanent Reactive process drains every failure, including
+         multiple live attempts that fail on the same sampled tick. */
+      std::vector<PEEvent*>events;
+      events.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, fail_req)));
+      PEventStatement*wait = new PEventStatement(events);
+      FILE_NAME(wait, loc);
+      std::vector<Statement*>dispatch;
+      dispatch.push_back(sva_if_(loc,
+            new PEBComp('e', sva_id_(loc, fail_req), sva_id_(loc, fail_ack)),
+            wait, nullptr));
+      dispatch.push_back(sva_assign_(loc, fail_due,
+            new PEBinary('-', sva_id_(loc, fail_req), sva_id_(loc, fail_ack))));
+      dispatch.push_back(sva_assign_(loc, fail_ack, sva_id_(loc, fail_req)));
+      dispatch.push_back(sva_reactive_wait_(loc));
+      dispatch.push_back(sva_repeat_(loc, sva_id_(loc, fail_due),
+            sva_report_stmt_(loc, inst, SVA_CB_FAILURE)));
+      PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
+      FILE_NAME(spawn, loc);
+      std::vector<Statement*>one;
+      one.push_back(sva_gate_(loc, fail_stmt));
+      spawn->set_statement(one);
+      dispatch.push_back(sva_repeat_(loc, sva_id_(loc, fail_due), spawn));
+      PForever*loop = new PForever(sva_block_(loc, dispatch));
+      FILE_NAME(loop, loc);
+      std::vector<Statement*>start;
+      start.push_back(sva_reactive_process_(loc));
+      start.push_back(loop);
+      PDelayStatement*after_init = new PDelayStatement(
+            sva_num32_(loc, 0), sva_block_(loc, start));
+      FILE_NAME(after_init, loc);
+      PProcess*dispatcher = pform_make_behavior(IVL_PR_INITIAL,
+            after_init, nullptr);
+      FILE_NAME(dispatcher, loc);
+
+      ante.expr = keep.expr = finish.expr = nullptr;
+      delete keep.rep_lo_expr;
+      keep.rep_lo_expr = nullptr;
+      delete prop->antecedent;
+      delete prop->seq;
+      delete prop;
+      return true;
+}
+
 /* A generate-loop variable is not a constant while its PGenerate template
  * is parsed, but it becomes an implicit localparam with a different value in
  * every elaborated generate scope.  OpenTitan's prim_arbiter assertions use
@@ -24509,6 +24730,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
+
+      if (sva_parameter_consequent_repeat_try_assertion_(
+            loc, prop, fail_stmt, pass_stmt, kind)) return;
 
 	/* A symbolic bounded consequence behind an otherwise fixed antecedent
 	   uses the same per-instance window engine. This also handles an
@@ -25106,6 +25330,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
+      if (sva_parameter_consequent_repeat_try_assertion_(
+            loc, prop, fail_stmt, pass_stmt, kind)) return;
 
 	/* M9-NFA stage C.3: lower `seq.triggered'/`seq.matched' endpoint
 	   methods to their fixed-length $past match indicator (both engines

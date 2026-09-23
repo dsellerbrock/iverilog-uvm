@@ -2,8 +2,9 @@
 
 In this campaign, **released OpenTitan** and **released Caliptra** mean the
 pinned release sources below, plus the known-needed patches and documented run
-options selected for the named DV test. Name that test in each result: there is no one global
-patch or option set. This shorthand does not mean either full DV suite passes.
+options selected for the named DV test. Name that test in each result: there
+is no one global patch or option set. This shorthand does not mean either full
+DV suite passes.
 Keep the pinned checkouts pristine; apply overlays only to disposable source
 copies and record unmodified-source results separately.
 
