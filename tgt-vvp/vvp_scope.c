@@ -3826,10 +3826,14 @@ void emit_dpi_export_directives(void)
 	    unsigned nargs = 0;
 	    unsigned idx;
 
+	      /* The diagnostic above says the export is dropped, so C callers
+		 cannot link; that loss must fail code generation. */
 	    if (!dpi_export_build_sig(scope, c_name, is_task, &ret_sig,
 				      &ret_ctype, arg_sig, arg_ctypes,
-				      64, &nargs, 0))
+				      64, &nargs, 0)) {
+		  vvp_errors += 1;
 		  continue;
+	    }
 	    if (ent->abi_conflict)
 		  continue;
 

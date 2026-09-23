@@ -1,16 +1,13 @@
-blocker: SOLVE-BEFORE-FIXED-ARRAY
-status: FOCUSED_TESTED
-base: 4eeb409a (claude/iverilog-uvm-takeover-n1v3u6; PR322 open with OT-SPI-INLINE-CALLER-OBJECT-METHOD and VVP-EXTENDED-ARGS-GLIBC-PERMUTE, both REGRESSION_TESTED)
-objective: A whole fixed unpacked rand array named in solve-before (class property, or unpacked-struct member as in pristine SPI spi_host_upper_range_clkdiv_vseq.sv:14) orders every element. Unsupported whole-array shapes are compile-time errors, not runtime failures of every randomize().
-standards:
-- IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: solve-before variables shall be rand, not randc, integral (2023 also real, array.size). Arrays are interpreted element-wise, like Slang 11 (enforces rand/randc but accepts rand arrays and struct-member arrays); labeled interpretation.
-reproducer: /tmp probes recorded in evidence/solve-before-array/ (plain array compiles then every randomize fails "constraint model width 32 does not match property width"; struct member array -> sorry).
-root: vars_to_ir lowers an unselected array identifier to a scalar p: token (plain) or rejects the struct path; explicit constant-selected elements already work (~50% ordered marginal).
-allowed_files: elaborate.cc solve-before vars_to_ir; permanent tests; owning docs.
-forbidden: Changing ordering semantics for scalars; ignoring or approximating ordering.
-acceptance: Paired editions: plain and struct-member whole arrays give ordered marginals about 1/2 (IEEE Table 18-2 analogue); non-rand/randc arrays keep existing errors; unsupported shapes are loud at compile time; pristine SPI compile loses the diagnostic.
+blocker: DPI-EXPORT-DROPPED-EXIT-STATUS
+status: REGRESSION_TESTED
+base: b8f0e2a2 (claude/iverilog-uvm-takeover-n1v3u6; PR322 open)
+predecessors: SOLVE-BEFORE-FIXED-ARRAY REGRESSION_TESTED (docs/conformance/session_logs/2026-09-22_solve_before_fixed_array.json); OT-SPI-INLINE-CALLER-OBJECT-METHOD and VVP-EXTENDED-ARGS-GLIBC-PERMUTE REGRESSION_TESTED; all in PR322 awaiting CI.
+objective: An export "DPI-C" whose signature cannot be supported is dropped (C callers cannot link); that semantic loss must fail code generation instead of exiting 0.
+authority: Manifesto/AGENTS no-silent-drop policy; tests/negative/m10_dpi_export_{class_handle,open_array}_argument.sv already require rejection.
+root: tgt-vvp/vvp_scope.c emits the sorry from dpi_export_build_sig(..., quiet=0) but the caller only `continue`s without counting vvp_errors. The negative suite passed in CI only because non-root users cannot write /dev/null.dpiexport.c.
+fix: Count the dropped export in vvp_errors (same as the adjacent C-name ABI conflict).
+validation:
+  focused: negative suite 148/148 as root (was 146/2); UVM dpi group 39/39 real DPI.
+  integrated: ivtest gate exit 0 (legacy 6341 0 failed, VPI 126, negative 148/148 as root); full JSON 3273 0 failed.
+  pending: PR322 CI.
 stop_after_completion: Freeze and return to coordinator selection.
-latest_validation:
-  focused: Paired 2017/2023 whole-array ordering (plain, struct member, [3:1]) about 50% marginals, 0 failures; negatives (non-rand whole/element/struct member, randc, multidimensional) loud; permanent legacy 4/4 and JSON 4/4; baseline ivl fails the positive test.
-  application: Pristine SPI Host compile now 2 errors (IEEE-invalid queue element types; DISCOVERED_DEBT 2026-09-22).
-  pending: Integrated chain (ivtest gate, full JSON, negative, full UVM) was interrupted before reporting; rerun with bash <scratch>/ev5/chain.sh equivalent before REGRESSION_TESTED.

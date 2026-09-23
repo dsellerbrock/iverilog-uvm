@@ -3479,3 +3479,14 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Reproducer:** `evidence/solve-before-array/ieee_table_18_2_uniformity.sv`, the standard's class B (`s -> d == 0`, 32-bit `d`). The current build gives `s == 1` in 251 of 1000 unordered draws, where IEEE expects about 1/(1+2^32). With `solve s before d` it gives 489 of 1000, matching Table 18-2. The same bias appears with dynamic arrays (103 of 400 against about 0).
 - **Root cause (assessed):** exact joint enumeration (`z3_enumerate_joint_`) is used only for bounded coupled components with distributions or ordering. The default path steers Z3 optimize toward random soft targets per variable, which gives per-variable diversity but not uniform complete combinations.
 - **Closure bar:** uniform sampling over legal combinations for coupled components beyond the enumeration cap (for example exact counting per case split, or a proven uniform-hashing sampler), paired statistical oracles, deterministic seeds, unchanged RNG ownership. Raising the enumeration cap is not a fix.
+
+### SOLVE-BEFORE-FIXED-ARRAY — whole fixed rand arrays in solve...before
+
+- **Status:** REGRESSION_TESTED locally (`b8f0e2a2`); CI pending in PR322.
+- **Fix:** A whole 1-D fixed array (class property or unpacked-struct member) expands to its elements. Non-rand arrays and elements are diagnosed; multidimensional whole arrays are a loud sorry. [Evidence](session_logs/2026-09-22_solve_before_fixed_array.json).
+
+### DPI-EXPORT-DROPPED-EXIT-STATUS — unsupported DPI export dropped with exit 0
+
+- **Status:** REGRESSION_TESTED locally: ivtest gate exit 0, JSON 3273/0, negative 148/148, UVM dpi group 39/39. CI pending in PR322.
+- **Root cause:** `tgt-vvp/vvp_scope.c` reports `sorry: ... The export is dropped` but did not count an error, so code generation succeeded. The negative tests passed in CI only because a non-root user cannot create `/dev/null.dpiexport.c`.
+- **Fix:** Count the dropped export in `vvp_errors`. The existing negative tests `m10_dpi_export_class_handle_argument` and `m10_dpi_export_open_array_argument` now pass independently of the environment.

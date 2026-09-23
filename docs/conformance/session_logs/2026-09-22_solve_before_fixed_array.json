@@ -1,0 +1,37 @@
+{
+  "blocker": "SOLVE-BEFORE-FIXED-ARRAY",
+  "status": "REGRESSION_TESTED locally; CI pending in PR322",
+  "commit": "b8f0e2a2",
+  "standards": {
+    "2017": "18.5.10",
+    "2023": "18.5.9"
+  },
+  "interpretation": "Whole fixed arrays order each integral element; Slang 11 accepts rand arrays/struct-member arrays while enforcing rand/randc (differential evidence)",
+  "red": "plain whole fixed array: every randomize fails 'constraint model width 32 does not match property width'; struct member array: sorry",
+  "focused": "C/D/B ordered marginals 192/207/185 of 400 both editions, 0 failures; negatives loud; permanent legacy 4/4 JSON 4/4; baseline ivl fails positive",
+  "gates": {
+    "ivtest_legacy": {
+      "total": 6341,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3
+    },
+    "vpi": "126/126",
+    "json_full": {
+      "ran": 3273,
+      "failed": 0
+    },
+    "negative": {
+      "passed": 146,
+      "failed": 2,
+      "note": "pre-existing root-environment DPI export debt"
+    },
+    "uvm_full": {
+      "passed": 358,
+      "failed": 0,
+      "dpi": "REAL"
+    }
+  },
+  "application": "pristine SPI Host compile 2 errors, IEEE-invalid source (DISCOVERED_DEBT 2026-09-22)",
+  "also_found": "CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (BLOCKERS)"
+}
