@@ -68,6 +68,14 @@ parallel_spi_struct_queue_size_lane:
   files: elab_expr.cc and dedicated ivtest fixtures only. No elaborate.cc package foreach edits, VPI files, Verilator, pinned application source, shared manifests, or build outputs.
   acceptance: Packed-struct element queue `.size` and `.size()` return equal live counts for empty and populated queues; genuine packed-struct `.size` without such a member stays an error; paired-edition tests and neighboring queue/string/assoc controls pass. Coordinator replays pinned SPI Device compile.
   state: Coordinator-authorized after paired RED and source snapshot verification; independent of the package foreach source file.
+parallel_adc_typed_fill_lane:
+  id: OT-ADC-DIRECT-CAST-WIDTH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
+  standards: IEEE 1800-2017/2023 sections 5.7.1, 6.24.1, and 18.5: an unbased fill literal in a sized type cast fills the cast destination before constraint equality.
+  reproducer: evidence/opentitan-adc-cast-width-triage-20260923/cast_width_repro.sv, cast_width_controls.sv, and cast_width_unsat_control.sv reproduce wrong 16/17-bit fills in both editions on the current installed compiler.
+  files: elaborate.cc constraint IR and vvp/vvp_z3.cc cast/fill solver path as required; dedicated constraint ivtest fixtures only. No elab_expr.cc queue-size edits, VPI, pinned application sources, shared manifests, or build outputs.
+  acceptance: Typed 16- and 17-bit unbased '1 constraints solve to all-ones before equality; 1-bit and sized 1'b1 controls remain 1; 'x/'z four-state direct cast controls stay exact; compatible and contradictory combined constraints behave correctly; paired editions and neighboring constraint regressions pass. No ADC DV claim from reducer.
+  state: Coordinator-authorized after verifying no active Claude process or open Claude PR; corrected source trace identifies IR/solver rather than the secondary vvp/vthread.cc warning. Disjoint from the SPI elab_expr.cc lane.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated Verilator rebuild, DOE replay, and integration review.

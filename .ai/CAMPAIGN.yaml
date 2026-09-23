@@ -70,6 +70,14 @@ parallel_spi_struct_queue_size_lane:
   acceptance: Live queue-of-packed-struct size is identical for `.size` and `.size()` at zero and multiple entries; genuine struct-member negative remains an error; paired focused checks and pinned compile replay.
   dependency: Independent of package-parameter foreach `elaborate.cc`; PR339 head fixed and coordinator owns shared integration.
   state: Coordinator-authorized for a new lower-cost implementation agent.
+parallel_adc_typed_fill_lane:
+  id: OT-ADC-DIRECT-CAST-WIDTH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
+  files: elaborate.cc constraint IR; vvp/vvp_z3.cc cast/fill solver path as required; dedicated constraint fixtures only. No elab_expr.cc, application source, or shared outputs.
+  evidence: evidence/opentitan-adc-cast-width-triage-20260923 contains current paired RED, positive controls, contradiction control, and narrowed source trace.
+  acceptance: 16/17-bit typed unbased fills remain all-ones in inline constraints; one-bit/sized operand, direct four-state casts, compatible/contradictory conjunctions and neighboring tests retain correct behavior in both editions.
+  dependency: Claude's prior vvp/vthread ownership claim is stale; no active Claude process or open Claude PR was found. Independent of SPI queue elab_expr.cc lane.
+  state: Coordinator-authorized as the second compiler implementation lane; no ADC DV pass claim.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
