@@ -19450,6 +19450,9 @@ struct event_leaf_dynamic_kind_t {
 
 struct prepared_event_leaf_t {
       unique_ptr<NetExpr> expr;
+      unique_ptr<NetExpr> class_event_obj;
+      unsigned class_event_slot = 0;
+      bool class_event = false;
       NetEvent*named_event = nullptr;
       bool elaborated = false;
       bool preserve_pform = false;
@@ -19525,11 +19528,8 @@ static void check_named_event_edge_(Design*des, const LineInfo&loc,
       des->errors += 1;
 }
 
-/* Class-property and virtual-interface event leaves are selected dynamically
- * when the wait arms. Elaborate each prospective leaf exactly once, retain the
- * result for whichever lowering path wins, and classify that retained tree.
- * A failed leaf is also marked elaborated so the normal path does not repeat
- * its diagnostics. Named events are resolved without expression elaboration. */
+/* Dynamic object and virtual-interface event leaves are selected when the wait
+ * arms. Retain each prospective leaf for whichever lowering path wins. */
 static void prepare_event_leaf_(Design*des, NetScope*scope,
 			const LineInfo&loc, const PEEvent*event,
 			prepared_event_leaf_t&res)
@@ -19538,6 +19538,25 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 	    return;
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(event->expr())) {
+	    if (event->type() == PEEvent::ANYEDGE && !event->condition()) {
+		  unsigned errors_before = des->errors;
+		  unsigned slot = 0;
+		  if (NetExpr*obj = elaborate_class_event_target_(
+			    des, scope, loc, id->path().name,
+			    id->lexical_pos(), slot)) {
+			res.class_event_obj.reset(obj);
+			res.class_event_slot = slot;
+			res.class_event = true;
+			res.elaborated = true;
+			res.preserve_pform = true;
+			res.kind.object = true;
+			return;
+		  }
+		  if (des->errors != errors_before) {
+			res.elaborated = true;
+			return;
+		  }
+	    }
 	    unsigned errors_before = des->errors;
 	    symbol_search_results sr;
 	    symbol_search(&loc, des, scope, id->path(), id->lexical_pos(), &sr);
@@ -19643,16 +19662,18 @@ static bool prepare_event_list_(Design*des, NetScope*scope,
       bool has_vif = false;
       bool has_non_vif = false;
       bool has_compound_dynamic = false;
+      bool has_class_event = false;
       for (unsigned idx = 0; idx < events.size(); idx += 1) {
 	    prepare_event_leaf_(des, scope, loc, events[idx], prepared[idx]);
 	    const event_leaf_dynamic_kind_t&kind = prepared[idx].kind;
+	    has_class_event = has_class_event || prepared[idx].class_event;
 	    has_object = has_object || kind.object;
 	    has_non_object = has_non_object || !kind.object || kind.vif;
 	    has_vif = has_vif || kind.vif;
 	    has_non_vif = has_non_vif || !kind.vif || kind.object;
 	    has_compound_dynamic = has_compound_dynamic || kind.compound;
       }
-      return has_compound_dynamic
+      return (events.size() > 1 && has_class_event) || has_compound_dynamic
 	  || (has_object && has_non_object)
 	  || (has_vif && has_non_vif);
 }
@@ -19994,16 +20015,23 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
             return concat_wait.elaborate_st(des, scope, enet);
       }
 
-      /* A dynamically selected class/VIF leaf cannot share one VVP waiter
-       * record with an ordinary event family, and a compound dynamic leaf
-       * needs the single-leaf value-change filter around its own wait. Lower
-       * only those mixed lists as independent one-shot waits under join_any;
-       * the ordinary event-list path below remains unchanged. */
+      /* A per-instance class event or dynamically selected class/VIF leaf
+       * needs its own waiter. Lower such lists as independent one-shot waits
+       * under join_any; ordinary event-list lowering remains unchanged. */
       if (split_event_list) {
 	    std::vector<NetProc*>waiters;
 	    for (unsigned idx = 0; idx < expr_.size(); idx += 1) {
 		  PEEvent*event = expr_[idx];
 		  ivl_assert(*this, event);
+
+		  if (prepared[idx].class_event) {
+			NetEvWaitObj*wait = new NetEvWaitObj(
+			      prepared[idx].class_event_obj.release(),
+			      prepared[idx].class_event_slot);
+			wait->set_line(*event);
+			waiters.push_back(wait);
+			continue;
+		  }
 
 		  if (prepared[idx].named_event) {
 			check_named_event_edge_(des, *this, event,

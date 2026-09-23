@@ -1573,6 +1573,114 @@ static int draw_assoc_unique_expr_(ivl_expr_t expr, ivl_signal_t q_sig,
       return errors;
 }
 
+/* Lower associative find_index() by visiting actual keys and appending the
+ * key signal for every matching value. Positional queue ordinals are not
+ * associative-array indices. */
+static int draw_assoc_find_index_expr_(ivl_expr_t expr)
+{
+      unsigned parm_count = ivl_expr_parms(expr);
+      if (parm_count != 6 && parm_count != 7) {
+	    fprintf(stderr, "%s:%u: internal error: malformed associative "
+		    "find_index payload\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc find_index payload failure\n");
+	    return 1;
+      }
+
+      ivl_expr_t iter_arg = ivl_expr_parm(expr, 1);
+      ivl_expr_t result_arg = ivl_expr_parm(expr, 2);
+      ivl_expr_t key_arg = ivl_expr_parm(expr, 3);
+      ivl_expr_t pred = ivl_expr_parm(expr, 4);
+      ivl_expr_t element = ivl_expr_parm(expr, 5);
+      ivl_expr_t recv_arg = parm_count == 7 ? ivl_expr_parm(expr, 6) : 0;
+      if (!iter_arg || ivl_expr_type(iter_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(iter_arg)
+	  || !result_arg || ivl_expr_type(result_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(result_arg)
+	  || !key_arg || ivl_expr_type(key_arg) != IVL_EX_SIGNAL
+	  || !ivl_expr_signal(key_arg) || !pred || !element) {
+	    fprintf(stderr, "%s:%u: internal error: malformed associative "
+		    "find_index fields\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc find_index field failure\n");
+	    return 1;
+      }
+
+      ivl_expr_t q_arg = ivl_expr_parm(expr, 0);
+      ivl_signal_t q_sig = draw_array_method_recv_(q_arg, recv_arg);
+      if (!q_sig) {
+	    fprintf(stderr, "%s:%u: internal error: associative find_index "
+		    "receiver cannot be materialized\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc find_index receiver failure\n");
+	    return 1;
+      }
+
+      ivl_signal_t iter_sig = ivl_expr_signal(iter_arg);
+      ivl_signal_t result_sig = ivl_expr_signal(result_arg);
+      ivl_signal_t key_sig = ivl_expr_signal(key_arg);
+      ivl_type_t iter_type = ivl_signal_net_type(iter_sig);
+      ivl_type_t key_type = ivl_signal_net_type(key_sig);
+      ivl_type_t result_queue_type = ivl_signal_net_type(result_sig);
+      ivl_type_t result_type = result_queue_type
+	    ? ivl_type_element(result_queue_type) : 0;
+      if (!unique_runtime_type_supported_(iter_type)
+	  || !unique_runtime_type_supported_(key_type)
+	  || !unique_runtime_type_supported_(result_type)) {
+	    fprintf(stderr, "%s:%u: internal error: unsupported associative "
+		    "find_index runtime type\n",
+		    ivl_expr_file(expr), ivl_expr_lineno(expr));
+	    fprintf(vvp_out, "    %%null; ; assoc find_index type failure\n");
+	    return 1;
+      }
+
+      const char*key_kind;
+      if (expr_is_string_assoc_key_(key_arg))
+	    key_kind = "str";
+      else if (expr_is_object_assoc_key_(key_arg))
+	    key_kind = "obj";
+      else
+	    key_kind = ivl_type_signed(key_type) ? "sv" : "v";
+
+      char result_enc[64];
+      container_element_enc_(result_type, result_enc, sizeof result_enc);
+      unsigned lab_top = local_count++;
+      unsigned lab_skip = local_count++;
+      unsigned lab_end = local_count++;
+      int traversal_flag = allocate_flag();
+      int pred_flag = allocate_flag();
+      int errors = 0;
+
+      fprintf(vvp_out, "    %%ix/load 5, 0, 0;\n");
+      fprintf(vvp_out, "    %%new/queue \"%s\";\n", result_enc);
+      fprintf(vvp_out, "    %%store/obj v%p_0;\n", result_sig);
+      fprintf(vvp_out, "    %%aa/first/sig/%s v%p_0, v%p_0;\n",
+	      key_kind, q_sig, key_sig);
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+	      thread_count, lab_end, traversal_flag);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_top);
+      errors += draw_unique_store_signal_(element, iter_sig, iter_type);
+      draw_eval_vec4(pred);
+      if (ivl_expr_width(pred) > 1)
+	    fprintf(vvp_out, "    %%or/r;\n");
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", pred_flag);
+      fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d;\n",
+	      thread_count, lab_skip, pred_flag);
+      errors += draw_unique_append_queue_(key_arg, result_sig, key_type);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_skip);
+      fprintf(vvp_out, "    %%aa/next/sig/%s v%p_0, v%p_0;\n",
+	      key_kind, q_sig, key_sig);
+      fprintf(vvp_out, "    %%flag_set/vec4 %d;\n", traversal_flag);
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n",
+	      thread_count, lab_top, traversal_flag);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_end);
+      fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
+      clr_flag(pred_flag);
+      clr_flag(traversal_flag);
+      return errors;
+}
+
 /* IEEE 1800-2017 7.12.3 array reduction methods:
  *   $ivl_darray_method$reduce|<kind>(array, iter, idx, acc, val)
  * kind is one of sum/product/and/or/xor.  Emit an inline loop that
@@ -2508,6 +2616,9 @@ static int eval_object_sfunc(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%load/obj v%p_0;\n", result_sig);
 	    return 0;
       }
+
+      if (strcmp(name, "$ivl_queue_method$assoc_find_index") == 0)
+	    return draw_assoc_find_index_expr_(expr);
 
       if (strncmp(name, "$ivl_queue_method$find_with|", 28) == 0) {
 	    const char*kind = name + 28;

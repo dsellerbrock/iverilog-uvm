@@ -1,0 +1,4 @@
+sv_assoc_find_index_2017 normal,-g2017,-I./ivltests,-ssv_assoc_find_index ivltests gold=sv_assoc_find_index.gold
+sv_assoc_find_index_2023 normal,-g2023,-I./ivltests,-ssv_assoc_find_index ivltests gold=sv_assoc_find_index_2023.gold
+sv_assoc_find_index_unsupported_2017 CE,-g2017,-I./ivltests,-ssv_assoc_find_index_unsupported ivltests gold=sv_assoc_find_index_unsupported.gold
+sv_assoc_find_index_unsupported_2023 CE,-g2023,-I./ivltests,-ssv_assoc_find_index_unsupported ivltests gold=sv_assoc_find_index_unsupported_2023.gold

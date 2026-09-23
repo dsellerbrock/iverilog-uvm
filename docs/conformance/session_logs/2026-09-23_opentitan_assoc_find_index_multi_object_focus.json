@@ -1,0 +1,26 @@
+{
+  "blockers": ["OT-SPI-ASSOC-FIND-INDEX", "OT-CLASS-EVENT-MULTI-OBJECT-LIST"],
+  "source_commit": "f681defc1",
+  "candidate_head": "0c50c3403",
+  "base_pr340_head": "c40dce788",
+  "standards": ["IEEE 1800-2017/2023 7.12.1", "IEEE 1800-2017/2023 15.5"],
+  "source_diff_sha256": "c95017f7961fe1778ac03c42e61a00a7a82fdddfe1f3797c289fa4d014de58f6",
+  "validation": {
+    "incremental_build_install": "passed",
+    "associative_reducer": "red compile in both editions before patch; runtime PASS in both editions after patch",
+    "multi_object_event_reducer": "red runtime in both editions before patch; runtime PASS in both editions after patch",
+    "class_event_legacy_focus": "22/22 passed",
+    "class_event_json_focus": "22/22 passed",
+    "associative_legacy_focus": "4/4 passed, including two expected compile errors",
+    "associative_json_focus": "4/4 passed, including two expected compile errors",
+    "associative_boundaries": "sparse 8-bit keys including the high bit, signed negative keys, string keys, empty and no-match results, iterator.index, class-property receiver, and receiver preservation",
+    "class_event_boundaries": "second and first class object event, repeated wait, duplicate same-object leaves, and static event control",
+    "pinned_spi_release_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "pinned_spi_source_list_sha256": "6becda0d15569124a60e2aa05dfdd9618bcd4fd6c9180d854ff66720477b5f9a",
+    "pinned_spi_strict_compile_errors": 5,
+    "pinned_spi_commercial_unsafe_compile_errors": 1,
+    "raw_replay": "../../../../evidence/opentitan-spi-device-assoc-event-20260923"
+  },
+  "remaining_opt_in_error": "Constrained std::randomize() on a byte queue at spi_device_tpm_base_vseq.sv:150.",
+  "limits": "Compilation still fails. Full OpenTitan DV, coverage-cross lowering, all associative locators, and broad post-commit suites are not qualified. Verilator was not modified. The four test-runner invocations were rerun sequentially after a concurrent attempt collided in their shared output directory; only the sequential results are counted."
+}

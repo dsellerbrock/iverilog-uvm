@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-spi-class-event-triggered-20260923
-baseline: main 6fd804a39e803152bd39a3ee4c96b15d30532001; PR339 merged after exact-head Ubuntu 24.04 CI success.
+branch: agent/ot-assoc-find-index-multi-event-20260923
+baseline: main 6fd804a39e803152bd39a3ee4c96b15d30532001 plus PR340 corrected head c40dce788cd5375e3dcbb41e28237a91326ed1a1; exact-head CI pending.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 recent_merges:
@@ -12,14 +12,26 @@ recent_merges:
   pr338: d74e1664b211394b3221e6cf1e3ad3c7d131e699; exact Caliptra L0 baseline and two focused firmware overlays merged after Ubuntu 22.04 exact-head CI passed. Remaining CI is still observable.
   pr339: 6fd804a39e803152bd39a3ee4c96b15d30532001; repaired compiler/VPI follow-on merged after Ubuntu 24.04 exact-head CI success. Other jobs remained in progress at merge; local broad and UVM gates passed.
 active_blocker:
-  id: OT-SPI-CLASS-EVENT-TRIGGERED
-  phase: FOCUSED_VALIDATED_PR_PENDING
+  id: OT-SPI-ASSOC-FIND-INDEX and OT-CLASS-EVENT-MULTI-OBJECT-LIST
+  phase: FOCUSED_VALIDATED_STACKED_PR_PENDING
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
-  standards: IEEE 1800-2017/2023 section 15.5.3 per-instance named-event triggered state and same-time wait behavior.
-  checkpoint: Commit 81b3dc74d passes paired class-event focus 20/20 in each runner; pinned SPI compile advances from nine to six strict errors and five to two commercial-unsafe errors. No SPI Device DV pass.
-  evidence: docs/conformance/session_logs/2026-09-23_opentitan_class_event_triggered_focus.json.
-  next: Publish the reviewed Icarus fix as a PR, observe exact-head CI, then select the next pinned OpenTitan compiler blocker. Verilator remains read-only differential evidence.
+  standards: IEEE 1800-2017/2023 sections 7.12.1 and 15.5; exact associative keys and per-instance event identity.
+  checkpoint: Both reducers were red on PR340 and pass on f681defc1 in both editions; paired focused lists pass. Pinned SPI compile has one commercial-unsafe error, constrained queue std::randomize; no SPI Device DV pass.
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json.
+  next: Publish the focused-tested follow-on as a stacked PR, observe exact-head CI, and merge PR340 after one exact-head CI pass. Verilator stays read-only.
+parallel_assoc_find_index_lane:
+  owner: Lower-cost implementation agent.
+  files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.
+  acceptance: Declared associative key type and ordered key values, empty/no-match and string-key boundaries, paired editions.
+  dependency: Disjoint from class-event list lane; coordinator owns shared build/install and manifests.
+  state: Integrated f681defc1; local paired focus and pinned release replay passed the claimed boundaries.
+parallel_class_event_list_lane:
+  owner: Lower-cost implementation agent.
+  files: elaborate.cc; class-event wait codegen/runtime only if required; dedicated tests only.
+  acceptance: Either object wakes an explicit class-event list with same-object/static and repeated-arm controls in paired editions; null/rebind remains separately unqualified.
+  dependency: Disjoint from associative locator lane; no Verilator or released application source changes.
+  state: Integrated f681defc1; local paired focus passed.
 parallel_vpi_implementation_lane:
   id: VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
@@ -140,4 +152,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Publish focused-tested Icarus class-event commit 81b3dc74d as a PR, observe CI, then select the next pinned-release compiler blocker. Do not edit Verilator or pinned application sources."
+next_command: "Publish follow-on Icarus associative locator and class-event list branch as a stacked PR, observe PR340 exact-head CI, then select the pinned SPI queue std::randomize blocker. Do not edit Verilator or pinned application sources."

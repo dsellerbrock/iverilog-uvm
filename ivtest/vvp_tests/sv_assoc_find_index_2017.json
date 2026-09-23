@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_assoc_find_index.v",
+  "iverilog-args": ["-g2017", "-s", "sv_assoc_find_index"],
+  "gold": "sv_assoc_find_index"
+}
