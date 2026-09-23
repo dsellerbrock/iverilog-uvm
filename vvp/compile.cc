@@ -812,6 +812,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/vif/anyedge",of_WAIT_VIF_ANYEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/anyedge/i",of_WAIT_VIF_ANYEDGE_I,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%wait/vif/anyedge/multi",of_WAIT_VIF_ANYEDGE_MULTI,1,{OA_NUMBER,OA_NONE, OA_NONE} },
+      { "%wait/vif/multi",of_WAIT_VIF_MULTI,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/negedge",of_WAIT_VIF_NEGEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/negedge/i",of_WAIT_VIF_NEGEDGE_I,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%wait/vif/posedge",of_WAIT_VIF_POSEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },

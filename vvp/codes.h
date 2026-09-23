@@ -690,6 +690,7 @@ extern bool of_WAIT_VIF_NEGEDGE_I(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_ANYEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_ANYEDGE_I(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_VIF_MULTI(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION_MULTI(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_MUTATION_FILTERED(vthread_t thr, vvp_code_t code);

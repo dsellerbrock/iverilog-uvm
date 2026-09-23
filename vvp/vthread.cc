@@ -31792,6 +31792,56 @@ bool of_WAIT_VIF_ANYEDGE_MULTI(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+/* %wait/vif/multi <count>
+ * Each entry is an object, member, optional word, and edge mode
+ * (0=any, 1=positive, 2=negative). The event functors share one logical
+ * registration: whichever fires first removes both edge families' siblings. */
+bool of_WAIT_VIF_MULTI(vthread_t thr, vvp_code_t cp)
+{
+      std::set<vvp_fun_edge_sa*> edges;
+      std::set<vvp_fun_anyedge_sa*> anyedges;
+      bool invalid_vif = false;
+      for (unsigned idx = 0 ; idx < cp->number ; idx += 1) {
+            unsigned values[3] = {0, 0, 0};
+            for (unsigned item = 0 ; item < 3 ; item += 1) {
+                  vvp_vector4_t vec = thr->pop_vec4();
+                  for (unsigned bit = 0 ; bit < vec.size()
+                       && bit < 8*sizeof(unsigned) ; bit += 1)
+                        if (vec.value(bit) == BIT4_1)
+                              values[item] |= 1U << bit;
+            }
+            unsigned mode = values[0];
+            unsigned word = values[1];
+            unsigned member = values[2];
+            vvp_object_t obj;
+            thr->pop_object(obj);
+            vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+            if (!vif || mode > 2
+                || (word != UINT_MAX && !vif->has_array_word(member, word))) {
+                  invalid_vif = true;
+                  continue;
+            }
+            if (mode == 0)
+                  anyedges.insert(vif->get_anyedge_functor(member, word));
+            else if (mode == 1)
+                  edges.insert(vif->get_posedge_functor(member, word));
+            else
+                  edges.insert(vif->get_negedge_functor(member, word));
+      }
+      if (invalid_vif)
+            return wait_vif_runtime_fatal_("%wait/vif/multi");
+
+      thr->waiting_for_event = 1;
+      thr->wait_next = 0;
+      for (std::set<vvp_fun_edge_sa*>::const_iterator edge = edges.begin();
+           edge != edges.end(); ++edge)
+            (*edge)->add_multi_waiting_thread(thr);
+      for (std::set<vvp_fun_anyedge_sa*>::const_iterator edge = anyedges.begin();
+           edge != anyedges.end(); ++edge)
+            (*edge)->add_multi_waiting_thread(thr);
+      return false;
+}
+
 /*
  * %wait/obj/mutation
  *

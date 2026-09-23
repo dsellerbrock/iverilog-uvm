@@ -1,0 +1,6 @@
+{
+    "type"          : "RE",
+    "source"        : "sv_aon_mixed_vif_edge_null_fail_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_aon_mixed_vif_edge_null_fail" ],
+    "gold"          : "sv_aon_mixed_vif_edge_null_fail"
+}
