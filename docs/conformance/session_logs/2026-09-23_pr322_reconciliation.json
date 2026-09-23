@@ -1,0 +1,50 @@
+{
+  "record": "PR322 reconciliation on merged PR323",
+  "date": "2026-09-23",
+  "status": "required local gates passed; PR322 CI pending",
+  "branch": "agent/pr322-reconcile-20260923",
+  "parents_before_merge_commit": {
+    "pr323_main": "5a89b876df78a2d87e747495ae06ec42186640db",
+    "pr322": "c068c13d99e01dc314b07d2997344a2ffe704129"
+  },
+  "source_decision": [
+    "Removed PR322's earlier unindexed caller-method capture because it bypassed PR323's null, X/Z, purity, direction and width guards; retained and passed its paired caller-method regressions on PR323's guarded path.",
+    "Kept PR322's independent fixed-array solve-before expansion, vvp extended-argument ordering, dropped DPI-export error accounting and OpenTitan matrix runner normalization.",
+    "Added an integral-element guard for whole fixed arrays in solve-before. A class-handle array compiled successfully before the guard in both editions and now fails explicitly in both. IEEE 1800-2017 18.5.10 permits integral ordered values; 1800-2023 18.5.9 also permits real, which is separate unimplemented debt."
+  ],
+  "local_validation": {
+    "build": "make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex and make install: exit 0",
+    "make_check": "exit 0",
+    "combined_focused_json": "22 run, 0 failed",
+    "fixed_array_legacy": "4 passed, 0 failed",
+    "nfa": "58 passed, 0 failed",
+    "ivtest_gate": "6353 total, 6348 passed, 0 failed, 2 not implemented, 3 expected failures; VPI 126/126; negative 148/148; runtime invariants 15/15",
+    "full_json": "3285 run, 0 failed",
+    "uvm": "real DPI loaded; 358 passed, 0 failed, 0 skipped",
+    "uvm_frontend": "all scenarios passed"
+  },
+  "local_logs": "evidence/review-20260920/pr322-reconcile-build2/",
+  "installed_sha256": {
+    "iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "vvp": "ec526cdd33f20975cce4e431aaa1cdb80cc5502917b3e3b2e4334cfbd2a82bca",
+    "ivl": "c271d80dabd3f6d251ab8ab0e58791922d6689e9d39edabc579e67528d03ba5d",
+    "vvp_tgt": "c46ba3e4fa6da6b004af989fcf0dfacc7b0e8f501e90628d6a86e84bf33a2e5d"
+  },
+  "application_replay": {
+    "name": "OpenTitan Earlgrey-PROD-M6 SPI Host",
+    "corpus_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "corpus_clean": true,
+    "source_modified": false,
+    "compile_exit": 2,
+    "remaining_errors": [
+      "spi_host_driver.sv:156 task output queue/dynamic-array element type mismatch",
+      "spi_host_driver.sv:256 task output queue/dynamic-array element type mismatch"
+    ],
+    "scope": "compile-only; no SPI DV pass or whole-application qualification"
+  },
+  "limits": [
+    "No -gcommercial-unsafe implementation is present in this source or origin/main at the recorded base; the proposed flag remains separate opt-in work.",
+    "Random-variable actual arguments and wide results in inline constraint calls, indexed method receivers, IEEE 1800-2023 real ordered variables, and uniform sampling over legal combinations remain open.",
+    "Caliptra was not replayed on this exact candidate. GitHub CI and full standards qualification remain separate."
+  ]
+}

@@ -3454,15 +3454,24 @@ The upstream OpenTitan checker backport exposed missed late `until` violations. 
 
 Direct caller-owned integral queue/dynamic-array iteration now has paired focused evidence, including target-first lookup, signed values, invalid-state rejection and rollback. The pristine SPI compile no longer rejects this foreach; independent errors remain. [Revision-scoped evidence](session_logs/2026-09-22_caller_queue_foreach_focus.json) owns results and passing required local gates. Merged in PR320 (`1af223c8`); Linux/macOS CI jobs passed on the preceding main run, and the MSYS2 failure is CI-WIN-UVM-REGEX-NOOUTPUT. No full application qualification is claimed.
 
-### OT-SPI-INLINE-STATE-FUNCTION-CALL — focused state-only candidate
+### OT-SPI-INLINE-STATE-FUNCTION-CALL — merged state-only scope
 
-- **Status:** PATCHED and FOCUSED_TESTED; staged random-variable arguments and required broad gates remain open.
+- **Status:** State-only scope merged in PR323; staged random-variable arguments remain open.
 - **Requirement:** IEEE 1800-2017 §18.5.12 / 2023 §18.5.11 function calls in inline randomize constraints, with §18.7 call semantics.
 - **Evidence:** [Revision-scoped focused record](session_logs/2026-09-23_inline_state_function_focus.json). The bounded state-only caller/target/self path preserves post-`pre_randomize` state, four-state rejection, virtual dispatch, and retained target identity. The record lists remaining argument and width limits; no complete clause or SPI DV qualification is claimed.
 
+### OT-SPI-INLINE-CALLER-OBJECT-METHOD — caller-scope object methods in inline constraints
+
+- **Status:** RECONCILED during direct-main integration after PR323. PR322 closed without merging. Its earlier implementation (`ce2635bd`) captured the call before OT-SPI-INLINE-STATE-FUNCTION-CALL's guarded caller capture and bypassed null-receiver, X/Z, purity/direction and width checks, so it was omitted. Retained caller-method tests pass against PR323's guarded source; the extra collision and boundary regressions are in the follow-up branch. The record below is PR322's historical state (REGRESSION_TESTED locally at `ce2635bd`).
+- **Requirement:** IEEE 1800-2017 18.5.12/18.7 and 1800-2023 18.5.11/18.7. Inline names resolve target-first, then in the caller. A function in a constraint is called before solving, and its result is a state value.
+- **Reproducer:** pristine Earlgrey-PROD-M6 `spi_device_cmd_rsp_seq.sv:117` (`num_lanes == cfg.get_sio_size()`) and `evidence/inline-caller-method/caller_method.sv`. Both editions reported "could not be translated".
+- **Root cause:** Object-method state capture existed only for declared class constraints (`constraint_ir_state_calls_ctx_`). Inline caller-scope method calls had no lowering.
+- **Historical PR322 fix:** Captured a caller call as a value slot before the guarded lowering; this code was removed. The current guarded state-function path also handles target-member receivers and rejects invalid null/X/Z captures. Indexed receiver calls remain unsupported.
+- **Evidence:** [PR322's revision-scoped record](session_logs/2026-09-22_inline_caller_object_method.json) is historical; the [local qualification](session_logs/2026-09-23_pr322_reconciliation.json) and [branch reconciliation](session_logs/2026-09-23_pr322_branch_reconciliation.json) own the current limits. No DV claim.
+
 ### VVP-EXTENDED-ARGS-GLIBC-PERMUTE — vvp extended arguments parsed as options on glibc
 
-- **Status:** REGRESSION_TESTED locally; publication and CI pending.
+- **Status:** Committed directly to `main` as `3505e15a6`; CI pending on that main revision.
 - **Authority:** `Documentation/usage/vvp_flags.rst` (Extended Arguments) and `vvp.man`: options precede the design file; everything after it is an extended argument.
 - **Root cause:** `vvp/main.cc` dropped upstream's leading `+` from the getopt string, so glibc permutation parsed post-file arguments such as `-vcd`/`-none` as vvp options. JSON tests `br_gh710a/b/c`, `dumpfile` and `sdf_header` failed on Linux; macOS getopt hides this.
 - **Fix:** Parse options in order and set aside `+plusargs` that precede the options (dvsim ordering) until the input file. The simulation then sees the file, all plusargs in command-line order, then the extended arguments.
@@ -3478,11 +3487,11 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 
 ### SOLVE-BEFORE-FIXED-ARRAY — whole fixed rand arrays in solve...before
 
-- **Status:** REGRESSION_TESTED locally (`b8f0e2a2`); CI pending in PR322.
-- **Fix:** A whole 1-D fixed array (class property or unpacked-struct member) expands to its elements. Non-rand arrays and elements are diagnosed; multidimensional whole arrays are a loud sorry. [Evidence](session_logs/2026-09-22_solve_before_fixed_array.json).
+- **Status:** Core expansion committed directly to `main` as `bea0a4db3`; the non-integral element guard is locally qualified on the follow-up branch, with CI pending.
+- **Fix:** A whole 1-D fixed array (class property or unpacked-struct member) expands to its elements. Non-rand arrays are diagnosed and multidimensional whole arrays are a loud sorry on main. The follow-up diagnoses non-integral elements, including class handles, instead of fabricating order tokens. The original [PR322 record](session_logs/2026-09-22_solve_before_fixed_array.json) is superseded for that guard by the [local qualification](session_logs/2026-09-23_pr322_reconciliation.json) and [branch reconciliation](session_logs/2026-09-23_pr322_branch_reconciliation.json). IEEE 1800-2023 real ordering remains separate debt.
 
 ### DPI-EXPORT-DROPPED-EXIT-STATUS — unsupported DPI export dropped with exit 0
 
-- **Status:** REGRESSION_TESTED locally: ivtest gate exit 0, JSON 3273/0, negative 148/148, UVM dpi group 39/39. CI pending in PR322.
+- **Status:** Committed directly to `main` as `c7b2a8267`; local regressions pass and main CI is separate.
 - **Root cause:** `tgt-vvp/vvp_scope.c` reports `sorry: ... The export is dropped` but did not count an error, so code generation succeeded. The negative tests passed in CI only because a non-root user cannot create `/dev/null.dpiexport.c`.
 - **Fix:** Count the dropped export in `vvp_errors`. The existing negative tests `m10_dpi_export_class_handle_argument` and `m10_dpi_export_open_array_argument` now pass independently of the environment.

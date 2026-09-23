@@ -1,0 +1,33 @@
+{
+  "record": "PR322 branch race and direct-main reconciliation",
+  "date": "2026-09-23",
+  "status": "missing guard and boundary regressions ported with exact compiler/test tree match to locally qualified e4ec3aa51; follow-up PR and CI pending",
+  "pr322": {
+    "url": "https://github.com/dsellerbrock/iverilog-uvm/pull/322",
+    "state": "closed without merge at 2026-09-23T02:10:51Z",
+    "pushed_reconciled_branch": "e4ec3aa51a6c3d3675bca0cb5ea42a7ea36c52f2",
+    "note": "The PR object still showed its older c068c13d9 head after the branch push. A separate exact-head workflow_dispatch was queued; this is not a passing PR check."
+  },
+  "direct_main": {
+    "head_at_reconciliation": "1520ccee6e17581efe4b27508e8f4f8a980bf3dc",
+    "vvp_extended_args": "3505e15a6",
+    "opentitan_matrix_runner": "3537ab00c",
+    "solve_before_fixed_array_core": "bea0a4db3",
+    "dropped_dpi_export_error": "c7b2a8267",
+    "caliptra_race_record": "098ba5a3f",
+    "caller_method_coverage": "1520ccee6; PR323's guarded implementation supplies the behavior"
+  },
+  "follow_up": {
+    "branch": "agent/pr322-remainder-20260923",
+    "base": "1520ccee6e17581efe4b27508e8f4f8a980bf3dc",
+    "compiler_delta": "Only the 22-line whole fixed-array non-integral element guard in elaborate.cc remains relative to direct main.",
+    "regressions": "Class-handle array rejection and paired caller null/X/Z/collision boundary tests from the locally qualified reconciled branch.",
+    "qualification": "2026-09-23_pr322_reconciliation.json",
+    "source_test_tree_check": "git diff --exit-code e4ec3aa51 -- elaborate.cc vvp/main.cc tgt-vvp/vvp_scope.c scripts/opentitan_matrix.py ivtest evidence/inline-caller-method: exit 0 after staging the follow-up patch",
+    "application_limit": "Clean Earlgrey-PROD-M6 SPI compile still fails two IEEE 7.6 queue-element checks; no DV pass."
+  },
+  "pending": [
+    "Publish and merge the follow-up PR after an exact-head CI success; do not mark closed PR322 merged.",
+    "Port held scalar X/Z behavior on PR323's newer constraint plumbing before deleting its branch. The proposed -gcommercial-unsafe flag has no code in this baseline."
+  ]
+}

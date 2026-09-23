@@ -32517,6 +32517,22 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      expand_ok = false;
 			      continue;
 			}
+			ivl_type_t element_type = array->element_type();
+			ivl_variable_type_t element_base = element_type
+			      ? element_type->base_type() : IVL_VT_NO_TYPE;
+			bool integral_element = element_type && element_type->packed()
+			      && (element_base == IVL_VT_BOOL
+				  || element_base == IVL_VT_LOGIC
+				  || dynamic_cast<const netenum_t*>(element_type));
+			if (!integral_element) {
+			      cerr << item->get_fileline() << ": sorry: 'solve before' "
+				   << "does not support whole fixed arrays with non-integral "
+				   << "elements." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      expand_ok = false;
+			      continue;
+			}
 			const netrange_t&range = array->static_dimensions().front();
 			int64_t low = std::min(range.get_msb(), range.get_lsb());
 			for (int64_t idx = low; idx < low + (int64_t)range.width(); ++idx) {

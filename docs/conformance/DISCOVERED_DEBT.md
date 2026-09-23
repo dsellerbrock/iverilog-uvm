@@ -3192,6 +3192,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Evidence: `evidence/review-20260920/spi-external-cfg-constraint-next/build3/target-red/receiver_once-2023.compile.log` and `fixtures.json`; paired 2017 observation agrees. Sources are in `target-fixtures/receiver_once.sv` and `receiver_once_control.sv` under that evidence root.
 - Alternative lifetime acceptance probe `coordinator/target_index_once.sv` parses an indexed receiver with an observable index-function call count and reaches the selected unsupported target-function diagnostic.
 - Possible standard scope: IEEE 1800-2017/2023 18.7 inline constraints and method-call grammar. Status: reproduced, parser root cause and complete grammar disposition unassessed; record only, no parser change authorized.
+
+### 2026-09-22 scalar constraint state reads discard X/Z
+
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD.
 - Observation: IEEE 1800-2017/2023 18.3 makes X/Z values in constraints illegal. Inline caller-state value slots (`vvp/vthread.cc` `%randomize/with` pop loops near lines 6028 and 6181) keep only BIT4_1 bits, so `lanes == x` with `x = 'x` succeeds with `lanes == 0`. The class-state `r:` read (`vvp/vvp_z3.cc` `parse_state_path`) drops X/Z the same way. Class function captures, guards, container elements and associative reads already reject X/Z.
 - Evidence: 2017 private reducer with `logic [2:0] x = 'x` in the caller prints `x-slot ret=1 lanes=0`; installed build of main `1af223c8`.
@@ -3238,10 +3241,17 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 - Active blocker: SOLVE-BEFORE-FIXED-ARRAY (application recompile).
 - Observation: after this batch, pristine Earlgrey-PROD-M6 SPI Host fails only at `spi_host_driver.sv:156` and `:256`. `issue_data(req.data, rsp.data, ...)` binds `logic [7:0] data[$]` actuals to `bit [7:0] ...[$]` formals. IEEE 1800-2017/2023 7.6 requires equivalent element types for unpacked array assignment compatibility, and 6.22.2 makes 2-state and 4-state vectors non-equivalent. Slang 11 independently rejects the same shape ("no implicit conversion ... are you missing a cast?"), and Icarus rejects both argument directions consistently.
-- Triage: upstream-invalid source relying on commercial-simulator leniency. Per the campaign `vcs_quirks` policy, any accommodation would be a separately labeled vendor-compatibility extension, not an IEEE fix. It needs documented vendor behavior before selection; pristine sources stay unmodified.
+- Triage: upstream-invalid source relying on apparent commercial-simulator leniency. The user selected a separately labeled, opt-in compatibility extension; documented VCS behavior is still unverified, so it must not be represented as VCS or IEEE conformance. Pristine sources stay unmodified.
+- Flag-design assessment: `elaborate.cc` already has a narrow unconditional whole queue/dynamic-array assignment exception for bit/logic element-state mismatch; task and function output copy-back use separate strict checks. The proposed `-gcommercial-unsafe` must gate the existing exception as well as any new copy-back allowance so the default remains strict. No flag implementation is visible at `origin/main` `1520ccee6`.
 
 ### 2026-09-23 same-event process resume order is unstable (compatibility question)
 
 - Active item: CALIPTRA-REJ-BOUNDED-RUNTIME (diagnosis only).
 - Observation: `vthread_add_event_wait` in `vvp/vthread.cc` pushes waiters at the list head, so two `initial forever @(posedge clk)` processes resume B,A on one edge and A,B on the next (`evidence/caliptra-rej-bounded/event_resume_order.sv`). IEEE 1800-2017/2023 4.7 permits any order, so this conforms. Unmodified Caliptra `rej_bounded_tb.sv` depends on declaration order between its scoreboard and zeroize checker and fails 8/10 vectors.
 - Triage: application race, recorded in `session_logs/2026-09-23_caliptra_rej_bounded_race.json`. Stable declaration-order resume would be a scheduler-wide compatibility change needing a user decision and documented vendor behavior; not selected.
+
+### 2026-09-23 IEEE 1800-2023 random real variables remain unsupported
+
+- Active blocker: SOLVE-BEFORE-FIXED-ARRAY integration boundary.
+- Observation: IEEE 1800-2023 18.4 permits `rand real` and 18.5.9 permits real values in `solve...before`. The current `-g2023` compiler rejects a `rand real` fixed array using an IEEE 1800-2017 18.4 diagnostic before solve-before lowering. The 2017 rejection is expected; the 2023 rejection is an unsupported edition feature, not proof that real ordering is invalid.
+- Evidence: `evidence/review-20260920/pr322-reconcile-build2/real_array_order.sv` and paired compile logs. Status: reproduced, not selected; real-valued solver representation and distributions require a separate scope.
