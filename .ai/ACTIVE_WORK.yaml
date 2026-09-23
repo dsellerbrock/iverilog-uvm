@@ -1,4 +1,4 @@
-status: in_progress
+status: published_pending_ci
 branch: agent/caliptra-param-consequent-repeat-20260923
 baseline: PR329 head 098080821454e9d2119141290cd2408fc76f3a6d; stacked while PR328 and PR329 await CI
 blocker: CALIPTRA-PARAM-CONSEQUENT-REPEAT
@@ -17,7 +17,9 @@ forbidden:
   - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without a documented scope expansion and ownership handoff.
   - Shared builds, installs, and regression output directories by an implementation agent; coordinator owns them.
 acceptance: Executable W=2 and W=3 instance overrides with exact pass/fail timing; early and terminal failure; overlapping attempts and vacuity; NBA and off-clock disable; W=0 and invalid-bound behavior; both -g2017 and -g2023; pinned Caliptra file reaches no parameter-repeat drop. Focused neighbors and required broad gates before qualification.
-dependency: PR328 merged at 4f66ed666; PR329 remains pending current-head CI. This branch is stacked on PR329 head but pform.cc work is source-disjoint. Publish a separate PR after local gates, then reconcile the stack after PR329 merges.
+dependency: PR328 merged at 4f66ed666; PR329 remains pending current-head CI. PR330 is stacked on PR329 head but pform.cc work is source-disjoint. Reconcile the stack after PR329 merges.
 evidence: docs/conformance/session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json
 parallel_lane: PR329 queue-pop source and focused evidence are preserved at pushed head 098080821454e9d2119141290cd2408fc76f3a6d while current-head CI runs.
-next: Review the locally qualified SVA patch, publish its separate PR, and monitor current-head CI. Do not claim Caliptra DV or full SVA qualification.
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/330
+pr_head: f46696830c3056889ab42c72dc7475f89dc36204
+next: Merge PR329 after one completed passing exact-head CI job; retarget PR330 to main and merge only after its own completed passing exact-head CI job. Do not claim Caliptra DV or full SVA qualification. Select a new disjoint blocker after safe ownership handoff.
