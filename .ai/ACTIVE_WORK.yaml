@@ -144,4 +144,6 @@ checkout_coordination:
   checkout_commit: 2c646e073
   rule: Record issue owner and file boundary before work; the sheet does not supersede this implementation authorization.
   pr322: Caller-method commit overlaps active elaborate.cc; reconcile before merge. Other observed commits remain separately reviewable.
-  next: Commit focused-tested state-only slice directly, then implement staged random-variable function actuals without premature sampling.
+  focused_commit: 378a8d121
+  focused_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/323 (draft; broad gates pending)
+  next: Implement staged random-variable function actuals without premature sampling, then run required broad gates before promotion.

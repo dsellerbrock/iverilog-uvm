@@ -567,4 +567,7 @@ inline_function_build5_checkpoint:
   focus: External, boundary, target, and permanent legacy/JSON cases pass for both language editions; full gates pending.
   unsupported: Actual inline random-variable function arguments compile-fail; wide results and call-receiver parser path remain open.
   overlap: PR322 caller-method commit overlaps active elaborate.cc; coordination comment posted on PR322.
-  next_command: git diff --check; stage only active compiler files, permanent regression files, and owning docs; commit directly.
+  focused_commit: 378a8d121
+  draft_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/323
+  next_command: python3 evidence/review-20260920/spi-external-cfg-constraint-next/run_focus.py build5-main-recheck
+  next_action: Implement staged random-variable actuals under ACTIVE_WORK, then run required broad gates before promotion.
