@@ -1,34 +1,26 @@
-status: LOCAL_GATES_PASSED_PR_PENDING
-branch: agent/opentitan-nba-20260923
-baseline: origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
-source_test_commit: a1c94078b
-qualification: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
-authorization: Coordinator-authorized parallel OpenTitan codegen work after the merged flag's required local gates passed. The two mechanisms have disjoint source and fixture ownership; shared builds, installs, manifests, and test-output directories belong to the coordinator.
-blocker: TASK-CODEGEN-ERROR-DROPPED
-standards: IEEE 1800-2017/2023 10.4.2 for the provoking NBA; compiler must report unsupported target forms as unsuccessful compilation.
-status_before_fix: REPRODUCED
-current_status: LOCAL_GATES_PASSED_PR_PENDING
-failing_reproducer: evidence/opentitan-codegen-assessment-20260923/nba_task_drop_repro.sv emits a vvp.tgt error but exits 0 and writes an unusable image.
-expected: A task-body target error makes compilation fail; valid tasks still compile and run.
-root_cause_hypothesis: tgt-vvp/vvp_scope.c ignores draw_task_definition's returned show_statement error count while the adjacent function path accumulates it.
+status: in_progress
+branch: agent/opentitan-queue-pop-20260923
+baseline: PR328 head 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f; stacked until PR328 merges
+blocker: OT-SPI-QUEUE-POP-DROPPED
+goal: Evaluate a parenthesis-free zero-argument queue pop_front or pop_back on a class property exactly once, return the typed element, and remove it; reject these queue-only methods on associative arrays in expression context.
+standards: IEEE 1800-2017/2023 5.13 and 7.10.2.4; a direct built-in method call may omit empty parentheses, and pop_front removes and returns the first element.
+failing_reproducer: evidence/opentitan-queue-pop-20260923/repro.sv compiles with a dropped-expression warning then fails its value/side-effect check in both editions.
+positive_control: The same reducer with -DPARENS_CONTROL passes in both editions.
+expected: The parenthesis-free and parenthesized calls have the same result and queue mutation; empty queue returns the specified nonexistent-element value without a mutation.
+root_cause: PEIdent::elaborate_expr_class_field_ in elab_expr.cc dropped parenthesis-free class-property queue methods; PECallFunction already emitted typed $ivl_queue_method$pop_front/back expressions for parenthesized calls.
 allowed_scope:
-  - tgt-vvp/vvp_scope.c and a dedicated task-error regression fixture/gold.
+  - elab_expr.cc class-property queue method expression path and necessary width typing.
+  - elab_expr.cc shared explicit-call and direct-receiver guards for the associative-array boundary found during review.
+  - Dedicated positive, negative, and boundary regression fixtures and gold files.
 forbidden:
-  - Changing target diagnostics or suppressing unsupported behavior.
-  - Editing selected-bit NBA lowering/runtime files assigned to the second lane.
-  - Editing shared test manifests or invoking shared builds/installs without coordinator scheduling.
-acceptance: Nonzero compiler exit for a still-unsupported task-body form in both relevant editions; positive valid-task control; focused legacy/JSON checks; no diagnostics weakened.
-parallel_lanes:
-  - blocker: VIF-NBA-SELECTED-BIT
-    status: LOCAL_GATES_PASSED_PR_PENDING
-    standards: IEEE 1800-2017/2023 10.4.2.
-    failing_reproducer: evidence/opentitan-codegen-assessment-20260923/vif_nba_selected_bit_pref_fix.sv currently emits unsupported-form error and no working NBA image.
-    expected: Capture VIF receiver, dynamic index, and four-state RHS at enqueue; update the selected bit in NBA, preserving neighbors and pre-NBA old value.
-    root_cause_hypothesis: tgt-vvp/stmt_assign.c rejects ivl_lval_idx for property NBA and runtime only schedules a constant bit offset.
-    allowed_scope: tgt-vvp/stmt_assign.c; tgt-vvp/vvp_process.c; necessary vvp opcode/parser/thread/scheduler files; dedicated selected-bit NBA regression fixtures/gold.
-    forbidden: tgt-vvp/vvp_scope.c; shared test manifests/build/install/output; unrelated assignment forms.
-    acceptance: Positive low/high-bit and four-state updates, receiver/index/RHS capture and pre-NBA old value in -g2017 and -g2023; focused negative/boundary controls and neighboring tests.
-dependency: Integrate diagnostic-integrity lane before judging SPI compile, but each implementation mechanism and source edit is independent.
-shared_validation: Focused paired 2017/2023, make check, legacy ivtest/VPI/negative/runtime invariants, full JSON, SVA NFA, and real-DPI UVM passed on source/test commit a1c94078b. SPI compile exits 0 with no target errors but five semantic degradation warnings; no OpenTitan or Caliptra DV claim.
-completed_baseline_gate: docs/conformance/session_logs/2026-09-23_pr326_postmerge_qualification.json
-application_followup: Caliptra Adams Bridge v2.0.3 rej_bounded patch is focused-tested; upstream PR303 open, pristine and full DV unqualified.
+  - OpenTitan or Caliptra source changes.
+  - VVP runtime and Claude-owned constraint/VIF event-relay files without a demonstrated necessity and coordinator scope update.
+  - Shared manifests, builds, installs, and output directories by an implementation agent; coordinator owns them.
+acceptance: Focused -g2017/-g2023 result and side-effect checks; parenthesized control; empty-queue boundary; invalid-arity negative; expression-context associative-array pop rejection with queue-valued element positive control; neighboring queue regressions; no compile-progress drop. These pass locally; broad required gates and CI remain pending. Statement-context associative-array pops remain a separate recorded defect in Claude-owned elaborate.cc.
+dependency: PR328 remains open; this branch is stacked on its tested source/test head and must be rebased or retargeted after PR328 merges.
+previous_candidate: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
+source_test_commit: 3b6d1986ff1633ba8c329f0dabdeb0369deb15e3
+evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
+boundary_evidence: docs/conformance/session_logs/2026-09-23_queue_pop_assoc_boundary.json
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
+next: Rebase after PR328 merges, run applicable broad gates at the next coherent checkpoint, and publish only qualified review scope.

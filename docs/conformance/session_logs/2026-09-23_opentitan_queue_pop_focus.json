@@ -1,0 +1,71 @@
+{
+  "title": "OpenTitan SPI class-property queue pop candidate",
+  "observed_utc": "2026-09-23T06:23:43.999154+00:00",
+  "blocker": "OT-SPI-QUEUE-POP-DROPPED",
+  "standards": [
+    "IEEE 1800-2017 5.13, 7.10.2.4",
+    "IEEE 1800-2023 5.13, 7.10.2.4"
+  ],
+  "candidate_branch": "agent/opentitan-queue-pop-20260923",
+  "base_commit": "1e60d4316e6c544512869a621a220a47df21a899",
+  "source_test_commit": "a0e45a3c796767fd1f20227713e0132fa1078d5a",
+  "dependency": "PR328 head 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f; branch stacked until merge/rebase",
+  "root_cause": "PEIdent::elaborate_expr_class_field_ dropped a parenthesis-free class-property queue method expression even though the explicit-call path already lowers typed pop_front/pop_back.",
+  "implementation": "Reuse existing $ivl_queue_method$pop_front/back NetESFunc on a terminal unindexed class-property queue tail; pass the receiver once and retain the element type.",
+  "baseline": {
+    "unparenthesized": {
+      "2017": "compile 0 with dropped-expression warning; runtime 1",
+      "2023": "compile 0 with dropped-expression warning; runtime 1"
+    },
+    "parenthesized_control": "compile and runtime 0 in both editions",
+    "raw": "evidence/opentitan-queue-pop-20260923/baseline.json and control.json"
+  },
+  "local_validation": {
+    "build": "make -j1; make -j1 install; both exit 0",
+    "make_check": "make -j1 check exit 0",
+    "paired_direct": {
+      "raw": "evidence/opentitan-queue-pop-20260923/paired-direct-results.json",
+      "compiler_engine_sha256": "50a7e7f391f9b78688505fa98692e20dc88098ab38ef64ad3ad2fe08fbe94876",
+      "vvp_sha256": "048dc46297c3ebaf5b5d089e78eb0d51d002ba13578753d3974479fa1dd71b69",
+      "2017": "positive compile 0/runtime 0; invalid arity compile 1",
+      "2023": "positive compile 0/runtime 0; invalid arity compile 1"
+    },
+    "legacy_focus": {
+      "name": "legacy",
+      "command": "perl vvp_reg.pl regress-class-prop-queue-pop-legacy.list",
+      "exit": 0,
+      "elapsed_seconds": 0.14,
+      "summary": "  Total=7, Passed=7, Failed=0, Not Implemented=0, Expected Fail=0"
+    },
+    "json_focus": {
+      "name": "json",
+      "command": "python3 vvp_reg.py regress-class-prop-queue-pop-vvp.list",
+      "exit": 0,
+      "elapsed_seconds": 0.147,
+      "summary": "Test results: Ran 7, Failed 0."
+    },
+    "focus_lists": [
+      "ivtest/regress-class-prop-queue-pop-legacy.list",
+      "ivtest/regress-class-prop-queue-pop-vvp.list"
+    ]
+  },
+  "application_compile": {
+    "source": "OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127, clean pinned generated source",
+    "options": [
+      "-g2012",
+      "-gcommercial-unsafe",
+      "-uvm",
+      "-DUVM_REGEX_NO_DPI"
+    ],
+    "compiler_engine_sha256": "50a7e7f391f9b78688505fa98692e20dc88098ab38ef64ad3ad2fe08fbe94876",
+    "exit": 0,
+    "target_errors": 0,
+    "queue_pop_dropped": 0,
+    "other_compile_progress_warnings": 4,
+    "remaining": "Four unresolved inline-constraint foreach indices owned by separate Claude lane; no semantic SPI compile or DV qualification.",
+    "raw": "evidence/opentitan-queue-pop-20260923/spi-compile-summary.json and spi-compile.log",
+    "generated_image": "49,656,489 bytes; removed after compile inspection"
+  },
+  "qualification": "Focused paired-edition and pinned application compile evidence only; broad required suites and current-head CI remain pending. No OpenTitan DV pass or full IEEE clause qualification.",
+  "application_sources_modified": false
+}

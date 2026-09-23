@@ -7785,6 +7785,17 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 						      perm_string method_name,
 						      const std::vector<named_pexpr_t>&parms)
 {
+      const netqueue_t*assoc_queue =
+	    dynamic_cast<const netqueue_t*>(container_type);
+      if (assoc_queue && assoc_queue->assoc_compat()
+	  && (method_name == "pop_front" || method_name == "pop_back")) {
+	    cerr << li->get_fileline() << ": error: " << method_name
+		 << " is not an associative array method." << endl;
+	    des->errors += 1;
+	    delete sub_expr;
+	    return 0;
+      }
+
       if (method_name == "num") {
 	    /* Use $ivl_assoc_method$num so eval_vec4.c emits %qsize/o
 	     * which calls dynamic_collection_size_() — properly handling
@@ -13837,6 +13848,31 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 	  } else if (dynamic_cast<const netdarray_t*>(cur_type)
 		     || dynamic_cast<const netqueue_t*>(cur_type)) {
 		// Built-in array method on a class-property darray/queue
+		// Queue pops may omit empty parentheses (IEEE 1800-2017/2023 5.13).
+		if (const netqueue_t*queue =
+		      dynamic_cast<const netqueue_t*>(cur_type)) {
+		      if (tail_is_last && tail_comp.index.empty()
+			  && (tail_comp.name == "pop_front"
+			      || tail_comp.name == "pop_back")) {
+			    if (queue->assoc_compat()) {
+			      cerr << get_fileline() << ": error: "
+				   << tail_comp.name
+				   << " is not an associative array method."
+				   << endl;
+			      des->errors += 1;
+			      delete base_expr;
+			      return nullptr;
+			    }
+			    NetESFunc*sys_expr = new NetESFunc(
+				  tail_comp.name == "pop_front"
+					? "$ivl_queue_method$pop_front"
+					: "$ivl_queue_method$pop_back",
+				  queue->element_type(), 1);
+			    sys_expr->set_line(*this);
+			    sys_expr->parm(0, base_expr);
+			    return sys_expr;
+		      }
+		}
 		if (tail_comp.name == "size" || tail_comp.name == "num") {
 		      NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
 							&netvector_t::atom2s32, 1);
@@ -22344,6 +22380,14 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  }
 		  const name_component_t member_comp = sr.path_tail.front();
 		  const netqueue_t*queue = sr.net->queue_type();
+		  if (queue->assoc_compat()
+		      && (member_comp.name == "pop_front"
+			  || member_comp.name == "pop_back")) {
+		    cerr << get_fileline() << ": error: " << member_comp.name
+			 << " is not an associative array method." << endl;
+		    des->errors += 1;
+		    return nullptr;
+		  }
 		  ivl_type_t element_type = queue->element_type();
 		  if (member_comp.name == "pop_back") {
 			NetESFunc*fun = new NetESFunc("$ivl_queue_method$pop_back",

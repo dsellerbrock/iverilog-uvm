@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_assoc_queue_pop_invalid.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_assoc_queue_pop_invalid"
+}

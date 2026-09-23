@@ -1695,3 +1695,18 @@ The [paired-edition local evidence](../session_logs/2026-09-23_constraint_state_
 includes bit-64 X/Z and adjacent PR323 function-capture checks. Known
 caller-state values wider than 64 bits remain a separate reproduced defect;
 this does not qualify clause 18.3 as a whole.
+
+### September 23 class-property queue pops
+
+The PARTIAL §§5.13/7.10.2.4 subset now evaluates a terminal, unindexed
+parenthesis-free `pop_front` or `pop_back` on a class-property queue using the
+same typed result and mutation as an explicit call. Paired-edition tests cover
+four-state elements, single removal, empty-queue default, and invalid arity.
+The [revision-scoped evidence](../session_logs/2026-09-23_opentitan_queue_pop_focus.json)
+records focused tests and the pinned SPI compile; broader gates and OpenTitan
+DV remain open.
+The [review boundary](../session_logs/2026-09-23_queue_pop_assoc_boundary.json)
+also rejects queue pops on associative arrays (§7.9) in expression context
+while preserving pops on queue-valued associative elements. Statement-context
+calls still compile incorrectly; [paired evidence](../session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
+keeps that boundary open. Broad qualification remains open.

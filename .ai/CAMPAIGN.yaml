@@ -1,41 +1,34 @@
 campaign: IEEE1800-UVM-continuous
-mission: IEEE 1800-2017 and 2023 independently, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
-branch: agent/opentitan-nba-20260923
-baseline: origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19 (PR326 and PR327 merged)
+mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
+branch: agent/opentitan-queue-pop-20260923
+baseline: PR328 head 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f; origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
-  id: TASK-CODEGEN-ERROR-DROPPED
-  phase: LOCAL_GATES_PASSED_PR_PENDING
-  requirement: Failed task-body target generation must propagate its error count to the compile result.
-  evidence: evidence/opentitan-codegen-assessment-20260923/nba_task_drop_repro.sv
-  next: Publish the coherent compiler PR; do not close until integrated and required checks pass.
-parallel_lanes:
-  - id: VIF-NBA-SELECTED-BIT
-    phase: LOCAL_GATES_PASSED_PR_PENDING
-    scope: Dynamic selected-bit NBA on a class or virtual-interface packed property; target lowering and VVP runtime only.
-    standards: IEEE 1800-2017/2023 10.4.2.
-    evidence: evidence/opentitan-codegen-assessment-20260923/vif_nba_selected_bit_pref_fix.sv
-    next: Publish with task-error lane; follow remaining SPI semantic warnings separately.
-candidate_qualification:
+  id: OT-SPI-QUEUE-POP-DROPPED
+  phase: FOCUS_VALIDATED_BROAD_PENDING
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
+  first_published_head: 1541e276009eb16c88b0f2bd2794c858d7bdb01f
+  ci: Pending on the current PR head; check its rollup before merge. PR328 remains the base dependency.
+  standard: IEEE 1800-2017/2023 5.13 and 7.10.2.4.
+  source_test_commit: 3b6d1986ff1633ba8c329f0dabdeb0369deb15e3
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
+  boundary_evidence: docs/conformance/session_logs/2026-09-23_queue_pop_assoc_boundary.json
+  separate_boundary: Statement-context associative-array queue pops still compile; ASSOC-QUEUE-POP-STATEMENT is recorded and elaborate.cc ownership remains with Claude.
+  next: PR328 current-head CI then rebase; run applicable broad gates at the next coherent checkpoint; keep SPI semantic warnings explicit.
+prior_candidate:
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/328
   source_test_commit: a1c94078b
-  record: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
-  result: All required local compiler, ivtest, JSON, SVA NFA, and real-DPI UVM gates passed; GitHub CI pending.
-baseline_qualification:
-  record: docs/conformance/session_logs/2026-09-23_pr326_postmerge_qualification.json
-  result: Required local gates passed on merged compiler/test tree; real-DPI UVM 358 passed with -g2012. GitHub CI pending.
+  qualification: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
+  status: Required local compiler/ivtest/JSON/SVA/real-DPI UVM gates passed; current-head CI queued, merge follow-up active.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
-  published: https://github.com/dsellerbrock/iverilog-uvm/pull/327
-  meaning: Pinned stable sources plus target-specific selected patches and observed necessary options; not full DV qualification.
-application_followup:
-  caliptra: Adams Bridge rej_bounded patch focused-tested; upstream PR303 open; pristine and full DV unqualified.
+  merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/327
+  meaning: Pinned stable sources with selected source overlays and necessary options for the test; neither full DV suite qualified.
 application_status:
-  opentitan: Candidate flagged SPI compile exits 0 with zero target errors, but four unresolved foreach indices and one dropped queue-pop expression preclude semantic compile or DV qualification. With upstream -DUVM_REGEX_NO_DPI enabled, fixed-seed SPI smoke advances past time-zero UVM build and aborts on a VIF event-relay runtime form at 3673793 ps; that mechanism is claimed in Claude's separate lane. Strict mode still rejects the packed container type mismatch.
-  caliptra: rej_bounded patched-testbench 100-vector unit replay passes on this worktree's compiler and current Adams Bridge main; pristine release fails and full DV is unqualified.
-release_profile: docs/conformance/release_overlays/README.md # "released OpenTitan/Caliptra" means pinned source plus target-specific patches and options; not full DV qualification.
+  opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
+  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails; full DV remains unqualified. Upstream PR303 open.
 preservation:
-  user_dirty_and_unrelated: Existing unrelated working-tree modifications and untracked files were left untouched.
-  documentation_scope: Post-merge qualification and the two selected compiler lanes are tracked; pinned application releases remain unmodified.
-  history: Earlier dated logs remain unchanged.
-  canonical_graph: Shared graph preserved and queried for navigation; it may lag merged main, so current source is checked before edits.
+  user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
+  application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
+  graph: Shared canonical graph queried first and verified against current source; no worktree graph created.
