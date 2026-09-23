@@ -23,3 +23,6 @@ sv_macro_recursion_limit_fail CE,-g2012 ivltests gold=sv_macro_recursion_limit_f
 sv_macro_pasted_function_name normal,-g2017,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
 sv_macro_pasted_function_name_2023 normal,-g2023,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
 sv_macro_casted_argument_balance normal,-g2017,-s,sv_macro_casted_argument_balance ivltests gold=sv_macro_casted_argument_balance.gold
+sv_macro_matched_bracket_actuals normal,-g2017,-s,sv_macro_matched_bracket_actuals ivltests gold=sv_macro_matched_bracket_actuals.gold
+sv_macro_actual_delimiter_boundaries normal,-g2017,-s,sv_macro_actual_delimiter_boundaries ivltests gold=sv_macro_actual_delimiter_boundaries.gold
+sv_macro_mismatched_group_fail CE,-g2017 ivltests gold=sv_macro_mismatched_group_fail.gold

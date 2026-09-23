@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-23",
+  "kind": "integrated compiler and pinned Caliptra ECC PM formal-filelist compile, not proof or DV runtime",
+  "compiler_branch": "agent/caliptra-sva-register-identity-20260923",
+  "compiler_head": "2a30f8f6ec25801575e928f8187dbf073c0c12c1",
+  "integrated_parent_pr334_head": "da12b889dc5d61945da0d714aba05817da6d95c5",
+  "installed_ivl_sha256": "0ed28220f03f688386044eb8e66162da1609a98696092fea17957e94d510be3a",
+  "pform_sha256": "db2d72355b00111de3da17726262f43669f444df7478182c03ab3a4ee04dc8a3",
+  "caliptra_release": "v2.1.2",
+  "caliptra_revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "caliptra_source_clean": true,
+  "property_file_sha256": "91622bb3516878883fa98765da85144291a3343573f0777ee1bfdb550ca8fe9c",
+  "filelist_sha256": "a1b22f20543ebdc0b732981c96554bd287e98d11236fa5d1860c8819aae95ef2",
+  "results": {
+    "long_sequence_focus": "6/6 passed; tests generated 999/1000/1001 flat steps with executable positive/failure actions",
+    "pinned_pm_2017": "compiler exit 0; zero diagnostics; no source overlay",
+    "pinned_pm_2023": "compiler exit 0; zero diagnostics; no source overlay",
+    "integrated_negative": "153 passed, 0 failed",
+    "integrated_sva_nfa": "62 passed, 0 failed",
+    "make_check": "exit 0"
+  },
+  "commands": {
+    "focus": "PATH=local-install/bin:$PATH perl vvp_reg.pl regress-caliptra-long-register-focus.list (cwd ivtest)",
+    "pinned_pm": "CALIPTRA_ROOT=<pinned v2.1.2> CALIPTRA_PRIM_ROOT=<root>/src/caliptra_prim_generic CALIPTRA_PRIM_MODULE_PREFIX=caliptra_prim_generic ADAMSBRIDGE_ROOT=<root>/submodules/adams-bridge local-install/bin/iverilog -g<2017|2023> -gassertions -tnull -s ecc_top -f <root>/src/ecc/config/ecc_top.vf <root>/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv",
+    "negative": "PATH=local-install/bin:$PATH bash tests/negative/run_negative.sh",
+    "sva_nfa": "PATH=local-install/bin:$PATH bash tests/sva_nfa/run.sh",
+    "make_check": "make -j1 check"
+  },
+  "raw_local_evidence": "evidence/caliptra-pm-integrated-20260923/{long-focus,pm-2017,pm-2023,negative,sva-nfa,make-check}.log",
+  "qualification_limit": "The full PM formal file compiles on the integrated compiler tree. No proof, simulation of the PM file, full Caliptra DV suite, or current-head CI has passed for this new branch."
+}

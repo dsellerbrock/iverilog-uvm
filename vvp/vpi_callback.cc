@@ -428,12 +428,10 @@ static value_callback* make_force_release(p_cb_data data)
 		use_net = pobj->net;
 		break;
 	  }
-	  case vpiNetBit:
-	  case vpiRegBit: {
-		  // M12-3: a cbForce/cbRelease callback on a single
-		  // bit-select handle (sig[i]) attaches to the parent
-		  // signal's filter, like a part-select. as_bit is the
-		  // first member of __vpiBit, so the handle aliases it.
+	  case vpiNetBit: {
+		  // A net bit-select handle is legacy __vpiBit::as_bit_t and
+		  // attaches to the parent net's filter. Variable bit-selects
+		  // are rejected by the default case below.
 		struct __vpiBit*bobj = reinterpret_cast<__vpiBit*>(data->obj);
 		struct __vpiSignal*parent = bobj->get_parent();
 		if (parent)

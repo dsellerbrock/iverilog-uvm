@@ -181,7 +181,26 @@ static int pragma_enter = 0;
 static int string_enter = 0;
 static int prev_state = 0;
 
-static int ma_parenthesis_level = 0;
+static char* ma_delimiter_stack = 0;
+static size_t ma_delimiter_depth = 0;
+static size_t ma_delimiter_capacity = 0;
+
+static void macro_push_delimiter(char delimiter)
+{
+	if (ma_delimiter_depth == ma_delimiter_capacity) {
+		ma_delimiter_capacity = ma_delimiter_capacity ? ma_delimiter_capacity*2 : 16;
+		ma_delimiter_stack = realloc(ma_delimiter_stack, ma_delimiter_capacity);
+	}
+	ma_delimiter_stack[ma_delimiter_depth++] = delimiter;
+}
+
+static int macro_pop_delimiter(char delimiter)
+{
+	if (ma_delimiter_depth == 0 || ma_delimiter_stack[ma_delimiter_depth-1] != delimiter)
+		return 0;
+	ma_delimiter_depth--;
+	return 1;
+}
 
 /* Keep malformed or recursively expanding input from growing the macro
  * input stack or doing unbounded replacement work. These limits are high
@@ -694,24 +713,32 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 
 <MA_ADD>{W} { macro_add_to_arg(1); }
 
-<MA_ADD>[({] { macro_add_to_arg(0); ma_parenthesis_level++; }
-
-<MA_ADD>"," {
-    if (ma_parenthesis_level > 0)
+<MA_ADD>(\(|\{|\[) {
 	macro_add_to_arg(0);
-    else
-	macro_finish_arg();
+	macro_push_delimiter(yytext[0]);
 }
 
-<MA_ADD>[)}] {
-    if (ma_parenthesis_level > 0) {
-	macro_add_to_arg(0);
-	ma_parenthesis_level--;
-    } else {
-	macro_finish_arg();
-	yy_pop_state();
-	do_expand(1);
-    }
+<MA_ADD>"," {
+	if (ma_delimiter_depth > 0)
+	    macro_add_to_arg(0);
+	else
+	    macro_finish_arg();
+}
+
+<MA_ADD>(\)|\}|\]) {
+	char opener = yytext[0] == ')' ? '(' : yytext[0] == ']' ? '[' : '{';
+	if (yytext[0] == ')' && ma_delimiter_depth == 0) {
+	    macro_finish_arg();
+	    yy_pop_state();
+	    do_expand(1);
+	} else if (macro_pop_delimiter(opener)) {
+	    macro_add_to_arg(0);
+	} else {
+	    emit_pathline(istack);
+	    fprintf(stderr, "error: mismatched delimiter in macro argument.\n");
+	    error_count += 1;
+	    BEGIN(ERROR_LINE);
+	}
 }
 
 <MA_ADD>(\n|"\r\n"|"\n\r"|\r){W}? {
@@ -1721,6 +1748,8 @@ static const char* macro_name(void)
 
 static void macro_start_args(void)
 {
+	ma_delimiter_depth = 0;
+
     /* The macro name can be found via cur_macro, so create a null
      * entry for arg 0. This will be used by macro_finish_arg() to
      * calculate the buffer location for arg 1.

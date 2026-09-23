@@ -1,5 +1,24 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### SV-MACRO-MATCHED-BRACKET-ACTUALS — square-bracket macro actuals split at comma
+
+- **State:** FOCUSED_TESTED at `1db116f83`; exact-head CI remains pending.
+- **Requirement:** IEEE 1800-2017/2023 §22.5.1 protects separators inside matched `()`, `[]`, and `{}` pairs. Mismatched pairs must not close another delimiter's nesting.
+- **Cause and closure:** The scanner counted only `()` and `{}` with one depth integer. A typed delimiter stack now handles matched `[]` and rejects mismatches while preserving strings, comments, and PR334's casted-literal handling. The [paired baseline](../../evidence/macro-bracket-assessment-20260923/README.md) and [integrated checks](session_logs/2026-09-23_vpi_macro_integrated_focus.json) bound this correction; 2023 triple quotes remain separate.
+
+### VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION — bit-select callbacks registered illegally
+
+- **State:** FOCUSED_TESTED at `48793f9e3`; exact-head CI remains pending.
+- **Requirement:** IEEE 1800-2017/2023 §38.36.1 disallows `cbForce` and `cbRelease` registration on variable bit-selects while allowing the supported whole-variable and net-bit forms.
+- **Cause and closure:** The legacy `vpiRegBit` and `vpiNetBit` handles shared one registration path. Removing `vpiRegBit` from that path yields a diagnostic and null registration; [paired baseline and integrated VPI checks](session_logs/2026-09-23_vpi_macro_integrated_focus.json) cover the boundary. Callback statement-object identity is a separate open defect.
+
+### CALIPTRA-SVA-LONG-SEQUENCE-REGISTER-COLLISION — generated SVA names collide at step 1000
+
+- **State:** FOCUSED_TESTED on source/test commit `4ff0581df`; integrated PR334-tree checks pass, with exact-head CI pending.
+- **Requirement:** IEEE 1800-2017/2023 §16.7 permits finite sequence concatenation without a 999-step naming limit. Each sampled check and action must remain observable; compilation alone is insufficient.
+- **Cause:** `pform_make_assertion` reserved `b999` for antecedent capture and reused `b999` for consequent step index 999. The [paired baseline and pinned Caliptra PM failure](../../evidence/caliptra-pm-formal-elab-triage-20260923/result.json) reproduce the collision.
+- **Evidence:** The [focused record](session_logs/2026-09-23_caliptra_long_sequence_register_focus.json) links executable 999/1000/1001-step 2017/2023 tests and local gates. On the [locally integrated PR334 tree](session_logs/2026-09-23_caliptra_pm_integrated_compile.json), the clean pinned PM formal filelist compiles without diagnostics in both editions. This is compile-only evidence; full Caliptra DV and formal proof remain open.
+
 ### OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG — cast splits a constraint macro actual
 
 - **State:** FOCUSED_TESTED on source/test commit `284a4c65d`, based on the clean pinned Earlgrey-PROD-M6 `adc_ctrl_sim` release target. [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) is open; merged-tree validation and fresh exact-head CI remain pending.

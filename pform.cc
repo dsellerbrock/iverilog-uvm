@@ -25973,7 +25973,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
 	    ante = conj;
       }
-      perm_string r_ante = sva_make_reg_(loc, inst, "b", 999);
+	/* Keep the antecedent sample outside the indexed "b" namespace: every
+	   finite consequent step, including index 999, may need its own bN. */
+      perm_string r_ante = sva_make_reg_(loc, inst, "antecap", 0);
       if (!fixed_antecedent_pipeline)
 	    pre.push_back(sva_assign_(loc, r_ante, ante));
       std::vector<perm_string> r_b (seq.size());

@@ -1,0 +1,6 @@
+sv_assert_long_register_999 normal,-g2017 ivltests gold=sv_assert_long_register_999.gold
+sv_assert_long_register_999_2023 normal,-g2023 ivltests gold=sv_assert_long_register_999.gold
+sv_assert_long_register_1000 normal,-g2017 ivltests gold=sv_assert_long_register_1000.gold
+sv_assert_long_register_1000_2023 normal,-g2023 ivltests gold=sv_assert_long_register_1000.gold
+sv_assert_long_register_1001 normal,-g2017 ivltests gold=sv_assert_long_register_1001.gold
+sv_assert_long_register_1001_2023 normal,-g2023 ivltests gold=sv_assert_long_register_1001.gold
