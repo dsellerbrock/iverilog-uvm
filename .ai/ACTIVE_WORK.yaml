@@ -1,6 +1,6 @@
 status: in_progress
 branch: agent/caliptra-late-default-clocking-20260923
-baseline: origin/main 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; installed ivl 1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13 reproduces the failure in both editions. PR332 and PR333 are separate frozen branches with CI queued.
+baseline: origin/main 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; installed ivl 1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13 reproduces the failure in both editions. Source/test commits 342226068 (Caliptra) and 284a4c65d (OpenTitan) have focused local evidence. PR332 and PR333 remain separate frozen branches pending exact-head CI.
 blocker: CALIPTRA-LATE-DEFAULT-CLOCKING
 goal: Resolve a module's default clocking for concurrent assertions that appear earlier in the same module, without changing procedural clock inference or accepting truly unclocked assertions.
 standards: IEEE 1800-2017 and IEEE 1800-2023 sections 14.12 and 16.14.6; the default clocking applies within its containing module scope.
@@ -19,21 +19,21 @@ acceptance: Baseline red on this branch; paired 2017/2023 positive, negative, bo
 implementation_lane:
   owner: Codex + reused Sol
   files: pform.cc and dedicated late-default SVA tests/golds only
-  state: Source and tests committed at 342226068; paired execution, SVA/negative/legacy/JSON focus, and make check pass. Documentation and publication remain.
+  state: Source/tests committed at 342226068; paired execution, SVA/negative/legacy/JSON focus, mapped real-DPI UVM groups, and make check pass. Revision-scoped evidence committed; PR publication remains.
 parallel_implementation_lane:
   id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
   owner: Codex + reused Luna
-  status: in_progress
+  status: focused_tested
   files: ivlpp/lexor.lex and dedicated macro scanner regressions only
   evidence: evidence/opentitan-next-independent-20260923/result.json; pinned clean Earlgrey-PROD-M6 adc_ctrl_sim first syntax blocker in adc_ctrl_filters_polled_vseq.sv.
   standards: IEEE 1800-2017 and 1800-2023 macro actual argument and unbased unsized literal lexical rules; confirm exact clauses before edit.
-  root_cause: In macro arguments, ivlpp/lexor.lex consumes apostrophe plus opening parenthesis as one token, so the cast operand's closing parenthesis prematurely ends the macro actual.
-  acceptance: Reproduce baseline preprocessing failure and ordinary-literal/procedural-cast controls; fix macro nesting without changing application source; positive nested-cast macro, negative malformed call, boundary string/comment/brace or nested-parenthesis regressions in both editions; focused macro suite and pinned ADC compile progress. Keep direct nonmacro constraint cast runtime mismatch as a separate blocker.
+  root_cause: In a cast of an unbased literal, ivlpp/lexor.lex consumes the cast apostrophe, opening delimiter, and literal apostrophe as one quoted-item token, so the delimiter is never counted and its closing mate prematurely ends the macro actual.
+  acceptance: Baseline red and controls captured; source/test commit 284a4c65d passes 2012/2017/2023 focus, macro legacy/JSON, negative, SVA, make check, and mapped real-DPI UVM plus smoke. The pinned ADC source list compiles, but ignored filter_cfg_size_c and wrong direct-cast width remain separate semantic blockers; no ADC DV pass.
   forbidden: Claude-owned vvp/vthread.cc or application source edits; shared builds/install/test output directories; claiming ADC DV passed from compile progress.
 parallel_assessment:
   id: OPENTITAN-NEXT-RELEASE-BLOCKER
   owner: Codex + reused Luna
   files: evidence/opentitan-next-20260923 only
   state: AON and SPI Device still fail on pinned release; both overlap Claude-owned elaborate.cc, so no implementation claim.
-pending_prs: PR332 exact head 9093a9e9f17a21847549a8433b28d59089a9d958 and PR333 exact head 80bd79f87f974dd2dccd9fd75faa4e5d62d6f54c are open with CI queued. Existing heartbeat checks exact heads before authorized merges.
-next: Complete Caliptra clocking documentation and PR; authorize Luna ivlpp-only implementation on the independent pinned ADC macro reducer. Coordinator retains shared build/install/test ownership.
+pending_prs: PR332 exact head 9093a9e9f17a21847549a8433b28d59089a9d958 and stacked PR333 exact head 80bd79f87f974dd2dccd9fd75faa4e5d62d6f54c are open. PR333 has one completed Ubuntu 24.04 CI success at 2026-09-23 11:35 UTC; PR332 remains queued. Existing heartbeat checks exact heads and merge order.
+next: Publish a two-slice compiler PR after final review; keep PR332/333 frozen until exact-head CI. Record the selected Caliptra ECC formal source overlay as compile-only and OpenTitan ADC semantic debt separately.

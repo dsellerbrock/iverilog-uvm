@@ -5,6 +5,11 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The tested 2023 §22.5.1 macro-actual cast-delimiter rule shares the [2017
+implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--cast-delimiters-inside-macro-actual-arguments).
+The 2023 text additionally names triple quotes as a matched delimiter; this
+candidate does not implement or qualify that edition-specific form.
+
 The tested 2023 §§14.12/16.14.6 late module default-clocking rule shares the
 [2017 implementation and scoped evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--late-module-default-clocking-for-assertions); paired
 edition execution found no difference in this subset. Broader SVA qualification

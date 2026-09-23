@@ -1,0 +1,11 @@
+diff --git a/src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv b/src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv
+--- a/src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv
++++ b/src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv
+@@ -119,7 +119,7 @@
+     //If the addra input has illegal addresses then the output douta should be zero
+         property illegal_addr_p;
+-            ((addra > DSA_NOP) && (addra < DSA_KG_S)) ||
++            ((addra > ECC_NOP) && (addra < DSA_KG_S)) ||
+             ((addra > DSA_KG_E) && (addra < DSA_SGN_S)) ||
+             ((addra > DSA_SGN_E) && (addra < DSA_VER_S)) ||
+             (addra > DSA_VER_E)

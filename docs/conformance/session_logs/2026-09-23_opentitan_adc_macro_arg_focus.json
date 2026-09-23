@@ -1,0 +1,46 @@
+{
+  "date": "2026-09-23",
+  "blocker": "OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG",
+  "standards": "IEEE 1800-2017 and 2023 22.5.1 macro actuals keep commas and right parentheses inside matched () and {}; 6.24.1 cast syntax; 5.7.1 unbased unsized literals",
+  "baseline": "The clean pinned ADC core compile exits 193 with first syntax error after adc_value_t'('1); prepatch ivlpp consumes apostrophe plus opening parenthesis without increasing macro-actual nesting. A casted-macro reducer fails in -g2012 and -g2017; an ordinary-literal macro and procedural cast pass. See 2026-09-23_opentitan_adc_macro_arg_baseline.json.",
+  "candidate": {
+    "source_test_commit": "284a4c65d3dcad07c8ab54841e02075d2d4c0e90",
+    "branch": "agent/caliptra-late-default-clocking-20260923",
+    "base": "42f324c90294ed7356a467e8b6c95d94a9ba2c6e",
+    "lexor_sha256": "f2b3559129de73e295ab761d3b10feeae038fa66eefd875ab830471e0081a3b1",
+    "positive_fixture_sha256": "83efe545c09258cd68dbb3857fffdc98918d3b68d188770199d553684ec6201f",
+    "negative_fixture_sha256": "9631b85a5b13ed574233a2a93e643af178d43005499147bdc3bd8fba8c9f7a31",
+    "installed_ivlpp_sha256": "35d983cb76b8df6ad118cfa7add3bb84d384eae38667ea0ffd9d6f54c42ccd21",
+    "installed_ivl_sha256": "6460085bb07160bc45806eab0af310c0437c936f5a4214bec8ce07fcbb4f3ef6",
+    "change": "Reconsume the opening ( or { after a cast apostrophe in the macro-argument scanner so the existing delimiter-depth logic tracks it. Ordinary unbased literals remain on their existing path."
+  },
+  "focused_execution": {
+    "command": "local-install/bin/iverilog -g<2012|2017|2023> -s sv_macro_casted_argument_balance -o <image> ivtest/ivltests/sv_macro_casted_argument_balance.v; local-install/bin/vvp -n <image>",
+    "positive": "all three editions compile exit 0, run exit 0, and print PASS macro casted argument balance",
+    "negative": "tests/negative/macro_unterminated_actual_argument.sv rejects with exit 2 and malformed-statement diagnostic in all three editions",
+    "checked": "type'('1) cast, type'{'1,'0} assignment pattern, ordinary '1, nested parentheses, a quoted comma/right parenthesis, comments, and a following macro argument",
+    "raw": "evidence/opentitan-next-independent-20260923/focused-candidate.json"
+  },
+  "local_validation": [
+    {"command": "PATH=../local-install/bin:$PATH perl vvp_reg.pl regress-macro-definition-focus-legacy.list (working directory ivtest)", "result": "25 passed, 0 failed"},
+    {"command": "PATH=../local-install/bin:$PATH python3 vvp_reg.py regress-macro-definition-focus-vvp.list (working directory ivtest)", "result": "8 passed, 0 failed"},
+    {"command": "PATH=local-install/bin:$PATH bash tests/negative/run_negative.sh", "result": "151 passed, 0 failed"},
+    {"command": "PATH=local-install/bin:$PATH bash tests/sva_nfa/run.sh", "result": "61 passed, 0 failed"},
+    {"command": "make -j1 check", "result": "exit 0"},
+    {"command": "PATH=local-install/bin:$PATH bash .github/regression/run_uvm_subset.sh --group sva", "result": "30 passed, 0 failed, 0 skipped; real DPI loaded"},
+    {"command": "PATH=local-install/bin:$PATH bash .github/regression/run_uvm_subset.sh --group clocking", "result": "15 passed, 0 failed, 0 skipped; real DPI loaded"},
+    {"command": "PATH=local-install/bin:$PATH bash .github/regression/run_uvm_subset.sh .github/regression/smoke.list", "result": "15 passed, 0 failed, 0 skipped; real DPI loaded"}
+  ],
+  "pinned_application": {
+    "release": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "source_clean": true,
+    "core": "lowrisc:dv:adc_ctrl_sim:0.1",
+    "generated_source_list_sha256": "e1df5f4f6d296ef25376d54213981ed604daea813e6640c0a6658e376392c50a",
+    "compile": "From the FuseSoC sim-icarus build directory, replay the baseline command with -g2012, pinned UVM 1.2, target defines and bind roots, and -c matrix-iverilog.scr; only the output image path differs.",
+    "result": "exit 0 with zero hard errors, but warns that filter_cfg_size_c contains a constraint item not representable in the solver and ignored; other source warnings remain. This is semantic DEBT, not a valid ADC DV compile pass.",
+    "runtime": "not run; the ignored size constraint and separately wrong direct cast-width reducer preclude a qualified smoke",
+    "raw": "evidence/opentitan-next-independent-20260923/candidate-adc-compile.json and candidate-adc-compile.log"
+  },
+  "limits": "This fixes one macro-argument scanning mechanism, not all clause-22 delimiter forms. Existing square-bracket macro-actual nesting is outside this change. Full ivtest/UVM suites, exact-head CI, merge, and ADC DV runtime remain separate."
+}

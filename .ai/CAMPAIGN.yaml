@@ -8,13 +8,13 @@ active_blocker:
   id: CALIPTRA-LATE-DEFAULT-CLOCKING
   phase: FOCUSED_TESTED
   evidence: evidence/caliptra-late-default-baseline-20260923/baseline.json on origin/main 42f324c90, paired red/early/no-default and pinned ECC compile controls; installed ivl SHA 1ddd808cd9ffda39.
-  next: Publish the committed pform.cc correction after review and revision-scoped evidence; pinned ECC formal now stops only at separate released-source DSA_NOP.
+  next: Publish the committed pform.cc correction after review and revision-scoped evidence; a test-specific disposable-copy overlay corrects the released ECC formal DSA_NOP typo for compile-only use.
 parallel_active_blocker:
   id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
-  phase: REPRODUCED
-  evidence: evidence/opentitan-next-independent-20260923/result.json on pinned clean Earlgrey-PROD-M6 adc_ctrl_sim.
+  phase: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json on clean pinned Earlgrey-PROD-M6 adc_ctrl_sim and source/test commit 284a4c65d.
   owner: Codex + reused Luna; ivlpp/lexor.lex and dedicated macro regressions only; coordinator owns shared builds and test output.
-  next: Confirm IEEE macro lexical behavior and patch the first ADC compile blocker, preserving a separate Claude-owned direct-cast runtime issue.
+  next: Publish the ivlpp correction with the Caliptra slice; classify the pinned ADC compile as semantic DEBT due ignored filter_cfg_size_c and wrong direct-cast width, with no DV run.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/332
     head: 9093a9e9f17a21847549a8433b28d59089a9d958
@@ -22,7 +22,7 @@ pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/333
     head: 80bd79f87f974dd2dccd9fd75faa4e5d62d6f54c
     base: PR332 branch; retarget to main after PR332 merges.
-    status: Focused local gates and clean pinned ECC bind compile passed; current-head CI queued. Merge only after its own completed exact-head success.
+    status: Focused local gates and clean pinned ECC bind compile passed; Ubuntu 24.04 completed exact-head CI success at 2026-09-23 11:35 UTC, but stacked PR332 must merge first.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
   meaning: Pinned stable sources with test-selected patches and options; neither full DV suite qualified.
@@ -30,9 +30,11 @@ application_status:
   opentitan_gpio: Pinned GPIO smoke prints TEST PASSED CHECKS and zero UVM errors, but matrix is DEBT due ten compiler warnings; full DV qualification remains open.
   opentitan_aon: Pinned AON compile fails event .triggered sensitivity. Claude owns the overlapping elaboration/runtime files.
   opentitan_spi_device: Pinned SPI Device compile fails nested inline constraint foreach. Claude owns overlapping elaborate.cc.
-  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; clean ECC formal named-antecedent bind compiles on PR333, but the next ECC formal file exposes late default-clock rejection. No full DV or formal qualification.
+  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; PR333 addresses the named ECC antecedent. Current branch removes five false late-clock errors; pristine ECC formal file then stops at upstream DSA_NOP typo and a one-token disposable-copy overlay compiles it. No full DV or formal qualification.
+  opentitan_adc: Pinned adc_ctrl_sim source list compiles after ivlpp candidate but ignores filter_cfg_size_c; a separate direct cast-width reducer is wrong. No runtime smoke or full DV pass.
+  caliptra_ecc_formal: Pinned pristine v2.1.2 filelist reaches upstream DSA_NOP typo after late-clock fix; a one-token disposable-copy overlay compiles both editions, not a proof or DV pass.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence remain untouched.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
-next_command: "Assign Luna ivlpp/lexor.lex and dedicated macro regression only; coordinator continues Caliptra PR integration and owns all builds."
+next_command: "Review the two source/test commits and owning documentation, verify exact-head local fingerprints, push the branch, and open one coherent compiler PR; leave application checkouts pristine."
