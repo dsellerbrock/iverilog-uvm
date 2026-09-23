@@ -1,0 +1,18 @@
+diff --git a/hw/dv/sv/dv_utils/dv_report_catcher.sv b/hw/dv/sv/dv_utils/dv_report_catcher.sv
+--- a/hw/dv/sv/dv_utils/dv_report_catcher.sv
++++ b/hw/dv/sv/dv_utils/dv_report_catcher.sv
+@@ -16,9 +16,11 @@ class dv_report_catcher extends uvm_report_catcher;
+     string id = get_id();
+     if (m_changed_sev.exists(id)) begin
+       string report_msg = get_message();
+-      foreach (m_changed_sev[id][msg]) begin
+-        if (uvm_re_match(msg, report_msg)) begin
+-          set_severity(m_changed_sev[id][msg]);
++      foreach (m_changed_sev[changed_id, msg]) begin
++        if (changed_id == id) begin
++          if (uvm_re_match(msg, report_msg)) begin
++            set_severity(m_changed_sev[changed_id][msg]);
++          end
+         end
+       end
+     end

@@ -23,6 +23,7 @@ parallel_lanes:
 application_status:
   opentitan: SPI compile not passed; strict has four type errors and flagged mode has five codegen errors. OpenTitan DV not passed.
   caliptra: rej_bounded patched-testbench 100-vector unit replay passes on this worktree's compiler and current Adams Bridge main; pristine release fails and full DV is unqualified.
+release_profile: docs/conformance/release_overlays/README.md # "released OpenTitan/Caliptra" means pinned source plus target-specific patches and options; not full DV qualification.
 preservation:
   user_dirty_and_unrelated: Existing unrelated working-tree modifications and untracked files were left untouched.
   documentation_scope: Owning records plus the Caliptra race patch/reproducer were changed; pinned application releases remain unmodified.
