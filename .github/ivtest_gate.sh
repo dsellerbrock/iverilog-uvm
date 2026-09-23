@@ -81,6 +81,28 @@ fi
 [ $status -eq 0 ] && echo "ivtest name-diff gate: clean ($(wc -l < "$WORK/actual.txt") expected failures, 0 unexplained)"
 
 echo ""
+echo "=== stub type parameters ==="
+if ! iverilog -g2012 -tstub -s test -o "$WORK/stub.out" \
+    "$ROOT/ivtest/ivltests/sv_stub_type_parameter.v"; then
+    echo "GATE FAIL: stub type parameter test did not compile."
+    status=1
+elif ! awk '
+    /^scope: test\.(default_type|overridden_type) / { scope = $2 }
+    /^end scope test\./ { scope = "" }
+    scope && /^   parameter type T;$/ { type[scope]++ }
+    scope && /^   parameter Width;$/ { width[scope]++ }
+    scope && /parameter=Width>/ { value[scope]++ }
+    END {
+        exit !(type["test.default_type"] == 1 && type["test.overridden_type"] == 1 &&
+               width["test.default_type"] == 1 && width["test.overridden_type"] == 1 &&
+               value["test.default_type"] == 1 && value["test.overridden_type"] == 1)
+    }
+' "$WORK/stub.out"; then
+    echo "GATE FAIL: stub output omitted a type or value parameter."
+    status=1
+fi
+
+echo ""
 echo "=== bundled VPI suite ==="
 perl vpi_reg.pl > "$WORK/vpi.log" 2>&1
 tail -1 "$WORK/vpi.log"
