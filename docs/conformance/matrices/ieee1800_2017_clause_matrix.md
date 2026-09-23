@@ -1741,5 +1741,26 @@ bound. It preserves empty-repeat timing at W=0, a separate obligation per
 antecedent match, four-state samples, vacuity, and `disable iff` cancellation.
 The [revision-scoped evidence](../session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json)
 owns the paired executable tests and pinned Caliptra formal-file compile.
-Other symbolic consequent shapes, the separate literal-NFA failure-count debt,
-full SVA support, and Caliptra DV/formal qualification remain open.
+Other symbolic consequent shapes, full SVA support, and Caliptra DV/formal
+qualification remain open. The fixed-linear literal overlap correction is
+scoped separately below.
+
+The PARTIAL §§16.8/16.9.2.1/16.12.7 named-antecedent follow-up resolves a
+declared one-step Boolean sequence before dispatching the same per-instance
+symbolic-consequent checker. [Paired executable and pinned ECC formal-bind
+evidence](../session_logs/2026-09-23_caliptra_named_sequence_antecedent.json)
+passes locally. Multi-step named antecedents with symbolic consequents remain
+loudly unsupported; broad gates, CI, and full Caliptra DV/formal qualification
+remain open.
+
+### September 23 fixed-linear SVA overlap verdicts and VPI identity
+
+The PARTIAL §§16.12.7/16.14.1 subset now dispatches one failure action for
+each distinct fixed non-negated consequent attempt, even when multiple
+attempts fail on one sampled edge. X/Z sampled guards are definite nonmatches;
+same-attempt checks do not duplicate a verdict. For this subset, §39.4.2
+failure callbacks carry the actual raw-time start across irregular clock
+intervals, Off gaps, Kill, and simultaneous failures. Paired 2017/2023
+regressions and required local gates pass in the [revision-scoped record](../session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
+Window, unbounded, negated, and other checker families retain their previous
+VPI metadata path; full assertion and formal qualification remain open.

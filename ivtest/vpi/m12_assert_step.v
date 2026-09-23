@@ -10,7 +10,8 @@
 //   t=15 A1 matches b          -> STEP_OK
 //        A2 (started 15) fails a at its first step -> STEP_FAIL+FAILURE
 //   t=25 A1 fails c            -> STEP_FAIL+FAILURE
-//        (A3 also dies at its first step, same tick: reports aggregate)
+//        A3 also dies at its first step on the same tick; each failed
+//        attempt has its own FAILURE callback, while STEP_FAIL aggregates.
 // A plain sequence reports a failure for an attempt that dies at its
 // FIRST step, so its attemptStartTime is the failing tick itself
 // rather than a latency-recovered launch (implications, where an

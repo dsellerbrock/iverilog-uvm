@@ -329,6 +329,19 @@ void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
       vpip_routines->assertion_report(idx, reason, scope);
 }
 
+void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_clock(idx, scope);
+}
+
+void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
+                               vpiHandle scope, PLI_INT32 age)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_report_age(idx, reason, scope, age);
+}
+
 PLI_INT32 vpip_assertion_cb_active(void)
 {
       assert(vpip_routines);

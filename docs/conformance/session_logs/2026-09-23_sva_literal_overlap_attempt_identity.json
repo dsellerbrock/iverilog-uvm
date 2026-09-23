@@ -1,0 +1,41 @@
+{
+  "id": "SVA-LITERAL-OVERLAP-FAILURE-COUNT",
+  "date_utc": "2026-09-23",
+  "status": "required local gates passed; PR332 open, CI pending",
+  "branch": "agent/sva-overlap-failure-count-20260923",
+  "semantic_revision": "e54b76124",
+  "baseline": {
+    "revision": "7590c2627",
+    "reproducer": "ivtest/ivltests/sv_assert_literal_overlap_failure_count.v",
+    "2017": "expected two same-edge failures, observed one; run exit 1",
+    "2023": "expected two same-edge failures, observed one; run exit 1"
+  },
+  "standard": "IEEE 1800-2017 and 1800-2023 16.12.7/16.14.1 require one consequent verdict and action per distinct antecedent match; 39.4.2 requires the failure callback's attemptStartTime to identify the actual attempt",
+  "root_cause": "The fixed literal form uses the legacy linear checker. A one-bit failure flag collapsed distinct dying pipeline tokens; four-state sampled X/Z did not become a definite nonmatch. The first NFA-only candidate left this form failing and was reverted. The count repair exposed a separate VPI start-time error when two attempts failed on one edge.",
+  "fix": "The fixed non-negated linear checker counts failures, records each failed token's age, and reports its raw sampled-clock start time before running failure actions in Reactive. Clock history includes Off gaps; Kill clears pending attempts. The existing two-argument VPI report path remains for other checker families.",
+  "installed_tool_sha256": {
+    "local-install/lib/ivl/ivl": "b3e617e00294044b4664ca3fb404b536152db956a8731def197c658a1e6035df",
+    "local-install/bin/vvp": "10a42b515bb9de3a4f6395ed3f1a32ce4765a86797d99367d27c5a3d806ff997"
+  },
+  "validation": {
+    "paired_edition_reducers": "-g2017 and -g2023 positive, negative, and boundary cases pass; same-edge failures, one-token nonduplication, vacuity, X/Z, disable, and success are checked",
+    "vpi_identity": "t25 callbacks carry distinct start25/start5; a separate irregular-clock, Off/Kill, and 1ns/1ps test passes",
+    "focused_legacy": "12/12 passed",
+    "focused_json": "12/12 passed",
+    "sva_nfa": "60/60 passed",
+    "integrated_gate": "exit 0; legacy Total=6374 Passed=6369 Failed=0 Not Implemented=2 Expected Fail=3, name-diff clean; VPI 127/127; negative 148/148; runtime invariants 15/15",
+    "real_dpi_uvm": "358/358 passed, zero failed/skipped after correcting the exact overlapping-attempt expectation in m9_sva_algebra_test",
+    "make_check": "exit 0; Hello, World",
+    "full_json": "exit 0; Ran 3307, Failed 0; both new paired-edition reducers passed"
+  },
+  "failed_intermediate_checks": [
+    "The ineffective NFA candidate remained red in both editions and was reverted.",
+    "The first count-only integrated gate passed legacy/negative/runtime but failed VPI 125/126 because both t25 callbacks reported start25. The raw-time bridge corrected that metadata.",
+    "The first full UVM run passed 357 and failed m9_sva_algebra_test's stale e1==1/e2==1 expectation. Per-attempt analysis requires e1==2/e2==1; the corrected exact check passed alone and in the second full run."
+  ],
+  "limits": [
+    "Window, unbounded, negated, and other assertion checker families retain the existing two-argument VPI report path; this does not qualify all SVA or assertion VPI.",
+    "The VPI callback moves before a potentially timed user failure action in the fixed path, consistent with existing NFA dispatch; callback metadata retains the failure time.",
+    "No OpenTitan or Caliptra application source was changed, and this compiler fix establishes no new full DV or formal qualification."
+  ]
+}

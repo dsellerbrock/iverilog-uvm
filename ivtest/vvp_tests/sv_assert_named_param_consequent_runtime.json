@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "../../tests/sva_nfa/named_antecedent_parameter_consequent_repeat.sv",
+    "iverilog-args": ["-g2017", "-gassertions", "-s", "named_antecedent_parameter_consequent_repeat"],
+    "gold": "sv_assert_named_param_consequent_runtime"
+}

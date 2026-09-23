@@ -1,6 +1,6 @@
 status: in_progress
 branch: agent/caliptra-late-default-clocking-20260923
-baseline: origin/main 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; installed ivl 1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13 reproduces the failure in both editions. Source/test commits 342226068 (Caliptra) and 284a4c65d (OpenTitan) have focused local evidence. PR332 and PR333 remain separate frozen branches pending exact-head CI.
+baseline: origin/main bdf461a8739e2fe45d3cd45ba047616e2433840c includes merged PR332 and PR333; installed ivl 1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13 reproduced the original failure in both editions. Source/test commits 342226068 (Caliptra) and 284a4c65d (OpenTitan) have focused local evidence; merged-tree revalidation is in progress.
 blocker: CALIPTRA-LATE-DEFAULT-CLOCKING
 goal: Resolve a module's default clocking for concurrent assertions that appear earlier in the same module, without changing procedural clock inference or accepting truly unclocked assertions.
 standards: IEEE 1800-2017 and IEEE 1800-2023 sections 14.12 and 16.14.6; the default clocking applies within its containing module scope.
@@ -14,12 +14,12 @@ forbidden:
   - OpenTitan, Caliptra, or Adams Bridge source edits; dropping assertions; compile-only completion claims.
   - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without ownership release.
   - Shared builds, installations, and shared test-output directories by implementation agents; coordinator owns them.
-dependency: Independent PR against origin/main. PR332 and PR333 modify other pform.cc regions; review and integrate after their exact-head CI merges as needed.
+dependency: PR332 and PR333 merged into main after exact-head CI success; their pform.cc regions auto-merged with this branch and require merged-tree review and revalidation.
 acceptance: Baseline red on this branch; paired 2017/2023 positive, negative, boundary, procedural-inference and nested-scope tests; pinned full ECC filelist loses only the five false clock errors while unrelated DSA_NOP remains visible; focused legacy/JSON/SVA/negative neighbors, make check, and required broader gates before qualification.
 implementation_lane:
   owner: Codex + reused Sol
   files: pform.cc and dedicated late-default SVA tests/golds only
-  state: Source/tests committed at 342226068; paired execution, SVA/negative/legacy/JSON focus, mapped real-DPI UVM groups, and make check pass. Revision-scoped evidence committed; PR publication remains.
+  state: Source/tests committed at 342226068; paired execution, SVA/negative/legacy/JSON focus, mapped real-DPI UVM groups, and make check passed before the main merge. PR334 is open; merged-tree revalidation and new exact-head CI remain.
 parallel_implementation_lane:
   id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
   owner: Codex + reused Luna
@@ -35,5 +35,5 @@ parallel_assessment:
   owner: Codex + reused Luna
   files: evidence/opentitan-next-20260923 only
   state: AON and SPI Device still fail on pinned release; both overlap Claude-owned elaborate.cc, so no implementation claim.
-pending_prs: PR332 exact head 9093a9e9f17a21847549a8433b28d59089a9d958 and stacked PR333 exact head 80bd79f87f974dd2dccd9fd75faa4e5d62d6f54c are open. PR333 has one completed Ubuntu 24.04 CI success at 2026-09-23 11:35 UTC; PR332 remains queued. Existing heartbeat checks exact heads and merge order.
-next: Publish a two-slice compiler PR after final review; keep PR332/333 frozen until exact-head CI. Record the selected Caliptra ECC formal source overlay as compile-only and OpenTitan ADC semantic debt separately.
+pending_prs: PR332 merged at 5dacd0dec86647b3c88578c2ed72ca2f7ee9671d and PR333 merged at bdf461a8739e2fe45d3cd45ba047616e2433840c after completed exact-head CI successes. PR334 remains open; its merge commit needs a fresh exact-head CI success before merge.
+next: Revalidate the merged compiler/test tree, push PR334's resolved merge commit, and merge after one completed exact-head CI success. Keep the Caliptra ECC overlay compile-only and OpenTitan ADC semantic debt separate.

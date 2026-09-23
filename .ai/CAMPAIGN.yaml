@@ -1,28 +1,30 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/caliptra-late-default-clocking-20260923
-baseline: origin/main 42f324c90294ed7356a467e8b6c95d94a9ba2c6e after PR331 merged; PR332 and PR333 remain open on frozen exact heads.
+baseline: origin/main bdf461a8739e2fe45d3cd45ba047616e2433840c includes merged PR332 and PR333; PR334 is integrating that main tree.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: CALIPTRA-LATE-DEFAULT-CLOCKING
   phase: FOCUSED_TESTED
   evidence: evidence/caliptra-late-default-baseline-20260923/baseline.json on origin/main 42f324c90, paired red/early/no-default and pinned ECC compile controls; installed ivl SHA 1ddd808cd9ffda39.
-  next: Publish the committed pform.cc correction after review and revision-scoped evidence; a test-specific disposable-copy overlay corrects the released ECC formal DSA_NOP typo for compile-only use.
+  next: Revalidate PR334's merged tree and await a completed exact-head CI success; the test-specific ECC formal DSA_NOP overlay remains compile-only.
 parallel_active_blocker:
   id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
   phase: FOCUSED_TESTED
   evidence: docs/conformance/session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json on clean pinned Earlgrey-PROD-M6 adc_ctrl_sim and source/test commit 284a4c65d.
   owner: Codex + reused Luna; ivlpp/lexor.lex and dedicated macro regressions only; coordinator owns shared builds and test output.
-  next: Publish the ivlpp correction with the Caliptra slice; classify the pinned ADC compile as semantic DEBT due ignored filter_cfg_size_c and wrong direct-cast width, with no DV run.
+  next: Revalidate the ivlpp correction on PR334's merged tree; pinned ADC compile remains semantic DEBT due ignored filter_cfg_size_c and wrong direct-cast width, with no DV run.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/332
     head: 9093a9e9f17a21847549a8433b28d59089a9d958
-    status: Required local gates passed; all six current-head CI jobs queued at 2026-09-23 10:40 UTC. Merge after one completed exact-head success.
+    status: Merged at 5dacd0dec86647b3c88578c2ed72ca2f7ee9671d after completed exact-head Ubuntu 24.04 CI success.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/333
     head: 80bd79f87f974dd2dccd9fd75faa4e5d62d6f54c
-    base: PR332 branch; retarget to main after PR332 merges.
-    status: Focused local gates and clean pinned ECC bind compile passed; Ubuntu 24.04 completed exact-head CI success at 2026-09-23 11:35 UTC, but stacked PR332 must merge first.
+    base: main after PR332 merge.
+    status: Merged at bdf461a8739e2fe45d3cd45ba047616e2433840c after completed exact-head Ubuntu 24.04 CI success.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/334
+    status: Open; resolving integration with merged main and requiring a fresh exact-head CI success.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
   meaning: Pinned stable sources with test-selected patches and options; neither full DV suite qualified.
@@ -30,11 +32,13 @@ application_status:
   opentitan_gpio: Pinned GPIO smoke prints TEST PASSED CHECKS and zero UVM errors, but matrix is DEBT due ten compiler warnings; full DV qualification remains open.
   opentitan_aon: Pinned AON compile fails event .triggered sensitivity. Claude owns the overlapping elaboration/runtime files.
   opentitan_spi_device: Pinned SPI Device compile fails nested inline constraint foreach. Claude owns overlapping elaborate.cc.
-  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; PR333 addresses the named ECC antecedent. Current branch removes five false late-clock errors; pristine ECC formal file then stops at upstream DSA_NOP typo and a one-token disposable-copy overlay compiles it. No full DV or formal qualification.
+  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; merged PR333 addresses the named ECC antecedent. Current branch removes five false late-clock errors; pristine ECC formal file then stops at upstream DSA_NOP typo and a one-token disposable-copy overlay compiles it. No full DV or formal qualification.
   opentitan_adc: Pinned adc_ctrl_sim source list compiles after ivlpp candidate but ignores filter_cfg_size_c; a separate direct cast-width reducer is wrong. No runtime smoke or full DV pass.
   caliptra_ecc_formal: Pinned pristine v2.1.2 filelist reaches upstream DSA_NOP typo after late-clock fix; a one-token disposable-copy overlay compiles both editions, not a proof or DV pass.
+  opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
+  opentitan_pwrmgr: Two overlay smoke seeds passed on compiler head f46696830; evidence is docs/conformance/session_logs/2026-09-23_pwrmgr_release_overlay_current.json. Full DV remains open.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence remain untouched.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
-next_command: "Review the two source/test commits and owning documentation, verify exact-head local fingerprints, push the branch, and open one coherent compiler PR; leave application checkouts pristine."
+next_command: "Revalidate merged PR334 compiler/test tree, push its conflict-resolution merge commit, and await a completed exact-head CI success."
