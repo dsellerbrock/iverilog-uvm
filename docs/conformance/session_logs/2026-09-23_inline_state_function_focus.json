@@ -21,6 +21,14 @@
     "Function-call receiver syntax for inline randomize is a separate parser discovery.",
     "Required broad integrated gates and complete OpenTitan SPI DV are not run or qualified for this candidate."
   ],
-  "application": "Earlier pristine M6 SPI compile on build2 removed the external cfg method diagnostic; other queue and nested-struct errors remained. No post-fast-forward application qualification is claimed.",
+  "application": {
+    "evidence": "evidence/review-20260920/spi-external-cfg-constraint-next/application-build5-main/result.json",
+    "stable_release_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "corpus_clean": true,
+    "installed_tool_fingerprints_match_build5": true,
+    "compile_exit": 3,
+    "remaining_diagnostics": "Two queue/dynamic-array output-formal element-type equivalence errors in spi_host_driver.sv and one unsupported nested unpacked-struct constraint path in spi_host_upper_range_clkdiv_vseq.sv. The earlier external cfg method diagnostic is absent.",
+    "qualification": "Compile-only evidence; SPI DV did not run or pass."
+  },
   "coordination": "PR322 caller-method commit overlaps elaborate.cc. See .ai/ISSUE_CHECKOUT.csv; reconcile before merge."
 }
