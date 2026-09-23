@@ -76,6 +76,20 @@ parallel_adc_typed_fill_lane:
   files: elaborate.cc constraint IR and vvp/vvp_z3.cc cast/fill solver path as required; dedicated constraint ivtest fixtures only. No elab_expr.cc queue-size edits, VPI, pinned application sources, shared manifests, or build outputs.
   acceptance: Typed 16- and 17-bit unbased '1 constraints solve to all-ones before equality; 1-bit and sized 1'b1 controls remain 1; 'x/'z four-state direct cast controls stay exact; compatible and contradictory combined constraints behave correctly; paired editions and neighboring constraint regressions pass. No ADC DV claim from reducer.
   state: Coordinator-authorized after verifying no active Claude process or open Claude PR; corrected source trace identifies IR/solver rather than the secondary vvp/vthread.cc warning. Disjoint from the SPI elab_expr.cc lane.
+pr339_caller_queue_ci_repair_lane:
+  id: PR339-CALLER-QUEUE-STATE-WIDTH
+  owner: Reused lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and CI.
+  reproducer: PR339 exact-head Ubuntu 22.04 CI and local six-test legacy focus; all paired sv_constraint_caller_queue, boundaries, and rollback cases fail at runtime with state value width mismatch.
+  files: elaborate.cc constraint foreach IR and vvp/vvp_z3.cc state foreach solver path as needed; dedicated regression fixtures only. No VPI callback files, elab_expr.cc queue-size lane, shared manifests, or build outputs.
+  acceptance: Six existing 2017/2023 caller-queue tests pass with enforced values, rollback and out-of-bounds behavior; new sparse-key SPI foreach checks and ADC typed-fill controls remain passing. No warning suppression or dropped constraints.
+  state: Coordinator-authorized CI regression repair; PR339 has no completed successful CI job yet.
+pr339_vpi_ci_repair_lane:
+  id: PR339-VPI-PACKED-FORCE-OVERLAP
+  owner: Reused lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and CI.
+  reproducer: PR339 exact-head Ubuntu 22.04 CI and local bundled VPI suite fail packed_force_overlap in 2017 and 2023; new statement-object VPI tests passed focused locally.
+  files: VPI force/release callback source in vvp and necessary tgt-vvp codegen only; dedicated VPI fixture if required. No elaborate.cc, vvp/vvp_z3.cc, elab_expr.cc, shared manifests, or build outputs.
+  acceptance: Existing packed_force_overlap paired tests and new cbForce/cbRelease statement-object tests pass together; preserve selected-part overlap filtering and VPI registration semantics. Do not alter gold just to silence failure.
+  state: Coordinator-authorized independent CI regression repair; PR339 head remains fixed until a reviewed patch is ready.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated Verilator rebuild, DOE replay, and integration review.

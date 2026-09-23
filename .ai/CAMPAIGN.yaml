@@ -78,6 +78,22 @@ parallel_adc_typed_fill_lane:
   acceptance: 16/17-bit typed unbased fills remain all-ones in inline constraints; one-bit/sized operand, direct four-state casts, compatible/contradictory conjunctions and neighboring tests retain correct behavior in both editions.
   dependency: Claude's prior vvp/vthread ownership claim is stale; no active Claude process or open Claude PR was found. Independent of SPI queue elab_expr.cc lane.
   state: Coordinator-authorized as the second compiler implementation lane; no ADC DV pass claim.
+pr339_caller_queue_ci_repair_lane:
+  id: PR339-CALLER-QUEUE-STATE-WIDTH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build/install, manifests and CI.
+  files: elaborate.cc; vvp/vvp_z3.cc; dedicated tests only. VPI files and elab_expr.cc are excluded.
+  evidence: PR339 Ubuntu 22.04 exact-head CI plus local six-case caller-queue focus, all runtime failures at state-width metadata check.
+  acceptance: Paired existing caller-queue, boundary and rollback cases pass without dropped constraints; sparse-key SPI and ADC typed-fill controls remain passing.
+  dependency: Disjoint from VPI force callback files; preserve current typed-fill candidate in elaborate.cc.
+  state: Coordinator-authorized repair before PR339 can merge on successful CI.
+pr339_vpi_ci_repair_lane:
+  id: PR339-VPI-PACKED-FORCE-OVERLAP
+  owner: Reused lower-cost implementation agent; coordinator owns shared build/install, manifests and CI.
+  files: VPI force/release callback and required codegen files only. No elaborate.cc, vvp/vvp_z3.cc, or elab_expr.cc.
+  evidence: PR339 Ubuntu 22.04 exact-head CI plus local bundled VPI suite; only packed_force_overlap 2017/2023 fails.
+  acceptance: Existing packed-overlap and new statement-object VPI regressions pass together with no test weakening.
+  dependency: Disjoint from caller-queue state metadata lane; PR339 head remains fixed during diagnosis.
+  state: Coordinator-authorized repair before PR339 can merge on successful CI.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
