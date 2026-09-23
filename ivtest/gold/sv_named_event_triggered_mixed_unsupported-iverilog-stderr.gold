@@ -1,0 +1,2 @@
+ivltests/sv_named_event_triggered_mixed_unsupported.v:4: error: unsupported event control on named-event triggered property.
+1 error(s) during elaboration.

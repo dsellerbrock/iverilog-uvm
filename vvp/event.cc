@@ -1965,18 +1965,49 @@ vvp_named_event::~vvp_named_event()
 {
 }
 
+/* Only events that fired in the current slot need a 1-to-0 notification.
+ * Swap the set before dispatch so a trigger during dispatch belongs to the
+ * new slot, and erase on destruction to avoid retaining stale functors. */
+static std::set<vvp_named_event_sa*> triggered_in_slot;
+static std::set<named_event_aa_state_s*> triggered_aa_in_slot;
+
+void vvp_named_event_triggered_time_advance()
+{
+      std::set<vvp_named_event_sa*> expired;
+      expired.swap(triggered_in_slot);
+      for (vvp_named_event_sa*event : expired)
+            event->triggered_time_advance();
+      std::set<named_event_aa_state_s*> expired_aa;
+      expired_aa.swap(triggered_aa_in_slot);
+      for (named_event_aa_state_s*state : expired_aa)
+            vthread_schedule_event_waiters(state->triggered_change_threads);
+}
+
 vvp_named_event_sa::vvp_named_event_sa(__vpiHandle*h)
-: vvp_named_event(h), threads_(0)
+: vvp_named_event(h), threads_(0), triggered_change_threads_(0)
 {
 }
 
 vvp_named_event_sa::~vvp_named_event_sa()
 {
+      triggered_in_slot.erase(this);
+      while (triggered_change_threads_)
+            vthread_cancel_event_wait(triggered_change_threads_);
 }
 
 vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
 {
       return vthread_add_event_wait(thread, &threads_);
+}
+
+vthread_t vvp_named_event_sa::add_triggered_change_waiter(vthread_t thread)
+{
+      return vthread_add_event_wait(thread, &triggered_change_threads_);
+}
+
+void vvp_named_event_sa::triggered_time_advance()
+{
+      vthread_schedule_event_waiters(triggered_change_threads_);
 }
 
 void vvp_named_event::note_triggered(void)
@@ -1993,7 +2024,12 @@ bool vvp_named_event::triggered_now(void) const
 void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                    vvp_context_t)
 {
+      bool first_trigger = !triggered_now();
       note_triggered();
+      if (first_trigger) {
+            triggered_in_slot.insert(this);
+            vthread_schedule_event_waiters(triggered_change_threads_);
+      }
       run_waiting_threads_(threads_);
       vvp_net_t*net = port.ptr();
       net->send_vec4(bit, 0);
@@ -2012,27 +2048,41 @@ vvp_named_event_aa::vvp_named_event_aa(__vpiHandle*h)
 
 vvp_named_event_aa::~vvp_named_event_aa()
 {
+      for (named_event_aa_state_s*state : active_states_) {
+            triggered_aa_in_slot.erase(state);
+            while (state->triggered_change_threads)
+                  vthread_cancel_event_wait(state->triggered_change_threads);
+      }
 }
 
 void vvp_named_event_aa::alloc_instance(vvp_context_t context)
 {
-      vvp_set_context_item(context, context_idx_, new waitable_state_s);
+      named_event_aa_state_s*state = new named_event_aa_state_s;
+      active_states_.insert(state);
+      vvp_set_context_item(context, context_idx_, state);
 }
 
 void vvp_named_event_aa::reset_instance(vvp_context_t context)
 {
-      waitable_state_s*state = static_cast<waitable_state_s*>
+      named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
+      triggered_aa_in_slot.erase(state);
+      while (state->triggered_change_threads)
+            vthread_cancel_event_wait(state->triggered_change_threads);
       assert(state->threads == 0);
       state->threads = 0;
+      state->last_trigger_time = 0;
+      state->ever_triggered = false;
 }
 
 #ifdef CHECK_WITH_VALGRIND
 void vvp_named_event_aa::free_instance(vvp_context_t context)
 {
-      waitable_state_s*state = static_cast<waitable_state_s*>
+      named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>
             (vvp_get_context_item(context, context_idx_));
+      triggered_aa_in_slot.erase(state);
+      active_states_.erase(state);
       delete state;
 }
 #endif
@@ -2044,6 +2094,22 @@ vthread_t vvp_named_event_aa::add_waiting_thread(vthread_t thread)
                                                 context_scope_));
 
       return vthread_add_event_wait(thread, &state->threads);
+}
+
+vthread_t vvp_named_event_aa::add_triggered_change_waiter(vthread_t thread)
+{
+      named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>
+            (vthread_get_wt_context_item_scoped(context_idx_, context_scope_));
+      assert(state);
+      return vthread_add_event_wait(thread, &state->triggered_change_threads);
+}
+
+bool vvp_named_event_aa::triggered_now(void) const
+{
+      const named_event_aa_state_s*state = static_cast<const named_event_aa_state_s*>
+            (vthread_get_rd_context_item_scoped(context_idx_, context_scope_));
+      return state && state->ever_triggered
+            && state->last_trigger_time == schedule_simtime();
 }
 
 vvp_named_event_dyn::vvp_named_event_dyn()
@@ -2105,10 +2171,17 @@ void vvp_named_event_aa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                                  "recv-named-event-aa");
       assert(context);
 
-      waitable_state_s*state = static_cast<waitable_state_s*>
+      named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>
             (vvp_get_context_item(context, context_idx_));
 
-      note_triggered();
+      bool first_trigger = !state->ever_triggered
+            || state->last_trigger_time != schedule_simtime();
+      state->last_trigger_time = schedule_simtime();
+      state->ever_triggered = true;
+      if (first_trigger) {
+            triggered_aa_in_slot.insert(state);
+            vthread_schedule_event_waiters(state->triggered_change_threads);
+      }
       run_waiting_threads_(state->threads);
       vvp_net_t*net = port.ptr();
       net->send_vec4(bit, context);

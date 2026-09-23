@@ -5829,6 +5829,20 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
 
+      if (strcmp(stmt_name, "$ivl_wait_event_triggered_change") == 0) {
+	    if (ivl_stmt_parm_count(net) != 1
+		|| ivl_expr_type(ivl_stmt_parm(net, 0)) != IVL_EX_EVENT) {
+		  fprintf(stderr, "%s:%u: internal error: malformed triggered "
+		          "event wait.\n", ivl_stmt_file(net),
+		          ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    show_stmt_file_line(net, "Named-event triggered property wait.");
+	    fprintf(vvp_out, "    %%wait/triggered E_%p;\n",
+		    ivl_expr_event(ivl_stmt_parm(net, 0)));
+	    return 0;
+      }
+
 	/* IEEE 1800-2017/2023 8.19. This compiler-generated guard surrounds
 	 * one authorized source assignment before that assignment is lowered
 	 * into any element-wise stores. The receiver is always the constructor's

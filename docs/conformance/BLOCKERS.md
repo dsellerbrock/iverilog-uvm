@@ -2,9 +2,15 @@
 
 ### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
 
-- **State:** Merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at `909e3f314` after exact-head Ubuntu 22.04 success. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile; no SPI Device DV pass is claimed.
+- **State:** Merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at `909e3f314` after exact-head Ubuntu 22.04 success. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile. No SPI Device DV qualification is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
 - **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls remain separate debt; the pinned SPI compile still fails on other mechanisms.
+
+### OT-AON-EVENT-TRIGGERED-SENSITIVITY — named-event property changes
+
+- **State:** Integrated at `0a902ee9f`; the [revision-scoped replay](session_logs/2026-09-23_inside_array_named_event_integration.json) records paired static and automatic checks and a zero-error released AON compile. The bounded smoke produced no UVM verdict; its time trace advanced to about 416 us, so a zero-time spin is not established.
+- **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps `e.triggered` true through the firing time step. `@(e.triggered)` observes its value changes, including the reset at the next real time advance, with independent state per automatic activation.
+- **Next:** Resolve the AON smoke runtime outcome before claiming a DV pass. Mixed event-control expressions remain a diagnosed unsupported subset.
 
 ### OT-SPI-ASSOC-FIND-INDEX — keyed associative locator
 
@@ -27,8 +33,8 @@
 
 ### OT-SPI-INSIDE-CONST-ARRAY — unpacked parameter array in an `inside` set
 
-- **State:** RED in both editions after the scope-queue fix; six released SPI Device sites reach a vector-context codegen error. [Two-form reducer and diagnosis](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md).
-- **Requirement:** IEEE 1800-2017/2023 §11.4.13 expands an unpacked array used in an `inside` set into its elements. The constant parameter-array path needs aggregate-aware lowering, not a vector zero fallback.
+- **State:** The ordinary-expression constant-parameter-array path is implemented at `88f0e9044`; paired 2017/2023 focused evidence is in the [integration record](session_logs/2026-09-23_inside_array_named_event_integration.json). One separate constraint-context `inside` kind-26 error remains in the pinned SPI Device compile; this subset does not resolve constraint lowering.
+- **Requirement:** IEEE 1800-2017/2023 §11.4.13 recursively traverses an unpacked array in an `inside` set to its singular elements and applies asymmetric wildcard equality to integral comparisons. The independent queue-concatenation form remains tracked under [OT-SPI-QUEUE-ARRAY-CONCAT](#ot-spi-queue-array-concat).
 
 ### OT-SPI-QUEUE-ARRAY-CONCAT — unpacked array concatenation assigned to a queue
 

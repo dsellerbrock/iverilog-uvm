@@ -273,6 +273,7 @@ extern bool of_EVT_OBJ_NB(vthread_t thr, vvp_code_t code);
 extern bool of_EVTEST_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_ARR(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_TRIGGERED(vthread_t thr, vvp_code_t code);
 extern bool of_EVCTL(vthread_t thr, vvp_code_t code);
 extern bool of_EVCTLC(vthread_t thr, vvp_code_t code);
 extern bool of_EVCTLI(vthread_t thr, vvp_code_t code);

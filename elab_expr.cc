@@ -6331,6 +6331,8 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 		     Queue and dynamic-array values keep using the runtime
 		     $ivl_inside_arr helper below. */
 		  NetNet*fixed_array = nullptr;
+		  bool is_param_array = false;
+		  NetEArrayPattern*param_array = nullptr;
 		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(r.hi)) {
 			symbol_search_results sr;
 			bool found = symbol_search(id, des, scope, id->path(),
@@ -6342,9 +6344,69 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 			    && sr.net->darray_type() == nullptr
 			    && sr.net->queue_type() == nullptr)
 			      fixed_array = sr.net;
+			/* Constant unpacked array parameters elaborate to an
+			 * ArrayPattern. In an inside set, that pattern represents the
+			 * array's elements (IEEE 1800-2017 11.4.13), so expand its leaves
+			 * here just as fixed-array signals are expanded above. */
+			bool exact_param_name = found && sr.par_val && sr.scope
+			      && sr.path_tail.empty() && !sr.path_head.empty()
+			      && sr.path_head.back().index.empty()
+			      && sr.scope->is_array_parameter(
+				    sr.path_head.back().name);
+			if (exact_param_name) {
+			      is_param_array = true;
+			      unsigned errors_before = des->errors;
+			      NetExpr*value = id->elaborate_expr(
+				    des, scope, static_cast<ivl_type_t>(nullptr), flags);
+			      param_array = dynamic_cast<NetEArrayPattern*>(value);
+			      if (!param_array) {
+				    delete value;
+				    if (des->errors == errors_before) {
+					  cerr << get_fileline() << ": error: Could not "
+					       "materialize unpacked array parameter in "
+					       "inside expression." << endl;
+					  des->errors += 1;
+				    }
+			      }
+			}
 		  }
 
-		  if (fixed_array) {
+		  if (is_param_array) {
+			    std::vector<NetExpr*>items;
+			    std::function<void(const NetExpr*)>append_leaves =
+				  [&](const NetExpr*expr) {
+					const NetEArrayPattern*array =
+					      dynamic_cast<const NetEArrayPattern*>(expr);
+					if (array) {
+					      for (size_t idx = 0 ;
+						   idx < array->item_size(); idx += 1)
+						    append_leaves(array->item(idx));
+					} else if (expr) {
+					      items.push_back(expr->dup_expr());
+					}
+				  };
+			    append_leaves(param_array);
+			    delete param_array;
+
+			    for (size_t idx = 0 ; idx < items.size(); idx += 1) {
+				  NetExpr*item = items[idx];
+				  item->set_line(*r.hi);
+				  char op = type_is_vectorable(base->expr_type())
+					 && type_is_vectorable(item->expr_type())
+					 ? 'w' : 'e';
+				  NetExpr*eq = make_inside_comparison_(
+					op, base->dup_expr(), item, *this);
+				  NetExpr*word_term = condition_reduce(eq);
+				  if (term == nullptr) {
+					term = word_term;
+				  } else {
+					NetExpr*combined = new NetEBLogic(
+					      'o', term, word_term);
+					combined->set_line(*this);
+					term = combined;
+				  }
+			    }
+		  } else if (fixed_array) {
 			for (unsigned word = 0;
 			     word < fixed_array->unpacked_count(); word += 1) {
 			      NetEConst*word_index = make_const_val_s(word);

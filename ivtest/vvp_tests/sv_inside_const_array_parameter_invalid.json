@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "sv_inside_const_array_parameter_invalid.v",
+    "iverilog-args": ["-g2017", "-s", "sv_inside_const_array_parameter_invalid"],
+    "gold": "sv_inside_const_array_parameter_invalid"
+}

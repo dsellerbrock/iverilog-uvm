@@ -20601,6 +20601,44 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		       << *expr_[idx] << "' (compile-progress: event skipped)." << endl;
 		  continue;
 	    }
+	    /* A named event's triggered property changes on the first trigger
+	     * of a time step and again when that time step ends. It has no
+	     * synthesizable net input, so use the dedicated property wait. */
+	    if (NetESFunc*sf = dynamic_cast<NetESFunc*>(tmp)) {
+		  if (strcmp(sf->name(), "$ivl_event_method$triggered") == 0
+		      && sf->nparms() == 1) {
+			const NetEEvent*arg = dynamic_cast<const NetEEvent*>(sf->parm(0));
+			const NetEvent*named = arg ? arg->event() : nullptr;
+			if (!named || expr_.size() != 1
+			    || expr_[idx]->type() != PEEvent::ANYEDGE
+			    || named->is_class_event() || named->is_event_array()) {
+			      cerr << get_fileline() << ": error: unsupported "
+			           << "event control on named-event triggered property."
+			           << endl;
+			      des->errors += 1;
+			      delete tmp;
+			      wa->set_statement(nullptr);
+			      delete wa;
+			      delete ev;
+			      return nullptr;
+			}
+			std::vector<NetExpr*>argv;
+			argv.push_back(new NetEEvent(const_cast<NetEvent*>(named)));
+			NetSTask*wait = new NetSTask(
+			      "$ivl_wait_event_triggered_change",
+			      IVL_SFUNC_AS_TASK_IGNORE, argv);
+			wait->set_line(*this);
+			NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+			block->set_line(*this);
+			block->append(wait);
+			if (enet) block->append(enet);
+			wa->set_statement(nullptr);
+			delete wa;
+			delete ev;
+			delete tmp;
+			return block;
+		  }
+	    }
 	    // Compile-progress: clocking block refs that came back as NetEScope
 	    // (e.g. @(monitor_cb) where monitor_cb is a child clocking block scope)
 	    // cannot be synthesized. Skip gracefully.

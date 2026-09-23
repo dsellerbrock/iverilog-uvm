@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_named_event_triggered_sensitivity_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_named_event_triggered_sensitivity"],
+  "gold": "sv_named_event_triggered_sensitivity"
+}

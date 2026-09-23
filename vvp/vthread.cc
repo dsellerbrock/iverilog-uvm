@@ -31472,6 +31472,22 @@ bool of_WAIT(vthread_t thr, vvp_code_t cp)
       return false;
 }
 
+bool of_WAIT_TRIGGERED(vthread_t thr, vvp_code_t cp)
+{
+      assert(!thr->waiting_for_event);
+      thr->waiting_for_event = 1;
+      thr->in_region_drain = 0;
+      if (vvp_named_event_sa*event =
+                  dynamic_cast<vvp_named_event_sa*>(cp->net->fun))
+            thr->wait_next = event->add_triggered_change_waiter(thr);
+      else if (vvp_named_event_aa*auto_event =
+                  dynamic_cast<vvp_named_event_aa*>(cp->net->fun))
+            thr->wait_next = auto_event->add_triggered_change_waiter(thr);
+      else
+            assert(0 && "unsupported named-event triggered-property wait");
+      return false;
+}
+
 /*
  * %wait/obj <slot>
  * Wait on a per-instance class event (IEEE 1800-2017 15.5: `@(obj.ev)`).

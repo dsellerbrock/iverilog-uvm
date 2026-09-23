@@ -1,0 +1,12 @@
+../src/lowrisc_dv_aon_timer_sim_0.1/tb.sv:48: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_aon_timer_csr_assert_0/aon_timer_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+iverilog: note: wrote DPI export C stubs to /tmp/ivl-focus-20260923/aon-pinned.dpiexport.c (compile it into your DPI object).

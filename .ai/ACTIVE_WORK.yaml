@@ -1,15 +1,31 @@
-status: focused_integrated_pr_preparation
-branch: agent/ot-scope-queue-assoc-pop-20260923
-baseline: main 7943dffd1 (PR340 and PR341 merged after exact-head CI successes); this branch is stacked on PR341 source head 5937223f2.
-blocker: OT-SPI-STD-RANDOMIZE-QUEUE and ASSOC-QUEUE-POP-STATEMENT
-goal: Advance unchanged released OpenTitan SPI Device and reject an invalid associative-array queue method without a simulator crash.
-standards: IEEE 1800-2017 and 1800-2023 sections 18.12 and 7.10/7.9.
-failing_reproducer: evidence/ot-spi-std-randomize-queue-20260923/reducer.sv fails elaboration in both editions; evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles but vvp exits 139 on the current local build.
-expected: Scope-randomize a direct local integral queue with exact size/element constraints and success-only writeback; reject queue-only pop/push/insert methods on associative arrays at compile time.
-root_cause: Scope std::randomize currently admits scalar destinations only; statement-position method dispatch treats associative storage as a queue. A follow-on direct probe shows push_front/push_back/insert share the same invalid dispatch as pop_front/pop_back.
-allowed_scope: Associative-array statement-method lane is committed at d0560368e and released elaborate.cc ownership; the scope-queue lane is re-scoped to the exact-size solver adapter below. Coordinator owns manifests, shared build/install, pinned release replay, integration and review.
+status: focused_validated_pending_pr
+branch: agent/ot-spi-inside-aon-trigger-20260923
+baseline: main 7943dffd1 plus PR343 exact head fb4d1052e; PR343 CI queued; current branch is stacked on PR343.
+blocker: OT-SPI-INSIDE-CONST-ARRAY and OT-AON-EVENT-TRIGGERED-SENSITIVITY
+goal: Advance unchanged released OpenTitan SPI Device constant-array membership and AON timer event-expression scheduling in two disjoint Icarus compiler lanes.
+standards: IEEE 1800-2017/2023 sections 11.4.13 and 15.5.3.
+failing_reproducer: evidence/opentitan-spi-device-array-pattern-vector-20260923/reducer.sv line 8 fails target codegen in both editions; evidence/opentitan-aon-event-control-triage-20260923/triggered_sensitivity_boundaries.sv fails elaboration in both editions.
+expected: Expand a constant unpacked array in an inside set into legal elements; preserve named-event triggered expression change sensitivity across same-slot rearm and next-slot transitions.
+root_cause: Inside lowering passes a constant array-pattern aggregate to a vector-only target path. Event-expression elaboration sends an internal triggered method through expression synthesis, which rejects it before wait lowering.
+allowed_scope: Two delegated implementation lanes below with disjoint source ownership. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: Both selected reducers were RED before fixes. Associative statement focus passed 4/4 in each runner; scope queue focus passed 4/4 in each runner, neighboring JSON tests 29/29, and legacy context tests 11/11. PR340 and PR341 merged after one exact-head CI success each. Full DV and broad qualification remain pending.
+validation: Inside focus passes 4/4 legacy and 4/4 JSON; AON focus passes 6/6 legacy and 6/6 JSON in paired 2017/2023 modes; neighboring class-event focus passes 22/22 in each runner. Released SPI Device compile retains three kind-26 errors (two queue concatenations and one constraint inside). Released AON compile succeeds; a 60-second smoke runtime times out without a UVM result. No application DV qualification or broad suite claim.
+parallel_spi_inside_lane:
+  id: OT-SPI-INSIDE-CONST-ARRAY
+  owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared build and integration.
+  standards: IEEE 1800-2017/2023 section 11.4.13 unpacked array membership; confirm exact wildcard and sizing rules from the primary text.
+  reproducer: evidence/opentitan-spi-device-array-pattern-vector-20260923/reducer.sv line 8 and six unchanged released SPI Device source sites.
+  files: elab_expr.cc inside lowering and dedicated ivtest fixtures/golds only. No elaborate.cc, event target/runtime files, vvp/vthread.cc, shared manifests/builds, pinned application source, or Verilator edits. Stop for scope expansion.
+  acceptance: First/last/nonmember constant-array membership, empty/singleton boundary, four-state wildcard control, invalid operand/type negative, paired 2017/2023 tests; queue array-concatenation line 9 remains a separate RED mechanism.
+  state: Integrated at 88f0e9044 after focused validation. Ordinary expression membership is fixed; constraint inside membership and queue concatenation remain independent RED mechanisms.
+parallel_aon_triggered_lane:
+  id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
+  owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared build and integration.
+  standards: IEEE 1800-2017/2023 section 15.5.3 named-event triggered state and expression event control; verify first-change and slot-reset behavior.
+  reproducer: evidence/opentitan-aon-event-control-triage-20260923/triggered_sensitivity_boundaries.sv; five elaboration errors per edition before fix.
+  files: elaborate.cc event-control path; necessary tgt-vvp wait codegen; vvp/vthread.cc, vvp/event.cc/h, vvp/schedule.cc, vvp/compile.cc, and vvp/codes.h for a complete time-step transition notification; dedicated ivtest fixtures/golds. No elab_expr.cc, inside lowering, shared manifests/builds, pinned application source, or Verilator edits. Stop for further overlap.
+  acceptance: Event expression wakes on 0-to-1 and 1-to-0 changes; second trigger in the same slot does not retrigger a rearmed expression wait; next-slot and ->> boundaries plus ordinary @(e)/wait(e.triggered) controls pass in 2017/2023. No compile-only bypass.
+  state: Integrated at 0a902ee9f after focused validation. Static and automatic event triggered sensitivity use real time-advance notifications; pinned AON compile is clean but its bounded smoke runtime did not complete. Never schedule a fake +1 time step.
 parallel_scope_queue_lane:
   id: OT-SPI-STD-RANDOMIZE-QUEUE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, review, and pinned release replay.

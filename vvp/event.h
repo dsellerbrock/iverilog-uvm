@@ -200,6 +200,14 @@ struct waitable_state_s {
       vthread_t threads;
 };
 
+struct named_event_aa_state_s : waitable_state_s {
+      named_event_aa_state_s() : triggered_change_threads(0),
+            last_trigger_time(0), ever_triggered(false) {}
+      vthread_t triggered_change_threads;
+      vvp_time64_t last_trigger_time;
+      bool ever_triggered;
+};
+
 /*
  * The vvp_fun_edge functor detects events that are edges of various
  * types. This should be hooked to a vvp_net_t that is connected to
@@ -480,7 +488,7 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
 	// IEEE 1800-2017 15.5.3 triggered property: record each trigger
 	// and report whether the event fired in the current time step.
       void note_triggered(void);
-      bool triggered_now(void) const;
+      virtual bool triggered_now(void) const;
 
     protected:
       class __vpiHandle*handle_;
@@ -500,13 +508,19 @@ class vvp_named_event_sa : public vvp_named_event {
       ~vvp_named_event_sa() override;
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      vthread_t add_triggered_change_waiter(vthread_t thread);
+      void triggered_time_advance();
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
 
     private:
       vthread_t threads_;
+      vthread_t triggered_change_threads_;
 };
+
+/* Notify triggered-property observers only when simulation time advances. */
+extern void vvp_named_event_triggered_time_advance();
 
 /*
  * Automatically allocated vvp_named_event.
@@ -524,6 +538,8 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
 #endif
 
       vthread_t add_waiting_thread(vthread_t thread) override;
+      vthread_t add_triggered_change_waiter(vthread_t thread);
+      bool triggered_now(void) const override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t context) override;
@@ -531,6 +547,7 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;
+      std::set<named_event_aa_state_s*> active_states_;
 };
 
 /*
