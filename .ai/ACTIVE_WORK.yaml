@@ -1,8 +1,8 @@
-status: selected
+status: focused_tested
 branch: agent/caliptra-named-sequence-antecedent-20260923
 baseline: PR332 exact head 9093a9e9f17a21847549a8433b28d59089a9d958 is committed and locally qualified; this branch is stacked while its CI is queued.
 blocker: CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT
-goal: Execute a named-sequence antecedent with a parameter-valued exact consequent repetition in both IEEE editions, preserving each instance's bound and attempt verdicts.
+goal: Execute a one-step named-sequence antecedent with a parameter-valued exact consequent repetition in both IEEE editions, preserving each instance's bound and attempt verdicts.
 standards: IEEE 1800-2017 and IEEE 1800-2023 sections 16.8 and 16.12.7; verify exact edition wording before patching.
 failing_reproducer: evidence/caliptra-next-blocker-20260923/exact_named_sequence.sv exits 1 with No function named idletonext in both modes. The pinned Caliptra v2.1.2 ECC formal bind with its full ecc_top.vf filelist fails at fv_ecc_hmac_drbg_interface_constraints.sv:47 with the same diagnostic. Exact commands and source/compiler hashes are in evidence/caliptra-next-blocker-20260923/result.json.
 expected: Resolve the declared sequence as an antecedent before treating it as a Boolean function; execute the symbolic consequent repeat per instance. Literal-bound, direct-sequence, and inline-Boolean controls retain behavior; an unknown sequence remains a diagnostic.
@@ -14,16 +14,16 @@ forbidden:
   - OpenTitan or Caliptra source edits, compile-only completion claims, silent assertion drops, or weakened IEEE type checks.
   - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without ownership release.
   - Shared builds, installations, and shared test-output directories by implementation agents; coordinator owns them.
-dependency: PR332 must merge before this stacked branch publishes against main. Its exact head and local qualification remain preserved.
-acceptance: Paired -g2017/-g2023 runtime pass, fail, vacuity, disable, and W=0/positive-bound cases; unknown-sequence negative; pinned full ECC formal bind no false function diagnostic and no dropped property; required focused and broad gates before PR.
+dependency: PR332 must merge before this stacked branch merges to main. Publish this branch against PR332's frozen branch after local checks, then retarget to main when PR332 merges.
+acceptance: Focused requirements met at source/test commit 312eff1af plus exact-diagnostic negative controls. Paired runtime 2017/2023 x legacy/NFA 4/4, negative 4/4, SVA 61/61, focused legacy/JSON neighbors 57/57 and 16/16, negative suite 150/150, make check, and pinned full ECC formal-bind compiles pass. Broader CI and application DV/formal qualification remain pending. See docs/conformance/session_logs/2026-09-23_caliptra_named_sequence_antecedent.json.
 implementation_lane:
   owner: Codex + reused Sol
   files: pform.cc and dedicated named-antecedent SVA tests/golds only
-  handoff: Sol supplies patch and focused test intent; coordinator reviews, builds, runs, integrates, and owns documentation.
+  handoff: Sol patch integrated at 312eff1af; coordinator built, ran focused checks, reviewed, and owns publication/documentation.
 parallel_assessment:
   id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
   owner: Codex + reused Luna
   files: evidence/opentitan-aon-triggered-reducer-20260923 only
   state: Completed red reducer and boundary watchdog; implementation unclaimed because Claude owns elaborate.cc and vvp/vthread.cc.
 pending_prs: PR332 open, exact head 9093a9e9f17a21847549a8433b28d59089a9d958, CI queued. PR329 through PR331 merged.
-next: Sol implements minimum complete named-sequence dispatch and tests; coordinator builds and validates. Monitor PR332 exact-head CI separately.
+next: Publish a stacked PR against PR332's frozen branch after documentation review. Retarget after PR332 merges; require exact-head CI before merge. Do not claim full Caliptra DV/formal qualification.

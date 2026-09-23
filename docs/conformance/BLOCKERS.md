@@ -2,9 +2,9 @@
 
 ### CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT — named antecedent captured as a function
 
-- **State:** SELECTED in `.ai/ACTIVE_WORK.yaml` on a branch stacked after PR332; no implementation or qualification claim yet.
+- **State:** IN_PROGRESS, locally focused-tested on `312eff1af`, stacked after PR332. Broad integrated gates and CI remain pending.
 - **Requirement:** IEEE 1800-2017/2023 §§16.8 and 16.12.7 permit a named sequence in an implication antecedent and require the instance's symbolic consequent repetition to execute.
-- **Evidence:** [Pinned ECC formal bind and paired reducers](../../evidence/caliptra-next-blocker-20260923/result.json) fail with `No function named idletonext` under both editions. Literal-repeat, direct-sequence, and inline-Boolean controls compile. The current helper in `pform.cc` runs before named-sequence splicing.
+- **Evidence:** The [revision-scoped record](session_logs/2026-09-23_caliptra_named_sequence_antecedent.json) preserves the paired baseline failure, executable tests, and clean pinned ECC formal bind compile. The helper in `pform.cc` ran before named-sequence splicing; declared references now defer to its post-splice offer.
 - **Closure:** Resolve the declared sequence before Boolean lowering, verify pass/fail/vacuity/disable and W=0/positive bounds at runtime in both modes, preserve an unknown-sequence diagnostic, and recompile the pinned full ECC formal bind without dropped properties. Full Caliptra DV/formal qualification stays separate.
 
 ### SVA-LITERAL-OVERLAP-FAILURE-COUNT — fixed-linear same-edge verdicts

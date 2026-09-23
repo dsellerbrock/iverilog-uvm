@@ -6,10 +6,10 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT
-  phase: SELECTED
+  phase: FOCUSED_TESTED
   standard: IEEE 1800-2017/2023 16.8 and 16.12.7.
-  evidence: evidence/caliptra-next-blocker-20260923/result.json on PR332 head, including a pinned full ECC formal bind and paired-edition reducer.
-  next: Implement named-sequence antecedent dispatch, run paired executable and pinned formal checks, then required gates. PR332 exact-head CI/merge is a separate publication dependency.
+  evidence: docs/conformance/session_logs/2026-09-23_caliptra_named_sequence_antecedent.json at source/test commit 312eff1af; paired executable and pinned full ECC formal-bind checks pass locally.
+  next: Publish stacked PR against PR332 branch after docs review; retarget to main after PR332 merges. Exact-head CI and full Caliptra DV/formal qualification remain separate.
 integration_blocker:
   id: SVA-VPI-ATTEMPT-START-IDENTITY
   owner: Codex + Sol in the same pform.cc lane
@@ -40,7 +40,7 @@ release_profiles:
 application_status:
   opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
   opentitan_pwrmgr: Two overlay smoke seeds passed on compiler head f46696830; evidence is docs/conformance/session_logs/2026-09-23_pwrmgr_release_overlay_current.json. Full DV remains open.
-  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails. On the current SVA candidate, clean v2.1.2 formal file emits no parameter-repeat drops in either edition, but its standalone bind target is absent; paired executable focus, SVA/negative/mapped UVM, and full ivtest local gates pass. Full DV and formal qualification remain open; upstream Adams Bridge PR303 is open.
+  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails. The current one-step named-antecedent SVA candidate executes in paired modes and compiles the clean v2.1.2 ECC formal bind using its full filelist with no diagnostic. This is focused evidence only; full DV and formal qualification remain open. Upstream Adams Bridge PR303 is open.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.

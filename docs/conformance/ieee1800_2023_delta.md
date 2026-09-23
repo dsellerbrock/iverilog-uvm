@@ -359,6 +359,11 @@ Separate `-g2023` runtime, boundary, and invalid-bound results are in the
 [shared evidence](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json);
 no full SVA or application qualification follows from them.
 
+The one-step named-sequence antecedent follow-up shares the 2017 §§16.8 and
+16.12.7 lowering. Separate `-g2023` executable and pinned ECC formal-bind
+checks are in the [shared revision-scoped record](session_logs/2026-09-23_caliptra_named_sequence_antecedent.json);
+multi-step symbolic-consequent compositions remain unsupported.
+
 The fixed-linear overlap and assertion-VPI correction uses the same
 §§16.12.7/16.14.1 and §39.4.2 rules in 2023 as in 2017. Separate `-g2023`
 runtime and boundary checks are included in the [shared 2017 scope and
