@@ -1,0 +1,21 @@
+{
+  "source_sha256": "687237b77396aae488a8d593bd4319bc0892ea9b0b9d6cefc9d682d577b7f496",
+  "verilator_source_sha256": "ca9ae58e222d7651e70506c8e976ffe54f32d9a21c95a484c307e0995eb1c939",
+  "build_returncode": 0,
+  "build_duration_seconds": 3.156,
+  "build_command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/evidence/verilator-midwindow-doe-20260923/install-5052/bin/verilator",
+    "--binary",
+    "--timing",
+    "--assert",
+    "--top-module",
+    "tb",
+    "--Mdir",
+    "/Users/danielellerbrock/projects/iverilog_uvm/evidence/verilator-midwindow-doe-20260923/obj-disable-pristine-recheck",
+    "-CFLAGS",
+    "-std=gnu++20",
+    "/Users/danielellerbrock/projects/iverilog_uvm/evidence/verilator-midwindow-doe-20260923/disable_iff_async.sv"
+  ],
+  "sim_returncode": 1,
+  "sim_output": "RESULT mid=1 control=1 boundary=0 held=0 long=1 negative=1\n[111000] %Fatal: disable_iff_async.sv:67: Assertion failed in tb: disable iff async regression mismatch\n%Error: /Users/danielellerbrock/projects/iverilog_uvm/evidence/verilator-midwindow-doe-20260923/disable_iff_async.sv:67: Verilog $stop\nAborting...\n"
+}

@@ -83,7 +83,7 @@ parallel_doe_verilator_implementation_lane:
   reproducer: evidence/caliptra-doe-verilator-midwindow-20260923/disable_midwindow.sv passes control=1 gated=0 on Icarus but fails control=1 gated=1 on Verilator 5.050 and isolated official v5.052.
   files: Isolated Verilator v5.052 source in workspace evidence/verilator-midwindow-doe-20260923 only; focused Verilator regression patch and external evidence. No Icarus implementation, pinned Caliptra/Adams source, shared builds, or checker weakening.
   acceptance: Small standards-correct reset-window fix makes the gated property abort and leaves the control failure intact; coordinator then rebuilds isolated v5.052 and reruns both reducer and intact pinned DOE. If root cause or fix is not bounded, submit diagnosis without a partial patch or pass claim.
-  state: Coordinator-authorized independently of ADC inner-size files; PR339 head remains fixed.
+  state: Diagnostic complete; no safe bounded Verilator fix. A partial NFA clear fixed a longer obligation but not the direct defutured |=> implication; source restored to official v5.052 and coordinator rebuilt/rechecked the pristine binary. DOE remains failing; see session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json.
 completed_implementation_lane:
   id: OT-PWRMGR-CASE-EXIT-STACK-BALANCE
   owner: Claude Code Opus 5.5 high; coordinator owns shared builds, integration, and review.

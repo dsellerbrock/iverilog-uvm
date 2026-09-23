@@ -85,7 +85,7 @@ parallel_doe_verilator_implementation_lane:
   evidence: evidence/caliptra-doe-verilator-midwindow-20260923/disable_midwindow.sv and DOE v5.052 replay result.
   acceptance: Preserve control failure but abort disabled property on between-clock reset; fresh isolated build and intact DOE replay required before any application pass claim.
   dependency: No Icarus or pinned application source edits; disjoint from ADC.
-  state: Coordinator-authorized; agent must return diagnosis or bounded patch for coordinator rebuild.
+  state: Diagnostic complete without a qualified fix. Isolated Verilator source restored byte-for-byte to official v5.052, rebuilt, and RED reducer rechecked; direct defutured |=> remains failing despite a partial NFA-state experiment. Intact pinned DOE remains failing.
 completed_parallel_blocker:
   id: OT-PINMUX-FILESET-SOURCE-CLOSURE
   owner: Codex + GPT-6 Luna

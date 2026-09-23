@@ -12,10 +12,8 @@ records the full exact-toolchain baseline and two focused, test-specific
 downstream firmware overlay replays. The DOE scan assertion remains failing;
 these results do not qualify the full Caliptra DV suite.
 
-The [DOE reset-window differential and v5.052 focused replay](../../evidence/caliptra-doe-verilator-midwindow-20260923/assessment.md)
-show the assertion still fails with a pass banner and point to Verilator's
-handling of a reset pulse between assertion clocks. The intact test remains
-unqualified.
+The [DOE source diagnosis and restored Verilator recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json)
+records the unresolved reset-window failure; the intact test remains unqualified.
 
 The [Caliptra KV SVA diagnostic overlay replay](session_logs/2026-09-23_caliptra_kv_sva_overlay_l0.json)
 is scoped to pinned Caliptra `v2.1.2` and Verilator. It removes false-antecedent
