@@ -498,3 +498,12 @@ win_regex_checkpoint_20260922:
   evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json; evidence/win-regex-tre/
   build: Fresh serial -j1 build/install/installuvm of the checkout, BUILD_EXIT 0.
   pending: Windows CI on the draft PR.
+
+claude_handoff_to_codex_20260923:
+  reason: User directed handoff to Codex; cross-agent coordination via .ai/ISSUE_CHECKOUT.csv (Codex branch agent/spi-inline-state-functions-20260922, PR323).
+  merged: PR321 3ccd5d73 (CI-WIN-UVM-REGEX-NOOUTPUT, all six CI jobs passed).
+  pr322: Draft, branch claude/iverilog-uvm-takeover-n1v3u6. ce2635bd caller-method on overlap hold (user decision; Codex reconciles against PR323, do not merge PR322 before). f0d2a04b vvp extended args, b8f0e2a2 solve-before fixed arrays, 65906fb0 dropped DPI export exit status all REGRESSION_TESTED locally (ivtest gate exit 0 legacy 6341/0, VPI 126, negative 148/148, JSON 3273/0, UVM 358/358). 4eeb409a runner + Linux application replay; f2e5ded0 Caliptra rej_bounded race classification.
+  held_branch: origin/claude/hold-state-xz-scalar a91acf87 (CONSTRAINT-STATE-XZ-SCALAR, IEEE 18.3; based on 65906fb0). Conflicts with PR323 vthread.cc slot_words; redo on PR323 plumbing after it merges. ivtest/JSON/negative passed; full UVM not completed.
+  recorded_not_started: CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (CRITICAL), null-handle method call (IEEE 8.4), same-event resume-order compatibility decision (Caliptra rej_bounded), SPI queue element-type vendor-compat question.
+  stale: ACTIVE_WORK.yaml names DPI-EXPORT-DROPPED-EXIT-STATUS (REGRESSION_TESTED); no Claude Code implementation ticket remains active.
+  exact_next_action: Codex reconciles ce2635bd against PR323, then lands PR322's independent fixes; after PR323 merges, redo claude/hold-state-xz-scalar on PR323 plumbing.
