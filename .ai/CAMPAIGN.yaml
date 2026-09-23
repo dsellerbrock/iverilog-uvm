@@ -6,11 +6,11 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: OT-SPI-QUEUE-POP-DROPPED
-  phase: SPEC_GROUNDED_ROOT_CAUSED
+  phase: FOCUS_VALIDATED_BROAD_PENDING
   standard: IEEE 1800-2017/2023 5.13 and 7.10.2.4.
-  evidence: evidence/opentitan-queue-pop-20260923/repro.sv and baseline/control JSON.
-  next: Integrate the disjoint class-property queue-method patch, then build and run paired-edition focused tests; coordinator owns all shared builds and manifests.
-  next_command_after_patch: make -j1
+  source_test_commit: a0e45a3c796767fd1f20227713e0132fa1078d5a
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
+  next: PR328 current-head CI then rebase; run applicable broad gates at the next coherent checkpoint; keep SPI semantic warnings explicit.
 prior_candidate:
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/328
   source_test_commit: a1c94078b
@@ -21,7 +21,7 @@ release_profiles:
   merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/327
   meaning: Pinned stable sources with selected source overlays and necessary options for the test; neither full DV suite qualified.
 application_status:
-  opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI reaches 3673793 ps before a VIF event-relay abort; four unresolved foreach indices and one dropped queue pop still preclude semantic compile or DV qualification. Claude owns the distinct foreach and VIF-relay patches.
+  opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
   caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails; full DV remains unqualified. Upstream PR303 open.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.

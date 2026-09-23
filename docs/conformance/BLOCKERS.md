@@ -30,10 +30,10 @@
 
 ### OT-SPI-QUEUE-POP-DROPPED — parenthesis-free class-property queue pop is dropped
 
-- **State:** IN_PROGRESS on a branch stacked after PR328. The pinned OpenTitan SPI Host source calls `cmd_check(item.data.pop_front)`; the compiler warns that the expression is dropped, returns success, and loses the queue mutation and byte value.
+- **State:** IN_PROGRESS, locally focus-tested at `a0e45a3c7` on a branch stacked after PR328. The pinned OpenTitan SPI Host source calls `cmd_check(item.data.pop_front)`; the previous compiler warned that the expression was dropped, returned success, and lost the queue mutation and byte value.
 - **Requirement:** IEEE 1800-2017/2023 §§5.13 and 7.10.2.4 permit omitting empty parentheses on a direct zero-argument built-in method call; `pop_front` removes and returns the first element. The 2023 §13.4.1 parentheses rule for dereferencing a function return does not apply to this direct value use.
-- **Evidence:** `evidence/opentitan-queue-pop-20260923/repro.sv` fails in both editions without parentheses; its `-DPARENS_CONTROL` form passes in both. The warning originates in `PEIdent::elaborate_expr_class_member_` in `elab_expr.cc`.
-- **Closure:** Reuse the existing typed queue-method expression path, check the return value and side effect including an empty queue, reject invalid arity, and pass focused neighboring regressions. Full SPI DV remains separate.
+- **Evidence:** [Paired focused and pinned SPI compile record](session_logs/2026-09-23_opentitan_queue_pop_focus.json). The prior `evidence/opentitan-queue-pop-20260923/repro.sv` fails in both editions without parentheses; its `-DPARENS_CONTROL` form passes. The root cause is `PEIdent::elaborate_expr_class_field_` in `elab_expr.cc`.
+- **Closure:** The typed `pop_front`/`pop_back` result, single queue mutation, empty-queue boundary, invalid arity, and neighboring checks pass locally. Broad required gates and current-head CI remain; full SPI DV is separate and still blocked by four constraint-index warnings.
 
 This file is a **backlog**, not an authorization to implement. Per
 `AGENTS.md`, only `.ai/ACTIVE_WORK.yaml` (status: `in_progress`, naming a
