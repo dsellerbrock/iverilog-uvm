@@ -23,9 +23,9 @@ parallel_aon_triggered_lane:
   owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared build and integration.
   standards: IEEE 1800-2017/2023 section 15.5.3 named-event triggered state and expression event control; verify first-change and slot-reset behavior.
   reproducer: evidence/opentitan-aon-event-control-triage-20260923/triggered_sensitivity_boundaries.sv; five elaboration errors per edition before fix.
-  files: elaborate.cc event-control path; necessary tgt-vvp wait codegen and vvp/vthread.cc scheduling only; dedicated ivtest fixtures/golds. No elab_expr.cc, inside lowering, shared manifests/builds, pinned application source, or Verilator edits. Stop for overlap.
+  files: elaborate.cc event-control path; necessary tgt-vvp wait codegen; vvp/vthread.cc, vvp/event.cc/h, vvp/schedule.cc, vvp/compile.cc, and vvp/codes.h for a complete time-step transition notification; dedicated ivtest fixtures/golds. No elab_expr.cc, inside lowering, shared manifests/builds, pinned application source, or Verilator edits. Stop for further overlap.
   acceptance: Event expression wakes on 0-to-1 and 1-to-0 changes; second trigger in the same slot does not retrigger a rearmed expression wait; next-slot and ->> boundaries plus ordinary @(e)/wait(e.triggered) controls pass in 2017/2023. No compile-only bypass.
-  state: Coordinator authorized after PR343 publication and baseline RED reproduction; implementation pending.
+  state: Sol stopped before edits because event triggered-state falls at the next real time advance without any existing notification. Coordinator expanded event/scheduler and opcode file ownership after static root-cause review; implementation may resume. Never schedule a fake +1 time step.
 parallel_scope_queue_lane:
   id: OT-SPI-STD-RANDOMIZE-QUEUE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, review, and pinned release replay.

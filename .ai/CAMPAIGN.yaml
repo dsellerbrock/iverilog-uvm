@@ -6,7 +6,7 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
   spi_inside: OT-SPI-INSIDE-CONST-ARRAY; GPT-6 Luna owns elab_expr.cc inside lowering and dedicated tests only; coordinator owns shared builds and manifests. Paired RED at evidence/opentitan-spi-device-array-pattern-vector-20260923/reducer.sv line 8.
-  aon_triggered: OT-AON-EVENT-TRIGGERED-SENSITIVITY; GPT-6 Sol owns elaborate.cc event-control path and necessary target/runtime wait scheduling plus dedicated tests; coordinator owns shared builds and manifests. Paired RED at evidence/opentitan-aon-event-control-triage-20260923/triggered_sensitivity_boundaries.sv.
+  aon_triggered: OT-AON-EVENT-TRIGGERED-SENSITIVITY; GPT-6 Sol owns elaborate.cc event-control path and necessary target/runtime event and real time-advance notification plus dedicated tests; coordinator owns shared builds and manifests. Paired RED at evidence/opentitan-aon-event-control-triage-20260923/triggered_sensitivity_boundaries.sv; event.cc/h and schedule.cc expansion was explicitly authorized after static review.
   isolation: Source ownership is disjoint; no Verilator implementation or pinned application-source edits. PR343 head remains fixed for CI.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
