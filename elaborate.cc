@@ -15860,6 +15860,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       }
 
       if (const netqueue_t*obj_queue = dynamic_cast<const netqueue_t*>(obj_type)) {
+	    if (obj_queue->assoc_compat()
+		&& (method_name == "pop_front" || method_name == "pop_back"
+		    || method_name == "push_front" || method_name == "push_back"
+		    || method_name == "insert")) {
+		  cerr << get_fileline() << ": error: " << method_name
+		       << " is not an associative array method." << endl;
+		  des->errors += 1;
+		  delete obj_expr;
+		  return 0;
+	    }
 	    const netdarray_t*use_darray = obj_queue;
 	    if (!use_darray) {
 		  delete obj_expr;

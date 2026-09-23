@@ -1,2 +1,4 @@
+./ivltests/sv_class_prop_queue_pop_front_noparen.v:44: warning: method function 'pop_front' is being called as a task.
+./ivltests/sv_class_prop_queue_pop_front_noparen.v:45: warning: method function 'pop_back' is being called as a task.
 Warning: pop_front() on empty queue<vector[8]>.
 PASSED

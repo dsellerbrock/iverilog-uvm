@@ -1,0 +1,4 @@
+sv_assoc_queue_pop_invalid CE,-g2017,-s,test ivltests gold=sv_assoc_queue_pop_invalid.gold
+sv_assoc_queue_pop_invalid_2023 CE,-g2023,-s,test ivltests gold=sv_assoc_queue_pop_invalid.gold
+sv_class_prop_queue_pop_front_noparen normal,-g2017,-s,test ivltests gold=sv_class_prop_queue_pop_front_noparen.gold
+sv_class_prop_queue_pop_front_noparen_2023 normal,-g2023,-s,test ivltests gold=sv_class_prop_queue_pop_front_noparen.gold

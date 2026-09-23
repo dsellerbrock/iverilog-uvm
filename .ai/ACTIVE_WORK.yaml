@@ -5,8 +5,8 @@ blocker: OT-SPI-STD-RANDOMIZE-QUEUE and ASSOC-QUEUE-POP-STATEMENT
 goal: Advance unchanged released OpenTitan SPI Device and reject an invalid associative-array queue method without a simulator crash.
 standards: IEEE 1800-2017 and 1800-2023 sections 18.12 and 7.10/7.9.
 failing_reproducer: evidence/ot-spi-std-randomize-queue-20260923/reducer.sv fails elaboration in both editions; evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles but vvp exits 139 on the current local build.
-expected: Scope-randomize a direct local integral queue with exact size/element constraints and success-only writeback; reject queue-only pop methods on associative arrays at compile time.
-root_cause: Scope std::randomize currently admits scalar destinations only; statement-position method dispatch treats associative storage as a queue.
+expected: Scope-randomize a direct local integral queue with exact size/element constraints and success-only writeback; reject queue-only pop/push/insert methods on associative arrays at compile time.
+root_cause: Scope std::randomize currently admits scalar destinations only; statement-position method dispatch treats associative storage as a queue. A follow-on direct probe shows push_front/push_back/insert share the same invalid dispatch as pop_front/pop_back.
 allowed_scope: Two disjoint delegated Icarus lanes recorded below; coordinator owns manifests, shared build/install, pinned release replay, integration and review.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
 validation: New reducers are RED. PR340/PR341 prior focused validation is recorded in docs/conformance/session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json. PR340 and PR341 CI, broad gates, and full DV remain pending.
@@ -23,11 +23,11 @@ parallel_assoc_pop_statement_lane:
   id: ASSOC-QUEUE-POP-STATEMENT
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and review.
   standards: IEEE 1800-2017/2023 sections 7.9 and 7.10: associative-array methods differ from queue-only pop methods.
-  reproducer: evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles and vvp exits 139 after aa.pop_front() in statement position.
+  reproducer: evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles and vvp exits 139 after aa.pop_front(); push_probe.sv in the same directory accepts push_front/push_back/insert incorrectly.
   files: elaborate.cc; dedicated ivtest fixtures/golds only. No elab_expr.cc, target/VVP source, shared manifests, application, or Verilator edits.
-  acceptance: Associative pop_front/pop_back statements fail compilation with a clear diagnostic; valid queue pop statements still run; empty/nonempty queue boundaries and paired 2017/2023 checks.
+  acceptance: Associative pop_front/pop_back/push_front/push_back/insert statements fail compilation with a clear diagnostic; valid queue methods still run; empty/nonempty queue boundaries and paired 2017/2023 checks.
   dependency: Disjoint from scope-queue lane. Coordinator owns build/install and integration.
-  state: Authorized on this stacked branch; cheap RED runtime crash confirmed.
+  state: Authorized on this stacked branch; cheap RED runtime crash and same-dispatch push/insert compile acceptance confirmed. Scope broadened within the same root cause before further source edits.
 parallel_assoc_find_index_lane:
   id: OT-SPI-ASSOC-FIND-INDEX
   owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.

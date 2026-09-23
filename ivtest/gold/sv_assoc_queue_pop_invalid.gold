@@ -2,4 +2,11 @@
 ./ivltests/sv_assoc_queue_pop_invalid.v:15: error: pop_back is not an associative array method.
 ./ivltests/sv_assoc_queue_pop_invalid.v:16: error: pop_front is not an associative array method.
 ./ivltests/sv_assoc_queue_pop_invalid.v:17: error: pop_back is not an associative array method.
-4 error(s) during elaboration.
+./ivltests/sv_assoc_queue_pop_invalid.v:18: error: pop_front is not an associative array method.
+./ivltests/sv_assoc_queue_pop_invalid.v:19: error: pop_back is not an associative array method.
+./ivltests/sv_assoc_queue_pop_invalid.v:20: error: push_front is not an associative array method.
+./ivltests/sv_assoc_queue_pop_invalid.v:21: error: push_back is not an associative array method.
+./ivltests/sv_assoc_queue_pop_invalid.v:22: error: insert is not an associative array method.
+./ivltests/sv_assoc_queue_pop_invalid.v:23: error: pop_front is not an associative array method.
+./ivltests/sv_assoc_queue_pop_invalid.v:24: error: push_back is not an associative array method.
+11 error(s) during elaboration.

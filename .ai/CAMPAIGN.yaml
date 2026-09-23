@@ -6,7 +6,7 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
   scope_queue: OT-SPI-STD-RANDOMIZE-QUEUE; lower-cost agent owns elab_expr.cc, target scope-randomize codegen, vvp scope solver/runtime, and dedicated tests; coordinator owns shared builds/manifests; RED reducer in evidence/ot-spi-std-randomize-queue-20260923.
-  assoc_pop: ASSOC-QUEUE-POP-STATEMENT; lower-cost agent owns elaborate.cc and dedicated tests; coordinator owns shared builds/manifests; evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles then vvp exits 139.
+  assoc_pop: ASSOC-QUEUE-POP-STATEMENT; lower-cost agent owns elaborate.cc and dedicated tests; coordinator owns shared builds/manifests; reducer.sv compiles then vvp exits 139 and push_probe.sv accepts invalid queue-only methods in evidence/assoc-queue-pop-statement-20260923.
   isolation: No Verilator implementation or pinned application-source edits; queues are distinct source lanes on a branch stacked above PR341.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
