@@ -9,7 +9,7 @@ expected: Expand constant unpacked array set members in scope-randomization cons
 root_cause: Constraint IR captures a constant array aggregate as a scalar value slot; queue concatenation passes a one-dimensional fixed array through scalar element elaboration and misses the existing container splice path.
 allowed_scope: Two delegated implementation lanes below with disjoint source ownership. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: PR344 focused integration is published with paired tests; its released SPI Device replay has three remaining kind-26 errors and AON compiles but has no DV verdict. Both new single-mechanism reducers are RED in 2017 and 2023 before source edits. No broad suite or application DV qualification claim.
+validation: PR344 focused integration is published with paired tests. Queue concat fixed-array operands are integrated at 2e648c7ec; the new legacy and JSON focus each pass 8/8 and neighboring queue checks each pass 2/2. Released SPI Device replay now has one remaining constraint-inside kind-26 error. AON compiles and advances through UVM activity but has no DV verdict. No broad suite or application DV qualification claim.
 parallel_spi_constraint_inside_lane:
   id: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared builds and integration.
@@ -17,7 +17,7 @@ parallel_spi_constraint_inside_lane:
   reproducer: evidence/opentitan-spi-constraint-inside-param-20260923/reducer.sv; one pinned released SPI Device site at spi_device_read_buffer_direct_vseq.sv:94.
   files: elaborate.cc constraint IR inside branch; vvp/vvp_z3.cc and tgt-vvp/eval_vec4.c only if necessary; dedicated ivtest fixtures/golds. No elab_expr.cc, tgt-vvp/eval_object.c, tgt-vvp/vvp_priv.h, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
   acceptance: Paired 2017/2023 positive first/last/miss, wildcard X/Z, width/signedness, singleton/multidimensional boundaries, UNSAT rollback, negative unsupported type; ordinary inside controls remain green. No scalar fallback for an array aggregate.
-  state: Coordinator authorized after PR344 publication and paired RED reproducers; implementation pending.
+  state: Coordinator authorized after PR344 publication and paired RED reproducers; implementation active with no qualification claim.
 parallel_spi_queue_concat_lane:
   id: OT-SPI-QUEUE-ARRAY-CONCAT
   owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared builds and integration.
@@ -25,7 +25,7 @@ parallel_spi_queue_concat_lane:
   reproducer: evidence/opentitan-spi-queue-array-concat-20260923/reducer.sv; two pinned released SPI Device sites at flash_mode_vseq.sv:16 and intercept_vseq.sv:15.
   files: elab_expr.cc PEConcat queue context; tgt-vvp/eval_object.c and tgt-vvp/vvp_priv.h collection splice classifier; tgt-vvp/vvp_process.c only if necessary; dedicated ivtest fixtures/golds. No elaborate.cc constraint IR, vvp/vvp_z3.cc, tgt-vvp/eval_vec4.c, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
   acceptance: Paired 2017/2023 constant and live fixed-array operands, mixed scalars, descending order, empty/bounded queue, self-reference snapshot, invalid type/dimension negative; RHS evaluated before destination update. No vector zero fallback.
-  state: Coordinator authorized after PR344 publication and paired RED reproducers; implementation pending.
+  state: Integrated at 2e648c7ec after legacy and JSON focus 8/8 each, neighboring queue 2/2 each, and unchanged released SPI Device replay clearing both queue-concat errors. The remaining constraint-inside error is assigned to the disjoint Luna lane. No SPI DV verdict.
 parallel_spi_inside_lane:
   id: OT-SPI-INSIDE-CONST-ARRAY
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared build and integration.

@@ -6,7 +6,7 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
   spi_constraint_inside: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY; GPT-6 Luna owns elaborate.cc constraint IR and, if necessary, vvp/vvp_z3.cc or tgt-vvp/eval_vec4.c plus dedicated tests.
-  spi_queue_concat: OT-SPI-QUEUE-ARRAY-CONCAT; GPT-6 Sol owns elab_expr.cc PEConcat queue lowering and tgt-vvp/eval_object.c/vvp_priv.h plus dedicated tests.
+  spi_queue_concat: OT-SPI-QUEUE-ARRAY-CONCAT integrated at 2e648c7ec; GPT-6 Sol has released source ownership and is doing read-only AON runtime triage.
   isolation: Source ownership is disjoint; coordinator owns shared builds/manifests. No Verilator implementation or pinned application-source edits. PR344 head remains fixed for CI.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
@@ -19,13 +19,13 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY and OT-SPI-QUEUE-ARRAY-CONCAT
-  phase: COORDINATOR_AUTHORIZED_PARALLEL_IMPLEMENTATION
+  phase: QUEUE_CONCAT_INTEGRATED_CONSTRAINT_INSIDE_ACTIVE
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
   standards: IEEE 1800-2017/2023 sections 11.4.13 and 18.12 for constraint inside; sections 10.10 and 7.10.4 for queue concatenation.
-  checkpoint: PR344 published after focused local checks. Released SPI Device retains three kind-26 errors, split into one constraint-inside and two queue-concatenation sites. Both separate reducers are RED in 2017/2023. Released AON compile is clean but DV runtime is unqualified.
+  checkpoint: PR344 published after focused local checks. Queue fixed-array concatenation integrated at 2e648c7ec with paired legacy/JSON focus 8/8 each and neighboring checks 2/2 each. Unchanged released SPI Device replay has one remaining constraint-inside kind-26 error; released AON compiles and advances through UVM activity but has no DV verdict.
   evidence: evidence/opentitan-spi-constraint-inside-param-20260923 and evidence/opentitan-spi-queue-array-concat-20260923.
-  next: Run two disjoint implementation lanes, integrate focused patches, then publish the next coherent PR. Merge PR342/PR343/PR344 after one exact-head CI success each. Verilator stays read-only.
+  next: Finish the disjoint constraint-inside lane, integrate focused checks, then publish the next coherent PR. Merge PR342/PR343/PR344 after one exact-head CI success each. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.
