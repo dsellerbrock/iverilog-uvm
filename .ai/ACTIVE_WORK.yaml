@@ -1,15 +1,31 @@
-status: focused_validated_pr_pending
-branch: agent/ot-spi-class-event-triggered-20260923
-baseline: main 6fd804a39; PR339 merged after Ubuntu 24.04 exact-head CI success.
-blocker: OT-SPI-CLASS-EVENT-TRIGGERED
-goal: Implement per-instance class-event .triggered reads and waits needed by released OpenTitan SPI Device.
-standards: IEEE 1800-2017 and 1800-2023 section 15.5.3; triggered remains true for the current time step and wait must handle either same-time trigger order.
-failing_reproducer: evidence/opentitan-spi-class-event-triggered-triage-20260923/class_event_triggered.sv fails in both editions with Class event_box has no property ev and a compile-progress fallback warning; the ordinary class-event wait control passes.
-expected: Per-instance event reads return one only in the firing time step; another instance remains zero; wait on .triggered wakes correctly; null and invalid forms remain explicit and no fallback fabricates success.
-root_cause: Class event member reads enter ordinary class-property expression lookup and fail before per-instance event lowering. VVP already has %evtest/obj and per-instance event wait machinery; expression lowering and wait dependency collection do not reach them.
-allowed_scope: elab_expr.cc, elaborate.cc, tgt-vvp/eval_vec4.c, necessary shared declaration for the existing class-event helper, dedicated tests, and coordinator-owned manifests. No new VVP opcode unless source evidence disproves the existing path.
+status: coordinator_authorized_parallel_implementation
+branch: agent/ot-assoc-find-index-multi-event-20260923
+baseline: main 6fd804a39 plus PR340 head 5ebcab90b; PR340 CI is pending.
+blocker: OT-SPI-ASSOC-FIND-INDEX and OT-CLASS-EVENT-MULTI-OBJECT-LIST
+goal: Advance unchanged released OpenTitan DV by implementing exact associative find_index keys and preserving per-object identity in explicit class-event lists.
+standards: IEEE 1800-2017 and 1800-2023 sections 7.12.1 and 15.5.
+failing_reproducer: evidence/ot-spi-assoc-find-index-20260923/reducer.sv fails compilation in both editions; evidence/ot-class-event-multi-object-list-triage-20260923/reducer.sv compiles but fatals in both editions.
+expected: find_index returns matching declared associative keys in index order; either class object event in an explicit event list wakes its waiter.
+root_cause: Associative locator lowering rejects keyed iteration despite existing VVP key traversal; the class-event list path merges distinct object events into one static event identity.
+allowed_scope: Two disjoint delegated Icarus lanes recorded below; coordinator owns manifests, shared build/install, pinned release replay, integration and review.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: Source/test commit 81b3dc74d passes incremental build/install and paired class-event focus 20/20 in each legacy and JSON runner. The source patch hash matches the pinned SPI replay; strict compile has six errors and commercial-unsafe two, with all three class-event errors removed. See docs/conformance/session_logs/2026-09-23_opentitan_class_event_triggered_focus.json. PR/CI and full DV remain pending.
+validation: PR340 source/test commit 81b3dc74d passes paired class-event focus 20/20 in each runner; pinned SPI compile has six strict or two commercial-unsafe errors. PR340 CI and full DV remain pending. Both new reducers are red in both editions. See docs/conformance/session_logs/2026-09-23_opentitan_class_event_triggered_focus.json.
+parallel_assoc_find_index_lane:
+  id: OT-SPI-ASSOC-FIND-INDEX
+  owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.
+  standards: IEEE 1800-2017/2023 section 7.12.1 array locator find_index returns matching associative keys with the declared key type.
+  reproducer: evidence/ot-spi-assoc-find-index-20260923/reducer.sv is a compile-time sorry in both editions on PR340 head.
+  files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated ivtest fixtures and gold only. No elaborate.cc or shared build outputs.
+  acceptance: Sparse bit[7:0] keys return matching keys in index order, not ordinal positions; empty/no-match, string-key, negative unsupported locator, and receiver-preservation controls; paired edition focused checks and pinned SPI compile replay after integration.
+  state: Authorized; implementation pending. Keep other associative locator methods loud unless implemented and tested.
+parallel_class_event_list_lane:
+  id: OT-CLASS-EVENT-MULTI-OBJECT-LIST
+  owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.
+  standards: IEEE 1800-2017/2023 section 15.5 named-event controls preserve each class object identity.
+  reproducer: evidence/ot-class-event-multi-object-list-triage-20260923/reducer.sv compiles but fatals at time 2 in both editions on PR340 head.
+  files: elaborate.cc; class-event wait codegen/runtime only if necessary; dedicated ivtest fixtures and gold only. No elab_expr.cc or tgt-vvp/eval_object.c.
+  acceptance: Either object event wakes an explicit list once; same-object and static-event controls preserve behavior; null/rebound handles and repeated firing do not spin or miss events; paired edition focused checks after coordinator build.
+  state: Authorized; implementation pending. If overlap with the find_index lane appears, report it and stop rather than editing those files.
 release_lane:
   id: CALIPTRA-EXACT-L0-52
   owner: Coordinator
