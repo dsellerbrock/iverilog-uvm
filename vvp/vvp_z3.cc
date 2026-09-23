@@ -4842,6 +4842,71 @@ static string substitute_slots(const string& ir,
       return result;
 }
 
+/* Inline caller-state function captures use fv:N:W[:s]. Unlike ordinary
+ * scalar value slots, their result must not collapse X/Z to zero before the
+ * constraint solve. */
+static bool substitute_function_slots_(const string&ir,
+      const vector<vvp_vector4_t>&slot_vals, string&result, string&error)
+{
+      result.clear();
+      const char*begin = ir.c_str();
+      const char*p = begin;
+      while (*p) {
+            bool token_start = p == begin
+                  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+            if (!token_start || p[0] != 'f' || p[1] != 'v' || p[2] != ':') {
+                  result += *p++;
+                  continue;
+            }
+            const char*q = p + 3;
+            char*end = nullptr;
+            unsigned long slot = strtoul(q, &end, 10);
+            if (end == q || *end != ':') {
+                  error = "malformed inline constraint function capture";
+                  return false;
+            }
+            q = end + 1;
+            unsigned long width = strtoul(q, &end, 10);
+            if (end == q || width == 0 || width > UINT_MAX) {
+                  error = "invalid inline constraint function capture width";
+                  return false;
+            }
+            q = end;
+            bool is_signed = q[0] == ':' && q[1] == 's';
+            if (is_signed) q += 2;
+            if (slot > UINT_MAX || slot >= slot_vals.size()
+                || slot_vals[(size_t)slot].size() != width) {
+                  error = "missing inline constraint function capture slot "
+                        + to_string(slot);
+                  return false;
+            }
+            const vvp_vector4_t&value = slot_vals[(size_t)slot];
+            for (unsigned bit = 0; bit < value.size(); ++bit)
+                  if (value.value(bit) != BIT4_0 && value.value(bit) != BIT4_1) {
+                        error = "X/Z value in inline constraint function capture slot "
+                              + to_string(slot);
+                        return false;
+                  }
+            string constant = "c:0:" + to_string(width)
+                  + (is_signed ? ":s" : "");
+            if (width <= 64) {
+                  uint64_t bits = 0;
+                  for (unsigned bit = 0; bit < width; ++bit)
+                        if (value.value(bit) == BIT4_1) bits |= UINT64_C(1) << bit;
+                  constant = "c:" + to_string(bits) + ":" + to_string(width)
+                        + (is_signed ? ":s" : "");
+            } else {
+                  /* Constraint IR constants are bounded to 64 bits; the
+                   * elaborator currently admits only representable results. */
+                  error = "inline constraint function capture width exceeds 64 bits";
+                  return false;
+            }
+            result += constant;
+            p = q;
+      }
+      return true;
+}
+
 /* Class-constraint function captures retain their complete four-state value.
  * Build wide constants from existing concat/trunc IR instead of narrowing the
  * runtime value through uint64_t. */
@@ -6962,7 +7027,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   }
                   add(ir);
             }
-            for (const string&ir : extras) {
+            for (const string&source_ir : extras) {
+		  string ir;
+		  string error;
+		  if (!substitute_function_slots_(source_ir,
+			  source ? source->slot_words : class_slots, ir, error)) {
+			builder.state_errors.push_back(error);
+			return false;
+		  }
                   if (source && ir.find("(qforeach ") != string::npos) {
                         string expanded;
                         if (!expand_state_foreach_(ir, source->slot_words,

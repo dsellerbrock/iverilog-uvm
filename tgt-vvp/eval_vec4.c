@@ -1809,7 +1809,13 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	       * under the result when %randomize/with pops them. */
 	    for (unsigned i = 0 ; i < n_vals ; i++) {
 		  ivl_expr_t slot = ivl_expr_parm(expr, 1 + i);
-		  if (slot) draw_eval_vec4(slot);
+		  if (slot && ivl_expr_type(slot) == IVL_EX_SFUNC
+		      && strcmp(ivl_expr_name(slot),
+			"$ivl_inline_target_capture") == 0
+		      && ivl_expr_parms(slot) == 1
+		      && ivl_expr_type(ivl_expr_parm(slot, 0)) == IVL_EX_UFUNC)
+			draw_ufunc_vec4_retained_receiver(ivl_expr_parm(slot, 0));
+		  else if (slot) draw_eval_vec4(slot);
 		  else fprintf(vvp_out, "    %%pushi/vec4 0, 0, 32;\n");
 	    }
 	      /* %randomize/with consumes its object, so give it an aliasing

@@ -119,13 +119,17 @@ extern string pexpr_to_class_constraint_ir(
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
       const vector<perm_string>*inline_member_names = nullptr,
-      vector<NetExpr*>*object_slots = nullptr);
+      vector<NetExpr*>*object_slots = nullptr,
+      vector<bool>*function_slot_flags = nullptr,
+      vector<NetExpr*>*prebuilt_value_slots = nullptr);
 extern string pexpr_to_rooted_class_constraint_ir(
       const PExpr*expr, const netclass_t*cls, perm_string root,
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
       const vector<perm_string>*inline_member_names = nullptr,
-      vector<NetExpr*>*object_slots = nullptr);
+      vector<NetExpr*>*object_slots = nullptr,
+      vector<bool>*function_slot_flags = nullptr,
+      vector<NetExpr*>*prebuilt_value_slots = nullptr);
 
 /* In-line random variable control (IEEE 1800-2017 18.11). Turn the
  * ARGUMENT list of obj.randomize(...) into the selector the %rand/active
@@ -212,6 +216,8 @@ NetESFunc* make_randomize_with_expr(
 {
       string combined_ir;
       vector<const PExpr*> value_slots;
+      vector<bool> function_slot_flags;
+      vector<NetExpr*> prebuilt_value_slots;
       vector<NetExpr*> object_slots;
       const vector<perm_string>*member_names = with_identifiers.empty()
 	    ? nullptr : &with_identifiers;
@@ -233,16 +239,25 @@ NetESFunc* make_randomize_with_expr(
 	    if (!identifier_list_ok) continue;
 	    unsigned errors_before = des->errors;
             size_t saved_values = value_slots.size();
+            size_t saved_function_slots = function_slot_flags.size();
+            size_t saved_prebuilt_values = prebuilt_value_slots.size();
             size_t saved_objects = object_slots.size();
 	    string ir = object_root.nil()
 		  ? pexpr_to_class_constraint_ir(
 			wc, class_type, &value_slots, des, scope,
-			member_names, &object_slots)
+			member_names, &object_slots, &function_slot_flags,
+			&prebuilt_value_slots)
 		  : pexpr_to_rooted_class_constraint_ir(
 			wc, class_type, object_root,
-			&value_slots, des, scope, member_names, &object_slots);
+			&value_slots, des, scope, member_names, &object_slots,
+			&function_slot_flags, &prebuilt_value_slots);
 	    if (ir.empty()) {
                   value_slots.resize(saved_values);
+                  function_slot_flags.resize(saved_function_slots);
+                  while (prebuilt_value_slots.size() > saved_prebuilt_values) {
+                        delete prebuilt_value_slots.back();
+                        prebuilt_value_slots.pop_back();
+                  }
                   while (object_slots.size() > saved_objects) {
                         delete object_slots.back();
                         object_slots.pop_back();
@@ -290,9 +305,42 @@ NetESFunc* make_randomize_with_expr(
 	       a size cast such as 32'(rw.addr) computes its cast width in
 	       test_width(); calling elaborate_expr() directly leaves that width
 	       at zero and emits `%pad/u 0', silently turning the slot into zero. */
-	    NetExpr*slot_ne = elab_and_eval(
-		  des, scope, const_cast<PExpr*>(value_slots[i]), -1, false);
+	    NetExpr*slot_ne = i < prebuilt_value_slots.size()
+		  && prebuilt_value_slots[i] ? prebuilt_value_slots[i]
+		  : elab_and_eval(des, scope, const_cast<PExpr*>(value_slots[i]), -1, false);
 	    if (!slot_ne) slot_ne = new NetEConst(verinum(verinum::V0, 32));
+	    /* A nonstatic method body can return a constant without touching a
+	     * null implicit-this handle. The capture must nevertheless fail under
+	     * 8.4, before its value reaches the solver. Inline function slots are
+	     * restricted to a simple lexical receiver, so this guard introduces no
+	     * additional user-visible receiver evaluation. */
+	    if (i < function_slot_flags.size() && function_slot_flags[i]) {
+		  NetEUFunc*method_call = dynamic_cast<NetEUFunc*>(slot_ne);
+		  const PFunction*pfunc = method_call
+			? method_call->func()->func_pform() : nullptr;
+		  bool is_static = pfunc && pfunc->method_qualifiers().test_static();
+		  bool has_implicit_this = !is_static && method_call
+			&& scope_method_uses_implicit_this(
+			      des, const_cast<NetScope*>(method_call->func()));
+		  const NetExpr*receiver = has_implicit_this && method_call->parm_count()
+			? method_call->parm(0) : nullptr;
+		  if (receiver) {
+			NetExpr*receiver_copy = receiver->dup_expr();
+			NetENull*null_value = new NetENull(receiver->net_type());
+			receiver_copy->set_line(*call);
+			null_value->set_line(*call);
+			NetEBComp*receiver_valid = new NetEBComp(
+			      'N', receiver_copy, null_value);
+			receiver_valid->set_line(*call);
+			verinum invalid(verinum::Vx, slot_ne->expr_width(), true);
+			invalid.has_sign(slot_ne->has_sign());
+			NetEConst*invalid_value = new NetEConst(invalid);
+			invalid_value->set_line(*call);
+			slot_ne = new NetETernary(receiver_valid, slot_ne, invalid_value,
+			      slot_ne->expr_width(), slot_ne->has_sign());
+			slot_ne->set_line(*call);
+		  }
+	    }
 	    rand_expr->parm(1 + i, slot_ne);
       }
       for (unsigned i = 0 ; i < object_slots.size() ; ++i)

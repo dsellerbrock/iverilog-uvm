@@ -3184,3 +3184,11 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Observation: the fork-owned legacy `uvm_re_match` in `uvm_dpi/uvm_dpi_iverilog.cc` compiles with `REG_EXTENDED` only and never reads submatches. On TRE (MSYS2 libsystre), literal patterns longer than 1463 characters fail with REG_ESPACE without `REG_NOSUB`; glibc accepts them. The active fix covers `uvm_re_comp` only.
 - Evidence: `evidence/win-regex-tre/` harness technique; the capacity limit was measured against Ubuntu TRE 0.8.0. Not reproduced through the legacy SV API, and no Windows run has been made.
 - Triage: recorded only. Check the pinned UVM 1.x legacy source flags before any change; there is no correctness defect on glibc/macOS.
+
+### 2026-09-22 inline randomize on function-call receiver syntax
+
+- Discovery ID: INLINE-RANDOMIZE-CALL-RECEIVER-PARSE. Active blocker: OT-SPI-INLINE-STATE-FUNCTION-CALL.
+- Installed build3 rejects `get_target().randomize() with { n == value(); }` at parsing, while the paired plain `get_target().randomize()` class-constraint control compiles and executes. This precedes target-function lowering; do not count it as a failure of the new retained-receiver implementation.
+- Evidence: `evidence/review-20260920/spi-external-cfg-constraint-next/build3/target-red/receiver_once-2023.compile.log` and `fixtures.json`; paired 2017 observation agrees. Sources are in `target-fixtures/receiver_once.sv` and `receiver_once_control.sv` under that evidence root.
+- Alternative lifetime acceptance probe `coordinator/target_index_once.sv` parses an indexed receiver with an observable index-function call count and reaches the selected unsupported target-function diagnostic.
+- Possible standard scope: IEEE 1800-2017/2023 18.7 inline constraints and method-call grammar. Status: reproduced, parser root cause and complete grammar disposition unassessed; record only, no parser change authorized.

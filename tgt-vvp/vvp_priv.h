@@ -109,6 +109,7 @@ extern void draw_lpm_mux(ivl_lpm_t net);
 extern void draw_lpm_substitute(ivl_lpm_t net);
 
 extern void draw_ufunc_vec4(ivl_expr_t expr);
+extern void draw_ufunc_vec4_retained_receiver(ivl_expr_t expr);
 extern void draw_ufunc_real(ivl_expr_t expr);
 extern void draw_ufunc_string(ivl_expr_t expr);
 extern void draw_ufunc_object(ivl_expr_t expr);

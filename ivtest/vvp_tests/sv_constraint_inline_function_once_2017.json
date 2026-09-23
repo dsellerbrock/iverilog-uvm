@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_inline_function_once_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "receiver_once"
+  ],
+  "gold": "sv_constraint_inline_function_once_2017"
+}

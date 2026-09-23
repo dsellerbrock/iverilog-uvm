@@ -1329,7 +1329,7 @@ static void draw_copy_out_function_arguments(ivl_expr_t expr)
       }
 }
 
-static void draw_ufunc_preamble(ivl_expr_t expr)
+static void draw_ufunc_preamble(ivl_expr_t expr, int retained_receiver)
 {
       ivl_scope_t def = ivl_expr_def(expr);
       unsigned first_unbound_parm = 0;
@@ -1353,7 +1353,9 @@ static void draw_ufunc_preamble(ivl_expr_t expr)
 	    ivl_signal_t this_port = ivl_scope_port(def, 1);
 	    const char*name = this_port ? ivl_signal_basename(this_port) : 0;
 	    if (name && strcmp(name, "@") == 0) {
-		  draw_eval_function_argument(this_port, ivl_expr_parm(expr, 0));
+		  if (retained_receiver)
+			fprintf(vvp_out, "    %%dup/obj/ref; retained function receiver\n");
+		  else draw_eval_function_argument(this_port, ivl_expr_parm(expr, 0));
 		  draw_send_function_argument(this_port, ivl_expr_parm(expr, 0));
 		  first_unbound_parm = 1;
 	    }
@@ -1499,8 +1501,14 @@ void draw_ufunc_vec4(ivl_expr_t expr)
 {
 
 	/* Take in arguments to function and call function code. */
-      draw_ufunc_preamble(expr);
+      draw_ufunc_preamble(expr, 0);
 
+      draw_ufunc_epilogue(expr);
+}
+
+void draw_ufunc_vec4_retained_receiver(ivl_expr_t expr)
+{
+      draw_ufunc_preamble(expr, 1);
       draw_ufunc_epilogue(expr);
 }
 
@@ -1508,7 +1516,7 @@ void draw_ufunc_real(ivl_expr_t expr)
 {
 
 	/* Take in arguments to function and call the function code. */
-      draw_ufunc_preamble(expr);
+      draw_ufunc_preamble(expr, 0);
 
 	/* The %callf/real function emitted by the preamble leaves
 	   the result in the stack for us. */
@@ -1520,7 +1528,7 @@ void draw_ufunc_string(ivl_expr_t expr)
 {
 
 	/* Take in arguments to function and call the function code. */
-      draw_ufunc_preamble(expr);
+      draw_ufunc_preamble(expr, 0);
 
 	/* The %callf/str function emitted by the preamble leaves
 	   the result in the stack for us. */
@@ -1540,7 +1548,7 @@ void draw_ufunc_object(ivl_expr_t expr)
             force_object_return = 1;
 
 	/* Take in arguments to function and call the function code. */
-      draw_ufunc_preamble(expr);
+      draw_ufunc_preamble(expr, 0);
 
       if (ret_type == IVL_VT_CLASS ||
           ret_type == IVL_VT_DARRAY ||
@@ -1675,7 +1683,7 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
             return;
       }
 
-      draw_ufunc_preamble(expr);
+      draw_ufunc_preamble(expr, 0);
 
       int ix = allocate_word();
       for (idx = 0 ; idx < word_count ; idx += 1) {
@@ -1751,7 +1759,7 @@ void draw_ufunc_uarray_object(ivl_expr_t expr, int as_queue,
       assert(retval);
       assert(ivl_signal_dimensions(retval) > 0);
 
-      draw_ufunc_preamble(expr);
+      draw_ufunc_preamble(expr, 0);
 
       switch (dt) {
 	  case IVL_VT_REAL:

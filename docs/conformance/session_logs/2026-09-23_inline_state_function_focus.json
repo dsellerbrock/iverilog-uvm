@@ -1,0 +1,35 @@
+{
+  "status": "focused_candidate_not_qualified",
+  "blocker": "OT-SPI-INLINE-STATE-FUNCTION-CALL",
+  "merged_base": "3ccd5d73e691411caf43b407f05c84ddcade8820",
+  "branch": "agent/spi-inline-state-functions-20260922",
+  "standards": ["IEEE 1800-2017 18.5.12 and 18.7", "IEEE 1800-2023 18.5.11 and 18.7"],
+  "root_cause": "Inline randomize lowering did not carry state-function captures with the caller lexical frame or retained randomized target object; class-body constraint captures did not transfer directly to the per-call extra constraint.",
+  "scope": "State-only integral caller, self and target functions with no random-variable actual arguments, results at most 64 bits, post-pre_randomize capture, retained target object, four-state rollback and ordinary purity/direction diagnostics.",
+  "focused_evidence": {
+    "root": "evidence/review-20260920/spi-external-cfg-constraint-next/build5-main",
+    "build_and_install": "pass after fast-forward to merged base",
+    "external_cases": "results.json; paired 2017/2023 expected positive and negative outcomes",
+    "boundary_cases": "boundaries/results.json; paired 2017/2023 positive, negative and width tests",
+    "target_cases": "targets/results.json; paired retained-target, virtual, null and rebinding tests",
+    "permanent_cases": "permanent/results.json; legacy 8/8 and JSON 8/8",
+    "neighboring_cases": "build4 neighboring legacy 212/212 and JSON 212/212 before merged-base fast-forward; no claim these were repeated on build5"
+  },
+  "unsupported_or_open": [
+    "Random-variable function actual arguments require priority-stage execution; the actual inline reducer still fails compilation in both editions, while paired class-body controls pass.",
+    "Function results wider than 64 bits are diagnosed rather than implemented.",
+    "Function-call receiver syntax for inline randomize is a separate parser discovery.",
+    "Required broad integrated gates and complete OpenTitan SPI DV are not run or qualified for this candidate."
+  ],
+  "staged_argument_baseline": "evidence/review-20260920/spi-external-cfg-constraint-next/staged/build5-main-red/results.json: actual inline target f(y) compile fails in both editions; class-body controls compile, execute and self-check PASS in both editions on the build5 installed tools.",
+  "application": {
+    "evidence": "evidence/review-20260920/spi-external-cfg-constraint-next/application-build5-main/result.json",
+    "stable_release_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "corpus_clean": true,
+    "installed_tool_fingerprints_match_build5": true,
+    "compile_exit": 3,
+    "remaining_diagnostics": "Two queue/dynamic-array output-formal element-type equivalence errors in spi_host_driver.sv and one unsupported nested unpacked-struct constraint path in spi_host_upper_range_clkdiv_vseq.sv. The earlier external cfg method diagnostic is absent.",
+    "qualification": "Compile-only evidence; SPI DV did not run or pass."
+  },
+  "coordination": "PR322 caller-method commit overlaps elaborate.cc. See .ai/ISSUE_CHECKOUT.csv; reconcile before merge."
+}

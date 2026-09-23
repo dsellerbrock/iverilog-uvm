@@ -1655,3 +1655,7 @@ The §16.6, §16.9.2.1 and §16.12.12 candidate corrects Boolean truth, zero-inc
 ### 2026-09-22 — caller-owned integral collection constraints
 
 §18.7 and §18.5.8.1 remain PARTIAL overall. Direct caller-owned integral queues and dynamic arrays now have focused paired-edition evidence for runtime foreach bounds, target-first lookup, explicit caller qualification, signed values, and failure without target writeback. [Revision-scoped evidence](../session_logs/2026-09-22_caller_queue_foreach_focus.json) owns the supported subset, diagnostics and completed local qualification. Compilation progress in pristine SPI does not qualify its DV suite.
+
+### 2026-09-23 — inline constraint state-function calls
+
+§18.5.12 remains PARTIAL. A focused candidate evaluates state-only caller, target, and self integral function calls after `pre_randomize`, retaining the target object and rejecting invalid four-state captures without writeback. Random-variable actual arguments require staged solving and remain unsupported; results wider than 64 bits also remain unsupported. [Revision-scoped evidence](../session_logs/2026-09-23_inline_state_function_focus.json) records paired editions and pending broad validation.
