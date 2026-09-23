@@ -13,13 +13,13 @@ recent_merges:
   pr339: 6fd804a39e803152bd39a3ee4c96b15d30532001; repaired compiler/VPI follow-on merged after Ubuntu 24.04 exact-head CI success. Other jobs remained in progress at merge; local broad and UVM gates passed.
 active_blocker:
   id: OT-SPI-CLASS-EVENT-TRIGGERED
-  phase: REPRODUCED_SPEC_GROUNDED
+  phase: FOCUSED_VALIDATED_PR_PENDING
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
   standards: IEEE 1800-2017/2023 section 15.5.3 per-instance named-event triggered state and same-time wait behavior.
-  checkpoint: The class-event .triggered reducer is RED in both editions while the ordinary per-instance wait control passes. PR339 merged on Ubuntu 24.04 exact-head CI success; local broad and 358-case UVM gates passed.
-  evidence: evidence/opentitan-spi-class-event-triggered-triage-20260923; no SPI Device DV pass.
-  next: Implement the class-event expression and wait path in the scope recorded by ACTIVE_WORK, with paired 2017/2023 semantic tests. Verilator remains a read-only differential tool.
+  checkpoint: Commit 81b3dc74d passes paired class-event focus 20/20 in each runner; pinned SPI compile advances from nine to six strict errors and five to two commercial-unsafe errors. No SPI Device DV pass.
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_class_event_triggered_focus.json.
+  next: Publish the reviewed Icarus fix as a PR, observe exact-head CI, then select the next pinned OpenTitan compiler blocker. Verilator remains read-only differential evidence.
 parallel_vpi_implementation_lane:
   id: VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
@@ -140,4 +140,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Delegate OT-SPI-CLASS-EVENT-TRIGGERED on merged main 6fd804a39 to a lower-cost implementation agent; coordinator owns shared build, focused integration, and review. Do not edit Verilator or pinned application sources."
+next_command: "Publish focused-tested Icarus class-event commit 81b3dc74d as a PR, observe CI, then select the next pinned-release compiler blocker. Do not edit Verilator or pinned application sources."

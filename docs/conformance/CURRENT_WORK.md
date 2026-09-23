@@ -1,10 +1,16 @@
 # Current evidence and work
 
+The [OpenTitan class-event `.triggered` focused record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
+is the latest compiler candidate on `81b3dc74d`; paired checks pass and the
+pinned SPI compile advances, but it still fails. PR publication, CI, and full
+OpenTitan DV qualification remain open.
+
 The [PR339 compiler and VPI repair record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
 links the package-parameter `foreach`, packed-struct queue `.size`, direct
 unbased-fill cast, caller-queue, and VPI callback corrections to local gates
-and a fresh pinned SPI Device compile. The repaired PR head still needs CI;
-SPI Device, ADC, and full application DV remain unqualified.
+and a fresh pinned SPI Device compile. PR339 merged at `6fd804a39` after its
+Ubuntu 24.04 exact-head check passed; SPI Device, ADC, and full application DV
+remain unqualified.
 
 The [parallel compiler follow-on record](session_logs/2026-09-23_parallel_compiler_followon_focus.json)
 links locally integrated ADC outer resize, SPI Device sparse-key constraint

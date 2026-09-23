@@ -1,4 +1,4 @@
-status: reproduced_spec_grounded
+status: focused_validated_pr_pending
 branch: agent/ot-spi-class-event-triggered-20260923
 baseline: main 6fd804a39; PR339 merged after Ubuntu 24.04 exact-head CI success.
 blocker: OT-SPI-CLASS-EVENT-TRIGGERED
@@ -9,7 +9,7 @@ expected: Per-instance event reads return one only in the firing time step; anot
 root_cause: Class event member reads enter ordinary class-property expression lookup and fail before per-instance event lowering. VVP already has %evtest/obj and per-instance event wait machinery; expression lowering and wait dependency collection do not reach them.
 allowed_scope: elab_expr.cc, elaborate.cc, tgt-vvp/eval_vec4.c, necessary shared declaration for the existing class-event helper, dedicated tests, and coordinator-owned manifests. No new VVP opcode unless source evidence disproves the existing path.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: RED and ordinary-wait control rechecked on PR339 source head a338704e4 in both editions; external transcript is ../evidence/ot-class-event-selected-20260923/result.json. Merged main 6fd804a39 contains that exact source. Focused paired-edition behavior and appropriate integrated gates are pending.
+validation: Source/test commit 81b3dc74d passes incremental build/install and paired class-event focus 20/20 in each legacy and JSON runner. The source patch hash matches the pinned SPI replay; strict compile has six errors and commercial-unsafe two, with all three class-event errors removed. See docs/conformance/session_logs/2026-09-23_opentitan_class_event_triggered_focus.json. PR/CI and full DV remain pending.
 release_lane:
   id: CALIPTRA-EXACT-L0-52
   owner: Coordinator

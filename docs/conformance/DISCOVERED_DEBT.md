@@ -3388,3 +3388,13 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Evidence:** [Paired reducer and emitted-VVP diagnosis](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) on PR339 source incorporated into main `6fd804a39`.
 - **Reproducer status:** confirmed in both editions; one-object event waits remain a passing control.
 - **Triage status:** untriaged; separate from `.triggered` expression reads and waits. Do not expand the active ticket to repair explicit `@(...)` event lists.
+
+### DD-052 — explicit named-event `triggered()` call aborts `ivl`
+
+- **Discovered while working:** OT-SPI-CLASS-EVENT-TRIGGERED.
+- **Observation:** `event ev; ev.triggered()` aborts in `ivl` at an assertion, while the parenthesis-free spelling has a separate working path. A class-event `obj.ev.triggered()` call is also rejected as an unknown method.
+- **File/function:** `elab_expr.cc` event-method call elaboration; exact root cause and baseline status are pending.
+- **Possible clause:** IEEE 1800-2017/2023 §15.5.3 gives the `function bit triggered()` prototype.
+- **Evidence:** [Minimal crash reducer](../../evidence/ot-event-triggered-call-crash-20260923/README.md) on the current class-event candidate; compiler exit 134 on macOS.
+- **Reproducer status:** confirmed on the candidate, baseline comparison pending.
+- **Triage status:** untriaged; separate from the selected parenthesis-free class-event `.triggered` ticket.

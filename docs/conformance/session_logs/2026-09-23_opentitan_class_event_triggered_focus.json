@@ -1,0 +1,25 @@
+{
+  "blocker": "OT-SPI-CLASS-EVENT-TRIGGERED",
+  "source_commit": "81b3dc74d7bc4bdc64108609ab1278d6af0f9e7b",
+  "baseline_main": "6fd804a39e803152bd39a3ee4c96b15d30532001",
+  "standards": ["IEEE 1800-2017 15.5.3", "IEEE 1800-2023 15.5.3"],
+  "scope": "Per-instance class-event .triggered expression reads and wait dependencies, including null-handle rebinding; existing VVP object event opcodes reused.",
+  "validation": {
+    "incremental_build_and_install": "passed",
+    "legacy_class_event_list": "20/20 passed, including two invalid-member compile-error controls",
+    "json_class_event_list": "20/20 passed, including two invalid-member compile-error controls",
+    "boundary": "$bits(obj.ev.triggered) == 1, packed false/true reads, ordinary class property named triggered retains width 4, time-step expiry, per-instance isolation, compound and rearmed waits, null-handle rebinding",
+    "pinned_spi_source_list_sha256": "6becda0d15569124a60e2aa05dfdd9618bcd4fd6c9180d854ff66720477b5f9a",
+    "pinned_spi_release_head": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "pinned_spi_strict_compile_errors": 6,
+    "pinned_spi_commercial_unsafe_compile_errors": 2,
+    "raw_replay": "../../../../evidence/opentitan-spi-device-class-trigger-20260923/strict_width.result.json and commercial_unsafe_width.result.json",
+    "source_diff_sha256": "382d802e0018406f5483b277b3e02968e7fe429515a8d6e6ec3f7695b6692e20",
+    "source_diff_matches_commit": true
+  },
+  "remaining_opt_in_errors": [
+    "std::randomize() with constraints on a byte queue",
+    "find_index() on an associative array"
+  ],
+  "limits": "Compilation still fails. Coverage crosses are dropped with explicit diagnostics. No SPI Device simulation, OpenTitan DV pass, full IEEE clause qualification, or broad post-commit gate is claimed. Explicit triggered() call syntax is parked separately as DD-052."
+}

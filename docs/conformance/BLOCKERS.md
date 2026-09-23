@@ -2,9 +2,9 @@
 
 ### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
 
-- **State:** Selected Icarus blocker on merged main `6fd804a39`. The [paired-edition RED and ordinary-wait control](../../evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md) isolate a class event `.triggered` compile failure; no SPI Device DV pass is claimed.
+- **State:** Locally fixed and focused-tested on `81b3dc74d`, pending PR/CI. The [paired-edition RED and ordinary-wait control](../../evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md) and [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) show all three class-event errors removed from the pinned SPI compile; no SPI Device DV pass is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
-- **Cause and acceptance:** Class-event reads fall into ordinary class-property lookup before per-object event lowering. Reuse the existing per-object VVP event query and wait machinery; require paired positive, negative, boundary, and instance-isolation tests without compile-progress fallback.
+- **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls and multi-object `@(a.ev or b.ev)` remain separate debt; the pinned SPI compile still fails on other mechanisms.
 
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
