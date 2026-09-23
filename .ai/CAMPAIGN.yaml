@@ -571,3 +571,61 @@ inline_function_build5_checkpoint:
   draft_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/323
   next_command: python3 evidence/review-20260920/spi-external-cfg-constraint-next/run_focus.py build5-main-recheck
   next_action: Implement staged random-variable actuals under ACTIVE_WORK, then run required broad gates before promotion.
+
+win_regex_checkpoint_20260922:
+  blocker: CI-WIN-UVM-REGEX-NOOUTPUT
+  host: Claude Code cloud Linux container (x86_64, Ubuntu, Bison 3.8.2, Z3 4.8.12). Mac-local evidence, OpenTitan/Caliptra checkouts and canonical Graphify graph are not present here; Graphify/Ponytail are not installed as tools in this session, so rg/source navigation and the AGENTS Ponytail policy are used.
+  base: 1af223c8f45b922dc1b966aa5e399c4f59f8546f (main, includes merged PR319/PR320)
+  reconciliation: ACTIVE_WORK caller-foreach "publication pending" superseded; PR319 merged 288132f2, PR320 merged 1af223c8. Main CI red since PR317 on the three MSYS2 jobs, single failure uvm_regex_strict_exec_test.
+  root: Vendored uvm_re_comp regfree after failed regcomp (POSIX-undefined) crashes TRE/libsystre; TRE also rejects 2048-literal patterns without REG_NOSUB.
+  fix: uvm_dpi/uvm_dpi_iverilog.cc regcomp/regfree wrapper; .github/uvm_test.sh reports vvp exit status.
+  evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json; evidence/win-regex-tre/
+  build: Fresh serial -j1 build/install/installuvm of the checkout, BUILD_EXIT 0.
+  pending: Windows CI on the draft PR.
+
+claude_handoff_to_codex_20260923:
+  reason: User directed handoff to Codex; cross-agent coordination via .ai/ISSUE_CHECKOUT.csv (Codex branch agent/spi-inline-state-functions-20260922, PR323).
+  merged: PR321 3ccd5d73 (CI-WIN-UVM-REGEX-NOOUTPUT, all six CI jobs passed).
+  pr322: Draft, branch claude/iverilog-uvm-takeover-n1v3u6. ce2635bd caller-method on overlap hold (user decision; Codex reconciles against PR323, do not merge PR322 before). f0d2a04b vvp extended args, b8f0e2a2 solve-before fixed arrays, 65906fb0 dropped DPI export exit status all REGRESSION_TESTED locally (ivtest gate exit 0 legacy 6341/0, VPI 126, negative 148/148, JSON 3273/0, UVM 358/358). 4eeb409a runner + Linux application replay; f2e5ded0 Caliptra rej_bounded race classification.
+  held_branch: origin/claude/hold-state-xz-scalar a91acf87 (CONSTRAINT-STATE-XZ-SCALAR, IEEE 18.3; based on 65906fb0). Conflicts with PR323 vthread.cc slot_words; redo on PR323 plumbing after it merges. ivtest/JSON/negative passed; full UVM not completed.
+  recorded_not_started: CONSTRAINT-UNIFORM-LEGAL-COMBINATIONS (CRITICAL), null-handle method call (IEEE 8.4), same-event resume-order compatibility decision (Caliptra rej_bounded), SPI queue element-type vendor-compat question.
+  stale: ACTIVE_WORK.yaml names DPI-EXPORT-DROPPED-EXIT-STATUS (REGRESSION_TESTED); no Claude Code implementation ticket remains active.
+  exact_next_action: Codex reconciles ce2635bd against PR323, then lands PR322's independent fixes; after PR323 merges, redo claude/hold-state-xz-scalar on PR323 plumbing.
+
+pr322_reconcile_20260923:
+  branch: agent/pr322-reconcile-20260923 (origin/main with merged PR323 plus b05a8f898), merging origin/claude/iverilog-uvm-takeover-n1v3u6 at c068c13d9.
+  source_decision: PR322 ce2635bd unindexed caller-method capture removed from elaborate.cc; it preceded and bypassed PR323's guarded caller capture (null receiver, X/Z, purity/direction, width). PR322 fixed-array solve-before, vvp plusarg order, dropped DPI-export error and edalize TOPLEVEL fixes retained.
+  tests: Union of PR323 inline-function entries (12 per manifest) and PR322 caller-method, solve-before-array and plusarg entries.
+  pending: Rebuild/install on merged source; regenerate sv_constraint_caller_method_collision golds from actual output if diagnostics changed; focused then broad gates. No qualification claim for merged source.
+
+pr322_fixed_array_nonintegral_20260923:
+  classification: integration_gate
+  branch: agent/pr322-reconcile-20260923
+  source: PR322 fixed-array expansion merged with PR323 guarded inline functions; all 22 combined focused JSON cases pass after updating the collision CE gold to the remaining indexed-receiver error.
+  red: evidence/review-20260920/pr322-reconcile-build1/nonintegral_array_order.sv compiles exit0 with a rand class-handle array ordered by solve...before in both 2017 and 2023 modes.
+  standard: IEEE 1800-2017 18.5.10 requires integral ordered values; 2023 18.5.9 allows integral or real, still excluding class handles.
+  active: SOLVE-BEFORE-FIXED-ARRAY selected only for this semantic integration gate; previous inline staged-argument ticket is suspended with complete snapshot at e200dfd46:.ai/ACTIVE_WORK.yaml.
+  next: Luna/medium patches the element-type guard and negative regression; coordinator rebuilds, records actual golds, runs focused and broad gates, then publishes PR322 reconciliation.
+  safeguards: User AGENTS.md patch and untracked evidence preserved; no application source edits or worktree creation; shared build/install/test output coordinator-owned.
+
+pr322_reconciled_local_qualification_20260923:
+  status: all_required_local_gates_passed; CI pending
+  branch: agent/pr322-reconcile-20260923
+  source: origin/main 5a89b876d plus b05a8f898 and reconciled PR322 c068c13d9; candidate merge not yet committed at this checkpoint.
+  evidence: docs/conformance/session_logs/2026-09-23_pr322_reconciliation.json
+  gates: make/check/install exit0; focused JSON22/0; SVA NFA58/0; ivtest6353 total/0 failed with VPI126/126 negative148/148 runtime15/15; JSON3285/0; real-DPI UVM358/0; frontend all scenarios passed.
+  application: pristine Earlgrey-PROD-M6 SPI compile exits2 only at spi_host_driver.sv156 and256 queue element-equivalence checks; no DV pass.
+  flag: -gcommercial-unsafe proposed only; no code in this candidate or fetched origin/main; strict default required and README documentation requested.
+  next: Commit resolved merge and push PR322 branch; merge after one successful CI check; then select the flag as separate ticket and port the held scalar X/Z fix on PR323 plumbing.
+
+pr322_direct_main_branch_race_20260923:
+  classification: publication_reconciliation
+  pr322: Closed without merge at 2026-09-23T02:10:51Z while Codex was publishing its reconciled branch; do not claim PR322 merged.
+  direct_main: 1520ccee6 includes vvp args, matrix runner, fixed-array core, dropped DPI export, Caliptra race record and caller-method coverage as separate commits.
+  preserved_branch: agent/pr322-reconcile-20260923 at e4ec3aa51; origin/claude/iverilog-uvm-takeover-n1v3u6 also at e4ec3aa51.
+  follow_up: agent/pr322-remainder-20260923 from origin/main 1520ccee6; ported only missing integral-element guard, caller boundary regressions and current records.
+  evidence: docs/conformance/session_logs/2026-09-23_pr322_branch_reconciliation.json
+  source_proof: git diff --exit-code e4ec3aa51 over elaborate.cc vvp/main.cc tgt-vvp/vvp_scope.c scripts/opentitan_matrix.py ivtest evidence/inline-caller-method returned 0 after staging; prior full local qualification applies to the same compiler/test tree.
+  ci: Exact e4ec3aa51 workflow_dispatch run 35809668400 queued at last check; it is not a PR check or a pass.
+  safeguards: AGENTS.md user patch and untracked evidence remain untouched; no application source or extra worktree changes.
+  next: Finalize branch remainder, open coherent PR, merge after qualifying CI, then retire redundant merged branches and select commercial-unsafe separately.

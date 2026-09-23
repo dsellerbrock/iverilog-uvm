@@ -1,10 +1,8 @@
 # Current evidence and work
 
-The [inline constraint state-function candidate](session_logs/2026-09-23_inline_state_function_focus.json) records focused paired-edition results on the merged `3ccd5d73e` baseline. The state-only patch is not a complete function-in-constraint implementation: random-variable actual arguments, wide results, broad gates and SPI DV remain open. [.ai/ISSUE_CHECKOUT.csv](../../.ai/ISSUE_CHECKOUT.csv) records cross-agent ownership and the PR322 overlap.
+The [branch reconciliation](session_logs/2026-09-23_pr322_branch_reconciliation.json) records that PR322 closed without a merge while its independent fixes were committed directly to `main`. The current follow-up carries the missing fixed-array element guard and caller-boundary regressions; its [earlier exact-source local qualification](session_logs/2026-09-23_pr322_reconciliation.json) is preserved. PR323's guarded inline-function path covers the caller-method tests, and PR322's bypassing shortcut was removed. Clean stable-release SPI still has two queue-element type errors and no DV pass. The proposed `-gcommercial-unsafe` flag is not in the baseline; the [checkout ledger](../../.ai/ISSUE_CHECKOUT.csv) owns its next action.
 
-The same candidate's fresh unmodified stable-release SPI compile still fails on two queue element-type errors and one nested-struct constraint path. The external cfg method diagnostic is absent; this is compile progress only, with no SPI DV pass.
-
-The [MSYS2 strict-regex crash fix](session_logs/2026-09-22_win_regex_tre_fix.json) records the TRE root cause, a Linux red/green reproducer and the local real-DPI UVM results. Windows CI confirmation is pending.
+The earlier [inline constraint state-function candidate](session_logs/2026-09-23_inline_state_function_focus.json) records the state-only scope now merged in PR323. Random-variable actual arguments and wide results remain open. The [MSYS2 strict-regex fix](session_logs/2026-09-22_win_regex_tre_fix.json) merged in PR321; its prior pending-CI note is historical.
 
 The [caller-owned queue foreach candidate](session_logs/2026-09-22_caller_queue_foreach_focus.json) records passing required local gates and removal of the corresponding pristine SPI compile error. It merged as PR320 (`1af223c8`); independent SPI errors remain.
 

@@ -1,0 +1,3 @@
+ERROR: constraint state read: X/Z value in inline constraint function capture slot 0.
+ERROR: constraint state read: X/Z value in inline constraint function capture slot 0.
+PASS caller_xz_2017

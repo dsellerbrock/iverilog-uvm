@@ -1,0 +1,93 @@
+{
+  "blocker": "OT-SPI-INLINE-CALLER-OBJECT-METHOD",
+  "status": "REGRESSION_TESTED locally; publication and CI pending",
+  "base": "50323146 (compiler sources identical to main 1af223c8)",
+  "host": "Claude Code cloud Linux container, x86_64 Ubuntu; serial make, repository-local install",
+  "standards": {
+    "2017": [
+      "18.5.12",
+      "18.7",
+      "18.7.1"
+    ],
+    "2023": [
+      "18.5.11",
+      "18.7",
+      "18.7.1"
+    ]
+  },
+  "red": "Both editions: constraint `(lanes)==(cfg.get_size())' could not be translated (installed 1af223c8 build and a separately linked baseline ivl from 1af223c8 elaborate.cc)",
+  "root_cause": "Object-method state capture existed only for declared class constraints (constraint_ir_state_calls_ctx_); inline caller-scope method calls had no lowering.",
+  "fix": "elaborate.cc pexpr_to_constraint_ir PECallFunction branch: when target-first lookup (constraint_target_path_begin_) declines an unindexed, argument-free dotted call in an inline constraint, capture the complete call as an existing caller value slot elaborated in the caller.",
+  "subset": "Unindexed argument-free dotted method calls on caller-scope handles, including local::, integral results (signed and >32-bit checked). Target-member receivers, indexed receivers and calls with arguments keep the loud diagnostic. Null receivers excluded pending DISCOVERED_DEBT 2026-09-22 8.4 null-call and 18.3 scalar X/Z entries.",
+  "timing_note": "Captured at the randomize call with the other caller-state values (before pre_randomize), like existing inline caller state.",
+  "focused": {
+    "reducers": "evidence/inline-caller-method/{caller_method,caller_method_local_signed,caller_method_target_collision}.sv",
+    "result": "positive PASSED in -g2017 and -g2023; collision/indexed CE loud in both"
+  },
+  "permanent": {
+    "legacy": "6/6 (regress-caller-method.list)",
+    "json": "6/6 (regress-caller-method-json.list)",
+    "tests": [
+      "sv_constraint_caller_method[_2023]",
+      "sv_constraint_caller_method_local[_2023]",
+      "sv_constraint_caller_method_collision[_2023] (CE)"
+    ]
+  },
+  "integrated_build3": {
+    "ivtest_legacy": {
+      "total": 6337,
+      "passed": 6332,
+      "failed": 0,
+      "not_implemented": 2,
+      "expected_fail": 3,
+      "name_diff": "clean"
+    },
+    "vpi": {
+      "passed": 126,
+      "failed": 0
+    },
+    "runtime_invariants": "state foreach 15/15; covgroup exports 66; copy-out context 6/6",
+    "negative": {
+      "passed": 146,
+      "failed": 2,
+      "failed_tests": [
+        "m10_dpi_export_class_handle_argument",
+        "m10_dpi_export_open_array_argument"
+      ],
+      "classification": "pre-existing, root-environment dependent; identical on baseline ivl from 1af223c8; DISCOVERED_DEBT 2026-09-22"
+    },
+    "json_full": {
+      "ran": 3268,
+      "failed": 5,
+      "failed_tests": [
+        "br_gh710a",
+        "br_gh710b",
+        "br_gh710c",
+        "dumpfile",
+        "sdf_header"
+      ],
+      "classification": "pre-existing Linux glibc getopt permutation in vvp (binary unchanged by patch); DISCOVERED_DEBT 2026-09-22"
+    },
+    "uvm_full": {
+      "passed": 358,
+      "failed": 0,
+      "skipped": 0,
+      "dpi": "REAL"
+    }
+  },
+  "intermediate": "Build2 (before the indexed-receiver guard) passed the same gates; superseded by build3 after review found target-first risk for receiver indices.",
+  "application": {
+    "release": "Earlgrey-PROD-M6 a78922f14",
+    "uvm": "Accellera 1.2 (scripts/uvm_release_matrix.py fetch)",
+    "command": "sim-icarus/: iverilog -g2012 -s tb -uvm ... -DUVM_REGEX_NO_DPI --uvm-home=<1.2>/src -c matrix-iverilog.scr",
+    "before": "exit 4, four errors",
+    "after": "exit 3; remaining: spi_host_driver.sv:156/256 queue element-type equivalence, spi_host_upper_range_clkdiv_vseq.sv:14 unpacked-struct constraint path",
+    "env_deviations": "Python 3.13 venv without chipwhisperer/lxml/libcst/premailer; fusesoc ot-0.5.dev0 and edalize v0.4.0 from tag clones (78decf1a, 2a70c442)",
+    "claim": "compile progress only; no DV qualification"
+  },
+  "fingerprints": {
+    "elaborate.cc": "3eb201125b928634f2df43dffe41ac4a252e9d7bcbff3af6d682c8395fc2b7d7",
+    "local-install/lib/ivl/ivl": "f1aa7b84d8f54705996561e3b5897a943ff05d29b56c23c61514acb48690bf33",
+    "local-install/bin/vvp": "cd77ad3cbb98ba2186c26e0cf844dec3224c306e26be0a38d13e6790760a6888"
+  }
+}

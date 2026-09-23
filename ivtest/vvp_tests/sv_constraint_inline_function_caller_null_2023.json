@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_inline_function_caller_null_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "caller_null_2023"
+  ],
+  "gold": "sv_constraint_inline_function_caller_null_2023"
+}

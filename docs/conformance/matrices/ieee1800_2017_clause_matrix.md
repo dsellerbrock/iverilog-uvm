@@ -1658,4 +1658,8 @@ The §16.6, §16.9.2.1 and §16.12.12 candidate corrects Boolean truth, zero-inc
 
 ### 2026-09-23 — inline constraint state-function calls
 
-§18.5.12 remains PARTIAL. A focused candidate evaluates state-only caller, target, and self integral function calls after `pre_randomize`, retaining the target object and rejecting invalid four-state captures without writeback. Random-variable actual arguments require staged solving and remain unsupported; results wider than 64 bits also remain unsupported. [Revision-scoped evidence](../session_logs/2026-09-23_inline_state_function_focus.json) records paired editions and pending broad validation.
+§18.5.12 remains PARTIAL. PR323 evaluates state-only caller, target, and self integral function calls after `pre_randomize`, retaining the target object and rejecting invalid four-state captures without writeback. Random-variable actual arguments require staged solving and remain unsupported; results wider than 64 bits also remain unsupported. [Focused evidence](../session_logs/2026-09-23_inline_state_function_focus.json) and the [later local qualification](../session_logs/2026-09-23_pr322_reconciliation.json) record the paired-edition scope; CI and complete clause qualification are separate.
+
+### 2026-09-22 — caller-scope object methods in inline constraints
+
+PR322's separate caller-only capture was removed during reconciliation because it bypassed null-receiver, X/Z, purity/direction and width checks. The guarded state-function path above handles the supported caller and target forms; indexed receivers remain unsupported. The retained caller tests pass on the [locally qualified follow-up source](../session_logs/2026-09-23_pr322_branch_reconciliation.json); CI is separate. [PR322's record](../session_logs/2026-09-22_inline_caller_object_method.json) preserves its historical results and narrower claims.
