@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-23",
+  "kind": "test-specific downstream formal-source overlay, compile-only",
+  "application": "Caliptra v2.1.2",
+  "release_revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "release_clean_after_test": true,
+  "formal_file_sha256": "4143a3996e438e29409f8d866ee31385efbdacbc0a74ab6b5614ea73fb9a5a57",
+  "problem": "fv_ecc_dsa_sequencer.sv:121 references DSA_NOP after importing ecc_dsa_uop_pkg::*; that package declares ECC_NOP=7'd12 at line 113 and derives DSA_KG_S from it, but does not declare DSA_NOP. RTL ecc_dsa_ctrl.sv uses ECC_NOP. IEEE 1800-2017/2023 26.3 wildcard import cannot supply an undeclared identifier.",
+  "patch": "docs/conformance/release_overlays/caliptra/ecc_dsa_nop_formal.patch",
+  "patch_sha256": "3bfc6a88737471f79d7344fb1fb5c588a63ca22789e3cdbb66a40652da98215e",
+  "change": "Replace only DSA_NOP with ECC_NOP in the selected formal property file, on a disposable source copy; no compiler or pinned application source is modified.",
+  "validation": {
+    "patch_dry_run_exit": 0,
+    "patch_apply_exit": 0,
+    "patched_copy_file_sha256": "52107af8562b64bc57bfdb1aadc4d9d92c2542e30425c7071ed6e5d5a20ae000",
+    "compiler_engine_sha256": "6460085bb07160bc45806eab0af310c0437c936f5a4214bec8ce07fcbb4f3ef6",
+    "preprocessor_sha256": "35d983cb76b8df6ad118cfa7add3bb84d384eae38667ea0ffd9d6f54c42ccd21",
+    "command": "CALIPTRA_ROOT=<pinned release> CALIPTRA_PRIM_ROOT=<pinned release>/src/caliptra_prim_generic CALIPTRA_PRIM_MODULE_PREFIX=caliptra_prim_generic ADAMSBRIDGE_ROOT=<pinned Adams Bridge> local-install/bin/iverilog -g<2017|2023> -gassertions -tnull -s ecc_top -f <pinned release>/src/ecc/config/ecc_top.vf <patched-copy>/src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv",
+    "pristine_results": "both editions exit 1 at the DSA_NOP bind error after the compiler late-default-clock fix",
+    "patched_copy_results": "both editions exit 0 with no diagnostics",
+    "raw": "evidence/caliptra-ecc-nop-overlay-20260923/result.json and ecc-{2017,2023}.log"
+  },
+  "limits": "Only this ECC formal-filelist compilation is demonstrated. No formal proof or Caliptra DV runtime was run, and other formal files may contain the same stale identifier. This overlay is selected only for the named formal filelist."
+}

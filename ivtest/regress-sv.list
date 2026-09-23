@@ -1515,6 +1515,10 @@ sv_cover_parameter_window_reversed CE,-g2012 ivltests
 sv_cover_parameter_repeat_negative_lower_fail CE,-g2012 ivltests
 sv_assert_parameter_consequent_repeat_negative CE,-g2017 ivltests
 sv_assert_parameter_consequent_repeat_negative_2023 CE,-g2023 ivltests
+sv_assert_named_param_consequent_unknown_negative CE,-g2017 ivltests
+sv_assert_named_param_consequent_unknown_negative_2023 CE,-g2023 ivltests
+sv_assert_named_param_consequent_multistep_negative CE,-g2017 ivltests
+sv_assert_named_param_consequent_multistep_negative_2023 CE,-g2023 ivltests
 sv_cover_parameter_repeat_range_reversed_fail CE,-g2012 ivltests
 sv_cover_parameter_window_negative_lower_fail CE,-g2012 ivltests
 sv_cover_parameter_exact_unknown_fail CE,-g2012 ivltests
@@ -2719,6 +2723,10 @@ sv_covergroup_type_weight_signed_fail CE,-g2017 ivltests gold=sv_covergroup_type
 sv_covergroup_type_weight_signed_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_type_weight_signed_fail_2023.gold
 sv_assert_attempt_verdict normal,-g2017 ivltests gold=sv_assert_attempt_verdict.gold
 sv_assert_attempt_verdict_2023 normal,-g2023 ivltests gold=sv_assert_attempt_verdict.gold
+sv_assert_literal_overlap_failure_count normal,-g2017 ivltests gold=sv_assert_literal_overlap_failure_count.gold
+sv_assert_literal_overlap_failure_count_2023 normal,-g2023 ivltests gold=sv_assert_literal_overlap_failure_count.gold
+sv_assert_literal_overlap_boundaries normal,-g2017 ivltests gold=sv_assert_literal_overlap_boundaries.gold
+sv_assert_literal_overlap_boundaries_2023 normal,-g2023 ivltests gold=sv_assert_literal_overlap_boundaries.gold
 sv_assert_vacuous_action normal,-g2017 ivltests gold=sv_assert_vacuous_action.gold
 sv_assert_vacuous_action_2023 normal,-g2023 ivltests gold=sv_assert_vacuous_action.gold
 sv_assert_long_register_999 normal,-g2017 ivltests gold=sv_assert_long_register_999.gold
@@ -2948,6 +2956,7 @@ sv_inherited_method_static_fail CE,-g2017,-s,sv_inherited_method_static_fail ivl
 sv_inherited_method_static_fail_2023 CE,-g2023,-s,sv_inherited_method_static_fail ivltests gold=sv_inherited_method_static_fail.gold
 sv_macro_pasted_function_name normal,-g2017,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
 sv_macro_pasted_function_name_2023 normal,-g2023,-s,sv_macro_pasted_function_name ivltests gold=sv_macro_pasted_function_name.gold
+sv_macro_casted_argument_balance normal,-g2017,-s,sv_macro_casted_argument_balance ivltests gold=sv_macro_casted_argument_balance.gold
 sv_const_handle_member normal,-g2017,-s,sv_const_handle_member ivltests gold=sv_const_handle_member.gold
 sv_const_handle_member_2023 normal,-g2023,-s,sv_const_handle_member ivltests gold=sv_const_handle_member.gold
 sv_const_handle_rebind_fail CE,-g2017,-s,sv_const_handle_rebind_fail ivltests gold=sv_const_handle_rebind_fail.gold

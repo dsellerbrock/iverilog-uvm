@@ -3321,3 +3321,33 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clauses:** IEEE 1800-2017 §18.5.8.1 and IEEE 1800-2023 §18.5.7.1 allow a `ps_or_hierarchical_array_identifier` as the constraint-foreach source; both editions' §7.12.1 allow the separate locator `with` expression.
 - **Evidence:** `evidence/opentitan-spi-device-current-20260923/result.json` and its pinned-source compile log; a temporary standalone reducer was run but must be frozen before implementation.
 - **Triage status:** reproduced, not selected; `elaborate.cc` overlaps Claude Code's active ownership. Preserve the locator as a positive control and test empty/nonempty collection boundaries when selected.
+
+### DD-045 — Caliptra v2.1.2 ECC formal file references absent `DSA_NOP`
+
+- **Discovered while working:** CALIPTRA-LATE-DEFAULT-CLOCKING.
+- **Observation:** After the clocking fix, the clean pinned ECC formal filelist fails only because `fv_ecc_dsa_sequencer.sv:121` uses `DSA_NOP`. Its wildcard-imported `ecc_dsa_uop_pkg` declares `ECC_NOP = 7'd12` and derives `DSA_KG_S` from it; no `DSA_NOP` declaration exists in the pinned `src` tree. The RTL uses `ECC_NOP`.
+- **File/function:** Caliptra `src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv:121` and `src/ecc/rtl/ecc_dsa_uop_pkg.sv:113`.
+- **Possible clause:** IEEE 1800-2017/2023 §26.3: a wildcard package import cannot expose a name the package never declares.
+- **Evidence:** A disposable one-token source copy (`DSA_NOP` to `ECC_NOP`) compiles the same full ECC filelist under both editions; the pristine file remains a loud bind error. [Clocking candidate record](session_logs/2026-09-23_caliptra_late_default_clocking_focus.json) pins the clean-source failure.
+- **Reproducer status:** confirmed on Caliptra v2.1.2 `49370266d12c`; this is an upstream formal-source mismatch, not an Icarus defect.
+- **Triage status:** test-specific downstream overlay [recorded and paired compile-tested](session_logs/2026-09-23_caliptra_ecc_nop_overlay.json); the pinned release remains unchanged. Formal proof and DV qualification remain open.
+
+### DD-046 — OpenTitan ADC casted inline constraint loses width at runtime
+
+- **Discovered while working:** OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG.
+- **Observation:** Removing only the macro wrapper lets an inline constraint containing `adc_value_t'('1)` compile, but a reduced run returns `ramp_max=1` instead of the 16-bit all-ones value and reports `%ret/vec4 width mismatch (32 != 1), coercing`.
+- **File/function:** `vvp/vthread.cc:28070` warning path; full width-loss mechanism needs a separate trace.
+- **Possible clause:** IEEE 1800-2017/2023 §§5.7.1, 6.24.1, and 18.5 constraint expressions.
+- **Evidence:** [Pinned ADC macro baseline](session_logs/2026-09-23_opentitan_adc_macro_arg_baseline.json) and its direct nonmacro control; no commercial-simulator result.
+- **Reproducer status:** confirmed on the installed candidate compiler, separate from macro preprocessing.
+- **Triage status:** unselected compiler blocker; `vvp/vthread.cc` overlaps Claude Code's active ownership.
+
+### DD-047 — OpenTitan ADC filter-size constraint is ignored
+
+- **Discovered while working:** OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG.
+- **Observation:** The pinned ADC target compiles after the macro fix, but ignores `foreach (filter_cfg[channel]) { filter_cfg[channel].size == ADC_CTRL_NUM_FILTERS; }` at line 94. The direct outer `filter_cfg.size` constraint at line 91 is accepted. A nested `struct[][]` reducer returns successful `randomize()` while inner arrays retain size 1 instead of constrained size 3.
+- **File/function:** OpenTitan `hw/ip/adc_ctrl/dv/env/adc_ctrl_env_cfg.sv:91-94`; `elaborate.cc` rejects nested dynamic-array foreach and indexed `.size` lowering; `vvp/vvp_z3.cc` rejects resize of an unallocated nested class-handle collection during a global solve.
+- **Possible clause:** IEEE 1800-2017 §18.5.8.1, 2023 §18.5.7.1, and both editions' §18.4 require size-before-iterative solving and resizing constrained rand dynamic arrays.
+- **Evidence:** `evidence/opentitan-next-independent-20260923/candidate-adc-compile.json` and `evidence/opentitan-adc-filter-debt-20260923/assessment.md` on installed ivlpp SHA-256 `35d983cb76b8df6ad118cfa7add3bb84d384eae38667ea0ffd9d6f54c42ccd21`.
+- **Reproducer status:** pinned-target warning and standalone runtime failure confirmed; one-dimensional size control passes.
+- **Triage status:** unselected semantic-degradation blocker; full fix overlaps Claude-owned `elaborate.cc` and `vvp/vvp_z3.cc`. Do not classify ADC compile as a DV pass.

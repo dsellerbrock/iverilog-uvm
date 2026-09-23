@@ -5,6 +5,28 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — cast delimiters inside macro actual arguments
+
+For §22.5.1, the [focused candidate](../session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json)
+keeps a cast's `(` or assignment-pattern `{` visible to the existing
+macro-actual nesting scanner instead of swallowing it with the apostrophe.
+Paired 2017/2023 runtime regressions cover nested arguments, commas, strings,
+comments, ordinary unbased literals, and a malformed-call rejection. The
+pinned OpenTitan ADC source list now compiles, but an ignored constraint and
+another cast-width defect keep ADC DV unqualified. This is a bounded clause-22
+subset; square-bracket macro-actual nesting remains outside this correction.
+
+### September 23, 2026 — late module default clocking for assertions
+
+Under §§14.12 and 16.14.6, a module default clocking declared after a
+concurrent assertion supplies that assertion's clock in the tested subset.
+The [revision-scoped candidate](../session_logs/2026-09-23_caliptra_late_default_clocking_focus.json)
+executes direct, forward-named, generated, and `first_match` checks in both
+selected editions and both engines, with the NFA path engaged; procedural enclosing-event inference retains its
+own clock. No-default, invalid-reference, inactive-generate, and cross-module
+boundaries are preserved. This is a focused clause-14/16 refinement within
+PARTIAL support, not full SVA or Caliptra DV qualification.
+
 ### September 23, 2026 — selected-bit property NBA and target error accounting
 
 The [revision-scoped candidate record](../session_logs/2026-09-23_opentitan_nba_codegen_focus.json)
@@ -1719,8 +1741,29 @@ bound. It preserves empty-repeat timing at W=0, a separate obligation per
 antecedent match, four-state samples, vacuity, and `disable iff` cancellation.
 The [revision-scoped evidence](../session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json)
 owns the paired executable tests and pinned Caliptra formal-file compile.
-Other symbolic consequent shapes, the separate literal-NFA failure-count debt,
-full SVA support, and Caliptra DV/formal qualification remain open.
+Other symbolic consequent shapes, full SVA support, and Caliptra DV/formal
+qualification remain open. The fixed-linear literal overlap correction is
+scoped separately below.
+
+The PARTIAL §§16.8/16.9.2.1/16.12.7 named-antecedent follow-up resolves a
+declared one-step Boolean sequence before dispatching the same per-instance
+symbolic-consequent checker. [Paired executable and pinned ECC formal-bind
+evidence](../session_logs/2026-09-23_caliptra_named_sequence_antecedent.json)
+passes locally. Multi-step named antecedents with symbolic consequents remain
+loudly unsupported; broad gates, CI, and full Caliptra DV/formal qualification
+remain open.
+
+### September 23 fixed-linear SVA overlap verdicts and VPI identity
+
+The PARTIAL §§16.12.7/16.14.1 subset now dispatches one failure action for
+each distinct fixed non-negated consequent attempt, even when multiple
+attempts fail on one sampled edge. X/Z sampled guards are definite nonmatches;
+same-attempt checks do not duplicate a verdict. For this subset, §39.4.2
+failure callbacks carry the actual raw-time start across irregular clock
+intervals, Off gaps, Kill, and simultaneous failures. Paired 2017/2023
+regressions and required local gates pass in the [revision-scoped record](../session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
+Window, unbounded, negated, and other checker families retain their previous
+VPI metadata path; full assertion and formal qualification remain open.
 
 ### September 23 long finite SVA sequences
 
@@ -1728,6 +1771,7 @@ The PARTIAL §16.7 fixed-sequence checker now keeps its antecedent capture name
 distinct from indexed consequent-step registers. [Paired executable
 999/1000/1001-step evidence](../session_logs/2026-09-23_caliptra_long_sequence_register_focus.json)
 checks sampled pass and failure actions in both selected editions. The pinned
-Caliptra PM formal file loses its two duplicate-register errors, but the
-unintegrated late-default-clock fix is still required for that filelist.
+Caliptra PM formal file loses its two duplicate-register errors on the
+original branch; the locally integrated PR334 late-default-clock fix requires
+a combined pinned-filelist recheck.
 This narrow correction does not qualify general SVA or formal proof.

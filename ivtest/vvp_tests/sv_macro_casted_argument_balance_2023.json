@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_macro_casted_argument_balance.v",
+  "iverilog-args": ["-g2023", "-ssv_macro_casted_argument_balance"],
+  "gold": "sv_macro_casted_argument_balance"
+}

@@ -1,6 +1,6 @@
 status: in_progress
 branch: agent/caliptra-sva-register-identity-20260923
-baseline: origin/main 42f324c90294ed7356a467e8b6c95d94a9ba2c6e
+baseline: Stacked on PR334 local head da12b889dc5d61945da0d714aba05817da6d95c5, which includes origin/main bdf461a8739e2fe45d3cd45ba047616e2433840c and merged PR332/333. PR334 exact-head CI is queued.
 blocker: CALIPTRA-SVA-LONG-SEQUENCE-REGISTER-COLLISION
 goal: Compile and execute legal finite SVA sequences with at least 1000 steps without colliding synthesized assertion registers.
 standards: IEEE 1800-2017 and IEEE 1800-2023 section 16.7, finite sequence concatenation; confirm exact edition clauses before patching.
@@ -15,12 +15,12 @@ forbidden:
   - OpenTitan, Caliptra, and Adams Bridge source edits; dropping or shortening sequence steps; compile-only completion claims.
   - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc.
   - Shared builds, installations, and shared test-output directories by implementation agents; coordinator owns them.
-dependencies: This branch starts from clean origin/main while PR332, stacked PR333, and PR334 have exact-head CI in progress. Coordinator integrates after qualified merges; do not change those PR heads.
+dependencies: PR332 and PR333 have merged. This branch is stacked on frozen PR334 head da12b889d; keep PR334 unchanged while its exact-head CI runs, then retarget this work to main after PR334 merges.
 acceptance: Baseline red; both editions compile the 999/1000/1001 boundary and execute a 1000-step property with exact pass and fail counts; pinned Caliptra ECC formal filelist loses the two duplicate-register errors; focused SVA/negative neighbors and make check pass. Full Caliptra DV/formal proof remain separate.
 implementation_lane:
   owner: Codex + reused Sol
   files: pform.cc and dedicated SVA fixtures/golds only
-  state: Source/tests committed at 4ff0581df; paired executable 6/6, negative 148/148, SVA dual-engine 60/60, and make check pass. Pinned PM source loses duplicate b999 but still has 16 separate late-clock errors until PR334 integrates.
+  state: Source/tests committed at 4ff0581df; pre-integration paired executable 6/6, negative 148/148, SVA dual-engine 60/60, and make check passed. The PR334 tree is now integrated locally; rerun paired tests and the pinned PM filelist before new qualification claims.
 parallel_implementation_lane:
   id: VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION
   owner: Codex + reused Luna
@@ -30,5 +30,5 @@ parallel_implementation_lane:
   root_cause: vvp/vpi_callback.cc make_force_release shares the legacy vpiNetBit/vpiRegBit parent path despite the variable-bit prohibition.
   files: vvp/vpi_callback.cc and dedicated VPI regression files only; no pform.cc, Claude-owned vvp/vthread.cc, or application source edits.
   acceptance: Paired editions reject cbForce and cbRelease registration on vpiRegBit; legal whole-variable/net-bit and part-select boundaries still register and fire. Focused VPI and relevant neighboring tests pass. Do not claim cb_data.obj statement-handle fidelity; that separate defect needs Claude-owned runtime work.
-  state: selected; implementation begins after PR334 conflict integration returns this shared worktree to this branch.
+  state: selected; PR334 is integrated locally, so the disjoint implementation lane can begin after coordinator's merged-tree check.
 stop_after_completion: Return to coordinator selection; do not expand scope into other SVA or application findings.

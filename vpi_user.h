@@ -684,6 +684,11 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
                                   vpiHandle scope);
+/* Internal fixed-checker attempt identity. clock records every sampled
+   edge, including edges on which assertion control suppresses starts. */
+extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);
+extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
+                                      vpiHandle scope, PLI_INT32 age);
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
@@ -769,7 +774,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 7;
+static const PLI_UINT32 vpip_routines_version = 8;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -819,6 +824,8 @@ typedef struct {
     void        (*set_return_value)(int);
     void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32);
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
+    void        (*assertion_clock)(PLI_INT32, vpiHandle);
+    void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle, PLI_INT32);
     PLI_INT32   (*assertion_cb_active)(void);
     vpiHandle   (*register_assertion_cb)(vpiHandle, PLI_INT32, vpi_assertion_cb_func, PLI_BYTE8*);
     void        (*assertion_report_all)(PLI_INT32);

@@ -685,6 +685,11 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
     BEGIN(ERROR_LINE);
 }
 
+ /* In casts such as nibble_t'('1) and array_t'{'1}, the cast apostrophe
+    and opening delimiter are followed by the apostrophe of an unbased
+    unsized literal. Reconsume the delimiter so its nesting level is tracked. */
+<MA_ADD>'[({]' { yyless(1); macro_add_to_arg(0); }
+
 <MA_ADD>'[^\n\r]' { macro_add_to_arg(0); }
 
 <MA_ADD>{W} { macro_add_to_arg(1); }

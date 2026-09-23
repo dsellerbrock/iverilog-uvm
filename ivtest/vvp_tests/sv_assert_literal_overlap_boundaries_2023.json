@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_assert_literal_overlap_boundaries_2023.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_assert_literal_overlap_boundaries"
+}

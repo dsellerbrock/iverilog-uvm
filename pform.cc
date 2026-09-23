@@ -2547,6 +2547,20 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	// calling pform_startmodule(). Thus, it is impossible for the
 	// pform_cur_module stack to be empty at this point.
       assert(! pform_cur_module.empty());
+	/* A default clocking reference may precede its block declaration, but
+	   must resolve before deferred assertions use it. */
+      Module*cur_module = pform_cur_module.front();
+      perm_string mod_name = cur_module->mod_name();
+      if (!cur_module->default_clocking.nil()
+	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
+	      == cur_module->clocking_blocks.end())) {
+	    ostringstream msg;
+	    msg << "error: default clocking block `"
+		<< cur_module->default_clocking
+		<< "' is not declared in `" << mod_name << "'.";
+	    VLerror(msg.str().c_str());
+	    cur_module->default_clocking = perm_string();
+      }
 	/* M9-SV: bind or diagnose any sampled value function still
 	   waiting for a clock. Before the pop, because binding
 	   synthesizes a sampler process into THIS module's scope. */
@@ -2560,33 +2574,15 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   to still name THIS module. */
       pform_sva_flush_pending_named_properties();
 
-      Module*cur_module  = pform_cur_module.front();
-      pform_cur_module.pop_front();
-      perm_string mod_name = cur_module->mod_name();
-
-	/* M9-10: an unclocked concurrent assertion that never found an
-	   enclosing procedural event control is an error, reported here so
-	   the whole module has been seen. */
+	/* An assertion without an enclosing procedural event uses this module's
+	   default even if that default was declared after the assertion. Keep
+	   the module active while retrying so the checker lands in its scope. */
       pform_sva_flush_pending_procedural();
 
 	/* M9: named property/sequence declarations and the default
 	   disable are module-scoped. */
       pform_sva_module_done();
-
-	/* IEEE 1800-2017 14.12: a `default clocking <id>;` item must name
-	   a clocking block declared in this scope. (Declaration forms
-	   register the block themselves, so only the reference form can
-	   leave a dangling name.) */
-      if (!cur_module->default_clocking.nil()
-	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
-	      == cur_module->clocking_blocks.end())) {
-	    ostringstream msg;
-	    msg << "error: default clocking block `"
-		<< cur_module->default_clocking
-		<< "' is not declared in `" << mod_name << "'.";
-	    VLerror(msg.str().c_str());
-	    cur_module->default_clocking = perm_string();
-      }
+      pform_cur_module.pop_front();
 
 	// Oops, there may be some sort of nesting problem. If
 	// SystemVerilog is activated, it is possible for modules to
@@ -11407,7 +11403,7 @@ static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
    reason);` — a synthesized checker reports a success or failure event,
    gated so nothing runs when no callback is registered. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
-				   int reason)
+				   int reason, PExpr*age = nullptr)
 {
       std::list<named_pexpr_t> args;
       named_pexpr_t a0;
@@ -11416,6 +11412,11 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       named_pexpr_t a1;
       a1.parm = new PENumber(new verinum((uint64_t)reason, 32));
       args.push_back(a1);
+      if (age) {
+	    named_pexpr_t a2;
+	    a2.parm = age;
+	    args.push_back(a2);
+      }
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
       FILE_NAME(rep, loc);
@@ -11427,6 +11428,18 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       PCondit*c = new PCondit(active, rep, nullptr);
       FILE_NAME(c, loc);
       return c;
+}
+
+static Statement* sva_clock_stmt_(const struct vlltype&loc, unsigned inst)
+{
+      std::list<named_pexpr_t> args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)inst, 32));
+      args.push_back(a0);
+      PCallTask*clock = new PCallTask(
+	    lex_strings.make("$ivl_assert_clock"), args);
+      FILE_NAME(clock, loc);
+      return clock;
 }
 
 /* M12B/M12B-cb: the effect of an assertion failure — the (enable-gated)
@@ -22493,6 +22506,9 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
  */
 struct sva_pending_proc_t {
       struct vlltype loc;
+      Module*owner;
+      LexicalScope*scope;
+      PGenerate*generate;
       sva_property_t*prop;
       Statement*fail_stmt;
       Statement*pass_stmt;
@@ -22500,6 +22516,11 @@ struct sva_pending_proc_t {
       perm_string label;
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
+
+/* Both end-of-module retry paths have seen every declaration. An unresolved
+   identifier must now fall through to the ordinary binding diagnostic, not
+   be queued for a retry after its module and generate scopes are gone. */
+static bool sva_named_prop_retry_active_ = false;
 
 /* Bison reduces concurrent_assertion_statement before its enclosing item can
    attach block_identifier_opt. The grammar stages that label before parsing
@@ -22604,11 +22625,14 @@ static bool sva_ctl_encloses_(const PEventStatement*ctl,
 void pform_sva_infer_procedural_clock(PEventStatement*ctl)
 {
       if (sva_pending_proc_.empty() || !ctl) return;
+      Module*owner = pform_cur_module.empty() ? nullptr
+					      : pform_cur_module.front();
 
       std::vector<sva_pending_proc_t> take;
       std::vector<sva_pending_proc_t> keep;
       for (size_t idx = 0 ; idx < sva_pending_proc_.size() ; idx += 1) {
-	    if (sva_ctl_encloses_(ctl, sva_pending_proc_[idx].loc))
+	    if (sva_pending_proc_[idx].owner == owner
+		&& sva_ctl_encloses_(ctl, sva_pending_proc_[idx].loc))
 		  take.push_back(sva_pending_proc_[idx]);
 	    else
 		  keep.push_back(sva_pending_proc_[idx]);
@@ -22637,12 +22661,37 @@ void pform_sva_infer_procedural_clock(PEventStatement*ctl)
       }
 }
 
-/* Called at end of module: anything left never had an enclosing event
-   control, so it is the plain 16.14.6 error. */
+/* Called at module end, after all clocking declarations have been parsed.
+   A pending assertion uses the module default if one exists; otherwise it
+   retains the 16.14.6 diagnostic. A final parser cleanup call also drains
+   assertions that never belonged to a completed module. */
 void pform_sva_flush_pending_procedural(void)
 {
-      for (size_t idx = 0 ; idx < sva_pending_proc_.size() ; idx += 1) {
-	    sva_pending_proc_t&p = sva_pending_proc_[idx];
+      Module*owner = pform_cur_module.empty() ? nullptr
+					      : pform_cur_module.front();
+      std::vector<sva_pending_proc_t> pending;
+      std::vector<sva_pending_proc_t> keep;
+      pending.swap(sva_pending_proc_);
+      for (size_t idx = 0 ; idx < pending.size() ; idx += 1) {
+	    sva_pending_proc_t&p = pending[idx];
+	    if (owner && p.owner != owner) {
+		  keep.push_back(p);
+		  continue;
+	    }
+	    if (owner && !owner->default_clocking.nil()) {
+		  LexicalScope*saved = lexical_scope;
+		  PGenerate*saved_generate = pform_cur_generate;
+		  bool saved_retry = sva_named_prop_retry_active_;
+		  lexical_scope = p.scope;
+		  pform_cur_generate = p.generate;
+		  sva_named_prop_retry_active_ = true;
+		  pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
+				       p.kind, p.label);
+		  sva_named_prop_retry_active_ = saved_retry;
+		  pform_cur_generate = saved_generate;
+		  lexical_scope = saved;
+		  continue;
+	    }
 	    cerr << p.loc << ": error: concurrent assertion has no clocking "
 		 << "event, no enclosing procedural event control to infer "
 		 << "one from, and no default clocking block is declared "
@@ -22652,7 +22701,7 @@ void pform_sva_flush_pending_procedural(void)
 	    delete p.pass_stmt;
 	    pform_sva_destroy_property(p.prop);
       }
-      sva_pending_proc_.clear();
+      sva_pending_proc_.swap(keep);
 }
 
 /* Deferred retry for `assert/assume/cover property (name);' where `name'
@@ -22676,7 +22725,6 @@ static std::vector<sva_pending_named_property_t> sva_pending_named_property_;
  * while flushing this same list -- a name still unresolved at end of
  * module falls through to the original (unchanged) plain-identifier
  * resolution below the deferral site instead of looping. */
-static bool sva_named_prop_retry_active_ = false;
 
 /* Called at end of module, before sva_module_properties is cleared for
  * the next module: every property declaration in this module has now
@@ -24231,6 +24279,26 @@ static bool sva_parameter_window_try_assertion_(
  * Bit W is due for finish; lower bits are due for keep. The [W:0] range is
  * elaborated in each instance, so W=0 naturally implements the empty-repeat
  * rule (empty ##1 finish) without taking a keep sample. */
+static bool sva_parameter_consequent_named_ante_pending_(PExpr*expr)
+{
+      if (PECallFunction*call = dynamic_cast<PECallFunction*>(expr)) {
+	    if (call->path().package || call->path().name.size() != 1)
+		  return false;
+	    perm_string name = peek_tail_name(call->path().name);
+	    auto it = sva_resolve_(sva_param_sequences, name,
+				 pform_cur_generate);
+	    return it != sva_param_sequences.end() && it->second.body;
+      }
+      if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
+	    if (id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty()) return false;
+	    auto it = sva_resolve_(sva_module_sequences,
+		id->path().name.front().name, pform_cur_generate);
+	    return it != sva_module_sequences.end() && it->second;
+      }
+      return false;
+}
+
 static bool sva_parameter_consequent_repeat_try_assertion_(
       const struct vlltype&loc, sva_property_t*prop,
       Statement*fail_stmt, Statement*pass_stmt, int kind)
@@ -24248,6 +24316,12 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       sva_seq_step_t&ante = (*prop->antecedent)[0];
       sva_seq_step_t&keep = (*prop->seq)[0];
       sva_seq_step_t&finish = (*prop->seq)[1];
+      /* The first offer precedes sva_splice_sequences_. A declared sequence
+	 is still represented by a call/identifier here, not a Boolean value;
+	 defer it to the second offer after the sequence body is exposed. An
+	 ordinary Boolean function call remains eligible on this first pass. */
+      if (sva_parameter_consequent_named_ante_pending_(ante.expr))
+	    return false;
       if (!ante.expr || ante.delay_lo != 0 || ante.delay_hi != 0
           || !ante.delay_genvar.nil() || ante.rep_kind != 0
           || ante.rep_tail != 0 || ante.fm || ante.lv_rhs
@@ -24699,6 +24773,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (!mod || mod->default_clocking.nil()) {
 		  sva_pending_proc_t pend;
 		  pend.loc = loc;
+		  pend.owner = mod;
+		  pend.scope = lexical_scope;
+		  pend.generate = pform_cur_generate;
+		  while (dynamic_cast<PBlock*>(pend.scope)
+			 && pend.scope->parent_scope())
+			pend.scope = pend.scope->parent_scope();
 		  pend.prop = prop;
 		  pend.fail_stmt = fail_stmt;
 		  pend.pass_stmt = pass_stmt;
@@ -25943,7 +26023,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    init_zero.push_back(sva_assign_(loc, r_cnt,
 			new PENumber(new verinum((uint64_t)0, 32))));
       } else {
-	    r_f = sva_make_reg_(loc, inst, "f", 0);
+	    /* A fixed-offset stage carries one distinct attempt. More than one
+	       stage can die on the same tick, so preserve the number of failed
+	       attempts until the Reactive action dispatch. */
+	    r_f = sva_make_reg_(loc, inst, "f", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    /* The compact linear checker must retain the assertion-step VPI
 	       contract that the NFA checker provides. These flags aggregate all
@@ -25952,6 +26035,27 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    init_zero.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
 	    r_sf = sva_make_reg_(loc, inst, "sf", 0);
 	    init_zero.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
+      }
+      auto increment_failure = [&]() -> Statement* {
+	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_f),
+				       sva_bit_(loc, 1));
+	    FILE_NAME(add, loc);
+	    return sva_assign_(loc, r_f, add);
+      };
+      /* Only fixed, non-negated chains have one unique failure age for
+	 each pipeline token. Keep the existing two-argument report for
+	 windows and negated forms until they carry distinct attempt records. */
+      bool track_failure_age = kind != 2 && !has_window && !unbounded
+				 && !negated;
+      std::vector<perm_string> failure_at_age;
+      if (track_failure_age) {
+	    failure_at_age.resize((size_t)P + 1);
+	    for (long age = 0; age <= P; ++age) {
+		  failure_at_age[(size_t)age] = sva_make_reg_(
+			loc, inst, "fage", (unsigned)age);
+		  init_zero.push_back(sva_assign_(loc,
+			failure_at_age[(size_t)age], sva_bit_(loc, 0)));
+	    }
       }
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
 
@@ -25974,6 +26078,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    clr.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    if (kind != 2) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+		  for (size_t age = 0; age < failure_at_age.size(); ++age)
+			clr.push_back(sva_assign_(loc, failure_at_age[age],
+					      sva_bit_(loc, 0)));
 		  clr.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
 		  clr.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
 	    }
@@ -25991,14 +26098,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			 sva_id_(loc, r_ante))));
       for (size_t j = 0 ; j < nfixed ; j += 1) {
 	    if (offs[j] != 0) continue;
-	      /* if (g && !b_j) begin [f=1;] g=0; end */
-	    PEUnary*nb = new PEUnary('!', sva_id_(loc, r_b[j]));
+	      /* X/Z is not a successful sequence match. Clearing g on the
+		 first failed check also prevents another ##0 check at this
+		 offset from counting the same attempt twice. */
+	    PEBComp*nb = new PEBComp('N', sva_id_(loc, r_b[j]),
+				   sva_bit_(loc, 1));
 	    FILE_NAME(nb, loc);
 	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, r_g), nb);
 	    FILE_NAME(cond, loc);
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
-		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  hit.push_back(increment_failure());
+	    if (track_failure_age)
+		  hit.push_back(sva_assign_(loc, failure_at_age[0],
+					    sva_bit_(loc, 1)));
 	    if (kind != 2)
 		  hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
@@ -26019,13 +26132,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       for (size_t j = 0 ; j < nfixed ; j += 1) {
 	    if (offs[j] == 0) continue;
 	    perm_string treg = t_regs[offs[j]-1];
-	    PEUnary*nb = new PEUnary('!', sva_id_(loc, r_b[j]));
+	    PEBComp*nb = new PEBComp('N', sva_id_(loc, r_b[j]),
+				   sva_bit_(loc, 1));
 	    FILE_NAME(nb, loc);
 	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, treg), nb);
 	    FILE_NAME(cond, loc);
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
-		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  hit.push_back(increment_failure());
+	    if (track_failure_age)
+		  hit.push_back(sva_assign_(loc,
+			failure_at_age[(size_t)offs[j]], sva_bit_(loc, 1)));
 	    if (kind != 2)
 		  hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
@@ -26067,7 +26184,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (negated) {
 		    /* A match under `not` is the failure. */
 		  PCondit*nm = new PCondit(anyw,
-			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+			increment_failure(), nullptr);
 		  FILE_NAME(nm, loc);
 		  sat.push_back(nm);
 		  anyw = nullptr;
@@ -26090,7 +26207,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> miss;
 	    if (kind != 2 && !negated) {
 		  std::vector<Statement*> mhit;
-		  mhit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  mhit.push_back(increment_failure());
 		  mhit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
 		  PCondit*mc = new PCondit(sva_id_(loc, w_regs[win_n]),
@@ -26144,7 +26261,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> sat;
 	    if (negated) {
 		  PCondit*nm = new PCondit(elig,
-			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+			increment_failure(), nullptr);
 		  FILE_NAME(nm, loc);
 		  sat.push_back(nm);
 	    } else if (kind == 2) {
@@ -26214,7 +26331,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  body.push_back(sva_assign_(loc, r_cnt, add));
 	    } else if (negated) {
 		  PCondit*nm = new PCondit(match,
-			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+			increment_failure(), nullptr);
 		  FILE_NAME(nm, loc);
 		  body.push_back(nm);
 	    } else {
@@ -26244,8 +26361,29 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  action = err;
 	    }
 	    std::vector<Statement*> hit;
+	    if (track_failure_age) {
+		  /* Emit each callback before executing a possibly timed user
+		     action. Its raw clock-history age is still available, and
+		     one bit corresponds to one distinct failed pipeline token. */
+		  hit.push_back(sva_reactive_wait_(loc));
+		  for (long age = 0; age <= P; ++age) {
+			std::vector<Statement*> report;
+			report.push_back(sva_report_stmt_(loc, inst,
+				SVA_CB_FAILURE,
+				sva_num32_(loc, (uint64_t)(ante_span + age))));
+			report.push_back(sva_assign_(loc,
+				failure_at_age[(size_t)age], sva_bit_(loc, 0)));
+			hit.push_back(sva_if_(loc,
+				sva_id_(loc, failure_at_age[(size_t)age]),
+				sva_block_(loc, report), nullptr));
+		  }
+		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
+					     sva_gate_(loc, action)));
+	    } else {
+		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
+				     sva_fail_action_(loc, inst, action)));
+	    }
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(sva_fail_action_(loc, inst, action));
 	    PCondit*fc = new PCondit(sva_id_(loc, r_f),
 				     sva_block_(loc, hit), nullptr);
 	    FILE_NAME(fc, loc);
@@ -26288,6 +26426,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   machinery; history updates. */
       std::vector<Statement*> full = pre;
       full.push_back(sva_observed_wait_(loc));
+      if (track_failure_age)
+	    full.push_back(sva_clock_stmt_(loc, inst));
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    PCondit*dc = new PCondit(disable, clear_attempt_state(), core);
