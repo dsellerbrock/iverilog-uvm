@@ -23,9 +23,16 @@ parallel_assessment_lane:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   owner: Codex + Luna
   files: evidence/opentitan-spi-device-constraint-reducer-20260923 only
-  scope: Freeze a standalone three-component constraint-foreach reducer, a valid locator control, and empty/nonempty boundary cases; no compiler implementation or shared build/install.
+  scope: Completed evidence-only reducer. The exact hierarchical foreach fails in both editions; dotted and plain controls plus the exact locator pass. No compiler implementation or shared build/install.
   dependency: Claude owns elaborate.cc; implementation requires explicit ownership handoff.
 completed_assessment: OT-AON-EVENT-TRIGGERED-SENSITIVITY reducer confirms that @(e.triggered) fails elaboration in both editions while @e and wait(e.triggered) controls pass; evidence/opentitan-aon-triggered-reducer-20260923 remains local pending durable evidence review.
-pending_prs: PR329 then PR330 then PR331; each awaits a completed passing exact-head CI job and mergeability.
+integration_blocker:
+  id: SVA-VPI-ATTEMPT-START-IDENTITY
+  owner: Codex + Sol, continuing the selected SVA implementation lane
+  standard: IEEE 1800-2017 and 2023 39.4.2 requires cbAssertionFailure attemptStartTime to identify the actual attempt.
+  evidence: The full local gate passed legacy ivtest 6374, negative 148, and runtime 15, but VPI passed 125/126. m12_assert_step now emits two correct failure callbacks at t25; both incorrectly report start25, while one attempt started at t5.
+  allowed_scope: pform.cc fixed linear checker, vpi/sys_sva.c, vvp/vpi_scope.cc and internal callback API declarations, plus focused VPI tests/gold. Preserve unrelated checker behavior and Claude-owned files.
+  acceptance: Distinct t25 failures report start5 and start25 with one aggregate step failure; irregular clocks and Off/Kill boundaries retain exact identity. Focused VPI and required integration gates pass before closure.
+pending_prs: PR329 and PR330 merged after exact-head CI success; PR331 retargeted to main and awaits a completed passing exact-head CI job.
 failed_attempt: The first candidate changed the NFA engine, but the generated literal image contains legacy t-stage registers and no NFA slot registers. Both paired-edition reducers remained red; evidence/sva-literal-overlap-candidate-20260923/focus.json. Revert that ineffective patch before the legacy correction.
-next: Replace the ineffective NFA patch with a focused legacy linear-checker correction, then rebuild and rerun both editions. Coordinator monitors and merges pending PRs in order.
+next: Carry each fixed-linear failed token's actual start time through Reactive VPI reporting; the count fix is committed at dcd7c3b17 but local qualification is blocked by the VPI identity defect. Coordinator owns shared build/tests and PR331 merge.

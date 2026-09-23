@@ -6,25 +6,30 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: SVA-LITERAL-OVERLAP-FAILURE-COUNT
-  phase: ROOT_CAUSE_REVISED_LEGACY_PIPELINE
+  phase: COUNT_COMMITTED_VPI_IDENTITY_GATE_RED
   standard: IEEE 1800-2017/2023 16.12.7; verify exact edition wording before patching.
   evidence: evidence/sva-literal-overlap-baseline-20260923/baseline.json and evidence/sva-literal-overlap-candidate-20260923/focus.json (local untracked evidence).
-  next: Revert the ineffective NFA patch; repair the legacy linear fixed-offset verdict count and four-state definite-match check; rebuild and rerun paired editions.
+  next: Count and four-state correction committed dcd7c3b17; local focus legacy/JSON 12/12 each and SVA NFA 60/60 pass. Complete exact VPI attempt identity before qualification and PR publication.
+integration_blocker:
+  id: SVA-VPI-ATTEMPT-START-IDENTITY
+  owner: Codex + Sol in the same pform.cc lane
+  evidence: Full gate legacy Total=6374 Passed=6369 Failed=0 Not Implemented=2 Expected Fail=3; VPI Total=126 Passed=125 Failed=1 at m12_assert_step; negative148 and runtime15 pass. Two t25 failures are correct but both callbacks carry start25 instead of distinct start5/start25.
+  next: Carry actual attempt start through the fixed-linear token and internal VPI report path; do not update gold to accept wrong identity.
 parallel_assessment:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
-  scope: Evidence-only standalone reducer in evidence/opentitan-spi-device-constraint-reducer-20260923; Claude owns elaborate.cc implementation overlap.
+  scope: Evidence-only reducer completed in evidence/opentitan-spi-device-constraint-reducer-20260923; Claude owns elaborate.cc implementation overlap.
 completed_assessment: OT-AON-EVENT-TRIGGERED-SENSITIVITY reducer is red in both editions for @(e.triggered); simple controls pass. Evidence remains local pending durable review.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
     head: 098080821454e9d2119141290cd2408fc76f3a6d
-    status: Paired queue-pop focus and pinned SPI compile passed; current-head CI running. PR328 merged at 4f66ed666; merge after one current-head passing job.
+    status: Merged at 0725fd8ebd9a28c09c3e428a808c011cdaaa844e after exact-head Ubuntu 24.04 CI success.
     separate_boundary: Statement-context associative-array queue pops still compile; ASSOC-QUEUE-POP-STATEMENT is recorded and elaborate.cc remains Claude-owned.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/330
     head: f46696830c3056889ab42c72dc7475f89dc36204
-    status: Required local gates passed; current-head CI pending. Stacked on PR329.
+    status: Merged at d2820aac066c419da9aa13038292b313b1160bd0 after exact-head Ubuntu 24.04 CI success.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/331
     head: 3566335a5bc02148d17b940670cceb05e7888563
-    status: Release-overlay timescale and fresh blocker evidence; stacked on PR330. Retarget after PR330 merges.
+    status: Release-overlay timescale and fresh blocker evidence; retargeted to main after PR330 merge, exact-head CI pending.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
   merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/327
