@@ -1,0 +1,62 @@
+{
+  "date_utc": "2026-09-23",
+  "source_head": "07d8ba6df953ba693cac34821be55be0f5a8fb83",
+  "release": {
+    "name": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "source_policy": "Unchanged pinned generated-release filesets; no application source patch"
+  },
+  "implementation_commits": {
+    "queue_array_concatenation": "2e648c7ec5364d9fb8ded4ff0e32200d6783e8ea",
+    "constraint_context_inside_array": "b7551af506b3ad77faf41c46c896f43f0dd8738f",
+    "mixed_virtual_interface_event_wait": "07d8ba6df953ba693cac34821be55be0f5a8fb83"
+  },
+  "focused_validation": {
+    "queue_array_concatenation": {
+      "legacy": {"focus": "8/8 passed", "neighbor": "2/2 passed"},
+      "json_vvp": {"focus": "8/8 passed", "neighbor": "2/2 passed"}
+    },
+    "constraint_context_inside_array": {
+      "legacy": {"focus": "4/4 passed", "neighbor": "12/12 passed"},
+      "json_vvp": {"focus": "4/4 passed", "neighbor": "12/12 passed"}
+    },
+    "mixed_virtual_interface_event_wait": {
+      "legacy": {"focus": "4/4 passed", "neighbor": "8/8 passed"},
+      "json_vvp": {"focus": "4/4 passed", "neighbor": "8/8 passed"}
+    }
+  },
+  "pinned_application_replay": {
+    "compiler_mode": "-g2017 -gcommercial-unsafe",
+    "spi_device": {
+      "compile_exit": 0,
+      "compile_errors": 0,
+      "kind_26_errors": 0,
+      "compile_boundary": "The compiler still reports a constraint item ignored in spi_device_mem_parity_vseq and two dropped coverage crosses; exit 0 is not full semantic or DV qualification.",
+      "configured_smoke_sequence_flag": "+UVM_TEST_SEQ=spi_device_flash_mode_vseq",
+      "smoke_process_exit": 0,
+      "smoke_result": "UVM_FATAL 1 at 8676568 ps and no TEST PASSED CHECKS after global constraint sampling reports that the complete joint solution set exceeds the enumeration limit; ral.jedec_id.randomize() fails. VVP process exit 0 is not a test pass.",
+      "abstract_base_sequence_note": "A separate attempted spi_device_base_vseq is abstract and is excluded from the application defect count.",
+      "compile_log": "evidence/opentitan-spi-aon-postfix-20260923/spi-07d8ba6-compile.log.gz",
+      "smoke_log": "evidence/opentitan-spi-aon-postfix-20260923/spi-07d8ba6-flash-smoke.log.gz",
+      "prior_candidate_logs": [
+        "evidence/opentitan-spi-aon-postfix-20260923/spi-inside-candidate.log.gz",
+        "evidence/opentitan-spi-aon-postfix-20260923/spi-flash-mode-smoke-30s.log.gz"
+      ]
+    },
+    "aon_timer": {
+      "compile_exit": 0,
+      "smoke_sequence": "aon_timer_smoke_vseq",
+      "smoke_result": "TEST PASSED CHECKS; normal finish at 348420188 ps",
+      "uvm_report_summary": {"warnings": 0, "errors": 0, "fatals": 0},
+      "compile_log": "evidence/opentitan-spi-aon-postfix-20260923/aon-mixed-candidate-compile.log.gz",
+      "smoke_log": "evidence/opentitan-spi-aon-postfix-20260923/aon-mixed-candidate-smoke.log.gz"
+    }
+  },
+  "raw_log_encoding": "gzip -n -c of the six named /tmp/ivl-focus-20260923/*.log files",
+  "publication": {
+    "pr342": "merged at 7d6f0a8dd97a4c206ab5887aff735caa76ed50ba",
+    "pr343": "merged at b1963b391b8bf477eb542c80c82d106150335e5f",
+    "pr344": "CI pending at this checkpoint"
+  },
+  "qualification_limit": "One unchanged AON smoke passed; this does not establish full AON or OpenTitan DV qualification. SPI Device DV remains failing at the JEDEC solver enumeration boundary."
+}

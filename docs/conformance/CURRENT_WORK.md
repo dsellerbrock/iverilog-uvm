@@ -1,11 +1,31 @@
 # Current evidence and work
 
-The current focused integration is at `0a902ee9f`, following constant
+The current SPI Device/AON checkpoint is source `07d8ba6df`. Its
+[revision-scoped record](session_logs/2026-09-23_opentitan_spi_aon_postfix.json)
+owns the paired focus and neighbor totals. On unchanged pinned OpenTitan
+Earlgrey-PROD-M6 revision `a78922f14a8cc20c7ee569f322a04626f2ac6127`,
+the SPI Device fileset compiles with `-g2017 -gcommercial-unsafe` and no
+kind-26 errors after queue concatenation and constraint-context `inside`
+repairs. The configured `+UVM_TEST_SEQ=spi_device_flash_mode_vseq` smoke still
+fails at the JEDEC randomization enumeration limit. VVP exits 0 after the
+UVM_FATAL, which is not a test pass; an earlier attempt to run an abstract
+base sequence is excluded from application failure evidence. The released AON
+timer smoke passes at 348420188 ps with no UVM warnings, errors, or fatals
+after the mixed-VIF event-wait repair. These are one SPI fileset compile and
+one AON smoke, not full OpenTitan DV qualification. The raw [exact-source SPI
+compile](../../evidence/opentitan-spi-aon-postfix-20260923/spi-07d8ba6-compile.log.gz),
+[configured SPI smoke](../../evidence/opentitan-spi-aon-postfix-20260923/spi-07d8ba6-flash-smoke.log.gz),
+[AON compile](../../evidence/opentitan-spi-aon-postfix-20260923/aon-mixed-candidate-compile.log.gz),
+and [AON smoke](../../evidence/opentitan-spi-aon-postfix-20260923/aon-mixed-candidate-smoke.log.gz)
+are preserved. PR342 and PR343 are merged; PR344 CI remains pending at this
+checkpoint.
+
+The preceding focused integration was at `0a902ee9f`, following constant
 unpacked-array membership support at `88f0e9044`. Its revision-scoped
 [session record](session_logs/2026-09-23_inside_array_named_event_integration.json)
-owns the paired tests and application observations. The pinned SPI Device
-compile now has three kind-26 errors: two queue array-concatenation sites and
-one constraint-context `inside` site. The released AON compile has zero errors,
+owns that earlier paired test and application observation. The pinned SPI Device
+compile then had three kind-26 errors: two queue array-concatenation sites and
+one constraint-context `inside` site. The released AON compile had zero errors,
 but its smoke run timed out at 60 seconds after a `$system` warning. These are
 focused compile/runtime observations, not OpenTitan DV qualification. Raw
 [SPI compile](../../evidence/opentitan-spi-aon-focus-20260923/spi-device-compile.log),
@@ -13,14 +33,14 @@ focused compile/runtime observations, not OpenTitan DV qualification. Raw
 the [AON timeout](../../evidence/opentitan-spi-aon-focus-20260923/aon-timer-smoke-timeout.log),
 and a [bounded AON time trace](../../evidence/opentitan-spi-aon-focus-20260923/aon-timer-time-trace.log)
 are retained. The traced run reached 416009004 ps before timing out, so the
-timeout does not indicate a zero-time spin; neither bounded run produced a UVM
-verdict.
+timeout does not indicate a zero-time spin; neither earlier bounded run
+produced a UVM verdict.
 
 The preceding [scope `std::randomize` queue record](session_logs/2026-09-23_scope_queue_randomize_focus.json)
 is now integrated in this tree; it covers one-dimensional local integral
 queues with exactly constrained lengths through 65536 elements, including
 declared maxima. Earlier reports of eight later vector-context diagnostics
-are superseded by the latest pinned SPI replay recorded above.
+are superseded by the current pinned SPI replay recorded above.
 
 The preceding [associative statement-method focus](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
 is on `d0560368e`; its follow-on PR, broad gates, and application DV qualification remain
