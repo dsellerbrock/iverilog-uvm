@@ -1,15 +1,23 @@
 status: coordinator_authorized_parallel_implementation
 branch: agent/ot-spi-constraint-inside-queue-concat-20260923
-baseline: PR344 exact head db4f447dd0ba88d9980fa4af5e31ae44e3e36118, stacked on PR343; PR342/PR343/PR344 CI remains observable.
-blocker: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY and OT-AON-MIXED-VIF-EVENT-WAIT
-goal: Clear the last unchanged released OpenTitan SPI Device compilation error and repair the separate AON interrupt wait through disjoint Icarus mechanisms.
-standards: IEEE 1800-2017/2023 sections 11.4.13 and 18.12 for constraint inside; sections 9.4.2 and 25.9 for mixed virtual-interface event controls.
-failing_reproducer: evidence/opentitan-spi-constraint-inside-param-20260923/reducer.sv fails kind 26 in both editions; evidence/opentitan-aon-mixed-vif-event-20260923/reducer.sv compiles but its mixed wait misses the driven edge in both editions while single-VIF and concrete controls wake.
-expected: Expand constant unpacked array set members in scope-randomization constraints; wake the released AON class-owned mixed VIF event control on the first qualifying edge with correct edge modes and cleanup.
-root_cause: Constraint IR captures a constant array aggregate as a scalar value slot; mixed VIF waits fall back from dynamic VIF event lowering to a static event/or when one member is not anyedge.
-allowed_scope: Two delegated implementation lanes below with disjoint source ownership. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
+baseline: PR344 exact head db4f447dd0ba88d9980fa4af5e31ae44e3e36118; PR342 and PR343 merged after exact-head CI success.
+blocker: OT-SPI-JEDEC-SAMPLING-LIMIT
+goal: Preserve the passing unchanged released AON timer smoke and advance the unchanged released SPI Device runtime past the false constraint-randomization failure.
+standards: IEEE 1800-2017/2023 section 18.6.3 randomization success on satisfiable constraints and rollback on failure.
+failing_reproducer: evidence/opentitan-spi-jedec-sampling-limit-20260923/reducer.sv compiles in both editions but satisfiable nested 16/8-bit and 11-bit fields fail at runtime; 10-bit and unsatisfiable rollback controls pass.
+expected: Sample a satisfiable joint constraint solution without reporting failure because its solution set exceeds an implementation enumeration cap; preserve UNSAT rollback.
+root_cause: vvp/vvp_z3.cc limits exact joint enumeration to 1024 and converts cap exhaustion into randomize failure.
+allowed_scope: One delegated solver implementation lane below and a disjoint documentation/evidence lane. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: PR344 focused integration is published with paired tests. Queue concat fixed-array operands are integrated at 2e648c7ec; the new legacy and JSON focus each pass 8/8 and neighboring queue checks each pass 2/2. Released SPI Device replay now has one remaining constraint-inside kind-26 error. AON compiles and advances through UVM activity but has no DV verdict. No broad suite or application DV qualification claim.
+validation: Queue concatenation, constraint-context inside, and mixed virtual-interface event fixes are integrated at 2e648c7ec, b7551af50, and 07d8ba6df with paired focused checks. Unchanged released SPI Device compiles without hard errors; its configured flash-mode smoke fails at 8.676568us on the solver cap. Unchanged released AON timer smoke passes at 348420188ps with zero UVM warnings/errors/fatals. The JEDEC reducer is RED in both editions. No full DV suite qualification claim.
+parallel_spi_jedec_solver_lane:
+  id: OT-SPI-JEDEC-SAMPLING-LIMIT
+  owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared builds and integration.
+  standards: IEEE 1800-2017/2023 section 18.6.3; randomize success requires a satisfiable joint solution, and failed randomization preserves prior values.
+  reproducer: evidence/opentitan-spi-jedec-sampling-limit-20260923/reducer.sv and baseline.json; unchanged released SPI Device flash-mode smoke fails at 8.676568us on the same enumeration-cap diagnostic.
+  files: vvp/vvp_z3.cc and dedicated ivtest constraint fixtures/golds only. No elaborate.cc, event target/runtime code, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
+  acceptance: Paired 2017/2023 satisfiable nested 16/8-bit fields, size-10 and size-11 boundary, truly UNSAT prior-value rollback, hard dist/soft/preference behavior preserved, and neighboring constraint tests; no false success from sampling a forbidden assignment. Coordinator reruns pinned SPI flash-mode smoke after integration.
+  state: Coordinator-authorized after paired RED baseline at 07d8ba6df; implementation pending.
 parallel_spi_constraint_inside_lane:
   id: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared builds and integration.
@@ -17,7 +25,7 @@ parallel_spi_constraint_inside_lane:
   reproducer: evidence/opentitan-spi-constraint-inside-param-20260923/reducer.sv; one pinned released SPI Device site at spi_device_read_buffer_direct_vseq.sv:94.
   files: elaborate.cc constraint IR inside branch; vvp/vvp_z3.cc and tgt-vvp/eval_vec4.c only if necessary; dedicated ivtest fixtures/golds. No elab_expr.cc, tgt-vvp/eval_object.c, tgt-vvp/vvp_priv.h, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
   acceptance: Paired 2017/2023 positive first/last/miss, wildcard X/Z, width/signedness, singleton/multidimensional boundaries, UNSAT rollback, negative unsupported type; ordinary inside controls remain green. No scalar fallback for an array aggregate.
-  state: Coordinator authorized after PR344 publication and paired RED reproducers; implementation active with no qualification claim.
+  state: Integrated at b7551af50 after legacy and JSON focus 4/4 each, neighboring inside/constraint checks 12/12 each, and unchanged released SPI Device compilation exit 0 with zero hard errors. Runtime flash-mode smoke reaches a separate solver cap failure.
 parallel_spi_queue_concat_lane:
   id: OT-SPI-QUEUE-ARRAY-CONCAT
   owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared builds and integration.
@@ -33,7 +41,7 @@ parallel_aon_mixed_vif_lane:
   reproducer: evidence/opentitan-aon-mixed-vif-event-20260923/reducer.sv; paired RED baseline in baseline.json. Released AON source wait_for_interrupt mixes negedge reset and anyedge pins.
   files: tgt-vvp/vvp_process.c; vvp/vthread.cc; vvp/compile.cc; vvp/codes.h and event runtime helpers only if needed; dedicated ivtest fixtures/golds. No elaborate.cc, vvp/vvp_z3.cc, elab_expr.cc, shared manifests/builds, application source, or Verilator edits. Stop if overlap is required.
   acceptance: Paired 2017/2023 mixed VIF negedge+anyedge positive; reset-edge alternate; single-VIF and concrete controls; one-shot cancellation; same-slot and rebinding boundaries; negative unsupported receiver path. Recompile unchanged released AON and obtain a real smoke verdict without weakening its timeout or checker.
-  state: Coordinator authorized after paired RED reducer and disjoint ownership review; implementation pending. The 500us diagnostic timeout is explicitly artificial and reports UVM_FATAL, not an application verdict.
+  state: Integrated at 07d8ba6df after legacy and JSON focus 4/4 each and neighboring VIF event controls 8/8 each. Unchanged released AON timer smoke passes at 348420188ps with zero UVM warnings/errors/fatals; this is one test, not full DV qualification.
 parallel_spi_inside_lane:
   id: OT-SPI-INSIDE-CONST-ARRAY
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared build and integration.
