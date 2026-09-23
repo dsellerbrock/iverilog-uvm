@@ -6,18 +6,18 @@ goal: Report one assertion failure action for each distinct live implication att
 standards: IEEE 1800-2017 and IEEE 1800-2023 implication attempt/verdict semantics in 16.12.7; verify exact edition wording before patching.
 failing_reproducer: The paired comparison recorded in docs/conformance/DISCOVERED_DEBT.md observed literal W=3 four passes and two failures when an independent per-attempt model and symbolic checker observed four passes and three failures. Freeze a checked-in minimal reducer and reproduce on the current installed compiler before editing implementation.
 expected: Distinct active attempts each receive their own fail action; alternate NFA paths belonging to one attempt must not duplicate a verdict. Preserve vacuity, successful attempts, four-state sampling, disable iff cancellation, and pass/fail action ordering.
-root_cause_hypothesis: pform_sva_nfa_try_assertion in pform.cc stores ordinary literal-path failures in one-bit r_f and dispatches only one fail action per tick, collapsing simultaneous failed attempt slots. Verify all writers/readers and counter width before changing it.
+root_cause_hypothesis: This literal shape routes through the legacy linear checker in pform_make_assertion at pform.cc:25927-26255, not the NFA. Its fixed-offset loops set one-bit r_f to 1 for each dying pipeline token, then dispatch one failure action. Unknown sampled guards also leave a fixed-offset mismatch condition X instead of a definite failed match. Trace all legacy writers/readers and preserve one verdict per attempt.
 allowed_scope:
-  - pform.cc NFA verdict representation and dispatch needed for exact per-attempt multiplicity.
+  - pform.cc legacy linear checker fixed-offset verdict representation and dispatch, plus definite-match testing for four-state sampled guards in those same fixed-offset checks.
   - Dedicated paired-edition positive, negative, and boundary SVA regressions and gold files in tests/sva_nfa and ivtest.
 forbidden:
   - OpenTitan or Caliptra source edits; counting NFA sibling paths as separate attempts; silent assertion drops or capped approximations.
   - Edits to PR329/PR330/PR331 heads or Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without coordinator scope expansion.
   - Shared builds, installations, and shared regression output directories by implementation agents; coordinator owns them.
-acceptance: Checked-in reducer fails on baseline then passes in -g2017 and -g2023 with two same-edge failures; separated failures, single failure, successful overlap, vacuity, X/Z, and disable iff remain exact. Focused neighboring SVA tests and required broader gates pass before qualification.
+acceptance: Checked-in reducer fails on baseline then passes in -g2017 and -g2023 with two same-edge failures; separated failures, single failure, successful overlap, vacuity, X/Z, and disable iff remain exact. No double counting when multiple fixed checks share one attempt. Focused neighboring SVA tests and required broader gates pass before qualification.
 implementation_lane:
   owner: Codex + Sol
-  files: pform.cc; dedicated SVA tests and gold files only
+  files: pform.cc legacy linear checker; dedicated SVA tests and gold files only
   handoff: Smallest complete patch, focused evidence, remaining failures, and scope conflicts.
 parallel_assessment_lane:
   id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
@@ -26,4 +26,5 @@ parallel_assessment_lane:
   scope: Freeze a standalone positive/negative/boundary reducer and baseline failure; no compiler implementation or shared build/install.
   dependency: Claude owns elaborate.cc and vvp/vthread.cc; implementation requires explicit ownership handoff.
 pending_prs: PR329 then PR330 then PR331; each awaits a completed passing exact-head CI job and mergeability.
-next: Reproduce the literal verdict mismatch, then implement and focus-test its exact per-attempt correction. Coordinator monitors and merges pending PRs in order.
+failed_attempt: The first candidate changed the NFA engine, but the generated literal image contains legacy t-stage registers and no NFA slot registers. Both paired-edition reducers remained red; evidence/sva-literal-overlap-candidate-20260923/focus.json. Revert that ineffective patch before the legacy correction.
+next: Replace the ineffective NFA patch with a focused legacy linear-checker correction, then rebuild and rerun both editions. Coordinator monitors and merges pending PRs in order.

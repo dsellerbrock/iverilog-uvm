@@ -2,10 +2,10 @@
 
 ### SVA-LITERAL-OVERLAP-FAILURE-COUNT — same-edge failures collapse
 
-- **State:** IN_PROGRESS on `agent/sva-overlap-failure-count-20260923`; the baseline comparison is recorded in [DISCOVERED_DEBT](DISCOVERED_DEBT.md). A dedicated checked-in reducer is being frozen before implementation.
+- **State:** IN_PROGRESS on `agent/sva-overlap-failure-count-20260923`; the baseline comparison is recorded in [DISCOVERED_DEBT](DISCOVERED_DEBT.md). A dedicated reducer now fails in both editions. The first NFA patch was ineffective because this literal shape uses the legacy linear checker; it is being reverted before a focused correction.
 - **Requirement:** IEEE 1800-2017/2023 §16.12.7 requires each distinct successful antecedent match to start its own consequent evaluation. A failed consequent must invoke its assertion failure action once per failed attempt, including when attempts resolve on the same sampled edge; confirm edition wording in the selected work record.
-- **Cause and evidence:** `pform_sva_nfa_try_assertion` stores ordinary literal-path failures in a one-bit `r_f` and dispatches one failure action per tick. In the recorded W=3 comparison, the literal checker reports four passes/two failures while a per-attempt model and symbolic-bound checker report four passes/three failures.
-- **Closure:** Freeze the reducer, prove exact same-edge multiplicity and non-duplication for sibling NFA paths, preserve vacuity, successful overlap, X/Z, disable, and ordering in both editions, then run focused neighbors and required gates.
+- **Cause and evidence:** The legacy linear checker in `pform_make_assertion` stores failures in a one-bit `r_f` while distinct fixed-offset pipeline tokens can die on one tick, then dispatches one failure action. Its `g && !b_j` / `treg && !b_j` mismatch check also fails to classify sampled X/Z as a definite nonmatch. Local paired-edition evidence at `evidence/sva-literal-overlap-baseline-20260923/baseline.json` records one action where two are required; a revision-scoped session record is pending.
+- **Closure:** Freeze the reducer, prove exact same-edge multiplicity and non-duplication when multiple fixed checks share an attempt, preserve vacuity, successful overlap, X/Z, disable, and ordering in both editions, then run focused neighbors and required gates.
 
 ### CALIPTRA-PARAM-CONSEQUENT-REPEAT — symbolic repetition in an SVA consequent
 

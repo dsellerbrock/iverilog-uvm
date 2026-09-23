@@ -6,10 +6,10 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: SVA-LITERAL-OVERLAP-FAILURE-COUNT
-  phase: SELECTED_REPRODUCER_TO_FREEZE
+  phase: ROOT_CAUSE_REVISED_LEGACY_PIPELINE
   standard: IEEE 1800-2017/2023 16.12.7; verify exact edition wording before patching.
-  evidence: docs/conformance/DISCOVERED_DEBT.md and the paired literal-versus-symbolic comparison at PR330 head.
-  next: Freeze the same-edge overlap reducer and confirm baseline failure in both editions; then repair exact per-attempt verdict multiplicity in pform.cc.
+  evidence: evidence/sva-literal-overlap-baseline-20260923/baseline.json and evidence/sva-literal-overlap-candidate-20260923/focus.json (local untracked evidence).
+  next: Revert the ineffective NFA patch; repair the legacy linear fixed-offset verdict count and four-state definite-match check; rebuild and rerun paired editions.
 parallel_assessment:
   id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
   scope: Evidence-only standalone reducer in evidence/opentitan-aon-triggered-reducer-20260923; Claude owns implementation-overlap files.
@@ -36,4 +36,4 @@ preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first and verified against current source; no worktree graph created.
-next_command: "sed -n '17590,18020p' pform.cc"
+next_command: "sed -n '25895,26255p' pform.cc"
