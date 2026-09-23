@@ -1,0 +1,4 @@
+sv_dist_guarded_large_exact normal,-g2017 ivltests gold=sv_dist_guarded_large_exact.gold
+sv_dist_guarded_large_exact_2023 normal,-g2023 ivltests gold=sv_dist_guarded_large_exact_2023.gold
+sv_dist_guarded_large_exact_unresolved normal,-g2017 ivltests gold=sv_dist_guarded_large_exact_unresolved.gold
+sv_dist_guarded_large_exact_unresolved_2023 normal,-g2023 ivltests gold=sv_dist_guarded_large_exact_unresolved_2023.gold

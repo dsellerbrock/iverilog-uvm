@@ -2063,6 +2063,30 @@ def setup_command(
         "--setup",
         f"--build-root={work_root}",
     ]
+    # OpenTitan's register cores deliberately gate their RTL filesets behind
+    # these flags.  A direct IP simulation needs the IP-generated register
+    # package, while system-level cores use the selected top's autogen copy.
+    # Without the flag, FuseSoC resolves the dependency but silently emits no
+    # pinmux_reg_pkg.sv (and similarly omits other generated register RTL).
+    fileset_flag = None
+    if job.core.vlnv.startswith("lowrisc:ip:"):
+        fileset_flag = "fileset_ip"
+    elif job.core.vlnv.startswith("lowrisc:systems:"):
+        fileset_flag = "fileset_top"
+    elif job.core.vlnv.startswith("lowrisc:fpv:"):
+        fileset_flag = "fileset_ip"
+    elif job.core.library == "dv" and job.core.name.startswith(("top_", "chip_")):
+        fileset_flag = "fileset_top"
+    elif job.simulation is not None:
+        # DV wrapper cores are in the lowrisc:dv namespace; their source
+        # manifest distinguishes an IP simulation from a chip/top simulation.
+        source_parts = Path(job.simulation.core_file).parts
+        if "ip" in source_parts and "hw" in source_parts:
+            fileset_flag = "fileset_ip"
+        elif any(part.startswith("top_") for part in source_parts):
+            fileset_flag = "fileset_top"
+    if fileset_flag:
+        command.append(f"--flag={fileset_flag}")
     command.append(job.core.vlnv)
     return command
 
@@ -2576,6 +2600,42 @@ lowrisc:ip:adc_ctrl:1.0     : local : - : ADC RTL
         "adc_ctrl_smoke_vseq",
         timescale="1ns/1ps",
     )
+    def setup_flags(job: Job) -> list[str]:
+        return [
+            argument
+            for argument in setup_command(
+                job,
+                Path("fusesoc"),
+                Path("opentitan"),
+                Path("matrix-cores"),
+                Path("build"),
+                "earlgrey",
+            )
+            if argument.startswith("--flag=")
+        ]
+
+    assert setup_flags(Job("rtl", Core("lowrisc:ip:pinmux:0.1", ""))) == [
+        "--flag=fileset_ip"
+    ]
+    assert setup_flags(
+        Job("rtl", Core("lowrisc:systems:top_earlgrey:0.1", ""))
+    ) == ["--flag=fileset_top"]
+    assert setup_flags(Job("uvm", Core(uvm_target.vlnv, ""), uvm_target)) == [
+        "--flag=fileset_ip"
+    ]
+    assert setup_flags(Job("sva", Core("lowrisc:fpv:pinmux_fpv:0.1", ""))) == [
+        "--flag=fileset_ip"
+    ]
+    assert setup_flags(
+        Job("sva", Core("lowrisc:dv:top_earlgrey_sva:0.1", ""))
+    ) == ["--flag=fileset_top"]
+    chip_target = dataclasses.replace(
+        uvm_target, core_file="hw/top_earlgrey/dv/chip_sim.core"
+    )
+    assert setup_flags(Job("uvm", Core("lowrisc:dv:chip_sim:0.1", ""), chip_target)) == [
+        "--flag=fileset_top"
+    ]
+    assert setup_flags(Job("rtl", Core("lowrisc:prim:arbiter:0", ""))) == []
     directed_core = Core("lowrisc:dv:prim_flop_2sync_sim:0.1", "")
     directed_target = SimulationTarget(
         directed_core.vlnv,

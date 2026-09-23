@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_dist_guarded_large_exact_unresolved_2023.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_dist_guarded_large_exact_unresolved_2023"
+}

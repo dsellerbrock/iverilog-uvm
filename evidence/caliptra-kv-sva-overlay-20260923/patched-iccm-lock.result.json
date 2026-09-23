@@ -1,0 +1,62 @@
+{
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds_approx": 125.5,
+  "verilator": "Verilator 5.050 2026-07-01 rev vUNKNOWN-built20260701",
+  "source": {
+    "release": "Caliptra v2.1.2",
+    "commit": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams_bridge_submodule": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0 submodules/adams-bridge (v2.0.3)",
+    "pinned_checkout_clean": true,
+    "pinned_assert_file_sha256": "6bd2ade137a90c0701aab28951ba6f8918724e0467c21756b0c308e6e9081c89",
+    "disposable_source_excludes_git": true,
+    "patched_disposable_assert_file_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6"
+  },
+  "overlay_patch_sha256": "f9c2673783665cd4c6f0d174f63823f935642bad50a9a62772a949420ad7a7e8",
+  "counts": {
+    "sva_error_total": 0,
+    "kv_debug_flush_detail": 0,
+    "kv_debug_flush_comprehensive": 0,
+    "testcase_passed_marker": 1,
+    "testcase_failed_marker": 0,
+    "test_failed_marker": 0,
+    "misindent_warning_lines": 0
+  },
+  "logs": {
+    "build_log": {
+      "path": "patched-iccm-lock.build_log.log",
+      "sha256": "30065eeeffda84aa63ba3a77ca88708083e1ff9f5d26982e6cd6da00e0fc5ea6",
+      "bytes": 318
+    },
+    "sim_log": {
+      "path": "patched-iccm-lock.sim_log.log",
+      "sha256": "f489cb873faad3c634036ee7a75d6c15f7e43f32c2023133e5841110bb4177c2",
+      "bytes": 2769
+    },
+    "make_stdout": {
+      "path": "patched-iccm-lock.make_stdout.log",
+      "sha256": "79900832c5a0908ec0e4dfcfba8ded57ddb36dbc133ba923d89b7225b459d8de",
+      "bytes": 441588
+    },
+    "make_stderr": {
+      "path": "patched-iccm-lock.make_stderr.log",
+      "sha256": "8ca5c75c64984823d362c02fef9ce8f131c33b64a9b85e0157ae62c27ca2864e",
+      "bytes": 2487
+    },
+    "console_log": {
+      "path": "patched-iccm-lock.console_log.log",
+      "sha256": "fd3a25402edfd58f95503fcc87a27b209a594a93aec304a65c7429ec0b3c9932",
+      "bytes": 1239
+    }
+  },
+  "toolchain_caveats": [
+    "Uses the evidence-local xPack GNU RISC-V Embedded GCC 12.2.0 command aliases, matching the prior run configuration.",
+    "Prior toolchain inspection for this same bundle found the release Makefile-selected rv32imc_zicsr_zifencei/ilp32 resolving to default-root libc.a/libgcc.a, whose attributes include the A extension rather than the narrower rv32imc/ilp32 multilib.",
+    "Shell stderr reports nproc: command not found; build and simulation still exited zero."
+  ],
+  "interpretation": "Diagnostic replay only. The pass marker is not a qualification result; see SVA counts and toolchain caveat.",
+  "stderr_diagnostics": {
+    "missing_nproc": true,
+    "assembler_changed_section_attributes": 12
+  }
+}

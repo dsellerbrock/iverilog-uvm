@@ -1,32 +1,43 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/pwrmgr-case-stack-balance-20260923
-baseline: origin/main 2f031bfbdd277d15278bf055d24beaa47e6bf0cd
+branch: agent/opentitan-adc-guarded-dist-fileset-20260923
+baseline: origin/main 6ee647ca7b0119a3a800aebe2559f99d79b0ceff
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
+  pr336: 6ee647ca7b0119a3a800aebe2559f99d79b0ceff; Ubuntu 24.04 exact-head CI passed before merge.
 active_blocker:
-  id: OT-PWRMGR-CASE-EXIT-STACK-BALANCE
+  id: OT-ADC-GUARDED-LARGE-DIST-EXACT
   phase: FOCUSED_TESTED
-  source_commit: 5e9adb1d38edf5a0434f0e302bb725cbe694bbee
-  evidence: docs/conformance/session_logs/2026-09-23_pwrmgr_case_exit_stack_balance.json
-  next: Commit evidence/pointers, publish focused PR, monitor exact-head CI.
+  source_commit: 4e14d8dded9be3179ae98a9933a2b6670fc9b7d5
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_adc_guarded_dist_fileset_focus.json
+  next: Publish focused PR and await exact-head CI; ADC smoke still fails on class-handle collection resizing.
+parallel_active_blocker:
+  id: OT-PINMUX-FILESET-SOURCE-CLOSURE
+  owner: Codex + GPT-6 Luna
+  phase: FOCUSED_TESTED
+  evidence: evidence/opentitan-pinmux-source-closure-triage-20260923/triage.json
+  files: scripts/opentitan_matrix.py only
+  dependency: Independent of the solver fix; full matrix rerun remains open.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
   meaning: Pinned stable sources with test-selected patches and options; neither full DV suite qualified.
 application_status:
   opentitan_pwrmgr: Patched released pwrmgr named-test seed-1 sweep and smoke seeds 1-6 pass on candidate compiler with matched TL scoreboard traffic and zero cleanup diagnostics; frozen generated snapshot has 12 compile warnings, so full DV remains open.
   caliptra_jtagdpi: Native ARM64 DPI bundle builds and its create/tick/close calls execute in a local smoke; this is not a full Caliptra testbench or DV pass.
+  caliptra_l0: Pinned iccm_lock with a test-selected KV SVA diagnostic overlay emits zero SVA errors and a pass marker; exact RISC-V library multilib provenance and full 52-case L0 replay remain open.
 release_full_dv_campaign:
   requested: Fresh complete pinned-release OpenTitan and Caliptra DV reruns with test-selected overlays/options, exhaustive failure catalog, then compiler blocker repair.
   opentitan_inventory: GPT-6 Luna medium; evidence/opentitan-full-dv-inventory-20260923; no shared runs.
-  caliptra_inventory: Frozen at evidence/caliptra-full-dv-inventory-20260923/inventory.json; 293 distinct test manifests and 44 unit RTL filelists; isolated filelist compile census active with GPT-6 Luna medium.
-  coordinator_next: Freeze OpenTitan inventory, run the full feasible matrix under unique output roots, classify hard setup gates separately from compiler and runtime failures.
+  caliptra_inventory: Frozen at evidence/caliptra-full-dv-inventory-20260923/inventory.json; 293 distinct test manifests and all 44 unit RTL filelists attempted.
+  catalog: evidence/release-full-dv-census-20260923/catalog.json combines valid 358 OpenTitan matrix rows, 1939 unrun signoff test entries, 293 Caliptra manifests, and 44 unit filelist attempts.
+  caliptra_l0: Selected-overlay iccm_lock diagnostic replay records zero SVA errors, one pass marker, and an exact-toolchain caveat at evidence/caliptra-kv-sva-overlay-20260923/patched-iccm-lock.result.json.
+  coordinator_next: Publish guarded ADC/fileset PR, commit the selected Caliptra overlay separately, then rank class-handle resize and remaining release DV setup gates.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence remain untouched.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Commit scoped case-exit evidence and open its PR; await both released DV inventories, then launch the matrix and catalog failures."
+next_command: "Publish guarded ADC/fileset PR after local checks; preserve the tested Caliptra overlay as a separate scoped change and continue release DV triage."

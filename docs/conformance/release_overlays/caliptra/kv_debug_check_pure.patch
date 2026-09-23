@@ -1,0 +1,40 @@
+--- a/src/integration/asserts/caliptra_top_sva.sv
++++ b/src/integration/asserts/caliptra_top_sva.sv
+@@ -205,16 +205,18 @@
+                             else $display("SVA ERROR: AHB address not valid in keyvault");
+ 
+   // Single comprehensive function that handles both debug modes
+-  function automatic logic check_all_kv_debug_values();
++  function automatic logic check_all_kv_debug_values(input logic report_error);
+     logic sel_value = `KEYVAULT_PATH.kv_reg_hwif_out.CLEAR_SECRETS.sel_debug_value.value;
+     logic [31:0] expected_value = sel_value ? CLP_DEBUG_MODE_KV_1 : CLP_DEBUG_MODE_KV_0;
+     
+     for (int entry = 0; entry < KV_NUM_KEYS; entry++) begin
+       for (int dword = 0; dword < KV_NUM_DWORDS; dword++) begin
+         if (`KEYVAULT_PATH.kv_reg1.hwif_out.KEY_ENTRY[entry][dword].data.value != expected_value) begin
+-          $display("SVA ERROR: KV[%0d][%0d] debug flush failed. Expected: %h, Got: %h, SelValue: %0d", 
+-                   entry, dword, expected_value, 
+-                   `KEYVAULT_PATH.kv_reg1.hwif_out.KEY_ENTRY[entry][dword].data.value, sel_value);
++          if (report_error) begin
++            $display("SVA ERROR: KV[%0d][%0d] debug flush failed. Expected: %h, Got: %h, SelValue: %0d", 
++                     entry, dword, expected_value, 
++                     `KEYVAULT_PATH.kv_reg1.hwif_out.KEY_ENTRY[entry][dword].data.value, sel_value);
++          end
+           return 1'b0;
+         end
+       end
+@@ -231,9 +233,12 @@
+            `SOC_IFC_TOP_PATH.cptra_error_fatal || 
+            `CPTRA_TOP_PATH.cptra_scan_mode_Latched) && 
+            `KEYVAULT_PATH.cptra_pwrgood) |=> 
+-    check_all_kv_debug_values()
++    check_all_kv_debug_values(1'b0)
+   )
+-  else $display("SVA ERROR: KV debug flush comprehensive check failed");
++  else begin
++    $display("SVA ERROR: KV debug flush comprehensive check failed");
++    void'(check_all_kv_debug_values(1'b1));
++  end
+ 
+   generate
+     for (genvar dword = 0; dword < KV_NUM_DWORDS; dword++) begin

@@ -944,12 +944,14 @@ struct Z3Builder {
             vvp_cobject*rng_owner = nullptr;
             size_t priority = 0;
 	    Z3_ast subject;
+	    std::vector<Z3_ast> guards;
 	    unsigned width;
 	    std::set<VarRef> refs;
 	    std::set<VarRef> disable_refs;
 	    std::vector<DistBranch> branches;
 	    std::vector<SoftAssert> fallback;
 	    bool exact_supported;
+	    bool exact_supported_without_guard;
             bool requires_large_exact;
             bool state_weights;
 	    bool disableable;
@@ -4055,6 +4057,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
             dspec.rng_owner = b.cobj;
             dspec.priority = b.preference_order;
 	    dspec.subject = subject;
+	    dspec.guards = b.soft_guards;
 	    dspec.width = sw;
 	    dspec.refs = subject_refs;
 	    dspec.disable_refs.clear();
@@ -4389,11 +4392,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			b.pending_soft.push_back(sa);
 	    }
 	    par.expect(')');
-	    // Exact weighted sampling currently represents an unconditional
-	    // distribution. For a guarded dist, keep the correct guarded hard
-	    // domain and guarded optimizer preferences above instead of applying
-	    // the distribution when its condition is false.
-	    dspec.exact_supported = exact_supported && !dspec.branches.empty()
+	    // Keep the structural eligibility independent of an enclosing
+	    // constraint guard. The resolver may use exact sampling for a large
+	    // guarded dist only after proving every guard active in the current
+	    // solve context; inactive and unresolved guards must not be sampled.
+	    dspec.exact_supported_without_guard = exact_supported
+		  && !dspec.branches.empty();
+	    dspec.exact_supported = dspec.exact_supported_without_guard
 		  && b.soft_guards.empty();
 	    if (b.collect_preferences && b.defn != nullptr
 		&& (!dspec.fallback.empty() || !dspec.state_weights))
@@ -7691,15 +7696,56 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 
 	    bool resolved = false;
 	    bool indeterminate = false;
+	    bool exact_supported = spec.exact_supported;
+	    Z3Builder::DistSpec exact_spec = spec;
+	    if (spec.requires_large_exact && !exact_supported
+		&& spec.exact_supported_without_guard && !spec.guards.empty()) {
+		  // A guarded large distribution can use exact sampling only if its
+		  // complete enclosing guard is proved active in this solve context.
+		  // A proved-inactive guard contributes no distribution preference;
+		  // an unresolved guard must not fall back to biased soft sampling.
+		  Z3_lbool base_sat = Z3_solver_check(ctx, base);
+		  if (base_sat == Z3_L_FALSE) {
+			exact_supported = true;
+		  } else if (base_sat == Z3_L_UNDEF) {
+			indeterminate = true;
+		  } else {
+			bool inactive = false;
+			bool unresolved = false;
+			for (Z3_ast guard : spec.guards) {
+			      Z3_solver_push(ctx, base);
+			      Z3_solver_assert(ctx, base, guard);
+			      Z3_lbool active_result = Z3_solver_check(ctx, base);
+			      Z3_solver_pop(ctx, base, 1);
+			      if (active_result == Z3_L_FALSE) {
+				    inactive = true;
+				    continue;
+			      }
+			      Z3_solver_push(ctx, base);
+			      Z3_solver_assert(ctx, base, Z3_mk_not(ctx, guard));
+			      Z3_lbool inactive_result = Z3_solver_check(ctx, base);
+			      Z3_solver_pop(ctx, base, 1);
+			      if (inactive_result != Z3_L_FALSE)
+				    unresolved = true;
+			}
+			if (inactive) return true;
+			if (unresolved) {
+			      indeterminate = true;
+			} else {
+			      exact_supported = true;
+			}
+		  }
+	    }
+	    exact_spec.exact_supported = exact_supported;
 	    if (spec.requires_large_exact
 	        && dist_resolved_vars.count(spec.subject))
 		  indeterminate = true;
-	    if ((spec.exact_supported || spec.requires_large_exact)
+	    if ((exact_supported || spec.requires_large_exact)
 		&& !dist_resolved_vars.count(spec.subject)) {
 		  uint64_t chosen = 0;
-		  resolved = z3_resolve_dist_exact(ctx, base, opt, spec, owner_rng(spec.rng_owner),
-						 chosen, false, false,
-						 &indeterminate);
+		  resolved = z3_resolve_dist_exact(ctx, base, opt, exact_spec, owner_rng(spec.rng_owner),
+							 chosen, false, false,
+							 &indeterminate);
 		  if (resolved) dist_resolved_vars.insert(spec.subject);
 	    }
 	    if (!resolved && spec.requires_large_exact && indeterminate) {
