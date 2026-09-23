@@ -1,12 +1,12 @@
-status: in_progress
+status: locally_qualified_pending_publication
 branch: agent/sva-overlap-failure-count-20260923
-baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563 stacked on PR330; origin/main 4f66ed6666683cce1d122a5819145addc46fa286
+baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563 now merged as 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; feature branch remains based on that source head.
 blocker: SVA-LITERAL-OVERLAP-FAILURE-COUNT
 goal: Report one assertion failure action for each distinct live implication attempt whose literal-repetition consequent fails on the same sampled edge.
 standards: IEEE 1800-2017 and IEEE 1800-2023 implication attempt/verdict semantics in 16.12.7; verify exact edition wording before patching.
-failing_reproducer: The paired comparison recorded in docs/conformance/DISCOVERED_DEBT.md observed literal W=3 four passes and two failures when an independent per-attempt model and symbolic checker observed four passes and three failures. Freeze a checked-in minimal reducer and reproduce on the current installed compiler before editing implementation.
+failing_reproducer: The paired baseline at 7590c2627 observed one same-edge failure action instead of two; the checked-in reducer and paired current result are recorded in docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
 expected: Distinct active attempts each receive their own fail action; alternate NFA paths belonging to one attempt must not duplicate a verdict. Preserve vacuity, successful attempts, four-state sampling, disable iff cancellation, and pass/fail action ordering.
-root_cause_hypothesis: This literal shape routes through the legacy linear checker in pform_make_assertion at pform.cc:25927-26255, not the NFA. Its fixed-offset loops set one-bit r_f to 1 for each dying pipeline token, then dispatch one failure action. Unknown sampled guards also leave a fixed-offset mismatch condition X instead of a definite failed match. Trace all legacy writers/readers and preserve one verdict per attempt.
+root_cause: This literal shape routes through the legacy linear checker, not the NFA. A one-bit failure flag collapsed distinct fixed-offset dying tokens, and sampled X/Z was not classified as a definite nonmatch. The count repair exposed a separate raw-time VPI attempt identity gap, also fixed for this subset.
 allowed_scope:
   - pform.cc legacy linear checker fixed-offset verdict representation and dispatch, plus definite-match testing for four-state sampled guards in those same fixed-offset checks.
   - Dedicated paired-edition positive, negative, and boundary SVA regressions and gold files in tests/sva_nfa and ivtest.
@@ -14,11 +14,11 @@ forbidden:
   - OpenTitan or Caliptra source edits; counting NFA sibling paths as separate attempts; silent assertion drops or capped approximations.
   - Edits to PR329/PR330/PR331 heads or Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without coordinator scope expansion.
   - Shared builds, installations, and shared regression output directories by implementation agents; coordinator owns them.
-acceptance: Checked-in reducer fails on baseline then passes in -g2017 and -g2023 with two same-edge failures; separated failures, single failure, successful overlap, vacuity, X/Z, and disable iff remain exact. No double counting when multiple fixed checks share one attempt. Focused neighboring SVA tests and required broader gates pass before qualification.
+acceptance: Met locally at e54b76124 for the stated fixed-linear subset; paired reducers, focused neighbors, integrated gate, full JSON, real-DPI UVM, and make check pass. The revision-scoped session record owns exact evidence.
 implementation_lane:
   owner: Codex + Sol
   files: pform.cc legacy linear checker; dedicated SVA tests and gold files only
-  handoff: Smallest complete patch, focused evidence, remaining failures, and scope conflicts.
+  handoff: Implementation integrated locally; PR publication and CI pending.
 parallel_assessment_lane:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   owner: Codex + Luna
@@ -30,9 +30,9 @@ integration_blocker:
   id: SVA-VPI-ATTEMPT-START-IDENTITY
   owner: Codex + Sol, continuing the selected SVA implementation lane
   standard: IEEE 1800-2017 and 2023 39.4.2 requires cbAssertionFailure attemptStartTime to identify the actual attempt.
-  evidence: The full local gate passed legacy ivtest 6374, negative 148, and runtime 15, but VPI passed 125/126. m12_assert_step now emits two correct failure callbacks at t25; both incorrectly report start25, while one attempt started at t5.
+  evidence: Resolved for fixed non-negated linear checkers at e54b76124. Distinct t25 callbacks now report start25/start5; VPI 127/127, full real-DPI UVM 358/358, and required local gates pass. See docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
   allowed_scope: pform.cc fixed linear checker; vpi/sys_sva.c and vpi/libvpi.c; vvp/vpi_scope.cc and vvp/vpi_priv.cc; internal callback API declarations in vpi_user.h; focused VPI tests/gold. Preserve unrelated checker behavior and Claude-owned files.
-  acceptance: Distinct t25 failures report start5 and start25 with one aggregate step failure; non-default timescales, irregular clocks, and Off/Kill boundaries retain exact raw-time identity. Existing two-argument reports remain compatible. Focused VPI and required integration gates pass before closure.
-pending_prs: PR329 and PR330 merged after exact-head CI success; PR331 retargeted to main and awaits a completed passing exact-head CI job.
+  acceptance: Met locally for this subset; PR publication and CI pending. Other checker families retain the two-argument path and remain separate.
+pending_prs: PR329, PR330, and PR331 merged after exact-head CI success; this feature PR is pending publication.
 failed_attempt: The first candidate changed the NFA engine, but the generated literal image contains legacy t-stage registers and no NFA slot registers. Both paired-edition reducers remained red; evidence/sva-literal-overlap-candidate-20260923/focus.json. Revert that ineffective patch before the legacy correction.
-next: Carry each fixed-linear failed token's actual start time through Reactive VPI reporting; the count fix is committed at dcd7c3b17 but local qualification is blocked by the VPI identity defect. Coordinator owns shared build/tests and PR331 merge.
+next: Review the final diff and publish the locally qualified fixed-linear SVA/VPI change against main; then track exact-head CI before merge. Do not infer full assertion, formal, or application qualification.

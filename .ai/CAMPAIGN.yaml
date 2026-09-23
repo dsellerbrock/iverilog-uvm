@@ -1,20 +1,20 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
 branch: agent/sva-overlap-failure-count-20260923
-baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563; origin/main 4f66ed6666683cce1d122a5819145addc46fa286 (PR328 merged)
+baseline: PR331 source head 3566335a5bc02148d17b940670cceb05e7888563 is contained in origin/main merge 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; feature branch remains based on that source head.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: SVA-LITERAL-OVERLAP-FAILURE-COUNT
-  phase: COUNT_COMMITTED_VPI_IDENTITY_GATE_RED
-  standard: IEEE 1800-2017/2023 16.12.7; verify exact edition wording before patching.
-  evidence: evidence/sva-literal-overlap-baseline-20260923/baseline.json and evidence/sva-literal-overlap-candidate-20260923/focus.json (local untracked evidence).
-  next: Count and four-state correction committed dcd7c3b17; local focus legacy/JSON 12/12 each and SVA NFA 60/60 pass. Complete exact VPI attempt identity before qualification and PR publication.
+  phase: LOCALLY_QUALIFIED_PENDING_PUBLICATION
+  standard: IEEE 1800-2017/2023 16.12.7, 16.14.1, and 39.4.2.
+  evidence: docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json at e54b76124.
+  next: Publish the fixed-linear SVA/VPI change as a PR; monitor exact-head CI before merging. Full SVA, formal, and application DV remain separate.
 integration_blocker:
   id: SVA-VPI-ATTEMPT-START-IDENTITY
   owner: Codex + Sol in the same pform.cc lane
-  evidence: Full gate legacy Total=6374 Passed=6369 Failed=0 Not Implemented=2 Expected Fail=3; VPI Total=126 Passed=125 Failed=1 at m12_assert_step; negative148 and runtime15 pass. Two t25 failures are correct but both callbacks carry start25 instead of distinct start5/start25.
-  next: Carry actual attempt start through fixed-linear token and raw-time internal VPI report path, including vpi/libvpi.c and vvp/vpi_priv.cc bridge plumbing; do not update gold to accept wrong identity.
+  evidence: Resolved locally for fixed non-negated linear checkers at e54b76124; full VPI 127/127, integrated gate, real-DPI UVM 358/358, and full JSON 3307/0 pass.
+  next: Publish and require exact-head CI. Other checker families retain their prior callback metadata path.
 parallel_assessment:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   scope: Evidence-only reducer completed in evidence/opentitan-spi-device-constraint-reducer-20260923; Claude owns elaborate.cc implementation overlap.
@@ -29,7 +29,7 @@ pending_prs:
     status: Merged at d2820aac066c419da9aa13038292b313b1160bd0 after exact-head Ubuntu 24.04 CI success.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/331
     head: 3566335a5bc02148d17b940670cceb05e7888563
-    status: Release-overlay timescale and fresh blocker evidence; retargeted to main after PR330 merge, exact-head CI pending.
+    status: Merged at 42f324c90294ed7356a467e8b6c95d94a9ba2c6e after exact-head Ubuntu 22.04 CI success.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
   merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/327
@@ -42,4 +42,4 @@ preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first and verified against current source; no worktree graph created.
-next_command: "sed -n '25895,26255p' pform.cc"
+next_command: "git diff --check; inspect final SVA/VPI PR diff and publish against main"

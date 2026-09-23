@@ -358,3 +358,8 @@ implementation scope](matrices/ieee1800_2017_clause_matrix.md#september-23-param
 Separate `-g2023` runtime, boundary, and invalid-bound results are in the
 [shared evidence](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json);
 no full SVA or application qualification follows from them.
+
+The fixed-linear overlap and assertion-VPI correction uses the same
+§§16.12.7/16.14.1 and §39.4.2 rules in 2023 as in 2017. Separate `-g2023`
+runtime and boundary checks are included in the [shared 2017 scope and
+revision-scoped evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-fixed-linear-sva-overlap-verdicts-and-vpi-identity).
