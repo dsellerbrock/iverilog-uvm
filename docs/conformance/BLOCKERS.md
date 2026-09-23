@@ -1,15 +1,29 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG — cast splits a constraint macro actual
+
+- **State:** FOCUSED_TESTED on source/test commit `284a4c65d`, based on the clean pinned Earlgrey-PROD-M6 `adc_ctrl_sim` release target. [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) is open; merged-tree validation and fresh exact-head CI remain pending.
+- **Requirement:** IEEE 1800-2017/2023 §§22.5.1, 6.24.1, and 5.7.1 require cast delimiters and unbased unsized literals inside a macro actual to retain their nesting so an inner comma or right parenthesis does not end the actual.
+- **Cause and evidence:** The first ADC smoke compile diagnostic follows `adc_value_t'('1)` inside `DV_CHECK_RANDOMIZE_WITH_FATAL`; `ivlpp/lexor.lex` consumes the three-character `'('` sequence as one quoted-item token, leaving the inner `)` to end the macro argument. [Pinned target and reducer record](session_logs/2026-09-23_opentitan_adc_macro_arg_baseline.json) distinguishes the failing casted macro from ordinary-literal macro and procedural-cast controls.
+- **Closure:** The [candidate and local tests](session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json) preserve cast parentheses and assignment-pattern braces and pass the selected regression gates. The pinned ADC target now compiles but ignores a filter-size constraint, so this is semantic DEBT, not ADC DV success. The separate direct nonmacro cast-width runtime mismatch also remains. Finish PR/CI/merge without broadening this fix.
+
+### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
+
+- **State:** FOCUSED_TESTED on source/test commit `342226068`, based on `origin/main` `42f324c90`; selected in `.ai/ACTIVE_WORK.yaml`. [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) is open; merged-tree validation and fresh exact-head CI remain pending. PR332 and PR333 have merged.
+- **Requirement:** IEEE 1800-2017/2023 §§14.12 and 16.14.6 scope a default clocking to its containing module and permit it to supply an otherwise unclocked concurrent assertion. The declaration's later textual position must not turn earlier module assertions into missing-clock errors.
+- **Cause and evidence:** The pinned clean Caliptra v2.1.2 `fv_ecc_dsa_sequencer.sv` has five assertions at lines 91–95 before its default clocking at line 97. [The revision-scoped baseline and candidate record](session_logs/2026-09-23_caliptra_late_default_clocking_focus.json) captures the five false missing-clock errors and their removal. `pform_make_assertion` parked the earlier assertions, then `pform_endmodule` popped their module before the pending-procedural flush rejected them.
+- **Closure:** The candidate retries parked assertions while the validated module default clock and generate scope remain in place; paired execution and rejection boundaries are tested. Finish publication, exact-head CI, and merge. The pristine pinned formal file still fails on an upstream `DSA_NOP` name mismatch; a [test-specific disposable-copy overlay](session_logs/2026-09-23_caliptra_ecc_nop_overlay.json) compiles it without that mismatch. No formal proof or Caliptra DV qualification follows.
+
 ### CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT — named antecedent captured as a function
 
-- **State:** IN_PROGRESS, locally focused-tested on `312eff1af`, stacked after PR332. Broad integrated gates and CI remain pending.
+- **State:** Merged in [PR333](https://github.com/dsellerbrock/iverilog-uvm/pull/333) at `bdf461a87` after local gates and completed exact-head Ubuntu 24.04 CI success. Full Caliptra DV/formal qualification remains open.
 - **Requirement:** IEEE 1800-2017/2023 §§16.8 and 16.12.7 permit a named sequence in an implication antecedent and require the instance's symbolic consequent repetition to execute.
 - **Evidence:** The [revision-scoped record](session_logs/2026-09-23_caliptra_named_sequence_antecedent.json) preserves the paired baseline failure, executable tests, and clean pinned ECC formal bind compile. The helper in `pform.cc` ran before named-sequence splicing; declared references now defer to its post-splice offer.
 - **Closure:** Resolve the declared sequence before Boolean lowering, verify pass/fail/vacuity/disable and W=0/positive bounds at runtime in both modes, preserve an unknown-sequence diagnostic, and recompile the pinned full ECC formal bind without dropped properties. Full Caliptra DV/formal qualification stays separate.
 
 ### SVA-LITERAL-OVERLAP-FAILURE-COUNT — fixed-linear same-edge verdicts
 
-- **State:** The fixed non-negated linear-checker subset is locally validated on `e54b76124` and open as [PR332](https://github.com/dsellerbrock/iverilog-uvm/pull/332); CI is pending. See the [revision-scoped baseline and qualification record](session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
+- **State:** The fixed non-negated linear-checker subset merged in [PR332](https://github.com/dsellerbrock/iverilog-uvm/pull/332) at `5dacd0dec` after local gates and completed exact-head Ubuntu 24.04 CI success. See the [revision-scoped baseline and qualification record](session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
 - **Requirement:** IEEE 1800-2017/2023 §§16.12.7 and 16.14.1 require a separate verdict and failure action for each distinct antecedent match; §39.4.2 requires callback metadata to retain the actual attempt start.
 - **Cause and correction:** A one-bit failure flag collapsed simultaneous fixed-offset failures, and X/Z checks did not become definite nonmatches. The legacy linear checker now counts distinct failed tokens and carries each start time through the VPI report. The first NFA-only attempt was ineffective and reverted.
 - **Remaining boundary:** Window, unbounded, negated, and other checker families retain their earlier VPI metadata path. Full SVA and formal qualification remain open.

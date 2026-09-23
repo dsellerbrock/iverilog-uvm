@@ -1,0 +1,2 @@
+sv_assert_late_default_clock_execution	vvp_tests/sv_assert_late_default_clock_execution.json
+sv_assert_late_default_clock_execution_2023	vvp_tests/sv_assert_late_default_clock_execution_2023.json

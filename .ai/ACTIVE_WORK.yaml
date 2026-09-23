@@ -1,29 +1,39 @@
-status: focused_tested
-branch: agent/caliptra-named-sequence-antecedent-20260923
-baseline: PR332 exact head 9093a9e9f17a21847549a8433b28d59089a9d958 is committed and locally qualified; this branch is stacked while its CI is queued.
-blocker: CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT
-goal: Execute a one-step named-sequence antecedent with a parameter-valued exact consequent repetition in both IEEE editions, preserving each instance's bound and attempt verdicts.
-standards: IEEE 1800-2017 and IEEE 1800-2023 sections 16.8 and 16.12.7; verify exact edition wording before patching.
-failing_reproducer: evidence/caliptra-next-blocker-20260923/exact_named_sequence.sv exits 1 with No function named idletonext in both modes. The pinned Caliptra v2.1.2 ECC formal bind with its full ecc_top.vf filelist fails at fv_ecc_hmac_drbg_interface_constraints.sv:47 with the same diagnostic. Exact commands and source/compiler hashes are in evidence/caliptra-next-blocker-20260923/result.json.
-expected: Resolve the declared sequence as an antecedent before treating it as a Boolean function; execute the symbolic consequent repeat per instance. Literal-bound, direct-sequence, and inline-Boolean controls retain behavior; an unknown sequence remains a diagnostic.
-root_cause_hypothesis: pform_make_assertion offers the specialized consequent-repeat helper before sva_splice_sequences_ expands a named antecedent; the helper captures its PECallFunction as a Boolean and elaboration then looks for an ordinary function. The helper is offered again after splicing, but the first offer has consumed the property.
+status: in_progress
+branch: agent/caliptra-late-default-clocking-20260923
+baseline: origin/main bdf461a8739e2fe45d3cd45ba047616e2433840c includes merged PR332 and PR333; installed ivl 1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13 reproduced the original failure in both editions. Source/test commits 342226068 (Caliptra) and 284a4c65d (OpenTitan) have focused local evidence; merged-tree revalidation is in progress.
+blocker: CALIPTRA-LATE-DEFAULT-CLOCKING
+goal: Resolve a module's default clocking for concurrent assertions that appear earlier in the same module, without changing procedural clock inference or accepting truly unclocked assertions.
+standards: IEEE 1800-2017 and IEEE 1800-2023 sections 14.12 and 16.14.6; the default clocking applies within its containing module scope.
+failing_reproducer: evidence/caliptra-next-after-named-20260923/late_default_clocking.sv fails in both editions. Clean pinned Caliptra v2.1.2 fv_ecc_dsa_sequencer.sv lines 91-95 precede default clocking at line 97 and yield five false missing-clock errors. Exact commands and controls are in evidence/caliptra-next-after-named-20260923/result.json.
+expected: Late and early default-clock declarations provide the same assertion clock within the module. No-default and unresolved-reference cases retain diagnostics; procedural enclosing-event inference and nested-module scope remain correct. Verify actual checker execution, not compilation alone.
+root_cause_hypothesis: pform_make_assertion parks unclocked assertions before the later declaration, but pform_endmodule pops the module and pform_sva_flush_pending_procedural unconditionally rejects the parked assertions instead of retrying them while the module default clock remains in scope.
 allowed_scope:
-  - pform.cc named-sequence antecedent dispatch and minimum related assertion-lowering code.
-  - Dedicated paired-edition executable SVA regressions, negative and boundary cases, gold files, and their test manifests.
+  - pform.cc pending assertion flush and minimum related pform declarations.
+  - Dedicated paired-edition executable SVA and negative regressions, golds, and manifests.
 forbidden:
-  - OpenTitan or Caliptra source edits, compile-only completion claims, silent assertion drops, or weakened IEEE type checks.
+  - OpenTitan, Caliptra, or Adams Bridge source edits; dropping assertions; compile-only completion claims.
   - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without ownership release.
   - Shared builds, installations, and shared test-output directories by implementation agents; coordinator owns them.
-dependency: PR332 must merge before this stacked branch merges to main. Publish this branch against PR332's frozen branch after local checks, then retarget to main when PR332 merges.
-acceptance: Focused requirements met at source/test commit 312eff1af plus exact-diagnostic negative controls. Paired runtime 2017/2023 x legacy/NFA 4/4, negative 4/4, SVA 61/61, focused legacy/JSON neighbors 57/57 and 16/16, negative suite 150/150, make check, and pinned full ECC formal-bind compiles pass. Broader CI and application DV/formal qualification remain pending. See docs/conformance/session_logs/2026-09-23_caliptra_named_sequence_antecedent.json.
+dependency: PR332 and PR333 merged into main after exact-head CI success; their pform.cc regions auto-merged with this branch and require merged-tree review and revalidation.
+acceptance: Baseline red on this branch; paired 2017/2023 positive, negative, boundary, procedural-inference and nested-scope tests; pinned full ECC filelist loses only the five false clock errors while unrelated DSA_NOP remains visible; focused legacy/JSON/SVA/negative neighbors, make check, and required broader gates before qualification.
 implementation_lane:
   owner: Codex + reused Sol
-  files: pform.cc and dedicated named-antecedent SVA tests/golds only
-  handoff: Sol patch integrated at 312eff1af; coordinator built, ran focused checks, reviewed, and owns publication/documentation.
-parallel_assessment:
-  id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
+  files: pform.cc and dedicated late-default SVA tests/golds only
+  state: Source/tests committed at 342226068; paired execution, SVA/negative/legacy/JSON focus, mapped real-DPI UVM groups, and make check passed before the main merge. PR334 is open; merged-tree revalidation and new exact-head CI remain.
+parallel_implementation_lane:
+  id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
   owner: Codex + reused Luna
-  files: evidence/opentitan-aon-triggered-reducer-20260923 only
-  state: Completed red reducer and boundary watchdog; implementation unclaimed because Claude owns elaborate.cc and vvp/vthread.cc.
-pending_prs: PR332 open, exact head 9093a9e9f17a21847549a8433b28d59089a9d958, CI queued. PR329 through PR331 merged.
-next: Publish a stacked PR against PR332's frozen branch after documentation review. Retarget after PR332 merges; require exact-head CI before merge. Do not claim full Caliptra DV/formal qualification.
+  status: focused_tested
+  files: ivlpp/lexor.lex and dedicated macro scanner regressions only
+  evidence: evidence/opentitan-next-independent-20260923/result.json; pinned clean Earlgrey-PROD-M6 adc_ctrl_sim first syntax blocker in adc_ctrl_filters_polled_vseq.sv.
+  standards: IEEE 1800-2017 and 1800-2023 macro actual argument and unbased unsized literal lexical rules; confirm exact clauses before edit.
+  root_cause: In a cast of an unbased literal, ivlpp/lexor.lex consumes the cast apostrophe, opening delimiter, and literal apostrophe as one quoted-item token, so the delimiter is never counted and its closing mate prematurely ends the macro actual.
+  acceptance: Baseline red and controls captured; source/test commit 284a4c65d passes 2012/2017/2023 focus, macro legacy/JSON, negative, SVA, make check, and mapped real-DPI UVM plus smoke. The pinned ADC source list compiles, but ignored filter_cfg_size_c and wrong direct-cast width remain separate semantic blockers; no ADC DV pass.
+  forbidden: Claude-owned vvp/vthread.cc or application source edits; shared builds/install/test output directories; claiming ADC DV passed from compile progress.
+parallel_assessment:
+  id: OPENTITAN-NEXT-RELEASE-BLOCKER
+  owner: Codex + reused Luna
+  files: evidence/opentitan-next-20260923 only
+  state: AON and SPI Device still fail on pinned release; both overlap Claude-owned elaborate.cc, so no implementation claim.
+pending_prs: PR332 merged at 5dacd0dec86647b3c88578c2ed72ca2f7ee9671d and PR333 merged at bdf461a8739e2fe45d3cd45ba047616e2433840c after completed exact-head CI successes. PR334 remains open; its merge commit needs a fresh exact-head CI success before merge.
+next: Revalidate the merged compiler/test tree, push PR334's resolved merge commit, and merge after one completed exact-head CI success. Keep the Caliptra ECC overlay compile-only and OpenTitan ADC semantic debt separate.

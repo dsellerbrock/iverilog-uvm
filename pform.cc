@@ -2547,6 +2547,20 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	// calling pform_startmodule(). Thus, it is impossible for the
 	// pform_cur_module stack to be empty at this point.
       assert(! pform_cur_module.empty());
+	/* A default clocking reference may precede its block declaration, but
+	   must resolve before deferred assertions use it. */
+      Module*cur_module = pform_cur_module.front();
+      perm_string mod_name = cur_module->mod_name();
+      if (!cur_module->default_clocking.nil()
+	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
+	      == cur_module->clocking_blocks.end())) {
+	    ostringstream msg;
+	    msg << "error: default clocking block `"
+		<< cur_module->default_clocking
+		<< "' is not declared in `" << mod_name << "'.";
+	    VLerror(msg.str().c_str());
+	    cur_module->default_clocking = perm_string();
+      }
 	/* M9-SV: bind or diagnose any sampled value function still
 	   waiting for a clock. Before the pop, because binding
 	   synthesizes a sampler process into THIS module's scope. */
@@ -2560,33 +2574,15 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   to still name THIS module. */
       pform_sva_flush_pending_named_properties();
 
-      Module*cur_module  = pform_cur_module.front();
-      pform_cur_module.pop_front();
-      perm_string mod_name = cur_module->mod_name();
-
-	/* M9-10: an unclocked concurrent assertion that never found an
-	   enclosing procedural event control is an error, reported here so
-	   the whole module has been seen. */
+	/* An assertion without an enclosing procedural event uses this module's
+	   default even if that default was declared after the assertion. Keep
+	   the module active while retrying so the checker lands in its scope. */
       pform_sva_flush_pending_procedural();
 
 	/* M9: named property/sequence declarations and the default
 	   disable are module-scoped. */
       pform_sva_module_done();
-
-	/* IEEE 1800-2017 14.12: a `default clocking <id>;` item must name
-	   a clocking block declared in this scope. (Declaration forms
-	   register the block themselves, so only the reference form can
-	   leave a dangling name.) */
-      if (!cur_module->default_clocking.nil()
-	  && (cur_module->clocking_blocks.find(cur_module->default_clocking)
-	      == cur_module->clocking_blocks.end())) {
-	    ostringstream msg;
-	    msg << "error: default clocking block `"
-		<< cur_module->default_clocking
-		<< "' is not declared in `" << mod_name << "'.";
-	    VLerror(msg.str().c_str());
-	    cur_module->default_clocking = perm_string();
-      }
+      pform_cur_module.pop_front();
 
 	// Oops, there may be some sort of nesting problem. If
 	// SystemVerilog is activated, it is possible for modules to
@@ -22510,6 +22506,9 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
  */
 struct sva_pending_proc_t {
       struct vlltype loc;
+      Module*owner;
+      LexicalScope*scope;
+      PGenerate*generate;
       sva_property_t*prop;
       Statement*fail_stmt;
       Statement*pass_stmt;
@@ -22517,6 +22516,11 @@ struct sva_pending_proc_t {
       perm_string label;
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
+
+/* Both end-of-module retry paths have seen every declaration. An unresolved
+   identifier must now fall through to the ordinary binding diagnostic, not
+   be queued for a retry after its module and generate scopes are gone. */
+static bool sva_named_prop_retry_active_ = false;
 
 /* Bison reduces concurrent_assertion_statement before its enclosing item can
    attach block_identifier_opt. The grammar stages that label before parsing
@@ -22621,11 +22625,14 @@ static bool sva_ctl_encloses_(const PEventStatement*ctl,
 void pform_sva_infer_procedural_clock(PEventStatement*ctl)
 {
       if (sva_pending_proc_.empty() || !ctl) return;
+      Module*owner = pform_cur_module.empty() ? nullptr
+					      : pform_cur_module.front();
 
       std::vector<sva_pending_proc_t> take;
       std::vector<sva_pending_proc_t> keep;
       for (size_t idx = 0 ; idx < sva_pending_proc_.size() ; idx += 1) {
-	    if (sva_ctl_encloses_(ctl, sva_pending_proc_[idx].loc))
+	    if (sva_pending_proc_[idx].owner == owner
+		&& sva_ctl_encloses_(ctl, sva_pending_proc_[idx].loc))
 		  take.push_back(sva_pending_proc_[idx]);
 	    else
 		  keep.push_back(sva_pending_proc_[idx]);
@@ -22654,12 +22661,37 @@ void pform_sva_infer_procedural_clock(PEventStatement*ctl)
       }
 }
 
-/* Called at end of module: anything left never had an enclosing event
-   control, so it is the plain 16.14.6 error. */
+/* Called at module end, after all clocking declarations have been parsed.
+   A pending assertion uses the module default if one exists; otherwise it
+   retains the 16.14.6 diagnostic. A final parser cleanup call also drains
+   assertions that never belonged to a completed module. */
 void pform_sva_flush_pending_procedural(void)
 {
-      for (size_t idx = 0 ; idx < sva_pending_proc_.size() ; idx += 1) {
-	    sva_pending_proc_t&p = sva_pending_proc_[idx];
+      Module*owner = pform_cur_module.empty() ? nullptr
+					      : pform_cur_module.front();
+      std::vector<sva_pending_proc_t> pending;
+      std::vector<sva_pending_proc_t> keep;
+      pending.swap(sva_pending_proc_);
+      for (size_t idx = 0 ; idx < pending.size() ; idx += 1) {
+	    sva_pending_proc_t&p = pending[idx];
+	    if (owner && p.owner != owner) {
+		  keep.push_back(p);
+		  continue;
+	    }
+	    if (owner && !owner->default_clocking.nil()) {
+		  LexicalScope*saved = lexical_scope;
+		  PGenerate*saved_generate = pform_cur_generate;
+		  bool saved_retry = sva_named_prop_retry_active_;
+		  lexical_scope = p.scope;
+		  pform_cur_generate = p.generate;
+		  sva_named_prop_retry_active_ = true;
+		  pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
+				       p.kind, p.label);
+		  sva_named_prop_retry_active_ = saved_retry;
+		  pform_cur_generate = saved_generate;
+		  lexical_scope = saved;
+		  continue;
+	    }
 	    cerr << p.loc << ": error: concurrent assertion has no clocking "
 		 << "event, no enclosing procedural event control to infer "
 		 << "one from, and no default clocking block is declared "
@@ -22669,7 +22701,7 @@ void pform_sva_flush_pending_procedural(void)
 	    delete p.pass_stmt;
 	    pform_sva_destroy_property(p.prop);
       }
-      sva_pending_proc_.clear();
+      sva_pending_proc_.swap(keep);
 }
 
 /* Deferred retry for `assert/assume/cover property (name);' where `name'
@@ -22693,7 +22725,6 @@ static std::vector<sva_pending_named_property_t> sva_pending_named_property_;
  * while flushing this same list -- a name still unresolved at end of
  * module falls through to the original (unchanged) plain-identifier
  * resolution below the deferral site instead of looping. */
-static bool sva_named_prop_retry_active_ = false;
 
 /* Called at end of module, before sva_module_properties is cleared for
  * the next module: every property declaration in this module has now
@@ -24742,6 +24773,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (!mod || mod->default_clocking.nil()) {
 		  sva_pending_proc_t pend;
 		  pend.loc = loc;
+		  pend.owner = mod;
+		  pend.scope = lexical_scope;
+		  pend.generate = pform_cur_generate;
+		  while (dynamic_cast<PBlock*>(pend.scope)
+			 && pend.scope->parent_scope())
+			pend.scope = pend.scope->parent_scope();
 		  pend.prop = prop;
 		  pend.fail_stmt = fail_stmt;
 		  pend.pass_stmt = pass_stmt;

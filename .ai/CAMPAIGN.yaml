@@ -1,48 +1,44 @@
 campaign: IEEE1800-UVM-continuous
-mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
-branch: agent/caliptra-named-sequence-antecedent-20260923
-baseline: PR332 exact source head 9093a9e9f17a21847549a8433b28d59089a9d958 is committed and locally qualified; this new branch is stacked on that head while CI is queued.
+mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
+branch: agent/caliptra-late-default-clocking-20260923
+baseline: origin/main bdf461a8739e2fe45d3cd45ba047616e2433840c includes merged PR332 and PR333; PR334 is integrating that main tree.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
-  id: CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT
+  id: CALIPTRA-LATE-DEFAULT-CLOCKING
   phase: FOCUSED_TESTED
-  standard: IEEE 1800-2017/2023 16.8 and 16.12.7.
-  evidence: docs/conformance/session_logs/2026-09-23_caliptra_named_sequence_antecedent.json at source/test commit 312eff1af; paired executable and pinned full ECC formal-bind checks pass locally.
-  next: Publish stacked PR against PR332 branch after docs review; retarget to main after PR332 merges. Exact-head CI and full Caliptra DV/formal qualification remain separate.
-integration_blocker:
-  id: SVA-VPI-ATTEMPT-START-IDENTITY
-  owner: Codex + Sol in the same pform.cc lane
-  evidence: Resolved locally for fixed non-negated linear checkers at e54b76124; full VPI 127/127, integrated gate, real-DPI UVM 358/358, and full JSON 3307/0 pass.
-  next: Require PR332 exact-head CI. Other checker families retain their prior callback metadata path.
-parallel_assessment:
-  id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
-  scope: Evidence-only first/same-slot/next-slot/NBA reducer completed in evidence/opentitan-aon-triggered-reducer-20260923; Claude owns elaborate.cc/vvp/vthread.cc implementation overlap.
-completed_assessment: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH nested inline foreach reducer is red in both editions; dotted/plain/locator controls pass. Evidence remains local pending durable review.
+  evidence: evidence/caliptra-late-default-baseline-20260923/baseline.json on origin/main 42f324c90, paired red/early/no-default and pinned ECC compile controls; installed ivl SHA 1ddd808cd9ffda39.
+  next: Revalidate PR334's merged tree and await a completed exact-head CI success; the test-specific ECC formal DSA_NOP overlay remains compile-only.
+parallel_active_blocker:
+  id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
+  phase: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json on clean pinned Earlgrey-PROD-M6 adc_ctrl_sim and source/test commit 284a4c65d.
+  owner: Codex + reused Luna; ivlpp/lexor.lex and dedicated macro regressions only; coordinator owns shared builds and test output.
+  next: Revalidate the ivlpp correction on PR334's merged tree; pinned ADC compile remains semantic DEBT due ignored filter_cfg_size_c and wrong direct-cast width, with no DV run.
 pending_prs:
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
-    head: 098080821454e9d2119141290cd2408fc76f3a6d
-    status: Merged at 0725fd8ebd9a28c09c3e428a808c011cdaaa844e after exact-head Ubuntu 24.04 CI success.
-    separate_boundary: Statement-context associative-array queue pops still compile; ASSOC-QUEUE-POP-STATEMENT is recorded and elaborate.cc remains Claude-owned.
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/330
-    head: f46696830c3056889ab42c72dc7475f89dc36204
-    status: Merged at d2820aac066c419da9aa13038292b313b1160bd0 after exact-head Ubuntu 24.04 CI success.
-  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/331
-    head: 3566335a5bc02148d17b940670cceb05e7888563
-    status: Merged at 42f324c90294ed7356a467e8b6c95d94a9ba2c6e after exact-head Ubuntu 22.04 CI success.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/332
     head: 9093a9e9f17a21847549a8433b28d59089a9d958
-    status: Open against main; required local gates pass and exact-head CI is queued. Preserve this head while stacked Caliptra work proceeds on a separate branch.
+    status: Merged at 5dacd0dec86647b3c88578c2ed72ca2f7ee9671d after completed exact-head Ubuntu 24.04 CI success.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/333
+    head: 80bd79f87f974dd2dccd9fd75faa4e5d62d6f54c
+    base: main after PR332 merge.
+    status: Merged at bdf461a8739e2fe45d3cd45ba047616e2433840c after completed exact-head Ubuntu 24.04 CI success.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/334
+    status: Open; resolving integration with merged main and requiring a fresh exact-head CI success.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
-  merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/327
-  meaning: Pinned stable sources with selected source overlays and necessary options for the test; neither full DV suite qualified.
+  meaning: Pinned stable sources with test-selected patches and options; neither full DV suite qualified.
 application_status:
+  opentitan_gpio: Pinned GPIO smoke prints TEST PASSED CHECKS and zero UVM errors, but matrix is DEBT due ten compiler warnings; full DV qualification remains open.
+  opentitan_aon: Pinned AON compile fails event .triggered sensitivity. Claude owns the overlapping elaboration/runtime files.
+  opentitan_spi_device: Pinned SPI Device compile fails nested inline constraint foreach. Claude owns overlapping elaborate.cc.
+  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; merged PR333 addresses the named ECC antecedent. Current branch removes five false late-clock errors; pristine ECC formal file then stops at upstream DSA_NOP typo and a one-token disposable-copy overlay compiles it. No full DV or formal qualification.
+  opentitan_adc: Pinned adc_ctrl_sim source list compiles after ivlpp candidate but ignores filter_cfg_size_c; a separate direct cast-width reducer is wrong. No runtime smoke or full DV pass.
+  caliptra_ecc_formal: Pinned pristine v2.1.2 filelist reaches upstream DSA_NOP typo after late-clock fix; a one-token disposable-copy overlay compiles both editions, not a proof or DV pass.
   opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
   opentitan_pwrmgr: Two overlay smoke seeds passed on compiler head f46696830; evidence is docs/conformance/session_logs/2026-09-23_pwrmgr_release_overlay_current.json. Full DV remains open.
-  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails. The current one-step named-antecedent SVA candidate executes in paired modes and compiles the clean v2.1.2 ECC formal bind using its full filelist with no diagnostic. This is focused evidence only; full DV and formal qualification remain open. Upstream Adams Bridge PR303 is open.
 preservation:
-  user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
+  user_dirty: AGENTS.md and unrelated untracked evidence remain untouched.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
-  graph: Shared canonical graph queried first and verified against current source; no worktree graph created.
-next_command: "git status --short --branch && gh pr view 332 --json state,isDraft,headRefOid,baseRefName,mergeable,statusCheckRollup"
+  graph: Shared canonical graph queried first; no feature-worktree graph created.
+next_command: "Revalidate merged PR334 compiler/test tree, push its conflict-resolution merge commit, and await a completed exact-head CI success."
