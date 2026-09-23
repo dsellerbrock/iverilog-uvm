@@ -1,0 +1,29 @@
+{
+  "date_utc": "2026-09-23",
+  "baseline": {
+    "pr338_head": "ec68a54339db9d8d8aa68d4ecc0b3cc71cb5e99e",
+    "pr338_merge": "d74e1664b211394b3221e6cf1e3ad3c7d131e699",
+    "first_exact_head_ci_success": "Ubuntu 22.04"
+  },
+  "candidate_commits": {
+    "adc_outer_resize": "0bf19490c",
+    "caliptra_doe_evidence": "fee60c314",
+    "spi_constraint_foreach": "c64b1791f",
+    "vpi_statement_object": "d2d996419"
+  },
+  "focused_validation": {
+    "build_and_install": "make -j8 and make install passed on the final candidate with Homebrew Bison 3.8.2",
+    "legacy_sv": "8/8: ADC outer and handle boundary; SPI sparse-key path and nonarray rejection; each in 2017 and 2023 modes",
+    "json_vvp": "8/8: the same paired-edition cases, including exact negative diagnostic gold",
+    "vpi": "2/2 new statement-object cases plus 8/8 neighboring force, release, real, and part-select controls",
+    "fileline": "-g2017 -pfileline=1 VPI statement-object case passed"
+  },
+  "review_correction": "The first VPI candidate put the statement pointer in vvp_code_s::cptr2, which aliases release offset/width operands. Focused execution exposed missing release callbacks; instruction-keyed metadata corrected the corruption before commit.",
+  "evidence_path": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/compiler-parallel-candidate-20260923/regression-focused/",
+  "limits": [
+    "The ADC indexed inner .size constraint is still dropped; no ADC smoke or DV pass is claimed.",
+    "The SPI pinned-shaped sparse-key reducer passes; no full SPI Device DV pass is claimed.",
+    "The new VPI tests cover callback statement identity/type/file/line, not the entire statement-handle API.",
+    "Broad compiler/UVM suites and PR CI have not run for these candidate commits."
+  ]
+}

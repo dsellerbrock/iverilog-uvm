@@ -5,6 +5,12 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The tested 2023 §§7.5/18.4 nested outer resize and §18.5.7.1 sparse-key
+constraint `foreach` share the [2017 implementation and paired local evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--nested-outer-resize-and-sparse-key-constraint-foreach).
+The §38.36.1 force/release callback statement identity shares the [2017
+implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--forcerelease-callback-statement-identity).
+No edition-specific difference or full application qualification is claimed.
+
 The tested 2023 §§9.4/12.5/12.8 case-exit stack correction shares the [2017
 implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--case-selector-cleanup-on-early-body-exit).
 No edition-specific behavior or full clause-12 qualification is asserted.

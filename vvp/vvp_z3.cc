@@ -1693,7 +1693,8 @@ static string capture_balanced_form(IRParser& par)
  * indices are signed int. Substitute `L` with "c:<i>:32:s" (token
  * boundaries only — L may not appear inside other tokens, but guard
  * anyway). */
-static string subst_loop_token(const string& body, uint64_t i)
+static string subst_loop_token(const string& body, uint64_t i,
+                               unsigned width = 32, bool sign = true)
 {
       string out;
       const char* p = body.c_str();
@@ -1704,7 +1705,8 @@ static string subst_loop_token(const string& body, uint64_t i)
       char prev = ' ';
       while (*p) {
 	    if (*p == 'L' && is_delim(prev) && is_delim(p[1])) {
-		  out += "c:" + to_string(i) + ":32:s";
+		  out += "c:" + to_string(i) + ":" + to_string(width)
+		       + (sign ? ":s" : "");
 		  prev = 'L';
 		  p++;
 		  continue;
@@ -5487,7 +5489,10 @@ class state_foreach_expander_t {
                   --template_depth_;
                   string body(begin, parser.p - begin);
                   if (!valid || !parser.expect(')')) return false;
-                  if (member == UINT_MAX) {
+                  // UINT_MAX-1 denotes a direct caller-state associative
+                  // array. Its loop variable ranges over existing keys,
+                  // regardless of the element value type.
+                  if (member == UINT_MAX || member == UINT_MAX - 1) {
                         queues_[slot] = objects_[slot];
                   } else {
                         vvp_cobject*owner = objects_[slot].peek<vvp_cobject>();
@@ -5502,6 +5507,34 @@ class state_foreach_expander_t {
                         if (base_type.empty() || (base_type[0] != 'Q' && base_type[0] != 'D'))
                               return false;
                         owner->get_object(member, queues_[slot], 0);
+                  }
+                  if (member == UINT_MAX - 1) {
+                        vvp_assoc_base*assoc = queues_[slot].peek<vvp_assoc_base>();
+                        if (!assoc) {
+                              error_(out, "state foreach object is not an associative array");
+                              return true;
+                        }
+                        constant_(out, 1);
+                        vvp_vector4_t key;
+                        for (bool ok = assoc->first_key(key); ok;
+                             ok = assoc->next_key(key)) {
+                              uint64_t bits = 0;
+                              if (!key.size() || key.size() > 64
+                                  || !vec4_to_uint64_(key, bits)) {
+                                    error_(out, "unsupported associative foreach key");
+                                    return true;
+                              }
+                              string instance = subst_loop_token(body, bits,
+                                                                  key.size(), false);
+                              IRParser expanded(instance);
+                              state_foreach_value_t item;
+                              if (!expression(expanded, item) || !expanded.at_end())
+                                    return false;
+                              if (!item.error.empty()) { out = item; return true; }
+                              out.text = "(and " + out.text + " " + item.text + ")";
+                              out.ground = out.ground && item.ground;
+                        }
+                        return true;
                   }
                   vvp_darray*queue = member == UINT_MAX
                         ? direct_queue_(slot, out) : queue_(slot, out);
@@ -8970,6 +9003,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&sv : builder.size_vars) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
                   if ((type != "Do" && type != "Qo")
+                      || sv.container_type == "D"
                       || !rand_size_active_(builder, prop_active, sv.idx)) continue;
                   uint64_t count = 0;
                   if (!z3_eval_uint64(ctx, model, sv.var, count)
@@ -9107,7 +9141,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  if (type == "Do" || type == "Qo") continue;
+                  if ((type == "Do" || type == "Qo")
+                      && sv.container_type != "D") continue;
             }
 	    if (!z3_eval_uint64(ctx, model, sv.var, new_size))
 		  continue;
@@ -9119,7 +9154,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    vvp_object_t old_obj;
 	    builder.object(sv.idx)->get_object(builder.local_index(sv.idx), old_obj, 0);
 	    vvp_darray*old_array = old_obj.peek<vvp_darray>();
-	    vvp_darray*da = make_random_container_(desc, (size_t)new_size);
+	    vvp_darray*da = desc.elem_type == "D"
+		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
+		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
@@ -9146,6 +9183,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    nv.set_bit(b, (property_rng(sv.idx).next() & 1)
 						  ? BIT4_1 : BIT4_0);
 			queue->set_word_max((unsigned)adr, nv, queue_max);
+		  }
+	    } else if (desc.elem_type == "D") {
+		  // Retained inner arrays are values; new inner arrays start empty.
+		  for (uint64_t adr = 0; old_array && adr < new_size
+		       && adr < old_array->get_size(); ++adr) {
+		    vvp_object_t inner;
+		    old_array->get_word((unsigned)adr, inner);
+		    da->set_word((unsigned)adr, inner.value_copy_element());
 		  }
 	    } else {
 		  for (uint64_t adr = 0 ; adr < new_size ; adr += 1) {

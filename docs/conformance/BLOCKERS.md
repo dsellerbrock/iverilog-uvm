@@ -3,8 +3,26 @@
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
 - **State:** Open on the pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 replay with the selected KV diagnostic overlay. The [exact-toolchain 52-case baseline](../../evidence/caliptra-exact-l0-20260923/README.md) passes 49 cases; two firmware build failures have focused-tested, test-specific overlays, while `smoke_test_doe_scan` still emits one SVA error despite exit 0 and a pass banner.
-- **Evidence:** The DOE probe preserves the assertion and records a clear-obfuscation command sampled immediately after reset release, followed by sampled and settled `VALID=0` and `DEOBF_SECRETS_CLEARED=0` at the consequent edge. A same-timestep display artifact does not explain the observed zero values.
-- **Open work:** Discriminate the property's documented reset-release corner from a real DOE status bug with a focused paired replay and a steady-state failure control. Keep the baseline failure and full DV qualification open until that evidence exists.
+- **Evidence:** The [reset-window differential and fresh pinned v5.052 DOE replay](../../evidence/caliptra-doe-verilator-midwindow-20260923/assessment.md) preserve the assertion. The [follow-on source diagnosis and restored-binary recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json) show that a between-clock reset leaves both a defutured implication attempt and a longer NFA obligation pending. Clearing only NFA state fixes the longer reducer but leaves the direct implication failing; no partial patch was retained.
+- **Open work:** Invalidate pending implication history on asynchronous disable with correct overlapping-attempt and same-edge behavior, then rerun the intact pinned DOE test. This strongly implicates Verilator but does not prove it is the only DOE issue. The baseline failure and full DV qualification remain open.
+
+### OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH — lexical package array bounds
+
+- **State:** Locally integrated at `a6b609d5a`; the [PR339 follow-on record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) covers paired focused tests and the pinned compile. New-head CI remains pending; full SPI Device DV remains open.
+- **Requirement:** IEEE 1800-2017 §18.5.8.1 and the paired 2023 `foreach` mode use the actual constant package array when it is referenced from a class method.
+- **Cause and boundary:** The bound resolver skipped lexical package parameters. It now finds the array before reporting a missing target; missing and scalar targets still fail. No general package-parameter or coverage qualification is claimed.
+
+### OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE — packed-struct queue method lookup
+
+- **State:** Locally integrated at `5afbe4c7f`; [paired regression evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) and the pinned SPI Device compile show the `.size` errors removed. New-head CI and full DV remain open.
+- **Requirement:** IEEE 1800-2017/2023 §7.10.2.1 permits `q.size` as well as `q.size()` for an ordinary queue, including a queue of packed structs.
+- **Cause and boundary:** The parenthesis-free path treated `size` as a packed-struct element member before queue dispatch. It now selects the queue method; a missing member on a genuine packed struct still fails.
+
+### OT-ADC-DIRECT-CAST-WIDTH — unbased fill loses cast width in constraints
+
+- **State:** Locally integrated at `5afbe4c7f`; the [paired runtime and negative evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) passes. Indexed ADC inner array sizing still blocks the pinned smoke, and new-head CI remains pending.
+- **Requirement:** IEEE 1800-2017/2023 §§5.7.1 and 6.24.1 fill the destination width of a direct typed cast before its value participates in a constraint.
+- **Cause and boundary:** Constraint IR encoded `'1` as a one-bit constant before knowing the cast width. The direct fill now has the cast width; sized `1'b1` and two-state X/Z conversion remain distinct. Four-state X/Z constraint casts and fills wider than the current 64-bit IR are explicit unsupported boundaries, not silently solved values.
 
 ### OT-PWRMGR-CASE-EXIT-STACK-BALANCE — case body exits bypassed selector cleanup
 
@@ -40,9 +58,21 @@
 
 ### OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE — ADC `filter_cfg[][]` randomization
 
-- **State:** Open after [PR337](https://github.com/dsellerbrock/iverilog-uvm/pull/337) merged the guarded large-range `dist` fix. The pinned ADC smoke still fails at time 0.
+- **State:** The typed outer-resize slice is locally integrated at `0bf19490c`; indexed inner `.size` lowering remains open, so pinned ADC smoke still fails at time 0. See the [focused candidate record](session_logs/2026-09-23_parallel_compiler_followon_focus.json).
 - **Evidence:** The [paired reducer and pinned-source assessment](../../evidence/opentitan-adc-class-resize-triage-20260923/assessment.md) shows that `filter_cfg` is a nested dynamic array of packed structs, not class handles. VVP's `class-handle collection` error applies an overbroad guard to this type. The outer size reaches solver IR, but typed resize/write-back is missing; the indexed inner `.size` constraint is separately dropped during elaboration ([DD-047](DISCOVERED_DEBT.md)).
-- **Closure:** Implement typed outer and inner resize, nested size/element constraints, retention and rollback in both IEEE editions; keep actual class-handle growth semantics distinct. Removing the runtime guard alone would corrupt the value. Rerun pinned ADC DV only after these semantics pass focused positive, negative, and boundary tests. No ADC DV pass is established.
+- **Closure:** Finish indexed inner resize and nested size/element constraints with correct retention and rollback in both IEEE editions; keep actual class-handle growth semantics distinct. Rerun pinned ADC DV only after these semantics pass focused positive, negative, and boundary tests. No ADC DV pass is established.
+
+### OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH — sparse caller-owned command keys
+
+- **State:** Locally integrated at `c64b1791f`; [paired focused evidence](session_logs/2026-09-23_parallel_compiler_followon_focus.json) covers the released SPI shape. Full SPI Device DV and broad compiler qualification remain open.
+- **Requirement:** IEEE 1800-2017 §18.5.8.1 and 2023 §18.5.7.1 iterate actual associative-array keys in a constraint `foreach` over a caller-owned hierarchical source.
+- **Boundary:** The tested implementation supports unsigned integral keys up to 64 bits; invalid nonarray sources fail compilation. This does not establish general associative-array constraint coverage.
+
+### VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT — callback origin identity
+
+- **State:** The HDL statement-object slice was locally integrated at `d2d996419`; a VPI API-origin callback regression was repaired at `e4e2f00ea`. The [follow-on local gates](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) pass; new-head CI and broad VPI qualification remain open.
+- **Requirement:** IEEE 1800-2017/2023 §38.36.1 callback `obj` identifies the force or release statement, including a shared identity for concatenated LHS targets; registration still uses the affected signal.
+- **Boundary:** Compiled HDL statements expose type and source location. A VPI `put_value` force/release has no HDL source statement; its callback retains the registered target handle as the established API extension behavior. Other statement-handle relationships remain unqualified.
 
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 

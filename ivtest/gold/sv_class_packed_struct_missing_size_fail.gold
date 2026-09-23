@@ -1,0 +1,2 @@
+./ivltests/sv_class_packed_struct_missing_size_fail.v:9: error: Struct type has no member 'size'.
+1 error(s) during elaboration.

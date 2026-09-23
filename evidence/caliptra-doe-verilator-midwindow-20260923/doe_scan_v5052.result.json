@@ -1,0 +1,20 @@
+{
+  "make_exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 188.12,
+  "sim_log_exists": true,
+  "pass_banners": 1,
+  "fail_banners": 0,
+  "sva_error_count": 1,
+  "sva_error_lines": [
+    "SVA ERROR: DOE STATUS valid bit not set after clear obf secrets cmd"
+  ],
+  "doe_probe_lines": [],
+  "source_sva_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+  "sim_log_sha256": "41fd579ad2cb2c68b206ffc4d005b9ab9915c27e5045d5f7a5218112cc0566d5",
+  "make_stdout_sha256": "736af556080202f400b1d11c099d26bb85b43e031508b1bd7a769d6bb9c49224",
+  "make_stderr_sha256": "fda81f61ad44c9d933ba4d273c3caec3f5cda8d5f851bea05587f45c083ee049",
+  "elf_sha256": "c0433432b321ea5dc68bfea69d0ad12e1a9679066f7b48a6be822f64be88522d",
+  "elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+  "passed": false
+}

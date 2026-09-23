@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/caliptra-l0-release-overlay-20260923
-baseline: main 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; PR337 merged.
+branch: agent/next-compiler-lanes-20260923
+baseline: main d74e1664b211394b3221e6cf1e3ad3c7d131e699; PR338 merged after exact-head Ubuntu 22.04 CI success.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 recent_merges:
@@ -9,16 +9,99 @@ recent_merges:
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
   pr336: 6ee647ca7b0119a3a800aebe2559f99d79b0ceff; Ubuntu 24.04 exact-head CI passed before merge.
   pr337: 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; guarded exact-dist and OpenTitan generated-fileset changes merged; Ubuntu 22.04 and 24.04 exact-head CI passed.
+  pr338: d74e1664b211394b3221e6cf1e3ad3c7d131e699; exact Caliptra L0 baseline and two focused firmware overlays merged after Ubuntu 22.04 exact-head CI passed. Remaining CI is still observable.
 active_blocker:
   id: CALIPTRA-EXACT-L0-52
-  phase: DOE_TRIAGE
+  phase: DOE_VERILATOR_RESET_WINDOW_CONFIRMED
   owner: Coordinator
   source: Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; Adams Bridge v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0.
   toolchain: Official xPack GCC 15.2; rv32imc/ilp32 multilib.
   overlay: Selected KV diagnostic overlay for the 52-case baseline; two tested one-file firmware overlays for their named tests only. See docs/conformance/release_overlays/README.md.
-  checkpoint: "Full baseline complete: 49/52 pass; two firmware-build failures and one DOE STATUS SVA failure. Each firmware fix passes a focused patched-copy build/simulation replay. DOE still fails with its assertion intact despite exit 0 and a pass banner."
-  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json and named overlay/probe results; no post-overlay full 52-case rerun or full DV claim.
-  next: Resolve DOE root cause with a discriminating focused test; keep named firmware overlays and pristine baseline separate. This is scoped L0, not full DV qualification.
+  checkpoint: "Full 5.050 baseline remains 49/52 pass; two firmware build failures have focused-tested one-file overlays. Fresh pinned DOE-only v5.052 replay still emits one SVA error despite exit 0 and pass banner. A standalone reset-window disable-iff differential passes Icarus and fails Verilator 5.050/5.052."
+  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json and evidence/caliptra-doe-verilator-midwindow-20260923; no post-overlay full 52-case rerun or full DV claim.
+  next: Treat DOE as failing while investigating Verilator reset-window SVA semantics with the intact property. Keep named firmware overlays and pristine baseline separate; scoped L0 is not full DV qualification.
+parallel_vpi_implementation_lane:
+  id: VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT
+  owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
+  files: vvp/vpi_callback.cc; vvp/vvp_net_sig.cc; vvp/vthread.cc; vvp/vpi_signal.cc; vvp/vpi_real.cc; vvp/array.cc; vvp/parse.y; vvp/vpi_priv.h; vvp/vvp_vpi_callback.h; vpi_user.h; necessary force/release codegen; dedicated VPI tests. Shared manifests and build/install remain coordinator-owned.
+  standards: IEEE 1800-2017/2023 VPI cbForce/cbRelease registration and callback object identity; verify before implementing.
+  evidence: evidence/review-20260920/next-vpi-force-callback-assessment/force_cb.sv and force_cb.c.
+  acceptance: Whole-net/variable callbacks expose the correct statement object; variable bit-select remains rejected; focused positive, negative, and boundary regressions pass.
+  dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from ADC files and DOE downstream trace; shared builds/install remain coordinator-owned.
+  state: Candidate d2d996419 published in PR339 after paired-edition VPI checks and coordinator operand-alias repair; broad suites and PR CI remain pending.
+parallel_adc_implementation_lane:
+  id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
+  owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
+  files: elaborate.cc; vvp/vvp_z3.cc; vvp/vvp_darray.cc/h; vvp/class_type.cc as required; dedicated constraint tests.
+  evidence: evidence/opentitan-adc-class-resize-triage-20260923/assessment.md and reducer.sv.
+  acceptance: Typed outer nested-array resize preserves retained values and creates empty inner arrays; contradictory and zero-size boundary tests pass in both editions; keep class-handle growth distinct. Indexed inner-size lowering is required before an ADC DV progress claim.
+  dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from VPI force/release files and DOE downstream trace; shared builds/install remain coordinator-owned.
+  state: Candidate 0bf19490c published in PR339 after paired-edition outer and handle boundaries. Indexed inner size is still dropped; no ADC smoke claim.
+parallel_spi_implementation_lane:
+  id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
+  owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
+  files: Root parse.y; PExpr.h; PExpr.cc; elaborate.cc; vvp/vvp_z3.cc; dedicated constraint fixtures. VPI-owned vvp/parse.y and vvp/vthread.cc are disjoint; shared manifests/build/install remain coordinator-owned.
+  standards: IEEE 1800-2017/2023 hierarchical array source in constraint foreach; verify clause and enforce every accepted expression.
+  evidence: evidence/opentitan-spi-device-constraint-reducer-20260923/foreach_inline_exact.sv and pinned released Earlgrey SPI Device line 277.
+  acceptance: Pinned-shaped sparse bit[7:0]-keyed associative array of class handles constrains each actual key; empty boundary is vacuous; invalid/nonarray path is an error; existing one-member and find_index controls pass in both editions.
+  dependency: Authorized by coordinator after ADC outer focused pass; same implementation agent preserves its existing elaborate.cc patch. Disjoint from VPI runtime/parser files and Caliptra DOE diagnostic.
+  state: Candidate c64b1791f published in PR339 after paired-edition sparse-key, empty, contradiction, and nonarray cases. Full SPI Device DV remains open.
+parallel_adc_inner_implementation_lane:
+  id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
+  files: elaborate.cc; vvp/vvp_z3.cc; vvp/vvp_darray.cc/h only if needed; dedicated ADC fixtures.
+  evidence: evidence/opentitan-adc-filter-debt-20260923/reducer_nested_struct_dynamic_size.sv and current paired RED in workspace evidence/adc-inner-red-current-20260923.
+  acceptance: Indexed inner size enforced after outer allocation; dependent elements solved; rollback, zero, contradiction, and retained-value boundaries pass in 2017/2023 modes.
+  dependency: Disjoint from isolated Verilator DOE source and PR339 head.
+  state: Diagnostic complete with no source edit; row-indexed size/element solver identities and a third solve stage are required. Defer full indexed inner-size support to a dedicated design lane; paired reducer remains RED.
+parallel_spi_parameter_foreach_lane:
+  id: OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
+  files: elaborate.cc and smallest required lexical parameter/type lookup source; dedicated ivtest fixtures only. No isolated Verilator, pinned application source, shared build outputs, or manifests.
+  evidence: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; released spi_device_env_cov.sv line 296 has the same package-parameter foreach.
+  acceptance: Correct package constant array iteration inside class constructor, empty boundary, invalid target rejection, and paired-edition neighboring foreach checks.
+  dependency: Independent of isolated Verilator DOE lane; ADC inner agent made no source edit and released elaborate.cc ownership. PR339 head stays fixed.
+  state: Committed a6b609d5a, focused and main-manifest tests pass; full local gate passes on repaired candidate. Pinned SPI Device still fails; PR339 new-head CI pending.
+parallel_spi_struct_queue_size_lane:
+  id: OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
+  files: elab_expr.cc; dedicated ivtest fixtures only. No elaborate.cc, isolated Verilator, application source, or shared outputs.
+  evidence: evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv and baseline.json RED in both editions; pinned spi_device_scoreboard.sv lines 1294 and 2235.
+  acceptance: Live queue-of-packed-struct size is identical for `.size` and `.size()` at zero and multiple entries; genuine struct-member negative remains an error; paired focused checks and pinned compile replay.
+  dependency: Independent of package-parameter foreach `elaborate.cc`; PR339 head fixed and coordinator owns shared integration.
+  state: Committed 5afbe4c7f, paired positive/negative queue-size tests and full local gate pass. Pinned SPI Device queue-size errors removed; PR339 new-head CI pending.
+parallel_adc_typed_fill_lane:
+  id: OT-ADC-DIRECT-CAST-WIDTH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
+  files: elaborate.cc constraint IR; vvp/vvp_z3.cc cast/fill solver path as required; dedicated constraint fixtures only. No elab_expr.cc, application source, or shared outputs.
+  evidence: evidence/opentitan-adc-cast-width-triage-20260923 contains current paired RED, positive controls, contradiction control, and narrowed source trace.
+  acceptance: 16/17-bit typed unbased fills remain all-ones in inline constraints; one-bit/sized operand, direct four-state casts, compatible/contradictory conjunctions and neighboring tests retain correct behavior in both editions.
+  dependency: Claude's prior vvp/vthread ownership claim is stale; no active Claude process or open Claude PR was found. Independent of SPI queue elab_expr.cc lane.
+  state: Committed 5afbe4c7f, paired cast-fill and unsupported-boundary tests plus full local gate pass. Indexed ADC inner sizing and PR339 new-head CI remain open.
+pr339_caller_queue_ci_repair_lane:
+  id: PR339-CALLER-QUEUE-STATE-WIDTH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build/install, manifests and CI.
+  files: elaborate.cc; vvp/vvp_z3.cc; dedicated tests only. VPI files and elab_expr.cc are excluded.
+  evidence: PR339 Ubuntu 22.04 exact-head CI plus local six-case caller-queue focus, all runtime failures at state-width metadata check.
+  acceptance: Paired existing caller-queue, boundary and rollback cases pass without dropped constraints; sparse-key SPI and ADC typed-fill controls remain passing.
+  dependency: Disjoint from VPI force callback files; preserve current typed-fill candidate in elaborate.cc.
+  state: Committed 5afbe4c7f; caller-queue paired legacy/JSON checks and full local gate pass. PR339 new-head CI pending.
+pr339_vpi_ci_repair_lane:
+  id: PR339-VPI-PACKED-FORCE-OVERLAP
+  owner: Reused lower-cost implementation agent; coordinator owns shared build/install, manifests and CI.
+  files: VPI force/release callback and required codegen files only. No elaborate.cc, vvp/vvp_z3.cc, or elab_expr.cc.
+  evidence: PR339 Ubuntu 22.04 exact-head CI plus local bundled VPI suite; only packed_force_overlap 2017/2023 fails.
+  acceptance: Existing packed-overlap and new statement-object VPI regressions pass together with no test weakening.
+  dependency: Disjoint from caller-queue state metadata lane; PR339 head remains fixed during diagnosis.
+  state: Committed e4e2f00ea; packed-overlap and source-statement callback controls plus full local VPI suite pass. PR339 new-head CI pending.
+parallel_doe_verilator_implementation_lane:
+  id: CALIPTRA-L0-DOE-STATUS-SVA
+  owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
+  files: Existing isolated Verilator v5.052 source in workspace evidence/verilator-midwindow-doe-20260923; focused Verilator test patch and external evidence only.
+  evidence: evidence/caliptra-doe-verilator-midwindow-20260923/disable_midwindow.sv and DOE v5.052 replay result.
+  acceptance: Preserve control failure but abort disabled property on between-clock reset; fresh isolated build and intact DOE replay required before any application pass claim.
+  dependency: No Icarus or pinned application source edits; disjoint from ADC.
+  state: Diagnostic complete without a qualified fix. Isolated Verilator source restored byte-for-byte to official v5.052, rebuilt, and RED reducer rechecked; direct defutured |=> remains failing despite a partial NFA-state experiment. Intact pinned DOE remains failing.
 completed_parallel_blocker:
   id: OT-PINMUX-FILESET-SOURCE-CLOSURE
   owner: Codex + GPT-6 Luna
@@ -57,4 +140,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Review evidence/caliptra-exact-l0-20260923 and investigate the still-failing DOE scan property without changing pinned releases or weakening checks."
+next_command: "Push the locally gated PR339 repair head; monitor exact-head CI and merge after the first success. Preserve the Caliptra DOE failure and pinned release sources; select the next disjoint OpenTitan/Caliptra compiler lane after the PR baseline is established."

@@ -171,6 +171,8 @@ m12_assert_attempt  normal,-g2012 m12_assert_attempt.c m12_assert_attempt.log
 m12_bit_force  normal,-g2012 m12_bit_force.c m12_bit_force.log
 m12_force_cb_regbit normal,-g2017 m12_force_cb_regbit.c m12_force_cb_regbit.log
 m12_force_cb_regbit_2023 normal,-g2023 m12_force_cb_regbit.c m12_force_cb_regbit_2023.log
+m12_force_cb_stmt_obj normal,-g2017 m12_force_cb_stmt_obj.c m12_force_cb_stmt_obj.log
+m12_force_cb_stmt_obj_2023 normal,-g2023 m12_force_cb_stmt_obj.c m12_force_cb_stmt_obj_2023.log
 m12_assert_step  normal,-g2012 m12_assert_step.c m12_assert_step.log
 m12_assert_start_identity normal,-g2012 m12_assert_start_identity.c m12_assert_start_identity.log
 m6b_nba_sync  normal,-g2012 m6b_nba_sync.c m6b_nba_sync.log

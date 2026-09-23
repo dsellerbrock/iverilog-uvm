@@ -1,0 +1,120 @@
+{
+  "schema": "opentitan-adc-cast-width-triage/v1",
+  "date": "2026-09-23",
+  "installed_compiler": {
+    "iverilog_version": "13.0 (devel)",
+    "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl_sha256": "0ed28220f03f688386044eb8e66162da1609a98696092fea17957e94d510be3a",
+    "vvp_sha256": "21e137aac21d7135bfbe4c795d157fa14e88c2bf4b21de27e2dda5af3d584c93",
+    "vvp_target_sha256": "faf10f4c9538d697df4ed4b87ad79270a10033ebff1688e67e3dfcb57ba5d377",
+    "supported_edition_flags_checked": [
+      "-g2012",
+      "-g2017",
+      "-g2023"
+    ]
+  },
+  "result": {
+    "target": "typedef bit unsigned [15:0] adc_value_t; rand int ramp_max; constraint ramp_max == adc_value_t'('1)",
+    "expected": "ramp_max == 32'h0000ffff",
+    "actual": "ramp_max == 32'h00000001",
+    "reproduced_in": [
+      "2012",
+      "2017",
+      "2023"
+    ],
+    "controls": {
+      "procedural_typed_cast": "adc_value_t'('1) returns width 16, value 16'hffff",
+      "sized_literal_inline_constraint": "ramp_max == 16'hffff solves with value 32'h0000ffff",
+      "unconstrained_randomize": "succeeds; rand int width is 32",
+      "one_bit_typed_fill_inline_constraint": "returns 1, which is correct for one-bit target",
+      "17_bit_typed_fill_inline_constraint": "returns 1 instead of 17'h1ffff",
+      "sized_one_bit_operand_cast_inline_constraint": "returns 1, which is correct",
+      "direct_four_state_cast_controls": "16-bit logic cast of 'x and 'z yields 16 x bits and 16 z bits respectively in all three edition flags",
+      "contradiction_control": "casted-fill constraint combined with value == 1 incorrectly solves; replacing 1 with 32'h0000ffff correctly makes current solve fail because it conflicts with actual cast result 1"
+    },
+    "generated_constraint_ir": "(eq p:0:32:s (cast c:16 c:0 c:1:1))",
+    "finding": "typed cast width is serialized as 16, but the cast operand has already become an ordinary one-bit constant, so the Z3 constraint builder zero-extends 1 instead of context-filling the unbased unsized literal",
+    "vvp_ret_vec4_warning": "The documented 32-to-1 %ret/vec4 warning is a separate return-width fallback. This standalone reducer reproduces the wrong random value without that warning, so it is not the primary defect path."
+  },
+  "source_trace": {
+    "target_file": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/adc_ctrl/dv/env/seq_lib/adc_ctrl_filters_polled_vseq.sv",
+    "target_occurrences": [
+      76,
+      90
+    ],
+    "typedef_file": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/adc_ctrl/dv/env/adc_ctrl_env_pkg.sv",
+    "typedef_line": 60,
+    "implementation_files": [
+      {
+        "file": "elaborate.cc",
+        "function": "pexpr_to_constraint_ir",
+        "lines": [
+          30015,
+          31015,
+          31031,
+          31041,
+          31061
+        ],
+        "role": "PENumber serializes single fill literal as c:1:1; type cast separately serializes resolved target width, producing the lossy cast IR"
+      },
+      {
+        "file": "vvp/vvp_z3.cc",
+        "function": "build_z3_atom_impl_ / build_z3_expr cast handler",
+        "lines": [
+          2060,
+          3050,
+          3061,
+          3073,
+          3077
+        ],
+        "role": "constant token is constructed at its declared one-bit width; cast establishes a width context but then coerces the value as ordinary zero extension"
+      },
+      {
+        "file": "vvp/vthread.cc",
+        "function": "of_RET_VEC4",
+        "lines": [
+          28053,
+          28062,
+          28070
+        ],
+        "role": "secondary warning path, not required to reproduce this solver-value defect"
+      }
+    ]
+  },
+  "existing_neighbor_tests": [
+    {
+      "test": "ivtest/ivltests/sv_constraint_cast_inside_queue_state.v",
+      "coverage": "casts around inside expressions and X/Z state in container values",
+      "2017": "compile/run pass",
+      "2023": "compile/run pass",
+      "gap": "does not assert width semantics for a typed integral cast of an unbased fill literal"
+    },
+    {
+      "test": "ivtest/ivltests/sv_constraint_inline_empty.v",
+      "coverage": "inline constraint blocks and zero-iteration foreach",
+      "result": "compile/run pass under -g2017"
+    },
+    {
+      "test": "ivtest/ivltests/sv_enum_unbased_fill.v",
+      "coverage": "unbased fill context in continuous assignment",
+      "result": "compile/run pass under -g2012"
+    }
+  ],
+  "smallest_patch_proposal": {
+    "source_scope": [
+      "elaborate.cc",
+      "vvp/vvp_z3.cc"
+    ],
+    "regression_scope": [
+      "ivtest/ivltests/sv_constraint_typed_cast_unbased_fill.v",
+      "ivtest/regress-sv.list",
+      "ivtest/regress-vvp.list"
+    ],
+    "proposal": "Preserve an unbased single-bit fill literal as a distinct context-sensitive IR value until its enclosing typed cast is known, or materialize it at the cast target width before emitting ordinary constant IR. Extend the Z3 builder only if a distinct fill token is chosen. Do not change the general cast zero/sign extension rule. Test '0/'1 and require X/Z constraint handling to retain its existing unknown-state policy."
+  },
+  "file_ownership_request": "Per parent coordination, guarded ADC dist fix is the first vvp_z3.cc lane because fresh runtime depends on it. Keep this cast-width lane read-only until that implementation clears the file and parent explicitly authorizes independent ownership of elaborate.cc/vvp/vvp_z3.cc and the focused ivtest. DD-046's vvp/vthread.cc warning ownership does not identify the primary fix path.",
+  "limits": [
+    "No application source, tracked compiler source, tracked tests, branch, shared build, installed compiler, or shared test output was modified.",
+    "The OpenTitan application was not run or qualified."
+  ]
+}

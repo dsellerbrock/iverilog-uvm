@@ -22704,6 +22704,28 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
       }
 
       if (array_sig == 0) {
+	    /* An unpacked array parameter has no NetNet: its elements are
+	       elaborated as individually named parameters. Resolve the name
+	       lexically (including package imports) and use the evaluated
+	       declaration bounds for the foreach indices. */
+	    symbol_search_results sr;
+	    if (symbol_search(this, des, scope, array_path_, lexical_pos_, &sr)
+	        && sr.par_val && sr.scope && sr.path_tail.empty()
+	        && !sr.path_head.empty()) {
+		  perm_string param_name = sr.path_head.back().name;
+		  auto param = sr.scope->parameters.find(param_name);
+		  if (param != sr.scope->parameters.end()
+		      && param->second.is_array_param
+		      && param->second.array_bounds_known)
+			return elaborate_static_array_(des, scope,
+					       param->second.array_dims);
+		  cerr << get_fileline() << ": error: Foreach target "
+		       << array_name << " is not an unpacked array parameter."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
 	    cerr << get_fileline() << ": error:"
 		 << " Unable to find foreach array " << array_name
 		 << " in scope " << scope_path(scope)
@@ -27386,6 +27408,15 @@ static constraint_source_type_t constraint_foreach_source_type_(
       if (!foreach || foreach->array_name().nil())
 	    return result;
 
+      if (!foreach->source_path().empty()) {
+	    pform_name_t path;
+	    for (perm_string name : foreach->source_path())
+		  path.push_back(name_component_t(name));
+	    PEIdent source(path, UINT_MAX);
+	    source.set_line(*foreach);
+	    return constraint_source_expr_type_(&source, cls, value_slots, scope);
+      }
+
       pform_name_t root_path;
       root_path.push_back(name_component_t(foreach->array_name()));
       PEIdent root(root_path, UINT_MAX);
@@ -28479,6 +28510,9 @@ static string constraint_class_container_size_ir_(
 	    ttext = (esigned ? "sb" : "b") + to_string(ewid);
       else
 	    ttext = (esigned ? "sv" : "v") + to_string(ewid);
+	// An outer dynamic array of dynamic arrays stores value containers,
+	// despite sharing the runtime object-array storage with class handles.
+	if (dynamic_cast<const netdarray_t*>(etype)) ttext = "D";
 	// Q<MAX>:<ENC> distinguishes queue construction from dynamic-array
 	// construction at solver write-back. MAX is the maximum element count
 	// (0 means unbounded).
@@ -30044,11 +30078,27 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                       && path.front().index.empty() && !path.front().local_scope
                       && !constraint_array_iter_ctx_find_(loop))
                         return "L";
-                  if (!id->path().package && !id->has_scoped_type_prefix()
-                      && ctx.direct_collection && path.size() == 1
-                      && path.front().name == fe->array_name()
-                      && path.front().index.size() == 1) {
-                        const index_component_t&ic = path.front().index.front();
+                  bool selected_collection = ctx.direct_collection
+                        && !id->path().package && !id->has_scoped_type_prefix()
+                        && path.size() == (fe->source_path().empty()
+                              ? 1 : fe->source_path().size());
+                  if (selected_collection) {
+                        size_t pos = 0;
+                        for (const name_component_t&component : path) {
+                              perm_string expected = fe->source_path().empty()
+                                    ? fe->array_name() : fe->source_path()[pos];
+                              selected_collection = selected_collection
+                                    && component.name == expected
+                                    // local:: on the root explicitly names the
+                                    // captured caller collection (18.7.1).
+                                    && (pos == 0 || !component.local_scope)
+                                    && component.index.size()
+                                          == (pos + 1 == path.size() ? 1 : 0);
+                              ++pos;
+                        }
+                  }
+                  if (selected_collection) {
+                        const index_component_t&ic = path.back().index.front();
                         unsigned width = ctx.element_type ? ctx.element_type->packed_width() : 0;
                         if (!width || width > 64 || ic.sel != index_component_t::SEL_BIT
                             || !ic.msb || ic.lsb) return "";
@@ -31028,6 +31078,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
             if (!des || !cast_scope) return "";
             unsigned width = 0;
             unsigned sign = 2; // inherit for a size cast
+            bool two_state_target = false;
             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
                   ivl_type_t type = cast->resolve_target_type(des, cast_scope);
                   if (!type) return "";
@@ -31040,6 +31091,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   }
                   width = type->packed_width();
                   sign = type->get_signed() ? 1 : 0;
+                  two_state_target = type->base_type() == IVL_VT_BOOL;
             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
                   unique_ptr<NetExpr>size(elab_and_eval(
                         des, cast_scope, cast->cast_size(), -1, true));
@@ -31057,6 +31109,43 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   width = constant->value().as_ulong64();
             } else {
                   sign = expr->has_sign() ? 1 : 0;
+            }
+            /* IEEE 1800-2017/2023 5.7.1 and 6.24.1: an unbased
+             * unsized literal fills the cast destination, unlike a sized
+             * 1'b1, which is zero-extended. Materialize only a direct
+             * fill operand here, after the cast width is known. The IR's
+             * ordinary c:1:1 loses the fill identity irreversibly. */
+            if (width) {
+                  if (const PENumber*num = dynamic_cast<const PENumber*>(base)) {
+                        const verinum&fill = num->value();
+                        if (fill.is_single()) {
+                              if (width > 64) {
+                                    cerr << expr->get_fileline()
+                                         << ": error: Constraint cast of an unbased fill literal"
+                                         << " wider than 64 bits is not supported."
+                                         << endl;
+                                    des->errors += 1;
+                                    return "";
+                              }
+                              verinum::V bit = fill.get(0);
+                              if (bit == verinum::V0 || bit == verinum::V1
+                                  || two_state_target) {
+                                    uint64_t value = bit == verinum::V1
+                                          ? width == 64 ? UINT64_MAX
+                                                : (UINT64_C(1) << width) - 1
+                                          : 0;
+                                    ir = "c:" + to_string(value) + ":"
+                                          + to_string(width);
+                              } else {
+                                    cerr << expr->get_fileline()
+                                         << ": error: Four-state unbased fill cast"
+                                         << " is not supported in two-state constraints."
+                                         << endl;
+                                    des->errors += 1;
+                                    return "";
+                              }
+                        }
+                  }
             }
             return "(cast c:" + to_string(width) + " c:" + to_string(sign)
                   + " " + ir + ")";
@@ -32570,30 +32659,47 @@ string pexpr_to_constraint_ir(const PExpr*expr,
              * Target-member roots and selectors need target-first resolution
              * (18.7.1); leave unsupported shapes on the diagnostic path. */
             if (stateforeach_emit_ctx_) return ""; // nested templates need separate bindings
-            /* A direct caller-owned queue/darray has no owner member path.
-             * Capture its object value once; qforeach's UINT_MAX member is
-             * the existing template's direct-collection spelling. Target
-             * names have already won lookup, so never capture a target
-             * property as caller state. */
-            if (!cfe->has_hierarchical_target() && cfe->prefix_names().empty()
+            /* Capture a direct caller-owned collection once. qforeach's
+             * UINT_MAX member denotes a queue/darray; UINT_MAX-1 denotes
+             * an associative array whose loop variable ranges over keys.
+             * Target names have already won lookup. */
+            if ((!cfe->has_hierarchical_target() || !cfe->source_path().empty())
+                && cfe->prefix_names().empty()
                 && cfe->loop_vars().size() == 1 && !cfe->loop_vars()[0].nil()
                 && cls && value_slots && scope_randomize_object_slots_
                 && constraint_ir_design_ctx_ && scope
                 && !constraint_target_declares_(cls, cfe->array_name())) {
                   pform_name_t path;
-                  path.push_back(name_component_t(cfe->array_name()));
+                  if (cfe->source_path().empty())
+                        path.push_back(name_component_t(cfe->array_name()));
+                  else
+                        for (perm_string name : cfe->source_path())
+                              path.push_back(name_component_t(name));
                   PEIdent selected(path, UINT_MAX);
                   selected.set_line(*cfe);
                   NetScope*caller = const_cast<NetScope*>(scope);
                   ivl_type_t type = selected.test_type_of_ident(
                         constraint_ir_design_ctx_, caller);
                   const netdarray_t*array = dynamic_cast<const netdarray_t*>(type);
+                  const netqueue_t*assoc = dynamic_cast<const netqueue_t*>(type);
                   ivl_type_t etype = array ? array->element_type() : nullptr;
                   unsigned width = etype ? etype->packed_width() : 0;
                   ivl_variable_type_t base = etype ? etype->base_type() : IVL_VT_NO_TYPE;
-                  if (array && etype && etype->packed() && width && width <= 64
-                      && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
-                          || dynamic_cast<const netenum_t*>(etype))) {
+                  ivl_type_t key = assoc && assoc->assoc_compat()
+                        ? assoc->assoc_index_type() : nullptr;
+                  ivl_variable_type_t key_base = key ? key->base_type() : IVL_VT_NO_TYPE;
+                  bool integral_assoc = key && key->packed()
+                        && key->packed_width() && key->packed_width() <= 64
+                        && !key->get_signed()
+                        && (key_base == IVL_VT_BOOL || key_base == IVL_VT_LOGIC
+                            || dynamic_cast<const netenum_t*>(key));
+                  bool integral_array = array
+                        && !(assoc && assoc->assoc_compat())
+                        && etype && etype->packed()
+                        && width && width <= 64
+                        && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+                            || dynamic_cast<const netenum_t*>(etype));
+                  if (integral_assoc || integral_array) {
                         NetExpr*object = elab_and_eval(constraint_ir_design_ctx_, caller,
                                                         &selected, -1, false);
                         if (!object) return "";
@@ -32617,9 +32723,23 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                               return "";
                         }
                         return "(qforeach " + to_string(slot) + " "
-                              + to_string(UINT_MAX) + " " + body + ")";
+                              + to_string(integral_assoc ? UINT_MAX - 1 : UINT_MAX)
+                              + " " + body + ")";
                   }
             }
+	    if (!cfe->source_path().empty()) {
+		  cerr << cfe->get_fileline() << ": error: Constraint foreach source '";
+		  for (size_t idx = 0; idx < cfe->source_path().size(); ++idx) {
+			if (idx) cerr << ".";
+			cerr << cfe->source_path()[idx];
+		  }
+		  cerr << "' must resolve to a caller-owned one-dimensional "
+		       << "integral queue/dynamic array or unsigned-integral-key "
+		       << "associative array with one iterator." << endl;
+		  if (constraint_ir_design_ctx_)
+			constraint_ir_design_ctx_->errors += 1;
+		  return "";
+	    }
 	      /* DD-043: a nil member_name marks the undotted selected-prefix
 	         form (`arr[id][loopvars]', no dotted member) -- it is NOT a
 	         hierarchical/queue target at all, just a plain static array

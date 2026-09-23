@@ -21,6 +21,9 @@
 
 # include  "parse_misc.h"
 # include  "compile.h"
+# include  "codes.h"
+# include  "vpi_priv.h"
+# include  "vvp_vpi_callback.h"
 # include  "delay.h"
 # include  <list>
 # include  <vector>
@@ -29,6 +32,7 @@
 # include  <cassert>
 # include  "ivl_alloc.h"
 # include  "version_base.h"
+# include  <cstring>
 
 using namespace std;
 
@@ -48,6 +52,19 @@ vector <const char*> file_names;
  * the source items will attach themselves to.
  */
 static struct __vpiModPath*modpath_dst = 0;
+static vpiHandle force_release_statement = 0;
+
+static bool is_force_release_opcode(const char* name)
+{
+      static const char*const names[] = {
+	    "%force/vec4", "%force/vec4/a", "%force/vec4/off",
+	    "%force/vec4/off/d", "%force/wr", "%release/net",
+	    "%release/reg", "%release/reg/a", "%release/wr", 0
+      };
+      for (unsigned idx = 0; names[idx]; idx += 1)
+	    if (strcmp(name, names[idx]) == 0) return true;
+      return false;
+}
 %}
 
 %union {
@@ -771,7 +788,13 @@ statement
      on the specific instruction. */
 
 	| label_opt T_INSTR operands_opt ';'
-		{ compile_code($1, $2, $3); }
+		{ vvp_code_t code = codespace_next();
+		  bool carry_statement = force_release_statement
+		      && is_force_release_opcode($2);
+		  compile_code($1, $2, $3);
+		  if (carry_statement)
+			vpip_note_force_statement(code, force_release_statement);
+		}
 
 	| T_LABEL ';'
 		{ compile_codelabel($1); }
@@ -779,7 +802,24 @@ statement
   /* %file_line statements are instructions that have unusual operand
      requirements so are handled by their own rules. */
 	| label_opt K_file_line T_NUMBER T_NUMBER T_STRING ';'
-		{ compile_file_line($1, $3, $4, $5); }
+		{ if (strcmp($5, "VPI force statement") == 0
+		      || strcmp($5, "VPI release statement") == 0) {
+			if (!$1) {
+			      yyerror("force/release statement identity requires a label");
+			      compile_errors += 1;
+			} else {
+			      force_release_statement = vpip_build_force_statement(
+				    strcmp($5, "VPI force statement") == 0, $3, $4);
+			      compile_vpi_symbol($1, force_release_statement);
+			      free($1);
+			}
+			delete[] $5;
+		  } else if (strcmp($5, "End force/release statement") == 0) {
+			force_release_statement = 0;
+			if ($1) free($1);
+			delete[] $5;
+		  } else compile_file_line($1, $3, $4, $5);
+		}
 
 	| label_opt K_file_line T_NUMBER T_NUMBER T_NUMBER ';'
 		{ assert($5 == 0);

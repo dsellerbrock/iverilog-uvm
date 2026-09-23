@@ -1,0 +1,66 @@
+{
+  "date_utc": "2026-09-23",
+  "baseline": {
+    "pr": "https://github.com/dsellerbrock/iverilog-uvm/pull/339",
+    "remote_head_before_repair": "8345eb75a4e8db09218c75a318469a08f73a532c",
+    "ubuntu_22_04_ci": "failed six caller-queue ivtest cases and two packed-force VPI cases",
+    "ubuntu_24_04_ci": "failed on the same PR head; detailed failing names were collected from Ubuntu 22.04"
+  },
+  "source_test_commits": {
+    "package_parameter_foreach": "a6b609d5a",
+    "queue_size_cast_fill_and_caller_queue": "5afbe4c7f",
+    "vpi_api_force_callback_target": "e4e2f00ea"
+  },
+  "fixes": [
+    {
+      "id": "OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH",
+      "standard": "IEEE 1800-2017 18.5.8.1; paired 2023 mode",
+      "root_cause": "foreach bound lookup omitted a lexical package parameter array referenced inside a class method",
+      "scope": "resolve the array parameter before reporting a missing foreach target",
+      "boundary": "missing and nonarray targets still fail; full SPI Device DV remains open"
+    },
+    {
+      "id": "OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE",
+      "standard": "IEEE 1800-2017/2023 7.10.2.1",
+      "root_cause": "a packed-struct queue's parenthesis-free size was sent to struct-member lookup before queue method dispatch",
+      "scope": "ordinary queue .size uses the same live size function as .size()",
+      "boundary": "a genuine packed struct without a size member still fails"
+    },
+    {
+      "id": "OT-ADC-DIRECT-CAST-WIDTH",
+      "standard": "IEEE 1800-2017/2023 5.7.1 and 6.24.1",
+      "root_cause": "constraint IR reduced a direct unbased fill literal to a one-bit constant before the cast width was known",
+      "scope": "materialize direct fills at their cast width; preserve sized one-bit and two-state X/Z controls",
+      "boundary": "four-state X/Z constraint casts and fill widths above the IR's 64-bit capacity fail explicitly; indexed ADC inner array sizing remains open"
+    },
+    {
+      "id": "PR339-CALLER-QUEUE-STATE-WIDTH",
+      "root_cause": "sparse-key foreach selection rejected local:: on the root caller collection and emitted a generic 32-bit state slot for an 8-bit element",
+      "scope": "accept local:: only on the root collection; preserve later-component rejection"
+    },
+    {
+      "id": "PR339-VPI-PACKED-FORCE-OVERLAP",
+      "standard": "IEEE 1800-2017/2023 38.36.1 for HDL force/release statement callback objects",
+      "root_cause": "VPI put_value force/release installed a fabricated statement context, replacing the registered packed-part handle in callback data",
+      "scope": "clear statement context for API-originated puts; compiled HDL statements still report statement handles",
+      "boundary": "API-originated operations have no HDL source statement; retaining the registered target is the established VPI extension behavior, not a separate IEEE statement-object claim"
+    }
+  ],
+  "local_validation": {
+    "shared_build": "serial make and make install passed on native Apple Silicon",
+    "focused": "new queue/cast cases 10/10 legacy and 10/10 JSON; caller queue 6/6 legacy and 6/6 JSON; packed-overlap plus statement-object VPI cases 4/4",
+    "required_gate": "bash .github/ivtest_gate.sh passed: legacy ivtest 6413 total, 6408 passed, 0 failed, 2 not implemented, 3 expected fail; VPI 131/131; negative 153/153; state foreach runtime invariants 15/15",
+    "pinned_spi_device_compile": "released Earlgrey-PROD-M6 SPI Device frozen source list: strict exit 9, commercial-unsafe exit 5; two coverage crosses still drop bins. This is compile-only failure evidence, not a DV pass."
+  },
+  "evidence": {
+    "local_gate": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/pr339-ci-repair-20260923/ivtest-gate.log",
+    "pinned_spi_replay": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/pr339-ci-repair-20260923/pinned_spi_replay.json",
+    "opentitan_next_red": "evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md",
+    "caliptra_next_red": "evidence/caliptra-masking-member-index-triage-20260923/README.md"
+  },
+  "qualification_limits": [
+    "New PR339 head CI has not yet completed; local checks do not qualify a merged baseline.",
+    "Full OpenTitan SPI Device and ADC DV remain unqualified.",
+    "Pinned Caliptra DOE still emits its intact SVA failure; no release source was modified."
+  ]
+}

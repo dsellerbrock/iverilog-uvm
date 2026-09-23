@@ -2322,6 +2322,8 @@ static Module::port_t *module_declare_port_continuation(
 %destructor { delete $$; }
   nettype_scope_path nettype_resolution_name nettype_resolution_opt
 %type <pform_name> foreach_array_identifier
+%type <pform_name> constraint_foreach_path
+%destructor { delete $$; } constraint_foreach_path
 %type <pform_name> spec_notifier_opt spec_notifier
 %type <timing_check_event> spec_reference_event
 %type <edge_types> edge_descriptor_list
@@ -4126,6 +4128,25 @@ constraint_declaration /* IEEE1800-2005: A.1.9 */
       { yyerror(@4, "error: Errors in the constraint block item list."); }
   ;
 
+/* A constraint foreach source may be an arbitrarily deep member path.
+ * Keep every component so elaboration captures the final collection. */
+constraint_foreach_path
+  : IDENTIFIER '.' IDENTIFIER '.' IDENTIFIER
+      { $$ = new pform_name_t;
+	$$->push_back(name_component_t(lex_strings.make($1)));
+	$$->push_back(name_component_t(lex_strings.make($3)));
+	$$->push_back(name_component_t(lex_strings.make($5)));
+	delete[] $1;
+	delete[] $3;
+	delete[] $5;
+      }
+  | constraint_foreach_path '.' IDENTIFIER
+      { $1->push_back(name_component_t(lex_strings.make($3)));
+	delete[] $3;
+	$$ = $1;
+      }
+  ;
+
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
       { $$ = $1; }
@@ -4171,6 +4192,13 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
 	      new PEConstraintForeach(lex_strings.make($3), $5, $8);
 	FILE_NAME(tmp, @1);
 	delete[] $3;
+	$$ = tmp;
+      }
+  | K_foreach '(' constraint_foreach_path '[' loop_variables ']'
+    ')' constraint_set
+      { PEConstraintForeach*tmp = new PEConstraintForeach(*$3, $5, $8);
+	FILE_NAME(tmp, @1);
+	delete $3;
 	$$ = tmp;
       }
   /* A direct unpacked-struct/class member array is a hierarchical array

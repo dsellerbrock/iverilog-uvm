@@ -13,14 +13,16 @@
 static PLI_INT32 force_cb(struct t_cb_data*cb)
 {
       vpi_printf("cbForce: %s = %s\n",
-		 vpi_get_str(vpiName, cb->obj), cb->value->value.str);
+		 vpi_get_str(vpiName, (vpiHandle)cb->user_data),
+		 cb->value->value.str);
       return 0;
 }
 
 static PLI_INT32 release_cb(struct t_cb_data*cb)
 {
       vpi_printf("cbRelease: %s = %s\n",
-		 vpi_get_str(vpiName, cb->obj), cb->value->value.str);
+		 vpi_get_str(vpiName, (vpiHandle)cb->user_data),
+		 cb->value->value.str);
       return 0;
 }
 
@@ -39,6 +41,7 @@ static PLI_INT32 monitor_calltf(PLI_BYTE8*name)
 	    cb_data.cb_rtn = force_cb;
 	    cb_data.reason = cbForce;
 	    cb_data.obj = arg;
+	    cb_data.user_data = (PLI_BYTE8*)arg;
 	    cb_data.value = malloc(sizeof(struct t_vpi_value));
 	    cb_data.value->format = vpiBinStrVal;
 	    cb_data.value->value.str = 0;
@@ -48,6 +51,7 @@ static PLI_INT32 monitor_calltf(PLI_BYTE8*name)
 	    cb_data.cb_rtn = release_cb;
 	    cb_data.reason = cbRelease;
 	    cb_data.obj = arg;
+	    cb_data.user_data = (PLI_BYTE8*)arg;
 	    cb_data.value = malloc(sizeof(struct t_vpi_value));
 	    cb_data.value->format = vpiBinStrVal;
 	    cb_data.value->value.str = 0;

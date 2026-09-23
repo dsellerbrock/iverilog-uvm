@@ -1,0 +1,2 @@
+ivltests/sv_constraint_foreach_deep_state_path_nonarray.v:15: error: Constraint foreach source 'cfg.source.cmd_infos' must resolve to a caller-owned one-dimensional integral queue/dynamic array or unsigned-integral-key associative array with one iterator.
+1 error(s) during elaboration.

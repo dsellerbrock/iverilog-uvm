@@ -1,9 +1,25 @@
 # Current evidence and work
 
+The [PR339 compiler and VPI repair record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
+links the package-parameter `foreach`, packed-struct queue `.size`, direct
+unbased-fill cast, caller-queue, and VPI callback corrections to local gates
+and a fresh pinned SPI Device compile. The repaired PR head still needs CI;
+SPI Device, ADC, and full application DV remain unqualified.
+
+The [parallel compiler follow-on record](session_logs/2026-09-23_parallel_compiler_followon_focus.json)
+links locally integrated ADC outer resize, SPI Device sparse-key constraint
+`foreach`, and VPI force/release statement-object checks on the branch after
+[PR338](https://github.com/dsellerbrock/iverilog-uvm/pull/338) merged. Indexed
+ADC inner sizes, full SPI Device DV, broad suites, and this branch's CI remain
+open.
+
 The [pinned Caliptra 52-case Verilator L0 evidence](../../evidence/caliptra-exact-l0-20260923/README.md)
 records the full exact-toolchain baseline and two focused, test-specific
 downstream firmware overlay replays. The DOE scan assertion remains failing;
 these results do not qualify the full Caliptra DV suite.
+
+The [DOE source diagnosis and restored Verilator recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json)
+records the unresolved reset-window failure; the intact test remains unqualified.
 
 The [Caliptra KV SVA diagnostic overlay replay](session_logs/2026-09-23_caliptra_kv_sva_overlay_l0.json)
 is scoped to pinned Caliptra `v2.1.2` and Verilator. It removes false-antecedent

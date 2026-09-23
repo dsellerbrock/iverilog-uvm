@@ -417,6 +417,8 @@ typedef struct t_vpi_delay  {
 
 #define vpiForceFlag   5
 #define vpiReleaseFlag 6
+#define vpiForce       16 /* force statement */
+#define vpiRelease     50 /* release statement */
 #define vpiReturnEvent 0x1000
 
 /* VPI FUNCTIONS */

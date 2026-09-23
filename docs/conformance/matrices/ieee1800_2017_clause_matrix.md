@@ -5,6 +5,36 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — package `foreach`, queue size, and direct fill casts
+
+The [paired candidate and local gates](../session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
+cover lexical package-parameter array iteration in a class method under
+§18.5.8.1, parenthesis-free `.size` on a packed-struct queue under §7.10.2.1,
+and a direct typed cast of an unbased fill in constraint IR under §§5.7.1 and
+6.24.1. Missing/nonarray targets, genuine missing struct members, and sized
+one-bit casts retain their distinct behavior. Four-state X/Z constraint casts
+and fills beyond the 64-bit IR remain explicit unsupported boundaries. These
+are bounded PARTIAL subsets; OpenTitan SPI Device and ADC DV are not qualified.
+
+### September 23, 2026 — nested outer resize and sparse-key constraint foreach
+
+The [paired local candidate](../session_logs/2026-09-23_parallel_compiler_followon_focus.json)
+preserves retained inner array values when a `rand` nested dynamic array's
+outer dimension changes (§§7.5, 18.4). Indexed inner `.size` constraints remain
+unsupported, so OpenTitan ADC DV is still blocked. For §18.5.8.1, a constraint
+`foreach` over a caller-owned hierarchical associative array now visits its
+actual unsigned integral keys up to 64 bits; the pinned-shaped SPI Device
+reducer checks sparse keys, emptiness, contradiction, and invalid source.
+Broader associative-array constraints and SPI Device DV remain open.
+
+### September 23, 2026 — force/release callback statement identity
+
+For §38.36.1, the [paired local candidate](../session_logs/2026-09-23_parallel_compiler_followon_focus.json)
+reports typed force/release statement handles to callbacks, preserving distinct
+source statements and one identity across a concatenated LHS. The earlier
+variable bit-select registration boundary remains intact. Full statement-handle
+API and VPI qualification remain open.
+
 ### September 23, 2026 — case selector cleanup on early body exit
 
 For §§9.4, 12.5, and 12.8, a case selector is removed from VVP's evaluation
@@ -38,8 +68,8 @@ This remains a bounded preprocessing subset, not full clause-22 qualification.
 For §38.36.1, legacy variable bit-select handles now reject `cbForce` and
 `cbRelease` registration while tested whole-variable, part-select, and net-bit
 handles retain their behavior. The [integrated VPI record](../session_logs/2026-09-23_vpi_macro_integrated_focus.json)
-is paired across editions. Callback statement-object identity remains open;
-this does not qualify all VPI callback behavior.
+is paired across editions. The later statement-object candidate above is a
+separate bounded refinement; this does not qualify all VPI callback behavior.
 
 ### September 23, 2026 — late module default clocking for assertions
 

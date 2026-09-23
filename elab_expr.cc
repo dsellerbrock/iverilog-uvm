@@ -21887,6 +21887,22 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		&& !sr.path_head.empty()
 		&& sr.path_head.back().index.empty()) {
 		  perm_string mname = sr.path_tail.front().name;
+		  // IEEE 1800-2017 7.10.2.1 permits the empty parentheses on
+		  // queue size() to be omitted. A queue of packed structs also
+		  // exposes its element's struct_type(), so handle the queue method
+		  // before the generic struct-member path below.
+		  if (mname == perm_string::literal("size")) {
+			const netqueue_t*queue = sr.net->queue_type();
+			if (queue && !queue->assoc_compat()) {
+			      NetESFunc*size_expr = new NetESFunc(
+				    "$ivl_queue_method$size", &netvector_t::atom2s32, 1);
+			      size_expr->set_line(*this);
+			      NetESignal*recv = new NetESignal(sr.net);
+			      recv->set_line(*this);
+			      size_expr->parm(0, recv);
+			      return size_expr;
+			}
+		  }
 		  bool is_red = is_array_reduction_name_(mname);
 		  bool is_mm = (mname == "min" || mname == "max");
 		  if (is_red || is_mm) {

@@ -3340,7 +3340,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017/2023 §§5.7.1, 6.24.1, and 18.5 constraint expressions.
 - **Evidence:** [Pinned ADC macro baseline](session_logs/2026-09-23_opentitan_adc_macro_arg_baseline.json) and its direct nonmacro control; no commercial-simulator result.
 - **Reproducer status:** confirmed on the installed candidate compiler, separate from macro preprocessing.
-- **Triage status:** unselected compiler blocker; `vvp/vthread.cc` overlaps Claude Code's active ownership.
+- **Triage status:** Direct unbased-fill cast-width subset fixed at `5afbe4c7f` with [paired local gates](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json); PR339 new-head CI remains pending. The primary loss was constraint IR, not the secondary `vvp/vthread.cc` warning. Wider-than-64-bit and four-state constraint casts remain explicit unsupported boundaries.
 
 ### DD-047 — OpenTitan ADC filter-size constraint is ignored
 
@@ -3350,4 +3350,31 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clause:** IEEE 1800-2017 §18.5.8.1, 2023 §18.5.7.1, and both editions' §18.4 require size-before-iterative solving and resizing constrained rand dynamic arrays.
 - **Evidence:** `evidence/opentitan-next-independent-20260923/candidate-adc-compile.json` and `evidence/opentitan-adc-filter-debt-20260923/assessment.md` on installed ivlpp SHA-256 `35d983cb76b8df6ad118cfa7add3bb84d384eae38667ea0ffd9d6f54c42ccd21`.
 - **Reproducer status:** pinned-target warning and standalone runtime failure confirmed; one-dimensional size control passes.
-- **Triage status:** unselected semantic-degradation blocker; full fix overlaps Claude-owned `elaborate.cc` and `vvp/vvp_z3.cc`. Do not classify ADC compile as a DV pass.
+- **Triage status:** reproduced and design-blocked after the typed outer-resize slice in PR339. Indexed row size and element identities plus a third solve stage are needed; no partial inner-size source patch was retained. Do not classify ADC compile as a DV pass.
+
+### DD-048 — Caliptra masking struct member loses packed bit select
+
+- **Discovered while working:** PR339 compiler CI repair and pinned Caliptra unit-census assessment.
+- **Observation:** Clean Adams Bridge v2.0.3 `masking_tb` uses `inputs.x_boolean[j][0]`, where the first index selects an unpacked struct-member element and the second its packed bit. Icarus reports two indices where it expects one; a whole-element control passes.
+- **File/function:** `elab_expr.cc` struct-member index elaboration; the read and lvalue paths both need assessment.
+- **Possible clauses:** IEEE 1800-2017/2023 §§7.4 and 11.5.
+- **Evidence:** [Paired RED and control](../../evidence/caliptra-masking-member-index-triage-20260923/README.md) against the clean pinned release. Other whole-array port errors would remain in that census row.
+- **Triage status:** reproduced, not selected for implementation; it overlaps the OpenTitan class-event `elab_expr.cc` candidate.
+
+### DD-049 — OpenTitan SPI class-event `.triggered` is rejected
+
+- **Discovered while working:** PR339 repaired-head pinned SPI Device compile.
+- **Observation:** Three released `spi_item` event properties are rejected when the scoreboard reads `.triggered`. A per-instance class-event trigger/wait control executes; a paired `.triggered` reducer fails before simulation.
+- **File/function:** `elab_expr.cc` class-event member lookup and likely `elaborate.cc`/VVP event query and wait handling.
+- **Possible clause:** IEEE 1800-2017/2023 §15.5.3.
+- **Evidence:** [Exact reducer and neighboring control](../../evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md); the fresh pinned SPI compile remains at nine strict or five commercial-unsafe errors.
+- **Triage status:** reproduced, not selected for implementation until PR339 establishes the next baseline; all three event errors are one semantic mechanism.
+
+### DD-050 — OpenTitan SPI scope randomization rejects a byte queue
+
+- **Discovered while working:** same pinned SPI Device compile.
+- **Observation:** `std::randomize(byte_q) with { byte_q.size() == exp_num_bytes; }` is rejected as nonintegral at `spi_device_tpm_base_vseq.sv:150`. The released macro expands directly to this call; it is not a malformed macro argument.
+- **File/function:** `elab_expr.cc::make_std_randomize_with_expr` accepts only scalar or packed-vector targets. A complete queue fix also needs target lowering, VVP resize/copyback, and solver modeling.
+- **Possible clauses:** IEEE 1800-2017 §§18.4 and 18.12; verify exact 2023 wording before implementation.
+- **Evidence:** [Fresh pinned compile](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json). A focused queue-size/rollback reducer is specified but not yet run.
+- **Triage status:** standards-grounded source trace, reducer pending; do not apply an elaboration-only acceptance workaround.

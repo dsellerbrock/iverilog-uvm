@@ -31,6 +31,7 @@
 # include  "event.h"
 # include  "resolv.h"
 # include  "vvp_net_sig.h"
+# include  "compile.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 #include  "vvp_cleanup.h"
@@ -38,8 +39,54 @@
 # include  <cstdio>
 # include  <cassert>
 # include  <cstdlib>
+# include  <unordered_map>
 
 using namespace std;
+
+class __vpiForceReleaseStmt : public __vpiHandle {
+    public:
+      __vpiForceReleaseStmt(bool force_, long file_idx_, long lineno_)
+          : force(force_), file_idx(file_idx_), lineno(lineno_) { }
+      int get_type_code(void) const override
+          { return force ? vpiForce : vpiRelease; }
+      int vpi_get(int code) override
+          { return code == vpiLineNo ? lineno : __vpiHandle::vpi_get(code); }
+      char* vpi_get_str(int code) override
+          { return code == vpiFile && file_idx >= 0
+                 && static_cast<size_t>(file_idx) < file_names.size()
+                 ? simple_set_rbuf_str(file_names[file_idx])
+                 : __vpiHandle::vpi_get_str(code); }
+    private:
+      bool force;
+      long file_idx;
+      long lineno;
+};
+
+static thread_local vpiHandle current_force_statement = 0;
+static std::unordered_map<vvp_code_t, vpiHandle> force_statements;
+
+void vpip_note_force_statement(vvp_code_t code, vpiHandle statement)
+{
+      force_statements[code] = statement;
+}
+
+vpiHandle vpip_force_statement_for(vvp_code_t code)
+{
+      auto found = force_statements.find(code);
+      return found == force_statements.end() ? 0 : found->second;
+}
+
+vpiHandle vpip_set_force_statement(vpiHandle statement)
+{
+      vpiHandle previous = current_force_statement;
+      current_force_statement = statement;
+      return previous;
+}
+
+vpiHandle vpip_build_force_statement(bool force, long file_idx, long lineno)
+{
+      return new __vpiForceReleaseStmt(force, file_idx, lineno);
+}
 
 static const char*cb_reason_name(PLI_INT32 reason)
 {
@@ -1328,7 +1375,11 @@ void vvp_vpi_callback::run_force_callbacks_(int reason,
 			      else
 			            get_value(cur->cb_data.value);
 			}
+			vpiHandle saved_obj = cur->cb_data.obj;
+			if (current_force_statement)
+			      cur->cb_data.obj = current_force_statement;
 			callback_execute(cur);
+			cur->cb_data.obj = saved_obj;
 		  }
 		  prev = cur;
 

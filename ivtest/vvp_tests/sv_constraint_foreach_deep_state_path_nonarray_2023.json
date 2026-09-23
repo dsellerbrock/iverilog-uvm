@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_foreach_deep_state_path_nonarray.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "sv_constraint_foreach_deep_state_path_nonarray"
+}

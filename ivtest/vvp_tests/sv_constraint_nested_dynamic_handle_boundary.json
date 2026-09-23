@@ -1,0 +1,9 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_nested_dynamic_handle_boundary.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "test"
+    ]
+}

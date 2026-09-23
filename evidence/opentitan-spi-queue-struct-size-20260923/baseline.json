@@ -1,0 +1,20 @@
+{
+  "compiler_source_commit": "8345eb75a4e8db09218c75a318469a08f73a532c",
+  "release": "OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "released_examples": [
+    "spi_device_scoreboard.sv:1294",
+    "spi_device_scoreboard.sv:2235"
+  ],
+  "results": [
+    {
+      "edition": "2017",
+      "returncode": 1,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv:8: error: Member size is not a member of struct type of q.<nil>\n1 error(s) during elaboration.\n"
+    },
+    {
+      "edition": "2023",
+      "returncode": 1,
+      "output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv:8: error: Member size is not a member of struct type of q.<nil>\n1 error(s) during elaboration.\n"
+    }
+  ]
+}

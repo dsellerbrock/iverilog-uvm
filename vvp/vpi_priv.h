@@ -66,6 +66,8 @@ extern bool code_is_instrumented;
 
 extern vpiHandle vpip_build_file_line(const char*description,
                                       long file_idx, long lineno);
+extern vpiHandle vpip_build_force_statement(bool force, long file_idx,
+                                             long lineno);
 
 /*
  * vpi_type_values returns the text form of the vpi type. If the type name
