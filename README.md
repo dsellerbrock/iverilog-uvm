@@ -120,6 +120,8 @@ versions, and legacy recording limitations, and the
 - **Application support varies.** UVM regression and individual OpenTitan
   workload passes do not establish full IEEE 1800.2 or OpenTitan/Caliptra DV
   support. Compilation alone does not prove meaningful traffic or checking.
+  The [release overlays](docs/conformance/release_overlays/README.md) record
+  pinned application sources, known-needed patches, and target run options.
   [Current results](docs/conformance/CURRENT_WORK.md) record revisions,
   commands, failures, and pending qualification; `DEBT` is not a pass.
 - **Some legal constructs remain unsupported**, including `wait_order`,
