@@ -1,6 +1,6 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/parallel-compiler-followon-20260923
+branch: agent/next-compiler-lanes-20260923
 baseline: main d74e1664b211394b3221e6cf1e3ad3c7d131e699; PR338 merged after exact-head Ubuntu 22.04 CI success.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
@@ -28,7 +28,7 @@ parallel_vpi_implementation_lane:
   evidence: evidence/review-20260920/next-vpi-force-callback-assessment/force_cb.sv and force_cb.c.
   acceptance: Whole-net/variable callbacks expose the correct statement object; variable bit-select remains rejected; focused positive, negative, and boundary regressions pass.
   dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from ADC files and DOE downstream trace; shared builds/install remain coordinator-owned.
-  state: Local candidate d2d996419 passes paired-edition statement-object cases, neighboring force/release controls, and file-line probe. Coordinator repaired operand alias corruption before commit; broad suites and PR CI remain pending.
+  state: Candidate d2d996419 published in PR339 after paired-edition VPI checks and coordinator operand-alias repair; broad suites and PR CI remain pending.
 parallel_adc_implementation_lane:
   id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
@@ -36,7 +36,7 @@ parallel_adc_implementation_lane:
   evidence: evidence/opentitan-adc-class-resize-triage-20260923/assessment.md and reducer.sv.
   acceptance: Typed outer nested-array resize preserves retained values and creates empty inner arrays; contradictory and zero-size boundary tests pass in both editions; keep class-handle growth distinct. Indexed inner-size lowering is required before an ADC DV progress claim.
   dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from VPI force/release files and DOE downstream trace; shared builds/install remain coordinator-owned.
-  state: Local candidate 0bf19490c passes paired-edition outer and handle boundaries in legacy and JSON runners. Indexed inner size is still dropped; no ADC smoke claim. Broad suites and PR CI remain pending.
+  state: Candidate 0bf19490c published in PR339 after paired-edition outer and handle boundaries. Indexed inner size is still dropped; no ADC smoke claim.
 parallel_spi_implementation_lane:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
@@ -45,7 +45,23 @@ parallel_spi_implementation_lane:
   evidence: evidence/opentitan-spi-device-constraint-reducer-20260923/foreach_inline_exact.sv and pinned released Earlgrey SPI Device line 277.
   acceptance: Pinned-shaped sparse bit[7:0]-keyed associative array of class handles constrains each actual key; empty boundary is vacuous; invalid/nonarray path is an error; existing one-member and find_index controls pass in both editions.
   dependency: Authorized by coordinator after ADC outer focused pass; same implementation agent preserves its existing elaborate.cc patch. Disjoint from VPI runtime/parser files and Caliptra DOE diagnostic.
-  state: Local candidate c64b1791f passes paired-edition sparse-key, empty, contradiction, and nonarray cases in legacy and JSON runners. Pinned full SPI Device DV remains open; broad suites and PR CI remain pending.
+  state: Candidate c64b1791f published in PR339 after paired-edition sparse-key, empty, contradiction, and nonarray cases. Full SPI Device DV remains open.
+parallel_adc_inner_implementation_lane:
+  id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
+  files: elaborate.cc; vvp/vvp_z3.cc; vvp/vvp_darray.cc/h only if needed; dedicated ADC fixtures.
+  evidence: evidence/opentitan-adc-filter-debt-20260923/reducer_nested_struct_dynamic_size.sv and current paired RED in workspace evidence/adc-inner-red-current-20260923.
+  acceptance: Indexed inner size enforced after outer allocation; dependent elements solved; rollback, zero, contradiction, and retained-value boundaries pass in 2017/2023 modes.
+  dependency: Disjoint from isolated Verilator DOE source and PR339 head.
+  state: Coordinator-authorized; source agent may edit only owned compiler files and tests.
+parallel_doe_verilator_implementation_lane:
+  id: CALIPTRA-L0-DOE-STATUS-SVA
+  owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
+  files: Existing isolated Verilator v5.052 source in workspace evidence/verilator-midwindow-doe-20260923; focused Verilator test patch and external evidence only.
+  evidence: evidence/caliptra-doe-verilator-midwindow-20260923/disable_midwindow.sv and DOE v5.052 replay result.
+  acceptance: Preserve control failure but abort disabled property on between-clock reset; fresh isolated build and intact DOE replay required before any application pass claim.
+  dependency: No Icarus or pinned application source edits; disjoint from ADC.
+  state: Coordinator-authorized; agent must return diagnosis or bounded patch for coordinator rebuild.
 completed_parallel_blocker:
   id: OT-PINMUX-FILESET-SOURCE-CLOSURE
   owner: Codex + GPT-6 Luna
@@ -84,4 +100,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Review evidence/caliptra-exact-l0-20260923 and investigate the still-failing DOE scan property without changing pinned releases or weakening checks."
+next_command: "Integrate the two authorized independent lanes after focused tests; monitor exact-head PR339 CI and merge after the first success. Preserve the Caliptra DOE failure until the intact assertion passes."
