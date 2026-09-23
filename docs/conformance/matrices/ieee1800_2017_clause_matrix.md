@@ -1723,6 +1723,14 @@ Other symbolic consequent shapes, full SVA support, and Caliptra DV/formal
 qualification remain open. The fixed-linear literal overlap correction is
 scoped separately below.
 
+The PARTIAL §§16.8/16.9.2.1/16.12.7 named-antecedent follow-up resolves a
+declared one-step Boolean sequence before dispatching the same per-instance
+symbolic-consequent checker. [Paired executable and pinned ECC formal-bind
+evidence](../session_logs/2026-09-23_caliptra_named_sequence_antecedent.json)
+passes locally. Multi-step named antecedents with symbolic consequents remain
+loudly unsupported; broad gates, CI, and full Caliptra DV/formal qualification
+remain open.
+
 ### September 23 fixed-linear SVA overlap verdicts and VPI identity
 
 The PARTIAL §§16.12.7/16.14.1 subset now dispatches one failure action for

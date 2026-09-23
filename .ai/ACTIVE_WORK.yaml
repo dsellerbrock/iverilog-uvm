@@ -1,38 +1,29 @@
-status: pr_open_ci_pending
-branch: agent/sva-overlap-failure-count-20260923
-baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563 now merged as 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; feature branch remains based on that source head.
-blocker: SVA-LITERAL-OVERLAP-FAILURE-COUNT
-goal: Report one assertion failure action for each distinct live implication attempt whose literal-repetition consequent fails on the same sampled edge.
-standards: IEEE 1800-2017 and IEEE 1800-2023 implication attempt/verdict semantics in 16.12.7; verify exact edition wording before patching.
-failing_reproducer: The paired baseline at 7590c2627 observed one same-edge failure action instead of two; the checked-in reducer and paired current result are recorded in docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
-expected: Distinct active attempts each receive their own fail action; alternate NFA paths belonging to one attempt must not duplicate a verdict. Preserve vacuity, successful attempts, four-state sampling, disable iff cancellation, and pass/fail action ordering.
-root_cause: This literal shape routes through the legacy linear checker, not the NFA. A one-bit failure flag collapsed distinct fixed-offset dying tokens, and sampled X/Z was not classified as a definite nonmatch. The count repair exposed a separate raw-time VPI attempt identity gap, also fixed for this subset.
+status: focused_tested
+branch: agent/caliptra-named-sequence-antecedent-20260923
+baseline: PR332 exact head 9093a9e9f17a21847549a8433b28d59089a9d958 is committed and locally qualified; this branch is stacked while its CI is queued.
+blocker: CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT
+goal: Execute a one-step named-sequence antecedent with a parameter-valued exact consequent repetition in both IEEE editions, preserving each instance's bound and attempt verdicts.
+standards: IEEE 1800-2017 and IEEE 1800-2023 sections 16.8 and 16.12.7; verify exact edition wording before patching.
+failing_reproducer: evidence/caliptra-next-blocker-20260923/exact_named_sequence.sv exits 1 with No function named idletonext in both modes. The pinned Caliptra v2.1.2 ECC formal bind with its full ecc_top.vf filelist fails at fv_ecc_hmac_drbg_interface_constraints.sv:47 with the same diagnostic. Exact commands and source/compiler hashes are in evidence/caliptra-next-blocker-20260923/result.json.
+expected: Resolve the declared sequence as an antecedent before treating it as a Boolean function; execute the symbolic consequent repeat per instance. Literal-bound, direct-sequence, and inline-Boolean controls retain behavior; an unknown sequence remains a diagnostic.
+root_cause_hypothesis: pform_make_assertion offers the specialized consequent-repeat helper before sva_splice_sequences_ expands a named antecedent; the helper captures its PECallFunction as a Boolean and elaboration then looks for an ordinary function. The helper is offered again after splicing, but the first offer has consumed the property.
 allowed_scope:
-  - pform.cc legacy linear checker fixed-offset verdict representation and dispatch, plus definite-match testing for four-state sampled guards in those same fixed-offset checks.
-  - Dedicated paired-edition positive, negative, and boundary SVA regressions and gold files in tests/sva_nfa and ivtest.
+  - pform.cc named-sequence antecedent dispatch and minimum related assertion-lowering code.
+  - Dedicated paired-edition executable SVA regressions, negative and boundary cases, gold files, and their test manifests.
 forbidden:
-  - OpenTitan or Caliptra source edits; counting NFA sibling paths as separate attempts; silent assertion drops or capped approximations.
-  - Edits to PR329/PR330/PR331 heads or Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without coordinator scope expansion.
-  - Shared builds, installations, and shared regression output directories by implementation agents; coordinator owns them.
-acceptance: Met locally at e54b76124 for the stated fixed-linear subset; paired reducers, focused neighbors, integrated gate, full JSON, real-DPI UVM, and make check pass. The revision-scoped session record owns exact evidence.
+  - OpenTitan or Caliptra source edits, compile-only completion claims, silent assertion drops, or weakened IEEE type checks.
+  - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without ownership release.
+  - Shared builds, installations, and shared test-output directories by implementation agents; coordinator owns them.
+dependency: PR332 must merge before this stacked branch merges to main. Publish this branch against PR332's frozen branch after local checks, then retarget to main when PR332 merges.
+acceptance: Focused requirements met at source/test commit 312eff1af plus exact-diagnostic negative controls. Paired runtime 2017/2023 x legacy/NFA 4/4, negative 4/4, SVA 61/61, focused legacy/JSON neighbors 57/57 and 16/16, negative suite 150/150, make check, and pinned full ECC formal-bind compiles pass. Broader CI and application DV/formal qualification remain pending. See docs/conformance/session_logs/2026-09-23_caliptra_named_sequence_antecedent.json.
 implementation_lane:
-  owner: Codex + Sol
-  files: pform.cc legacy linear checker; dedicated SVA tests and gold files only
-  handoff: Implementation integrated locally and published in PR332; exact-head CI pending.
-parallel_assessment_lane:
-  id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
-  owner: Codex + Luna
-  files: evidence/opentitan-spi-device-constraint-reducer-20260923 only
-  scope: Completed evidence-only reducer. The exact hierarchical foreach fails in both editions; dotted and plain controls plus the exact locator pass. No compiler implementation or shared build/install.
-  dependency: Claude owns elaborate.cc; implementation requires explicit ownership handoff.
-completed_assessment: OT-AON-EVENT-TRIGGERED-SENSITIVITY reducer confirms that @(e.triggered) fails elaboration in both editions while @e and wait(e.triggered) controls pass; evidence/opentitan-aon-triggered-reducer-20260923 remains local pending durable evidence review.
-integration_blocker:
-  id: SVA-VPI-ATTEMPT-START-IDENTITY
-  owner: Codex + Sol, continuing the selected SVA implementation lane
-  standard: IEEE 1800-2017 and 2023 39.4.2 requires cbAssertionFailure attemptStartTime to identify the actual attempt.
-  evidence: Resolved for fixed non-negated linear checkers at e54b76124. Distinct t25 callbacks now report start25/start5; VPI 127/127, full real-DPI UVM 358/358, and required local gates pass. See docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
-  allowed_scope: pform.cc fixed linear checker; vpi/sys_sva.c and vpi/libvpi.c; vvp/vpi_scope.cc and vvp/vpi_priv.cc; internal callback API declarations in vpi_user.h; focused VPI tests/gold. Preserve unrelated checker behavior and Claude-owned files.
-  acceptance: Met locally for this subset; PR332 exact-head CI pending. Other checker families retain the two-argument path and remain separate.
-pending_prs: PR329, PR330, and PR331 merged after exact-head CI success; PR332 is open against main.
-failed_attempt: The first candidate changed the NFA engine, but the generated literal image contains legacy t-stage registers and no NFA slot registers. Both paired-edition reducers remained red; evidence/sva-literal-overlap-candidate-20260923/focus.json. Revert that ineffective patch before the legacy correction.
-next: Track PR332 exact-head CI and merge after one current-head success if still ready and mergeable. Do not infer full assertion, formal, or application qualification.
+  owner: Codex + reused Sol
+  files: pform.cc and dedicated named-antecedent SVA tests/golds only
+  handoff: Sol patch integrated at 312eff1af; coordinator built, ran focused checks, reviewed, and owns publication/documentation.
+parallel_assessment:
+  id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
+  owner: Codex + reused Luna
+  files: evidence/opentitan-aon-triggered-reducer-20260923 only
+  state: Completed red reducer and boundary watchdog; implementation unclaimed because Claude owns elaborate.cc and vvp/vthread.cc.
+pending_prs: PR332 open, exact head 9093a9e9f17a21847549a8433b28d59089a9d958, CI queued. PR329 through PR331 merged.
+next: Publish a stacked PR against PR332's frozen branch after documentation review. Retarget after PR332 merges; require exact-head CI before merge. Do not claim full Caliptra DV/formal qualification.

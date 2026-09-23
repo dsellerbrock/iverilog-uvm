@@ -1515,6 +1515,10 @@ sv_cover_parameter_window_reversed CE,-g2012 ivltests
 sv_cover_parameter_repeat_negative_lower_fail CE,-g2012 ivltests
 sv_assert_parameter_consequent_repeat_negative CE,-g2017 ivltests
 sv_assert_parameter_consequent_repeat_negative_2023 CE,-g2023 ivltests
+sv_assert_named_param_consequent_unknown_negative CE,-g2017 ivltests
+sv_assert_named_param_consequent_unknown_negative_2023 CE,-g2023 ivltests
+sv_assert_named_param_consequent_multistep_negative CE,-g2017 ivltests
+sv_assert_named_param_consequent_multistep_negative_2023 CE,-g2023 ivltests
 sv_cover_parameter_repeat_range_reversed_fail CE,-g2012 ivltests
 sv_cover_parameter_window_negative_lower_fail CE,-g2012 ivltests
 sv_cover_parameter_exact_unknown_fail CE,-g2012 ivltests
