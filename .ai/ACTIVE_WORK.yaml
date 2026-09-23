@@ -1,31 +1,147 @@
-blocker: CI-WIN-UVM-REGEX-NOOUTPUT
-status: FOCUSED_TESTED
-base: 1af223c8f45b922dc1b966aa5e399c4f59f8546f
-predecessor: OT-SPI-INLINE-CALLER-QUEUE-FOREACH merged as PR320 (1af223c8); PR319 merged 288132f2. Both frozen.
-objective: Remove the Windows (MSYS2 libsystre/TRE) crash of the strict-regex UVM DPI test without changing regex semantics or the pinned uvm-core sources.
-authorization: Continuous campaign coordinator selection; main CI red on all three MSYS2 jobs since PR317 with this single test failing.
+blocker: OT-SPI-INLINE-STATE-FUNCTION-CALL
+status: PATCHED
+base: 3ccd5d73e691411caf43b407f05c84ddcade8820
+parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/320 (merged as 1af223c8f)
+objective: Evaluate permitted function calls in inline randomize constraints using the existing constraint-function machinery, preserving caller/target lookup and runtime receiver semantics.
+authorization: Continuous campaign; previous caller-queue patch locally qualified and published frozen in PR320.
 standards:
-- Pinned uvm-core src/dpi/uvm_regex.cc API contract (UVM_REGEX_MAX_LENGTH 2048; null on compile failure); IEEE 1800.2 clause mapping unassessed.
-- POSIX regcomp/regfree: regfree is defined only for a successfully compiled regex_t; REG_NOSUB affects only submatch reporting.
-reproducer: tests/uvm_regex_strict_exec_test.sv (Windows CI job logs, main 288132f2 run 35691405507); local TRE 0.8.0 proxy under scratch evidence.
-red: MSYS2 MINGW64/UCRT64/CLANG64 report "vvp produced no output at all"; Linux/macOS pass (glibc/libc tolerate regfree after failure).
-expected: 2048-character patterns compile; >2048 and invalid patterns return null with an error; no crash; glob/strict behavior unchanged.
-root: Vendored uvm_re_comp calls uvm_re_free -> regfree on a regex_t whose regcomp failed (POSIX-undefined). TRE leaves a dangling tnfa pointer and segfaults. TRE's submatch-tracking parser also rejects 2048-literal patterns (REG_ESPACE; limit 1463), which triggers that path.
-allowed_files:
-- uvm_dpi/uvm_dpi_iverilog.cc regcomp/regfree wrapper around the vendored uvm_regex.cc include
-- .github/uvm_test.sh vvp exit-status reporting (recorded next discriminator for this blocker)
-- owning blocker/debt/evidence/campaign records
+- IEEE 1800-2017 18.5.12 and 18.7
+- IEEE 1800-2023 18.5.11 and 18.7
+edition_note: 2023 explicitly prohibits inout and requires side-effect-free behavior; 2017 wording differs. const ref remains allowed. Do not conflate function-argument ordering with solve-before.
+reproducer: evidence/review-20260920/spi-external-cfg-constraint-next/external_cfg_constraint.sv
+red: results/current-build3/results.json records both-edition inline failure and passing class-body control.
+root_hypothesis: Inline lowering lacks state-call context and descriptor plumbing present for class-body constraints.
+allowed_scope:
+- Trace and reuse existing state-function descriptor, receiver capture, purity validation, pre-solve call and result capture.
+- elab_expr.cc and elaborate.cc inline lowering plus existing declarations if necessary.
+- tgt-vvp and vvp state-call serialization/execution only after identifying specific required symbols and recording dependency.
+- Directly related focused regressions and owning documents.
 forbidden:
-- uvm-core or third_party UVM source edits
-- Changing strict-vs-glob semantics, length limits, or test expectations
-- Marking the test known-fail or skipping it
+- Application source modifications or dropped constraints.
+- Replacing function calls with guessed constants or bidirectional symbolic substitution.
+- Unrelated nested-struct or queue-type changes.
+- New IR architecture without explicit coordinator scope review.
 acceptance:
-- Local TRE-linked umbrella reproduces the crash before and passes after; glibc build unchanged.
-- uvm_regex_strict_exec_test and uvm_regex_legacy_glob_test pass locally (real DPI).
-- Mapped UVM regex/config groups plus smoke pass locally; Windows CI UVM step passes on the PR.
-risk: LOW-MEDIUM (fork-owned DPI shim; affects every regex compile through uvm_re_comp).
-stop_after_completion: Freeze validated patch and return to coordinator selection; full mission remains active.
-latest_validation:
-  evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json
-  completed: TRE red/green and ablation; regex pair 2/2; full real-DPI UVM 358/358; UVM front-end all scenarios. Linux container host.
-  pending: MSYS2 CI UVM regression step on the draft PR.
+- External caller cfg method returns actual 1/2/4 across calls in both editions.
+- Target/self receiver, caller scope, virtual dispatch and repeated state changes behave correctly.
+- Null receiver and invalid function forms diagnose; unsatisfiable result preserves target state.
+- Existing class-body constraint function behavior, argument ordering and pre_randomize semantics preserved.
+- Focused positive/negative/boundary tests and mapped gates; broad validation at coherent checkpoint before promotion.
+lanes:
+  implementation: Retained Terra selected_vif_relay_lifetime; authorized external state-only implementation phase below.
+  coordinator: Standards, scope selection, shared builds/install/test output, integration and review.
+risk: HIGH
+stop_after_completion: Freeze validated patch; return to coordinator selection. Full mission remains active.
+
+additional_evidence:
+  inline_virtual_pre_red: evidence/review-20260920/spi-external-cfg-constraint-next/coordinator/virtual-red.json
+  class_virtual_pre_control: evidence/review-20260920/spi-external-cfg-constraint-next/coordinator/virtual-control.json
+  required_invariant: Invoke the derived virtual method on actual caller cfg after target pre_randomize updates aliased state; paired control returns4.
+  scope_hazard: Existing capture wrapper is parented to randomized class and has only target-this port; enabling context alone cannot preserve caller lexical cfg/automatic lifetime.
+
+implementation_phase:
+  goal: First implement the exact external caller-state function path through existing post-pre_randomize scalar captures; this is a phase, not closure of remaining acceptance items.
+  authorized_files:
+  - elaborate.cc shared function resolver/purity/direction validation and caller-state slot lowering
+  - elab_expr.cc slot elaboration/classification and null guard if required
+  - vvp/vthread.cc retain four-state words for function-result slots
+  - vvp/vvp_z3.cc typed function-result substitution and transactional X/Z failure
+  - necessary declarations only after explicit dependency report
+  invariants:
+  - No duplicate receiver evaluation; preserve live caller frame and virtual dispatch.
+  - Null receiver must fail even for constant-return method; X/Z must not become zero.
+  - Reuse shared purity and direction checks; const-ref stays allowed.
+  - Only proven state-only arguments may use direct capture. Random-dependent inputs remain diagnosed until staged evaluation is implemented.
+  - Target-first lookup must not accidentally resolve a target method/property in caller scope. Unsupported target forms stay loud during this phase.
+  remaining_in_ticket: Target/self lookup and staged random-argument support require subsequent explicit review; do not claim full inline-function support or close broad acceptance prematurely.
+  forbidden_expansion: No new per-call descriptor dispatch system or synthetic lexical-parent wrapper without separately proven lifetime/receiver semantics.
+
+declaration_dependency_approved:
+- Optional function_slot_flags parameter on pexpr_to_class_constraint_ir and rooted sibling, limited to definitions in elaborate.cc and declarations/caller in elab_expr.cc.
+- Inline lowering owns flag rollback alongside value slots; no new shared header/module.
+negative_controls: evidence/review-20260920/spi-external-cfg-constraint-next/coordinator/null-x-control.json proves both-edition class-body null/X rejection preserves target and suppresses post hook.
+
+parallel_test_lane:
+  owner: eval_evidence_audit Luna/low
+  files: evidence/review-20260920/spi-external-cfg-constraint-next/direction-fixtures only
+  task: Mechanical input/const-ref positives and output/inout/nonconst-ref negatives; coordinator reviews semantics before scoring.
+
+first_build_evidence:
+  root: evidence/review-20260920/spi-external-cfg-constraint-next/build1
+  result: Build/install pass; exact external cfg and virtual-after-pre pass; null/X reject with rollback; impure/direction diagnostics correct; input/const-ref pass.
+  still_open: Target/self calls, staged random arguments and wide capture support remain open.
+  current_action: Build3 static qualifier correction passes both editions; target/self receiver assessment next. No broad qualification started.
+
+build2_evidence:
+  root: evidence/review-20260920/spi-external-cfg-constraint-next/build2
+  result: Build retry/install pass; external caller, virtual after pre, null/X rollback, input/const-ref, signed8, unsigned64 and dist singleton pass in both editions. Invalid directions and 65-bit results diagnose.
+  failure: Static-through-null constraint falsely fails X/Z; ordinary call control returns6. ABI implicit-this port exists for static methods, so guard must consult semantic static qualifier.
+  application: Pristine M6 SPI compile now exits3; external cfg method diagnostic removed. Two queue element-equivalence errors and nested-struct constraint path remain; no DV qualification.
+  application_record: evidence/review-20260920/spi-external-cfg-constraint-next/application-build2/result.json
+
+build3_evidence:
+  root: evidence/review-20260920/spi-external-cfg-constraint-next/build3
+  result: Build/install pass. All 22 supported positive/rollback executions pass; 10 expected negative diagnostic cases verified. Six target/self/collision cases remain unsupported, not counted as passes.
+  static_fix: Consult semantic static method qualifier before applying nonstatic null receiver guard; ABI receiver presence alone is insufficient.
+  next: Authorized target receiver implementation underway; retain build3 as last validated external phase.
+  pending: Permanent regressions, remaining ticket semantics, mapped and broad qualification, publication.
+
+target_receiver_phase_authorized:
+  invariant: Evaluate randomize receiver exactly once and retain the same object across pre_randomize, function capture, solving and post_randomize, including caller-handle changes.
+  root: No existing NetExpr denotes the retained object stack receiver. Reusing obj_expr in a wrapper call would evaluate it again and can bind a different object.
+  scope_expansion_reason: Target/self functions require class lexical lookup with actual retained randomized receiver; caller lexical scalar capture is insufficient.
+  implementation_owner: inline_target_capture Terra/medium (replacement after prior worker exhausted context)
+  authorized_additions:
+  - elaborate.cc and elab_expr.cc reuse existing class-scope function wrapper construction through a per-inline prebuilt scalar slot channel with ownership and rollback.
+  - tgt-vvp/eval_vec4.c recognizes private target-capture slot metadata only within randomize-with lowering.
+  - tgt-vvp/draw_ufunc.c and vvp_priv.h small helper extends existing function preamble to bind first formal from an alias of the retained receiver, never re-evaluating original receiver.
+  constraints:
+  - No new runtime opcode or per-class inline registration; no mutation of class constraints for one call site.
+  - Preserve null/X rejection, purity, virtual dispatch, widths and post-pre ordering.
+  - Begin target/self state-only zero-argument calls; staged random inputs remain in-ticket and unsupported until correctly ordered.
+  acceptance: Existing self_cfg/self_method/collision cases, derived target virtual-after-pre, nested null rollback, receiver-once and pre-rebind tests, all existing external cases and class-function neighbors.
+
+target_red_harness:
+  command: python3 evidence/review-20260920/spi-external-cfg-constraint-next/run_targets.py build3
+  result: Eight paired class-control executions pass. Target inline cases fail before implementation; function-call receiver inline syntax is separately recorded parser debt.
+  receiver_once: coordinator/target_index_once.sv has side-effecting index evaluated once; pre-rebind control changes caller current handle but solves original object.
+
+build4_evidence:
+  root: evidence/review-20260920/spi-external-cfg-constraint-next/build4
+  result: Build retry/install passed; self and target-owned methods, local/target collisions, virtual target, null rollback, retained object after pre-rebind and index-once pass both editions. All external phase positives and negatives remain correct.
+  neighbors: 212/212 function regressions in each legacy and JSON runner, zero failures.
+  provenance: Expanded fingerprints include all seven changed compiler/runtime/target files and installed tools; source.patch freezes the exact source delta from2224ec805.
+  remaining: Random-dependent argument staging, wider results and broader qualification remain open; parser function-call receiver gap separately parked.
+  next: Permanent retained-target regression families integrated and focused-tested. Implement and review staged random-argument path, then broader qualification.
+
+inline_random_argument_phase_authorized:
+  standards: IEEE 1800-2017 18.5.12 and IEEE 1800-2023 18.5.11. Function arguments referencing random variables establish priority partitions, unlike solve-before; calls execute before their dependent constraints and return state.
+  red: evidence/review-20260920/spi-external-cfg-constraint-next/staged/build4-red.json; paired class-body control passes23,41,255 in both editions, actual inline target x==f(y) currently rejects.
+  root: vvp_z3_plan_function_stages attaches class capture calls only when class_ir=true; extra_ir has no per-call descriptors. Eager fv captures would sample y before it is solved.
+  expanded_scope: Per-randomize-call inline capture descriptors must travel with extra_ir through compiler target emission, vvp/vthread.cc randomize_solve_options_s/session, vvp/vvp_z3.h object and plan structures, and vvp/vvp_z3.cc planner. They are not class-type metadata. Class-call path must remain intact.
+  acceptance:
+  - Paired inline target and caller random-argument reducers across 2017/2023 with distinct repeated actual values and width boundary.
+  - Random argument priority partitions, null/X rollback, active selection and pre/post hook behavior preserved.
+  - Receiver identity preserved through staged continuation; caller lexical frame lifetime proven.
+  - Existing external/target state-only and 212 neighboring function regressions pass.
+  restrictions: Do not early evaluate random actuals, fabricate known outputs, mutate class-wide descriptors for a callsite, or weaken unsupported diagnostics.
+  implementation_lane: Retained Terra inline_target_capture; first trace exact serialization and call frame linkage, then implement smallest complete staged path with coordinator review at any new boundary. No agent shared builds/tests.
+
+permanent_target_regressions:
+  files: ivtest/ivltests/sv_constraint_inline_function_{lookup,rebind,once,null}_{2017,2023}.v and paired JSON/golds; registered in regress-sv.list and regress-vvp.list.
+  focus: evidence/review-20260920/spi-external-cfg-constraint-next/build4/permanent/results.json (legacy8/8,JSON8/8).
+  review: Initial Luna draft had wrong null expectation and missing PASS markers; archived under evidence/review-20260920/spi-external-cfg-constraint-next/permanent-draft-invalid. Coordinator corrected to tested runtime diagnostic and passing assertions before registration.
+
+latest_main_baseline:
+  commit: 3ccd5d73e691411caf43b407f05c84ddcade8820
+  included: PR320 caller queue and PR321 Windows TRE regex repair.
+  note: Source build4 focused results were obtained before this baseline fast-forward. Fresh build5-main rebuild/install and focused external, boundary, target and permanent suites pass on this baseline; broad gates remain pending.
+  claude_pr322: Draft head65906fb; its inline caller-method commit overlaps this active ticket, while its vvp args, solve-before array and DPI-export fixes are independent pending review.
+
+checkout_coordination:
+  sheet: .ai/ISSUE_CHECKOUT.csv
+  handoff: .ai/HANDOFF.md
+  checkout_commit: 2c646e073
+  rule: Record issue owner and file boundary before work; the sheet does not supersede this implementation authorization.
+  pr322: Caller-method commit overlaps active elaborate.cc; reconcile before merge. Other observed commits remain separately reviewable.
+  next: Commit focused-tested state-only slice directly, then implement staged random-variable function actuals without premature sampling.

@@ -6001,7 +6001,8 @@ bool of_RANDOMIZE(vthread_t thr, vvp_code_t)
 
 static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 {
-	// code->text      = IR string (with possible "v:N:W" slot placeholders)
+	// code->text      = IR string (with possible "v:N:W" or "fv:N:W"
+	//                   slot placeholders)
 	// code->bit_idx[0] = number of runtime value slots on the vec4 stack;
 	// bit 31 marks std::randomize(this_property), which uses this object's
 	// storage but excludes class constraints and randomize hooks (18.12).
@@ -6019,7 +6020,10 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
             if (!schedule_finished()) schedule_finish(0);
             return false;
       }
-      vector<vvp_vector4_t> slot_words(object_form ? n_vals : 0);
+      /* Inline function slots use the same scalar stack path as ordinary
+       * caller state, but retain their four-state result for the solver's
+       * transactional X/Z check. */
+      vector<vvp_vector4_t> slot_words(n_vals);
       vector<vvp_object_t> objects(n_objects);
       for (unsigned i = n_objects; i > 0; --i)
             thr->pop_object(objects[i - 1]);
@@ -6028,7 +6032,7 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
       vector<uint64_t> slot_vals(n_vals);
       for (unsigned i = n_vals ; i > 0 ; i--) {
 	    vvp_vector4_t v = thr->pop_vec4();
-            if (object_form) slot_words[i - 1] = v;
+	    slot_words[i - 1] = v;
 	    uint64_t bits = 0;
 	    unsigned wid = v.size(); if (wid > 64) wid = 64;
 	    for (unsigned b = 0 ; b < wid ; b++)

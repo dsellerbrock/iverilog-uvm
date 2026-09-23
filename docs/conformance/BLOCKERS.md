@@ -3453,3 +3453,9 @@ The upstream OpenTitan checker backport exposed missed late `until` violations. 
 ### OT-SPI-INLINE-CALLER-QUEUE-FOREACH — locally regression-tested
 
 Direct caller-owned integral queue/dynamic-array iteration now has paired focused evidence, including target-first lookup, signed values, invalid-state rejection and rollback. The pristine SPI compile no longer rejects this foreach; independent errors remain. [Revision-scoped evidence](session_logs/2026-09-22_caller_queue_foreach_focus.json) owns results and passing required local gates. Merged in PR320 (`1af223c8`); Linux/macOS CI jobs passed on the preceding main run, and the MSYS2 failure is CI-WIN-UVM-REGEX-NOOUTPUT. No full application qualification is claimed.
+
+### OT-SPI-INLINE-STATE-FUNCTION-CALL — focused state-only candidate
+
+- **Status:** PATCHED and FOCUSED_TESTED; staged random-variable arguments and required broad gates remain open.
+- **Requirement:** IEEE 1800-2017 §18.5.12 / 2023 §18.5.11 function calls in inline randomize constraints, with §18.7 call semantics.
+- **Evidence:** [Revision-scoped focused record](session_logs/2026-09-23_inline_state_function_focus.json). The bounded state-only caller/target/self path preserves post-`pre_randomize` state, four-state rejection, virtual dispatch, and retained target identity. The record lists remaining argument and width limits; no complete clause or SPI DV qualification is claimed.

@@ -25198,6 +25198,11 @@ static perm_string constraint_class_object_root_;
  * pointer preserves the ordinary inline-constraint rule where every visible
  * target member has precedence. */
 static const vector<perm_string>*constraint_inline_member_names_ = nullptr;
+/* Inline randomize function calls are ordinary post-pre_randomize scalar
+ * captures. Keep their slot positions aligned with value_slots so the IR can
+ * retain the function-result four-state check at solve time. */
+static vector<bool>*constraint_inline_function_slots_ = nullptr;
+static vector<NetExpr*>*constraint_inline_prebuilt_value_slots_ = nullptr;
 
 static bool constraint_inline_target_name_(perm_string name)
 {
@@ -25392,7 +25397,7 @@ static unsigned constraint_dist_ir_leaf_width_(const string&tok)
       if (fields.empty()) return 1;
 	if (fields[0] == "c" || fields[0] == "p" || fields[0] == "pp"
 	  || fields[0] == "r"
-	  || fields[0] == "v")
+	  || fields[0] == "v" || fields[0] == "fv")
 	    return field_width(2);
       if (fields[0] == "m" || fields[0] == "a") return field_width(3);
       if (fields[0] == "e") return field_width(2);
@@ -25427,6 +25432,7 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  || tok.compare(0, 2, "e:") == 0
 		  || tok.compare(0, 2, "r:") == 0
 		  || tok.compare(0, 2, "v:") == 0
+		  || tok.compare(0, 3, "fv:") == 0
 		  || tok.compare(0, 2, "s:") == 0;
 	    bool delem_header = !tok.empty()
 		  && isdigit((unsigned char)tok[0]) && tok.find(':') != string::npos;
@@ -25440,14 +25446,18 @@ static constraint_dist_ir_shape_t constraint_dist_ir_shape_at_(
 		  || tok.compare(0, 2, "a:") == 0
 		  || tok.compare(0, 2, "e:") == 0
 		  || tok.compare(0, 2, "r:") == 0
-		  || tok.compare(0, 2, "v:") == 0;
+		  || tok.compare(0, 2, "v:") == 0
+		  || tok.compare(0, 3, "fv:") == 0;
 	    out.is_signed = tok.size() >= 2
 		  && tok.compare(tok.size() - 2, 2, ":s") == 0;
 	    out.width = constraint_dist_ir_leaf_width_(tok);
-	    if (tok.compare(0, 2, "v:") == 0) {
+	    if (tok.compare(0, 2, "v:") == 0
+		|| tok.compare(0, 3, "fv:") == 0) {
 		  char*end = nullptr;
-		  unsigned long slot = strtoul(tok.c_str() + 2, &end, 10);
-		  if (end != tok.c_str() + 2 && *end == ':'
+		  const char*slot_text = tok.c_str()
+			+ (tok.compare(0, 3, "fv:") == 0 ? 3 : 2);
+		  unsigned long slot = strtoul(slot_text, &end, 10);
+		  if (end != slot_text && *end == ':'
 		      && slot <= UINT_MAX) {
 			constraint_value_slot_shape_t actual =
 			      constraint_ir_value_slot_shape_(
@@ -25833,12 +25843,13 @@ static string constraint_ir_shape_value_slots_(
       while (*p) {
 	    bool token_start = p == begin
 		  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
-	    if (!token_start || p[0] != 'v' || p[1] != ':') {
+	    bool function_slot = p[0] == 'f' && p[1] == 'v' && p[2] == ':';
+	    if (!token_start || (!function_slot && (p[0] != 'v' || p[1] != ':'))) {
 		  out += *p++;
 		  continue;
 	    }
 
-	    const char*q = p + 2;
+	    const char*q = p + (function_slot ? 3 : 2);
 	    char*end = nullptr;
 	    unsigned slot = (unsigned)strtoul(q, &end, 10);
 	    if (end == q || *end != ':') {
@@ -25880,7 +25891,8 @@ static string constraint_ir_shape_value_slots_(
 		  return "";
 	    }
 	    if (width == 0 || width > 64) width = 32;
-	    out += "v:" + to_string(slot) + ":" + to_string(width);
+	    out += function_slot ? "fv:" : "v:";
+	    out += to_string(slot) + ":" + to_string(width);
 	    if (actual.is_signed) out += ":s";
 	    p = q;
       }
@@ -25946,7 +25958,9 @@ string pexpr_to_class_constraint_ir(
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
       const vector<perm_string>*inline_member_names = nullptr,
-      vector<NetExpr*>*object_slots = nullptr)
+      vector<NetExpr*>*object_slots = nullptr,
+      vector<bool>*function_slot_flags = nullptr,
+      vector<NetExpr*>*prebuilt_value_slots = nullptr)
 {
       Design*save = constraint_ir_design_ctx_;
       vector<NetExpr*>*save_objects = scope_randomize_object_slots_;
@@ -25955,8 +25969,12 @@ string pexpr_to_class_constraint_ir(
       stateforeach_emit_ctx_ = nullptr;
       const vector<perm_string>*save_inline =
 	    constraint_inline_member_names_;
+      vector<bool>*save_function_slots = constraint_inline_function_slots_;
+      vector<NetExpr*>*save_prebuilt_slots = constraint_inline_prebuilt_value_slots_;
       constraint_ir_design_ctx_ = des;
       constraint_inline_member_names_ = inline_member_names;
+      constraint_inline_function_slots_ = function_slot_flags;
+      constraint_inline_prebuilt_value_slots_ = prebuilt_value_slots;
 	/* See the scope-randomize sibling above. This prepass is semantic and
 	 * intentionally independent of whether the backend can represent the
 	 * enclosing constraint node. */
@@ -25965,6 +25983,8 @@ string pexpr_to_class_constraint_ir(
       string out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
       constraint_inline_member_names_ = save_inline;
+      constraint_inline_function_slots_ = save_function_slots;
+      constraint_inline_prebuilt_value_slots_ = save_prebuilt_slots;
       constraint_ir_design_ctx_ = save;
       scope_randomize_object_slots_ = save_objects;
       stateforeach_emit_ctx_ = save_foreach;
@@ -25988,12 +26008,15 @@ string pexpr_to_rooted_class_constraint_ir(
       vector<const PExpr*>*value_slots, Design*des,
       const NetScope*scope,
       const vector<perm_string>*inline_member_names = nullptr,
-      vector<NetExpr*>*object_slots = nullptr)
+      vector<NetExpr*>*object_slots = nullptr,
+      vector<bool>*function_slot_flags = nullptr,
+      vector<NetExpr*>*prebuilt_value_slots = nullptr)
 {
       perm_string save_root = constraint_class_object_root_;
       constraint_class_object_root_ = root;
       string out = pexpr_to_class_constraint_ir(
-            expr, cls, value_slots, des, scope, inline_member_names, object_slots);
+            expr, cls, value_slots, des, scope, inline_member_names, object_slots,
+            function_slot_flags, prebuilt_value_slots);
       constraint_class_object_root_ = save_root;
       return out;
 }
@@ -28199,16 +28222,22 @@ static void constraint_diagnose_randc_restrictions_(
 static string scope_randomize_value_slot_(const PExpr*expr,
 					   NetNet*direct_signal,
 					   vector<const PExpr*>*value_slots,
-					   unsigned width)
+					   unsigned width,
+					   bool function_result = false)
 {
       if (!value_slots) return "";
       unsigned slot = (unsigned)value_slots->size();
       value_slots->push_back(expr);
+      if (constraint_inline_function_slots_)
+	    constraint_inline_function_slots_->push_back(function_result);
+      if (constraint_inline_prebuilt_value_slots_)
+	    constraint_inline_prebuilt_value_slots_->push_back(nullptr);
       if (scope_randomize_signal_slots_)
 	    scope_randomize_signal_slots_->push_back(direct_signal);
       if (width == 0 || (width > 64 && !constraint_dist_payload_depth_))
 	    width = 32;
-      return "v:" + to_string(slot) + ":" + to_string(width);
+      return string(function_result ? "fv:" : "v:")
+	    + to_string(slot) + ":" + to_string(width);
 }
 
 static string scope_randomize_select_ir_(
@@ -29352,10 +29381,12 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
 
 static string constraint_state_expression_slot_(
       const PExpr*site, PExpr*expression, ivl_type_t result_type,
-      const netclass_t*cls, bool collect_dependencies)
+      const netclass_t*cls, bool collect_dependencies,
+      NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr)
 {
       if (!site || !expression || !result_type || !cls
-	  || !constraint_ir_state_calls_ctx_ || !constraint_ir_design_ctx_)
+	  || (!constraint_ir_state_calls_ctx_ && !inline_capture)
+	  || !constraint_ir_design_ctx_)
 	    return "";
       NetScope*class_scope = const_cast<NetScope*>(cls->class_scope());
       NetScope*wrapper = new NetScope(class_scope,
@@ -29366,8 +29397,12 @@ static string constraint_state_expression_slot_(
       NetNet*receiver = new NetNet(wrapper,
 	    perm_string::literal(THIS_TOKEN), NetNet::REG, cls);
       receiver->port_type(NetNet::PINPUT);
+      ivl_type_t capture_type = inline_capture
+	    ? static_cast<ivl_type_t>(new netvector_t(IVL_VT_LOGIC,
+		  result_type->packed_width() - 1, 0, result_type->get_signed()))
+	    : result_type;
       NetNet*result = new NetNet(wrapper, wrapper->basename(), NetNet::REG,
-	    result_type);
+	    capture_type);
       vector<NetNet*>ports(1, receiver);
       vector<NetExpr*>defaults(1, nullptr);
       NetFuncDef*def = new NetFuncDef(wrapper, result, ports, defaults);
@@ -29376,6 +29411,32 @@ static string constraint_state_expression_slot_(
 	    constraint_ir_design_ctx_, wrapper, result_type, expression, false);
       delete expression;
       if (!value) return "";
+	  /* A constant nonstatic method must still reject a null retained
+	   * randomized receiver. Preserve that X through the scalar capture. */
+      if (inline_capture) {
+	    const NetEUFunc*method_call = dynamic_cast<const NetEUFunc*>(value);
+	    const PFunction*pfunc = method_call
+		  ? method_call->func()->func_pform() : nullptr;
+	    bool is_static = pfunc && pfunc->method_qualifiers().test_static();
+	    const NetExpr*actual_receiver = !is_static && method_call
+		  && method_call->parm_count() ? method_call->parm(0) : nullptr;
+	    if (actual_receiver) {
+		  NetExpr*receiver_copy = actual_receiver->dup_expr();
+		  NetENull*null_value = new NetENull(actual_receiver->net_type());
+		  receiver_copy->set_line(*site);
+		  null_value->set_line(*site);
+		  NetEBComp*receiver_valid = new NetEBComp(
+			'N', receiver_copy, null_value);
+		  receiver_valid->set_line(*site);
+		  verinum invalid(verinum::Vx, result_type->packed_width(), true);
+		  invalid.has_sign(result_type->get_signed());
+		  NetEConst*invalid_value = new NetEConst(invalid);
+		  invalid_value->set_line(*site);
+		  value = new NetETernary(receiver_valid, value, invalid_value,
+			result_type->packed_width(), result_type->get_signed());
+		  value->set_line(*site);
+	    }
+      }
       NetAssign*assignment = new NetAssign(new NetAssign_(result), value);
       assignment->set_line(*site);
       NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
@@ -29384,6 +29445,16 @@ static string constraint_state_expression_slot_(
       def->set_proc(body);
       constraint_function_purity_t purity(constraint_ir_design_ctx_);
       if (!purity.check(wrapper)) return "";
+
+      if (inline_capture) {
+	    vector<NetExpr*> args(1);
+	    args[0] = new NetENull(cls);
+	    *inline_capture = new NetEUFunc(
+		  inline_scope, wrapper,
+		  new NetESignal(result), args, true);
+	    (*inline_capture)->set_line(*site);
+	    return "inline";
+      }
       set<netclass_t::constraint_dependency_t>dependencies;
       if (collect_dependencies
 	  && !constraint_call_dependencies_(value, cls, receiver, dependencies))
@@ -31697,6 +31768,203 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				 == perm_string::literal("$onehot")
 				 ? "onehot" : "onehot0");
 			return "(" + op + " " + arg + ")";
+		  }
+	    }
+
+	      /* Inline randomize calls sample permitted caller-state methods after
+	       * pre_randomize through the ordinary scalar-slot evaluation path.
+	       * Only a dotted caller receiver is accepted here: target lookup wins
+	       * before this branch, so a colliding target property can never fall
+	       * through to the caller. Explicit caller-local arguments are accepted
+	       * only when their formal is input or const ref; random-dependent
+	       * arguments require the staged priority path.
+	       */
+	    if (cls && constraint_inline_function_slots_ && value_slots
+		&& !constraint_ir_state_calls_ctx_ && !call->receiver_expr()
+		&& !call->path().package && !call->has_scoped_type_prefix()
+		&& cpath.size() == 2 && cpath.front().index.empty()
+		&& cpath.back().index.empty() && call->with_constraints().empty()) {
+		  const netclass_t*target_owner = nullptr;
+		  pform_name_t::const_iterator target_component;
+		  if (!constraint_target_path_begin_(call->path(), cls,
+			 target_owner, target_component)) {
+			pform_name_t receiver_path = cpath;
+			receiver_path.pop_back();
+			unique_ptr<PEIdent>receiver(new PEIdent(receiver_path, UINT_MAX));
+			constraint_source_type_t receiver_type =
+			      constraint_source_expr_type_(receiver.get(), cls,
+						   value_slots, scope);
+			const netclass_t*receiver_class =
+			      !receiver_type.unpacked_dimensions
+			      ? dynamic_cast<const netclass_t*>(receiver_type.type) : nullptr;
+			NetScope*method = receiver_class
+			      ? receiver_class->resolve_method_call_scope(
+				    constraint_ir_design_ctx_, cpath.back().name) : nullptr;
+			if (method && method->type() == NetScope::FUNC) {
+			      const PFunction*pfunc = method->func_pform();
+			      if (pfunc && (!method->func_def() || !method->func_def()->proc()))
+				    elaborate_function_outside_caller_fork_(
+					  constraint_ir_design_ctx_, pfunc, method);
+			      const NetFuncDef*def = method->func_def();
+			      const NetNet*result = def ? def->return_sig() : nullptr;
+			      ivl_type_t result_type = result ? result->net_type() : nullptr;
+			      unsigned implicit_this = scope_method_uses_implicit_this(
+				    constraint_ir_design_ctx_, method) ? 1U : 0U;
+			      if (result_type && result_type->packed_width() > 64) {
+				    cerr << call->get_fileline() << ": error: Function '"
+					 << call->path()
+					 << "' used in an inline constraint returns more than 64 bits; "
+					    "wide function-result capture is not supported." << endl;
+				    constraint_ir_design_ctx_->errors += 1;
+				    return "";
+			      }
+			      if (result_type && result_type->packed_width() > 0
+				  && (result_type->base_type() == IVL_VT_BOOL
+				      || result_type->base_type() == IVL_VT_LOGIC)
+				  && result && result->unpacked_dimensions() == 0
+				  && def && def->port_count() == implicit_this
+				       + call->get_parms().size()) {
+				    bool arguments_ok = true;
+				    const vector<pform_tf_port_t>*pform_ports =
+					  pfunc ? pfunc->peek_ports() : nullptr;
+				    for (size_t arg = 0; arg < call->get_parms().size(); ++arg) {
+					  NetNet*port = def->port(implicit_this + arg);
+					  const PWire*pform_port = nullptr;
+					  if (pform_ports && port)
+						for (const pform_tf_port_t&candidate : *pform_ports)
+						      if (candidate.port
+							  && candidate.port->basename() == port->name()) {
+							    pform_port = candidate.port;
+							    break;
+						      }
+					  bool const_ref = port && port->port_type() == NetNet::PREF
+						&& pform_port && pform_port->get_const();
+					  if (!port || (port->port_type() != NetNet::PINPUT
+							&& !const_ref)) {
+						cerr << call->get_fileline() << ": error: A function "
+						     << "used in a constraint may not have output, "
+							"inout, or non-const ref arguments." << endl;
+						constraint_ir_design_ctx_->errors += 1;
+						arguments_ok = false;
+						break;
+					  }
+					  const PExpr*actual = call->get_parms()[arg].parm;
+					  const PEIdent*id = dynamic_cast<const PEIdent*>(actual);
+					  if (!id || id->path().name.empty()
+						|| !id->path().name.front().local_scope) {
+						cerr << call->get_fileline() << ": error: Function call '"
+						     << call->path()
+						     << "' with random-dependent arguments in an inline "
+							"constraint requires staged evaluation and is not supported."
+						     << endl;
+						constraint_ir_design_ctx_->errors += 1;
+						arguments_ok = false;
+						break;
+					  }
+				    }
+				    if (!arguments_ok) return "";
+				    constraint_function_purity_t purity(
+					  constraint_ir_design_ctx_);
+				    if (!purity.check(method)) {
+					  cerr << call->get_fileline() << ": error: Function '"
+					       << call->path()
+					       << "' used in a constraint is not pure: "
+					       << purity.reason() << "." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+					  return "";
+				    }
+			    string slot = scope_randomize_value_slot_(
+					  call, nullptr, value_slots,
+					  result_type->packed_width(), true);
+			    return result_type->get_signed() ? slot + ":s" : slot;
+			      }
+			}
+		  }
+	    }
+
+	      /* The randomized object's methods run through an automatic wrapper
+	       * parented by its class scope.  Its visible receiver is supplied by
+	       * the randomize-with object stack after pre_randomize(), never by
+	       * re-elaborating the original randomize receiver expression. */
+	    if (cls && constraint_inline_function_slots_
+		&& constraint_inline_prebuilt_value_slots_ && value_slots
+		&& !constraint_ir_state_calls_ctx_ && !call->receiver_expr()
+		&& !call->path().package && !call->has_scoped_type_prefix()
+		&& call->with_constraints().empty() && call->get_parms().empty()
+		&& !cpath.empty() && !cpath.front().local_scope
+		&& (cpath.size() != 1
+		    || constraint_inline_target_name_(cpath.front().name))) {
+		  NetScope*method = nullptr;
+		  bool target_candidate = false;
+		  if (cpath.size() == 1 && cpath.front().index.empty()) {
+			method = cls->resolve_method_call_scope(
+			      constraint_ir_design_ctx_, cpath.front().name);
+			target_candidate = method != nullptr;
+		  }
+		  else {
+			const netclass_t*target_owner = nullptr;
+			pform_name_t::const_iterator target_component;
+			if (cpath.size() > 1 && constraint_target_path_begin_(
+			      call->path(), cls, target_owner, target_component)) {
+			      target_candidate = true;
+			      pform_name_t receiver_path = cpath;
+			      receiver_path.pop_back();
+			      unique_ptr<PEIdent>receiver(
+				    new PEIdent(receiver_path, UINT_MAX));
+			      constraint_source_type_t receiver_type =
+				    constraint_source_expr_type_(receiver.get(), cls,
+					value_slots, scope);
+			      const netclass_t*receiver_class =
+				    !receiver_type.unpacked_dimensions
+				    ? dynamic_cast<const netclass_t*>(receiver_type.type) : nullptr;
+			      method = receiver_class
+				    ? receiver_class->resolve_method_call_scope(
+					  constraint_ir_design_ctx_, cpath.back().name) : nullptr;
+			}
+		  }
+		  if (method && method->type() == NetScope::FUNC) {
+			const PFunction*pfunc = method->func_pform();
+			if (pfunc && (!method->func_def() || !method->func_def()->proc()))
+			      elaborate_function_outside_caller_fork_(
+				    constraint_ir_design_ctx_, pfunc, method);
+			const NetFuncDef*def = method->func_def();
+			const NetNet*result = def ? def->return_sig() : nullptr;
+			ivl_type_t result_type = result ? result->net_type() : nullptr;
+			unsigned implicit_this = scope_method_uses_implicit_this(
+			      constraint_ir_design_ctx_, method) ? 1U : 0U;
+			if (result_type && result_type->packed_width() > 0
+			    && result_type->packed_width() <= 64
+			    && (result_type->base_type() == IVL_VT_BOOL
+				|| result_type->base_type() == IVL_VT_LOGIC)
+			    && result && result->unpacked_dimensions() == 0 && def
+			    && def->port_count() == implicit_this) {
+			      vector<named_pexpr_t> no_args;
+			      PECallFunction*target_call = new PECallFunction(cpath, no_args);
+			      target_call->set_line(*call);
+			      NetEUFunc*capture = nullptr;
+			      if (!constraint_state_expression_slot_(call, target_call,
+				    result_type, cls, false, &capture,
+				    const_cast<NetScope*>(scope)).empty() && capture) {
+				    NetESFunc*marker = new NetESFunc(
+					  "$ivl_inline_target_capture", capture->net_type(), 1);
+				    marker->set_line(*call);
+				    marker->parm(0, capture);
+				    unsigned slot = (unsigned)value_slots->size();
+				    value_slots->push_back(nullptr);
+				    constraint_inline_function_slots_->push_back(true);
+				    constraint_inline_prebuilt_value_slots_->push_back(marker);
+			    string out = "fv:" + to_string(slot) + ":"
+				  + to_string(result_type->packed_width());
+			    return result_type->get_signed() ? out + ":s" : out;
+		      }
+		  }
+		  }
+		  if (target_candidate) {
+			cerr << call->get_fileline() << ": error: Function call '"
+			     << call->path() << "' through a randomized-object receiver "
+				"has an unsupported result, arguments, or wrapper." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+			return "";
 		  }
 	    }
 

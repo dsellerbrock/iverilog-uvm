@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: Full IEEE1800-2017/2023 independently; IEEE1800.2/UVM separately; unmodified OpenTitan/Caliptra RTL/DV
   and eventual formal foundation; preserve1364, UPF deferred.
-branch: claude/iverilog-uvm-takeover-n1v3u6
+branch: agent/opentitan-spi-host-next-20260921
 history: docs/conformance/session_logs/2026-09-21_before_exact_dist_qualification_CAMPAIGN.yaml
 baseline:
   main: 175dcb65d76ffdbae78e64ba45beee95217e8773
@@ -151,7 +151,7 @@ applications:
   pwrmgr: 'Observer-build3 stable M6 replay: seed1 normal completion, seed3 EscClkStopEscTimeout_A remains.
     Final traffic audit confirms25 matched/drained A/D and zero UVM errors/fatals for seed1; no full DV claim.'
 next:
-- Confirm CI-WIN-UVM-REGEX-NOOUTPUT on MSYS2 CI, then coordinator selection of the next evidence-backed blocker.
+- Root-cause and fix OT-WHOLE-FUNCTION-CLASS-EVENT through existing eventobserver, after recorded scope review.
 agents:
   canonical_graph_refresh: 'Terra medium: permanent ivtest registration complete; idle.'
   vif_proxy_implementation: 'Sol medium: implementation frozen; idle.'
@@ -177,7 +177,7 @@ vcs_quirks:
     failure alone.
   candidate: Caliptra rej_bounded Active-region race is a comparison candidate, not a confirmed VCS dependency;
     see evidence/review-20260920/caliptra-rej-underflow-next/ASSESSMENT.md.
-exact_next_tool: Inspect the draft PR CI for branch claude/iverilog-uvm-takeover-n1v3u6 (MSYS2 "UVM regression tests" step); on green, select next blocker per ACTIVE_WORK protocol.
+exact_next_tool: Poll integrated rerun session96267 using write_stdin; never restart on observation timeout. On success run qualification/final/run_gate.py json, nfa, uvm, frontend, makecheck, rootseed serially, then final/run_final_apps.py (fresh pinned source compile).
 seed3_fix:
   commit: 6a2b8b0cb
   evidence: docs/conformance/session_logs/2026-09-21_pwrmgr_seed3_checker_fix.json
@@ -475,26 +475,96 @@ caller_foreach_checkpoint:
   blocker: OT-SPI-INLINE-CALLER-QUEUE-FOREACH
   branch: agent/spi-caller-foreach-20260921
   base: b9befcb735cbbbb56feacfbb9fbdbd120b622f55
-  status: All required local gates passed; source frozen at build3; publication pending.
+  status: All required local gates passed; published draft PR320; source frozen at build3.
   evidence: docs/conformance/session_logs/2026-09-22_caller_queue_foreach_focus.json
   private_root: evidence/review-20260920/spi-caller-foreach-next
   historical_checkpoints: evidence/review-20260920/spi-caller-foreach-next/campaign-checkpoint-history.txt
   parent_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/319
-  parent_pr_state: Open; all six CI jobs pending at last check. Local qualification passed.
+  parent_pr_state: PR319 merged as 288132f2b after both Ubuntu CI successes; remaining platforms pending.
   live_sessions: {}
-  next: Publish focused caller-foreach patch with PR319 dependency; monitor CI.
+  next: PR320 retargeted to main after PR319 merge; monitor CI and remaining PR319 platform outcomes.
   workers: Terra implementation/test handoff complete; Luna invalid fixtures retained but excluded.
   safeguards: Preserve external AGENTS patch; no new worktrees; never overlap frontend with tests.
-  graph: Shared canonical refreshed at ca29b1237; no feature graph.
+  graph: Shared canonical refreshed at 288132f2b; no feature graph.
   application: Pristine SPI caller-foreach diagnostic removed; four independent errors remain. No DV qualification.
+  published_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/320
+  published_head: 2224ec80524e9ffceb77009defe68afc0445cf1a
 
-win_regex_checkpoint_20260922:
-  blocker: CI-WIN-UVM-REGEX-NOOUTPUT
-  host: Claude Code cloud Linux container (x86_64, Ubuntu, Bison 3.8.2, Z3 4.8.12). Mac-local evidence, OpenTitan/Caliptra checkouts and canonical Graphify graph are not present here; Graphify/Ponytail are not installed as tools in this session, so rg/source navigation and the AGENTS Ponytail policy are used.
-  base: 1af223c8f45b922dc1b966aa5e399c4f59f8546f (main, includes merged PR319/PR320)
-  reconciliation: ACTIVE_WORK caller-foreach "publication pending" superseded; PR319 merged 288132f2, PR320 merged 1af223c8. Main CI red since PR317 on the three MSYS2 jobs, single failure uvm_regex_strict_exec_test.
-  root: Vendored uvm_re_comp regfree after failed regcomp (POSIX-undefined) crashes TRE/libsystre; TRE also rejects 2048-literal patterns without REG_NOSUB.
-  fix: uvm_dpi/uvm_dpi_iverilog.cc regcomp/regfree wrapper; .github/uvm_test.sh reports vvp exit status.
-  evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json; evidence/win-regex-tre/
-  build: Fresh serial -j1 build/install/installuvm of the checkout, BUILD_EXIT 0.
-  pending: Windows CI on the draft PR.
+inline_state_function_selection:
+  blocker: OT-SPI-INLINE-STATE-FUNCTION-CALL
+  branch: agent/spi-inline-state-functions-20260922
+  base: 2224ec805
+  phase: External state-only implementation authorized through existing post-hook captures; broader target/staged cases remain open.
+  evidence: evidence/review-20260920/spi-external-cfg-constraint-next/results/current-build3/results.json
+  standards_local: ../tmp/pdfs/ieee1800-2017.txt section18.5.12 and ieee1800-2023.txt section18.5.11
+  next: Complete authorized retained-target receiver implementation, then build4 and rerun focused targets plus external controls. Build3 external phase and neighbors passed.
+  preserved: Published PR319/320 source frozen; external AGENTS patch untouched; no live tests or new worktrees.
+
+inline_function_build3_checkpoint:
+  classification: progress
+  branch_head: agent/spi-inline-state-functions-20260922 at 2224ec805 plus preserved uncommitted candidate
+  evidence: evidence/review-20260920/spi-external-cfg-constraint-next/build3
+  validation: Build/install terminal0; focused external function and boundary tests pass in both editions. Target/self and staged argument support remain open; no broad qualification claim.
+  application: Build2 pristine SPI compile removes cfg.get_sio_size diagnostic, three other diagnostics remain. Corpus clean at a78922f14a8cc20c7ee569f322a04626f2ac6127.
+  processes: Coordinator build3/focus session72623 terminal0; application session68476 terminal0.
+  next_action: Review retained Terra target/self binding assessment and authorize next implementation phase; source currently frozen.
+  reproduce_command: python3 evidence/review-20260920/spi-external-cfg-constraint-next/run_boundaries.py build3-recheck
+  pr320: Draft open at2224ec805; all6 checks observed IN_PROGRESS, no merge performed.
+
+inline_target_phase_checkpoint:
+  classification: progress
+  evidence: evidence/review-20260920/spi-external-cfg-constraint-next/build3/target-red
+  neighbors: 212/212 function cases in both legacy and JSON; object subset6/6 in both (overlapping, not additive coverage). Session41994 terminal0.
+  receiver_invariant: Class-control pre-rebind passes both editions; inline red. Indexed receiver probe parses and reaches target-function lowering.
+  implementation: Partial retained-receiver call-emitter helper in source, not built. New Terra inline_target_capture replaces context-exhausted selected_vif_relay_lifetime; sole implementation lane completing frontend slots and marker.
+  scope: See ACTIVE_WORK target_receiver_phase_authorized; no new runtime opcodes or parser edits.
+  installed_tools: Frozen build3; source now diverges with unbuilt target helper. No coordinator build/test process running.
+  next_command: After coherent agent freeze and review, make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex
+
+late_ci_triage_20260922:
+  pr318: Merged; Ubuntu22/24 SUCCESS, MINGW64 and CLANG64 FAILURE, macOS/UCRT still IN_PROGRESS at fresh query.
+  owner: eval_evidence_audit Luna/low; read-only actual job-log triage under evidence/review-20260920/pr318-late-ci.
+  action: Preserve active compiler patch; determine root failure before selecting follow-up implementation scope.
+  pr319: Merged; Ubuntu22/24 SUCCESS, other four checks still IN_PROGRESS.
+  pr320: Open draft; all six checks still IN_PROGRESS at last query, no merge authorized by successful-check rule yet.
+
+inline_target_build4_checkpoint:
+  classification: progress
+  result: Target capture implemented and focused-tested in both editions; neighboring212/212 both runners pass.
+  evidence: evidence/review-20260920/spi-external-cfg-constraint-next/build4
+  terminal_sessions: Build/focus77038 exit0 after preserved failed first build; neighbors66413 exit0.
+  installed_tools: Frozen build4, source.patch and expanded fingerprints recorded.
+  workers: Terra read-only inline argument-stage assessment; Luna writes new durable retained-target regression files only.
+  next: Validate/register permanent tests; review architecture needed for random-dependent inline argument stages without premature sampling.
+  pending: Broader gates and full active-ticket semantics, no qualification or publication claim for current patch.
+
+inline_argument_staging_20260922:
+  classification: progress
+  red: evidence/review-20260920/spi-external-cfg-constraint-next/staged/build4-red.json
+  result: Both actual-inline target x==f(y) compile1; paired class-body control compiles/runs for wanted23,41,255 in both editions. No implementation claim.
+  standards: IEEE1800-2017 18.5.12; IEEE1800-2023 18.5.11 priority partitions.
+  owner: Terra inline_target_capture implementing authorized per-call extra_ir descriptors; coordinator owns integration/build.
+  permanent: Four retained-target families*two editions focused legacy8/8 andJSON8/8, registered in both main manifests.
+  publication: PR320 already MERGED at remote, macOS+Ubuntu22/24 SUCCESS, Windows MINGW/UCRT/CLANG FAILURE (same regex symptom triage pending root). Current inline patch uncommitted on descendant branch, not published.
+
+latest_baseline_sync_20260922:
+  current_branch: agent/spi-inline-state-functions-20260922
+  head: 3ccd5d73e691411caf43b407f05c84ddcade8820
+  action: Fast-forwarded current branch and clean canonical main checkout to origin/main after preserving all active tracked changes; restored active metadata against main.
+  safeguard: Evidence snapshot and patch under evidence/review-20260920/spi-external-cfg-constraint-next/baseline-sync-20260922; external AGENTS patch and all untracked evidence preserved.
+  main_included: PR320 merged1af223c8; PR321 regex TRE fix merged3ccd5d73.
+  regex_evidence: docs/conformance/session_logs/2026-09-22_win_regex_tre_fix.json
+  claude_pr322: Draft65906fb, open and unmerged; inline caller-object method overlaps our active elaborate.cc path and needs coordination; other three fixes separate.
+  next: Rebuild/install and focused inline suites on new baseline completed in build5-main; commit validated compiler slice and permanent tests directly.
+
+inline_function_build5_checkpoint:
+  classification: progress
+  baseline: 3ccd5d73e691411caf43b407f05c84ddcade8820
+  checkout_sheet: .ai/ISSUE_CHECKOUT.csv committed as2c646e073
+  handoff: .ai/HANDOFF.md
+  evidence: docs/conformance/session_logs/2026-09-23_inline_state_function_focus.json
+  build_and_install: passed serially on the refreshed baseline
+  focus: External, boundary, target, and permanent legacy/JSON cases pass for both language editions; full gates pending.
+  unsupported: Actual inline random-variable function arguments compile-fail; wide results and call-receiver parser path remain open.
+  overlap: PR322 caller-method commit overlaps active elaborate.cc; coordination comment posted on PR322.
+  next_command: git diff --check; stage only active compiler files, permanent regression files, and owning docs; commit directly.
