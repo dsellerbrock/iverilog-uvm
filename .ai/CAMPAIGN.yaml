@@ -1,6 +1,6 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/caliptra-l0-release-overlay-20260923
+branch: agent/parallel-compiler-followon-20260923
 baseline: main 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; PR337 merged.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
@@ -11,14 +11,40 @@ recent_merges:
   pr337: 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; guarded exact-dist and OpenTitan generated-fileset changes merged; Ubuntu 22.04 and 24.04 exact-head CI passed.
 active_blocker:
   id: CALIPTRA-EXACT-L0-52
-  phase: DOE_TRIAGE
+  phase: DOE_VERILATOR_RESET_WINDOW_CONFIRMED
   owner: Coordinator
   source: Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; Adams Bridge v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0.
   toolchain: Official xPack GCC 15.2; rv32imc/ilp32 multilib.
   overlay: Selected KV diagnostic overlay for the 52-case baseline; two tested one-file firmware overlays for their named tests only. See docs/conformance/release_overlays/README.md.
-  checkpoint: "Full baseline complete: 49/52 pass; two firmware-build failures and one DOE STATUS SVA failure. Each firmware fix passes a focused patched-copy build/simulation replay. DOE still fails with its assertion intact despite exit 0 and a pass banner."
-  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json and named overlay/probe results; no post-overlay full 52-case rerun or full DV claim.
-  next: Resolve DOE root cause with a discriminating focused test; keep named firmware overlays and pristine baseline separate. This is scoped L0, not full DV qualification.
+  checkpoint: "Full 5.050 baseline remains 49/52 pass; two firmware build failures have focused-tested one-file overlays. Fresh pinned DOE-only v5.052 replay still emits one SVA error despite exit 0 and pass banner. A standalone reset-window disable-iff differential passes Icarus and fails Verilator 5.050/5.052."
+  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json and evidence/caliptra-doe-verilator-midwindow-20260923; no post-overlay full 52-case rerun or full DV claim.
+  next: Treat DOE as failing while investigating Verilator reset-window SVA semantics with the intact property. Keep named firmware overlays and pristine baseline separate; scoped L0 is not full DV qualification.
+parallel_vpi_implementation_lane:
+  id: VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT
+  owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
+  files: vvp/vpi_callback.cc; vvp/vvp_net_sig.cc; vvp/vthread.cc; vvp/vpi_signal.cc; vvp/vpi_real.cc; vvp/array.cc; vvp/parse.y; vvp/vpi_priv.h; vvp/vvp_vpi_callback.h; vpi_user.h; necessary force/release codegen; dedicated VPI tests. Shared manifests and build/install remain coordinator-owned.
+  standards: IEEE 1800-2017/2023 VPI cbForce/cbRelease registration and callback object identity; verify before implementing.
+  evidence: evidence/review-20260920/next-vpi-force-callback-assessment/force_cb.sv and force_cb.c.
+  acceptance: Whole-net/variable callbacks expose the correct statement object; variable bit-select remains rejected; focused positive, negative, and boundary regressions pass.
+  dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from ADC files and DOE downstream trace; shared builds/install remain coordinator-owned.
+  state: RED statement-identity fixture confirmed in both editions; parser directive support authorized only if required for complete multi-LHS statement identity. Keep PR338 head fixed.
+parallel_adc_implementation_lane:
+  id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
+  owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
+  files: elaborate.cc; vvp/vvp_z3.cc; vvp/vvp_darray.cc/h; vvp/class_type.cc as required; dedicated constraint tests.
+  evidence: evidence/opentitan-adc-class-resize-triage-20260923/assessment.md and reducer.sv.
+  acceptance: Typed outer nested-array resize preserves retained values and creates empty inner arrays; contradictory and zero-size boundary tests pass in both editions; keep class-handle growth distinct. Indexed inner-size lowering is required before an ADC DV progress claim.
+  dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from VPI force/release files and DOE downstream trace; shared builds/install remain coordinator-owned.
+  state: Typed outer resize plus traversal-warning guard committed locally as 0bf19490c after make/install and six paired-edition focused cases plus existing nested-handle control passed. Indexed inner size is dropped by current elaboration; a correct indexed identity and ordered third solve stage exceed this bounded slice, so no partial semantics were added. Keep PR338 head fixed.
+parallel_spi_implementation_lane:
+  id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
+  owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
+  files: Root parse.y; PExpr.h; PExpr.cc; elaborate.cc; vvp/vvp_z3.cc; dedicated constraint fixtures. VPI-owned vvp/parse.y and vvp/vthread.cc are disjoint; shared manifests/build/install remain coordinator-owned.
+  standards: IEEE 1800-2017/2023 hierarchical array source in constraint foreach; verify clause and enforce every accepted expression.
+  evidence: evidence/opentitan-spi-device-constraint-reducer-20260923/foreach_inline_exact.sv and pinned released Earlgrey SPI Device line 277.
+  acceptance: Pinned-shaped sparse bit[7:0]-keyed associative array of class handles constrains each actual key; empty boundary is vacuous; invalid/nonarray path is an error; existing one-member and find_index controls pass in both editions.
+  dependency: Authorized by coordinator after ADC outer focused pass; same implementation agent preserves its existing elaborate.cc patch. Disjoint from VPI runtime/parser files and Caliptra DOE diagnostic.
+  state: Frozen RED in both editions; implementation underway on new local follow-on branch. Keep PR338 head fixed.
 completed_parallel_blocker:
   id: OT-PINMUX-FILESET-SOURCE-CLOSURE
   owner: Codex + GPT-6 Luna

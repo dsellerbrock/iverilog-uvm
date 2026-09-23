@@ -1,0 +1,32 @@
+{
+  "command": [
+    "/usr/bin/make",
+    "-C",
+    "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/runs/smoke_test_doe_scan_cxx20_pch",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/source/tools/scripts/Makefile",
+    "TESTNAME=smoke_test_doe_scan",
+    "CALIPTRA_INTERNAL_TRNG=1",
+    "PLAYBOOK_RANDOM_SEED=1",
+    "BUILD_CFLAGS=-std=gnu11 -O2",
+    "VERILATOR=verilator -Wno-MISINDENT",
+    "CFLAGS=-std=gnu++20 -I/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/source/src/integration/test_suites/libs/jtagdpi/ -I/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/source/src/integration/test_suites/libs/tcp_server/",
+    "VERILATOR_RUN_ARGS=+CLP_REGRESSION",
+    "verilator"
+  ],
+  "timeout_seconds": 1800,
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923",
+  "environment_overrides": {
+    "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/source",
+    "CALIPTRA_WORKSPACE": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923",
+    "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/source/src/caliptra_prim_generic",
+    "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic",
+    "CALIPTRA_AXI4PC_DIR": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/source/src/integration/tb"
+  },
+  "path_prefix": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-doe-scan-v5052-20260923/aliases",
+  "verilator_binary": "/Users/danielellerbrock/projects/iverilog_uvm/evidence/verilator-midwindow-doe-20260923/install-5052/bin/verilator",
+  "toolchain": "xPack GNU RISC-V Embedded GCC arm64 15.2.0; multilib rv32imc/ilp32",
+  "source_sva_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+  "selected_overlay_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+  "compatibility": "CFLAGS sets simulator to gnu++20 and retains both existing DPI includes. Isolated install verilated.mk set to source configure.ac Clang PCH values -include-pch and .gch."
+}

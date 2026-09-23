@@ -3,8 +3,8 @@
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
 - **State:** Open on the pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 replay with the selected KV diagnostic overlay. The [exact-toolchain 52-case baseline](../../evidence/caliptra-exact-l0-20260923/README.md) passes 49 cases; two firmware build failures have focused-tested, test-specific overlays, while `smoke_test_doe_scan` still emits one SVA error despite exit 0 and a pass banner.
-- **Evidence:** The DOE probe preserves the assertion and records a clear-obfuscation command sampled immediately after reset release, followed by sampled and settled `VALID=0` and `DEOBF_SECRETS_CLEARED=0` at the consequent edge. A same-timestep display artifact does not explain the observed zero values.
-- **Open work:** Discriminate the property's documented reset-release corner from a real DOE status bug with a focused paired replay and a steady-state failure control. Keep the baseline failure and full DV qualification open until that evidence exists.
+- **Evidence:** The [reset-window differential and fresh pinned v5.052 DOE replay](../../evidence/caliptra-doe-verilator-midwindow-20260923/assessment.md) preserve the assertion. Icarus aborts a pending `disable iff` attempt when reset pulses between assertion clocks; Verilator 5.050 and isolated v5.052 fail that same small property. The pinned DOE replay on v5.052 still emits one SVA error despite exit 0 and a pass banner, with no probe instrumentation.
+- **Open work:** Resolve the Verilator reset-window behavior with standards-correct assertion semantics or a qualified alternative simulator, then rerun the intact DOE test. The differential strongly implicates the simulator but does not prove it is the only DOE issue. Keep the baseline failure and full DV qualification open.
 
 ### OT-PWRMGR-CASE-EXIT-STACK-BALANCE — case body exits bypassed selector cleanup
 
