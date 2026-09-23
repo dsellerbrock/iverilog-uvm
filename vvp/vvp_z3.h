@@ -76,6 +76,9 @@ struct vvp_z3_function_plan_s {
 bool vvp_z3_plan_function_stages(const std::vector<vvp_z3_object_s>&objects,
                                  vvp_z3_function_plan_s&plan);
 
+std::string vvp_z3_mark_unknown_slots(const std::string&ir,
+				      const std::vector<bool>&unknown);
+
 /* Expand selected state queues for the legacy scope route. The object graph
  * route expands with its canonical selections during each solve pass.
  * Foreach guards exclude inactive reads (2017 18.5.8.1 / 2023 18.5.7.1). */

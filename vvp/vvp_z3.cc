@@ -2036,6 +2036,22 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       }
       string tok = par.read_token();
       if (tok.empty()) return b.mk_true();
+      if (tok.compare(0, 5, "xbad:") == 0) {
+	    char*end = nullptr;
+	    unsigned long width = strtoul(tok.c_str() + 5, &end, 10);
+	    if (end == tok.c_str() + 5 || width == 0 || width > UINT_MAX
+		|| (*end != 0 && !(*end == ':' && end[1] == 's' && end[2] == 0))) {
+		  b.state_errors.push_back("malformed X/Z constraint state slot");
+		  return b.mk_true();
+	    }
+	    Z3Builder::StateCheck check = {
+		  Z3_mk_true(b.ctx),
+		  "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)"
+	    };
+	    b.state_checks.push_back(check);
+	    return Z3_mk_unsigned_int64(b.ctx, 0,
+		  Z3_mk_bv_sort(b.ctx, (unsigned)width));
+      }
       if (tok.substr(0,2) == "p:" || tok.substr(0,2) == "g:")
             return parse_prop(par, b, tok);
       if (tok.substr(0,2) == "m:") return parse_member(par, b, tok);
@@ -4790,6 +4806,31 @@ static uint64_t cobj_darray_size(vvp_cobject* cobj, unsigned idx)
       if (vvp_assoc_base*assoc = propobj.peek<vvp_assoc_base>())
 	    return assoc->size();
       return 0;
+}
+
+/* Replace unknown runtime caller slots with typed atoms whose errors follow
+ * the existing guarded-constraint handling in build_z3_atom(). */
+string vvp_z3_mark_unknown_slots(const string&ir, const vector<bool>&unknown)
+{
+      string result;
+      const char*begin = ir.c_str();
+      const char*p = begin;
+      while (*p) {
+	    bool token_start = p == begin
+		  || !(isalnum((unsigned char)p[-1]) || p[-1] == '_');
+	    if (token_start && p[0] == 'v' && p[1] == ':') {
+		  char*end = nullptr;
+		  unsigned long slot = strtoul(p + 2, &end, 10);
+		  if (end != p + 2 && *end == ':' && slot < unknown.size()
+		      && unknown[(size_t)slot]) {
+			result += "xbad";
+			p = end;
+			continue;
+		  }
+	    }
+	    result += *p++;
+      }
+      return result;
 }
 
 /* Substitute "v:N:W[:s]" value-slot tokens with shaped constants. The

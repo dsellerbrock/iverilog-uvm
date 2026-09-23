@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_state_xz_2023.v",
+    "iverilog-args": ["-g2023", "-s", "top"],
+    "gold": "sv_constraint_state_xz"
+}
