@@ -1,5 +1,12 @@
 # Current evidence and work
 
+The [parallel compiler follow-on record](session_logs/2026-09-23_parallel_compiler_followon_focus.json)
+links locally integrated ADC outer resize, SPI Device sparse-key constraint
+`foreach`, and VPI force/release statement-object checks on the branch after
+[PR338](https://github.com/dsellerbrock/iverilog-uvm/pull/338) merged. Indexed
+ADC inner sizes, full SPI Device DV, broad suites, and this branch's CI remain
+open.
+
 The [pinned Caliptra 52-case Verilator L0 evidence](../../evidence/caliptra-exact-l0-20260923/README.md)
 records the full exact-toolchain baseline and two focused, test-specific
 downstream firmware overlay replays. The DOE scan assertion remains failing;

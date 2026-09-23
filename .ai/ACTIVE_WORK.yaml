@@ -1,6 +1,6 @@
 status: in_progress
 branch: agent/parallel-compiler-followon-20260923
-baseline: main 9ac5a0fd1; PR337 merged with Ubuntu 22.04 and 24.04 exact-head CI success.
+baseline: main d74e1664b; PR338 merged after Ubuntu 22.04 exact-head CI success.
 blocker: CALIPTRA-EXACT-L0-52
 goal: Resolve the remaining pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 failures without changing either release checkout or weakening pass/fail checks.
 standards: Pinned release L0 regression campaign; preserve all configured firmware, SVA, and pass/fail checks.
@@ -27,7 +27,7 @@ parallel_vpi_implementation_lane:
   reproducer: evidence/review-20260920/next-vpi-force-callback-assessment/force_cb.sv and force_cb.c.
   files: vvp/vpi_callback.cc, vvp/vvp_net_sig.cc, vvp/vthread.cc, vvp/vpi_signal.cc, vvp/vpi_real.cc, vvp/array.cc, vvp/parse.y, vvp/vpi_priv.h, vvp/vvp_vpi_callback.h, vpi_user.h, and necessary force/release codegen callsites; dedicated VPI regression fixtures. No ADC files, shared builds, installation, or application source edits. Shared manifests remain coordinator-owned; generated parser files are not edited.
   acceptance: Baseline red; whole-net/variable force and release callbacks report the originating statement handle; separate statements on the same target remain distinguishable; variable bit-select registration still rejects; focused positive, negative, and boundary regressions pass after coordinator build.
-  state: Coordinator took over stale Claude file ownership after confirming no active Claude process, open Claude PR, or current checkout edits. RED statement-identity fixture confirmed in both editions; implementation authorized in parallel with ADC. Do not mix with PR338 head.
+  state: Locally integrated at d2d996419. The candidate passed two new paired-edition VPI cases, eight neighboring force/release controls, and a file-line-enabled probe. Coordinator review caught and fixed instruction operand corruption before commit. PR and broad qualification remain pending.
 parallel_adc_implementation_lane:
   id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review. Claude is not active on this lane.
@@ -35,7 +35,7 @@ parallel_adc_implementation_lane:
   reproducer: evidence/opentitan-adc-class-resize-triage-20260923/reducer.sv and pinned Earlgrey-PROD-M6 adc_ctrl_sim time-zero failure.
   files: elaborate.cc, vvp/vvp_z3.cc, vvp/vvp_darray.cc/h, and vvp/class_type.cc as required; dedicated constraint regressions. No VPI force/release files, shared builds, installation, or application source edits. Shared headers/manifests require coordinator review before edits.
   acceptance: First complete slice resizes a rand nested dynamic array's outer dimension as typed array values, preserves existing inner arrays, and leaves newly grown inner arrays empty; impossible size and zero-size boundaries behave correctly in both IEEE editions; actual class-handle arrays remain distinct and are not silently mishandled. Then address indexed inner sizes before claiming ADC smoke progress.
-  state: Typed outer resize and traversal type guard committed locally as 0bf19490c after make/install and six paired-edition focused cases plus existing nested-handle control passed. Indexed inner-size constraints are confirmed dropped at elaboration in both editions; the needed indexed solver identity and ordered stage exceed this slice, so no partial lowering was added. Do not claim ADC smoke progress or mix with PR338 head.
+  state: Typed outer resize and traversal type guard committed locally as 0bf19490c. Legacy and JSON paired-edition cases pass, including the missing 2023 legacy wrappers. Indexed inner-size constraints remain dropped at elaboration; no ADC smoke progress is claimed. PR and broad qualification remain pending.
 parallel_spi_implementation_lane:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review. Claude is not active on this lane.
@@ -43,7 +43,7 @@ parallel_spi_implementation_lane:
   reproducer: evidence/opentitan-spi-device-constraint-reducer-20260923/foreach_inline_exact.sv; pinned released Earlgrey SPI Device `spi_device_pass_base_vseq.sv` line 277.
   files: Root parse.y, PExpr.h, PExpr.cc, elaborate.cc, vvp/vvp_z3.cc, and dedicated regression fixtures. No VPI vvp/parse.y or vvp/vthread.cc edits, shared builds, installation, manifests, or application source edits.
   acceptance: Hierarchical foreach on the pinned-shaped sparse bit[7:0]-keyed associative array of class handles enforces constraints over actual keys in both editions; empty collection is vacuous; invalid or nonarray paths fail loudly; existing one-member foreach and find_index controls remain passing.
-  state: Coordinator-authorized in parallel with VPI after frozen RED confirmed -g2017/-g2023 syntax error at the 3-component path. The first synthetic integral queue shape was rejected as insufficient after verifying released cmd_infos is an associative array of class handles; actual sparse-key semantics are now in implementation. Do not mix with PR338 head.
+  state: Locally integrated at c64b1791f. The released SPI shape is a sparse bit[7:0]-keyed associative array of class handles; paired positive, empty, contradictory, and nonarray checks pass in legacy and JSON runners. No full SPI Device DV pass is claimed. PR and broad qualification remain pending.
 completed_implementation_lane:
   id: OT-PWRMGR-CASE-EXIT-STACK-BALANCE
   owner: Claude Code Opus 5.5 high; coordinator owns shared builds, integration, and review.

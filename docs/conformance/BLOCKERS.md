@@ -40,9 +40,21 @@
 
 ### OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE — ADC `filter_cfg[][]` randomization
 
-- **State:** Open after [PR337](https://github.com/dsellerbrock/iverilog-uvm/pull/337) merged the guarded large-range `dist` fix. The pinned ADC smoke still fails at time 0.
+- **State:** The typed outer-resize slice is locally integrated at `0bf19490c`; indexed inner `.size` lowering remains open, so pinned ADC smoke still fails at time 0. See the [focused candidate record](session_logs/2026-09-23_parallel_compiler_followon_focus.json).
 - **Evidence:** The [paired reducer and pinned-source assessment](../../evidence/opentitan-adc-class-resize-triage-20260923/assessment.md) shows that `filter_cfg` is a nested dynamic array of packed structs, not class handles. VVP's `class-handle collection` error applies an overbroad guard to this type. The outer size reaches solver IR, but typed resize/write-back is missing; the indexed inner `.size` constraint is separately dropped during elaboration ([DD-047](DISCOVERED_DEBT.md)).
-- **Closure:** Implement typed outer and inner resize, nested size/element constraints, retention and rollback in both IEEE editions; keep actual class-handle growth semantics distinct. Removing the runtime guard alone would corrupt the value. Rerun pinned ADC DV only after these semantics pass focused positive, negative, and boundary tests. No ADC DV pass is established.
+- **Closure:** Finish indexed inner resize and nested size/element constraints with correct retention and rollback in both IEEE editions; keep actual class-handle growth semantics distinct. Rerun pinned ADC DV only after these semantics pass focused positive, negative, and boundary tests. No ADC DV pass is established.
+
+### OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH — sparse caller-owned command keys
+
+- **State:** Locally integrated at `c64b1791f`; [paired focused evidence](session_logs/2026-09-23_parallel_compiler_followon_focus.json) covers the released SPI shape. Full SPI Device DV and broad compiler qualification remain open.
+- **Requirement:** IEEE 1800-2017 §18.5.8.1 and 2023 §18.5.7.1 iterate actual associative-array keys in a constraint `foreach` over a caller-owned hierarchical source.
+- **Boundary:** The tested implementation supports unsigned integral keys up to 64 bits; invalid nonarray sources fail compilation. This does not establish general associative-array constraint coverage.
+
+### VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT — callback origin identity
+
+- **State:** Locally integrated at `d2d996419`; [paired focused evidence](session_logs/2026-09-23_parallel_compiler_followon_focus.json) covers source and VPI-originated operations. Broad VPI qualification remains open.
+- **Requirement:** IEEE 1800-2017/2023 §38.36.1 callback `obj` identifies the force or release statement, including a shared identity for concatenated LHS targets; registration still uses the affected signal.
+- **Boundary:** The tested handles expose type and source location. Other statement-handle relationships remain unqualified.
 
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 

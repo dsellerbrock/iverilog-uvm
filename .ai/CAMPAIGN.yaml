@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/parallel-compiler-followon-20260923
-baseline: main 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; PR337 merged.
+baseline: main d74e1664b211394b3221e6cf1e3ad3c7d131e699; PR338 merged after exact-head Ubuntu 22.04 CI success.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 recent_merges:
@@ -9,6 +9,7 @@ recent_merges:
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
   pr336: 6ee647ca7b0119a3a800aebe2559f99d79b0ceff; Ubuntu 24.04 exact-head CI passed before merge.
   pr337: 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; guarded exact-dist and OpenTitan generated-fileset changes merged; Ubuntu 22.04 and 24.04 exact-head CI passed.
+  pr338: d74e1664b211394b3221e6cf1e3ad3c7d131e699; exact Caliptra L0 baseline and two focused firmware overlays merged after Ubuntu 22.04 exact-head CI passed. Remaining CI is still observable.
 active_blocker:
   id: CALIPTRA-EXACT-L0-52
   phase: DOE_VERILATOR_RESET_WINDOW_CONFIRMED
@@ -27,7 +28,7 @@ parallel_vpi_implementation_lane:
   evidence: evidence/review-20260920/next-vpi-force-callback-assessment/force_cb.sv and force_cb.c.
   acceptance: Whole-net/variable callbacks expose the correct statement object; variable bit-select remains rejected; focused positive, negative, and boundary regressions pass.
   dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from ADC files and DOE downstream trace; shared builds/install remain coordinator-owned.
-  state: RED statement-identity fixture confirmed in both editions; parser directive support authorized only if required for complete multi-LHS statement identity. Keep PR338 head fixed.
+  state: Local candidate d2d996419 passes paired-edition statement-object cases, neighboring force/release controls, and file-line probe. Coordinator repaired operand alias corruption before commit; broad suites and PR CI remain pending.
 parallel_adc_implementation_lane:
   id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
@@ -35,7 +36,7 @@ parallel_adc_implementation_lane:
   evidence: evidence/opentitan-adc-class-resize-triage-20260923/assessment.md and reducer.sv.
   acceptance: Typed outer nested-array resize preserves retained values and creates empty inner arrays; contradictory and zero-size boundary tests pass in both editions; keep class-handle growth distinct. Indexed inner-size lowering is required before an ADC DV progress claim.
   dependency: Coordinator took over stale Claude claim after finding no active Claude process, open Claude PR, or current checkout edits. Disjoint from VPI force/release files and DOE downstream trace; shared builds/install remain coordinator-owned.
-  state: Typed outer resize plus traversal-warning guard committed locally as 0bf19490c after make/install and six paired-edition focused cases plus existing nested-handle control passed. Indexed inner size is dropped by current elaboration; a correct indexed identity and ordered third solve stage exceed this bounded slice, so no partial semantics were added. Keep PR338 head fixed.
+  state: Local candidate 0bf19490c passes paired-edition outer and handle boundaries in legacy and JSON runners. Indexed inner size is still dropped; no ADC smoke claim. Broad suites and PR CI remain pending.
 parallel_spi_implementation_lane:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review.
@@ -44,7 +45,7 @@ parallel_spi_implementation_lane:
   evidence: evidence/opentitan-spi-device-constraint-reducer-20260923/foreach_inline_exact.sv and pinned released Earlgrey SPI Device line 277.
   acceptance: Pinned-shaped sparse bit[7:0]-keyed associative array of class handles constrains each actual key; empty boundary is vacuous; invalid/nonarray path is an error; existing one-member and find_index controls pass in both editions.
   dependency: Authorized by coordinator after ADC outer focused pass; same implementation agent preserves its existing elaborate.cc patch. Disjoint from VPI runtime/parser files and Caliptra DOE diagnostic.
-  state: Frozen RED in both editions; implementation underway on new local follow-on branch. Keep PR338 head fixed.
+  state: Local candidate c64b1791f passes paired-edition sparse-key, empty, contradiction, and nonarray cases in legacy and JSON runners. Pinned full SPI Device DV remains open; broad suites and PR CI remain pending.
 completed_parallel_blocker:
   id: OT-PINMUX-FILESET-SOURCE-CLOSURE
   owner: Codex + GPT-6 Luna
