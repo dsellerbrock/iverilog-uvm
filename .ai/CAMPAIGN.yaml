@@ -5,8 +5,8 @@ baseline: main 7943dffd1a426418cd975883753af7cdb2e18e46 plus PR343 exact head fb
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
-  spi_inside: OT-SPI-INSIDE-CONST-ARRAY; GPT-6 Luna owns elab_expr.cc inside lowering and dedicated tests only; coordinator owns shared builds and manifests. Paired RED at evidence/opentitan-spi-device-array-pattern-vector-20260923/reducer.sv line 8.
-  aon_triggered: OT-AON-EVENT-TRIGGERED-SENSITIVITY; GPT-6 Sol owns elaborate.cc event-control path and necessary target/runtime event and real time-advance notification plus dedicated tests; coordinator owns shared builds and manifests. Paired RED at evidence/opentitan-aon-event-control-triage-20260923/triggered_sensitivity_boundaries.sv; event.cc/h and schedule.cc expansion was explicitly authorized after static review.
+  spi_inside: OT-SPI-INSIDE-CONST-ARRAY integrated at 88f0e9044; ordinary expression membership passes paired focused regressions. Constraint inside remains separate.
+  aon_triggered: OT-AON-EVENT-TRIGGERED-SENSITIVITY integrated at 0a902ee9f; static/automatic named-event sensitivity passes paired focused regressions. Released AON compiles but runtime is unqualified.
   isolation: Source ownership is disjoint; no Verilator implementation or pinned application-source edits. PR343 head remains fixed for CI.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
@@ -19,13 +19,13 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-SPI-INSIDE-CONST-ARRAY and OT-AON-EVENT-TRIGGERED-SENSITIVITY
-  phase: COORDINATOR_AUTHORIZED_PARALLEL_IMPLEMENTATION
+  phase: FOCUSED_VALIDATED_PENDING_PR
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
   standards: IEEE 1800-2017/2023 sections 11.4.13 and 15.5.3; constant-array inside sets and named-event triggered expression controls.
-  checkpoint: PR343 opened after local queue/associative focused checks; both new independent reducers are RED in 2017/2023 before implementation. SPI queue-array concatenation is a distinct deferred RED mechanism; no SPI Device or AON DV pass.
+  checkpoint: Two Icarus fixes committed at 88f0e9044 and 0a902ee9f. Inside and AON focused tests pass in 2017/2023; released SPI Device compile has three remaining kind-26 errors, released AON compile is clean, and its 60-second smoke runtime timed out. No SPI Device or AON DV pass.
   evidence: evidence/opentitan-spi-device-array-pattern-vector-20260923 and evidence/opentitan-aon-event-control-triage-20260923.
-  next: Delegate the two disjoint compiler lanes, integrate focused patches and tests, merge PR343 after one exact-head CI success, then publish the next coherent PR. Verilator stays read-only.
+  next: Publish the focused-validated PR stacked on PR343, then authorize independent SPI constraint-inside and queue-concatenation lanes. Merge PR342/PR343 after one exact-head CI success. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.

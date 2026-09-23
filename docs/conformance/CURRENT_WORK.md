@@ -1,14 +1,26 @@
 # Current evidence and work
 
-The [scope `std::randomize` queue record](session_logs/2026-09-23_scope_queue_randomize_focus.json)
-is the latest local compiler candidate, integrated at `512d53539` following
-compiler commit `c44dc1dd4`. It covers a one-dimensional local integral queue with
-an exactly constrained length through 65536 elements, including queues with a
-declared maximum. Focused tests pass; a pinned
-OpenTitan SPI Device compile advances past this diagnostic but still reports
-eight later vector-context diagnostics, now split into [two RED aggregate
-forms](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md).
-No application compile or DV pass is claimed.
+The current focused integration is at `0a902ee9f`, following constant
+unpacked-array membership support at `88f0e9044`. Its revision-scoped
+[session record](session_logs/2026-09-23_inside_array_named_event_integration.json)
+owns the paired tests and application observations. The pinned SPI Device
+compile now has three kind-26 errors: two queue array-concatenation sites and
+one constraint-context `inside` site. The released AON compile has zero errors,
+but its smoke run timed out at 60 seconds after a `$system` warning. These are
+focused compile/runtime observations, not OpenTitan DV qualification. Raw
+[SPI compile](../../evidence/opentitan-spi-aon-focus-20260923/spi-device-compile.log),
+[AON compile](../../evidence/opentitan-spi-aon-focus-20260923/aon-timer-compile.log),
+the [AON timeout](../../evidence/opentitan-spi-aon-focus-20260923/aon-timer-smoke-timeout.log),
+and a [bounded AON time trace](../../evidence/opentitan-spi-aon-focus-20260923/aon-timer-time-trace.log)
+are retained. The traced run reached 416009004 ps before timing out, so the
+timeout does not indicate a zero-time spin; neither bounded run produced a UVM
+verdict.
+
+The preceding [scope `std::randomize` queue record](session_logs/2026-09-23_scope_queue_randomize_focus.json)
+is now integrated in this tree; it covers one-dimensional local integral
+queues with exactly constrained lengths through 65536 elements, including
+declared maxima. Earlier reports of eight later vector-context diagnostics
+are superseded by the latest pinned SPI replay recorded above.
 
 The preceding [associative statement-method focus](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
 is on `d0560368e`; its follow-on PR, broad gates, and application DV qualification remain

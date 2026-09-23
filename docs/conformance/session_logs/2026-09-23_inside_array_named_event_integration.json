@@ -1,0 +1,94 @@
+{
+  "date_utc": "2026-09-23",
+  "integration_head": "0a902ee9fb88c715719677e3f02b83b10d27493e",
+  "implementation_commits": [
+    {
+      "commit": "88f0e9044d8718bf82e35343e70ba82f6ee3c225",
+      "scope": "Constant unpacked parameter-array membership in ordinary inside expressions",
+      "standard": "IEEE 1800-2017/2023 11.4.13"
+    },
+    {
+      "commit": "0a902ee9fb88c715719677e3f02b83b10d27493e",
+      "scope": "Triggered sensitivity for static and automatic named events",
+      "standard": "IEEE 1800-2017/2023 9.4.2 and 15.5.3"
+    }
+  ],
+  "focused_validation": {
+    "constant_parameter_array_inside": {
+      "legacy": {
+        "total_tests_across_editions": 4,
+        "2017": "2/2 passed",
+        "2023": "2/2 passed"
+      },
+      "json_vvp": {
+        "total_tests_across_editions": 4,
+        "2017": "2/2 passed",
+        "2023": "2/2 passed"
+      },
+      "coverage": "first/middle/last members, nonmember, RHS X/Z wildcard matching, singleton and multidimensional parameter arrays, empty queue, and invalid array-valued left operand"
+    },
+    "static_automatic_named_event_triggered_sensitivity": {
+      "legacy": {
+        "total_tests_across_editions": 6,
+        "2017": "3/3 passed",
+        "2023": "3/3 passed"
+      },
+      "json_vvp": {
+        "total_tests_across_editions": 6,
+        "2017": "3/3 passed",
+        "2023": "3/3 passed"
+      }
+    },
+    "neighboring_class_event_regressions": {
+      "legacy": {
+        "total_tests_across_editions": 22,
+        "2017": "11/11 passed",
+        "2023": "11/11 passed"
+      },
+      "json_vvp": {
+        "total_tests_across_editions": 22,
+        "2017": "11/11 passed",
+        "2023": "11/11 passed"
+      }
+    }
+  },
+  "pinned_opentitan_replay": {
+    "release": "Earlgrey-PROD-M6",
+    "spi_device_compile": {
+      "language_mode": "-g2017 -gcommercial-unsafe",
+      "exit": 1,
+      "remaining_errors": 3,
+      "diagnostics": [
+        "two kind-26 vector-context errors from queue array concatenations in spi_device_flash_mode_vseq.sv:16 and spi_device_intercept_vseq.sv:15",
+        "one kind-26 vector-context error from constraint-context inside membership in spi_device_read_buffer_direct_vseq.sv:94"
+      ],
+      "raw_log": "evidence/opentitan-spi-aon-focus-20260923/spi-device-compile.log"
+    },
+    "aon_timer_compile": {
+      "exit": 0,
+      "hard_errors": 0,
+      "raw_log": "evidence/opentitan-spi-aon-focus-20260923/aon-timer-compile.log"
+    },
+    "aon_timer_smoke": {
+      "timeout_seconds": 60,
+      "result": "Timed out; only the UVM $system-as-task warning was observed; no UVM test result was produced.",
+      "runtime_binary_note": "The VVP artifact predates a final variable-only rename in vvp/vthread.cc that removes a -Wshadow warning; this timeout is not bit-identical runtime evidence for integration_head.",
+      "raw_log": "evidence/opentitan-spi-aon-focus-20260923/aon-timer-smoke-timeout.log"
+    }
+  },
+  "aon_timer_time_trace": {
+    "timeout_seconds": 15,
+    "environment": {
+      "IVL_TIME_TRACE_NS": "1000",
+      "IVL_SAME_TIME_LIMIT": "1000000"
+    },
+    "last_observed_simulation_time": "416009004 ps (approximately 416 us)",
+    "interpretation": "Simulation time advanced; this bounded smoke did not complete and produced no UVM verdict. The timeout is not evidence of a zero-time spin or a proven deadlock.",
+    "raw_log": "evidence/opentitan-spi-aon-focus-20260923/aon-timer-time-trace.log"
+  },
+  "qualification_limits": [
+    "The pinned SPI Device compile still has three independent kind-26 failures; successful compile is not established.",
+    "The AON smoke did not complete and its VVP binary predates the final variable-only rename.",
+    "No OpenTitan DV pass or application qualification is claimed."
+  ]
+}

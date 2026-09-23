@@ -10,6 +10,18 @@ The tested 2023 §15.5.3 class-event `.triggered` behavior shares the
 No edition-specific difference or full clause/application qualification is
 claimed.
 
+The 2023 §11.4.13 unpacked-array traversal and wildcard-membership semantics
+share the bounded ordinary-expression implementation in the
+[2017 matrix](matrices/ieee1800_2017_clause_matrix.md#september-23-constant-unpacked-array-membership).
+Paired focused tests show no edition difference; a constraint-context SPI
+compile error remains outside this implementation scope.
+
+Static/automatic named-event triggered sensitivity shares the paired 2017
+implementation and replay recorded in the
+[2017 matrix](matrices/ieee1800_2017_clause_matrix.md#september-23-static-and-automatic-named-event-triggered-sensitivity).
+The AON smoke timeout is recorded as incomplete runtime evidence, not DV
+qualification.
+
 The candidate 2023 §§7.12.1/15.5 associative `find_index` and multi-object
 class-event list checks share the [2017 implementation scope and paired local
 evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-associative-find_index-and-multi-object-class-event-lists).

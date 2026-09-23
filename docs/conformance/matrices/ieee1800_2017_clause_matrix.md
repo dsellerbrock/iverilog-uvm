@@ -1856,7 +1856,30 @@ covers trigger order, isolation, compound waits, cancellation, null-handle
 rebinding, and invalid members. The pinned OpenTitan SPI compile advances but
 still fails; explicit `triggered()` calls remain separate debt. Multi-object
 class-event lists have a separate focused candidate below. Full clause 15
-and application DV are not qualified.
+remains PARTIAL.
+
+### September 23 static and automatic named-event triggered sensitivity
+
+The bounded §9.4.2/§15.5.3 update makes `.triggered` sensitivity work for
+static and automatic named events. The [revision-scoped integration log]
+(../session_logs/2026-09-23_inside_array_named_event_integration.json) records
+paired checks and a successful released AON compile. Its smoke timed out after
+60 seconds without a UVM verdict. A separate bounded time trace reached about
+416 us, so the timeout is not evidence of a zero-time spin. The timed-out VVP
+artifact predates the final variable-only rename in `vvp/vthread.cc`. No AON DV
+result or full clause qualification is claimed.
+
+### September 23 constant unpacked-array membership
+
+The §11.4.13 ordinary-expression subset now expands constant unpacked parameter
+arrays recursively to singular set members and compares integral values with
+the existing asymmetric wildcard semantics. The shared 2017/2023 scope and
+focused results are recorded in the
+[revision-scoped integration log](../session_logs/2026-09-23_inside_array_named_event_integration.json);
+no edition-specific difference was observed. Constraint-context array
+membership remains unsupported at one pinned SPI Device site. The queue
+unpacked-array concatenation compile errors are a distinct §10.10 backlog item,
+not covered by this inside-set implementation.
 
 ### September 23 associative find_index and multi-object class-event lists
 
