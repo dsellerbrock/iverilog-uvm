@@ -237,10 +237,13 @@ static void show_stmt_force(ivl_statement_t net, unsigned ind)
 static void show_stmt_forloop(ivl_statement_t net, unsigned ind)
 {
       fprintf(out, "%*sFOR-LOOP\n", ind, "");
-      show_expression(ivl_stmt_cond_expr(net), ind+4);
-      show_statement(ivl_stmt_init_stmt(net), ind+2);
+      if (ivl_stmt_cond_expr(net))
+	    show_expression(ivl_stmt_cond_expr(net), ind+4);
+      if (ivl_stmt_init_stmt(net))
+	    show_statement(ivl_stmt_init_stmt(net), ind+2);
       show_statement(ivl_stmt_sub_stmt(net), ind+2);
-      show_statement(ivl_stmt_step_stmt(net), ind+2);
+      if (ivl_stmt_step_stmt(net))
+	    show_statement(ivl_stmt_step_stmt(net), ind+2);
 }
 
 static void show_stmt_release(ivl_statement_t net, unsigned ind)
