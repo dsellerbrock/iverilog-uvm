@@ -808,6 +808,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/obj/mutation/multi",of_WAIT_OBJ_MUTATION_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/reactive",of_WAIT_REACTIVE,0,{OA_NONE,OA_NONE, OA_NONE} },
+      { "%wait/triggered",of_WAIT_TRIGGERED,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%wait/vif/anyedge",of_WAIT_VIF_ANYEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/anyedge/i",of_WAIT_VIF_ANYEDGE_I,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%wait/vif/anyedge/multi",of_WAIT_VIF_ANYEDGE_MULTI,1,{OA_NUMBER,OA_NONE, OA_NONE} },

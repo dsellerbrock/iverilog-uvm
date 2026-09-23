@@ -1794,6 +1794,7 @@ void schedule_simulate(void)
 			     << schedule_time << endl;
 		  }
 		  ctim->delay = 0;
+		  vvp_named_event_triggered_time_advance();
 
 		  vpiNextSimTime();
 		    // Process the cbAtStartOfSimTime callbacks.

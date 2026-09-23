@@ -1,0 +1,1 @@
+PASS @(e.triggered): 0->1, same-slot stable, 1->0, next-slot 0->1, NBA 1->0->1

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_named_event_triggered_mixed_unsupported_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_named_event_triggered_mixed_unsupported"],
+  "gold": "sv_named_event_triggered_mixed_unsupported_2023"
+}
