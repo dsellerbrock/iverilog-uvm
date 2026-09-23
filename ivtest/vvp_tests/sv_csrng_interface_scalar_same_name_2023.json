@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_csrng_interface_scalar_same_name_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_csrng_interface_scalar_same_name"],
+  "gold": "sv_csrng_interface_scalar_same_name"
+}
