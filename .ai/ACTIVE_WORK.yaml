@@ -1,14 +1,15 @@
-status: in_progress
-branch: agent/next-compiler-lanes-20260923
-baseline: main d74e1664b; PR338 merged after Ubuntu 22.04 exact-head CI success.
-blocker: CALIPTRA-EXACT-L0-52
-goal: Resolve the remaining pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 failures without changing either release checkout or weakening pass/fail checks.
-standards: Pinned release L0 regression campaign; preserve all configured firmware, SVA, and pass/fail checks.
-failing_reproducer: "Frozen 52-case pristine-plus-KV-overlay baseline: 49 pass, two firmware build failures (smoke_test_hw_config and smoke_test_hmac_errortrigger), and one DOE SVA failure (smoke_test_doe_scan). The DOE run exits 0 and prints a pass banner, but reports one SVA ERROR."
-expected: Keep all 52 named results classified from build, simulator exit, SVA diagnostics, and test markers; obtain a standards- and release-grounded DOE disposition before any new selected overlay or rerun claim.
-root_cause: "Focused patched-copy replays confirm the two C fixes. A standalone mid-window reset disable-iff differential passes Icarus but fails Verilator 5.050 and isolated v5.052; fresh pinned DOE-only v5.052 replay still emits the same SVA error. This strongly implicates Verilator reset-window behavior, without proving it is the only DOE issue."
-forbidden: Unselected Icarus implementation changes, edits to pinned Caliptra/Adams Bridge checkouts, checker weakening, treating a pass banner or exit 0 as sufficient, or claiming full DV qualification.
-validation: The frozen 52-case 5.050 baseline is complete at 49 pass and three failures. The two named C overlays each pass a focused build/simulation replay with one pass banner and zero SVA errors. DOE still fails its intact assertion in a fresh pinned v5.052 replay despite exit 0 and a pass banner. No post-overlay full 52-case rerun or full DV qualification is claimed.
+status: reproduced_spec_grounded
+branch: agent/ot-spi-class-event-triggered-20260923
+baseline: main 6fd804a39; PR339 merged after Ubuntu 24.04 exact-head CI success.
+blocker: OT-SPI-CLASS-EVENT-TRIGGERED
+goal: Implement per-instance class-event .triggered reads and waits needed by released OpenTitan SPI Device.
+standards: IEEE 1800-2017 and 1800-2023 section 15.5.3; triggered remains true for the current time step and wait must handle either same-time trigger order.
+failing_reproducer: evidence/opentitan-spi-class-event-triggered-triage-20260923/class_event_triggered.sv fails in both editions with Class event_box has no property ev and a compile-progress fallback warning; the ordinary class-event wait control passes.
+expected: Per-instance event reads return one only in the firing time step; another instance remains zero; wait on .triggered wakes correctly; null and invalid forms remain explicit and no fallback fabricates success.
+root_cause: Class event member reads enter ordinary class-property expression lookup and fail before per-instance event lowering. VVP already has %evtest/obj and per-instance event wait machinery; expression lowering and wait dependency collection do not reach them.
+allowed_scope: elab_expr.cc, elaborate.cc, tgt-vvp/eval_vec4.c, necessary shared declaration for the existing class-event helper, dedicated tests, and coordinator-owned manifests. No new VVP opcode unless source evidence disproves the existing path.
+forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
+validation: RED and ordinary-wait control rechecked on PR339 source head a338704e4 in both editions; external transcript is ../evidence/ot-class-event-selected-20260923/result.json. Merged main 6fd804a39 contains that exact source. Focused paired-edition behavior and appropriate integrated gates are pending.
 release_lane:
   id: CALIPTRA-EXACT-L0-52
   owner: Coordinator
@@ -27,7 +28,7 @@ parallel_vpi_implementation_lane:
   reproducer: evidence/review-20260920/next-vpi-force-callback-assessment/force_cb.sv and force_cb.c.
   files: vvp/vpi_callback.cc, vvp/vvp_net_sig.cc, vvp/vthread.cc, vvp/vpi_signal.cc, vvp/vpi_real.cc, vvp/array.cc, vvp/parse.y, vvp/vpi_priv.h, vvp/vvp_vpi_callback.h, vpi_user.h, and necessary force/release codegen callsites; dedicated VPI regression fixtures. No ADC files, shared builds, installation, or application source edits. Shared manifests remain coordinator-owned; generated parser files are not edited.
   acceptance: Baseline red; whole-net/variable force and release callbacks report the originating statement handle; separate statements on the same target remain distinguishable; variable bit-select registration still rejects; focused positive, negative, and boundary regressions pass after coordinator build.
-  state: Locally integrated at d2d996419 and published in PR339. The candidate passed paired-edition VPI cases, neighboring controls, and a file-line-enabled probe. Broad qualification and PR CI remain pending.
+  state: Locally integrated at d2d996419 and published in PR339. The candidate passed paired-edition VPI cases, neighboring controls, and a file-line-enabled probe. PR339 merged after Ubuntu 24.04 exact-head CI success; broad qualification remains open.
 parallel_adc_implementation_lane:
   id: OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, integration, and review. Claude is not active on this lane.
@@ -59,7 +60,7 @@ parallel_spi_parameter_foreach_lane:
   reproducer: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; pinned Earlgrey-PROD-M6 spi_device_env_cov.sv line 296 has the same shape.
   files: elaborate.cc and the smallest necessary lexical parameter/type lookup implementation, plus dedicated ivtest fixtures only. No VPI runtime files, Verilator, pinned application source, shared manifests, or build outputs.
   acceptance: Iterate all constant package string-array entries inside a class constructor with correct index and values; empty array is vacuous; missing/nonarray target fails loudly; paired 2017/2023 regressions and neighboring foreach controls pass. Coordinator replays pinned SPI Device compile after integration.
-  state: Committed at a6b609d5a with paired focused tests and main-manifest integration. The full local ivtest gate passes on the repaired candidate; pinned SPI Device still fails compilation. PR339 new-head CI remains pending.
+  state: Committed at a6b609d5a with paired focused tests and main-manifest integration. The full local ivtest gate passes on the repaired candidate; pinned SPI Device still fails compilation. PR339 merged after Ubuntu 24.04 exact-head CI success; other CI jobs remained observable at merge.
 parallel_spi_struct_queue_size_lane:
   id: OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE
   owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
@@ -67,7 +68,7 @@ parallel_spi_struct_queue_size_lane:
   reproducer: evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv fails in both editions; released spi_device_scoreboard.sv lines 1294 and 2235 report the same error.
   files: elab_expr.cc and dedicated ivtest fixtures only. No elaborate.cc package foreach edits, VPI files, Verilator, pinned application source, shared manifests, or build outputs.
   acceptance: Packed-struct element queue `.size` and `.size()` return equal live counts for empty and populated queues; genuine packed-struct `.size` without such a member stays an error; paired-edition tests and neighboring queue/string/assoc controls pass. Coordinator replays pinned SPI Device compile.
-  state: Committed at 5afbe4c7f; paired runtime and missing-member negative tests pass in both runners, and the pinned SPI Device queue-size errors are removed. Full local gate passes; PR339 new-head CI remains pending.
+  state: Committed at 5afbe4c7f; paired runtime and missing-member negative tests pass in both runners, and the pinned SPI Device queue-size errors are removed. Full local gate passes; PR339 merged after Ubuntu 24.04 exact-head CI success; other CI jobs remained observable at merge.
 parallel_adc_typed_fill_lane:
   id: OT-ADC-DIRECT-CAST-WIDTH
   owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
@@ -75,29 +76,29 @@ parallel_adc_typed_fill_lane:
   reproducer: evidence/opentitan-adc-cast-width-triage-20260923/cast_width_repro.sv, cast_width_controls.sv, and cast_width_unsat_control.sv reproduce wrong 16/17-bit fills in both editions on the current installed compiler.
   files: elaborate.cc constraint IR and vvp/vvp_z3.cc cast/fill solver path as required; dedicated constraint ivtest fixtures only. No elab_expr.cc queue-size edits, VPI, pinned application sources, shared manifests, or build outputs.
   acceptance: Typed 16- and 17-bit unbased '1 constraints solve to all-ones before equality; 1-bit and sized 1'b1 controls remain 1; 'x/'z four-state direct cast controls stay exact; compatible and contradictory combined constraints behave correctly; paired editions and neighboring constraint regressions pass. No ADC DV claim from reducer.
-  state: Committed at 5afbe4c7f; direct unbased-fill cast checks pass in both editions and runners with explicit unsupported boundaries. Full local gate passes; indexed ADC inner sizing and PR339 new-head CI remain open.
+  state: Committed at 5afbe4c7f; direct unbased-fill cast checks pass in both editions and runners with explicit unsupported boundaries. Full local gate passes; indexed ADC inner sizing and PR339 merged after Ubuntu 24.04 exact-head CI success; other CI jobs remained observable at merge.
 pr339_caller_queue_ci_repair_lane:
   id: PR339-CALLER-QUEUE-STATE-WIDTH
   owner: Reused lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and CI.
   reproducer: PR339 exact-head Ubuntu 22.04 CI and local six-test legacy focus; all paired sv_constraint_caller_queue, boundaries, and rollback cases fail at runtime with state value width mismatch.
   files: elaborate.cc constraint foreach IR and vvp/vvp_z3.cc state foreach solver path as needed; dedicated regression fixtures only. No VPI callback files, elab_expr.cc queue-size lane, shared manifests, or build outputs.
   acceptance: Six existing 2017/2023 caller-queue tests pass with enforced values, rollback and out-of-bounds behavior; new sparse-key SPI foreach checks and ADC typed-fill controls remain passing. No warning suppression or dropped constraints.
-  state: Repaired at 5afbe4c7f; all six paired caller-queue cases pass in legacy and JSON runners and the full local gate passes. PR339 new-head CI remains pending.
+  state: Repaired at 5afbe4c7f; all six paired caller-queue cases pass in legacy and JSON runners and the full local gate passes. PR339 merged after Ubuntu 24.04 exact-head CI success; other CI jobs remained observable at merge.
 pr339_vpi_ci_repair_lane:
   id: PR339-VPI-PACKED-FORCE-OVERLAP
   owner: Reused lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and CI.
   reproducer: PR339 exact-head Ubuntu 22.04 CI and local bundled VPI suite fail packed_force_overlap in 2017 and 2023; new statement-object VPI tests passed focused locally.
   files: VPI force/release callback source in vvp and necessary tgt-vvp codegen only; dedicated VPI fixture if required. No elaborate.cc, vvp/vvp_z3.cc, elab_expr.cc, shared manifests, or build outputs.
   acceptance: Existing packed_force_overlap paired tests and new cbForce/cbRelease statement-object tests pass together; preserve selected-part overlap filtering and VPI registration semantics. Do not alter gold just to silence failure.
-  state: Repaired at e4e2f00ea; paired packed-overlap and statement-object controls plus the full local VPI suite pass. PR339 new-head CI remains pending.
-parallel_doe_verilator_implementation_lane:
+  state: Repaired at e4e2f00ea; paired packed-overlap and statement-object controls plus the full local VPI suite pass. PR339 merged after Ubuntu 24.04 exact-head CI success; other CI jobs remained observable at merge.
+caliptra_verilator_differential_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
-  owner: Reused lower-cost implementation agent; coordinator owns isolated Verilator rebuild, DOE replay, and integration review.
+  owner: Coordinator, read-only differential evidence.
   standards: IEEE 1800-2017/2023 disable iff abort of an active assertion attempt during an asynchronous reset pulse between sampling clocks.
   reproducer: evidence/caliptra-doe-verilator-midwindow-20260923/disable_midwindow.sv passes control=1 gated=0 on Icarus but fails control=1 gated=1 on Verilator 5.050 and isolated official v5.052.
-  files: Isolated Verilator v5.052 source in workspace evidence/verilator-midwindow-doe-20260923 only; focused Verilator regression patch and external evidence. No Icarus implementation, pinned Caliptra/Adams source, shared builds, or checker weakening.
-  acceptance: Small standards-correct reset-window fix makes the gated property abort and leaves the control failure intact; coordinator then rebuilds isolated v5.052 and reruns both reducer and intact pinned DOE. If root cause or fix is not bounded, submit diagnosis without a partial patch or pass claim.
-  state: Diagnostic complete; no safe bounded Verilator fix. A partial NFA clear fixed a longer obligation but not the direct defutured |=> implication; source restored to official v5.052 and coordinator rebuilt/rechecked the pristine binary. DOE remains failing; see session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json.
+  files: Existing diagnostic evidence only; no Verilator source changes.
+  acceptance: Use Verilator only as a differential cross-check for Icarus work. Keep the pinned DOE SVA result failed; no tool patch or downstream qualification claim.
+  state: Diagnostic complete and implementation deselected at user direction. Isolated Verilator source was restored to official v5.052; no patch remains. The direct defutured |=> and NFA paths are separate; see session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json.
 completed_implementation_lane:
   id: OT-PWRMGR-CASE-EXIT-STACK-BALANCE
   owner: Claude Code Opus 5.5 high; coordinator owns shared builds, integration, and review.

@@ -1,26 +1,32 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
+
+- **State:** Selected Icarus blocker on merged main `6fd804a39`. The [paired-edition RED and ordinary-wait control](../../evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md) isolate a class event `.triggered` compile failure; no SPI Device DV pass is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
+- **Cause and acceptance:** Class-event reads fall into ordinary class-property lookup before per-object event lowering. Reuse the existing per-object VVP event query and wait machinery; require paired positive, negative, boundary, and instance-isolation tests without compile-progress fallback.
+
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
 - **State:** Open on the pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 replay with the selected KV diagnostic overlay. The [exact-toolchain 52-case baseline](../../evidence/caliptra-exact-l0-20260923/README.md) passes 49 cases; two firmware build failures have focused-tested, test-specific overlays, while `smoke_test_doe_scan` still emits one SVA error despite exit 0 and a pass banner.
 - **Evidence:** The [reset-window differential and fresh pinned v5.052 DOE replay](../../evidence/caliptra-doe-verilator-midwindow-20260923/assessment.md) preserve the assertion. The [follow-on source diagnosis and restored-binary recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json) show that a between-clock reset leaves both a defutured implication attempt and a longer NFA obligation pending. Clearing only NFA state fixes the longer reducer but leaves the direct implication failing; no partial patch was retained.
-- **Open work:** Invalidate pending implication history on asynchronous disable with correct overlapping-attempt and same-edge behavior, then rerun the intact pinned DOE test. This strongly implicates Verilator but does not prove it is the only DOE issue. The baseline failure and full DV qualification remain open.
+- **Boundary:** This is read-only Verilator differential evidence, not an authorized Verilator implementation lane. The intact DOE assertion remains failed and full Caliptra DV remains unqualified; prioritize Icarus compiler and runtime blockers against the pinned releases.
 
 ### OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH — lexical package array bounds
 
-- **State:** Locally integrated at `a6b609d5a`; the [PR339 follow-on record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) covers paired focused tests and the pinned compile. New-head CI remains pending; full SPI Device DV remains open.
+- **State:** Merged in [PR339](https://github.com/dsellerbrock/iverilog-uvm/pull/339) after Ubuntu 24.04 exact-head CI passed; the [follow-on record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) covers paired focused tests and the pinned compile. Full SPI Device DV remains open.
 - **Requirement:** IEEE 1800-2017 §18.5.8.1 and the paired 2023 `foreach` mode use the actual constant package array when it is referenced from a class method.
 - **Cause and boundary:** The bound resolver skipped lexical package parameters. It now finds the array before reporting a missing target; missing and scalar targets still fail. No general package-parameter or coverage qualification is claimed.
 
 ### OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE — packed-struct queue method lookup
 
-- **State:** Locally integrated at `5afbe4c7f`; [paired regression evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) and the pinned SPI Device compile show the `.size` errors removed. New-head CI and full DV remain open.
+- **State:** Merged in [PR339](https://github.com/dsellerbrock/iverilog-uvm/pull/339) after Ubuntu 24.04 exact-head CI passed; [paired regression evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) and the pinned SPI Device compile show the `.size` errors removed. Full DV remains open.
 - **Requirement:** IEEE 1800-2017/2023 §7.10.2.1 permits `q.size` as well as `q.size()` for an ordinary queue, including a queue of packed structs.
 - **Cause and boundary:** The parenthesis-free path treated `size` as a packed-struct element member before queue dispatch. It now selects the queue method; a missing member on a genuine packed struct still fails.
 
 ### OT-ADC-DIRECT-CAST-WIDTH — unbased fill loses cast width in constraints
 
-- **State:** Locally integrated at `5afbe4c7f`; the [paired runtime and negative evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) passes. Indexed ADC inner array sizing still blocks the pinned smoke, and new-head CI remains pending.
+- **State:** Merged in [PR339](https://github.com/dsellerbrock/iverilog-uvm/pull/339) after Ubuntu 24.04 exact-head CI passed; the [paired runtime and negative evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) passes. Indexed ADC inner array sizing still blocks the pinned smoke.
 - **Requirement:** IEEE 1800-2017/2023 §§5.7.1 and 6.24.1 fill the destination width of a direct typed cast before its value participates in a constraint.
 - **Cause and boundary:** Constraint IR encoded `'1` as a one-bit constant before knowing the cast width. The direct fill now has the cast width; sized `1'b1` and two-state X/Z conversion remain distinct. Four-state X/Z constraint casts and fills wider than the current 64-bit IR are explicit unsupported boundaries, not silently solved values.
 
@@ -70,7 +76,7 @@
 
 ### VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT — callback origin identity
 
-- **State:** The HDL statement-object slice was locally integrated at `d2d996419`; a VPI API-origin callback regression was repaired at `e4e2f00ea`. The [follow-on local gates](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) pass; new-head CI and broad VPI qualification remain open.
+- **State:** The HDL statement-object slice and VPI API-origin callback repair merged in [PR339](https://github.com/dsellerbrock/iverilog-uvm/pull/339) after Ubuntu 24.04 exact-head CI passed. The [follow-on local gates](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) pass; broad VPI qualification remains open.
 - **Requirement:** IEEE 1800-2017/2023 §38.36.1 callback `obj` identifies the force or release statement, including a shared identity for concatenated LHS targets; registration still uses the affected signal.
 - **Boundary:** Compiled HDL statements expose type and source location. A VPI `put_value` force/release has no HDL source statement; its callback retains the registered target handle as the established API extension behavior. Other statement-handle relationships remain unqualified.
 
