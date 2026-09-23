@@ -1,15 +1,26 @@
 status: in_progress
-branch: agent/opentitan-adc-guarded-dist-fileset-20260923
-baseline: origin/main 6ee647ca7b0119a3a800aebe2559f99d79b0ceff includes merged PR336.
-blocker: OT-ADC-GUARDED-LARGE-DIST-EXACT
-goal: Publish the tested guarded distribution and OpenTitan generated-fileset fixes; investigate the next class-handle collection-resize blocker separately.
-standards: IEEE 1800-2017/2023 distribution constraints and conditional constraint semantics.
-failing_reproducer: evidence/opentitan-adc-dist-triage-20260923/reducers/large_cond_no_solve.sv; pinned ADC smoke failed at time zero before the fix.
-expected: Exact legal sampling when a large distribution's guard is proved active; preserve inactive and unresolved guard behavior.
-root_cause: The exact resolver excluded all guarded distributions, even when hard constraints fixed the guard active.
-forbidden: Application source edits, warning suppression, dropped tests, or shared build/test output edits by agents.
-validation: See docs/conformance/session_logs/2026-09-23_opentitan_adc_guarded_dist_fileset_focus.json; full application DV and broad IEEE qualification remain separate.
-implementation_lane:
+branch: agent/caliptra-l0-release-overlay-20260923
+baseline: main 9ac5a0fd1; PR337 merged with Ubuntu 22.04 and 24.04 exact-head CI success.
+blocker: CALIPTRA-EXACT-L0-52
+goal: Resolve the remaining pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 failures without changing either release checkout or weakening pass/fail checks.
+standards: Pinned release L0 regression campaign; preserve all configured firmware, SVA, and pass/fail checks.
+failing_reproducer: "Frozen 52-case pristine-plus-KV-overlay baseline: 49 pass, two firmware build failures (smoke_test_hw_config and smoke_test_hmac_errortrigger), and one DOE SVA failure (smoke_test_doe_scan). The DOE run exits 0 and prints a pass banner, but reports one SVA ERROR."
+expected: Keep all 52 named results classified from build, simulator exit, SVA diagnostics, and test markers; obtain a standards- and release-grounded DOE disposition before any new selected overlay or rerun claim.
+root_cause: "Focused patched-copy replays confirm the C inline-link and missing-stdlib-declaration fixes. DOE sampled and settled status bits are both zero at the failing consequent edge; its cause remains unresolved."
+forbidden: Unselected Icarus implementation changes, edits to pinned Caliptra/Adams Bridge checkouts, checker weakening, treating a pass banner or exit 0 as sufficient, or claiming full DV qualification.
+validation: The frozen 52-case baseline is complete at 49 pass and three failures. The two named C overlays each pass a focused build/simulation replay with one pass banner and zero SVA errors. DOE still fails the intact assertion. No post-overlay full 52-case rerun or full DV qualification is claimed.
+release_lane:
+  id: CALIPTRA-EXACT-L0-52
+  owner: Coordinator
+  source: Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; Adams Bridge v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0.
+  toolchain: Official xPack GCC 15.2; RV32IMC/ILP32 multilib.
+  options: Pinned release Verilator L0 configuration with xPack GCC 15.2 rv32imc/ilp32, BUILD_CFLAGS=-std=gnu11 -O2, CALIPTRA_INTERNAL_TRNG=1, PLAYBOOK_RANDOM_SEED=1, Verilator -Wno-MISINDENT, and +CLP_REGRESSION.
+  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json and focused patched-copy replay results in the same directory.
+  checkpoint: Full baseline complete at 49/52; two test-specific firmware overlays pass focused replays; DOE remains a genuine SVA failure pending root-cause triage. No combined 52-case patched rerun yet.
+  selected_downstream_overlays:
+    - "smoke_test_hw_config only: docs/conformance/release_overlays/caliptra/hw_config_inline_c11.patch, focused build and simulation passed."
+    - "smoke_test_hmac_errortrigger only: docs/conformance/release_overlays/caliptra/hmac_errortrigger_stdlib.patch, focused build and simulation passed."
+completed_implementation_lane:
   id: OT-PWRMGR-CASE-EXIT-STACK-BALANCE
   owner: Claude Code Opus 5.5 high; coordinator owns shared builds, integration, and review.
   standards: IEEE 1800-2017/2023 sections 9.4 and 12.5; exiting a case body must not leave the selector on the VM evaluation stack.
@@ -17,15 +28,17 @@ implementation_lane:
   files: tgt-vvp/vvp_process.c and dedicated case-exit regression fixtures/golds only; no application sources, pform.cc, ivlpp, elaborate.cc, vvp/vthread.cc, or shared build outputs.
   acceptance: Baseline red; case break/default/no-match, unique/priority, real selector, and nested control flow preserve values and leave no cleanup diagnostic; focused positive, negative, and boundary tests pass. Coordinator runs builds and tests.
   state: Merged as PR336 at 6ee647ca7 after Ubuntu 24.04 exact-head CI passed; focused and scoped released pwrmgr checks passed. Full release DV remains open.
-parallel_implementation_lane:
+completed_compiler_lane:
   id: OT-ADC-GUARDED-LARGE-DIST-EXACT
-  owner: Codex + reused GPT-6 Luna; coordinator owns shared build, integration, and review.
+  owner: Codex + reused GPT-6 Luna; coordinator owned shared build, integration, and review.
   standards: IEEE 1800-2017/2023 distribution constraints and conditional constraint semantics; preserve exact legal sampling.
-  reproducer: evidence/opentitan-adc-dist-triage-20260923/result.json; pinned ADC UVM smoke compiles but fails randomization at time zero.
-  files: vvp/vvp_z3.cc and dedicated constraint regressions only; no elaborate.cc, tgt-vvp, OpenTitan, Caliptra, or shared build outputs.
-  dependencies: PR336 is merged. The separate ADC cast-width lane also needs vvp/vvp_z3.cc and is deferred until this patch integrates.
-  acceptance: Paired-edition active guarded range above 256 samples exactly and obeys all hard constraints; inactive guard and 256/257 boundary retain behavior; focused negatives remain negative; corrected pinned ADC smoke proceeds past the time-zero dist fatal. No weakened tests or approximate sampler.
-  state: Focused-tested and locally committed at 4e14d8dde after rebasing onto PR336; paired 2017/2023 focus and neighboring distribution checks passed. Pinned ADC smoke advances to the separate class-handle collection-resize blocker. Publication/CI pending.
+  files: vvp/vvp_z3.cc and dedicated constraint regressions only.
+  state: Merged in PR337 at 9ac5a0fd1 with Ubuntu 22.04 and 24.04 exact-head CI success. Focused paired-edition and neighboring distribution checks passed; corrected ADC smoke advances to nested dynamic-array resize. Full ADC DV and broad IEEE qualification remain separate.
+completed_fileset_lane:
+  id: OT-PINMUX-FILESET-SOURCE-CLOSURE
+  owner: Codex + GPT-6 Luna
+  files: scripts/opentitan_matrix.py only.
+  state: Merged in PR337 at 9ac5a0fd1 with Ubuntu 22.04 and 24.04 exact-head CI success; full OpenTitan matrix rerun remains open.
 release_full_dv_campaign:
   objective: Fresh complete pinned-release OpenTitan and Caliptra DV inventory and execution; record every pass, compiler/runtime failure, setup gate, and qualification limit, then repair compiler blockers by priority.
   opentitan_inventory_lane:
@@ -40,9 +53,5 @@ release_full_dv_campaign:
     source: Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e and Adams Bridge v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0, with named test-selected overlays/options.
     acceptance: Enumerate official DV simulation/test groups and external dependencies; distinguish formal/unit/software entries and environment gates.
     state: Inventory frozen at SHA256 413bb36923db2b50103a24b40ed65b03f90046a8ac404231ac8fe352099b7c1b; all 44 unit RTL filelists attempted with 20 compile-only passes, 6 fails, 17 setup gates, and 1 unsupported. Two documented runtime probes complete; no source edits.
-  caliptra_verilator_l0_lane:
-    owner: Codex + reused GPT-6 Luna
-    files: evidence/caliptra-verilator-l0-enable-20260923 only
-    acceptance: Use locally verified RISC-V toolchain and pinned release's own Verilator configuration to build firmware and run iccm_lock without application edits or fake protocol checker. Record any genuine source/tool-version gate; supplement with Verilator lint-only if feasible.
-    state: Pinned iccm_lock replay with the selected KV SVA diagnostic overlay and only -Wno-MISINDENT exits 0 with zero SVA errors and one pass marker; toolchain multilib provenance remains non-exact, so this is scoped diagnostic evidence, not full DV qualification.
+  prior_caliptra_l0_diagnostic: Earlier selected-overlay iccm_lock replay with only -Wno-MISINDENT emitted zero SVA errors and one pass marker at evidence/caliptra-kv-sva-overlay-20260923/patched-iccm-lock.result.json; its prior inspection found non-exact RISC-V multilib provenance. It preceded the official xPack GCC 15.2 rv32imc/ilp32 52-case lane and did not establish full L0 or DV qualification.
   coordinator: Owns OpenTitan matrix execution, shared builds, integrated failure catalog, implementation selection, and review after inventories are frozen.

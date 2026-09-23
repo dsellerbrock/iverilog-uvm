@@ -1,0 +1,10 @@
+--- a/src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c
++++ b/src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c
+@@ -16,6 +16,7 @@
+ #include "caliptra_isr.h"
+ #include "riscv_hw_if.h"
+ #include "riscv-csr.h"
++#include <stdlib.h>
+ #include <string.h>
+ #include <stdint.h>
+ #include "printf.h"

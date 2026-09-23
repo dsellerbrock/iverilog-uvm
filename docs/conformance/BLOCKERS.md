@@ -1,5 +1,11 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
+
+- **State:** Open on the pinned Caliptra v2.1.2 / Adams Bridge v2.0.3 Verilator L0 replay with the selected KV diagnostic overlay. The [exact-toolchain 52-case baseline](../../evidence/caliptra-exact-l0-20260923/README.md) passes 49 cases; two firmware build failures have focused-tested, test-specific overlays, while `smoke_test_doe_scan` still emits one SVA error despite exit 0 and a pass banner.
+- **Evidence:** The DOE probe preserves the assertion and records a clear-obfuscation command sampled immediately after reset release, followed by sampled and settled `VALID=0` and `DEOBF_SECRETS_CLEARED=0` at the consequent edge. A same-timestep display artifact does not explain the observed zero values.
+- **Open work:** Discriminate the property's documented reset-release corner from a real DOE status bug with a focused paired replay and a steady-state failure control. Keep the baseline failure and full DV qualification open until that evidence exists.
+
 ### OT-PWRMGR-CASE-EXIT-STACK-BALANCE — case body exits bypassed selector cleanup
 
 - **State:** Merged in [PR336](https://github.com/dsellerbrock/iverilog-uvm/pull/336) at `6ee647ca7` after a completed exact-head Ubuntu 24.04 CI success. Full release DV qualification remains open.
@@ -32,11 +38,11 @@
 - **Cause and evidence:** The first ADC smoke compile diagnostic follows `adc_value_t'('1)` inside `DV_CHECK_RANDOMIZE_WITH_FATAL`; `ivlpp/lexor.lex` consumes the three-character `'('` sequence as one quoted-item token, leaving the inner `)` to end the macro argument. [Pinned target and reducer record](session_logs/2026-09-23_opentitan_adc_macro_arg_baseline.json) distinguishes the failing casted macro from ordinary-literal macro and procedural-cast controls.
 - **Closure:** The [candidate and local tests](session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json) preserve cast parentheses and assignment-pattern braces and pass the selected regression gates. The pinned ADC target now compiles but ignores a filter-size constraint, so this is semantic DEBT, not ADC DV success. The separate direct nonmacro cast-width runtime mismatch also remains.
 
-### OT-ADC-CLASS-HANDLE-COLLECTION-RESIZE — ADC config randomization resizes class-handle collection
+### OT-ADC-NESTED-DYNAMIC-ARRAY-RESIZE — ADC `filter_cfg[][]` randomization
 
-- **State:** Open; the guarded large-range `dist` exact-resolver failure is fixed at `c139b264e` and focused-tested, but the pinned smoke still fails at time 0 on collection resizing.
-- **Evidence:** [Current paired distribution and ADC runtime record](session_logs/2026-09-23_opentitan_adc_guarded_dist_fileset_focus.json). The resolver reports no exact-dist errors; randomization then stops with `ERROR: resizing a random class-handle collection during a global solve is not yet supported.` No DV pass follows.
-- **Closure:** Implement and test the required class-handle collection resize semantics, then rerun the pinned ADC smoke with the documented UVM 1.2 setup. Keep this separate from the cast-width mismatch and filter-size constraint debt.
+- **State:** Open after [PR337](https://github.com/dsellerbrock/iverilog-uvm/pull/337) merged the guarded large-range `dist` fix. The pinned ADC smoke still fails at time 0.
+- **Evidence:** The [paired reducer and pinned-source assessment](../../evidence/opentitan-adc-class-resize-triage-20260923/assessment.md) shows that `filter_cfg` is a nested dynamic array of packed structs, not class handles. VVP's `class-handle collection` error applies an overbroad guard to this type. The outer size reaches solver IR, but typed resize/write-back is missing; the indexed inner `.size` constraint is separately dropped during elaboration ([DD-047](DISCOVERED_DEBT.md)).
+- **Closure:** Implement typed outer and inner resize, nested size/element constraints, retention and rollback in both IEEE editions; keep actual class-handle growth semantics distinct. Removing the runtime guard alone would corrupt the value. Rerun pinned ADC DV only after these semantics pass focused positive, negative, and boundary tests. No ADC DV pass is established.
 
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 
