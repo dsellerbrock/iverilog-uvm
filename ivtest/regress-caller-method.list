@@ -1,0 +1,4 @@
+sv_constraint_caller_method normal,-g2017,-s,top ivltests gold=sv_constraint_caller_method.gold
+sv_constraint_caller_method_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_caller_method.gold
+sv_constraint_caller_method_local normal,-g2017,-s,top ivltests gold=sv_constraint_caller_method_local.gold
+sv_constraint_caller_method_local_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_caller_method_local.gold
