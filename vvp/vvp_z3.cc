@@ -7006,6 +7006,83 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
       return result;
 }
 
+/* Prove that a one-variable factor admits exactly [0, 2^bits).  This
+ * narrowly replaces complete tuple enumeration for bounded nested fields
+ * whose entire legal set is a power-of-two prefix.  The proof is semantic:
+ * isolate clauses containing `var`, find their greatest feasible value,
+ * then prove there is no hole below it.  Coupled/auxiliary factors and
+ * non-power-of-two sets are deliberately left to the exact enumerator. */
+static bool z3_full_power_two_domain_(Z3_context ctx, Z3_solver base,
+                                     Z3_ast var, unsigned&bits)
+{
+      bits = 0;
+      Z3_sort sort = Z3_get_sort(ctx, var);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
+          || Z3_get_bv_sort_size(ctx, sort) == 0
+          || Z3_get_bv_sort_size(ctx, sort) > 64)
+            return false;
+      unsigned width = Z3_get_bv_sort_size(ctx, sort);
+      Z3_ast factor = nullptr;
+      if (!z3_isolated_subject_factor_(ctx, base, var, factor)) return false;
+
+      Z3_solver proof = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, proof);
+      Z3_solver_assert(ctx, proof, factor);
+      if (Z3_solver_check(ctx, proof) != Z3_L_TRUE) {
+            Z3_solver_dec_ref(ctx, proof);
+            return false;
+      }
+
+      const uint64_t domain_max = width == 64 ? UINT64_MAX
+            : (((uint64_t)1 << width) - 1);
+      auto exists_at_or_above = [&](uint64_t lower, Z3_lbool&result) {
+            Z3_ast value = Z3_mk_unsigned_int64(ctx, lower, sort);
+            Z3_solver_push(ctx, proof);
+            Z3_solver_assert(ctx, proof, Z3_mk_bvuge(ctx, var, value));
+            result = Z3_solver_check(ctx, proof);
+            Z3_solver_pop(ctx, proof, 1);
+      };
+      uint64_t low = 0, high = domain_max;
+      while (low < high) {
+            uint64_t diff = high - low;
+            uint64_t mid = low + diff / 2 + diff % 2;
+            Z3_lbool result;
+            exists_at_or_above(mid, result);
+            if (result == Z3_L_TRUE) low = mid;
+            else if (result == Z3_L_FALSE) high = mid - 1;
+            else {
+                  Z3_solver_dec_ref(ctx, proof);
+                  return false;
+            }
+      }
+
+      uint64_t cardinality = 0;
+      if (low == UINT64_MAX) {
+            bits = 64;
+      } else {
+            cardinality = low + 1;
+            if (cardinality & (cardinality - 1)) {
+                  Z3_solver_dec_ref(ctx, proof);
+                  return false;
+            }
+            while (cardinality > 1) {
+                  ++bits;
+                  cardinality >>= 1;
+            }
+      }
+
+      Z3_ast maximum = Z3_mk_unsigned_int64(ctx, low, sort);
+      Z3_ast in_prefix = Z3_mk_bvule(ctx, var, maximum);
+      Z3_solver holes = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, holes);
+      Z3_solver_assert(ctx, holes, Z3_mk_not(ctx, factor));
+      Z3_solver_assert(ctx, holes, in_prefix);
+      Z3_lbool hole = Z3_solver_check(ctx, holes);
+      Z3_solver_dec_ref(ctx, holes);
+      Z3_solver_dec_ref(ctx, proof);
+      return hole == Z3_L_FALSE;
+}
+
 /* IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9:
  * independent factors have a Cartesian product of legal projected tuples.
  * Split only conjunctions. Include every symbolic constant, even state and
@@ -8265,6 +8342,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Prove every complete factor before drawing. A cap/UNKNOWN after
             // choosing a weighted value could otherwise bias successful calls.
             vector<vector<vector<uint64_t> > > tables(components.size());
+            vector<bool> full_power_component(components.size(), false);
+            vector<unsigned> full_power_bits(components.size(), 0);
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   bool component_has_randc = any_of(components[ci].begin(),
                         components[ci].end(), active_randc_var);
@@ -8272,8 +8351,38 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       && !(defer_ordered_joint_randc
                            && component_has_randc)) continue;
                   const char*reason = nullptr;
-                  if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
+                  Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
+                        components[ci], ENUM_DOMAIN_CAP, tables[ci], reason);
+                  if (enumerated != Z3_L_TRUE) {
+                        bool ordered_component = false;
+                        bool component_has_dist_spec = false;
+                        for (Z3_ast var : components[ci])
+                              ordered_component |= stages.count(var) != 0;
+                        for (const auto&spec : builder.dist_specs)
+                              component_has_dist_spec |= find(
+                                    components[ci].begin(),
+                                    components[ci].end(), spec.subject)
+                                    != components[ci].end();
+                        bool simple_component = components[ci].size() == 1
+                              && distributions[ci].empty()
+                              && !component_has_dist_spec
+                              && !component_has_randc
+                              && !ordered_component;
+                        if (enumerated == Z3_L_UNDEF && reason
+                            && strcmp(reason,
+                               "the complete joint solution set exceeds the enumeration limit") == 0
+                            && simple_component
+                            && z3_full_power_two_domain_(ctx, base,
+                                  components[ci][0], full_power_bits[ci])) {
+                              // The proof establishes a complete power-of-two
+                              // prefix, so uniform direct sampling is exactly
+                              // the same distribution as choosing uniformly
+                              // from its fully enumerated tuple table.
+                              full_power_component[ci] = true;
+                              continue;
+                        }
                         return fail_joint(reason);
+                  }
             }
             // IEEE 1800-2017 18.5.4 and IEEE 1800-2023 18.5.3 do
             // not define product weights (or any other combination rule) for
@@ -8553,6 +8662,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         Z3_solver_assert(ctx, base, pin);
                         Z3_optimize_assert(ctx, opt, pin);
                   };
+                  if (full_power_component[ci]) {
+                        unsigned bits = full_power_bits[ci];
+                        uint64_t chosen = 0;
+                        if (bits == 64) {
+                              chosen = ((uint64_t)root_rng.next() << 32)
+                                    | root_rng.next();
+                        } else if (bits != 0) {
+                              chosen = root_rng.uniform_u64((uint64_t)1 << bits);
+                        }
+                        pin_column(0, chosen);
+                        continue;
+                  }
                   if (bindings.size() > 1) {
                         set<Z3_ast> weighted;
                         for (const auto&binding : bindings)
