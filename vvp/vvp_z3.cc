@@ -435,6 +435,37 @@ static bool infer_constraint_integral_type_(
 static bool infer_constraint_inside_type_(
       IRParser&par, constraint_integral_type_t&out);
 
+/* Constant wildcard patterns emitted for unpacked-array `inside' members:
+ * cw:VALUE:KNOWN_MASK:WIDTH[:s]. X and Z bits in the source pattern have a
+ * zero in KNOWN_MASK and therefore match either subject bit. */
+static bool parse_constraint_inside_wildcard_(
+      const string&token, uint64_t&value, uint64_t&known,
+      unsigned&width, bool&is_signed)
+{
+      vector<string>fields;
+      string field;
+      istringstream input(token);
+      while (getline(input, field, ':')) fields.push_back(field);
+      if (fields.size() < 4 || fields[0] != "cw"
+          || (fields.size() > 5)
+          || (fields.size() == 5 && fields[4] != "s")) return false;
+      char*end = nullptr;
+      value = strtoull(fields[1].c_str(), &end, 10);
+      if (end == fields[1].c_str() || *end) return false;
+      known = strtoull(fields[2].c_str(), &end, 10);
+      if (end == fields[2].c_str() || *end) return false;
+      unsigned long parsed_width = strtoul(fields[3].c_str(), &end, 10);
+      if (end == fields[3].c_str() || *end || !parsed_width
+          || parsed_width > 64) return false;
+      width = (unsigned)parsed_width;
+      is_signed = fields.size() == 5;
+      uint64_t width_mask = width == 64 ? UINT64_MAX
+            : (UINT64_C(1) << width) - 1;
+      value &= width_mask;
+      known &= width_mask;
+      return true;
+}
+
 static bool constraint_ir_uint_token_(const string&token, uint64_t&value)
 {
       if (token.compare(0, 2, "c:") != 0) return false;
@@ -482,6 +513,16 @@ static bool infer_constraint_integral_type_(IRParser&par,
       par.skip_ws();
       if (par.peek() != '(') {
             string token = par.read_token();
+            if (token.compare(0, 3, "cw:") == 0) {
+                  uint64_t value, known;
+                  unsigned width;
+                  bool is_signed;
+                  if (!parse_constraint_inside_wildcard_(
+                        token, value, known, width, is_signed)) return false;
+                  out.width = width;
+                  out.sign = is_signed;
+                  return true;
+            }
             if (token.compare(0, 2, "c:") == 0) {
                   const char*text = token.c_str() + 2;
                   char*end = nullptr;
@@ -3851,7 +3892,63 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  } else {
 			// Single value token
 			string tok = par.read_token();
-			if (tok.substr(0,2) == "c:") {
+			if (tok.compare(0, 3, "cw:") == 0) {
+			      uint64_t pattern_bits = 0, pattern_known = 0;
+			      unsigned pattern_width = 0;
+			      bool pattern_signed = false;
+			      if (!parse_constraint_inside_wildcard_(
+				    tok, pattern_bits, pattern_known,
+				    pattern_width, pattern_signed)) {
+				    b.state_errors.push_back(
+					  "malformed wildcard constant in constraint inside expression");
+				    clauses.push_back(Z3_mk_false(b.ctx));
+			      } else {
+				    unsigned target_width = type_ok ? common_type.width
+					  : max(subj_sv, pattern_width);
+				    bool target_signed = type_ok ? common_type.sign
+					  : subj_signed;
+				    if (target_width > 64) {
+					  b.state_errors.push_back(
+						"wildcard inside comparison wider than 64 bits is not yet supported");
+					  target_width = 64;
+				    }
+				    uint64_t target_mask = target_width == 64
+					  ? UINT64_MAX
+					  : (UINT64_C(1) << target_width) - 1;
+				    if (target_width > pattern_width) {
+					  bool signed_extend = target_signed && pattern_signed;
+					  bool sign_known =
+						(pattern_known >> (pattern_width - 1)) & 1;
+					  bool sign_value =
+						(pattern_bits >> (pattern_width - 1)) & 1;
+					  unsigned extra = target_width - pattern_width;
+					  uint64_t high_mask = extra == 64 ? UINT64_MAX
+						: ((UINT64_C(1) << extra) - 1)
+						  << pattern_width;
+					  if (signed_extend && sign_known && sign_value)
+						pattern_bits |= high_mask;
+					  if (!signed_extend || sign_known)
+						pattern_known |= high_mask;
+				    }
+				    pattern_bits &= target_mask;
+				    pattern_known &= target_mask;
+				    Z3_sort sort = Z3_mk_bv_sort(b.ctx, target_width);
+				    Z3_ast value = Z3_mk_unsigned_int64(
+					  b.ctx, pattern_bits, sort);
+				    Z3_ast mask = Z3_mk_unsigned_int64(
+					  b.ctx, pattern_known, sort);
+				    if (pattern_signed)
+					  value = b.tag_signed_constant(value);
+				    Z3_ast sized_subject = type_ok ? subject
+					  : b.coerce(subject, target_width);
+				    Z3_ast masked_subject = Z3_mk_bvand(
+					  b.ctx, sized_subject, mask);
+				    Z3_ast masked_value = Z3_mk_bvand(
+					  b.ctx, value, mask);
+				    clauses.push_back(Z3_mk_eq(
+					  b.ctx, masked_subject, masked_value));
+			      }
+			} else if (tok.substr(0,2) == "c:") {
 			      const char*cs = tok.c_str() + 2;
 			      char*ce = nullptr;
 			      uint64_t v = strtoull(cs, &ce, 10);
