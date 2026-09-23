@@ -25941,7 +25941,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    init_zero.push_back(sva_assign_(loc, r_cnt,
 			new PENumber(new verinum((uint64_t)0, 32))));
       } else {
-	    r_f = sva_make_reg_(loc, inst, "f", 0);
+	    /* A fixed-offset stage carries one distinct attempt. More than one
+	       stage can die on the same tick, so preserve the number of failed
+	       attempts until the Reactive action dispatch. */
+	    r_f = sva_make_reg_(loc, inst, "f", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    /* The compact linear checker must retain the assertion-step VPI
 	       contract that the NFA checker provides. These flags aggregate all
@@ -25951,6 +25954,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    r_sf = sva_make_reg_(loc, inst, "sf", 0);
 	    init_zero.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
       }
+      auto increment_failure = [&]() -> Statement* {
+	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_f),
+				       sva_bit_(loc, 1));
+	    FILE_NAME(add, loc);
+	    return sva_assign_(loc, r_f, add);
+      };
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
 
       std::vector<Statement*> ante_body;
@@ -25989,14 +25998,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			 sva_id_(loc, r_ante))));
       for (size_t j = 0 ; j < nfixed ; j += 1) {
 	    if (offs[j] != 0) continue;
-	      /* if (g && !b_j) begin [f=1;] g=0; end */
-	    PEUnary*nb = new PEUnary('!', sva_id_(loc, r_b[j]));
+	      /* X/Z is not a successful sequence match. Clearing g on the
+		 first failed check also prevents another ##0 check at this
+		 offset from counting the same attempt twice. */
+	    PEBComp*nb = new PEBComp('N', sva_id_(loc, r_b[j]),
+				   sva_bit_(loc, 1));
 	    FILE_NAME(nb, loc);
 	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, r_g), nb);
 	    FILE_NAME(cond, loc);
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
-		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  hit.push_back(increment_failure());
 	    if (kind != 2)
 		  hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
@@ -26017,13 +26029,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       for (size_t j = 0 ; j < nfixed ; j += 1) {
 	    if (offs[j] == 0) continue;
 	    perm_string treg = t_regs[offs[j]-1];
-	    PEUnary*nb = new PEUnary('!', sva_id_(loc, r_b[j]));
+	    PEBComp*nb = new PEBComp('N', sva_id_(loc, r_b[j]),
+				   sva_bit_(loc, 1));
 	    FILE_NAME(nb, loc);
 	    PEBLogic*cond = new PEBLogic('a', sva_id_(loc, treg), nb);
 	    FILE_NAME(cond, loc);
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
-		  hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  hit.push_back(increment_failure());
 	    if (kind != 2)
 		  hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
@@ -26065,7 +26078,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (negated) {
 		    /* A match under `not` is the failure. */
 		  PCondit*nm = new PCondit(anyw,
-			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+			increment_failure(), nullptr);
 		  FILE_NAME(nm, loc);
 		  sat.push_back(nm);
 		  anyw = nullptr;
@@ -26088,7 +26101,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> miss;
 	    if (kind != 2 && !negated) {
 		  std::vector<Statement*> mhit;
-		  mhit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  mhit.push_back(increment_failure());
 		  mhit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
 		  PCondit*mc = new PCondit(sva_id_(loc, w_regs[win_n]),
@@ -26142,7 +26155,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> sat;
 	    if (negated) {
 		  PCondit*nm = new PCondit(elig,
-			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+			increment_failure(), nullptr);
 		  FILE_NAME(nm, loc);
 		  sat.push_back(nm);
 	    } else if (kind == 2) {
@@ -26212,7 +26225,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  body.push_back(sva_assign_(loc, r_cnt, add));
 	    } else if (negated) {
 		  PCondit*nm = new PCondit(match,
-			sva_assign_(loc, r_f, sva_bit_(loc, 1)), nullptr);
+			increment_failure(), nullptr);
 		  FILE_NAME(nm, loc);
 		  body.push_back(nm);
 	    } else {
@@ -26242,8 +26255,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  action = err;
 	    }
 	    std::vector<Statement*> hit;
+	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
+				   sva_fail_action_(loc, inst, action)));
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(sva_fail_action_(loc, inst, action));
 	    PCondit*fc = new PCondit(sva_id_(loc, r_f),
 				     sva_block_(loc, hit), nullptr);
 	    FILE_NAME(fc, loc);
