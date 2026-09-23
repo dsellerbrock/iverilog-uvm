@@ -1,16 +1,18 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
-branch: docs/release-overlay-timescale-20260923
-implementation_branch: agent/caliptra-param-consequent-repeat-20260923
-baseline: PR330 head f46696830c3056889ab42c72dc7475f89dc36204; origin/main 4f66ed6666683cce1d122a5819145addc46fa286 (PR328 merged)
+branch: agent/sva-overlap-failure-count-20260923
+baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563; origin/main 4f66ed6666683cce1d122a5819145addc46fa286 (PR328 merged)
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
-  id: CALIPTRA-PARAM-CONSEQUENT-REPEAT
-  phase: PR_PUBLISHED_CI_PENDING
-  standard: IEEE 1800-2017/2023 16.9.2 and 16.12.7; verify exact edition text before patching.
-  evidence: docs/conformance/session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json
-  next: Merge PR329 after a completed passing exact-head CI job; then retarget and merge PR330 after its own completed passing exact-head CI job. Caliptra's standalone bind-target error remains separate.
+  id: SVA-LITERAL-OVERLAP-FAILURE-COUNT
+  phase: SELECTED_REPRODUCER_TO_FREEZE
+  standard: IEEE 1800-2017/2023 16.12.7; verify exact edition wording before patching.
+  evidence: docs/conformance/DISCOVERED_DEBT.md and the paired literal-versus-symbolic comparison at PR330 head.
+  next: Freeze the same-edge overlap reducer and confirm baseline failure in both editions; then repair exact per-attempt verdict multiplicity in pform.cc.
+parallel_assessment:
+  id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
+  scope: Evidence-only standalone reducer in evidence/opentitan-aon-triggered-reducer-20260923; Claude owns implementation-overlap files.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
     head: 098080821454e9d2119141290cd2408fc76f3a6d
@@ -20,7 +22,7 @@ pending_prs:
     head: f46696830c3056889ab42c72dc7475f89dc36204
     status: Required local gates passed; current-head CI pending. Stacked on PR329.
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/331
-    head: Read the live PR head before merging; this handoff commit cannot contain its own hash.
+    head: 3566335a5bc02148d17b940670cceb05e7888563
     status: Release-overlay timescale and fresh blocker evidence; stacked on PR330. Retarget after PR330 merges.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
@@ -34,4 +36,4 @@ preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first and verified against current source; no worktree graph created.
-next_command: "gh pr view 329 --json state,isDraft,headRefOid,statusCheckRollup,mergeStateStatus"
+next_command: "sed -n '17590,18020p' pform.cc"
