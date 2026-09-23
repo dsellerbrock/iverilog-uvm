@@ -1,4 +1,4 @@
-/* M12-3: VPI force/release + cbForce/cbRelease on a single bit-select. */
+/* M12-3: VPI force/release of a bit, observed from its whole variable. */
 # include  <vpi_user.h>
 # include  <string.h>
 
@@ -7,8 +7,7 @@ static PLI_INT32 fcb(struct t_cb_data*d)
       int tm = -1;
       if (d->time)
 	    tm = (int)d->time->low;
-      vpi_printf("cb reason=%d name=%s time=%d\n",
-		 (int)d->reason, vpi_get_str(vpiName, d->obj), tm);
+      vpi_printf("cb reason=%d time=%d\n", (int)d->reason, tm);
       return 0;
 }
 
@@ -21,12 +20,13 @@ static vpiHandle bit3(void)
 static PLI_INT32 setup(PLI_BYTE8*ud)
 {
       vpiHandle b = bit3();
+      vpiHandle sig = vpi_handle_by_name((char*)"top.sig", 0);
       s_cb_data cb;
       s_vpi_time t;
       (void)ud;
       vpi_printf("bit type=%d\n", (int)vpi_get(vpiType, b));
       memset(&t, 0, sizeof t); t.type = vpiSimTime;
-      memset(&cb, 0, sizeof cb); cb.obj = b; cb.time = &t; cb.cb_rtn = fcb;
+      memset(&cb, 0, sizeof cb); cb.obj = sig; cb.time = &t; cb.cb_rtn = fcb;
       cb.reason = cbForce;   vpi_register_cb(&cb);
       cb.reason = cbRelease; vpi_register_cb(&cb);
       return 0;

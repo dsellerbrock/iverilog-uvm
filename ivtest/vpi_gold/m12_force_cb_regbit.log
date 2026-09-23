@@ -1,0 +1,6 @@
+Compiling vpi/m12_force_cb_regbit.c...
+Making m12_force_cb_regbit.vpi from  m12_force_cb_regbit.o...
+vpi error: cbForce/cbRelease callback on an object that cannot carry a force (type=49)
+vpi error: cbForce/cbRelease callback on an object that cannot carry a force (type=49)
+REGISTER bit=1 whole=1 part=1 netbit=1
+RESULT failures=0 whole=1/1 part=1/1 netbit=1/1
