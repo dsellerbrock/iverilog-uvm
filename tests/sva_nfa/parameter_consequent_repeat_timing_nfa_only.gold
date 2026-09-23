@@ -1,0 +1,2 @@
+PASSED
+tests/sva_nfa/parameter_consequent_repeat_timing_nfa_only.sv:72: $finish called at 142 (1s)

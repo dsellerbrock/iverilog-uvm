@@ -1,5 +1,12 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-PARAM-CONSEQUENT-REPEAT — symbolic repetition in an SVA consequent
+
+- **State:** IN_PROGRESS on a separate implementation branch. The [local candidate](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json) executes the focused shape in both editions, removes the two dropped-property diagnostics from the clean Caliptra v2.1.2 formal file, and passes the required local gates. Publication/CI and full Caliptra DV/formal qualification remain separate.
+- **Requirement:** IEEE 1800-2017/2023 §§16.9.2 and 16.12.7 require the consecutive repetition and implication to use each instance's bound with correct match, failure, vacuity, and disable behavior. Confirm exact edition wording before patching.
+- **Cause and evidence:** `pform.cc` retains the bound as `rep_kind 4`, but `sva_parameter_repeat_try_assertion_` accepts only an antecedent repetition and the NFA refuses this sentinel. The [paired pinned-source and minimal-reducer baseline](session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json) shows the property drop; a literal-bound control compiles. A separate standalone bind-target error is not the SVA defect.
+- **Closure:** Reuse instance-sized bound and assertion dispatch machinery, prove executable W=2/W=3 timing, failure, overlap, vacuity, disable, and zero/invalid-bound behavior in both editions, then recompile the pinned source and run required gates. Never substitute the declaration default or count compilation alone as implementation.
+
 ### CALIPTRA-REJ-BOUNDED-RUNTIME — scoreboard/zeroize testbench race
 
 - **State:** A minimal downstream testbench patch is focused-tested in an isolated copy. The pristine Caliptra v2.1.2 / Adams Bridge v2.0.3 release remains unmodified and fails this unit test.
@@ -16,14 +23,14 @@
 
 ### TASK-CODEGEN-ERROR-DROPPED — task-body target errors do not fail compilation
 
-- **State:** IN_PROGRESS, locally fixed at `a1c94078b` pending PR/CI. On base `3be18e4b6`, a class task with an unsupported target form reported a `vvp.tgt error` but returned compile status 0 and emitted an invalid image.
+- **State:** CLOSED in [PR328](https://github.com/dsellerbrock/iverilog-uvm/pull/328) at `4f66ed666` after local gates and one completed current-head CI job passed. Later CI jobs remain separately observable. On base `3be18e4b6`, a class task with an unsupported target form reported a `vvp.tgt error` but returned compile status 0 and emitted an invalid image.
 - **Cause:** `draw_task_definition` returns the `show_statement` error count, but `draw_scope` discards it in `tgt-vvp/vvp_scope.c`; the adjacent function path adds its count to `vvp_errors`.
 - **Evidence:** Local reducer and base compile logs in `evidence/opentitan-codegen-assessment-20260923/`; [candidate local gates](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) pass. The current SPI compile has zero target errors, though separate semantic degradation remains.
 - **Closure:** Propagate task-body errors without suppressing diagnostics; permanently test a still-unsupported task-body form with nonzero compile status and a valid neighboring task. This does not implement the selected-bit NBA.
 
 ### VIF-NBA-SELECTED-BIT — dynamic property bit-select NBA is unsupported
 
-- **State:** IN_PROGRESS, locally fixed at `a1c94078b` pending PR/CI. On base `3be18e4b6`, five SPI Host driver assignments to `vif.sio[i]` emitted unsupported-form errors.
+- **State:** CLOSED in [PR328](https://github.com/dsellerbrock/iverilog-uvm/pull/328) at `4f66ed666` after local gates and one completed current-head CI job passed. Later CI jobs remain separately observable. On base `3be18e4b6`, five SPI Host driver assignments to `vif.sio[i]` emitted unsupported-form errors.
 - **Requirement:** IEEE 1800-2017 and 1800-2023 §10.4.2 evaluate variable LHS components (including index and virtual-interface reference) and RHS when the NBA executes, with the update deferred to the NBA region.
 - **Evidence:** Reduced base source and compile log in `evidence/opentitan-codegen-assessment-20260923/`; [candidate record](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) includes paired-edition tests and all required local gates. Four inline-constraint index warnings and a dropped queue-pop expression still prevent an SPI semantic compile pass.
 - **Closure:** Capture receiver, selector, and four-state RHS at enqueue; update only the selected packed bit in the NBA region; prove old value before NBA and captured value afterward in both editions, plus boundaries and focused neighboring regressions. Do not claim SPI DV success from codegen alone.

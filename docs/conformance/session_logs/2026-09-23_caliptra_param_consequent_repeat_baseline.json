@@ -1,0 +1,117 @@
+{
+  "id": "CALIPTRA-PARAM-CONSEQUENT-REPEAT",
+  "classification": "IEEE_1800_SVA_UNSUPPORTED_CONSEQUENT_PARAMETER_REPEAT",
+  "compiler_head": "098080821454e9d2119141290cd2408fc76f3a6d",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "engine_sha256": "148cdbcca0d2b120c845e483cfbc12176754dbb2d5e2ba450c0ed772e42d4105",
+  "pinned_caliptra_head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "pinned_source": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv",
+  "pinned_source_sha256": "3dd21dc899d0bf76d2234b5d26a30bc68f6c1b9731bee552fdd592f8049fff5f",
+  "reducer": "consequent_repeat.sv",
+  "control": "literal_control.sv",
+  "runs": [
+    {
+      "edition": "2017",
+      "case": "pinned",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "fv_ecc_hmac_drbg_interface_constraints_m",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv"
+      ],
+      "exit": 3,
+      "stdout": "",
+      "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv:53: sorry: this parameter-valued consecutive repetition composition is not supported by the instance-elaborated assertion engine yet; the property is dropped rather than using the parameter declaration default.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv:98: sorry: this parameter-valued consecutive repetition composition is not supported by the instance-elaborated assertion engine yet; the property is dropped rather than using the parameter declaration default.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv:105: error: bind target module/interface 'ecc_hmac_drbg_interface' is not defined in this compilation.\n"
+    },
+    {
+      "edition": "2017",
+      "case": "reducer",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "test",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-param-repeat-20260923/consequent_repeat.sv"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-param-repeat-20260923/consequent_repeat.sv:2: sorry: this parameter-valued consecutive repetition composition is not supported by the instance-elaborated assertion engine yet; the property is dropped rather than using the parameter declaration default.\n"
+    },
+    {
+      "edition": "2017",
+      "case": "literal_control",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "test",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-param-repeat-20260923/literal_control.sv"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "edition": "2023",
+      "case": "pinned",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "fv_ecc_hmac_drbg_interface_constraints_m",
+        "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv"
+      ],
+      "exit": 3,
+      "stdout": "",
+      "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv:53: sorry: this parameter-valued consecutive repetition composition is not supported by the instance-elaborated assertion engine yet; the property is dropped rather than using the parameter declaration default.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv:98: sorry: this parameter-valued consecutive repetition composition is not supported by the instance-elaborated assertion engine yet; the property is dropped rather than using the parameter declaration default.\n/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv:105: error: bind target module/interface 'ecc_hmac_drbg_interface' is not defined in this compilation.\n"
+    },
+    {
+      "edition": "2023",
+      "case": "reducer",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "test",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-param-repeat-20260923/consequent_repeat.sv"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-param-repeat-20260923/consequent_repeat.sv:2: sorry: this parameter-valued consecutive repetition composition is not supported by the instance-elaborated assertion engine yet; the property is dropped rather than using the parameter declaration default.\n"
+    },
+    {
+      "edition": "2023",
+      "case": "literal_control",
+      "command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-gassertions",
+        "-tnull",
+        "-s",
+        "test",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-param-repeat-20260923/literal_control.sv"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "limits": "The pinned standalone compile also lacks its bind target; its two parameter-repetition diagnostics occur independently. The literal control compile is not a runtime SVA qualification.",
+  "reducer_source": "module repeat_checker #(parameter integer W = 3)(input logic clk, rst_n, start, ready);\n  a: assume property (@(posedge clk) disable iff (!rst_n)\n      start |=> !ready[*W] ##1 ready);\nendmodule\nmodule test;\n  logic clk, rst_n, start, ready;\n  repeat_checker #(.W(2)) c2(.*);\n  repeat_checker #(.W(3)) c3(.*);\nendmodule\n",
+  "reducer_source_sha256": "8bf8954198e4398c3bd24f3b07e5a7c7fbef547b1c3c51199e18403f7718ce07",
+  "literal_control_source": "module repeat_checker(input logic clk, rst_n, start, ready);\n  a: assume property (@(posedge clk) disable iff (!rst_n)\n      start |=> !ready[*3] ##1 ready);\nendmodule\nmodule test;\n  logic clk, rst_n, start, ready;\n  repeat_checker c(.*);\nendmodule\n",
+  "literal_control_source_sha256": "2d22bf0fa7248d390a79076fa4c987e108ca7a94b9cf6f1e3ebdaefd142d18fe",
+  "scope": "Pinned standalone file compile plus minimal paired compiler reducer/control. No assertion runtime pass or full Caliptra formal qualification.",
+  "expected": "Each instance must use its own parameter value in the consequent repetition; valid source must not drop the property."
+}
