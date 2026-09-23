@@ -1,5 +1,12 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
+
+- **State:** REPRODUCED on `origin/main` `42f324c90` in both 2017 and 2023 modes; selected in `.ai/ACTIVE_WORK.yaml`. The separate PR332 and PR333 heads remain frozen while CI is queued.
+- **Requirement:** IEEE 1800-2017/2023 §§14.12 and 16.14.6 scope a default clocking to its containing module and permit it to supply an otherwise unclocked concurrent assertion. The declaration's later textual position must not turn earlier module assertions into missing-clock errors.
+- **Cause and evidence:** The pinned clean Caliptra v2.1.2 `fv_ecc_dsa_sequencer.sv` has five assertions at lines 91–95 before its default clocking at line 97; the current compiler reports five missing-clock errors. The paired late/early/no-default reducers and pinned command are recorded in `evidence/caliptra-late-default-baseline-20260923/baseline.json`. `pform_make_assertion` parks the earlier assertions, then `pform_endmodule` pops their module before the pending-procedural flush rejects them.
+- **Closure:** Retry parked assertions while the validated module default clock remains in scope; retain no-default and invalid-reference diagnostics, procedural clock inference, and nested-scope behavior. Prove checker execution with paired-edition positive, negative, and boundary tests. The pinned file may still fail on unrelated released-source symbols; compile progress is not Caliptra formal or DV qualification.
+
 ### CALIPTRA-PARAM-CONSEQUENT-REPEAT — symbolic repetition in an SVA consequent
 
 - **State:** IN_PROGRESS on a separate implementation branch. The [local candidate](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json) executes the focused shape in both editions, removes the two dropped-property diagnostics from the clean Caliptra v2.1.2 formal file, and passes the required local gates. Publication/CI and full Caliptra DV/formal qualification remain separate.
