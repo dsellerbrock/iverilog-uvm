@@ -1,0 +1,8 @@
+Compiling vpi/m12_assert_start_identity.c...
+Making m12_assert_start_identity.vpi from  m12_assert_start_identity.o...
+ERROR: vpi/m12_assert_start_identity.v:5: 
+       Time: 25000  Scope: top
+ERROR: vpi/m12_assert_start_identity.v:5: 
+       Time: 60000  Scope: top
+PASSED
+vpi/m12_assert_start_identity.v:22: $finish called at 62000 (1ps)
