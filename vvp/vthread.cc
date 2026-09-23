@@ -17772,6 +17772,8 @@ bool of_FORCE_LINK_OFF(vthread_t thr, vvp_code_t cp)
  */
 bool of_FORCE_VEC4(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
 
       vvp_vector4_t value = thr->pop_vec4();
@@ -17796,6 +17798,8 @@ bool of_FORCE_VEC4(vthread_t thr, vvp_code_t cp)
  * literal packed offset of zero, matching %store/vec4a. */
 bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       unsigned off_idx = cp->bit_idx[0];
       int64_t address = thr->words[3].w_int;
       int64_t off = off_idx ? thr->words[off_idx].w_int : 0;
@@ -17832,6 +17836,8 @@ bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
  */
 bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
       unsigned base_idx = cp->bit_idx[0];
       int64_t base = thr->words[base_idx].w_int;
@@ -17884,6 +17890,8 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
  */
 bool of_FORCE_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
 
       unsigned base_idx = cp->bit_idx[0];
@@ -17913,6 +17921,8 @@ bool of_FORCE_VEC4_OFF_D(vthread_t thr, vvp_code_t cp)
 
 bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       vvp_net_t*net  = cp->net;
       double value = thr->pop_real();
 
@@ -27338,6 +27348,8 @@ bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t cp)
  */
 static bool do_release_vec(vvp_code_t cp, bool net_flag)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
       unsigned base  = cp->bit_idx[0];
       unsigned width = cp->bit_idx[1];
@@ -27870,6 +27882,8 @@ bool of_RELEASE_REG(vthread_t thr, vvp_code_t cp)
  * variables, so released bits retain their last forced visible value. */
 bool of_RELEASE_REG_A(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       unsigned off_idx = cp->bit_idx[0];
       unsigned wid_idx = cp->bit_idx[1];
       int64_t address = thr->words[3].w_int;
@@ -27911,6 +27925,8 @@ bool of_RELEASE_REG_A(vthread_t thr, vvp_code_t cp)
 /* The type is 1 for registers and 0 for everything else. */
 bool of_RELEASE_WR(vthread_t thr, vvp_code_t cp)
 {
+      vvp_force_statement_context stmt_context(
+	    vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
       unsigned type  = cp->bit_idx[0];
 

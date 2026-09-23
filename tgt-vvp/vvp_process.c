@@ -1264,6 +1264,18 @@ void show_stmt_file_line(ivl_statement_t net, const char* desc)
       }
 }
 
+static void emit_force_release_identity(ivl_statement_t stmt, int force)
+{
+      fprintf(vvp_out, "FR_%p %%file_line %u %u \"VPI %s statement\";\n",
+              stmt, ivl_file_table_index(ivl_stmt_file(stmt)),
+              ivl_stmt_lineno(stmt), force ? "force" : "release");
+}
+
+static void emit_force_release_identity_end(void)
+{
+      fprintf(vvp_out, "    %%file_line 0 0 \"End force/release statement\";\n");
+}
+
 static int show_stmt_alloc(ivl_statement_t net)
 {
       ivl_scope_t scope = ivl_stmt_call(net);
@@ -2772,7 +2784,9 @@ static int show_stmt_force(ivl_statement_t net)
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
 
             draw_eval_real(ivl_stmt_rval(net));
+            emit_force_release_identity(net, 1);
             force_real_to_lval(net);
+            emit_force_release_identity_end();
 
       } else {
 	    unsigned force_width = 0;
@@ -2785,7 +2799,9 @@ static int show_stmt_force(ivl_statement_t net)
 
               /* Write out initial continuous assign instructions to assign
                  the expression value to the l-value. */
+            emit_force_release_identity(net, 1);
             force_vector_to_lval(net);
+            emit_force_release_identity_end();
       }
 
       force_link_rval(net, ivl_stmt_force_link_rval(net));
@@ -2995,6 +3011,7 @@ static int show_stmt_release(ivl_statement_t net)
       unsigned lidx;
 
       show_stmt_file_line(net, "Release statement.");
+      emit_force_release_identity(net, 0);
 
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
 	    unsigned type = 0;
@@ -3013,7 +3030,7 @@ static int show_stmt_release(ivl_statement_t net)
 		       converted to a canonical offset of 1'bx. Skip the
 		       deassignment in this case. */
 		  if (number_is_unknown(word_idx))
-			return 0;
+			goto force_release_done;
 		  use_word = get_number_immediate(word_idx);
 	    }
 
@@ -3021,7 +3038,7 @@ static int show_stmt_release(ivl_statement_t net)
 
 	    fprintf(vvp_out, "    %%release/wr v%p_%lu, %u;\n",
 		    sig, use_word, type);
-	    return 0;
+	    goto force_release_done;
       }
 
       for (lidx = 0 ;  lidx < ivl_stmt_lvals(net) ;  lidx += 1) {
@@ -3049,10 +3066,10 @@ static int show_stmt_release(ivl_statement_t net)
 
 		  assert(number_is_immediate(word_idx, IMM_WID, 0));
 		  if (number_is_unknown(word_idx))
-			return 0;
+			goto force_release_done;
 		  use_word = get_number_immediate(word_idx);
 		  if (use_word >= ivl_signal_array_count(lsig))
-			return 0;
+			goto force_release_done;
 
 		  if (force_array_is_automatic_(lsig)) {
 			fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot release an "
@@ -3061,11 +3078,11 @@ static int show_stmt_release(ivl_statement_t net)
 				ivl_signal_basename(lsig),
 				ivl_signal_array_base(lsig) + (long)use_word);
 			vvp_errors += 1;
-			return 0;
+			goto force_release_done;
 		  }
 
 		  if (!prepare_force_array_lval_(lval, &off_index))
-			return 0;
+			goto force_release_done;
 
 		  width_index = allocate_word();
 		  fprintf(vvp_out, "    %%ix/load %d, %u, 0; release array width\n",
@@ -3083,7 +3100,7 @@ static int show_stmt_release(ivl_statement_t net)
 		&& !force_array_is_vec4_(lsig)) {
 		  assert(number_is_immediate(word_idx, IMM_WID, 0));
 		  if (number_is_unknown(word_idx))
-			return 0;
+			goto force_release_done;
 		  use_word = get_number_immediate(word_idx);
 		  fprintf(stderr, "%s:%u: vvp.tgt sorry: cannot release a word "
 			  "of a non-integral variable array (%s[%ld]).\n",
@@ -3091,7 +3108,7 @@ static int show_stmt_release(ivl_statement_t net)
 			  ivl_signal_basename(lsig),
 			  ivl_signal_array_base(lsig) + (long)use_word);
 		  vvp_errors += 1;
-		  return 0;
+		  goto force_release_done;
 	    }
 
 	    part_off_ex = ivl_lval_part_off(lval);
@@ -3102,7 +3119,7 @@ static int show_stmt_release(ivl_statement_t net)
 		       converted to a canonical offset of 1'bx. Skip the
 		       assignment in this case. */
 		  if (number_is_unknown(part_off_ex))
-			return 0;
+			goto force_release_done;
 		  part_off = get_number_immediate(part_off_ex);
 	    }
 
@@ -3121,7 +3138,7 @@ static int show_stmt_release(ivl_statement_t net)
 		       converted to a canonical offset of 1'bx. Skip the
 		       assignment in this case. */
 		  if (number_is_unknown(word_idx))
-			return 0;
+			goto force_release_done;
 		  use_word = get_number_immediate(word_idx);
 	    }
 
@@ -3131,6 +3148,8 @@ static int show_stmt_release(ivl_statement_t net)
 		    opcode, lsig, use_word, part_off, use_wid);
       }
 
+force_release_done:
+      emit_force_release_identity_end();
       return 0;
 }
 
