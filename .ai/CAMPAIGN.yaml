@@ -1,33 +1,30 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
-branch: agent/opentitan-queue-pop-20260923
-baseline: PR328 head 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f; origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
+branch: agent/caliptra-param-consequent-repeat-20260923
+baseline: PR329 head 098080821454e9d2119141290cd2408fc76f3a6d; origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
-  id: OT-SPI-QUEUE-POP-DROPPED
-  phase: FOCUS_VALIDATED_BROAD_PENDING
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
-  first_published_head: 1541e276009eb16c88b0f2bd2794c858d7bdb01f
-  ci: Pending on the current PR head; check its rollup before merge. PR328 remains the base dependency.
-  standard: IEEE 1800-2017/2023 5.13 and 7.10.2.4.
-  source_test_commit: 3b6d1986ff1633ba8c329f0dabdeb0369deb15e3
-  evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
-  boundary_evidence: docs/conformance/session_logs/2026-09-23_queue_pop_assoc_boundary.json
-  separate_boundary: Statement-context associative-array queue pops still compile; ASSOC-QUEUE-POP-STATEMENT is recorded and elaborate.cc ownership remains with Claude.
-  next: PR328 current-head CI then rebase; run applicable broad gates at the next coherent checkpoint; keep SPI semantic warnings explicit.
-prior_candidate:
-  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/328
-  source_test_commit: a1c94078b
-  qualification: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
-  status: Required local compiler/ivtest/JSON/SVA/real-DPI UVM gates passed; current-head CI queued, merge follow-up active.
+  id: CALIPTRA-PARAM-CONSEQUENT-REPEAT
+  phase: REPRODUCED_ROOT_CAUSED
+  standard: IEEE 1800-2017/2023 16.9.2 and 16.12.7; verify exact edition text before patching.
+  evidence: docs/conformance/session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json
+  next: Implement instance-sized consequent repetition with executable paired-edition pass/fail/vacuity/disable tests; do not count compilation alone.
+pending_prs:
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/328
+    head: 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f
+    status: Required broad local gates passed; current-head CI running; merge after one completed passing current-head job.
+  - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
+    head: 098080821454e9d2119141290cd2408fc76f3a6d
+    status: Paired queue-pop focus and pinned SPI compile passed; current-head CI queued. Earlier heads' queued runs canceled. Merge after PR328 and one current-head passing job.
+    separate_boundary: Statement-context associative-array queue pops still compile; ASSOC-QUEUE-POP-STATEMENT is recorded and elaborate.cc remains Claude-owned.
 release_profiles:
   record: docs/conformance/release_overlays/README.md
   merged_pr: https://github.com/dsellerbrock/iverilog-uvm/pull/327
   meaning: Pinned stable sources with selected source overlays and necessary options for the test; neither full DV suite qualified.
 application_status:
   opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
-  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails; full DV remains unqualified. Upstream PR303 open.
+  caliptra: Patched Adams Bridge rej_bounded 100-vector replay passes; pristine release fails. Clean v2.1.2 formal file has two dropped parameter-valued consequent repetitions in both editions on current compiler. Full DV and formal qualification remain open; upstream Adams Bridge PR303 is open.
 preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence are preserved.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.

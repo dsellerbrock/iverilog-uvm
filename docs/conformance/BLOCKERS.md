@@ -1,5 +1,12 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-PARAM-CONSEQUENT-REPEAT — symbolic repetition in an SVA consequent
+
+- **State:** SELECTED for a separate implementation branch. The clean Caliptra v2.1.2 formal file drops two properties in both `-g2017` and `-g2023`; the current compiler exits nonzero. No runtime or formal qualification is claimed.
+- **Requirement:** IEEE 1800-2017/2023 §§16.9.2 and 16.12.7 require the consecutive repetition and implication to use each instance's bound with correct match, failure, vacuity, and disable behavior. Confirm exact edition wording before patching.
+- **Cause and evidence:** `pform.cc` retains the bound as `rep_kind 4`, but `sva_parameter_repeat_try_assertion_` accepts only an antecedent repetition and the NFA refuses this sentinel. The [paired pinned-source and minimal-reducer baseline](session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json) shows the property drop; a literal-bound control compiles. A separate standalone bind-target error is not the SVA defect.
+- **Closure:** Reuse instance-sized bound and assertion dispatch machinery, prove executable W=2/W=3 timing, failure, overlap, vacuity, disable, and zero/invalid-bound behavior in both editions, then recompile the pinned source and run required gates. Never substitute the declaration default or count compilation alone as implementation.
+
 ### CALIPTRA-REJ-BOUNDED-RUNTIME — scoreboard/zeroize testbench race
 
 - **State:** A minimal downstream testbench patch is focused-tested in an isolated copy. The pristine Caliptra v2.1.2 / Adams Bridge v2.0.3 release remains unmodified and fails this unit test.
