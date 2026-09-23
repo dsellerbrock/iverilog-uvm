@@ -28,6 +28,13 @@
 - **Evidence:** Reduced base source and compile log in `evidence/opentitan-codegen-assessment-20260923/`; [candidate record](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) includes paired-edition tests and all required local gates. Four inline-constraint index warnings and a dropped queue-pop expression still prevent an SPI semantic compile pass.
 - **Closure:** Capture receiver, selector, and four-state RHS at enqueue; update only the selected packed bit in the NBA region; prove old value before NBA and captured value afterward in both editions, plus boundaries and focused neighboring regressions. Do not claim SPI DV success from codegen alone.
 
+### OT-SPI-QUEUE-POP-DROPPED — parenthesis-free class-property queue pop is dropped
+
+- **State:** IN_PROGRESS on a branch stacked after PR328. The pinned OpenTitan SPI Host source calls `cmd_check(item.data.pop_front)`; the compiler warns that the expression is dropped, returns success, and loses the queue mutation and byte value.
+- **Requirement:** IEEE 1800-2017/2023 §§5.13 and 7.10.2.4 permit omitting empty parentheses on a direct zero-argument built-in method call; `pop_front` removes and returns the first element. The 2023 §13.4.1 parentheses rule for dereferencing a function return does not apply to this direct value use.
+- **Evidence:** `evidence/opentitan-queue-pop-20260923/repro.sv` fails in both editions without parentheses; its `-DPARENS_CONTROL` form passes in both. The warning originates in `PEIdent::elaborate_expr_class_member_` in `elab_expr.cc`.
+- **Closure:** Reuse the existing typed queue-method expression path, check the return value and side effect including an empty queue, reject invalid arity, and pass focused neighboring regressions. Full SPI DV remains separate.
+
 This file is a **backlog**, not an authorization to implement. Per
 `AGENTS.md`, only `.ai/ACTIVE_WORK.yaml` (status: `in_progress`, naming a
 blocker ID from this file) authorizes implementation work. Reading a row
