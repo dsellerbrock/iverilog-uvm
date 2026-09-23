@@ -1,0 +1,2 @@
+ivltests/sv_inside_const_array_parameter_invalid_2023.v:4: error: Array lhs needs an array index here.
+1 error(s) during elaboration.
