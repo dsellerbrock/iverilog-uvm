@@ -6,9 +6,15 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: CALIPTRA-LATE-DEFAULT-CLOCKING
-  phase: REPRODUCED
+  phase: FOCUSED_TESTED
   evidence: evidence/caliptra-late-default-baseline-20260923/baseline.json on origin/main 42f324c90, paired red/early/no-default and pinned ECC compile controls; installed ivl SHA 1ddd808cd9ffda39.
-  next: Implement and test the pform.cc flush correction without touching release sources.
+  next: Publish the committed pform.cc correction after review and revision-scoped evidence; pinned ECC formal now stops only at separate released-source DSA_NOP.
+parallel_active_blocker:
+  id: OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG
+  phase: REPRODUCED
+  evidence: evidence/opentitan-next-independent-20260923/result.json on pinned clean Earlgrey-PROD-M6 adc_ctrl_sim.
+  owner: Codex + reused Luna; ivlpp/lexor.lex and dedicated macro regressions only; coordinator owns shared builds and test output.
+  next: Confirm IEEE macro lexical behavior and patch the first ADC compile blocker, preserving a separate Claude-owned direct-cast runtime issue.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/332
     head: 9093a9e9f17a21847549a8433b28d59089a9d958
@@ -29,4 +35,4 @@ preservation:
   user_dirty: AGENTS.md and unrelated untracked evidence remain untouched.
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
-next_command: "Assign Sol pform.cc and dedicated test fixture only; coordinator builds and runs paired focus after patch."
+next_command: "Assign Luna ivlpp/lexor.lex and dedicated macro regression only; coordinator continues Caliptra PR integration and owns all builds."

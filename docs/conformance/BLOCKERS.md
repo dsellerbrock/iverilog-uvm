@@ -1,5 +1,12 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG — cast splits a constraint macro actual
+
+- **State:** REPRODUCED on the pinned, clean Earlgrey-PROD-M6 `adc_ctrl_sim` release target; authorized as a separate `ivlpp/lexor.lex` lane in `.ai/ACTIVE_WORK.yaml`.
+- **Requirement:** Preserve nested parentheses in a macro actual, including the apostrophe and opening parenthesis of an SV cast containing an unbased unsized literal. Confirm the applicable 2017/2023 macro and lexical clauses before patching.
+- **Cause and evidence:** The first ADC smoke compile diagnostic follows `adc_value_t'('1)` inside `DV_CHECK_RANDOMIZE_WITH_FATAL`; `ivlpp/lexor.lex` consumes `'(` as one quoted-item token, leaving the inner `)` to end the macro argument. [Pinned target and reducer record](../../evidence/opentitan-next-independent-20260923/result.json) distinguishes the failing casted macro from ordinary-literal macro and procedural-cast controls.
+- **Closure:** Patch only the macro scanner; prove exact expansion and paired-edition positive, malformed-call negative, and nested/string boundary tests. Recompile the pinned ADC target and record the next real blocker. The separate direct nonmacro constraint cast runtime width mismatch remains outside this lane; compile progress is not ADC DV success.
+
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 
 - **State:** REPRODUCED on `origin/main` `42f324c90` in both 2017 and 2023 modes; selected in `.ai/ACTIVE_WORK.yaml`. The separate PR332 and PR333 heads remain frozen while CI is queued.
