@@ -59,7 +59,15 @@ parallel_spi_parameter_foreach_lane:
   reproducer: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; pinned Earlgrey-PROD-M6 spi_device_env_cov.sv line 296 has the same shape.
   files: elaborate.cc and the smallest necessary lexical parameter/type lookup implementation, plus dedicated ivtest fixtures only. No VPI runtime files, Verilator, pinned application source, shared manifests, or build outputs.
   acceptance: Iterate all constant package string-array entries inside a class constructor with correct index and values; empty array is vacuous; missing/nonarray target fails loudly; paired 2017/2023 regressions and neighboring foreach controls pass. Coordinator replays pinned SPI Device compile after integration.
-  state: Coordinator-authorized after ADC inner-size proved too large for a bounded patch; distinct source ownership from isolated DOE Verilator lane; PR339 head remains fixed.
+  state: Candidate lexical lookup is locally built and installed; paired focused 10/10 pass. Pinned SPI Device errors drop strict 12 to 11 and commercial-unsafe 8 to 7; package foreach error is gone. Manifest integration and PR remain open.
+parallel_spi_struct_queue_size_lane:
+  id: OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
+  standards: IEEE 1800-2017/2023 queue size query and no-argument method-call spelling; verify the applicable clause and preserve strict struct-member errors.
+  reproducer: evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv fails in both editions; released spi_device_scoreboard.sv lines 1294 and 2235 report the same error.
+  files: elab_expr.cc and dedicated ivtest fixtures only. No elaborate.cc package foreach edits, VPI files, Verilator, pinned application source, shared manifests, or build outputs.
+  acceptance: Packed-struct element queue `.size` and `.size()` return equal live counts for empty and populated queues; genuine packed-struct `.size` without such a member stays an error; paired-edition tests and neighboring queue/string/assoc controls pass. Coordinator replays pinned SPI Device compile.
+  state: Coordinator-authorized after paired RED and source snapshot verification; independent of the package foreach source file.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated Verilator rebuild, DOE replay, and integration review.

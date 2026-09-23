@@ -61,7 +61,15 @@ parallel_spi_parameter_foreach_lane:
   evidence: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; released spi_device_env_cov.sv line 296 has the same package-parameter foreach.
   acceptance: Correct package constant array iteration inside class constructor, empty boundary, invalid target rejection, and paired-edition neighboring foreach checks.
   dependency: Independent of isolated Verilator DOE lane; ADC inner agent made no source edit and released elaborate.cc ownership. PR339 head stays fixed.
-  state: Coordinator-authorized; agent may edit only owned compiler files and tests.
+  state: Candidate source locally built/installed; paired focused 10/10 pass and pinned SPI Device error count strict 12→11, commercial-unsafe 8→7. Coordinator still owns manifests and PR.
+parallel_spi_struct_queue_size_lane:
+  id: OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
+  files: elab_expr.cc; dedicated ivtest fixtures only. No elaborate.cc, isolated Verilator, application source, or shared outputs.
+  evidence: evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv and baseline.json RED in both editions; pinned spi_device_scoreboard.sv lines 1294 and 2235.
+  acceptance: Live queue-of-packed-struct size is identical for `.size` and `.size()` at zero and multiple entries; genuine struct-member negative remains an error; paired focused checks and pinned compile replay.
+  dependency: Independent of package-parameter foreach `elaborate.cc`; PR339 head fixed and coordinator owns shared integration.
+  state: Coordinator-authorized for a new lower-cost implementation agent.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
