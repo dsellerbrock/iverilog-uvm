@@ -1,7 +1,14 @@
 # Current evidence and work
 
+The [Caliptra KV SVA diagnostic overlay replay](session_logs/2026-09-23_caliptra_kv_sva_overlay_l0.json)
+is scoped to pinned Caliptra `v2.1.2` and Verilator. It removes false-antecedent
+inner diagnostics while retaining detailed failure output; this is diagnostic
+evidence with a RISC-V multilib caveat, not full L0 or Caliptra DV qualification.
+
 The [ADC guarded-distribution and OpenTitan fileset record](session_logs/2026-09-23_opentitan_adc_guarded_dist_fileset_focus.json)
-is scoped to compiler HEAD `17dcc0baf`. The guarded large-range `dist` correction
+is scoped to solver and matrix commits `4e14d8dde`/`e94e25e37`. The focused
+checks preceded their rebase onto merged PR336; relevant source and tests are
+byte-identical after the rebase. The guarded large-range `dist` correction
 passes paired 2017/2023 focused checks (4+4) and neighboring distribution
 checks (36+36). The pinned ADC smoke now gets past the exact-distribution
 resolver but still fails at time 0 because global randomization cannot resize

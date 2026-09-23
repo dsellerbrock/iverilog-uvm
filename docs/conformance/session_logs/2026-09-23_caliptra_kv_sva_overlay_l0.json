@@ -1,0 +1,52 @@
+{
+  "date": "2026-09-23",
+  "kind": "test-selected downstream SVA diagnostic overlay replay",
+  "compiler_branch": "agent/opentitan-adc-guarded-dist-fileset-20260923",
+  "compiler_head": "22a70f1cd5e4b708e8f7ae486818ff47950513cf",
+  "application": "Caliptra v2.1.2",
+  "release_revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "adams_bridge_submodule": "v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0",
+  "scope": "Pinned Caliptra iccm_lock replay under Verilator; independent of Icarus compiler runtime. No full L0 suite or full Caliptra DV run.",
+  "pristine_observation": {
+    "inner_sva_diagnostics": 146107,
+    "outer_comprehensive_sva_diagnostics": 0,
+    "testcase_passed_marker": 1
+  },
+  "overlay": {
+    "patch": "docs/conformance/release_overlays/caliptra/kv_debug_check_pure.patch",
+    "sha256": "f9c2673783665cd4c6f0d174f63823f935642bad50a9a62772a949420ad7a7e8",
+    "source_file": "src/integration/asserts/caliptra_top_sva.sv",
+    "pinned_source_sha256": "6bd2ade137a90c0701aab28951ba6f8918724e0467c21756b0c308e6e9081c89",
+    "patched_disposable_source_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+    "change": "The property consequent calls the comprehensive checker with report_error=0; the assertion failure action emits the comprehensive failure then calls it with report_error=1. The property predicate and first-mismatch return remain unchanged."
+  },
+  "focused_fixture": {
+    "source": "evidence/caliptra-kv-sva-overlay-20260923/tests/kv_debug_overlay_check.sv",
+    "simulator": "Verilator 5.050",
+    "options": ["--binary", "--timing", "--assert", "--top-module kv_debug_overlay_check"],
+    "positive": "+trigger +match: no SVA diagnostics, TESTCASE PASSED",
+    "vacuous": "no plusargs: false antecedent, no SVA diagnostics, TESTCASE PASSED",
+    "negative": "+trigger: one comprehensive and one detailed mismatch diagnostic, EXPECTED_ASSERTION_FAILURE_OBSERVED"
+  },
+  "pinned_replay": {
+    "test": "iccm_lock",
+    "verilator": "Verilator 5.050 2026-07-01 rev vUNKNOWN-built20260701",
+    "only_warning_option": "-Wno-MISINDENT",
+    "exit_code": 0,
+    "timed_out": false,
+    "sva_error_total": 0,
+    "inner_detailed_mismatch_diagnostics": 0,
+    "outer_comprehensive_failure_diagnostics": 0,
+    "testcase_passed_marker": 1,
+    "testcase_failed_marker": 0,
+    "result_json": "evidence/caliptra-kv-sva-overlay-20260923/patched-iccm-lock.result.json",
+    "command_json": "evidence/caliptra-kv-sva-overlay-20260923/patched-iccm-lock.command.json",
+    "raw_make_stdout": {
+      "retained_in_repository": false,
+      "remains_local": true,
+      "sha256": "79900832c5a0908ec0e4dfcfba8ded57ddb36dbc133ba923d89b7225b459d8de"
+    }
+  },
+  "toolchain_caveat": "The evidence-local xPack GNU RISC-V Embedded GCC 12.2.0 aliases were used. The release-selected rv32imc_zicsr_zifencei/ilp32 build resolved libc.a and libgcc.a from the default root; their architecture attributes include A, unlike the narrower rv32imc/ilp32 multilib. Shell stderr also reported missing nproc; the single-test build and simulation exited zero.",
+  "interpretation": "Diagnostic evidence only. The pass marker is not signoff or qualification; no full L0 suite or full Caliptra DV pass is claimed."
+}

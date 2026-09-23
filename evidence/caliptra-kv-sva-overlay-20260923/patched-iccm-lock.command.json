@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/usr/bin/make",
+    "-C",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923/scratch/run",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923/scratch/source/tools/scripts/Makefile",
+    "TESTNAME=iccm_lock",
+    "CALIPTRA_INTERNAL_TRNG=1",
+    "VERILATOR=verilator -Wno-MISINDENT",
+    "verilator"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908",
+  "run_dir": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923/scratch/run",
+  "environment": {
+    "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923/scratch/source",
+    "CALIPTRA_WORKSPACE": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923",
+    "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923/scratch/source/src/caliptra_prim_generic",
+    "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic",
+    "CALIPTRA_AXI4PC_DIR": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-kv-sva-overlay-20260923/scratch/source/src/integration/tb",
+    "PATH": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-verilator-l0-enable-20260923/aliases:/opt/homebrew/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/X11/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/usr/local/share/dotnet:~/.dotnet/tools:/opt/homebrew/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Applications/Xamarin Workbooks.app/Contents/SharedSupport/path-bin:/Users/danielellerbrock/flutter/bin:/Users/danielellerbrock/.codex/tmp/arg0/codex-arg0uVaeGl:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/danielellerbrock/.bun/bin:/Users/danielellerbrock/oss-cad-suite/bin:/Users/danielellerbrock/.jenv/shims:/Users/danielellerbrock/.jenv/bin:/opt/homebrew/opt/openjdk@17/bin:/Users/danielellerbrock/.local/bin:/opt/homebrew/sbin:/Library/Frameworks/Python.framework/Versions/3.8/bin:/Users/danielellerbrock/.cargo/bin:/Users/danielellerbrock/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources"
+  },
+  "toolchain_note": "Inherits the caller PATH; evidence-local RISC-V command aliases are prepended. Only Verilator warning override: -Wno-MISINDENT."
+}

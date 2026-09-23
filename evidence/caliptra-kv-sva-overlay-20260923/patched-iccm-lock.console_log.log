@@ -1,0 +1,22 @@
+5630900 - ----------------------------------
+5679900 - ICCM Lock Test from VeeR EL2  !!
+5726100 - ----------------------------------
+5921700 - Copying code from 50023C80 [through 50023DC8] to 40000000
+6215800 - First pass through ICCM LOCK test!
+6276900 - Test DCCM at addr: 0x500286B4
+6372400 - Rd data (0xAAAAAAAA) after DCCM wr matches exp (0xAAAAAAAA)!
+6561600 - Comparing first pass of the copy code from 50023C80 [through 50023DC8] to 40000000
+7034300 - Copying code from 50023EB4 [through 500246A8] to 40000000
+7208800 - **** NMI ****
+7232000 - At the end of first pass through ICCM LOCK test: resetting the core!
+12946500 - ----------------------------------
+12995500 - ICCM Lock Test from VeeR EL2  !!
+13041700 - ----------------------------------
+13268000 - Copying code from 50023DC8 [through 50023EB4] to 40000000
+13528300 - Second pass through ICCM LOCK test!
+13590100 - Test DCCM at addr: 0x500286B4
+13685600 - Rd data (0x0) after DCCM wr matches exp (0x0)!
+13854600 - Comparing second pass of the copy code from 50023DC8 [through 50023EB4] to 40000000
+14320900 - Copying code from 50023EB4 [through 500246A8] to 40000000
+14495900 - **** NMI ****
+14519000 - Success! Reached end of ICCM lock firmware during second iteration
