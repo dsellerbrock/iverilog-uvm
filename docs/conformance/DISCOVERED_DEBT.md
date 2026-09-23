@@ -3368,7 +3368,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **File/function:** `elab_expr.cc` class-event member lookup and likely `elaborate.cc`/VVP event query and wait handling.
 - **Possible clause:** IEEE 1800-2017/2023 §15.5.3.
 - **Evidence:** [Exact reducer and neighboring control](../../evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md); the fresh pinned SPI compile remains at nine strict or five commercial-unsafe errors.
-- **Triage status:** reproduced, not selected for implementation until PR339 establishes the next baseline; all three event errors are one semantic mechanism.
+- **Triage status:** selected as `OT-SPI-CLASS-EVENT-TRIGGERED` on merged main `6fd804a39`; all three event errors are one semantic mechanism.
 
 ### DD-050 — OpenTitan SPI scope randomization rejects a byte queue
 
@@ -3378,3 +3378,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Possible clauses:** IEEE 1800-2017 §§18.4 and 18.12; verify exact 2023 wording before implementation.
 - **Evidence:** [Fresh pinned compile](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json). A focused queue-size/rollback reducer is specified but not yet run.
 - **Triage status:** standards-grounded source trace, reducer pending; do not apply an elaboration-only acceptance workaround.
+
+### DD-051 — multi-object class-event list waits on a static event
+
+- **Discovered while working:** OT-SPI-CLASS-EVENT-TRIGGERED.
+- **Observation:** `@(a.ev or b.ev)` compiles, but `->b.ev` does not wake the waiter even by the next time step. The emitted VVP waits on `Ewait_0 .event/or E_ev,E_ev` while the trigger uses `%evt/obj 0`; the selected class instances are lost.
+- **File/function:** `elaborate.cc` explicit `PEventStatement` event-list lowering; VVP emission reflects a static `NetEvent` rather than per-object `NetEvWaitObj` branches.
+- **Possible clause:** IEEE 1800-2017/2023 §§15.5.1–15.5.2 and class-instance event identity.
+- **Evidence:** [Paired reducer and emitted-VVP diagnosis](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) on PR339 source incorporated into main `6fd804a39`.
+- **Reproducer status:** confirmed in both editions; one-object event waits remain a passing control.
+- **Triage status:** untriaged; separate from `.triggered` expression reads and waits. Do not expand the active ticket to repair explicit `@(...)` event lists.
+
+### DD-052 — explicit named-event `triggered()` call aborts `ivl`
+
+- **Discovered while working:** OT-SPI-CLASS-EVENT-TRIGGERED.
+- **Observation:** `event ev; ev.triggered()` aborts in `ivl` at an assertion, while the parenthesis-free spelling has a separate working path. A class-event `obj.ev.triggered()` call is also rejected as an unknown method.
+- **File/function:** `elab_expr.cc` event-method call elaboration; exact root cause and baseline status are pending.
+- **Possible clause:** IEEE 1800-2017/2023 §15.5.3 gives the `function bit triggered()` prototype.
+- **Evidence:** [Minimal crash reducer](../../evidence/ot-event-triggered-call-crash-20260923/README.md) on the current class-event candidate; compiler exit 134 on macOS.
+- **Reproducer status:** confirmed on the candidate, baseline comparison pending.
+- **Triage status:** untriaged; separate from the selected parenthesis-free class-event `.triggered` ticket.

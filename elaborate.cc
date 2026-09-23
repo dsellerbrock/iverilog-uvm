@@ -1050,6 +1050,15 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
       return obj;
 }
 
+NetExpr* elaborate_class_event_target(Design*des, NetScope*scope,
+				     const PEIdent*id,
+				     const pform_name_t&full_path,
+				     unsigned&slot_out)
+{
+	      return elaborate_class_event_target_(des, scope, *id, full_path,
+					   id->lexical_pos(), slot_out);
+}
+
 /*
  * Resolve an indexed reference into a named-event array, e.g. `arr[i]`
  * used by `->arr[i]`, `->>arr[i]`, or `@(arr[i])` (IEEE 1800-2017 6.17:
@@ -21537,6 +21546,11 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	      // event fires and must fall straight through when the event
 	      // already fired in the current time step.
 	    std::vector<NetEvent*> trig_events;
+	    struct class_event_wait_target_t {
+		  const NetExpr*obj;
+		  unsigned slot;
+	      };
+	      std::vector<class_event_wait_target_t> trig_obj_targets;
 	    {
 		  std::function<void(const NetExpr*)> collect_trig_events;
 		  collect_trig_events = [&](const NetExpr*e) -> void {
@@ -21550,8 +21564,19 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 			      collect_trig_events(un->expr());
 			      return;
 			}
-			if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
-			      if (strcmp(sf->name(), "$ivl_event_method$triggered") == 0
+		    if (const NetESFunc*sf = dynamic_cast<const NetESFunc*>(e)) {
+			  if (strcmp(sf->name(),
+				     "$ivl_class_event_method$triggered") == 0
+			      && sf->nparms() == 2) {
+				const NetEConst*slot_expr =
+				      dynamic_cast<const NetEConst*>(sf->parm(1));
+				if (slot_expr) {
+				      trig_obj_targets.push_back({sf->parm(0),
+							 static_cast<unsigned>(slot_expr->value().as_ulong())});
+				      return;
+				}
+			  }
+			  if (strcmp(sf->name(), "$ivl_event_method$triggered") == 0
 				  && sf->nparms() == 1) {
 				    if (const NetEEvent*ee =
 					dynamic_cast<const NetEEvent*>(sf->parm(0))) {
@@ -21564,13 +21589,29 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 				    collect_trig_events(sf->parm(i));
 			      return;
 			}
-		  };
-		  collect_trig_events(expr);
+	      };
+	      collect_trig_events(expr);
+	    }
+	    /* Re-evaluate when the event prefix changes too (IEEE 1800-2017
+	       15.5.3). This also lets a null handle's suspended event branch be
+	       cancelled and re-armed after the handle is rebound. */
+	    for (const class_event_wait_target_t&target : trig_obj_targets) {
+		  NexusSet*obj_inputs = target.obj->nex_input();
+		  if (!obj_inputs)
+			continue;
+		  if (!wait_set)
+			wait_set = new NexusSet;
+		  for (unsigned idx = 0; idx < obj_inputs->size(); idx += 1)
+			wait_set->add(
+			      const_cast<Nexus*>(obj_inputs->at(idx).lnk.nexus()),
+			      obj_inputs->at(idx).base, obj_inputs->at(idx).wid);
+		  delete obj_inputs;
 	    }
 	    for (NetEvent*tev : trig_events)
 		  wait->add_event(tev);
 
-	      if (wait_set == 0 && trig_events.empty()) {
+	      if (wait_set == 0 && trig_events.empty()
+		  && trig_obj_targets.empty()) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_no_event_sources) {
 				cerr << get_fileline() << ": warning: wait expression has no event "
@@ -21587,7 +21628,8 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    return 0;
       }
 
-	      if (wait_set != 0 && wait_set->size() == 0 && trig_events.empty()) {
+	      if (wait_set != 0 && wait_set->size() == 0
+		  && trig_events.empty() && trig_obj_targets.empty()) {
 		    if (gn_system_verilog()) {
 			  if (!warned_wait_empty_event_set) {
 				cerr << get_fileline() << ": warning: wait expression has empty event "
@@ -21796,7 +21838,31 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	      if (vif_wait)
 	            wait_families.push_back(vif_wait);
 	      if (object_wait)
-	            wait_families.push_back(object_wait);
+		    wait_families.push_back(object_wait);
+	      for (const class_event_wait_target_t&target : trig_obj_targets) {
+		    NetEvWaitObj*obj_wait = new NetEvWaitObj(
+			  target.obj->dup_expr(), target.slot);
+		    obj_wait->set_line(*this);
+		    /* A null handle reads .triggered as false. Do not let the
+		       existing %wait/obj null path complete immediately and spin
+		       the outer wait loop; suspend this family until a sibling
+		       handle-change dependency rechecks the condition. */
+		    NetEvent*null_event = new NetEvent(scope->local_symbol());
+		    null_event->set_line(*this);
+		    null_event->local_flag(true);
+		    scope->add_event(null_event);
+		    NetEvWait*null_wait = new NetEvWait(nullptr);
+		    null_wait->add_event(null_event);
+		    null_wait->set_line(*this);
+		    NetExpr*nonnull = new NetEBComp(
+			  'N', target.obj->dup_expr(),
+			  new NetENull(target.obj->net_type()));
+		    nonnull->set_line(*this);
+		    NetCondit*guarded_wait = new NetCondit(
+			  nonnull, obj_wait, null_wait);
+		    guarded_wait->set_line(*this);
+		    wait_families.push_back(guarded_wait);
+	      }
 
 	      ivl_assert(*this, !wait_families.empty());
 	      NetProc*wait_proc = wait_families.front();
@@ -21915,9 +21981,8 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	   (`@(obj.ev)`) is per-instance: wait on that object's own event
 	   (IEEE 1800-2017 15.5). */
       if (expr_.size() == 1 && expr_[0]
-	  && (expr_[0]->type() == PEEvent::POSITIVE
-	      || expr_[0]->type() == PEEvent::ANYEDGE)
-	  && expr_[0]->expr()) {
+          && expr_[0]->type() == PEEvent::ANYEDGE
+          && expr_[0]->expr()) {
 	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
 		  unsigned slot = 0;
 		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,

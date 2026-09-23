@@ -20174,6 +20174,27 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 	    return expr_width_;
       }
 
+	    // IEEE 1800-2017/2023 15.5.3: only a resolved class event's
+	    // .triggered property has the one-bit type. Resolve the event target
+	    // itself so an ordinary class property named "triggered" keeps its
+	    // declared type and invalid members do not acquire a fabricated width.
+	    if (gn_system_verilog() && path_.name.size() >= 2
+		&& path_.name.back().name == perm_string::literal("triggered")
+		&& path_.name.back().index.empty()) {
+		  pform_name_t event_path = path_.name;
+		  event_path.pop_back();
+		  unsigned slot = 0;
+		  if (NetExpr*obj = elaborate_class_event_target(
+			    des, scope, this, event_path, slot)) {
+			delete obj;
+			expr_type_ = IVL_VT_BOOL;
+			expr_width_ = 1;
+			min_width_ = 1;
+			signed_flag_ = false;
+			return expr_width_;
+		  }
+	    }
+
       /* Static properties reached through a class typedef must use the
 	 typedef's default specialization, not the generic class signal that
 	 symbol_search finds by following the alias as a scope.  Do the same
@@ -21865,6 +21886,32 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	          des->errors += 1;
                   return 0;
             }
+
+	    // IEEE 1800-2017/2023 15.5.3: a class event's triggered property
+	    // is queried on the selected object and its event slot. Keep this
+	    // ahead of ordinary class-property lookup, where events are not
+	    // represented as properties.
+	    if (gn_system_verilog() && path_.name.size() >= 2
+		&& path_.name.back().name == perm_string::literal("triggered")
+		&& path_.name.back().index.empty()) {
+		  pform_name_t event_path = path_.name;
+		  event_path.pop_back();
+		  unsigned slot = 0;
+		  if (NetExpr*obj = elaborate_class_event_target(
+			    des, scope, this, event_path, slot)) {
+			NetESFunc*tmp = new NetESFunc(
+			      "$ivl_class_event_method$triggered",
+			      IVL_VT_BOOL, 1, 2);
+			NetEConst*slot_expr = new NetEConst(verinum(static_cast<uint64_t>(slot), 32));
+			obj->set_line(*this);
+			slot_expr->set_line(*this);
+			tmp->parm(0, obj);
+			tmp->parm(1, slot_expr);
+			tmp->set_line(*this);
+			return tmp;
+		  }
+	    }
+
             if (sr.net->scope()->type() == NetScope::MODULE) {
                   if (scope->need_const_func()) {
                         cerr << get_fileline() << ": error: A reference to a "

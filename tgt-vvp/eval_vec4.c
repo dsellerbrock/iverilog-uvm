@@ -1676,6 +1676,18 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%evtest E_%p;\n", ivl_expr_event(earg));
 	    return;
       }
+      if (strcmp(ivl_expr_name(expr),
+		 "$ivl_class_event_method$triggered")==0) {
+	      /* IEEE 1800-2017/2023 15.5.3: query the selected object's
+	         private event slot for this time step. */
+	    ivl_expr_t obj_arg = ivl_expr_parm(expr, 0);
+	    ivl_expr_t slot_arg = ivl_expr_parm(expr, 1);
+	    assert(obj_arg && slot_arg && ivl_expr_type(slot_arg) == IVL_EX_NUMBER);
+	    draw_eval_object(obj_arg);
+	    fprintf(vvp_out, "    %%evtest/obj %" PRIu64 ";\n",
+		    (uint64_t)ivl_expr_uvalue(slot_arg));
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr),"$ivl_event_method$triggered_arr")==0) {
 	      /* IEEE 1800-2017 15.5.3 / 6.20: read one named-event array
 	         element's triggered-this-time-step state. parm(0) carries

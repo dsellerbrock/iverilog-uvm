@@ -5,6 +5,11 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The tested 2023 §15.5.3 class-event `.triggered` behavior shares the
+[2017 implementation scope and paired local evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-class-event-triggered-state).
+No edition-specific difference or full clause/application qualification is
+claimed.
+
 The tested 2023 §§7.5/18.4 nested outer resize and §18.5.7.1 sparse-key
 constraint `foreach` share the [2017 implementation and paired local evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--nested-outer-resize-and-sparse-key-constraint-foreach).
 The §38.36.1 force/release callback statement identity shares the [2017
