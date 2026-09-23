@@ -32,6 +32,12 @@
 - **Cause and evidence:** The first ADC smoke compile diagnostic follows `adc_value_t'('1)` inside `DV_CHECK_RANDOMIZE_WITH_FATAL`; `ivlpp/lexor.lex` consumes the three-character `'('` sequence as one quoted-item token, leaving the inner `)` to end the macro argument. [Pinned target and reducer record](session_logs/2026-09-23_opentitan_adc_macro_arg_baseline.json) distinguishes the failing casted macro from ordinary-literal macro and procedural-cast controls.
 - **Closure:** The [candidate and local tests](session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json) preserve cast parentheses and assignment-pattern braces and pass the selected regression gates. The pinned ADC target now compiles but ignores a filter-size constraint, so this is semantic DEBT, not ADC DV success. The separate direct nonmacro cast-width runtime mismatch also remains.
 
+### OT-ADC-CLASS-HANDLE-COLLECTION-RESIZE — ADC config randomization resizes class-handle collection
+
+- **State:** Open; the guarded large-range `dist` exact-resolver failure is fixed at `c139b264e` and focused-tested, but the pinned smoke still fails at time 0 on collection resizing.
+- **Evidence:** [Current paired distribution and ADC runtime record](session_logs/2026-09-23_opentitan_adc_guarded_dist_fileset_focus.json). The resolver reports no exact-dist errors; randomization then stops with `ERROR: resizing a random class-handle collection during a global solve is not yet supported.` No DV pass follows.
+- **Closure:** Implement and test the required class-handle collection resize semantics, then rerun the pinned ADC smoke with the documented UVM 1.2 setup. Keep this separate from the cast-width mismatch and filter-size constraint debt.
+
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 
 - **State:** Merged in [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) after local checks and Ubuntu 24.04 exact-head CI passed; source/test commit `342226068` was based on `origin/main` `42f324c90`.

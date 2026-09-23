@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-23",
+  "scope_revision": "17dcc0baff7ebabbe85182b85620d1292010f7a6",
+  "branch": "agent/opentitan-adc-guarded-dist-fileset-20260923",
+  "fixes": [
+    {
+      "revision": "c139b264ed4fddc9c7645ebfea4680d2fbd08487",
+      "change": "Guard-aware exact resolution handles a large distribution when hard constraints pin the active subject.",
+      "focused_checks": {
+        "2017": "4 passed, 0 failed",
+        "2023": "4 passed, 0 failed",
+        "evidence": "evidence/opentitan-adc-dist-triage-20260923/guarded-legacy.log and guarded-vvp.log"
+      },
+      "neighboring_distribution_checks": {
+        "legacy": "36 passed, 0 failed",
+        "json": "36 passed, 0 failed"
+      }
+    },
+    {
+      "revision": "17dcc0baff7ebabbe85182b85620d1292010f7a6",
+      "change": "OpenTitan matrix setup selects generated RTL filesets for IP, system, and DV roots.",
+      "evidence": "evidence/opentitan-pinmux-source-closure-triage-20260923/triage.json",
+      "checks": [
+        "scripts/opentitan_matrix.py --self-test passed",
+        "Focused lowrisc:ip:pinmux:0.1 generated setup includes pinmux_reg_pkg and compiles; row status remains DEBT due to unrelated warnings.",
+        "Focused lowrisc:systems:ast:0.1 setup emits the generated pinmux_reg_pkg source.",
+        "Manual direct-IP compile using the fileset_ip source list exited 0."
+      ]
+    }
+  ],
+  "pinned_adc_runtime": {
+    "release": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "core": "lowrisc:dv:adc_ctrl_sim:0.1",
+    "test": "adc_ctrl_base_test / adc_ctrl_smoke_vseq",
+    "command_record": "evidence/opentitan-adc-dist-triage-20260923/guarded-adc-runtime-command.json",
+    "result_record": "evidence/opentitan-adc-dist-triage-20260923/guarded-adc-runtime-result.json",
+    "result": "Runtime exits 0 but fails the test at time 0. There are zero exact-dist resolver errors; randomization next reports that resizing a random class-handle collection during a global solve is unsupported, followed by a UVM_FATAL because cfg.randomize() failed.",
+    "log_sha256": "7c8a647eb90a026430eabf739d13397312979baf9fc8fc386bde3e5f268a53a0",
+    "pass_markers": false,
+    "qualification": "No ADC DV pass. The independent direct-constraint cast-width mismatch and filter-size constraint debt are also not resolved by this checkpoint."
+  },
+  "matrix_boundary": {
+    "prior_source_closure_diagnostic": "The old generated pinmux source list omitted pinmux_reg_pkg; focused triage records the setup correction.",
+    "full_matrix_rerun": false,
+    "qualification": "Setup/source-closure evidence only; no full OpenTitan matrix or application qualification is claimed."
+  }
+}

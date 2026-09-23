@@ -1,5 +1,14 @@
 # Current evidence and work
 
+The [ADC guarded-distribution and OpenTitan fileset record](session_logs/2026-09-23_opentitan_adc_guarded_dist_fileset_focus.json)
+is scoped to compiler HEAD `17dcc0baf`. The guarded large-range `dist` correction
+passes paired 2017/2023 focused checks (4+4) and neighboring distribution
+checks (36+36). The pinned ADC smoke now gets past the exact-distribution
+resolver but still fails at time 0 because global randomization cannot resize
+its class-handle collection; this is not a DV pass. The matrix runner now
+selects generated RTL filesets, and focused pinmux setup compiles. The full
+OpenTitan matrix was not rerun.
+
 The [case-exit stack balance record](session_logs/2026-09-23_pwrmgr_case_exit_stack_balance.json)
 links the focused compiler checks to the pinned released OpenTitan pwrmgr replay:
 all named pwrmgr tests at seed 1 and smoke seeds 1–6 retain matched TL scoreboard
