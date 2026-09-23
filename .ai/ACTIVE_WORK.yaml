@@ -127,6 +127,14 @@ inline_random_argument_phase_authorized:
   restrictions: Do not early evaluate random actuals, fabricate known outputs, mutate class-wide descriptors for a callsite, or weaken unsupported diagnostics.
   implementation_lane: Retained Terra inline_target_capture; first trace exact serialization and call frame linkage, then implement smallest complete staged path with coordinator review at any new boundary. No agent shared builds/tests.
 
+inline_random_argument_lifetime_gate_20260923:
+  finding: Staged invocation currently resolves only class-owned constraint_state_calls by class slot and binds only the receiver @; randomize_staged_state_s does not retain the invoking caller automatic context.
+  violated_invariant: A deferred caller-owned wrapper could read stale or wrong automatic storage after suspension; eager capture would also violate random-argument priority.
+  rejected_local_shortcut: Implementing only target/self staged arguments would leave the required caller lexical path wrong and cannot close the selected blocker.
+  authorized_boundary: Attach per-randomize-call inline descriptors to extra_ir with wrapper target, receiver mode, fv result slot, random dependencies, and retained caller read/write context. Tag planner calls as inline, invoke against the retained target or saved caller frame as appropriate, and restore that context after child completion. Preserve class descriptor path and its ABI.
+  ownership: Terra inline_target_capture owns the bounded source implementation and new prefixed regressions; coordinator owns metadata, review, build/install, shared tests and integration.
+  stop_condition: If automatic-context retention cannot be made safe across all staged exits/rollback, stop before partial implementation and report the precise lifetime invariant.
+
 permanent_target_regressions:
   files: ivtest/ivltests/sv_constraint_inline_function_{lookup,rebind,once,null}_{2017,2023}.v and paired JSON/golds; registered in regress-sv.list and regress-vvp.list.
   focus: evidence/review-20260920/spi-external-cfg-constraint-next/build4/permanent/results.json (legacy8/8,JSON8/8).
