@@ -1,15 +1,23 @@
 status: coordinator_authorized_parallel_implementation
 branch: agent/ot-spi-constraint-inside-queue-concat-20260923
 baseline: PR344 exact head db4f447dd0ba88d9980fa4af5e31ae44e3e36118; PR342 and PR343 merged after exact-head CI success.
-blocker: OT-SPI-JEDEC-SAMPLING-LIMIT
-goal: Preserve the passing unchanged released AON timer smoke and advance the unchanged released SPI Device runtime past the false constraint-randomization failure.
-standards: IEEE 1800-2017/2023 section 18.6.3 randomization success on satisfiable constraints and rollback on failure.
-failing_reproducer: evidence/opentitan-spi-jedec-sampling-limit-20260923/reducer.sv compiles in both editions but satisfiable nested 16/8-bit and 11-bit fields fail at runtime; 10-bit and unsatisfiable rollback controls pass.
-expected: Sample a satisfiable joint constraint solution without reporting failure because its solution set exceeds an implementation enumeration cap; preserve UNSAT rollback.
-root_cause: vvp/vvp_z3.cc limits exact joint enumeration to 1024 and converts cap exhaustion into randomize failure.
-allowed_scope: One delegated solver implementation lane below and a disjoint documentation/evidence lane. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
+blocker: OT-SPI-JEDEC-SAMPLING-LIMIT and OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION
+goal: Preserve the passing unchanged released AON timer smoke, advance SPI Device runtime past false constraint-randomization failure, and repair independent CSRNG parser rejection.
+standards: IEEE 1800-2017/2023 section 18.6.3 randomization; sections 3.13 and 28.3.5 interface naming and array instance references.
+failing_reproducer: evidence/opentitan-spi-jedec-sampling-limit-20260923/reducer.sv fails satisfiable nested-field randomization in both editions; evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv fails continuous-assignment parsing in both editions when an interface type and instance array share a name.
+expected: Sample a satisfiable joint constraint solution without reporting failure due to a cap; parse an indexed interface-array member even when its type and instance share a spelling.
+root_cause: vvp/vvp_z3.cc converts complete-joint enumeration cap exhaustion into randomize failure; lexor/pform classifies the indexed same-name interface instance as a type identifier rather than a module-scope instance.
+allowed_scope: Two delegated implementation lanes below with disjoint source ownership. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: Queue concatenation, constraint-context inside, and mixed virtual-interface event fixes are integrated at 2e648c7ec, b7551af50, and 07d8ba6df with paired focused checks. Unchanged released SPI Device compiles without hard errors; its configured flash-mode smoke fails at 8.676568us on the solver cap. Unchanged released AON timer smoke passes at 348420188ps with zero UVM warnings/errors/fatals. The JEDEC reducer is RED in both editions. No full DV suite qualification claim.
+validation: Queue concatenation, constraint-context inside, and mixed virtual-interface event fixes are integrated at 2e648c7ec, b7551af50, and 07d8ba6df with paired focused checks. Unchanged released SPI Device compiles without hard errors; its configured flash-mode smoke fails at 8.676568us on the solver cap. Unchanged released AON timer smoke passes at 348420188ps with zero UVM warnings/errors/fatals. The JEDEC and CSRNG reducers are RED in both editions; Verilator 5.050 accepts the CSRNG reducer read-only. No full DV suite qualification claim.
+parallel_csrng_interface_name_lane:
+  id: OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION
+  owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared builds and integration.
+  standards: IEEE 1800-2017/2023 sections 3.13 and 28.3.5; an interface type and a local instance may share a spelling, and a constant genvar may select an interface-array member.
+  reproducer: evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv and baseline.json; unchanged released CSRNG tb.sv line 85 has the same parse error with -g2017 -gcommercial-unsafe.
+  files: lexor.lex; pform.cc; parse.y only as necessary for root-cause name classification; dedicated ivtest fixtures/golds. No vvp/vvp_z3.cc, other runtime files, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
+  acceptance: Paired 2017/2023 RED minimal and typed release-shaped cases become runtime/compile green; renamed-instance, typed noncollision, scalar same-name, ordinary type-name and invalid member controls retain correct behavior; fresh unchanged released CSRNG compile advances past tb.sv line 85 without accepting invalid syntax. Coordinator owns focused runner and release replay.
+  state: Coordinator-authorized after paired RED and read-only Verilator comparison at 537c19454; implementation pending.
 parallel_spi_jedec_solver_lane:
   id: OT-SPI-JEDEC-SAMPLING-LIMIT
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared builds and integration.
