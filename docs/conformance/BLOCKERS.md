@@ -1,8 +1,15 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### SVA-LITERAL-OVERLAP-FAILURE-COUNT — fixed-linear same-edge verdicts
+
+- **State:** The fixed non-negated linear-checker subset is locally validated on `e54b76124` and open as [PR332](https://github.com/dsellerbrock/iverilog-uvm/pull/332); CI is pending. See the [revision-scoped baseline and qualification record](session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
+- **Requirement:** IEEE 1800-2017/2023 §§16.12.7 and 16.14.1 require a separate verdict and failure action for each distinct antecedent match; §39.4.2 requires callback metadata to retain the actual attempt start.
+- **Cause and correction:** A one-bit failure flag collapsed simultaneous fixed-offset failures, and X/Z checks did not become definite nonmatches. The legacy linear checker now counts distinct failed tokens and carries each start time through the VPI report. The first NFA-only attempt was ineffective and reverted.
+- **Remaining boundary:** Window, unbounded, negated, and other checker families retain their earlier VPI metadata path. Full SVA and formal qualification remain open.
+
 ### CALIPTRA-PARAM-CONSEQUENT-REPEAT — symbolic repetition in an SVA consequent
 
-- **State:** IN_PROGRESS on a separate implementation branch. The [local candidate](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json) executes the focused shape in both editions, removes the two dropped-property diagnostics from the clean Caliptra v2.1.2 formal file, and passes the required local gates. Publication/CI and full Caliptra DV/formal qualification remain separate.
+- **State:** Merged in [PR330](https://github.com/dsellerbrock/iverilog-uvm/pull/330) after exact-head CI success. The [local candidate](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json) executes the focused shape in both editions, removes the two dropped-property diagnostics from the clean Caliptra v2.1.2 formal file, and passed its required local gates. Full Caliptra DV/formal qualification remains separate.
 - **Requirement:** IEEE 1800-2017/2023 §§16.9.2 and 16.12.7 require the consecutive repetition and implication to use each instance's bound with correct match, failure, vacuity, and disable behavior. Confirm exact edition wording before patching.
 - **Cause and evidence:** `pform.cc` retains the bound as `rep_kind 4`, but `sva_parameter_repeat_try_assertion_` accepts only an antecedent repetition and the NFA refuses this sentinel. The [paired pinned-source and minimal-reducer baseline](session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json) shows the property drop; a literal-bound control compiles. A separate standalone bind-target error is not the SVA defect.
 - **Closure:** Reuse instance-sized bound and assertion dispatch machinery, prove executable W=2/W=3 timing, failure, overlap, vacuity, disable, and zero/invalid-bound behavior in both editions, then recompile the pinned source and run required gates. Never substitute the declaration default or count compilation alone as implementation.

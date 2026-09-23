@@ -1,25 +1,38 @@
-status: published_pending_ci
-branch: agent/caliptra-param-consequent-repeat-20260923
-baseline: PR329 head 098080821454e9d2119141290cd2408fc76f3a6d; stacked while PR328 and PR329 await CI
-blocker: CALIPTRA-PARAM-CONSEQUENT-REPEAT
-goal: Execute parameter-valued consecutive repetition inside an implication consequent with the bound resolved per instance, without dropping the property or changing its match and failure timing.
-standards: IEEE 1800-2017 and IEEE 1800-2023 sequence repetition and implication semantics, including 16.9.2 and 16.12.7; confirm edition text before implementation.
-failing_reproducer: evidence/caliptra-param-repeat-20260923/consequent_repeat.sv has start |=> !ready[*W] ##1 ready with W=2 and W=3; both editions exit 1 and drop the property.
-positive_control: evidence/caliptra-param-repeat-20260923/literal_control.sv compiles with [*3] in both editions.
-application_evidence: Pinned clean Caliptra v2.1.2 file src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv has two independent dropped properties at lines 53 and 98 in both editions; standalone bind-target error is separate.
-expected: Each true antecedent starts a distinct next-cycle consequent attempt; each of W repeat cycles must match !ready and the following cycle must match ready. Preserve false-antecedent vacuity, failures, overlapping attempts, four-state sampling, disable iff cancellation, per-instance overrides, and valid zero-bound behavior.
-root_cause: pform.cc retains symbolic repetition as rep_kind 4, but sva_parameter_repeat_try_assertion_ accepts it only in an antecedent with a one-step consequent; the NFA refuses rep_kind 4 and the fallback drops this consequent sequence.
+status: pr_open_ci_pending
+branch: agent/sva-overlap-failure-count-20260923
+baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563 now merged as 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; feature branch remains based on that source head.
+blocker: SVA-LITERAL-OVERLAP-FAILURE-COUNT
+goal: Report one assertion failure action for each distinct live implication attempt whose literal-repetition consequent fails on the same sampled edge.
+standards: IEEE 1800-2017 and IEEE 1800-2023 implication attempt/verdict semantics in 16.12.7; verify exact edition wording before patching.
+failing_reproducer: The paired baseline at 7590c2627 observed one same-edge failure action instead of two; the checked-in reducer and paired current result are recorded in docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
+expected: Distinct active attempts each receive their own fail action; alternate NFA paths belonging to one attempt must not duplicate a verdict. Preserve vacuity, successful attempts, four-state sampling, disable iff cancellation, and pass/fail action ordering.
+root_cause: This literal shape routes through the legacy linear checker, not the NFA. A one-bit failure flag collapsed distinct fixed-offset dying tokens, and sampled X/Z was not classified as a definite nonmatch. The count repair exposed a separate raw-time VPI attempt identity gap, also fixed for this subset.
 allowed_scope:
-  - pform.cc focused instance-elaborated consequent lowering, reusing existing bound preflight and verdict/disable machinery.
-  - Dedicated paired-edition positive, negative, and boundary SVA fixtures and gold files.
+  - pform.cc legacy linear checker fixed-offset verdict representation and dispatch, plus definite-match testing for four-state sampled guards in those same fixed-offset checks.
+  - Dedicated paired-edition positive, negative, and boundary SVA regressions and gold files in tests/sva_nfa and ivtest.
 forbidden:
-  - Caliptra or OpenTitan source changes; parse-time substitution of a parameter default; assertion drops or approximate capped semantics.
-  - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without a documented scope expansion and ownership handoff.
-  - Shared builds, installs, and regression output directories by an implementation agent; coordinator owns them.
-acceptance: Executable W=2 and W=3 instance overrides with exact pass/fail timing; early and terminal failure; overlapping attempts and vacuity; NBA and off-clock disable; W=0 and invalid-bound behavior; both -g2017 and -g2023; pinned Caliptra file reaches no parameter-repeat drop. Focused neighbors and required broad gates before qualification.
-dependency: PR328 merged at 4f66ed666; PR329 remains pending current-head CI. PR330 is stacked on PR329 head but pform.cc work is source-disjoint. Reconcile the stack after PR329 merges.
-evidence: docs/conformance/session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json
-parallel_lane: PR329 queue-pop source and focused evidence are preserved at pushed head 098080821454e9d2119141290cd2408fc76f3a6d while current-head CI runs.
-pr: https://github.com/dsellerbrock/iverilog-uvm/pull/330
-pr_head: f46696830c3056889ab42c72dc7475f89dc36204
-next: Merge PR329 after one completed passing exact-head CI job; retarget PR330 to main and merge only after its own completed passing exact-head CI job. Do not claim Caliptra DV or full SVA qualification. Select a new disjoint blocker after safe ownership handoff.
+  - OpenTitan or Caliptra source edits; counting NFA sibling paths as separate attempts; silent assertion drops or capped approximations.
+  - Edits to PR329/PR330/PR331 heads or Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without coordinator scope expansion.
+  - Shared builds, installations, and shared regression output directories by implementation agents; coordinator owns them.
+acceptance: Met locally at e54b76124 for the stated fixed-linear subset; paired reducers, focused neighbors, integrated gate, full JSON, real-DPI UVM, and make check pass. The revision-scoped session record owns exact evidence.
+implementation_lane:
+  owner: Codex + Sol
+  files: pform.cc legacy linear checker; dedicated SVA tests and gold files only
+  handoff: Implementation integrated locally and published in PR332; exact-head CI pending.
+parallel_assessment_lane:
+  id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
+  owner: Codex + Luna
+  files: evidence/opentitan-spi-device-constraint-reducer-20260923 only
+  scope: Completed evidence-only reducer. The exact hierarchical foreach fails in both editions; dotted and plain controls plus the exact locator pass. No compiler implementation or shared build/install.
+  dependency: Claude owns elaborate.cc; implementation requires explicit ownership handoff.
+completed_assessment: OT-AON-EVENT-TRIGGERED-SENSITIVITY reducer confirms that @(e.triggered) fails elaboration in both editions while @e and wait(e.triggered) controls pass; evidence/opentitan-aon-triggered-reducer-20260923 remains local pending durable evidence review.
+integration_blocker:
+  id: SVA-VPI-ATTEMPT-START-IDENTITY
+  owner: Codex + Sol, continuing the selected SVA implementation lane
+  standard: IEEE 1800-2017 and 2023 39.4.2 requires cbAssertionFailure attemptStartTime to identify the actual attempt.
+  evidence: Resolved for fixed non-negated linear checkers at e54b76124. Distinct t25 callbacks now report start25/start5; VPI 127/127, full real-DPI UVM 358/358, and required local gates pass. See docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
+  allowed_scope: pform.cc fixed linear checker; vpi/sys_sva.c and vpi/libvpi.c; vvp/vpi_scope.cc and vvp/vpi_priv.cc; internal callback API declarations in vpi_user.h; focused VPI tests/gold. Preserve unrelated checker behavior and Claude-owned files.
+  acceptance: Met locally for this subset; PR332 exact-head CI pending. Other checker families retain the two-argument path and remain separate.
+pending_prs: PR329, PR330, and PR331 merged after exact-head CI success; PR332 is open against main.
+failed_attempt: The first candidate changed the NFA engine, but the generated literal image contains legacy t-stage registers and no NFA slot registers. Both paired-edition reducers remained red; evidence/sva-literal-overlap-candidate-20260923/focus.json. Revert that ineffective patch before the legacy correction.
+next: Track PR332 exact-head CI and merge after one current-head success if still ready and mergeable. Do not infer full assertion, formal, or application qualification.

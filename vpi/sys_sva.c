@@ -453,7 +453,7 @@ static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv  = vpi_iterate(vpiArgument, callh);
-      PLI_INT32 idx = 0, reason = 0;
+      PLI_INT32 idx = 0, reason = 0, age = -1;
       (void)name;
       if (argv) {
 	    vpiHandle a;
@@ -467,10 +467,39 @@ static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
 		  reason = v.value.integer;
+	    }
+	    if ((a = vpi_scan(argv))) {
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  age = v.value.integer;
 		  vpi_free_object(argv);
 	    }
       }
-      vpip_assertion_report(idx, reason, vpi_handle(vpiScope, callh));
+      if (age >= 0)
+	    vpip_assertion_report_age(idx, reason,
+				      vpi_handle(vpiScope, callh), age);
+      else
+	    vpip_assertion_report(idx, reason, vpi_handle(vpiScope, callh));
+      return 0;
+}
+
+static PLI_INT32 sva_clock_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      PLI_INT32 idx = 0;
+      (void)name;
+      if (argv) {
+	    vpiHandle a = vpi_scan(argv);
+	    if (a) {
+		  s_vpi_value v;
+		  v.format = vpiIntVal;
+		  vpi_get_value(a, &v);
+		  idx = v.value.integer;
+		  vpi_free_object(argv);
+	    }
+      }
+      vpip_assertion_clock(idx, vpi_handle(vpiScope, callh));
       return 0;
 }
 
@@ -541,5 +570,6 @@ void sys_sva_register(void)
 	   by synthesized checkers; see pform_make_assertion). */
       register_task_("$ivl_register_assertion", sva_reg_assert_calltf);
       register_task_("$ivl_assert_report", sva_report_calltf);
+      register_task_("$ivl_assert_clock", sva_clock_calltf);
       register_one_("$ivl_assert_cb_active", sva_cb_active_calltf);
 }

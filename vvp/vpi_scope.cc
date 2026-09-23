@@ -723,8 +723,20 @@ class __vpiAssertion : public __vpiHandle {
 	    cbs_.push_back(c);
       }
 
-	/* Fire every registered callback whose reason matches. */
-      void fire(int reason)
+	/* Record every sampled checker clock, even when assertion control
+	   suppresses a new start. Ages then index real raw simulation times
+	   instead of assuming a fixed clock period or a gapless START ring. */
+      void clock_tick()
+      {
+	    if (latency_ < 0) return;
+	    clocks_.push_back(schedule_simtime());
+	    while ((int)clocks_.size() > latency_ + 1)
+		  clocks_.erase(clocks_.begin());
+      }
+
+	/* Fire every registered callback whose reason matches. age < 0 keeps
+	   the established two-argument report behavior for other checkers. */
+      void fire(int reason, int age = -1)
       {
 	    if (cbs_.empty()) return;
 	    vvp_time64_t now_raw = schedule_simtime();
@@ -742,7 +754,15 @@ class __vpiAssertion : public __vpiHandle {
 		 (latency_ < 0) reports now, which is exact for same-tick
 		 assertions. */
 	    vvp_time64_t start_raw = now_raw;
-	    if (reason == cbAssertionStart) {
+	    if (age >= 0) {
+		  if ((size_t)age < clocks_.size())
+			start_raw = clocks_[clocks_.size() - 1 - age];
+		  else {
+			vpi_printf("SVA internal error: missing clock for assertion "
+				   "attempt age %d.\n", age);
+			return;
+		  }
+	    } else if (reason == cbAssertionStart) {
 		  if (latency_ >= 0) {
 			starts_.push_back(now_raw);
 			while ((int)starts_.size() > latency_ + 1)
@@ -797,6 +817,7 @@ class __vpiAssertion : public __vpiHandle {
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
+      std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -826,6 +847,23 @@ void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
 	    assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end())
 	    it->second->fire((int)reason);
+}
+
+void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end()) it->second->clock_tick();
+}
+
+void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
+                               vpiHandle scope, PLI_INT32 age)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end()) it->second->fire((int)reason, (int)age);
 }
 
 PLI_INT32 vpip_assertion_cb_active(void)
