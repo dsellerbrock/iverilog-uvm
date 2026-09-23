@@ -1,10 +1,13 @@
-status: PARALLEL_IMPLEMENTATION_IN_PROGRESS
+status: LOCAL_GATES_PASSED_PR_PENDING
 branch: agent/opentitan-nba-20260923
 baseline: origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
+source_test_commit: a1c94078b
+qualification: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
 authorization: Coordinator-authorized parallel OpenTitan codegen work after the merged flag's required local gates passed. The two mechanisms have disjoint source and fixture ownership; shared builds, installs, manifests, and test-output directories belong to the coordinator.
 blocker: TASK-CODEGEN-ERROR-DROPPED
 standards: IEEE 1800-2017/2023 10.4.2 for the provoking NBA; compiler must report unsupported target forms as unsuccessful compilation.
 status_before_fix: REPRODUCED
+current_status: LOCAL_GATES_PASSED_PR_PENDING
 failing_reproducer: evidence/opentitan-codegen-assessment-20260923/nba_task_drop_repro.sv emits a vvp.tgt error but exits 0 and writes an unusable image.
 expected: A task-body target error makes compilation fail; valid tasks still compile and run.
 root_cause_hypothesis: tgt-vvp/vvp_scope.c ignores draw_task_definition's returned show_statement error count while the adjacent function path accumulates it.
@@ -17,7 +20,7 @@ forbidden:
 acceptance: Nonzero compiler exit for a still-unsupported task-body form in both relevant editions; positive valid-task control; focused legacy/JSON checks; no diagnostics weakened.
 parallel_lanes:
   - blocker: VIF-NBA-SELECTED-BIT
-    status: IN_PROGRESS
+    status: LOCAL_GATES_PASSED_PR_PENDING
     standards: IEEE 1800-2017/2023 10.4.2.
     failing_reproducer: evidence/opentitan-codegen-assessment-20260923/vif_nba_selected_bit_pref_fix.sv currently emits unsupported-form error and no working NBA image.
     expected: Capture VIF receiver, dynamic index, and four-state RHS at enqueue; update the selected bit in NBA, preserving neighbors and pre-NBA old value.
@@ -26,6 +29,6 @@ parallel_lanes:
     forbidden: tgt-vvp/vvp_scope.c; shared test manifests/build/install/output; unrelated assignment forms.
     acceptance: Positive low/high-bit and four-state updates, receiver/index/RHS capture and pre-NBA old value in -g2017 and -g2023; focused negative/boundary controls and neighboring tests.
 dependency: Integrate diagnostic-integrity lane before judging SPI compile, but each implementation mechanism and source edit is independent.
-shared_validation: Focused per lane, then applicable broad gates at a coherent milestone; no OpenTitan or Caliptra DV claim from codegen alone.
+shared_validation: Focused paired 2017/2023, make check, legacy ivtest/VPI/negative/runtime invariants, full JSON, SVA NFA, and real-DPI UVM passed on source/test commit a1c94078b. SPI compile exits 0 with no target errors but five semantic degradation warnings; no OpenTitan or Caliptra DV claim.
 completed_baseline_gate: docs/conformance/session_logs/2026-09-23_pr326_postmerge_qualification.json
 application_followup: Caliptra Adams Bridge v2.0.3 rej_bounded patch is focused-tested; upstream PR303 open, pristine and full DV unqualified.

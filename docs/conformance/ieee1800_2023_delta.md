@@ -5,6 +5,11 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The September 23 selected-bit property NBA candidate has separate `-g2023`
+positive, negative, and boundary runs alongside its `-g2017` checks; see the
+[shared scope and evidence](session_logs/2026-09-23_opentitan_nba_codegen_focus.json).
+No edition-specific difference or broader property-NBA qualification is claimed.
+
 This began on 2026-07-29 as Campaign 7's M15 scoping record. The initial method
 used two independent secondary sources — K. Shinozuka,
 "A Subjective Review on IEEE Std 1800-2023" (DVCon Japan 2024, written

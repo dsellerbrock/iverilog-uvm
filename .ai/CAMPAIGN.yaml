@@ -6,17 +6,21 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: TASK-CODEGEN-ERROR-DROPPED
-  phase: IN_PROGRESS
+  phase: LOCAL_GATES_PASSED_PR_PENDING
   requirement: Failed task-body target generation must propagate its error count to the compile result.
   evidence: evidence/opentitan-codegen-assessment-20260923/nba_task_drop_repro.sv
-  next: Delegate the disjoint diagnostic-integrity lane, then integrate and focus-test it before judging OpenTitan SPI compile status.
+  next: Publish the coherent compiler PR; do not close until integrated and required checks pass.
 parallel_lanes:
   - id: VIF-NBA-SELECTED-BIT
-    phase: IN_PROGRESS
+    phase: LOCAL_GATES_PASSED_PR_PENDING
     scope: Dynamic selected-bit NBA on a class or virtual-interface packed property; target lowering and VVP runtime only.
     standards: IEEE 1800-2017/2023 10.4.2.
     evidence: evidence/opentitan-codegen-assessment-20260923/vif_nba_selected_bit_pref_fix.sv
-    next: Delegate with source ownership separate from tgt-vvp/vvp_scope.c; coordinator owns shared builds/install/manifests.
+    next: Publish with task-error lane; follow remaining SPI semantic warnings separately.
+candidate_qualification:
+  source_test_commit: a1c94078b
+  record: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
+  result: All required local compiler, ivtest, JSON, SVA NFA, and real-DPI UVM gates passed; GitHub CI pending.
 baseline_qualification:
   record: docs/conformance/session_logs/2026-09-23_pr326_postmerge_qualification.json
   result: Required local gates passed on merged compiler/test tree; real-DPI UVM 358 passed with -g2012. GitHub CI pending.
@@ -27,7 +31,7 @@ release_profiles:
 application_followup:
   caliptra: Adams Bridge rej_bounded patch focused-tested; upstream PR303 open; pristine and full DV unqualified.
 application_status:
-  opentitan: SPI compile not passed; strict has four type errors and flagged mode has five codegen errors. OpenTitan DV not passed.
+  opentitan: Candidate flagged SPI compile exits 0 with zero target errors, but four unresolved foreach indices and one dropped queue-pop expression preclude semantic compile or DV qualification. Strict mode still rejects the packed container type mismatch.
   caliptra: rej_bounded patched-testbench 100-vector unit replay passes on this worktree's compiler and current Adams Bridge main; pristine release fails and full DV is unqualified.
 release_profile: docs/conformance/release_overlays/README.md # "released OpenTitan/Caliptra" means pinned source plus target-specific patches and options; not full DV qualification.
 preservation:

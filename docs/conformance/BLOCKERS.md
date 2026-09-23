@@ -16,16 +16,16 @@
 
 ### TASK-CODEGEN-ERROR-DROPPED — task-body target errors do not fail compilation
 
-- **State:** IN_PROGRESS on merged `main` `3be18e4b6`; selected as a separate compiler diagnostic-integrity lane. A class task with an unsupported selected-bit property NBA reports a `vvp.tgt error` but returns compile status 0 and emits an invalid image.
+- **State:** IN_PROGRESS, locally fixed at `a1c94078b` pending PR/CI. On base `3be18e4b6`, a class task with an unsupported target form reported a `vvp.tgt error` but returned compile status 0 and emitted an invalid image.
 - **Cause:** `draw_task_definition` returns the `show_statement` error count, but `draw_scope` discards it in `tgt-vvp/vvp_scope.c`; the adjacent function path adds its count to `vvp_errors`.
-- **Evidence:** Local reducer and compile logs in `evidence/opentitan-codegen-assessment-20260923/`. The SPI Host pinned-release compile with `-gcommercial-unsafe` emits five such target errors yet exits 0.
+- **Evidence:** Local reducer and base compile logs in `evidence/opentitan-codegen-assessment-20260923/`; [candidate local gates](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) pass. The current SPI compile has zero target errors, though separate semantic degradation remains.
 - **Closure:** Propagate task-body errors without suppressing diagnostics; permanently test a still-unsupported task-body form with nonzero compile status and a valid neighboring task. This does not implement the selected-bit NBA.
 
 ### VIF-NBA-SELECTED-BIT — dynamic property bit-select NBA is unsupported
 
-- **State:** IN_PROGRESS on merged `main` `3be18e4b6`; selected as an independent lowering/runtime lane. Five SPI Host driver assignments to `vif.sio[i]` emit unsupported-form errors.
+- **State:** IN_PROGRESS, locally fixed at `a1c94078b` pending PR/CI. On base `3be18e4b6`, five SPI Host driver assignments to `vif.sio[i]` emitted unsupported-form errors.
 - **Requirement:** IEEE 1800-2017 and 1800-2023 §10.4.2 evaluate variable LHS components (including index and virtual-interface reference) and RHS when the NBA executes, with the update deferred to the NBA region.
-- **Evidence:** Reduced source and compile log in `evidence/opentitan-codegen-assessment-20260923/` show the current diagnostic and zero compile status. The latter is separately owned by `TASK-CODEGEN-ERROR-DROPPED`.
+- **Evidence:** Reduced base source and compile log in `evidence/opentitan-codegen-assessment-20260923/`; [candidate record](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) includes paired-edition tests and all required local gates. Four inline-constraint index warnings and a dropped queue-pop expression still prevent an SPI semantic compile pass.
 - **Closure:** Capture receiver, selector, and four-state RHS at enqueue; update only the selected packed bit in the NBA region; prove old value before NBA and captured value afterward in both editions, plus boundaries and focused neighboring regressions. Do not claim SPI DV success from codegen alone.
 
 This file is a **backlog**, not an authorization to implement. Per

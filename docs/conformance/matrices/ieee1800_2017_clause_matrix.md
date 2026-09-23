@@ -5,6 +5,16 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — selected-bit property NBA and target error accounting
+
+The [revision-scoped candidate record](../session_logs/2026-09-23_opentitan_nba_codegen_focus.json)
+adds paired 2017/2023 execution evidence for dynamic selected-bit NBA on a
+packed class or virtual-interface property under §10.4.2: the receiver,
+selector, and four-state RHS are captured at execution, and the selected bit
+updates in the NBA region. A separate target-codegen repair makes unsupported
+task-body forms fail compilation. This is a bounded simulation/codegen subset;
+other property NBA forms and application DV remain open.
+
 ### September 23, 2026 — nonstandard `-gcommercial-unsafe` extension
 
 IEEE 1800-2017 §7.6 array element type equivalence remains the strict default.
