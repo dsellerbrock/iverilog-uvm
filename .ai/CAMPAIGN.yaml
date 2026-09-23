@@ -6,9 +6,11 @@ active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
   spi_constraint_inside: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY; GPT-6 Luna owns elaborate.cc constraint IR and, if necessary, vvp/vvp_z3.cc or tgt-vvp/eval_vec4.c plus dedicated tests.
-  spi_queue_concat: OT-SPI-QUEUE-ARRAY-CONCAT integrated at 2e648c7ec; GPT-6 Sol has released source ownership and is doing read-only AON runtime triage.
+  aon_mixed_vif_event: OT-AON-MIXED-VIF-EVENT-WAIT; GPT-6 Sol owns tgt-vvp/vvp_process.c and runtime mixed-event wait support plus dedicated tests. Paired RED reducer is frozen.
+  spi_queue_concat: OT-SPI-QUEUE-ARRAY-CONCAT integrated at 2e648c7ec; source ownership released.
   isolation: Source ownership is disjoint; coordinator owns shared builds/manifests. No Verilator implementation or pinned application-source edits. PR344 head remains fixed for CI.
 recent_merges:
+  pr342: 7d6f0a8dd97a4c206ab5887aff735caa76ed50ba; Caliptra typedef array parameter fix merged after exact-head Ubuntu 22.04 success. Other CI remains observable.
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
   pr336: 6ee647ca7b0119a3a800aebe2559f99d79b0ceff; Ubuntu 24.04 exact-head CI passed before merge.
@@ -18,14 +20,14 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY and OT-SPI-QUEUE-ARRAY-CONCAT
-  phase: QUEUE_CONCAT_INTEGRATED_CONSTRAINT_INSIDE_ACTIVE
+  id: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY and OT-AON-MIXED-VIF-EVENT-WAIT
+  phase: QUEUE_CONCAT_INTEGRATED_CONSTRAINT_AND_AON_PARALLEL
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
   standards: IEEE 1800-2017/2023 sections 11.4.13 and 18.12 for constraint inside; sections 10.10 and 7.10.4 for queue concatenation.
   checkpoint: PR344 published after focused local checks. Queue fixed-array concatenation integrated at 2e648c7ec with paired legacy/JSON focus 8/8 each and neighboring checks 2/2 each. Unchanged released SPI Device replay has one remaining constraint-inside kind-26 error; released AON compiles and advances through UVM activity but has no DV verdict.
-  evidence: evidence/opentitan-spi-constraint-inside-param-20260923 and evidence/opentitan-spi-queue-array-concat-20260923.
-  next: Finish the disjoint constraint-inside lane, integrate focused checks, then publish the next coherent PR. Merge PR342/PR343/PR344 after one exact-head CI success each. Verilator stays read-only.
+  evidence: evidence/opentitan-spi-constraint-inside-param-20260923 and evidence/opentitan-aon-mixed-vif-event-20260923; completed queue splice in evidence/opentitan-spi-queue-array-concat-20260923.
+  next: Finish disjoint constraint-inside and mixed-VIF-event lanes with focused checks, then publish coherent PRs. PR342 merged after exact-head Ubuntu 22.04 success; merge PR343/PR344 after one exact-head CI success each. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.
