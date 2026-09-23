@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "../../tests/sva_nfa/late_default_clock_execution.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "late_default_clock_execution"],
+  "gold": "sv_assert_late_default_clock_execution"
+}
