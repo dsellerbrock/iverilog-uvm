@@ -1,5 +1,12 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT — named antecedent captured as a function
+
+- **State:** SELECTED in `.ai/ACTIVE_WORK.yaml` on a branch stacked after PR332; no implementation or qualification claim yet.
+- **Requirement:** IEEE 1800-2017/2023 §§16.8 and 16.12.7 permit a named sequence in an implication antecedent and require the instance's symbolic consequent repetition to execute.
+- **Evidence:** [Pinned ECC formal bind and paired reducers](../../evidence/caliptra-next-blocker-20260923/result.json) fail with `No function named idletonext` under both editions. Literal-repeat, direct-sequence, and inline-Boolean controls compile. The current helper in `pform.cc` runs before named-sequence splicing.
+- **Closure:** Resolve the declared sequence before Boolean lowering, verify pass/fail/vacuity/disable and W=0/positive bounds at runtime in both modes, preserve an unknown-sequence diagnostic, and recompile the pinned full ECC formal bind without dropped properties. Full Caliptra DV/formal qualification stays separate.
+
 ### SVA-LITERAL-OVERLAP-FAILURE-COUNT — fixed-linear same-edge verdicts
 
 - **State:** The fixed non-negated linear-checker subset is locally validated on `e54b76124` and open as [PR332](https://github.com/dsellerbrock/iverilog-uvm/pull/332); CI is pending. See the [revision-scoped baseline and qualification record](session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
