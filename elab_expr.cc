@@ -920,6 +920,121 @@ static bool validate_array_locator_iterator_(
       return true;
 }
 
+/* Associative find_index() returns each matching declared key. Keep this
+ * separate from the positional queue locator loop so it can only be used
+ * for this method and cannot leak ordinal semantics to sibling locators. */
+static NetExpr* make_assoc_find_index_expr_(
+      const PECallFunction*call, Design*des, NetScope*scope,
+      NetExpr*array_expr, const netqueue_t*container_type,
+      ivl_type_t element_type, const std::vector<named_pexpr_t>&parms)
+{
+      ivl_type_t key_type = container_type->assoc_index_type();
+      if (container_type->assoc_wildcard()) {
+            cerr << call->get_fileline() << ": sorry: find_index() on "
+                 << "wildcard-index associative arrays is not yet "
+                    "implemented (IEEE 1800-2017/2023 7.12.1)."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+      if (!key_type || (key_type->base_type() != IVL_VT_BOOL
+                        && key_type->base_type() != IVL_VT_LOGIC
+                        && key_type->base_type() != IVL_VT_STRING)) {
+            cerr << call->get_fileline() << ": sorry: find_index() on "
+                 << "this associative index type is not yet implemented."
+                 << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+      if (!validate_array_locator_iterator_(call, des,
+                  perm_string::literal("find_index"), parms))
+            return nullptr;
+      if (call->with_constraints().size() != 1
+          || !call->with_constraints().front()) {
+            cerr << call->get_fileline() << ": error: find_index() "
+                 << "requires exactly one with expression." << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+
+      NetNet*recv_net = nullptr;
+      const NetESignal*array_signal =
+            dynamic_cast<const NetESignal*>(array_expr);
+      if (!array_signal || array_signal->word_index()) {
+            recv_net = make_array_method_recv_net_(
+                  call, des, scope, array_expr, container_type, "find_index");
+            if (!recv_net)
+                  return nullptr;
+      }
+
+      perm_string iter_name = perm_string::literal("item");
+      if (!parms.empty()) {
+            const PEIdent*iter_ident =
+                  dynamic_cast<const PEIdent*>(parms.front().parm);
+            iter_name = iter_ident->path().back().name;
+      }
+      NetNet*iter_net = new NetNet(scope, scope->local_symbol(),
+                                   NetNet::REG, element_type);
+      iter_net->set_line(*call);
+      iter_net->local_flag(true);
+      NetNet*key_net = new NetNet(scope, scope->local_symbol(),
+                                  NetNet::REG, key_type);
+      key_net->set_line(*call);
+      key_net->local_flag(true);
+      NetNet*previous = scope->set_signal_alias(iter_name, iter_net);
+      push_array_method_iter_ctx_(iter_net, key_net, true);
+      NetExpr*pred = elab_and_eval(
+            des, scope, call->with_constraints().front(), -1, false);
+      pop_array_method_iter_ctx();
+      scope->restore_signal_alias(iter_name, previous);
+      if (!pred)
+            return nullptr;
+
+      ivl_type_t result_type = array_locator_queue_type_(key_type);
+      NetNet*result_net = new NetNet(scope, scope->local_symbol(),
+                                     NetNet::REG, result_type);
+      result_net->set_line(*call);
+      result_net->local_flag(true);
+      NetExpr*receiver = recv_net
+            ? static_cast<NetExpr*>(new NetESignal(recv_net))
+            : array_expr->dup_expr();
+      if (recv_net)
+            receiver->set_line(*call);
+      NetExpr*element = make_assoc_unique_element_expr_(
+            call, receiver, key_net, element_type);
+      if (!element) {
+            cerr << call->get_fileline() << ": internal error: cannot build "
+                 << "the associative-array find_index element selection."
+                 << endl;
+            des->errors += 1;
+            delete pred;
+            return nullptr;
+      }
+
+      NetESFunc*fn = new NetESFunc(
+            "$ivl_queue_method$assoc_find_index", result_type,
+            recv_net ? 7 : 6);
+      fn->parm(0, array_expr);
+      NetESignal*iter_ref = new NetESignal(iter_net);
+      iter_ref->set_line(*call);
+      fn->parm(1, iter_ref);
+      NetESignal*result_ref = new NetESignal(result_net);
+      result_ref->set_line(*call);
+      fn->parm(2, result_ref);
+      NetESignal*key_ref = new NetESignal(key_net);
+      key_ref->set_line(*call);
+      fn->parm(3, key_ref);
+      fn->parm(4, pred);
+      fn->parm(5, element);
+      if (recv_net) {
+            NetESignal*recv_ref = new NetESignal(recv_net);
+            recv_ref->set_line(*call);
+            fn->parm(6, recv_ref);
+      }
+      fn->set_line(*call);
+      return fn;
+}
+
 /* Array-method temporaries materialize a fixed receiver in declared
  * left-to-right order. Translate their zero-based loop ordinal back to the
  * receiver's declared index for iterator.index and unique_index. */
@@ -1280,6 +1395,10 @@ static NetExpr* make_queue_locator_with_expr_(
       if (const netqueue_t*queue =
 		dynamic_cast<const netqueue_t*>(container_type)) {
 	    if (queue->assoc_compat()) {
+		  if (strcmp(kind, "find_index") == 0)
+			return make_assoc_find_index_expr_(
+			      call, des, scope, queue_expr, queue, element_type,
+			      parms);
 		  cerr << call->get_fileline() << ": sorry: " << kind
 		       << "() on associative arrays is not yet implemented; "
 			  "associative-array locators require keyed iteration "

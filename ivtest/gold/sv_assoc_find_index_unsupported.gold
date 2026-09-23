@@ -1,0 +1,2 @@
+./ivltests/sv_assoc_find_index_unsupported.v:4: sorry: find_first_index() on associative arrays is not yet implemented; associative-array locators require keyed iteration and exact index typing.
+Elaboration failed
