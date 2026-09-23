@@ -8,12 +8,19 @@ active_blocker:
   id: CALIPTRA-SVA-LONG-SEQUENCE-REGISTER-COLLISION
   phase: FOCUSED_TESTED
   evidence: docs/conformance/session_logs/2026-09-23_caliptra_long_sequence_register_focus.json
-  next: Rebuild the locally integrated source, rerun the paired long-sequence focus and pinned Caliptra PM filelist, then await PR334 merge before publication.
+  integrated_evidence: docs/conformance/session_logs/2026-09-23_caliptra_pm_integrated_compile.json
+  next: Integrated paired focus and clean pinned PM formal-filelist compile pass; retain compile-only scope and await exact-head CI before merge.
 parallel_active_blocker:
   id: VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION
-  phase: SELECTED
-  evidence: evidence/vpi-variable-bit-callback-20260923/baseline_2017.log and baseline_2023.log
-  next: Reuse Luna for the disjoint vvp/vpi_callback.cc lane; keep statement-object fidelity separate.
+  phase: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-23_vpi_macro_integrated_focus.json
+  next: Exact-head CI and PR; keep statement-object fidelity separate.
+successor_active_blocker:
+  id: SV-MACRO-MATCHED-BRACKET-ACTUALS
+  phase: FOCUSED_TESTED
+  evidence: docs/conformance/session_logs/2026-09-23_vpi_macro_integrated_focus.json
+  owner: Codex + Luna; ivlpp/lexor.lex and dedicated macro tests only; independent of VPI callback lane.
+  next: Exact-head CI and PR; broader 2023 triple-quote syntax remains separate.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/332
     head: 9093a9e9f17a21847549a8433b28d59089a9d958
@@ -32,7 +39,7 @@ application_status:
   opentitan_gpio: Pinned GPIO smoke prints TEST PASSED CHECKS and zero UVM errors, but matrix is DEBT due ten compiler warnings; full DV qualification remains open.
   opentitan_aon: Pinned AON compile fails event .triggered sensitivity. Claude owns the overlapping elaboration/runtime files.
   opentitan_spi_device: Pinned SPI Device compile fails nested inline constraint foreach. Claude owns overlapping elaborate.cc.
-  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; merged PR333 addresses the named ECC antecedent, and PR334's locally integrated correction removes five false late-clock errors. This branch fixes long SVA register-name collisions; its pinned PM filelist still needs an integrated recheck. The DSA_NOP disposable-copy overlay is formal-file compile only. No full DV or formal qualification.
+  caliptra: Patched-copy Adams Bridge rej_bounded 100-vector replay passes; merged PR333 addresses the named ECC antecedent, and PR334's locally integrated correction removes five false late-clock errors. The clean pinned PM formal filelist now compiles in both editions on this branch; this is compile-only evidence, not proof or DV runtime. The DSA_NOP disposable-copy overlay applies only to the separate DSA formal filelist. No full DV or formal qualification.
   opentitan_adc: Pinned adc_ctrl_sim source list compiles after ivlpp candidate but ignores filter_cfg_size_c; a separate direct cast-width reducer is wrong. No runtime smoke or full DV pass.
   caliptra_ecc_formal: Pinned pristine v2.1.2 filelist reaches upstream DSA_NOP typo after late-clock fix; a one-token disposable-copy overlay compiles both editions, not a proof or DV pass.
   opentitan: Pinned SPI Host with -gcommercial-unsafe and upstream -DUVM_REGEX_NO_DPI compiles with no queue-pop drop or target error on the queue-pop candidate; four unresolved foreach indices still preclude semantic compile or DV qualification. Earlier runtime reached 3673793 ps before a VIF event-relay abort. Claude owns the distinct foreach and VIF-relay patches.
@@ -42,4 +49,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   previous_pr_branch: agent/caliptra-late-default-clocking-20260923 at da12b889dc5d61945da0d714aba05817da6d95c5 remains preserved while PR334 runs.
-next_command: "Rebuild and test locally integrated Caliptra PM source and long SVA boundaries; give the disjoint VPI callback lane to Luna. Await PR334 exact-head CI before publishing this stacked branch."
+next_command: "Publish the locally validated stacked branch, await PR334 exact-head CI success and merge, then retarget this branch to main."

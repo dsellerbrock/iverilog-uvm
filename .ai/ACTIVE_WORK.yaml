@@ -6,7 +6,7 @@ goal: Compile and execute legal finite SVA sequences with at least 1000 steps wi
 standards: IEEE 1800-2017 and IEEE 1800-2023 section 16.7, finite sequence concatenation; confirm exact edition clauses before patching.
 failing_reproducer: evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv fails in both editions with duplicate _ivl_sva0_b999; the 999-step control compiles. The pinned clean Caliptra v2.1.2 fv_ecc_pm_sequencer.sv fails at lines 1898 and 2951 in its ECC filelist.
 expected: Every generated assertion register has a unique name for any legal finite sequence length; the 1000-step property compiles and gives the correct sampled pass/fail actions at runtime.
-current: pform.cc reserves b999 for antecedent capture and also uses b999 for consequent step index 999.
+root_cause: Before the fix, pform.cc reserved b999 for antecedent capture and also used b999 for consequent step index 999.
 root_cause_hypothesis: The fixed numeric sentinel in pform_make_assertion shares the indexed consequent-register namespace; use a distinct stable name for the antecedent capture without changing checker timing.
 allowed_scope:
   - pform.cc generated assertion register naming only.
@@ -20,7 +20,8 @@ acceptance: Baseline red; both editions compile the 999/1000/1001 boundary and e
 implementation_lane:
   owner: Codex + reused Sol
   files: pform.cc and dedicated SVA fixtures/golds only
-  state: Source/tests committed at 4ff0581df; pre-integration paired executable 6/6, negative 148/148, SVA dual-engine 60/60, and make check passed. The PR334 tree is now integrated locally; rerun paired tests and the pinned PM filelist before new qualification claims.
+  state: Source/tests committed at 4ff0581df; pre-integration negative and SVA suites plus make check passed. On integrated head 2a30f8f6e, the paired long-sequence focus passes and the clean pinned Caliptra PM formal filelist compiles without diagnostics in both editions. This is compile evidence, not proof or DV runtime; exact-head CI remains pending.
+  integrated_evidence: docs/conformance/session_logs/2026-09-23_caliptra_pm_integrated_compile.json
 parallel_implementation_lane:
   id: VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION
   owner: Codex + reused Luna
@@ -30,5 +31,15 @@ parallel_implementation_lane:
   root_cause: vvp/vpi_callback.cc make_force_release shares the legacy vpiNetBit/vpiRegBit parent path despite the variable-bit prohibition.
   files: vvp/vpi_callback.cc and dedicated VPI regression files only; no pform.cc, Claude-owned vvp/vthread.cc, or application source edits.
   acceptance: Paired editions reject cbForce and cbRelease registration on vpiRegBit; legal whole-variable/net-bit and part-select boundaries still register and fire. Focused VPI and relevant neighboring tests pass. Do not claim cb_data.obj statement-handle fidelity; that separate defect needs Claude-owned runtime work.
-  state: selected; PR334 is integrated locally, so the disjoint implementation lane can begin after coordinator's merged-tree check.
+  state: Focused-tested at 48793f9e3 on the locally integrated tree; full VPI suite passes 129/129. Statement-object identity remains a separate defect. Exact-head CI is pending.
+  integrated_evidence: docs/conformance/session_logs/2026-09-23_vpi_macro_integrated_focus.json
+successor_implementation_lane:
+  id: SV-MACRO-MATCHED-BRACKET-ACTUALS
+  owner: Codex + Luna
+  standards: IEEE 1800-2017 and 2023 section 22.5.1; macro commas and right parentheses are protected only inside matched delimiter pairs, including square brackets.
+  reproducer: evidence/macro-bracket-assessment-20260923/unused_range_macro.sv fails preprocessing in both editions on this integrated tree; mismatched_group_macro.sv is incorrectly accepted.
+  files: ivlpp/lexor.lex and dedicated macro scanner regressions/golds/manifests only; disjoint from the VPI lane and Claude-owned runtime files.
+  acceptance: Matched nested []/()/{} macro actuals expand correctly in both editions; mismatched grouping rejects; quoted strings/comments and existing casted unbased literals remain correct. Focused positive, negative, and boundary regressions pass. Coordinator owns shared build/install/test output.
+  state: Focused-tested at 1db116f83; paired positive, negative, and boundary regressions pass, along with neighboring macro suites. Exact-head CI is pending.
+  integrated_evidence: docs/conformance/session_logs/2026-09-23_vpi_macro_integrated_focus.json
 stop_after_completion: Return to coordinator selection; do not expand scope into other SVA or application findings.

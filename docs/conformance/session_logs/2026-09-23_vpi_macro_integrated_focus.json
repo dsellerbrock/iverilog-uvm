@@ -1,0 +1,52 @@
+{
+  "date": "2026-09-23",
+  "source_test_head": "1db116f83fa942e365aaae9cb8e4b10ff0c55085",
+  "compiler_tree": "agent/caliptra-sva-register-identity-20260923 stacked on PR334 da12b889dc5d61945da0d714aba05817da6d95c5",
+  "fixes": [
+    {
+      "id": "VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION",
+      "source_test_commit": "48793f9e3",
+      "standards": "IEEE 1800-2017/2023 38.36.1",
+      "baseline": "evidence/vpi-variable-bit-callback-20260923/baseline_2017.log and baseline_2023.log: legacy variable bit cbForce registration accepted; cbRelease shares make_force_release path",
+      "change": "Remove legacy vpiRegBit from callback registration switch; preserve net-bit and whole-variable paths; existing bit-force test registers callbacks on containing variable",
+      "focused": "new paired VPI focus 2/2; full VPI 129/129"
+    },
+    {
+      "id": "SV-MACRO-MATCHED-BRACKET-ACTUALS",
+      "source_test_commit": "1db116f83",
+      "standards": "IEEE 1800-2017/2023 22.5.1",
+      "baseline": "evidence/macro-bracket-assessment-20260923/README.md: valid [] actual split at comma; mismatched ()/{} pair accepted in both editions; current integrated tree reproduced both before edit",
+      "change": "Track macro actual delimiters by matching type while retaining PR334 cast apostrophe handling",
+      "focused": "paired JSON 6/6; legacy macro focus 28/28; JSON macro neighbors 8/8"
+    }
+  ],
+  "installed_tool_sha256": {
+    "iverilog": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivlpp": "d5682aba6c3a469d974acb7c2a35498f7ad84879ef63165327dbf565239b3168",
+    "ivl": "0ed28220f03f688386044eb8e66162da1609a98696092fea17957e94d510be3a",
+    "vvp": "21e137aac21d7135bfbe4c795d157fa14e88c2bf4b21de27e2dda5af3d584c93"
+  },
+  "shared_checks": {
+    "negative": "153/153",
+    "sva_nfa_dual_engine": "62/62",
+    "long_sequence_focus": "6/6",
+    "make_check": "exit 0",
+    "real_dpi_uvm_smoke": "15 passed, 0 failed, 0 skipped; REAL DPI umbrella loaded",
+    "clean_caliptra_v2_1_2_pm_formal_filelist": "-g2017 and -g2023 compile exit 0 with zero diagnostics; no source overlay, proof, or DV runtime",
+    "pinned_opentitan_earlgrey_prod_m6_adc_source_list": "compile exit 0 but filter_cfg_size_c is ignored, so semantic compile/DV pass is not claimed"
+  },
+  "commands": {
+    "vpi": "PATH=<worktree>/local-install/bin:$PATH perl vpi_reg.pl (cwd ivtest); focused list /tmp/iverilog-vpi-force-focus.list contains the two new manifest rows",
+    "macro_json": "PATH=<worktree>/local-install/bin:$PATH python3 vvp_reg.py regress-macro-bracket-focus-vvp.list (cwd ivtest)",
+    "macro_legacy": "PATH=<worktree>/local-install/bin:$PATH perl vvp_reg.pl regress-macro-definition-focus-legacy.list (cwd ivtest)",
+    "macro_neighbor_json": "PATH=<worktree>/local-install/bin:$PATH python3 vvp_reg.py regress-macro-definition-focus-vvp.list (cwd ivtest)",
+    "negative": "PATH=<worktree>/local-install/bin:$PATH bash tests/negative/run_negative.sh",
+    "sva_nfa": "PATH=<worktree>/local-install/bin:$PATH bash tests/sva_nfa/run.sh",
+    "make_check": "make -j1 check",
+    "uvm_smoke": "PATH=<worktree>/local-install/bin:$PATH bash .github/regression/run_uvm_subset.sh .github/regression/smoke.list",
+    "caliptra_pm": "See docs/conformance/session_logs/2026-09-23_caliptra_pm_integrated_compile.json for the full pinned compile command; rerun on this source_test_head",
+    "opentitan_adc": "Replay candidate_command in evidence/opentitan-next-independent-20260923/candidate-adc-compile.json with only -o changed to /tmp/iverilog-next-final-adc.vvp"
+  },
+  "raw_local_evidence": "evidence/vpi-macro-integrated-20260923/*.log",
+  "limits": "No current-head CI for this branch, full OpenTitan or Caliptra DV suite, hardware formal proof, or complete IEEE clause qualification. PR334 still awaits an exact-head CI success."
+}

@@ -9,6 +9,13 @@ The tested 2023 §22.5.1 macro-actual cast-delimiter rule shares the [2017
 implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--cast-delimiters-inside-macro-actual-arguments).
 The 2023 text additionally names triple quotes as a matched delimiter; this
 candidate does not implement or qualify that edition-specific form.
+The later matched `()`, `[]`, and `{}` macro-actual correction shares the
+[2017 implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--matched-delimiters-inside-macro-actual-arguments);
+triple-quote handling is still outside that scope.
+
+The tested §38.36.1 force/release callback-registration boundary shares the
+[2017 implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--forcerelease-vpi-callback-registration).
+No edition-specific behavior is asserted for this subset.
 
 The tested 2023 §§14.12/16.14.6 late module default-clocking rule shares the
 [2017 implementation and scoped evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--late-module-default-clocking-for-assertions); paired

@@ -14,7 +14,23 @@ Paired 2017/2023 runtime regressions cover nested arguments, commas, strings,
 comments, ordinary unbased literals, and a malformed-call rejection. The
 pinned OpenTitan ADC source list now compiles, but an ignored constraint and
 another cast-width defect keep ADC DV unqualified. This is a bounded clause-22
-subset; square-bracket macro-actual nesting remains outside this correction.
+subset. A separate matched-bracket correction follows.
+
+### September 23, 2026 — matched delimiters inside macro actual arguments
+
+For §22.5.1, the [integrated focus record](../session_logs/2026-09-23_vpi_macro_integrated_focus.json)
+covers paired positive, negative, and boundary runs for `()`, `[]`, and `{}`
+macro-actual nesting. The scanner now rejects mismatched closing delimiters;
+strings, comments, and casted unbased literals retain their tested behavior.
+This remains a bounded preprocessing subset, not full clause-22 qualification.
+
+### September 23, 2026 — force/release VPI callback registration
+
+For §38.36.1, legacy variable bit-select handles now reject `cbForce` and
+`cbRelease` registration while tested whole-variable, part-select, and net-bit
+handles retain their behavior. The [integrated VPI record](../session_logs/2026-09-23_vpi_macro_integrated_focus.json)
+is paired across editions. Callback statement-object identity remains open;
+this does not qualify all VPI callback behavior.
 
 ### September 23, 2026 — late module default clocking for assertions
 
@@ -1770,8 +1786,7 @@ VPI metadata path; full assertion and formal qualification remain open.
 The PARTIAL §16.7 fixed-sequence checker now keeps its antecedent capture name
 distinct from indexed consequent-step registers. [Paired executable
 999/1000/1001-step evidence](../session_logs/2026-09-23_caliptra_long_sequence_register_focus.json)
-checks sampled pass and failure actions in both selected editions. The pinned
-Caliptra PM formal file loses its two duplicate-register errors on the
-original branch; the locally integrated PR334 late-default-clock fix requires
-a combined pinned-filelist recheck.
-This narrow correction does not qualify general SVA or formal proof.
+checks sampled pass and failure actions in both selected editions. The clean
+pinned Caliptra PM formal filelist [compiles on the locally integrated
+tree](../session_logs/2026-09-23_caliptra_pm_integrated_compile.json) in both
+editions; no formal proof, DV runtime, or general SVA qualification is claimed.
