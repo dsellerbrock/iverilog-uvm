@@ -11,8 +11,9 @@ active_blocker:
   evidence: evidence/sva-literal-overlap-baseline-20260923/baseline.json and evidence/sva-literal-overlap-candidate-20260923/focus.json (local untracked evidence).
   next: Revert the ineffective NFA patch; repair the legacy linear fixed-offset verdict count and four-state definite-match check; rebuild and rerun paired editions.
 parallel_assessment:
-  id: OT-AON-EVENT-TRIGGERED-SENSITIVITY
-  scope: Evidence-only standalone reducer in evidence/opentitan-aon-triggered-reducer-20260923; Claude owns implementation-overlap files.
+  id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
+  scope: Evidence-only standalone reducer in evidence/opentitan-spi-device-constraint-reducer-20260923; Claude owns elaborate.cc implementation overlap.
+completed_assessment: OT-AON-EVENT-TRIGGERED-SENSITIVITY reducer is red in both editions for @(e.triggered); simple controls pass. Evidence remains local pending durable review.
 pending_prs:
   - pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
     head: 098080821454e9d2119141290cd2408fc76f3a6d
