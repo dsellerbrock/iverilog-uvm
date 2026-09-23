@@ -1,35 +1,51 @@
-blocker: SOLVE-BEFORE-FIXED-ARRAY-NONINTEGRAL-GUARD
-status: LOCAL_QUALIFIED_PORT_PENDING_CI
-branch: agent/pr322-remainder-20260923
-authorization: PR322 was closed unmerged after its independent fixes were committed directly to main; port only the missing standards guard and regressions onto that baseline.
-standards:
-- IEEE 1800-2017 18.5.10: ordered variables shall be rand and integral values.
-- IEEE 1800-2023 18.5.9: ordered variables may be integral or real values; class handles remain invalid. Real ordering is outside this bounded integration fix.
-reproducer: evidence/review-20260920/pr322-reconcile-build1/nonintegral_array_order.sv
-red: Installed merged-source build1 accepts an array of class handles in solve...before with compiler exit 0 under both -g2017 and -g2023.
-expected: A whole fixed rand array in solve...before cannot convert class handles to fabricated scalar order tokens; 2017 requires integral ordered values, while 2023 also allows real values.
-root_hypothesis: elaborate.cc expand_fixed_arrays checks rand and dimensionality but not element type before constructing selected element IR; the generic selected-array path can synthesize a 32-bit e: token for class handles.
-allowed_scope:
-- elaborate.cc fixed-array solve-before expansion and its directly related diagnostic.
-- ivtest/ivltests/sv_constraint_solve_before_fixed_array_neg.v, paired edition wrapper, and actual-output golds.
-- Owning blocker/matrix/session evidence and this campaign checkpoint after validation.
-forbidden:
-- Application source changes; solver sampling redesign; new IR architecture.
-- Weakening existing positive, negative, or boundary cases.
-acceptance:
-- Reproducer compile fails in both editions with an integral-element diagnostic.
-- Existing fixed-array positive, non-rand, randc, and multidimensional cases retain behavior.
-- Combined PR322/PR323 focused suites pass; broad required gates precede PR322 merge.
-lane:
-  implementation_owner: Luna/medium
-  files: elaborate.cc and ivtest/ivltests/sv_constraint_solve_before_fixed_array_neg.v only
-  coordinator: Standards, actual-output golds, builds/install, integration, review, broad gates and PR merge.
-suspended_prior_ticket:
-  blocker: OT-SPI-INLINE-STATE-FUNCTION-CALL
-  complete_snapshot: e200dfd46:.ai/ACTIVE_WORK.yaml
-  state: PR323 state-only implementation merged; staged random-variable arguments remain unsupported and require a dedicated lifetime/descriptor design.
-  resume_after: PR322 integration and this array-boundary gate.
-stop_after_completion: Freeze validated patch and return to coordinator selection; full compiler/UVM mission continues.
-qualification: docs/conformance/session_logs/2026-09-23_pr322_reconciliation.json
-branch_reconciliation: docs/conformance/session_logs/2026-09-23_pr322_branch_reconciliation.json
-next: Publish the small remainder PR with the compiler/test tree verified equal to the locally qualified e4ec3aa51 candidate; merge after a qualifying CI pass. Then select the opt-in commercial-unsafe flag without overlapping this elaborate.cc source freeze.
+status: XZ_LOCAL_QUALIFIED_FLAG_IMPLEMENTATION_ACTIVE
+branch: agent/state-xz-port-20260923
+base: origin/main ea0be16d5cfcfb030c1a2346f8b5db93600d331f
+authorization: Scalar X/Z source and regressions are committed at 527c0930a with all required local runtime gates passed; user directed the commercial-unsafe flag next. The flag agent edits disjoint compiler files without building until the X/Z PR is isolated.
+lanes:
+  - blocker: CONSTRAINT-STATE-XZ-SCALAR
+    owner: Luna/medium
+    status: LOCAL_QUALIFIED_PR_PENDING
+    standards: IEEE 1800-2017 and 1800-2023 18.3 (constraints use two-state values; active X/Z is an error).
+    reproducer: evidence/review-20260920/state-xz-port/pre-fix.sv
+    red: Both -g2017 and -g2023 compile but print FAILED unguarded, FAILED active guard, and FAILED std::randomize on the merged baseline.
+    expected: Active X/Z caller-state use makes randomize fail without changing prior rand values; inactive implication and known four-state values work.
+    root_hypothesis: Runtime scalar v-slot conversion loses X/Z before solver sees use guards; merged PR323 already preserves four-state function-capture slots, which must remain intact.
+    allowed_files:
+      - vvp/vthread.cc
+      - vvp/vvp_z3.cc
+      - vvp/vvp_z3.h
+      - ivtest/ivltests/sv_constraint_state_xz.v
+      - ivtest/ivltests/sv_constraint_state_xz_2023.v
+      - ivtest/gold/sv_constraint_state_xz*
+      - ivtest/vvp_tests/sv_constraint_state_xz*.json
+    acceptance: Active/inactive/known/std cases in both editions, X/Z above bit 63 boundary or explicit unsupported diagnostic, and existing PR323 capture tests; coordinator owns test manifest registration and builds.
+    dependency: Port focused behavior from held a91acf870, never cherry-pick its older vvp code over PR323.
+  - blocker: COMMERCIAL-SIM-UNSAFE-FLAG
+    owner: Terra/medium
+    status: REPRODUCED
+    standards: IEEE 1800-2017 and 1800-2023 7.6 array element-type equivalence remains the strict default; requested flag is an explicit nonstandard compatibility mode.
+    reproducer: evidence/review-20260920/commercial-unsafe-design/queue_copyback.sv and queue_input.sv
+    red: Strict queue copyback fails elaboration with two 7.6 element errors, task input fails type context, and -gcommercial-unsafe is unknown on merged baseline.
+    expected: Flag permits only same-width/signedness bit/logic element-state queue/dynamic-array mismatches and preserves destination-typed X/Z conversion; without it the current strict errors remain.
+    root_hypothesis: Generation flag parser lacks the opt-in switch, whole-container assignment currently has an unconditional exception, and task/function argument checks have separate paths.
+    allowed_files:
+      - driver/main.c
+      - main.cc
+      - compiler.h
+      - netmisc.cc
+      - netmisc.h
+      - elaborate.cc
+      - elab_expr.cc
+      - README.md
+      - ivtest/ivltests/sv_queue_darray_state_compat*
+      - ivtest/ivltests/sv_commercial_unsafe*
+      - ivtest/gold/sv_commercial_unsafe*
+      - ivtest/vvp_tests/sv_commercial_unsafe*.json
+    acceptance: Strict negative plus flagged positive, both directions and X/Z conversion, width/sign/ref rejection, both editions, README flag usage; coordinator owns shared build/test manifests.
+    dependency: Must not gate legal scalar logic/bit assignment; must not modify application source or imply VCS equivalence.
+coordinator_owns: Selection, .ai ledgers, docs/conformance status, ivtest manifests, shared build/install, focused integration, required broad gates, CI review, PR.
+forbidden: Editing user-owned AGENTS.md, application source, unrelated generated artifacts, or another lane's files; weakening existing tests or silently accepting unsupported semantics.
+previous_blocker: SOLVE-BEFORE-FIXED-ARRAY-NONINTEGRAL-GUARD merged by PR324 at ea0be16d5; exact compiler/test tree locally qualified in docs/conformance/session_logs/2026-09-23_pr322_reconciliation.json; CI run 35810194896 remains pending.
+handoff_order: Publish the X/Z PR from commit 527c0930a plus its documentation; then carry uncommitted flag edits to a separate branch before any flag build or integration.
+stop_after_completion: Freeze each validated patch; return to coordinator for integration and next blocker selection.

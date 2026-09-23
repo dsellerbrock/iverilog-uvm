@@ -1,0 +1,2 @@
+sv_constraint_state_xz normal,-g2017,-s,top ivltests gold=sv_constraint_state_xz.gold
+sv_constraint_state_xz_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_state_xz.gold

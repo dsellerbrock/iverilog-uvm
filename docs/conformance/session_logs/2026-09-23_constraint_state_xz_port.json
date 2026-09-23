@@ -1,0 +1,43 @@
+{
+  "record": "Guard-aware scalar caller-state X/Z constraint port",
+  "date": "2026-09-23",
+  "branch": "agent/state-xz-port-20260923",
+  "base": "ea0be16d5cfcfb030c1a2346f8b5db93600d331f",
+  "source_test_commit": "527c0930a",
+  "status": "required local runtime gates passed; GitHub CI and application replay separate",
+  "standards": "IEEE 1800-2017 and IEEE 1800-2023 18.3",
+  "pre_fix": {
+    "reproducer": "evidence/review-20260920/state-xz-port/pre-fix.sv",
+    "2017_and_2023": "compiles, then prints FAILED unguarded, FAILED active guard, FAILED std::randomize"
+  },
+  "implementation": "The runtime scans full four-state caller value slots for X/Z before narrowing known values, marks only the used scalar slots in constraint IR, and routes errors through existing guard-aware state checks. PR323 four-state function-capture plumbing remains intact.",
+  "focused_validation": {
+    "new_legacy": "2 passed, 0 failed",
+    "new_json": "2 run, 0 failed",
+    "inline_function_legacy_and_json": "12 passed in each",
+    "caller_method_legacy_and_json": "6 passed in each",
+    "cases": "active/inactive implication, known four-state values, std::randomize, high-bit X and Z at bit 64, prior rand value preservation, wide std::randomize prior value preservation"
+  },
+  "broad_validation": {
+    "serial_build_and_install": "exit 0",
+    "make_check": "exit 0",
+    "ivtest_gate": "6355 total, 6350 passed, 0 failed, 2 not implemented, 3 expected failures; VPI 126/126, negative 148/148, VVP runtime invariants 15/15",
+    "full_json": "3287 run, 0 failed",
+    "sva_nfa": "58 passed, 0 failed",
+    "uvm": "real DPI umbrella loaded, generation -g2012; 358 passed, 0 failed, 0 skipped"
+  },
+  "installed_sha256": {
+    "iverilog": "3b22956b521d358974811f4e4d13f6cdb8053a431abef9b6ea01f7260f3f3cba",
+    "vvp": "d8816e2fdb411e1aa5e92102f4b8e1b4ad3b6e3c3e4c4c7382094c01c805e334",
+    "ivl": "c271d80dabd3f6d251ab8ab0e58791922d6689e9d39edabc579e67528d03ba5d",
+    "vvp_tgt": "c46ba3e4fa6da6b004af989fcf0dfacc7b0e8f501e90628d6a86e84bf33a2e5d"
+  },
+  "logs": "evidence/review-20260920/state-xz-port/",
+  "limits": [
+    "This is the scalar caller-state X/Z subset, not full clause 18.3 qualification.",
+    "Known caller-state values wider than 64 bits remain incorrectly narrowed; recorded as CONSTRAINT-CALLER-STATE-WIDE-KNOWN in DISCOVERED_DEBT.md.",
+    "No fresh OpenTitan or Caliptra replay was run on this isolated patch; clean stable OpenTitan SPI still needs a separate opt-in compatibility flag for two IEEE-invalid queue element bindings.",
+    "The UVM run is real-DPI under -g2012 and does not qualify 2017/2023 UVM use.",
+    "The UVM frontend relocation gate was not repeated because this patch does not touch resource discovery; its prior passing record is revision-scoped."
+  ]
+}

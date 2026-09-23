@@ -3255,3 +3255,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Active blocker: SOLVE-BEFORE-FIXED-ARRAY integration boundary.
 - Observation: IEEE 1800-2023 18.4 permits `rand real` and 18.5.9 permits real values in `solve...before`. The current `-g2023` compiler rejects a `rand real` fixed array using an IEEE 1800-2017 18.4 diagnostic before solve-before lowering. The 2017 rejection is expected; the 2023 rejection is an unsupported edition feature, not proof that real ordering is invalid.
 - Evidence: `evidence/review-20260920/pr322-reconcile-build2/real_array_order.sv` and paired compile logs. Status: reproduced, not selected; real-valued solver representation and distributions require a separate scope.
+
+### 2026-09-23 known caller-state values wider than 64 bits are truncated
+
+- Discovery ID: CONSTRAINT-CALLER-STATE-WIDE-KNOWN. Active blocker: CONSTRAINT-STATE-XZ-SCALAR.
+- Observation: `vvp/vthread.cc` stores ordinary caller-state slots as `uint64_t`; `vvp/vvp_z3.cc::substitute_slots` changes a `v:N:65` token to width 32 and uses only the low 64 bits. A `logic [64:0]` caller value of `65'h10000000000000000` makes a `rand bit [64:0]` target solve to zero even though the active constraint equates them. Private reducer `evidence/review-20260920/state-xz-port/known-wide-state.sv` prints `FAILED known wide caller state got=00000000000000000 expected=10000000000000000` with the active worktree compiler.
+- Possible standard scope: IEEE 1800-2017/2023 18.3 and integral expression width rules. Status: reproduced, not selected. The active X/Z port scans all bits for unknown state but does not expand the solver's known-value slot representation; select a separate full-width implementation ticket.

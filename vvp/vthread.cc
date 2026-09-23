@@ -6030,14 +6030,24 @@ static bool randomize_with_(vthread_t thr, vvp_code_t code, bool object_form)
 
 	// Pop runtime slot values (pushed in reverse: slot 0 is deepest).
       vector<uint64_t> slot_vals(n_vals);
+      vector<bool> slot_unknown(n_vals, false);
+      bool any_unknown = false;
       for (unsigned i = n_vals ; i > 0 ; i--) {
 	    vvp_vector4_t v = thr->pop_vec4();
 	    slot_words[i - 1] = v;
 	    uint64_t bits = 0;
-	    unsigned wid = v.size(); if (wid > 64) wid = 64;
-	    for (unsigned b = 0 ; b < wid ; b++)
-		  if (v.value(b) == BIT4_1) bits |= (1ULL << b);
+	    for (unsigned b = 0 ; b < v.size() ; b++) {
+		  if (v.value(b) == BIT4_1) {
+			if (b < 64) bits |= (UINT64_C(1) << b);
+		  } else if (v.value(b) != BIT4_0) slot_unknown[i - 1] = true;
+	    }
+	    any_unknown = any_unknown || slot_unknown[i - 1];
 	    slot_vals[i - 1] = bits;
+      }
+      string marked_ir;
+      if (any_unknown) {
+	    marked_ir = vvp_z3_mark_unknown_slots(ir_text, slot_unknown);
+	    ir_text = marked_ir.c_str();
       }
 
       vvp_object_t&obj = thr->peek_object();
@@ -6183,12 +6193,17 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
 	    }
       }
       vector<uint64_t> slot_vals(n_vals);
+      vector<bool> slot_unknown(n_vals, false);
+      bool any_unknown = false;
       for (unsigned i = n_vals ; i > 0 ; i -= 1) {
 	    vvp_vector4_t v = thr->pop_vec4();
 	    uint64_t bits = 0;
-	    unsigned wid = v.size() > 64 ? 64 : v.size();
-	    for (unsigned b = 0 ; b < wid ; b += 1)
-		  if (v.value(b) == BIT4_1) bits |= UINT64_C(1) << b;
+	    for (unsigned b = 0 ; b < v.size() ; b += 1) {
+		  if (v.value(b) == BIT4_1) {
+			if (b < 64) bits |= UINT64_C(1) << b;
+		  } else if (v.value(b) != BIT4_0) slot_unknown[i - 1] = true;
+	    }
+	    any_unknown = any_unknown || slot_unknown[i - 1];
 	    slot_vals[i - 1] = bits;
       }
 
@@ -6212,7 +6227,10 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       }
 
       vector<string> model;
-      bool ok = vvp_z3_randomize_scope(code->text ? code->text : "",
+	  string scope_ir = code->text ? code->text : "";
+	  if (any_unknown)
+		scope_ir = vvp_z3_mark_unknown_slots(scope_ir, slot_unknown);
+	  bool ok = vvp_z3_randomize_scope(scope_ir,
 				       targets, widths, slot_vals, object_vals,
 				       object_known,
 				       model);
