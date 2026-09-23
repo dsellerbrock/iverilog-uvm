@@ -21,6 +21,7 @@
     "Function-call receiver syntax for inline randomize is a separate parser discovery.",
     "Required broad integrated gates and complete OpenTitan SPI DV are not run or qualified for this candidate."
   ],
+  "staged_argument_baseline": "evidence/review-20260920/spi-external-cfg-constraint-next/staged/build5-main-red/results.json: actual inline target f(y) compile fails in both editions; class-body controls compile, execute and self-check PASS in both editions on the build5 installed tools.",
   "application": {
     "evidence": "evidence/review-20260920/spi-external-cfg-constraint-next/application-build5-main/result.json",
     "stable_release_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
