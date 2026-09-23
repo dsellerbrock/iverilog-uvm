@@ -846,9 +846,7 @@ void __vpiSignal::get_bit_value(const struct __vpiBit*bit, p_vpi_value vp)
 
 vpiHandle __vpiSignal::put_bit_value(struct __vpiBit*bit, p_vpi_value vp, int flags)
 {
-      vvp_force_statement_context stmt_context(
-	    (flags == vpiForceFlag || flags == vpiReleaseFlag)
-	    ? vpip_build_force_statement(flags == vpiForceFlag, -1, 0) : 0);
+      vvp_force_statement_context stmt_context(0);
       unsigned index = value_base + bit->get_norm_index();
       vvp_net_ptr_t dest(node, 0);
       vvp_vector4_t val = vec4_from_vpi_value(vp, 1);
@@ -1041,9 +1039,7 @@ static vvp_vector4_t from_stringval(const char*str, unsigned wid)
 
 static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
 {
-      vvp_force_statement_context stmt_context(
-	    (flags == vpiForceFlag || flags == vpiReleaseFlag)
-	    ? vpip_build_force_statement(flags == vpiForceFlag, -1, 0) : 0);
+      vvp_force_statement_context stmt_context(0);
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
       vvp_net_ptr_t dest(rfp->node, 0);
@@ -1682,9 +1678,7 @@ static void PV_get_value(vpiHandle ref, p_vpi_value vp)
 
 static vpiHandle PV_put_value(vpiHandle ref, p_vpi_value vp, int flags)
 {
-      vvp_force_statement_context stmt_context(
-	    (flags == vpiForceFlag || flags == vpiReleaseFlag)
-	    ? vpip_build_force_statement(flags == vpiForceFlag, -1, 0) : 0);
+      vvp_force_statement_context stmt_context(0);
       struct __vpiPV*rfp = dynamic_cast<__vpiPV*>(ref);
       assert(rfp);
       vvp_signal_value*sig = dynamic_cast<vvp_signal_value*>(rfp->net->fil);

@@ -129,9 +129,7 @@ static void real_var_get_value(vpiHandle ref, s_vpi_value*vp)
 
 static vpiHandle real_var_put_value(vpiHandle ref, p_vpi_value vp, int flags)
 {
-      vvp_force_statement_context stmt_context(
-	    (flags == vpiForceFlag || flags == vpiReleaseFlag)
-	    ? vpip_build_force_statement(flags == vpiForceFlag, -1, 0) : 0);
+      vvp_force_statement_context stmt_context(0);
       struct __vpiRealVar*rfp = dynamic_cast<__vpiRealVar*>(ref);
       assert(rfp);
       vvp_net_ptr_t destination (rfp->net, 0);

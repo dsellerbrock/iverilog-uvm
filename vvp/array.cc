@@ -378,9 +378,7 @@ void __vpiArrayPackedView::vpi_get_value(p_vpi_value val)
 
 vpiHandle __vpiArrayPackedView::vpi_put_value(p_vpi_value val, int flags)
 {
-      vvp_force_statement_context stmt_context(
-	    (flags == vpiForceFlag || flags == vpiReleaseFlag)
-	    ? vpip_build_force_statement(flags == vpiForceFlag, -1, 0) : 0);
+      vvp_force_statement_context stmt_context(0);
       if (!array->is_forceable_vec4_array()) return 0;
       if (flags == vpiReleaseFlag) {
             array->release_word(word, base, width);

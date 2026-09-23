@@ -16,7 +16,6 @@ static vpiHandle concat_release;
 static int concat_force_target;
 static int concat_release_target;
 static vpiHandle data_handle;
-static vpiHandle vpi_force_statement;
 
 static void expect(int ok, const char *what)
 {
@@ -33,7 +32,12 @@ static PLI_INT32 hit(p_cb_data cb)
                    : cb->reason == cbRelease ? EXPECT_VPI_RELEASE : -1;
       int got_type = cb->obj ? vpi_get(vpiType, cb->obj) : -1;
       expect(want_type >= 0, "callback reason");
-      expect(got_type == want_type, "callback obj is force/release statement");
+      if (event_count < 9)
+            expect(got_type == want_type,
+                   "callback obj is force/release statement");
+      else
+            expect(cb->obj == data_handle && got_type == vpiReg,
+                   "VPI operation callback retains registered target");
       if (cb->obj && event_count < 9) {
             expect(vpi_get(vpiLineNo, cb->obj) > 0,
                    "statement object has source line");
@@ -74,18 +78,9 @@ static PLI_INT32 hit(p_cb_data cb)
       } else if (event_count == 9) {
             expect(target == 0 && cb->reason == cbForce,
                    "VPI-originated force callback");
-            expect(vpi_get(vpiLineNo, cb->obj) == 0
-                   && vpi_get_str(vpiFile, cb->obj) == 0,
-                   "VPI-originated force has no source location");
-            vpi_force_statement = cb->obj;
       } else if (event_count == 10) {
             expect(target == 0 && cb->reason == cbRelease,
                    "VPI-originated release callback");
-            expect(vpi_get(vpiLineNo, cb->obj) == 0
-                   && vpi_get_str(vpiFile, cb->obj) == 0,
-                   "VPI-originated release has no source location");
-            expect(vpi_force_statement != cb->obj,
-                   "VPI force and release operations have distinct handles");
       } else {
             expect(0, "unexpected extra callback");
       }
