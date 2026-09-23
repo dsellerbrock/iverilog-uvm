@@ -1,0 +1,2 @@
+ERROR: scope queue size is not uniquely constrained.
+ERROR: scope queue solved size 65537 exceeds the supported or declared limit.

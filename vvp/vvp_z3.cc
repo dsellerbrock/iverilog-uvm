@@ -1129,6 +1129,7 @@ struct Z3Builder {
       unsigned integral_context_width = 0;
       int integral_context_sign = -1; // -1 derives from this expression
       bool integral_typed_mode = false;
+      bool strict_ir = false;
       void set_sv(Z3_ast a, unsigned w) { sv_wid[a] = w; }
       unsigned sv_of(Z3_ast a) {
 	    std::map<Z3_ast,unsigned>::const_iterator it = sv_wid.find(a);
@@ -2122,6 +2123,8 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    if (is_signed) b.signed_vars.insert(value);
 	    return value;
       }
+      if (b.strict_ir)
+	    b.state_errors.push_back("unsupported scope queue constraint token: " + tok);
       return b.mk_true();
 }
 
@@ -2865,6 +2868,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			};
 			b.collect_refs->insert(ref);
 		  }
+		  Z3_ast var = b.get_elem_var(pidx, ewid, (unsigned)idx64);
+		  if (esig) b.signed_vars.insert(var);
+		  return var;
+	    }
+	    /* A scope-randomized queue has no class receiver. Its exact bound is
+	     * established before the element pass; retain this symbolic leaf in
+	     * the preliminary size proof without reading class storage. */
+	    if (ok && !b.dyn_sizes && !b.cobj) {
 		  Z3_ast var = b.get_elem_var(pidx, ewid, (unsigned)idx64);
 		  if (esig) b.signed_vars.insert(var);
 		  return var;
@@ -4411,7 +4422,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    return Z3_mk_or(b.ctx, (unsigned)hard_clauses.size(), hard_clauses.data());
       }
 
-      // Unknown operator — skip to matching ')' and return true
+      // Unknown operator — legacy callers skip it; the direct scope-queue
+      // route rejects it rather than silently weakening a constraint.
+      if (b.strict_ir)
+	    b.state_errors.push_back("unsupported scope queue constraint operator: " + op);
       int depth = 1;
       while (!par.at_end() && depth > 0) {
 	    char c = par.consume();
@@ -4458,6 +4472,8 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 		  expr = Z3_mk_or(b.ctx, 2, either);
 	    }
 	    if (par.p == before) {
+		  if (b.strict_ir)
+			b.state_errors.push_back("malformed scope queue constraint IR");
 		  static bool warned_no_progress = false;
 		  if (!warned_no_progress) {
 			fprintf(stderr, "Warning: malformed constraint IR made no "
@@ -10244,4 +10260,162 @@ bool vvp_z3_randomize_scope(const string&ir,
       Z3_optimize_dec_ref(ctx, opt);
       Z3_del_context(ctx);
       return true;
+}
+
+bool vvp_z3_randomize_scope_queue(const string&ir,
+			    unsigned element_width, uint64_t declared_max,
+			    const vector<uint64_t>&slot_vals,
+			    const vector<vector<uint64_t> >&object_vals,
+			    const vector<vector<bool> >&object_known,
+			    uint64_t diversity_seed,
+			    vector<string>&elements)
+{
+      elements.clear();
+      if (!element_width || element_width > 65536) {
+	    fprintf(stderr, "ERROR: scope queue element width is unsupported.\n");
+	    return false;
+      }
+
+      string sub = substitute_slots(ir, slot_vals);
+      sub = substitute_scope_object_slots(sub, object_vals, object_known);
+      Z3_config cfg = Z3_mk_config();
+      Z3_set_param_value(cfg, "model", "true");
+      Z3_context ctx = Z3_mk_context(cfg);
+      Z3_del_config(cfg);
+      Z3_optimize opt = Z3_mk_optimize(ctx);
+      Z3_optimize_inc_ref(ctx, opt);
+      Z3Builder first(ctx, nullptr, nullptr);
+      first.opt = opt;
+      first.strict_ir = true;
+      Z3_ast hard = parse_constraint_ir(sub, first);
+      bool valid = first.state_errors.empty() && first.state_checks.empty()
+	    && first.pending_soft.empty()
+	    && first.size_vars.size() == 1 && first.size_vars[0].idx == 0
+	    && first.prop_vars.empty();
+      if (!valid) {
+	    fprintf(stderr, "ERROR: scope queue randomization requires one exact "
+		    "size and supported hard constraints.\n");
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+      Z3_optimize_assert(ctx, opt, hard);
+      Z3_lbool status = Z3_optimize_check(ctx, opt, 0, nullptr);
+      if (status != Z3_L_TRUE) {
+	    if (status == Z3_L_UNDEF)
+		  fprintf(stderr, "ERROR: scope queue size solver returned UNKNOWN.\n");
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+      Z3_model model = Z3_optimize_get_model(ctx, opt);
+      Z3_model_inc_ref(ctx, model);
+      uint64_t size = 0;
+      bool size_valid = z3_eval_uint64(ctx, model,
+				      first.size_vars[0].var, size);
+      Z3_model_dec_ref(ctx, model);
+      if (!size_valid) {
+	    fprintf(stderr, "ERROR: scope queue size has no integral model.\n");
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+      Z3_optimize_push(ctx, opt);
+      Z3_ast alternate = Z3_mk_not(ctx, Z3_mk_eq(ctx,
+	    first.size_vars[0].var,
+	    Z3_mk_unsigned_int64(ctx, size, Z3_mk_bv_sort(ctx, 32))));
+      Z3_optimize_assert(ctx, opt, alternate);
+      Z3_lbool unique = Z3_optimize_check(ctx, opt, 0, nullptr);
+      Z3_optimize_pop(ctx, opt);
+      if (unique != Z3_L_FALSE) {
+	    fprintf(stderr, "ERROR: scope queue size is not uniquely constrained%s.\n",
+		    unique == Z3_L_UNDEF ? " (solver UNKNOWN)" : "");
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+      /* An allocation ceiling is an explicit unsupported result, never a
+	 * constraint added to the solver or a clamp on a satisfied model. */
+      if (size > 65536 || (declared_max && size > declared_max)) {
+	    fprintf(stderr, "ERROR: scope queue solved size %llu exceeds the "
+		    "supported or declared limit.\n", (unsigned long long)size);
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+      Z3_optimize_dec_ref(ctx, opt);
+
+      opt = Z3_mk_optimize(ctx);
+      Z3_optimize_inc_ref(ctx, opt);
+      Z3Builder final(ctx, nullptr, nullptr);
+      final.opt = opt;
+      final.strict_ir = true;
+      map<unsigned,uint64_t> sizes;
+      sizes[0] = size;
+      final.dyn_sizes = &sizes;
+      hard = parse_constraint_ir(sub, final);
+      valid = final.state_errors.empty() && final.state_checks.empty()
+	    && final.pending_soft.empty()
+	    && final.prop_vars.empty();
+      for (const auto&ev : final.elem_vars)
+	    valid = valid && ev.idx == 0 && ev.width == element_width
+		  && ev.elem < size;
+      if (!valid) {
+	    fprintf(stderr, "ERROR: scope queue element constraint is unsupported "
+		    "or outside the solved size.\n");
+	    Z3_optimize_dec_ref(ctx, opt);
+	    Z3_del_context(ctx);
+	    return false;
+      }
+      Z3_optimize_assert(ctx, opt, hard);
+      Z3_ast exact = Z3_mk_eq(ctx, final.get_size_var(0,
+				first.size_vars[0].container_type),
+		Z3_mk_unsigned_int64(ctx, size, Z3_mk_bv_sort(ctx, 32)));
+      Z3_optimize_assert(ctx, opt, exact);
+      for (uint64_t i = 0; i < size; ++i) {
+	    Z3_ast var = final.get_elem_var(0, element_width, (unsigned)i);
+	    string target(element_width, '0');
+	    for (unsigned b = 0; b < element_width; ++b) {
+		  diversity_seed ^= diversity_seed << 13;
+		  diversity_seed ^= diversity_seed >> 7;
+		  diversity_seed ^= diversity_seed << 17;
+		  target[element_width - 1 - b] = diversity_seed & 1 ? '1' : '0';
+	    }
+	    Z3_ast preferred = nullptr;
+	    for (size_t pos = 0; pos < target.size();) {
+		  unsigned take = (unsigned)std::min<size_t>(64, target.size() - pos);
+		  uint64_t bits = 0;
+		  for (unsigned j = 0; j < take; ++j)
+			bits = (bits << 1) | (target[pos + j] == '1');
+		  Z3_ast part = Z3_mk_unsigned_int64(ctx, bits,
+					Z3_mk_bv_sort(ctx, take));
+		  preferred = preferred ? Z3_mk_concat(ctx, preferred, part) : part;
+		  pos += take;
+	    }
+	    Z3_optimize_minimize(ctx, opt, Z3_mk_bvxor(ctx, var, preferred));
+      }
+      status = Z3_optimize_check(ctx, opt, 0, nullptr);
+      if (status == Z3_L_TRUE) {
+	    model = Z3_optimize_get_model(ctx, opt);
+	    Z3_model_inc_ref(ctx, model);
+	    for (uint64_t i = 0; i < size; ++i) {
+		  Z3_ast var = final.get_elem_var(0, element_width, (unsigned)i);
+		  Z3_ast value = nullptr;
+		  if (!Z3_model_eval(ctx, model, var, true, &value)) break;
+		  const char*bits = Z3_get_numeral_binary_string(ctx, value);
+		  if (!bits) break;
+		  string word(bits);
+		  if (word.size() < element_width)
+			word.insert(word.begin(), element_width - word.size(), '0');
+		  elements.push_back(word);
+	    }
+	    Z3_model_dec_ref(ctx, model);
+      } else if (status == Z3_L_UNDEF) {
+	    fprintf(stderr, "ERROR: scope queue element solver returned UNKNOWN.\n");
+      }
+      bool ok = status == Z3_L_TRUE && elements.size() == size;
+      if (!ok) elements.clear();
+      Z3_optimize_dec_ref(ctx, opt);
+      Z3_del_context(ctx);
+      return ok;
 }

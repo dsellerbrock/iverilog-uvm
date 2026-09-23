@@ -5883,15 +5883,32 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    while (*rest && *rest != '|') rest++;
 	    if (*rest == '|') rest++;
 	    const char*ir = rest;
+	    ivl_expr_t first = n_rand ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_type_t dest_type = first ? ivl_expr_net_type(first) : 0;
+	    if (!dest_type && first && ivl_expr_signal(first))
+		  dest_type = ivl_signal_net_type(ivl_expr_signal(first));
+	    int queue_dest = dest_type
+		&& ivl_type_base(dest_type) == IVL_VT_QUEUE
+		&& !ivl_type_queue_assoc_compat(dest_type);
+	    ivl_type_t elem_type = queue_dest
+		? ivl_type_element(dest_type) : 0;
 
 	    for (unsigned i = 0 ; i < n_rand ; i++)
-		  draw_eval_vec4(ivl_stmt_parm(net, i));
+		  if (queue_dest) draw_eval_object(ivl_stmt_parm(net, i));
+		  else draw_eval_vec4(ivl_stmt_parm(net, i));
 	    for (unsigned i = 0 ; i < n_vals ; i++)
 		  draw_eval_vec4(ivl_stmt_parm(net, n_rand + i));
 	    for (unsigned i = 0 ; i < n_objs ; i++)
 		  draw_eval_object(ivl_stmt_parm(net, n_rand + n_vals + i));
 	    unsigned packed_slots = (n_objs << 16) | (n_vals & 0xffffu);
-	    fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
+	    if (queue_dest)
+		  fprintf(vvp_out,
+		    "    %%std/randomize/queue/with \"%u|%llu|%s\", %u, %u;\n",
+		    ivl_type_packed_width(elem_type),
+		    (unsigned long long)ivl_type_queue_max_size(dest_type),
+		    ir, n_vals, n_objs);
+	    else
+		  fprintf(vvp_out, "    %%std/randomize/with \"%s\", %u, %u;\n",
 		    ir, n_rand, packed_slots);
 
 	    unsigned lab_done = local_count++;
@@ -5911,8 +5928,12 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 				ivl_stmt_file(net), ivl_stmt_lineno(net));
 			continue;
 		  }
-		  fprintf(vvp_out, "    %%std/randomize/load %u;\n", i);
-		  if (signal_is_return_value(sig))
+		  fprintf(vvp_out, queue_dest
+		    ? "    %%std/randomize/load/obj %u;\n"
+		    : "    %%std/randomize/load %u;\n", i);
+		  if (queue_dest)
+		    fprintf(vvp_out, "    %%store/obj v%p_0;\n", sig);
+		  else if (signal_is_return_value(sig))
 			fprintf(vvp_out, "    %%ret/vec4 0, 0, %u;\n", wid);
 		  else
 			fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n",
