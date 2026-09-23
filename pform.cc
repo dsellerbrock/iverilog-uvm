@@ -24248,6 +24248,26 @@ static bool sva_parameter_window_try_assertion_(
  * Bit W is due for finish; lower bits are due for keep. The [W:0] range is
  * elaborated in each instance, so W=0 naturally implements the empty-repeat
  * rule (empty ##1 finish) without taking a keep sample. */
+static bool sva_parameter_consequent_named_ante_pending_(PExpr*expr)
+{
+      if (PECallFunction*call = dynamic_cast<PECallFunction*>(expr)) {
+	    if (call->path().package || call->path().name.size() != 1)
+		  return false;
+	    perm_string name = peek_tail_name(call->path().name);
+	    auto it = sva_resolve_(sva_param_sequences, name,
+				 pform_cur_generate);
+	    return it != sva_param_sequences.end() && it->second.body;
+      }
+      if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
+	    if (id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty()) return false;
+	    auto it = sva_resolve_(sva_module_sequences,
+		id->path().name.front().name, pform_cur_generate);
+	    return it != sva_module_sequences.end() && it->second;
+      }
+      return false;
+}
+
 static bool sva_parameter_consequent_repeat_try_assertion_(
       const struct vlltype&loc, sva_property_t*prop,
       Statement*fail_stmt, Statement*pass_stmt, int kind)
@@ -24265,6 +24285,12 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       sva_seq_step_t&ante = (*prop->antecedent)[0];
       sva_seq_step_t&keep = (*prop->seq)[0];
       sva_seq_step_t&finish = (*prop->seq)[1];
+      /* The first offer precedes sva_splice_sequences_. A declared sequence
+	 is still represented by a call/identifier here, not a Boolean value;
+	 defer it to the second offer after the sequence body is exposed. An
+	 ordinary Boolean function call remains eligible on this first pass. */
+      if (sva_parameter_consequent_named_ante_pending_(ante.expr))
+	    return false;
       if (!ante.expr || ante.delay_lo != 0 || ante.delay_hi != 0
           || !ante.delay_genvar.nil() || ante.rep_kind != 0
           || ante.rep_tail != 0 || ante.fm || ante.lv_rhs

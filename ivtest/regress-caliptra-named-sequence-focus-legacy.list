@@ -1,0 +1,4 @@
+sv_assert_named_param_consequent_unknown_negative CE,-g2017 ivltests
+sv_assert_named_param_consequent_unknown_negative_2023 CE,-g2023 ivltests
+sv_assert_named_param_consequent_multistep_negative CE,-g2017 ivltests
+sv_assert_named_param_consequent_multistep_negative_2023 CE,-g2023 ivltests
