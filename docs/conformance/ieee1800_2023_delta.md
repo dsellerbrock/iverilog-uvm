@@ -327,3 +327,8 @@ The [shared event-list subset](matrices/ieee1800_2017_clause_matrix.md#september
 The 2023 §18.7 / §18.5.7.1 subset shares implementation with the [2017 scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-22--caller-owned-integral-collection-constraints). Paired 2023 tests have the same observed behavior; [qualification status](session_logs/2026-09-22_caller_queue_foreach_focus.json) remains scoped; required local gates pass.
 
 The 2023 §18.5.11 inline state-function candidate has separate generation-mode tests but shares the [2017 implementation scope](matrices/ieee1800_2017_clause_matrix.md#2026-09-23--inline-constraint-state-function-calls). This edition explicitly prohibits `inout` formals and requires side-effect-free behavior. [Focused evidence](session_logs/2026-09-23_inline_state_function_focus.json) does not establish full-clause qualification.
+
+The scalar caller-state X/Z repair uses the shared 18.3 rule in both editions;
+the [2017 scope](matrices/ieee1800_2017_clause_matrix.md#september-23-scalar-caller-state-xz-constraints)
+and [paired evidence](session_logs/2026-09-23_constraint_state_xz_port.json)
+record the tested 2023 cases without a broader qualification claim.

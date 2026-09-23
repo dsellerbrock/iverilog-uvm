@@ -1663,3 +1663,13 @@ The §16.6, §16.9.2.1 and §16.12.12 candidate corrects Boolean truth, zero-inc
 ### 2026-09-22 — caller-scope object methods in inline constraints
 
 PR322's separate caller-only capture was removed during reconciliation because it bypassed null-receiver, X/Z, purity/direction and width checks. The guarded state-function path above handles the supported caller and target forms; indexed receivers remain unsupported. The retained caller tests pass on the [locally qualified follow-up source](../session_logs/2026-09-23_pr322_branch_reconciliation.json); CI is separate. [PR322's record](../session_logs/2026-09-22_inline_caller_object_method.json) preserves its historical results and narrower claims.
+
+### September 23 scalar caller-state X/Z constraints
+
+The PARTIAL 18.3 implementation now rejects active X/Z in ordinary scalar
+caller-state slots for inline object and `std::randomize` constraints while
+preserving inactive implication branches and previous rand values on failure.
+The [paired-edition local evidence](../session_logs/2026-09-23_constraint_state_xz_port.json)
+includes bit-64 X/Z and adjacent PR323 function-capture checks. Known
+caller-state values wider than 64 bits remain a separate reproduced defect;
+this does not qualify clause 18.3 as a whole.

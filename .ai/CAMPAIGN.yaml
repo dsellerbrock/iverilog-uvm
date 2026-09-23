@@ -17,11 +17,16 @@ active_blocker:
   phase: REPRODUCED
   held_source: origin/claude/hold-state-xz-scalar a91acf870
   pre_fix_red: evidence/review-20260920/state-xz-port/pre-fix.sv prints three FAILED lines under both -g2017 and -g2023 using this worktree's native ARM64 install.
-  next: Port focused scalar X/Z handling onto PR323's newer function-capture plumbing; preserve active/inactive guard behavior and test width above bit 63.
-  exact_next_command: make -j1 YACC=/opt/homebrew/opt/bison/bin/bison LEX=/usr/bin/flex
-queued_after_active:
+  source_commit: 527c0930a
+  completed_gates: focused legacy/JSON and PR323 neighbors; full ivtest 6355 total with 0 failures; JSON 3287/0; NFA 58/0; make check.
+  completed_gate: Real-DPI UVM session 76937 exited 0 with 358 passed, 0 failed, 0 skipped; skip frontend relocation gate because this isolated runtime fix does not touch frontend resource discovery.
+  evidence: docs/conformance/session_logs/2026-09-23_constraint_state_xz_port.json
+  next: Push and open the X/Z PR. Keep flag edits unstaged from that PR.
+  exact_next_command: Stage only X/Z evidence and owning documents, commit, then push agent/state-xz-port-20260923.
+parallel_next:
   id: COMMERCIAL-SIM-UNSAFE-FLAG
-  reason: User explicitly ordered it after the X/Z fix.
+  phase: PATCHING; implementation agent edits disjoint compiler paths but must not build or install until the X/Z PR is isolated.
+  reason: User explicitly ordered it after the X/Z source fix and asked for more agentic progress.
   pre_fix_red: evidence/review-20260920/commercial-unsafe-design/queue_copyback.sv and queue_input.sv fail strict compilation; -gcommercial-unsafe is unknown.
   requirement: Opt-in only, strict IEEE default, destination-typed X/Z conversion, root README update.
 application_status:
