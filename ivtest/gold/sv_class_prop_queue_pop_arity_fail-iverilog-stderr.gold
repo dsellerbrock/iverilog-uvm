@@ -1,0 +1,2 @@
+ivltests/sv_class_prop_queue_pop_arity_fail.v:11: error: pop_front() method takes no arguments
+1 error(s) during elaboration.

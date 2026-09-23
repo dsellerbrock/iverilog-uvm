@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "sv_class_prop_queue_pop_arity_fail.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "test"
+    ],
+    "gold": "sv_class_prop_queue_pop_arity_fail"
+}

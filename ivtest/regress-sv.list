@@ -4487,3 +4487,9 @@ sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=s
 # X/Z caller state in constraints (18.3).
 sv_constraint_state_xz normal,-g2017,-s,top ivltests gold=sv_constraint_state_xz.gold
 sv_constraint_state_xz_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_state_xz.gold
+
+# Parenthesis-free class-property queue pops (IEEE 1800 5.13, 7.10.2.4).
+sv_class_prop_queue_pop_front_noparen normal,-g2017,-s,test ivltests gold=sv_class_prop_queue_pop_front_noparen.gold
+sv_class_prop_queue_pop_front_noparen_2023 normal,-g2023,-s,test ivltests gold=sv_class_prop_queue_pop_front_noparen.gold
+sv_class_prop_queue_pop_arity_fail CE,-g2017,-s,test ivltests gold=sv_class_prop_queue_pop_arity_fail.gold
+sv_class_prop_queue_pop_arity_fail_2023 CE,-g2023,-s,test ivltests gold=sv_class_prop_queue_pop_arity_fail.gold

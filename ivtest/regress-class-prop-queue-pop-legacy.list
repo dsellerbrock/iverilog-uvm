@@ -1,0 +1,7 @@
+sv_class_queue_last_prop1 normal,-g2009	ivltests
+sv_class_prop_queue_size1 normal,-g2009	ivltests
+sv_class_static_queue_pop_back normal,-g2012	ivltests
+sv_class_prop_queue_pop_front_noparen normal,-g2017,-s,test ivltests gold=sv_class_prop_queue_pop_front_noparen.gold
+sv_class_prop_queue_pop_front_noparen_2023 normal,-g2023,-s,test ivltests gold=sv_class_prop_queue_pop_front_noparen.gold
+sv_class_prop_queue_pop_arity_fail CE,-g2017,-s,test ivltests gold=sv_class_prop_queue_pop_arity_fail.gold
+sv_class_prop_queue_pop_arity_fail_2023 CE,-g2023,-s,test ivltests gold=sv_class_prop_queue_pop_arity_fail.gold

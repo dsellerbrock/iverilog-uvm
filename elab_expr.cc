@@ -13837,6 +13837,22 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 	  } else if (dynamic_cast<const netdarray_t*>(cur_type)
 		     || dynamic_cast<const netqueue_t*>(cur_type)) {
 		// Built-in array method on a class-property darray/queue
+		// Queue pops may omit empty parentheses (IEEE 1800-2017/2023 5.13).
+		if (const netqueue_t*queue =
+		      dynamic_cast<const netqueue_t*>(cur_type)) {
+		      if (tail_is_last && tail_comp.index.empty()
+			  && (tail_comp.name == "pop_front"
+			      || tail_comp.name == "pop_back")) {
+			    NetESFunc*sys_expr = new NetESFunc(
+				  tail_comp.name == "pop_front"
+					? "$ivl_queue_method$pop_front"
+					: "$ivl_queue_method$pop_back",
+				  queue->element_type(), 1);
+			    sys_expr->set_line(*this);
+			    sys_expr->parm(0, base_expr);
+			    return sys_expr;
+		      }
+		}
 		if (tail_comp.name == "size" || tail_comp.name == "num") {
 		      NetESFunc*sys_expr = new NetESFunc("$ivl_assoc_method$num",
 							&netvector_t::atom2s32, 1);
