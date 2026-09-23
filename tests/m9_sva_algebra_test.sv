@@ -62,11 +62,11 @@ module m9_sva_algebra_test;
     repeat (3) begin @(posedge clk); #1; end   // t=5,15,25
     r1 = 0;
     @(posedge clk); #1;                        // t=35 (r1 low)
-    check(e1 == 1 && e2 == 1,
-          "1/2: attempts at t=15,t=25 fail when r1 drops; t=5 attempt passed");
-    // (attempt at t=5: r1 high 5,15,25 => [*3] pass; attempts at
-    //  t=15/t=25 run off the drop: [*3] fails once (t=15 chain sees
-    //  low at 35 -> e1), [*2] fails once for t=25 -> e2.)
+    check(e1 == 2 && e2 == 1,
+          "1/2: t=15,t=25 [*3] attempts and t=25 [*2:4] attempt fail");
+    // t=5: [*3] passes at 25 and [*2:4] passes at 15.
+    // t=15: [*3] fails at 35 and [*2:4] passes at 25.
+    // t=25: both fail at 35 because the second required sample is low.
 
     // ---- 3: antecedent (a3 ##1 b3): a3 at t=45, b3 at t=55, c3 must
     //         hold at t=55 (overlapped). First pass, then fail. ----
