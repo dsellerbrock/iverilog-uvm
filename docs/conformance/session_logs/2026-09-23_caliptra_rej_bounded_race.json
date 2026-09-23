@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-23",
+  "issue": "CALIPTRA-REJ-BOUNDED-RUNTIME",
+  "host": "Claude Code cloud Linux container",
+  "release": {
+    "caliptra": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e (v2.1.2)",
+    "adams_bridge": "b77e3d899e828d626cfc2a0d26a6b5704cc121e0 (v2.0.3)",
+    "modified": false
+  },
+  "result": "FAIL: 8 errors across VEC_CNT=10 on the current build (docs/conformance/session_logs/2026-09-22_application_replay_linux.json)",
+  "mechanism": "rej_bounded_tb.sv scoreboard (initial forever @(posedge clk_tb); blocking vld_coeff_ctr += 1 up to 256) and zeroize checker (separate initial forever @(posedge clk_tb); if (vld_coeff_ctr == 256) zeroize <= 1) resume on the same event. If the checker runs first on the edge where the count reaches 256, zeroize is one cycle late and the scoreboard next pops an empty queue ('Not enough valid samples').",
+  "standards": "IEEE 1800-2017/2023 4.7: processes resumed by the same event execute in an unspecified order; both outcomes conform. The testbench relies on declaration order.",
+  "icarus_behavior": "vthread_add_event_wait (vvp/vthread.cc) inserts waiters at the list head; evidence/caliptra-rej-bounded/event_resume_order.sv prints B,A on the first edge and A,B on the next, so resume order is not stable across edges.",
+  "classification": "APPLICATION_RACE; no Icarus conformance defect established. Matches the 2026-09-21 trace (docs/conformance/session_logs/2026-09-21_caliptra_rej_boundary_trace.json).",
+  "option_not_taken": "Stable FIFO (declaration-order) resume for same-event waiters would be a scheduler-wide compatibility change (HIGH risk, file claimed by the Codex ledger row); requires user decision and documented vendor behavior, not inference from this failure.",
+  "source_edits": false
+}

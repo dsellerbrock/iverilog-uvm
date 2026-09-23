@@ -3234,3 +3234,9 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Active blocker: SOLVE-BEFORE-FIXED-ARRAY (application recompile).
 - Observation: after this batch, pristine Earlgrey-PROD-M6 SPI Host fails only at `spi_host_driver.sv:156` and `:256`. `issue_data(req.data, rsp.data, ...)` binds `logic [7:0] data[$]` actuals to `bit [7:0] ...[$]` formals. IEEE 1800-2017/2023 7.6 requires equivalent element types for unpacked array assignment compatibility, and 6.22.2 makes 2-state and 4-state vectors non-equivalent. Slang 11 independently rejects the same shape ("no implicit conversion ... are you missing a cast?"), and Icarus rejects both argument directions consistently.
 - Triage: upstream-invalid source relying on commercial-simulator leniency. Per the campaign `vcs_quirks` policy, any accommodation would be a separately labeled vendor-compatibility extension, not an IEEE fix. It needs documented vendor behavior before selection; pristine sources stay unmodified.
+
+### 2026-09-23 same-event process resume order is unstable (compatibility question)
+
+- Active item: CALIPTRA-REJ-BOUNDED-RUNTIME (diagnosis only).
+- Observation: `vthread_add_event_wait` in `vvp/vthread.cc` pushes waiters at the list head, so two `initial forever @(posedge clk)` processes resume B,A on one edge and A,B on the next (`evidence/caliptra-rej-bounded/event_resume_order.sv`). IEEE 1800-2017/2023 4.7 permits any order, so this conforms. Unmodified Caliptra `rej_bounded_tb.sv` depends on declaration order between its scoreboard and zeroize checker and fails 8/10 vectors.
+- Triage: application race, recorded in `session_logs/2026-09-23_caliptra_rej_bounded_race.json`. Stable declaration-order resume would be a scheduler-wide compatibility change needing a user decision and documented vendor behavior; not selected.
