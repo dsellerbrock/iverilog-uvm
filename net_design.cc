@@ -25,6 +25,7 @@
 # include  <cstring>
 # include  <string>
 # include  <functional>
+# include  <memory>
 
 /*
  * This source file contains all the implementations of the Design
@@ -40,6 +41,7 @@
 # include  "util.h"
 # include  "compiler.h"
 # include  "netmisc.h"
+# include  "netparray.h"
 # include  "PExpr.h"
 # include  "PClass.h"
 # include  "PPackage.h"
@@ -890,9 +892,11 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 	// indices so that a select by index finds the right element for
 	// descending ([3:0]) and non-zero-based ([1:4]) declarations
 	// alike. Every unpacked dimension is evaluated, outermost first.
-      netranges_t dims;
-      bool bounds_known = false;
+      netranges_t dims = cur->second.array_dims;
+      bool bounds_known = cur->second.array_bounds_known;
       if (cur->second.udims && !cur->second.udims->empty()) {
+	      dims.clear();
+	      bounds_known = false;
 	      // evaluate_range handles the [size] form ([4] == [0:3]) and
 	      // reports unsized/queue/non-constant dimensions itself.
 	      /* The DECLARED dimensions belong to the scope that declares
@@ -1227,7 +1231,17 @@ void NetScope::evaluate_parameter_array_(Design*des, param_ref_t cur)
 
 	    std::vector<PExpr*> elems;
 	    if (pat) {
-		  if (!pat->expand_replication_(des, cur->second.val_scope, elems)) {
+		  ivl_type_t element_type = cur->second.ivl_type;
+		  std::unique_ptr<netuarray_t> nested_array_type;
+		  if (depth + 1 < ndims) {
+			netranges_t remaining(dims.begin() + depth + 1,
+					      dims.end());
+			nested_array_type.reset(new netuarray_t(
+			      remaining, cur->second.ivl_type));
+			element_type = nested_array_type.get();
+		  }
+		  if (!pat->resolve_keyed_dimension_(des, cur->second.val_scope,
+				dims[depth], element_type, elems)) {
 			failed = true;
 			return;
 		  }
@@ -1946,6 +1960,22 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
 	    param_type = cur->second.val_type->elaborate_type(des, this);
 	    cur->second.ivl_type = param_type;
 	    cur->second.val_type = 0;
+      }
+
+	/* A typedef may carry the unpacked dimensions in its data type, rather
+	   than in the parameter declarator's udims. Route it through the same
+	   element-parameter representation as `parameter T P[N]`: indexed reads
+	   depend on is_array_param, declared bounds, and the element type. */
+      if (!cur->second.is_array_param && param_type) {
+	    const netuarray_t*array_type =
+		  dynamic_cast<const netuarray_t*>(param_type);
+	    if (array_type && !array_type->static_dimensions().empty()) {
+		  cur->second.is_array_param = true;
+		  cur->second.array_dims = array_type->static_dimensions();
+		  cur->second.array_bounds_known = true;
+		  cur->second.ivl_type = array_type->element_type();
+		  param_type = cur->second.ivl_type;
+	    }
       }
 
       if (cur->second.is_array_param) {
