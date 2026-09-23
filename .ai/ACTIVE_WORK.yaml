@@ -20,4 +20,5 @@ dependency: PR328 remains open; this branch is stacked on its tested source/test
 previous_candidate: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
 source_test_commit: a0e45a3c796767fd1f20227713e0132fa1078d5a
 evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
+pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
 next: Rebase after PR328 merges, run applicable broad gates at the next coherent checkpoint, and publish only qualified review scope.
