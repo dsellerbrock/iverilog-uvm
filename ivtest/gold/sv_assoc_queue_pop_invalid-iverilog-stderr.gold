@@ -1,0 +1,5 @@
+ivltests/sv_assoc_queue_pop_invalid.v:14: error: pop_front is not an associative array method.
+ivltests/sv_assoc_queue_pop_invalid.v:15: error: pop_back is not an associative array method.
+ivltests/sv_assoc_queue_pop_invalid.v:16: error: pop_front is not an associative array method.
+ivltests/sv_assoc_queue_pop_invalid.v:17: error: pop_back is not an associative array method.
+4 error(s) during elaboration.
