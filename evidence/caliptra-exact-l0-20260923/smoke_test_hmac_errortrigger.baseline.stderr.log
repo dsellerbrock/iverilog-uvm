@@ -1,0 +1,5 @@
+/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-l0-20260923/source/src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c: In function 'main':
+/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-l0-20260923/source/src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c:44:5: error: implicit declaration of function 'srand' [-Wimplicit-function-declaration]
+   44 |     srand(time);
+      |     ^~~~~
+make: *** [smoke_test_hmac_errortrigger.o] Error 1

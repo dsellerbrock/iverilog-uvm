@@ -1,0 +1,28 @@
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//cc0Ltl17.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//cc0Ltl17.s:279: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccHBDFjg.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccHBDFjg.s:10140: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccVBsWN3.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccVBsWN3.s:6153: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccocvTab.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccocvTab.s:3568: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//cc5hiFhS.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//cc5hiFhS.s:4400: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccve6Xps.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccve6Xps.s:8565: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccslU6Pk.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccslU6Pk.s:3909: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccmoVt1d.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccmoVt1d.s:722: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccChmd0m.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccChmd0m.s:881: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccHdLk7g.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccHdLk7g.s:969: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccyJF8AB.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//ccyJF8AB.s:1394: Warning: ignoring changed section attributes for .text
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//cc7LlOiT.s: Assembler messages:
+/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T//cc7LlOiT.s:8896: Warning: ignoring changed section attributes for .text
+/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-riscv-toolchain-20260923/toolchain/bin/../lib/gcc/riscv-none-elf/15.2.0/../../../../riscv-none-elf/bin/ld: caliptra_isr.o: in function `nonstd_veer_isr_soc_ifc_notif':
+/Users/danielellerbrock/projects/iverilog_uvm/evidence/caliptra-exact-l0-20260923/source/src/integration/test_suites/libs/caliptra_isr/caliptra_isr.c:808:(.text+0x3ca): undefined reference to `service_soc_ifc_notif_intr'
+collect2: error: ld returned 1 exit status
+make: *** [program.hex] Error 1

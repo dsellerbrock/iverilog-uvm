@@ -1,5 +1,10 @@
 # Current evidence and work
 
+The [pinned Caliptra 52-case Verilator L0 evidence](../../evidence/caliptra-exact-l0-20260923/README.md)
+records the full exact-toolchain baseline and two focused, test-specific
+downstream firmware overlay replays. The DOE scan assertion remains failing;
+these results do not qualify the full Caliptra DV suite.
+
 The [Caliptra KV SVA diagnostic overlay replay](session_logs/2026-09-23_caliptra_kv_sva_overlay_l0.json)
 is scoped to pinned Caliptra `v2.1.2` and Verilator. It removes false-antecedent
 inner diagnostics while retaining detailed failure output; this is diagnostic
@@ -12,7 +17,7 @@ byte-identical after the rebase. The guarded large-range `dist` correction
 passes paired 2017/2023 focused checks (4+4) and neighboring distribution
 checks (36+36). The pinned ADC smoke now gets past the exact-distribution
 resolver but still fails at time 0 because global randomization cannot resize
-its class-handle collection; this is not a DV pass. The matrix runner now
+its nested dynamic array; this is not a DV pass. The matrix runner now
 selects generated RTL filesets, and focused pinmux setup compiles. The full
 OpenTitan matrix was not rerun.
 
