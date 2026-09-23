@@ -519,6 +519,9 @@ extern bool positional_container_expr_type_match(ivl_type_t target,
 						  const NetExpr*source,
 						  bool&handled);
 
+extern bool commercial_unsafe_positional_container_type_match(
+		ivl_type_t target, ivl_type_t source, bool allow_same_kind);
+
 /* netqueue_t is also the internal carrier for associative arrays. Its
  * inherited equivalence check covers the queue category and element type,
  * but not the associative key type or wildcard state. Keep the stricter

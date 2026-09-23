@@ -31,6 +31,7 @@
 # include  "PClass.h"
 # include  "netparray.h"
 # include  "netvector.h"
+# include  "netenum.h"
 # include  "netmisc.h"
 # include  "netclass.h"
 # include  "netdarray.h"
@@ -263,6 +264,43 @@ bool positional_container_expr_type_match(ivl_type_t target,
 	    target, ternary->false_expr(), false_handled);
       handled = true_handled && false_handled;
       return handled && true_match && false_match;
+}
+
+bool commercial_unsafe_positional_container_type_match(
+		ivl_type_t target, ivl_type_t source, bool allow_same_kind)
+{
+      const netdarray_t*target_container = dynamic_cast<const netdarray_t*>(target);
+      const netdarray_t*source_container = dynamic_cast<const netdarray_t*>(source);
+      if (!target_container || !source_container
+	  || (!allow_same_kind && target_container->base_type() == source_container->base_type()))
+	    return false;
+
+      const netqueue_t*target_queue = dynamic_cast<const netqueue_t*>(target_container);
+      const netqueue_t*source_queue = dynamic_cast<const netqueue_t*>(source_container);
+      if ((target_queue && target_queue->assoc_compat())
+	  || (source_queue && source_queue->assoc_compat()))
+	    return false;
+
+      ivl_type_t target_element = target_container->element_type();
+      ivl_type_t source_element = source_container->element_type();
+      const netvector_t*target_vector = dynamic_cast<const netvector_t*>(target_element);
+      const netvector_t*source_vector = dynamic_cast<const netvector_t*>(source_element);
+      if (!target_vector || !source_vector
+	  || !target_vector->packed() || !source_vector->packed()
+	  || target_element == &netvector_t::chandle_type
+	  || source_element == &netvector_t::chandle_type
+	  || dynamic_cast<const netenum_t*>(target_element)
+	  || dynamic_cast<const netenum_t*>(source_element))
+	    return false;
+
+      ivl_variable_type_t target_base = target_vector->base_type();
+      ivl_variable_type_t source_base = source_vector->base_type();
+      return (target_base == IVL_VT_BOOL || target_base == IVL_VT_LOGIC)
+	  && (source_base == IVL_VT_BOOL || source_base == IVL_VT_LOGIC)
+	  && target_base != source_base
+	  && target_vector->packed_width() > 0
+	  && target_vector->packed_width() == source_vector->packed_width()
+	  && target_vector->get_signed() == source_vector->get_signed();
 }
 
 static bool assoc_array_type_contains_(ivl_type_t type,

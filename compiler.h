@@ -293,6 +293,8 @@ extern bool gn_strict_expr_width_flag;
    loop. */
 extern bool gn_shared_loop_index_flag;
 
+extern bool gn_commercial_unsafe_flag;
+
 static inline bool gn_system_verilog(void)
 {
       if (generation_flag >= GN_VER2005_SV)

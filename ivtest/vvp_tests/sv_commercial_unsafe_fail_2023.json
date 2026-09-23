@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_commercial_unsafe_fail.v",
+    "iverilog-args" : [ "-g2023", "-gcommercial-unsafe", "-s", "sv_commercial_unsafe_fail" ],
+    "gold"          : "sv_commercial_unsafe_fail"
+}

@@ -2330,14 +2330,18 @@ sv_class_assoc_object_property_event normal,-g2012,-ssv_class_assoc_object_prope
 
 # IEEE 1800-2017/2023 7.6 destination-kind preservation plus the narrow
 # OpenTitan/VCS cross-kind bit/logic container-assignment extension.
-sv_queue_darray_state_compat normal,-g2017 ivltests gold=sv_queue_darray_state_compat.gold
-sv_queue_darray_state_compat_2023 normal,-g2023 ivltests gold=sv_queue_darray_state_compat.gold
+sv_queue_darray_state_compat normal,-g2017,-gcommercial-unsafe ivltests gold=sv_queue_darray_state_compat.gold
+sv_queue_darray_state_compat_2023 normal,-g2023,-gcommercial-unsafe ivltests gold=sv_queue_darray_state_compat.gold
 sv_queue_darray_state_compat_fail CE,-g2017,-ssv_queue_darray_state_compat_fail ivltests gold=sv_queue_darray_state_compat_fail.gold
 sv_queue_darray_state_compat_fail_2023 CE,-g2023,-ssv_queue_darray_state_compat_fail ivltests gold=sv_queue_darray_state_compat_fail.gold
+sv_commercial_unsafe_fail CE,-g2017,-gcommercial-unsafe,-ssv_commercial_unsafe_fail ivltests gold=sv_commercial_unsafe_fail.gold
+sv_commercial_unsafe_fail_2023 CE,-g2023,-gcommercial-unsafe,-ssv_commercial_unsafe_fail ivltests gold=sv_commercial_unsafe_fail.gold
+sv_commercial_unsafe_strict_fail CE,-g2017,-ssv_commercial_unsafe_strict_fail ivltests gold=sv_commercial_unsafe_strict_fail.gold
+sv_commercial_unsafe_strict_fail_2023 CE,-g2023,-ssv_commercial_unsafe_strict_fail ivltests gold=sv_commercial_unsafe_strict_fail.gold
 sv_bounded_queue_same_kind_contexts normal,-g2017 ivltests gold=sv_bounded_queue_same_kind_contexts.gold
 sv_bounded_queue_same_kind_contexts_2023 normal,-g2023 ivltests gold=sv_bounded_queue_same_kind_contexts.gold
-sv_container_cross_kind_destination normal,-g2017 ivltests gold=sv_container_cross_kind_destination.gold
-sv_container_cross_kind_destination_2023 normal,-g2023 ivltests gold=sv_container_cross_kind_destination.gold
+sv_container_cross_kind_destination normal,-g2017,-gcommercial-unsafe ivltests gold=sv_container_cross_kind_destination.gold
+sv_container_cross_kind_destination_2023 normal,-g2023,-gcommercial-unsafe ivltests gold=sv_container_cross_kind_destination.gold
 sv_container_cross_kind_contexts normal,-g2017 ivltests gold=sv_container_cross_kind_contexts.gold
 sv_container_cross_kind_contexts_2023 normal,-g2023 ivltests gold=sv_container_cross_kind_contexts.gold
 sv_task_output_container_lifetime normal,-g2017 ivltests gold=sv_task_output_container_lifetime.gold

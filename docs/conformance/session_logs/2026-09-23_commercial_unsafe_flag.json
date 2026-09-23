@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-23",
+  "revision": "9111127532c71fc4eeaf1bab68685ade3c61296f",
+  "branch": "agent/commercial-unsafe-20260923",
+  "feature": "opt-in -gcommercial-unsafe packed bit/logic value conversion",
+  "standards_boundary": {
+    "editions": ["IEEE 1800-2017", "IEEE 1800-2023"],
+    "clause": "7.6",
+    "default": "Strict array element type equivalence remains enabled.",
+    "extension": "The opt-in mode allows equal-width, equal-signedness packed bit/logic conversion in whole queue/dynamic-array assignments and native task/function value copies.",
+    "qualification": "Nonstandard compatibility mode; not IEEE behavior and does not claim VCS equivalence."
+  },
+  "focused_validation": {
+    "legacy": {"passed": 89, "total": 89},
+    "json": {"passed": 82, "total": 82},
+    "full_suite_on_flag_revision": false
+  },
+  "opentitan_spi": {
+    "strict_compile": "Four type errors.",
+    "flagged_compile": "Those four type errors are cleared; five codegen errors remain: nonblocking property assignment form not yet supported.",
+    "dv_passed": false
+  },
+  "limitations": [
+    "No full suite was run on the flag revision.",
+    "OpenTitan DV has not passed.",
+    "The remaining five codegen errors are outside this flag's conversion behavior."
+  ]
+}

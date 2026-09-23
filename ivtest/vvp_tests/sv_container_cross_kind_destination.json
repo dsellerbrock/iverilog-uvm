@@ -1,7 +1,7 @@
 {
     "type"          : "normal",
     "source"        : "sv_container_cross_kind_destination.v",
-    "iverilog-args" : [ "-g2017" ],
+    "iverilog-args" : [ "-g2017", "-gcommercial-unsafe" ],
     "gold"          : "sv_container_cross_kind_destination",
     "vlog95"        : { "type" : "NI" }
 }

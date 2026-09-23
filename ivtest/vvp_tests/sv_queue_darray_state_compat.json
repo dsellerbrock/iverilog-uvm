@@ -1,7 +1,7 @@
 {
     "type"          : "normal",
     "source"        : "sv_queue_darray_state_compat.v",
-    "iverilog-args" : [ "-g2017" ],
+    "iverilog-args" : [ "-g2017", "-gcommercial-unsafe" ],
     "gold"          : "sv_queue_darray_state_compat",
     "vlog95"        : { "type" : "NI" }
 }

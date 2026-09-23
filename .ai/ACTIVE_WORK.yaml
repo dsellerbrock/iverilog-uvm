@@ -1,51 +1,27 @@
-status: XZ_LOCAL_QUALIFIED_FLAG_IMPLEMENTATION_ACTIVE
-branch: agent/state-xz-port-20260923
-base: origin/main ea0be16d5cfcfb030c1a2346f8b5db93600d331f
-authorization: Scalar X/Z source and regressions are committed at 527c0930a with all required local runtime gates passed; user directed the commercial-unsafe flag next. The flag agent edits disjoint compiler files without building until the X/Z PR is isolated.
-lanes:
-  - blocker: CONSTRAINT-STATE-XZ-SCALAR
-    owner: Luna/medium
-    status: LOCAL_QUALIFIED_PR_PENDING
-    standards: IEEE 1800-2017 and 1800-2023 18.3 (constraints use two-state values; active X/Z is an error).
-    reproducer: evidence/review-20260920/state-xz-port/pre-fix.sv
-    red: Both -g2017 and -g2023 compile but print FAILED unguarded, FAILED active guard, and FAILED std::randomize on the merged baseline.
-    expected: Active X/Z caller-state use makes randomize fail without changing prior rand values; inactive implication and known four-state values work.
-    root_hypothesis: Runtime scalar v-slot conversion loses X/Z before solver sees use guards; merged PR323 already preserves four-state function-capture slots, which must remain intact.
-    allowed_files:
-      - vvp/vthread.cc
-      - vvp/vvp_z3.cc
-      - vvp/vvp_z3.h
-      - ivtest/ivltests/sv_constraint_state_xz.v
-      - ivtest/ivltests/sv_constraint_state_xz_2023.v
-      - ivtest/gold/sv_constraint_state_xz*
-      - ivtest/vvp_tests/sv_constraint_state_xz*.json
-    acceptance: Active/inactive/known/std cases in both editions, X/Z above bit 63 boundary or explicit unsupported diagnostic, and existing PR323 capture tests; coordinator owns test manifest registration and builds.
-    dependency: Port focused behavior from held a91acf870, never cherry-pick its older vvp code over PR323.
-  - blocker: COMMERCIAL-SIM-UNSAFE-FLAG
-    owner: Terra/medium
-    status: REPRODUCED
-    standards: IEEE 1800-2017 and 1800-2023 7.6 array element-type equivalence remains the strict default; requested flag is an explicit nonstandard compatibility mode.
-    reproducer: evidence/review-20260920/commercial-unsafe-design/queue_copyback.sv and queue_input.sv
-    red: Strict queue copyback fails elaboration with two 7.6 element errors, task input fails type context, and -gcommercial-unsafe is unknown on merged baseline.
-    expected: Flag permits only same-width/signedness bit/logic element-state queue/dynamic-array mismatches and preserves destination-typed X/Z conversion; without it the current strict errors remain.
-    root_hypothesis: Generation flag parser lacks the opt-in switch, whole-container assignment currently has an unconditional exception, and task/function argument checks have separate paths.
-    allowed_files:
-      - driver/main.c
-      - main.cc
-      - compiler.h
-      - netmisc.cc
-      - netmisc.h
-      - elaborate.cc
-      - elab_expr.cc
-      - README.md
-      - ivtest/ivltests/sv_queue_darray_state_compat*
-      - ivtest/ivltests/sv_commercial_unsafe*
-      - ivtest/gold/sv_commercial_unsafe*
-      - ivtest/vvp_tests/sv_commercial_unsafe*.json
-    acceptance: Strict negative plus flagged positive, both directions and X/Z conversion, width/sign/ref rejection, both editions, README flag usage; coordinator owns shared build/test manifests.
-    dependency: Must not gate legal scalar logic/bit assignment; must not modify application source or imply VCS equivalence.
-coordinator_owns: Selection, .ai ledgers, docs/conformance status, ivtest manifests, shared build/install, focused integration, required broad gates, CI review, PR.
-forbidden: Editing user-owned AGENTS.md, application source, unrelated generated artifacts, or another lane's files; weakening existing tests or silently accepting unsupported semantics.
-previous_blocker: SOLVE-BEFORE-FIXED-ARRAY-NONINTEGRAL-GUARD merged by PR324 at ea0be16d5; exact compiler/test tree locally qualified in docs/conformance/session_logs/2026-09-23_pr322_reconciliation.json; CI run 35810194896 remains pending.
-handoff_order: Publish the X/Z PR from commit 527c0930a plus its documentation; then carry uncommitted flag edits to a separate branch before any flag build or integration.
-stop_after_completion: Freeze each validated patch; return to coordinator for integration and next blocker selection.
+status: COMMERCIAL_UNSAFE_FLAG_FOCUSED_VALIDATION
+branch: agent/commercial-unsafe-20260923
+authorization: Documentation and revision-scoped evidence update for the committed opt-in flag. Compiler implementation is present; broader suite validation and remaining OpenTitan SPI codegen work are not complete.
+blocker: COMMERCIAL-SIM-UNSAFE-FLAG
+pull_request: https://github.com/dsellerbrock/iverilog-uvm/pull/326
+standards: IEEE 1800-2017/2023 7.6 strict type equivalence remains default; -gcommercial-unsafe is a nonstandard opt-in for equal-width/equal-signedness packed bit/logic value conversion in whole queue/dynamic-array assignments and native task/function value copies.
+source_commit: 9111127532c71fc4eeaf1bab68685ade3c61296f
+focused_validation:
+  legacy: 89/89
+  json: 82/82
+  full_suite_on_flag_head: NOT_RUN
+opentitan_spi:
+  strict: 4 type errors
+  flagged: 5 codegen errors remain (nonblocking property assignment form not yet supported)
+  dv: NOT_PASSED
+allowed_scope:
+  - Documentation of current behavior and evidence.
+forbidden:
+  - Compiler or test-source edits in this documentation task.
+  - Claiming full-suite validation, OpenTitan compile success, OpenTitan DV success, IEEE qualification, or VCS equivalence.
+next: Coordinate the remaining OpenTitan nonblocking property assignment codegen issue and run the required broader gates on the exact flag head before making qualification claims.
+evidence: docs/conformance/session_logs/2026-09-23_commercial_unsafe_flag.json
+parallel_lanes:
+  - blocker: CALIPTRA-REJ-BOUNDED-RUNTIME
+    scope: Downstream Adams Bridge v2.0.3 testbench threshold/zeroize patch; pristine release remains unchanged.
+    observation: Same 100 vectors produce 64 underflows on pristine and 0 in the isolated patched copy.
+    status: Focused paired-release and current-upstream replays plus Icarus/Verilator scheduling probe pass; upstream Adams Bridge PR303 is open. Pristine release and full Caliptra DV remain failing/unqualified.
