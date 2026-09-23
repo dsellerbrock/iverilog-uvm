@@ -4437,6 +4437,8 @@ sv_class_event_list_ordinary_control_2017 normal,-g2017,-score_ordinary_control 
 sv_class_event_list_ordinary_control_2023 normal,-g2023,-score_ordinary_control ivltests gold=sv_class_event_list_ordinary_control_2023.gold
 sv_class_event_list_invalid_member_2017 CE,-g2017,-ssv_class_event_list_invalid_member ivltests gold=sv_class_event_list_invalid_member_2017.gold
 sv_class_event_list_invalid_member_2023 CE,-g2023,-ssv_class_event_list_invalid_member ivltests gold=sv_class_event_list_invalid_member_2023.gold
+sv_class_event_triggered_2017 normal,-g2017,-I./ivltests,-ssv_class_event_triggered ivltests gold=sv_class_event_triggered.gold
+sv_class_event_triggered_2023 normal,-g2023,-I./ivltests,-ssv_class_event_triggered ivltests gold=sv_class_event_triggered.gold
 
 # Selected virtual-interface edge expressions (IEEE 1800 9.4.2/25.9)
 sv_selected_vif_edge_automatic_cancel_2017 normal,-g2017,-sautomatic_cancel ivltests gold=sv_selected_vif_edge_automatic_cancel_2017.gold

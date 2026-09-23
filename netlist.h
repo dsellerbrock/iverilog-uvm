@@ -78,6 +78,12 @@ class NetRamDq;
 class NetTaskDef;
 class NetEvTrig;
 class NetEvNBTrig;
+class PEIdent;
+
+/* Resolve a class event reference for expression-level .triggered access. */
+NetExpr* elaborate_class_event_target(Design*, NetScope*, const PEIdent*,
+					     const pform_name_t&,
+					     unsigned&slot_out);
 
 /* Return the current blocking-visible procedural carrier for a signal while
  * synth2 lowers an ordered process, or nullptr outside that context. */
