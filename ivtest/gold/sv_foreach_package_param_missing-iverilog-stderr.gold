@@ -1,0 +1,2 @@
+ivltests/sv_foreach_package_param_missing.v:4: error: Unable to find foreach array MISSING in scope foreach_param_missing_pkg.model.new.$ivl_foreach0.
+1 error(s) during elaboration.

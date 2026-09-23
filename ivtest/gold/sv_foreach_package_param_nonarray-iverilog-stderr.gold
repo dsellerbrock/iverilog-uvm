@@ -1,0 +1,2 @@
+ivltests/sv_foreach_package_param_nonarray.v:5: error: Foreach target SCALAR is not an unpacked array parameter.
+1 error(s) during elaboration.

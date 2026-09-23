@@ -22704,6 +22704,28 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
       }
 
       if (array_sig == 0) {
+	    /* An unpacked array parameter has no NetNet: its elements are
+	       elaborated as individually named parameters. Resolve the name
+	       lexically (including package imports) and use the evaluated
+	       declaration bounds for the foreach indices. */
+	    symbol_search_results sr;
+	    if (symbol_search(this, des, scope, array_path_, lexical_pos_, &sr)
+	        && sr.par_val && sr.scope && sr.path_tail.empty()
+	        && !sr.path_head.empty()) {
+		  perm_string param_name = sr.path_head.back().name;
+		  auto param = sr.scope->parameters.find(param_name);
+		  if (param != sr.scope->parameters.end()
+		      && param->second.is_array_param
+		      && param->second.array_bounds_known)
+			return elaborate_static_array_(des, scope,
+					       param->second.array_dims);
+		  cerr << get_fileline() << ": error: Foreach target "
+		       << array_name << " is not an unpacked array parameter."
+		       << endl;
+		  des->errors += 1;
+		  return 0;
+	    }
+
 	    cerr << get_fileline() << ": error:"
 		 << " Unable to find foreach array " << array_name
 		 << " in scope " << scope_path(scope)
