@@ -25,7 +25,7 @@ active_blocker:
   standards: IEEE 1800-2017/2023 sections 18.12 and 7.9/7.10; exact-size local queue randomization and associative versus queue-only methods.
   checkpoint: Paired focused tests pass on c44dc1dd4 and follow-on test additions. Pinned SPI Device compiles past std::randomize(byte_q) but fails eight later vector-context codegen expressions; no SPI Device DV pass.
   evidence: docs/conformance/session_logs/2026-09-23_assoc_queue_statement_methods_focus.json and pending exact-size queue focus record.
-  next: Finish focused integration and review, publish PR, merge after one exact-head CI success, then tackle the next pinned vector-context compiler blocker. Verilator stays read-only.
+  next: Finish focused integration and review, publish PR, merge after one exact-head CI success, then select one of the two independently reproduced SPI Device aggregate blockers. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.
@@ -158,4 +158,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Finish the exact-size scope queue and associative statement-method PR after focused local review; merge after one exact-head CI success, then select the next pinned OpenTitan vector-context compiler blocker. Keep Verilator read-only and pinned application sources unchanged."
+next_command: "Publish the focused-tested scope queue and associative statement-method PR; merge after one exact-head CI success. Then select either the constant-array inside lowering or the queue array-concatenation lowering from the paired RED reducer. Keep Verilator read-only and pinned application sources unchanged."

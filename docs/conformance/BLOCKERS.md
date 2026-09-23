@@ -2,27 +2,38 @@
 
 ### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
 
-- **State:** Focused-tested in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) on `c40dce788`, exact-head CI pending. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile; no SPI Device DV pass is claimed.
+- **State:** Merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at `909e3f314` after exact-head Ubuntu 22.04 success. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile; no SPI Device DV pass is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
 - **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls remain separate debt; the pinned SPI compile still fails on other mechanisms.
 
 ### OT-SPI-ASSOC-FIND-INDEX — keyed associative locator
 
-- **State:** Locally fixed and focused-tested on `f681defc1`, pending stacked PR/CI. [Candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json) shows unchanged released SPI Device sources now reach one remaining `-gcommercial-unsafe` compile error.
+- **State:** Merged in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341) at `7943dffd1` after exact-head Ubuntu 24.04 success. The [candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json) records that the released SPI Device compile advanced to a separate queue-randomize error, which is now resolved; the UCRT64 checkout failed certificate trust before compiler execution.
 - **Requirement:** IEEE 1800-2017/2023 §7.12.1 `find_index()` returns matching associative keys with their declared type, rather than ordinal positions.
-- **Boundary:** Integral and string keys are tested; wildcard/object keys and other associative locators remain loud unsupported cases. Compilation still fails on a separate queue `std::randomize` use.
+- **Boundary:** Integral and string keys are tested; wildcard/object keys and other associative locators remain loud unsupported cases. The separate queue `std::randomize` rejection is cleared; the pinned SPI Device compile still reports later vector-context diagnostics.
 
 ### OT-CLASS-EVENT-MULTI-OBJECT-LIST — event controls lose object identity
 
-- **State:** Locally fixed and focused-tested on `f681defc1`, pending stacked PR/CI. The [paired RED reducer](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) now passes at runtime in both editions; see the shared [candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json).
+- **State:** Merged in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341) at `7943dffd1` after exact-head Ubuntu 24.04 success. The [paired RED reducer](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) now passes at runtime in both editions; see the shared [candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json).
 - **Requirement:** IEEE 1800-2017/2023 §15.5 `@(a.ev or b.ev)` wakes on either selected class object's event. The candidate gives each leaf its existing per-object waiter and joins them for a one-shot event control.
 - **Boundary:** Explicit `triggered()` call syntax remains DD-052; no full named-event or OpenTitan DV qualification is claimed.
 
 ### OT-SPI-STD-RANDOMIZE-QUEUE — constrained scope queue argument
 
-- **State:** One remaining `-gcommercial-unsafe` compile error on the pinned SPI Device source list. The [RED reducer](../../evidence/ot-spi-std-randomize-queue-20260923/README.md) and exact-size scope-solver design are selected; no implementation or DV pass is claimed yet.
+- **State:** Focused implementation integrated at `512d53539` following compiler commit `c44dc1dd4`; the paired scope tests pass. The former [RED reducer](../../evidence/ot-spi-std-randomize-queue-20260923/README.md) now passes with `-g2017`. The pinned SPI Device compile no longer reports this queue-randomize rejection but has eight later vector-context diagnostics; no application compile or DV pass is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §18.12 scope `std::randomize` accepts its queue argument with an inline size constraint and preserves the queue on an unsatisfiable solve.
-- **Boundary:** The class solver cannot be reused wholesale because it depends on class-property metadata and clamps queue size. The selected local-queue path must prove an exact size, solve every element constraint, and write back only after SAT; nonexact or unsupported forms remain loud. A compile-only bypass would be incorrect.
+- **Boundary:** Support is limited to one-dimensional local integral queues whose length is exactly constrained, through 65536 elements. A declared queue maximum is honored; nonexact or over-limit requests are diagnosed and rolled back. Other argument forms and arbitrary queue sizing are not supported. This bounded implementation does not qualify the full §18.12 clause.
+- **Evidence:** [Revision-scoped focus](session_logs/2026-09-23_scope_queue_randomize_focus.json).
+
+### OT-SPI-INSIDE-CONST-ARRAY — unpacked parameter array in an `inside` set
+
+- **State:** RED in both editions after the scope-queue fix; six released SPI Device sites reach a vector-context codegen error. [Two-form reducer and diagnosis](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md).
+- **Requirement:** IEEE 1800-2017/2023 §11.4.13 expands an unpacked array used in an `inside` set into its elements. The constant parameter-array path needs aggregate-aware lowering, not a vector zero fallback.
+
+### OT-SPI-QUEUE-ARRAY-CONCAT — unpacked array concatenation assigned to a queue
+
+- **State:** RED in both editions at two released SPI Device sites; the same target error is reached through a distinct assignment path. [Two-form reducer and diagnosis](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md).
+- **Requirement:** IEEE 1800-2017/2023 §10.10 permits an unpacked array concatenation in an assignment-like context; queue conversion must preserve element order and length. Neither compile nor DV success is claimed.
 
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 

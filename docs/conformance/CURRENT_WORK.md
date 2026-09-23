@@ -1,14 +1,23 @@
 # Current evidence and work
 
-The [associative statement-method focus](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
-is the latest local compiler candidate on `d0560368e`; its PR, broad gates, and
-application DV qualification remain open. The [OpenTitan `find_index` and
-multi-object event record](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json)
-is in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341), now based
-on `main` with CI in progress. The preceding [class-event `.triggered`
-record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
-merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at
-`909e3f314` after one exact-head CI job passed.
+The [scope `std::randomize` queue record](session_logs/2026-09-23_scope_queue_randomize_focus.json)
+is the latest local compiler candidate, integrated at `512d53539` following
+compiler commit `c44dc1dd4`. It covers a one-dimensional local integral queue with
+an exactly constrained length through 65536 elements, including queues with a
+declared maximum. Focused tests pass; a pinned
+OpenTitan SPI Device compile advances past this diagnostic but still reports
+eight later vector-context diagnostics, now split into [two RED aggregate
+forms](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md).
+No application compile or DV pass is claimed.
+
+The preceding [associative statement-method focus](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
+is on `d0560368e`; its follow-on PR, broad gates, and application DV qualification remain
+open. The [OpenTitan `find_index` and multi-object event record](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json)
+merged in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341) at
+`7943dffd1` after exact-head Ubuntu 24.04 success. PR340 merged at `909e3f314`
+after exact-head Ubuntu 22.04 success; its [class-event `.triggered` record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
+preserves the scoped evidence. The PR341 UCRT64 checkout stopped at certificate
+trust before invoking the compiler.
 
 The [PR339 compiler and VPI repair record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
 links the package-parameter `foreach`, packed-struct queue `.size`, direct
