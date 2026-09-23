@@ -51,7 +51,15 @@ parallel_adc_inner_implementation_lane:
   reproducer: evidence/opentitan-adc-filter-debt-20260923/reducer_nested_struct_dynamic_size.sv remains RED on the PR339 candidate in both editions; warning says the indexed inner-size item is ignored and inner size remains 1 instead of 3.
   files: elaborate.cc and vvp/vvp_z3.cc, with vvp/vvp_darray.cc/h only if needed; dedicated ADC constraint fixtures. No VPI, Verilator, application sources, shared manifests, or build outputs.
   acceptance: Enforce each indexed inner size after outer allocation, preserve retained values, solve dependent element constraints in order, and roll back on contradiction; test preallocated and empty outer arrays, zero and impossible sizes in both editions. No ADC DV claim from a reducer.
-  state: Coordinator-authorized follow-on after the typed outer resize was integrated; PR339 head remains fixed.
+  state: Scoped diagnostic complete; no inner-size source edit. Correct support requires row-indexed size and element identities plus a third solve stage; the dependent-element reducer is RED in both editions. Hold for a dedicated larger solver design lane, with no ADC DV progress claim.
+parallel_spi_parameter_foreach_lane:
+  id: OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
+  standards: IEEE 1800-2017/2023 foreach over unpacked package parameter arrays and lexical package lookup from a class method.
+  reproducer: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; pinned Earlgrey-PROD-M6 spi_device_env_cov.sv line 296 has the same shape.
+  files: elaborate.cc and the smallest necessary lexical parameter/type lookup implementation, plus dedicated ivtest fixtures only. No VPI runtime files, Verilator, pinned application source, shared manifests, or build outputs.
+  acceptance: Iterate all constant package string-array entries inside a class constructor with correct index and values; empty array is vacuous; missing/nonarray target fails loudly; paired 2017/2023 regressions and neighboring foreach controls pass. Coordinator replays pinned SPI Device compile after integration.
+  state: Coordinator-authorized after ADC inner-size proved too large for a bounded patch; distinct source ownership from isolated DOE Verilator lane; PR339 head remains fixed.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated Verilator rebuild, DOE replay, and integration review.

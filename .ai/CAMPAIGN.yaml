@@ -53,7 +53,15 @@ parallel_adc_inner_implementation_lane:
   evidence: evidence/opentitan-adc-filter-debt-20260923/reducer_nested_struct_dynamic_size.sv and current paired RED in workspace evidence/adc-inner-red-current-20260923.
   acceptance: Indexed inner size enforced after outer allocation; dependent elements solved; rollback, zero, contradiction, and retained-value boundaries pass in 2017/2023 modes.
   dependency: Disjoint from isolated Verilator DOE source and PR339 head.
-  state: Coordinator-authorized; source agent may edit only owned compiler files and tests.
+  state: Diagnostic complete with no source edit; row-indexed size/element solver identities and a third solve stage are required. Defer full indexed inner-size support to a dedicated design lane; paired reducer remains RED.
+parallel_spi_parameter_foreach_lane:
+  id: OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH
+  owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, integration, and review.
+  files: elaborate.cc and smallest required lexical parameter/type lookup source; dedicated ivtest fixtures only. No isolated Verilator, pinned application source, shared build outputs, or manifests.
+  evidence: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; released spi_device_env_cov.sv line 296 has the same package-parameter foreach.
+  acceptance: Correct package constant array iteration inside class constructor, empty boundary, invalid target rejection, and paired-edition neighboring foreach checks.
+  dependency: Independent of isolated Verilator DOE lane; ADC inner agent made no source edit and released elaborate.cc ownership. PR339 head stays fixed.
+  state: Coordinator-authorized; agent may edit only owned compiler files and tests.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
