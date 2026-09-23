@@ -14,7 +14,7 @@ integration_blocker:
   id: SVA-VPI-ATTEMPT-START-IDENTITY
   owner: Codex + Sol in the same pform.cc lane
   evidence: Full gate legacy Total=6374 Passed=6369 Failed=0 Not Implemented=2 Expected Fail=3; VPI Total=126 Passed=125 Failed=1 at m12_assert_step; negative148 and runtime15 pass. Two t25 failures are correct but both callbacks carry start25 instead of distinct start5/start25.
-  next: Carry actual attempt start through the fixed-linear token and internal VPI report path; do not update gold to accept wrong identity.
+  next: Carry actual attempt start through fixed-linear token and raw-time internal VPI report path, including vpi/libvpi.c and vvp/vpi_priv.cc bridge plumbing; do not update gold to accept wrong identity.
 parallel_assessment:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   scope: Evidence-only reducer completed in evidence/opentitan-spi-device-constraint-reducer-20260923; Claude owns elaborate.cc implementation overlap.
