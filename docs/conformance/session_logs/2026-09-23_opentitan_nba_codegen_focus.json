@@ -42,11 +42,15 @@
     "source_patch": "none selected for SPI Host",
     "source_list_sha256": "bc8c160ff1f3a2e9101ed5ae8c10a9ef4d0a79834d91b38a55d5c6df26f6c442",
     "generation": "Pinned Python 3.13/FuseSoC setup returned 0 with provider warnings, classified SETUP_DEBT; source list was generated in a fresh ARM64 build root.",
-    "compile_options": "-g2012 -gcommercial-unsafe -uvm, pinned UVM 1.2, SPI top/bind roots and documented defines, +timescale+1ns/1ps source wrapper",
+    "compile_options": "-g2012 -gcommercial-unsafe -uvm, pinned UVM 1.2, SPI top/bind roots, upstream defines including -DUVM_REGEX_NO_DPI, +timescale+1ns/1ps source wrapper",
     "compile_exit": 0,
     "target_errors": 0,
     "semantic_degradation_warnings": ["Four unresolved foreach index i references", "One dropped class-property queue pop_front expression"],
-    "smoke_run": "NOT_RUN",
+    "smoke_run": {
+      "missing_regex_option": "An earlier image entered UVM build at time 0 but reported 55 UVM/DPI/REGEX errors on a glob-style pattern, then UVM_FATAL BUILDERR and TEST FAILED CHECKS despite process exit 0. Original compile argv was not preserved, so option omission is inferred from the active DPI regex path, not proved for that image.",
+      "configured_replay": "Fresh compile argv explicitly includes -DUVM_REGEX_NO_DPI and all pinned SPI defines; compile exit 0 with the same five semantic degradation warnings. With real DPI otherwise loaded, fixed-seed-1 spi_host_smoke_vseq starts and reaches 3673793 ps before vvp_fun_event_expr_vif_source::recv_vec4_pv(1'b0,0,2) aborts (process return -6). No UVM pass is claimed.",
+      "command_and_logs": "evidence/opentitan-codegen-integration-20260923/spi-regex-configured-{command.json,compile.log,runtime-command.json,runtime.log}"
+    },
     "dv_qualified": false
   },
   "limits": [

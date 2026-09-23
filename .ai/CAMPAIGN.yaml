@@ -31,7 +31,7 @@ release_profiles:
 application_followup:
   caliptra: Adams Bridge rej_bounded patch focused-tested; upstream PR303 open; pristine and full DV unqualified.
 application_status:
-  opentitan: Candidate flagged SPI compile exits 0 with zero target errors, but four unresolved foreach indices and one dropped queue-pop expression preclude semantic compile or DV qualification. Strict mode still rejects the packed container type mismatch.
+  opentitan: Candidate flagged SPI compile exits 0 with zero target errors, but four unresolved foreach indices and one dropped queue-pop expression preclude semantic compile or DV qualification. With upstream -DUVM_REGEX_NO_DPI enabled, fixed-seed SPI smoke advances past time-zero UVM build and aborts on a VIF event-relay runtime form at 3673793 ps; that mechanism is claimed in Claude's separate lane. Strict mode still rejects the packed container type mismatch.
   caliptra: rej_bounded patched-testbench 100-vector unit replay passes on this worktree's compiler and current Adams Bridge main; pristine release fails and full DV is unqualified.
 release_profile: docs/conformance/release_overlays/README.md # "released OpenTitan/Caliptra" means pinned source plus target-specific patches and options; not full DV qualification.
 preservation:
