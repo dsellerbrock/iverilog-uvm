@@ -1947,6 +1947,9 @@ class PEConstraintForeach : public PExpr {
       PEConstraintForeach(perm_string array_name,
 			  std::list<perm_string>*loop_vars,
 			  std::list<PExpr*>*items);
+      PEConstraintForeach(const pform_name_t&source_path,
+			  std::list<perm_string>*loop_vars,
+			  std::list<PExpr*>*items);
 	// `foreach (array_name[prefix_names].member_name[loop_vars])':
 	// IEEE 1800-2017 18.5.8 extended to a hierarchical target,
 	// analogous to the plain-statement foreach of the same shape
@@ -1970,6 +1973,7 @@ class PEConstraintForeach : public PExpr {
       ~PEConstraintForeach() override;
 
       perm_string array_name() const { return array_name_; }
+      const std::vector<perm_string>& source_path() const { return source_path_; }
       bool has_hierarchical_target() const
             { return !prefix_names_.empty() || !member_name_.nil(); }
       const std::vector<perm_string>& prefix_names() const { return prefix_names_; }
@@ -1985,6 +1989,7 @@ class PEConstraintForeach : public PExpr {
 
     private:
       perm_string array_name_;
+      std::vector<perm_string> source_path_;
       std::vector<perm_string> prefix_names_;
       perm_string member_name_;
       std::vector<perm_string> loop_vars_;

@@ -4027,6 +4027,10 @@ sv_constraint_nested_dynamic_outer_resize normal,-g2017,-s,test ivltests gold=sv
 sv_constraint_nested_dynamic_outer_resize_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_nested_dynamic_outer_resize.gold
 sv_constraint_nested_dynamic_handle_boundary normal,-g2017,-s,test ivltests
 sv_constraint_nested_dynamic_handle_boundary_2023 normal,-g2023,-s,test ivltests
+sv_constraint_foreach_deep_state_path normal,-g2017,-s,test ivltests
+sv_constraint_foreach_deep_state_path_2023 normal,-g2023,-s,test ivltests
+sv_constraint_foreach_deep_state_path_nonarray CE,-g2017,-s,test ivltests gold=sv_constraint_foreach_deep_state_path_nonarray.gold
+sv_constraint_foreach_deep_state_path_nonarray_2023 CE,-g2023,-s,test ivltests gold=sv_constraint_foreach_deep_state_path_nonarray.gold
 sv_constraint_integral_cast_shift_context normal,-g2017 ivltests gold=sv_constraint_integral_cast_shift_context.gold
 sv_constraint_integral_cast_shift_context_2023 normal,-g2023 ivltests gold=sv_constraint_integral_cast_shift_context.gold
 sv_constraint_integral_cast_signed_ops normal,-g2017 ivltests gold=sv_constraint_integral_cast_signed_ops.gold

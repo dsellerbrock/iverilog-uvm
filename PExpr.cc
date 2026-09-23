@@ -1029,6 +1029,23 @@ PEConstraintForeach::PEConstraintForeach(perm_string array_name,
       }
 }
 
+PEConstraintForeach::PEConstraintForeach(const pform_name_t&source_path,
+					 std::list<perm_string>*loop_vars,
+					 std::list<PExpr*>*items)
+: array_name_(source_path.front().name)
+{
+      for (const name_component_t&component : source_path)
+	    source_path_.push_back(component.name);
+      if (loop_vars) {
+	    loop_vars_.assign(loop_vars->begin(), loop_vars->end());
+	    delete loop_vars;
+      }
+      if (items) {
+	    items_.assign(items->begin(), items->end());
+	    delete items;
+      }
+}
+
 PEConstraintForeach::PEConstraintForeach(perm_string array_name,
 					 std::list<perm_string>*prefix_names,
 					 perm_string member_name,
@@ -1059,6 +1076,12 @@ PEConstraintForeach::~PEConstraintForeach()
 void PEConstraintForeach::dump(std::ostream&out) const
 {
       out << "foreach (" << array_name_;
+      if (!source_path_.empty()) {
+	    for (size_t idx = 1; idx < source_path_.size(); ++idx)
+		  out << "." << source_path_[idx];
+	    out << "[...]) { ... }";
+	    return;
+      }
       if (!prefix_names_.empty())
 	    out << "[...]";
       if (!member_name_.nil())

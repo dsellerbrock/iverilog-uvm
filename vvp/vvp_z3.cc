@@ -1693,7 +1693,8 @@ static string capture_balanced_form(IRParser& par)
  * indices are signed int. Substitute `L` with "c:<i>:32:s" (token
  * boundaries only — L may not appear inside other tokens, but guard
  * anyway). */
-static string subst_loop_token(const string& body, uint64_t i)
+static string subst_loop_token(const string& body, uint64_t i,
+                               unsigned width = 32, bool sign = true)
 {
       string out;
       const char* p = body.c_str();
@@ -1704,7 +1705,8 @@ static string subst_loop_token(const string& body, uint64_t i)
       char prev = ' ';
       while (*p) {
 	    if (*p == 'L' && is_delim(prev) && is_delim(p[1])) {
-		  out += "c:" + to_string(i) + ":32:s";
+		  out += "c:" + to_string(i) + ":" + to_string(width)
+		       + (sign ? ":s" : "");
 		  prev = 'L';
 		  p++;
 		  continue;
@@ -5487,7 +5489,10 @@ class state_foreach_expander_t {
                   --template_depth_;
                   string body(begin, parser.p - begin);
                   if (!valid || !parser.expect(')')) return false;
-                  if (member == UINT_MAX) {
+                  // UINT_MAX-1 denotes a direct caller-state associative
+                  // array. Its loop variable ranges over existing keys,
+                  // regardless of the element value type.
+                  if (member == UINT_MAX || member == UINT_MAX - 1) {
                         queues_[slot] = objects_[slot];
                   } else {
                         vvp_cobject*owner = objects_[slot].peek<vvp_cobject>();
@@ -5502,6 +5507,34 @@ class state_foreach_expander_t {
                         if (base_type.empty() || (base_type[0] != 'Q' && base_type[0] != 'D'))
                               return false;
                         owner->get_object(member, queues_[slot], 0);
+                  }
+                  if (member == UINT_MAX - 1) {
+                        vvp_assoc_base*assoc = queues_[slot].peek<vvp_assoc_base>();
+                        if (!assoc) {
+                              error_(out, "state foreach object is not an associative array");
+                              return true;
+                        }
+                        constant_(out, 1);
+                        vvp_vector4_t key;
+                        for (bool ok = assoc->first_key(key); ok;
+                             ok = assoc->next_key(key)) {
+                              uint64_t bits = 0;
+                              if (!key.size() || key.size() > 64
+                                  || !vec4_to_uint64_(key, bits)) {
+                                    error_(out, "unsupported associative foreach key");
+                                    return true;
+                              }
+                              string instance = subst_loop_token(body, bits,
+                                                                  key.size(), false);
+                              IRParser expanded(instance);
+                              state_foreach_value_t item;
+                              if (!expression(expanded, item) || !expanded.at_end())
+                                    return false;
+                              if (!item.error.empty()) { out = item; return true; }
+                              out.text = "(and " + out.text + " " + item.text + ")";
+                              out.ground = out.ground && item.ground;
+                        }
+                        return true;
                   }
                   vvp_darray*queue = member == UINT_MAX
                         ? direct_queue_(slot, out) : queue_(slot, out);
