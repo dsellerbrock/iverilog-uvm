@@ -1,8 +1,9 @@
-status: COMMERCIAL_UNSAFE_FLAG_FOCUSED_VALIDATION
-branch: agent/commercial-unsafe-20260923
-authorization: Documentation and revision-scoped evidence update for the committed opt-in flag. Compiler implementation is present; broader suite validation and remaining OpenTitan SPI codegen work are not complete.
+status: COMMERCIAL_UNSAFE_FLAG_MERGED_VALIDATION_PENDING
+branch: docs/release-overlays-20260923
+authorization: Target-specific release overlay catalog and revision-scoped evidence update for the merged opt-in flag. Broader suite validation and remaining OpenTitan SPI codegen work are not complete.
 blocker: COMMERCIAL-SIM-UNSAFE-FLAG
 pull_request: https://github.com/dsellerbrock/iverilog-uvm/pull/326
+merge_commit: fa5ae6da5cf7d8402f431db8194d782e1e2468b8
 standards: IEEE 1800-2017/2023 7.6 strict type equivalence remains default; -gcommercial-unsafe is a nonstandard opt-in for equal-width/equal-signedness packed bit/logic value conversion in whole queue/dynamic-array assignments and native task/function value copies.
 source_commit: 9111127532c71fc4eeaf1bab68685ade3c61296f
 focused_validation:
@@ -18,7 +19,7 @@ allowed_scope:
 forbidden:
   - Compiler or test-source edits in this documentation task.
   - Claiming full-suite validation, OpenTitan compile success, OpenTitan DV success, IEEE qualification, or VCS equivalence.
-next: Coordinate the remaining OpenTitan nonblocking property assignment codegen issue and run the required broader gates on the exact flag head before making qualification claims.
+next: Run required broader gates on the merged flag revision, then coordinate the separately claimed OpenTitan nonblocking property assignment codegen fix after its exact patch or commit is available.
 evidence: docs/conformance/session_logs/2026-09-23_commercial_unsafe_flag.json
 parallel_lanes:
   - blocker: CALIPTRA-REJ-BOUNDED-RUNTIME

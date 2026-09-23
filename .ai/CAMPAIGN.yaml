@@ -1,19 +1,21 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 independently, IEEE 1800.2/UVM separately, unmodified stable OpenTitan and Caliptra DV, and a sound formal foundation.
-branch: agent/commercial-unsafe-20260923
+branch: docs/release-overlays-20260923
+baseline: origin/main fa5ae6da5cf7d8402f431db8194d782e1e2468b8 (PR326 merged)
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 active_blocker:
   id: COMMERCIAL-SIM-UNSAFE-FLAG
-  phase: FOCUSED_VALIDATION
+  phase: MERGED_VALIDATION_PENDING
   source_commit: 9111127532c71fc4eeaf1bab68685ade3c61296f
   pull_request: https://github.com/dsellerbrock/iverilog-uvm/pull/326
-  dependency: PR325 scalar caller-state X/Z port merged at 7044ae62c; PR326 is now based on main.
+  merge_commit: fa5ae6da5cf7d8402f431db8194d782e1e2468b8
+  dependency: PR325 scalar caller-state X/Z port merged at 7044ae62c; PR326 merged at fa5ae6da5.
   requirement: Strict IEEE array element type equivalence remains default. The opt-in compatibility extension is limited to equal-width/equal-signedness packed bit/logic conversions for whole queue/dynamic-array assignment and native task/function value copies.
   evidence: docs/conformance/session_logs/2026-09-23_commercial_unsafe_flag.json
   completed: Focused validation 89/89 legacy and 82/82 JSON.
-  pending: No full suite has run on this flag head. Exact OpenTitan SPI compile clears four strict type errors with the flag but retains five unsupported nonblocking property assignment codegen errors; OpenTitan DV has not passed.
-  next: Resolve/triage the remaining codegen blocker and run the applicable broader gates on this exact revision before claiming compiler or application qualification.
+  pending: No full suite ran on the flag head before merge. Exact OpenTitan SPI compile clears four strict type errors with the flag but retains five unsupported nonblocking property assignment codegen errors; OpenTitan DV has not passed. Claude's claimed codegen patch is not present in current local or origin refs.
+  next: Run the applicable broader gates on the merged flag revision; obtain exact Claude codegen patch or commit before integration.
 parallel_lanes:
   - id: CALIPTRA-REJ-BOUNDED-RUNTIME
     scope: Downstream Adams Bridge v2.0.3 testbench threshold/zeroize patch; pristine release unchanged.
