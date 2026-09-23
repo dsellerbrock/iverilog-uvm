@@ -1,11 +1,14 @@
 # Current evidence and work
 
-The [OpenTitan associative `find_index` and multi-object event focused record](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json)
-is the latest compiler candidate on `f681defc1`; paired checks pass and the
-pinned SPI compile has one remaining commercial-unsafe error. Its stacked PR,
-CI, and full OpenTitan DV qualification remain open. The preceding [class-event
-`.triggered` record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
-is in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) with exact-head CI pending.
+The [associative statement-method focus](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
+is the latest local compiler candidate on `d0560368e`; its PR, broad gates, and
+application DV qualification remain open. The [OpenTitan `find_index` and
+multi-object event record](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json)
+is in [PR341](https://github.com/dsellerbrock/iverilog-uvm/pull/341), now based
+on `main` with CI in progress. The preceding [class-event `.triggered`
+record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
+merged in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) at
+`909e3f314` after one exact-head CI job passed.
 
 The [PR339 compiler and VPI repair record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
 links the package-parameter `foreach`, packed-struct queue `.size`, direct

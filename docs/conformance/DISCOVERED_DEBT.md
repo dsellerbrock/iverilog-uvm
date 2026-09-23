@@ -3288,7 +3288,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - **Observation:** In both `-g2017` and `-g2023`, `int a[int]; a.pop_front;` and `a.pop_back();` compile with exit 0 and only a function-as-task warning, including a class-property associative array. IEEE 1800-2017/2023 §7.9 associative-array methods do not include the queue-only methods in §7.10.2.4. A true queue statement control compiles and removes its element.
 - **File/function:** `elaborate.cc` statement method lowering accepts `netqueue_t::assoc_compat()` as a queue; PR329's `elab_expr.cc` guard covers expressions only.
 - **Evidence:** [Paired source and tool output](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json).
-- **Triage status:** reproduced, separate implementation ticket. `elaborate.cc` is currently owned by Claude's caller-collection foreach lane; coordinate ownership before selecting this fix. Do not broaden PR329's expression-path claim.
+- **Triage status:** selected and locally fixed on `d0560368e` after `elaborate.cc` ownership was released. The [focused record](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json) also covers `push_front`, `push_back`, and `insert` through the same faulty dispatch. PR, CI, and broad qualification remain open.
 
 ### SVA-LITERAL-OVERLAP-FAILURE-COUNT — same-tick failures collapse
 

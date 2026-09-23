@@ -20,9 +20,9 @@
 
 ### OT-SPI-STD-RANDOMIZE-QUEUE — constrained scope queue argument
 
-- **State:** One remaining `-gcommercial-unsafe` compile error on the pinned SPI Device source list; implementation not selected yet.
+- **State:** One remaining `-gcommercial-unsafe` compile error on the pinned SPI Device source list. The [RED reducer](../../evidence/ot-spi-std-randomize-queue-20260923/README.md) and exact-size scope-solver design are selected; no implementation or DV pass is claimed yet.
 - **Requirement:** IEEE 1800-2017/2023 §18.12 scope `std::randomize` accepts its queue argument with an inline size constraint and preserves the queue on an unsatisfiable solve.
-- **Boundary:** Existing class queue solver machinery may be reusable, but scope-call size/element identities and atomic writeback need a dedicated reducer and design. A compile-only bypass would be incorrect.
+- **Boundary:** The class solver cannot be reused wholesale because it depends on class-property metadata and clamps queue size. The selected local-queue path must prove an exact size, solve every element constraint, and write back only after SAT; nonexact or unsupported forms remain loud. A compile-only bypass would be incorrect.
 
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
@@ -159,7 +159,7 @@
 - **State:** IN_PROGRESS, locally focus-tested through `3b6d1986f` on a branch stacked after PR328. The pinned OpenTitan SPI Host source calls `cmd_check(item.data.pop_front)`; the previous compiler warned that the expression was dropped, returned success, and lost the queue mutation and byte value.
 - **Requirement:** IEEE 1800-2017/2023 §§5.13 and 7.10.2.4 permit omitting empty parentheses on a direct zero-argument built-in method call; `pop_front` removes and returns the first element. The 2023 §13.4.1 parentheses rule for dereferencing a function return does not apply to this direct value use.
 - **Evidence:** [Paired focused and pinned SPI compile record](session_logs/2026-09-23_opentitan_queue_pop_focus.json). The prior `evidence/opentitan-queue-pop-20260923/repro.sv` fails in both editions without parentheses; its `-DPARENS_CONTROL` form passes. The root cause is `PEIdent::elaborate_expr_class_field_` in `elab_expr.cc`.
-- **Closure:** The typed `pop_front`/`pop_back` result, single queue mutation, empty-queue boundary, invalid arity, and neighboring checks pass locally. [Boundary follow-up](session_logs/2026-09-23_queue_pop_assoc_boundary.json) rejects these methods on associative arrays in expression context while preserving an associative-array element whose type is a queue. Statement-context calls still compile incorrectly; [separate debt](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json) records that path. Broad required gates and current-head CI remain; full SPI DV is separate and still blocked by four constraint-index warnings.
+- **Closure:** The typed `pop_front`/`pop_back` result, single queue mutation, empty-queue boundary, invalid arity, and neighboring checks pass locally. [Boundary follow-up](session_logs/2026-09-23_queue_pop_assoc_boundary.json) rejects these methods on associative arrays in expression context while preserving an associative-array element whose type is a queue. The [statement-method candidate](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json) now rejects five queue-only methods on associative receivers in the shared dispatch; broad gates and CI remain open. Full SPI DV is separate.
 
 This file is a **backlog**, not an authorization to implement. Per
 `AGENTS.md`, only `.ai/ACTIVE_WORK.yaml` (status: `in_progress`, naming a

@@ -47,8 +47,8 @@ The direct zero-argument queue-pop method rule in §§5.13/7.10.2.4 shares the
 shows no edition difference for the tested class-property subset; broader
 queue-method qualification remains open.
 The [expression-context associative-array rejection boundary](session_logs/2026-09-23_queue_pop_assoc_boundary.json)
-is likewise paired across both editions; [statement-context acceptance](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
-remains a separate defect in both editions.
+is likewise paired across both editions. The [statement-method candidate](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
+shares the 2017 fix and paired evidence; broad qualification remains open.
 
 The 2023 §16.7 finite-sequence naming correction shares the [2017 matrix
 scope](matrices/ieee1800_2017_clause_matrix.md#september-23-long-finite-sva-sequences)
