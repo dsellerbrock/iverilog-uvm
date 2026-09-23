@@ -29,7 +29,10 @@ module test;
       $fatal(1, "bounded queue maximum size solve failed");
 
     requested = 0;
-    ok = std::randomize(q) with { q.size() == requested; };
+    ok = std::randomize(q) with {
+      q.size() == requested;
+      foreach (q[i]) q[i] == 8'hff;
+    };
     if (!ok || q.size() != 0)
       $fatal(1, "queue zero-size solve failed");
 
