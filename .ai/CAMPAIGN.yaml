@@ -11,8 +11,9 @@ active_blocker:
   first_published_head: 1541e276009eb16c88b0f2bd2794c858d7bdb01f
   ci: Pending on the current PR head; check its rollup before merge. PR328 remains the base dependency.
   standard: IEEE 1800-2017/2023 5.13 and 7.10.2.4.
-  source_test_commit: a0e45a3c796767fd1f20227713e0132fa1078d5a
+  source_test_commit: 3b6d1986ff1633ba8c329f0dabdeb0369deb15e3
   evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
+  boundary_evidence: docs/conformance/session_logs/2026-09-23_queue_pop_assoc_boundary.json
   next: PR328 current-head CI then rebase; run applicable broad gates at the next coherent checkpoint; keep SPI semantic warnings explicit.
 prior_candidate:
   pr: https://github.com/dsellerbrock/iverilog-uvm/pull/328

@@ -1,0 +1,63 @@
+{
+  "title": "Associative-array queue-pop rejection boundary",
+  "observed_utc": "2026-09-23T06:36:46.393905+00:00",
+  "blocker": "OT-SPI-QUEUE-POP-DROPPED",
+  "standards": [
+    "IEEE 1800-2017 7.9 associative-array methods and 7.10.2.4 queue pop methods",
+    "IEEE 1800-2023 7.9 associative-array methods and 7.10.2.4 queue pop methods"
+  ],
+  "branch": "agent/opentitan-queue-pop-20260923",
+  "source_test_commit": "3b6d1986ff1633ba8c329f0dabdeb0369deb15e3",
+  "parent_source_test_commit": "a0e45a3c796767fd1f20227713e0132fa1078d5a",
+  "before": {
+    "direct_and_class_associative_pop_forms": "All four parenthesized/unparenthesized forms compile with exit 0 in both editions, despite being queue-only methods.",
+    "raw": "evidence/opentitan-queue-pop-20260923/assoc-pop-baseline.json",
+    "cases": 8
+  },
+  "change": "Reject pop_front/pop_back on an assoc_compat receiver in the shared explicit-call helper and both parenthesis-free direct and class-property paths; keep indexed associative-array elements whose element type is a queue eligible.",
+  "tests": {
+    "build_install": "make -j1 then make -j1 install, exit 0",
+    "make_check": "make -j1 check, exit 0",
+    "negative": "Four invalid forms in one fixture produce four exact errors and compile exit 4 in both editions.",
+    "legacy_focus": {
+      "name": "legacy",
+      "command": "perl vvp_reg.pl regress-class-prop-queue-pop-legacy.list",
+      "exit": 0,
+      "elapsed_seconds": 0.473,
+      "summary": "  Total=10, Passed=10, Failed=0, Not Implemented=0, Expected Fail=0"
+    },
+    "json_focus": {
+      "name": "json",
+      "command": "python3 vvp_reg.py regress-class-prop-queue-pop-vvp.list",
+      "exit": 0,
+      "elapsed_seconds": 0.173,
+      "summary": "Test results: Ran 9, Failed 0."
+    },
+    "positive_assoc_of_queue": [
+      {
+        "edition": "2017",
+        "compile_exit": 0,
+        "runtime_exit": 0,
+        "runtime_stdout": "PASSED\n"
+      },
+      {
+        "edition": "2023",
+        "compile_exit": 0,
+        "runtime_exit": 0,
+        "runtime_stdout": "PASSED\n"
+      }
+    ],
+    "raw": "evidence/opentitan-queue-pop-20260923/assoc-legacy-focus.log, assoc-json-focus.log, assoc-queue-element-positive.json"
+  },
+  "pinned_spi_compile": {
+    "source_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "compiler_engine_sha256": "148cdbcca0d2b120c845e483cfbc12176754dbb2d5e2ba450c0ed772e42d4105",
+    "exit": 0,
+    "errors": 0,
+    "queue_pop_dropped": 0,
+    "other_compile_progress_warnings": 4,
+    "raw": "evidence/opentitan-queue-pop-20260923/spi-assoc-boundary-compile.log and spi-assoc-boundary-summary.json"
+  },
+  "qualification": "Focused validation only. Four unresolved constraint-index warnings remain in the pinned SPI compile; no semantic SPI or DV pass, and broad/CI gates remain pending.",
+  "application_sources_modified": false
+}

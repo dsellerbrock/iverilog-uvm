@@ -2,7 +2,7 @@ status: in_progress
 branch: agent/opentitan-queue-pop-20260923
 baseline: PR328 head 902323fb10ce8d5d8f0d3d5e36a0f33ec71deb7f; stacked until PR328 merges
 blocker: OT-SPI-QUEUE-POP-DROPPED
-goal: Evaluate a parenthesis-free zero-argument queue pop_front or pop_back on a class property exactly once, return the typed element, and remove that element.
+goal: Evaluate a parenthesis-free zero-argument queue pop_front or pop_back on a class property exactly once, return the typed element, and remove it; reject these queue-only methods on associative arrays.
 standards: IEEE 1800-2017/2023 5.13 and 7.10.2.4; a direct built-in method call may omit empty parentheses, and pop_front removes and returns the first element.
 failing_reproducer: evidence/opentitan-queue-pop-20260923/repro.sv compiles with a dropped-expression warning then fails its value/side-effect check in both editions.
 positive_control: The same reducer with -DPARENS_CONTROL passes in both editions.
@@ -10,15 +10,17 @@ expected: The parenthesis-free and parenthesized calls have the same result and 
 root_cause: PEIdent::elaborate_expr_class_field_ in elab_expr.cc dropped parenthesis-free class-property queue methods; PECallFunction already emitted typed $ivl_queue_method$pop_front/back expressions for parenthesized calls.
 allowed_scope:
   - elab_expr.cc class-property queue method expression path and necessary width typing.
+  - elab_expr.cc shared explicit-call and direct-receiver guards for the associative-array boundary found during review.
   - Dedicated positive, negative, and boundary regression fixtures and gold files.
 forbidden:
   - OpenTitan or Caliptra source changes.
   - VVP runtime and Claude-owned constraint/VIF event-relay files without a demonstrated necessity and coordinator scope update.
   - Shared manifests, builds, installs, and output directories by an implementation agent; coordinator owns them.
-acceptance: Focused -g2017/-g2023 result and side-effect checks; parenthesized control; empty-queue boundary; invalid-arity negative; neighboring queue regressions; no compile-progress drop. These pass locally; broad required gates and CI remain pending.
+acceptance: Focused -g2017/-g2023 result and side-effect checks; parenthesized control; empty-queue boundary; invalid-arity negative; associative-array pop rejection with queue-valued element positive control; neighboring queue regressions; no compile-progress drop. These pass locally; broad required gates and CI remain pending.
 dependency: PR328 remains open; this branch is stacked on its tested source/test head and must be rebased or retargeted after PR328 merges.
 previous_candidate: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
-source_test_commit: a0e45a3c796767fd1f20227713e0132fa1078d5a
+source_test_commit: 3b6d1986ff1633ba8c329f0dabdeb0369deb15e3
 evidence: docs/conformance/session_logs/2026-09-23_opentitan_queue_pop_focus.json
+boundary_evidence: docs/conformance/session_logs/2026-09-23_queue_pop_assoc_boundary.json
 pr: https://github.com/dsellerbrock/iverilog-uvm/pull/329
 next: Rebase after PR328 merges, run applicable broad gates at the next coherent checkpoint, and publish only qualified review scope.
