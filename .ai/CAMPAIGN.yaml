@@ -1,13 +1,13 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
 branch: agent/ot-scope-queue-assoc-pop-20260923
-baseline: main 6fd804a39e803152bd39a3ee4c96b15d30532001 plus PR340 corrected head c40dce788cd5375e3dcbb41e28237a91326ed1a1 and PR341 head 5937223f24695eb66d54d7c2d07268067e3aa94b; exact-head CI pending.
+baseline: main 7943dffd1a426418cd975883753af7cdb2e18e46; PR340 and PR341 merged after exact-head CI successes; current source branch stacked on PR341 head 5937223f24695eb66d54d7c2d07268067e3aa94b.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
-  scope_queue: OT-SPI-STD-RANDOMIZE-QUEUE; Sol design escalation identified an exact-size local queue adapter using existing size/element IR and Z3Builder. It now owns elab_expr.cc; elaborate.cc; target scope-randomize codegen; vvp scope solver/runtime; dedicated tests. Coordinator owns shared builds/manifests. RED reducer in evidence/ot-spi-std-randomize-queue-20260923.
+  scope_queue: OT-SPI-STD-RANDOMIZE-QUEUE; integrated at c44dc1dd4 using an exact-size local queue adapter. Paired focused and neighboring tests pass; coordinator owns final review, manifests, PR, and pinned replay. Original RED reducer is in evidence/ot-spi-std-randomize-queue-20260923.
   assoc_pop: ASSOC-QUEUE-POP-STATEMENT; d0560368e commits the same-dispatch guard for five queue-only methods in elaborate.cc. Paired focus passes in both test runners; elaborate.cc ownership released to queue lane.
-  isolation: No Verilator implementation or pinned application-source edits; branch remains stacked above PR341.
+  isolation: No Verilator implementation or pinned application-source edits; branch remains stacked above PR341 source commits, now merged into main.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
@@ -15,15 +15,17 @@ recent_merges:
   pr337: 9ac5a0fd1af70e2b1e24ee04b54c425e7825712b; guarded exact-dist and OpenTitan generated-fileset changes merged; Ubuntu 22.04 and 24.04 exact-head CI passed.
   pr338: d74e1664b211394b3221e6cf1e3ad3c7d131e699; exact Caliptra L0 baseline and two focused firmware overlays merged after Ubuntu 22.04 exact-head CI passed. Remaining CI is still observable.
   pr339: 6fd804a39e803152bd39a3ee4c96b15d30532001; repaired compiler/VPI follow-on merged after Ubuntu 24.04 exact-head CI success. Other jobs remained in progress at merge; local broad and UVM gates passed.
+  pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
+  pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-SPI-ASSOC-FIND-INDEX and OT-CLASS-EVENT-MULTI-OBJECT-LIST
-  phase: FOCUSED_VALIDATED_STACKED_PR_PENDING
+  id: OT-SPI-STD-RANDOMIZE-QUEUE and ASSOC-QUEUE-POP-STATEMENT
+  phase: FOCUSED_INTEGRATED_PR_PREPARATION
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
-  standards: IEEE 1800-2017/2023 sections 7.12.1 and 15.5; exact associative keys and per-instance event identity.
-  checkpoint: Both reducers were red on PR340 and pass on f681defc1 in both editions; paired focused lists pass. Pinned SPI compile has one commercial-unsafe error, constrained queue std::randomize; no SPI Device DV pass.
-  evidence: docs/conformance/session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json.
-  next: Publish the focused-tested follow-on as a stacked PR, observe exact-head CI, and merge PR340 after one exact-head CI pass. Verilator stays read-only.
+  standards: IEEE 1800-2017/2023 sections 18.12 and 7.9/7.10; exact-size local queue randomization and associative versus queue-only methods.
+  checkpoint: Paired focused tests pass on c44dc1dd4 and follow-on test additions. Pinned SPI Device compiles past std::randomize(byte_q) but fails eight later vector-context codegen expressions; no SPI Device DV pass.
+  evidence: docs/conformance/session_logs/2026-09-23_assoc_queue_statement_methods_focus.json and pending exact-size queue focus record.
+  next: Finish focused integration and review, publish PR, merge after one exact-head CI success, then tackle the next pinned vector-context compiler blocker. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.
@@ -156,4 +158,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Publish follow-on Icarus associative locator and class-event list branch as a stacked PR, observe PR340 exact-head CI, then select the pinned SPI queue std::randomize blocker. Do not edit Verilator or pinned application sources."
+next_command: "Finish the exact-size scope queue and associative statement-method PR after focused local review; merge after one exact-head CI success, then select the next pinned OpenTitan vector-context compiler blocker. Keep Verilator read-only and pinned application sources unchanged."

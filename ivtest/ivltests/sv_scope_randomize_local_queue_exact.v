@@ -1,5 +1,7 @@
 module test;
   bit [7:0] q[$];
+  logic signed [7:0] signed_q[$];
+  bit [7:0] bounded_q[$:1];
   int requested;
   bit ok;
 
@@ -14,6 +16,17 @@ module test;
       $fatal(1, "queue size/element solve failed");
     foreach (q[i])
       if (q[i] >= 8'h80) $fatal(1, "queue foreach solve failed");
+
+    ok = std::randomize(signed_q) with {
+      signed_q.size() == 1;
+      signed_q[0] == -8'sd2;
+    };
+    if (!ok || signed_q.size() != 1 || signed_q[0] != -8'sd2)
+      $fatal(1, "signed four-state queue element solve failed");
+
+    ok = std::randomize(bounded_q) with { bounded_q.size() == 2; };
+    if (!ok || bounded_q.size() != 2)
+      $fatal(1, "bounded queue maximum size solve failed");
 
     requested = 0;
     ok = std::randomize(q) with { q.size() == requested; };

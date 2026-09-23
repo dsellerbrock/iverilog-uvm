@@ -1,6 +1,6 @@
-status: coordinator_authorized_parallel_implementation
+status: focused_integrated_pr_preparation
 branch: agent/ot-scope-queue-assoc-pop-20260923
-baseline: main 6fd804a39 plus PR340 corrected head c40dce788 and PR341 head 5937223f2; exact-head CI pending.
+baseline: main 7943dffd1 (PR340 and PR341 merged after exact-head CI successes); this branch is stacked on PR341 source head 5937223f2.
 blocker: OT-SPI-STD-RANDOMIZE-QUEUE and ASSOC-QUEUE-POP-STATEMENT
 goal: Advance unchanged released OpenTitan SPI Device and reject an invalid associative-array queue method without a simulator crash.
 standards: IEEE 1800-2017 and 1800-2023 sections 18.12 and 7.10/7.9.
@@ -9,7 +9,7 @@ expected: Scope-randomize a direct local integral queue with exact size/element 
 root_cause: Scope std::randomize currently admits scalar destinations only; statement-position method dispatch treats associative storage as a queue. A follow-on direct probe shows push_front/push_back/insert share the same invalid dispatch as pop_front/pop_back.
 allowed_scope: Associative-array statement-method lane is committed at d0560368e and released elaborate.cc ownership; the scope-queue lane is re-scoped to the exact-size solver adapter below. Coordinator owns manifests, shared build/install, pinned release replay, integration and review.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: New reducers are RED. PR340/PR341 prior focused validation is recorded in docs/conformance/session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json. PR340 and PR341 CI, broad gates, and full DV remain pending.
+validation: Both selected reducers were RED before fixes. Associative statement focus passed 4/4 in each runner; scope queue focus passed 4/4 in each runner, neighboring JSON tests 29/29, and legacy context tests 11/11. PR340 and PR341 merged after one exact-head CI success each. Full DV and broad qualification remain pending.
 parallel_scope_queue_lane:
   id: OT-SPI-STD-RANDOMIZE-QUEUE
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, review, and pinned release replay.
@@ -18,16 +18,16 @@ parallel_scope_queue_lane:
   files: elab_expr.cc; elaborate.cc; tgt-vvp/eval_vec4.c; tgt-vvp/vvp_process.c; vvp/compile.cc; vvp/codes.h; vvp/vthread.cc/h; vvp/vvp_z3.cc/h; dedicated ivtest fixtures/golds. No manifests, application, or Verilator edits.
   acceptance: Direct local integral queue whose length is proven exactly from captured state; size 3 and size 0; element/foreach constraints at that length; prefilled resize and UNSAT preserve size/values; reject unsupported or nonexact size, out-of-bounds, oversize, and unsupported element forms loudly; paired 2017/2023 checks. Never silently clamp or report success without complete writeback.
   dependency: PR341 source and associative-pop d0560368e are committed; elaborate.cc ownership is released. Coordinator owns build/install and cross-file integration.
-  state: RED baseline is an elaboration diagnostic. Initial Luna implementation lane stopped without source edits because the scope solver is scalar-only across all stages. Sol design review identified reuse of Z3Builder size/element IR and an exact-length adapter; authorized to implement that bounded path after the associative-pop commit. The queue-result opcode requires its declaration in vvp/codes.h alongside the vvp/compile.cc registration; coordinator authorized this one-header expansion before shared build.
+  state: Integrated at c44dc1dd4 after an initial Luna lane stopped at the architectural boundary and a Sol implementation reused size/element IR. Build/install and paired focused tests pass; signed four-state and bounded-maximum additions are under final focused validation. Pinned released SPI Device no longer rejects the scope queue call but fails eight later vector-context codegen errors; no DV pass.
 parallel_assoc_pop_statement_lane:
   id: ASSOC-QUEUE-POP-STATEMENT
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and review.
-  standards: IEEE 1800-2017/2023 sections 7.9 and 7.10: associative-array methods differ from queue-only pop methods.
+  standards: "IEEE 1800-2017/2023 sections 7.9 and 7.10: associative-array methods differ from queue-only pop methods."
   reproducer: evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles and vvp exits 139 after aa.pop_front(); push_probe.sv in the same directory accepts push_front/push_back/insert incorrectly.
   files: elaborate.cc; dedicated ivtest fixtures/golds only. No elab_expr.cc, target/VVP source, shared manifests, application, or Verilator edits.
   acceptance: Associative pop_front/pop_back/push_front/push_back/insert statements fail compilation with a clear diagnostic; valid queue methods still run; empty/nonempty queue boundaries and paired 2017/2023 checks.
   dependency: Disjoint from scope-queue lane. Coordinator owns build/install and integration.
-  state: Integrated at d0560368e. Former runtime-crashing reducer and push probe now fail compilation; positive queue behavior passes. Four focused tests pass in each legacy and JSON runner across 2017/2023; PR/CI and broad qualification remain pending.
+  state: Integrated at d0560368e. Former runtime-crashing reducer and push probe now fail compilation; positive queue behavior passes. Four focused tests pass in each legacy and JSON runner across 2017/2023; follow-on PR/CI and broad qualification remain pending.
 parallel_assoc_find_index_lane:
   id: OT-SPI-ASSOC-FIND-INDEX
   owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.
@@ -35,7 +35,7 @@ parallel_assoc_find_index_lane:
   reproducer: evidence/ot-spi-assoc-find-index-20260923/reducer.sv is a compile-time sorry in both editions on PR340 head.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated ivtest fixtures and gold only. No elaborate.cc or shared build outputs.
   acceptance: Sparse bit[7:0] keys return matching keys in index order, not ordinal positions; empty/no-match, string-key, negative unsupported locator, and receiver-preservation controls; paired edition focused checks and pinned SPI compile replay after integration.
-  state: Integrated at f681defc1 and focused-tested in both editions; pinned SPI find_index error removed. Other associative locator methods remain loud.
+  state: Merged in PR341 at 7943dffd1 after exact-head Ubuntu 24.04 CI passed; pinned SPI find_index error removed. Other associative locator methods remain loud.
 parallel_class_event_list_lane:
   id: OT-CLASS-EVENT-MULTI-OBJECT-LIST
   owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.
@@ -43,7 +43,7 @@ parallel_class_event_list_lane:
   reproducer: evidence/ot-class-event-multi-object-list-triage-20260923/reducer.sv compiles but fatals at time 2 in both editions on PR340 head.
   files: elaborate.cc; class-event wait codegen/runtime only if necessary; dedicated ivtest fixtures and gold only. No elab_expr.cc or tgt-vvp/eval_object.c.
   acceptance: Either object event wakes an explicit list once; same-object and static-event controls preserve behavior; repeated firing rearms cleanly; paired edition focused checks after coordinator build. Null/rebound handle semantics need a separate standards review.
-  state: Integrated at f681defc1 and focused-tested in both editions; no source overlap with the find_index lane.
+  state: Merged in PR341 at 7943dffd1 after exact-head Ubuntu 24.04 CI passed; no source overlap with the find_index lane.
 release_lane:
   id: CALIPTRA-EXACT-L0-52
   owner: Coordinator
