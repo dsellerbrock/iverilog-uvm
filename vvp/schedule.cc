@@ -1156,13 +1156,15 @@ struct assign_prop_vec4_bits_event_s : public event_s {
       explicit assign_prop_vec4_bits_event_s(const vvp_object_t&o, unsigned p,
 					     uint64_t b,
 					     const vvp_vector4_t&v,
-					     const vvp_object_t&r)
-      : obj(o), pid(p), bitoff(b), val(v), root_obj(r) { next = NULL; }
+					     const vvp_object_t&r, bool s)
+      : obj(o), pid(p), bitoff(b), val(v), root_obj(r), signed_offset(s)
+      { next = NULL; }
       vvp_object_t obj;
       unsigned pid;
       uint64_t bitoff;
       vvp_vector4_t val;
       vvp_object_t root_obj;
+      bool signed_offset;
       void run_run(void) override
       {
 	    vvp_vector4_t current;
@@ -1177,8 +1179,18 @@ struct assign_prop_vec4_bits_event_s : public event_s {
 
 	    bool changed = false;
 	    for (uint64_t idx = 0 ; idx < val.size() ; idx += 1) {
-		  uint64_t dst = bitoff + idx;
-		  if (dst < bitoff || dst >= current.size())
+		  uint64_t dst;
+		  if (signed_offset && (bitoff >> 63)) {
+			uint64_t below = ~bitoff + 1;
+			if (idx < below)
+			      continue;
+			dst = idx - below;
+		  } else {
+			if (idx > UINT64_MAX - bitoff)
+			      continue;
+			dst = bitoff + idx;
+		  }
+		  if (dst >= current.size())
 			continue;
 		  vvp_bit4_t bit = val.value((unsigned)idx);
 		  if (current.value((unsigned)dst) != bit) {
@@ -1210,10 +1222,12 @@ void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
 				    uint64_t bitoff,
 				    const vvp_vector4_t&val,
 				    const vvp_object_t&root_obj,
-				    vvp_time64_t delay, bool reactive)
+				    vvp_time64_t delay, bool reactive,
+				    bool signed_offset)
 {
       struct assign_prop_vec4_bits_event_s*cur =
-	    new assign_prop_vec4_bits_event_s(obj, pid, bitoff, val, root_obj);
+	    new assign_prop_vec4_bits_event_s(obj, pid, bitoff, val, root_obj,
+					       signed_offset);
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
 					  : SEQ_NBASSIGN);
 }

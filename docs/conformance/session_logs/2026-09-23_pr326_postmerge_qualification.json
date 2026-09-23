@@ -1,0 +1,31 @@
+{
+  "date_utc": "2026-09-23",
+  "status": "REQUIRED_LOCAL_GATES_PASS_CI_PENDING",
+  "source_commit": "9111127532c71fc4eeaf1bab68685ade3c61296f",
+  "merge_commit": "fa5ae6da5cf7d8402f431db8194d782e1e2468b8",
+  "tested_head": "e544ce44f34e5390dfb3e559bf95cd4f832e70d8",
+  "tested_branch": "docs/release-overlays-20260923",
+  "merged_main_at_test": "3be18e4b6448671ed2d1323a133d147ff851bb19",
+  "source_test_equivalence": "The tested checkout matches origin/main for driver, main.cc, vvp, tgt-vvp, ivtest, tests, and .github. PR327 adds documentation and release overlays only.",
+  "installed_artifacts_sha256": {
+    "local-install/bin/iverilog": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "local-install/bin/vvp": "d8816e2fdb411e1aa5e92102f4b8e1b4ad3b6e3c3e4c4c7382094c01c805e334",
+    "local-install/lib/ivl/ivl": "39e978d9aee284961ab44a9a3ba3880e433cd5d477094baa882f81d20533337d",
+    "local-install/lib/ivl/vvp.tgt": "c46ba3e4fa6da6b004af989fcf0dfacc7b0e8f501e90628d6a86e84bf33a2e5d",
+    "local-install/lib/ivl/uvm_dpi.vpi": "8ab692673af28591793f44e55d311f65672d9ccc3843a03249c99c4c11d668c0"
+  },
+  "gates": {
+    "make_check": {"command": "make check", "exit": 0, "log": "evidence/pr326-postmerge-qualification-20260923/make-check.log"},
+    "ivtest_gate": {"command": "PATH=\"$PWD/local-install/bin:$PATH\" bash .github/ivtest_gate.sh", "exit": 0, "legacy": "6354 passed, 0 failed, 2 not implemented, 3 expected failures of 6359", "vpi": "126/126", "negative": "148/148", "runtime_invariants": "15/15", "log": "evidence/pr326-postmerge-qualification-20260923/ivtest-gate.log"},
+    "full_json": {"precondition": "make -C tgt-fpga install", "command": "From ivtest: PATH=\"$PWD/../local-install/bin:$PATH\" python3 ./vvp_reg.py regress-vvp.list", "exit": 0, "result": "3291 run, 0 failed", "log": "evidence/pr326-postmerge-qualification-20260923/full-json.log"},
+    "sva_nfa": {"command": "PATH=\"$PWD/local-install/bin:$PATH\" bash tests/sva_nfa/run.sh", "exit": 0, "result": "58 passed, 0 failed", "log": "evidence/pr326-postmerge-qualification-20260923/sva-nfa.log"},
+    "uvm": {"command": "PATH=\"$PWD/local-install/bin:$PATH\" bash .github/uvm_test.sh", "exit": 0, "generation": "-g2012", "dpi": "REAL DPI umbrella loaded; no UVM_NO_DPI fallback", "result": "358 passed, 0 failed, 0 skipped", "log": "evidence/pr326-postmerge-qualification-20260923/uvm.log"}
+  },
+  "limits": [
+    "This qualifies the merged compiler/test input tree for the listed local gates; it does not qualify full IEEE 1800-2017, IEEE 1800-2023, or IEEE 1800.2 conformance.",
+    "The UVM suite runs in -g2012 mode with real DPI; it is not a paired-edition qualification.",
+    "OpenTitan SPI Host still has unsupported selected-bit property NBA code generation and does not pass DV.",
+    "Full OpenTitan and Caliptra DV suites remain unqualified; release-overlay results are separately scoped.",
+    "GitHub CI was pending when this record was written."
+  ]
+}

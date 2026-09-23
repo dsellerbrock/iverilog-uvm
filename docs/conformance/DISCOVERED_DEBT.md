@@ -3261,3 +3261,23 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 - Discovery ID: CONSTRAINT-CALLER-STATE-WIDE-KNOWN. Active blocker: CONSTRAINT-STATE-XZ-SCALAR.
 - Observation: `vvp/vthread.cc` stores ordinary caller-state slots as `uint64_t`; `vvp/vvp_z3.cc::substitute_slots` changes a `v:N:65` token to width 32 and uses only the low 64 bits. A `logic [64:0]` caller value of `65'h10000000000000000` makes a `rand bit [64:0]` target solve to zero even though the active constraint equates them. Private reducer `evidence/review-20260920/state-xz-port/known-wide-state.sv` prints `FAILED known wide caller state got=00000000000000000 expected=10000000000000000` with the active worktree compiler.
 - Possible standard scope: IEEE 1800-2017/2023 18.3 and integral expression width rules. Status: reproduced, not selected. The active X/Z port scans all bits for unknown state but does not expand the solver's known-value slot representation; select a separate full-width implementation ticket.
+
+### OT-SPI-INLINE-FOREACH-INDEX — inline foreach index remains unresolved
+
+- **Discovered while working:** VIF-NBA-SELECTED-BIT application compile.
+- **Observation:** The pinned M6 SPI Host compile succeeds after the NBA fix but still warns four times that `i` could not bind in inline constraint `foreach` bodies. An older checkout-ledger claim that these warnings disappeared is not established by this current compile.
+- **File/function:** `elaborate.cc` caller-state capture for indexed `local::` expressions; `elab_expr.cc` emits the compile-progress warning.
+- **Possible clause:** IEEE 1800-2017/2023 constraint `foreach` and `local::` rules; exact subclauses need confirmation.
+- **Evidence:** `evidence/opentitan-codegen-integration-20260923/spi-compile.log`, clean M6 `a78922f14`, current worktree compiler hashes in the integration record.
+- **Reproducer status:** sketched: rand queue `foreach (data[i]) data[i] == local::data[i]` with a same-named caller queue; the existing caller-queue regression covers a different shape.
+- **Triage status:** untriaged; do not suppress the warning or substitute a fabricated caller value.
+
+### OT-SPI-QUEUE-POP-DROPPED — queue `pop_front` expression is dropped
+
+- **Discovered while working:** VIF-NBA-SELECTED-BIT application compile.
+- **Observation:** The pinned M6 SPI Host compile warns that `item.data.pop_front` is dropped inside `spi_device_cmd_rsp_seq`. The smoke sequence starts that response sequence, although entry into its first-byte branch in a specific run remains unverified.
+- **File/function:** `elab_expr.cc` class-property queue method expression path; an existing parenthesized path and VVP queue-pop runtime may be reusable.
+- **Possible clause:** IEEE 1800-2017/2023 §7.10 queue methods; parenthesis-free expression syntax still needs direct-edition verification.
+- **Evidence:** `evidence/opentitan-codegen-integration-20260923/spi-compile.log` and read-only source trace.
+- **Reproducer status:** sketched: push one byte, assign `x = c.q.pop_front`, verify both result and queue size.
+- **Triage status:** untriaged; no compiler or OpenTitan source change in the NBA ticket.

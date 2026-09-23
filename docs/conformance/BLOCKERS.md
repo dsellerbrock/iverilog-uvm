@@ -9,10 +9,24 @@
 
 ### COMMERCIAL-SIM-UNSAFE-FLAG — opt-in packed bit/logic container conversion
 
-- **State:** The compatibility flag is implemented at `9111127532c71fc4eeaf1bab68685ade3c61296f` in [PR326](https://github.com/dsellerbrock/iverilog-uvm/pull/326); strict IEEE type checking remains the default. Focused regression evidence passes, but no full suite was run on this revision.
+- **State:** The compatibility flag is implemented at `9111127532c71fc4eeaf1bab68685ade3c61296f` in [PR326](https://github.com/dsellerbrock/iverilog-uvm/pull/326); strict IEEE type checking remains the default. Focused checks and [post-merge local gates](session_logs/2026-09-23_pr326_postmerge_qualification.json) pass on the documented equivalent compiler/test tree; GitHub CI was pending at observation.
 - **Requirement:** IEEE 1800-2017/2023 §7.6 array element type equivalence remains strict by default. `-gcommercial-unsafe` is an explicitly nonstandard compatibility extension limited to equal-width, equal-signedness packed `bit`/`logic` value conversion in whole queue/dynamic-array assignment and native task/function value copies.
 - **Evidence:** [Revision-scoped record](session_logs/2026-09-23_commercial_unsafe_flag.json) records the focused tests and exact OpenTitan SPI compile. Enabling the flag clears its strict type errors but leaves nonblocking property assignment codegen errors. OpenTitan DV has not passed.
-- **Open work:** Complete the applicable broader compiler gates and separately resolve the remaining nonblocking property assignment lowering errors before claiming SPI compile or DV success. Do not count flag acceptance as IEEE qualification or VCS equivalence.
+- **Open work:** Resolve the remaining nonblocking property assignment lowering errors before claiming SPI compile or DV success. Do not count flag acceptance as IEEE qualification or VCS equivalence.
+
+### TASK-CODEGEN-ERROR-DROPPED — task-body target errors do not fail compilation
+
+- **State:** IN_PROGRESS, locally fixed at `a1c94078b` pending PR/CI. On base `3be18e4b6`, a class task with an unsupported target form reported a `vvp.tgt error` but returned compile status 0 and emitted an invalid image.
+- **Cause:** `draw_task_definition` returns the `show_statement` error count, but `draw_scope` discards it in `tgt-vvp/vvp_scope.c`; the adjacent function path adds its count to `vvp_errors`.
+- **Evidence:** Local reducer and base compile logs in `evidence/opentitan-codegen-assessment-20260923/`; [candidate local gates](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) pass. The current SPI compile has zero target errors, though separate semantic degradation remains.
+- **Closure:** Propagate task-body errors without suppressing diagnostics; permanently test a still-unsupported task-body form with nonzero compile status and a valid neighboring task. This does not implement the selected-bit NBA.
+
+### VIF-NBA-SELECTED-BIT — dynamic property bit-select NBA is unsupported
+
+- **State:** IN_PROGRESS, locally fixed at `a1c94078b` pending PR/CI. On base `3be18e4b6`, five SPI Host driver assignments to `vif.sio[i]` emitted unsupported-form errors.
+- **Requirement:** IEEE 1800-2017 and 1800-2023 §10.4.2 evaluate variable LHS components (including index and virtual-interface reference) and RHS when the NBA executes, with the update deferred to the NBA region.
+- **Evidence:** Reduced base source and compile log in `evidence/opentitan-codegen-assessment-20260923/`; [candidate record](session_logs/2026-09-23_opentitan_nba_codegen_focus.json) includes paired-edition tests and all required local gates. Four inline-constraint index warnings and a dropped queue-pop expression still prevent an SPI semantic compile pass.
+- **Closure:** Capture receiver, selector, and four-state RHS at enqueue; update only the selected packed bit in the NBA region; prove old value before NBA and captured value afterward in both editions, plus boundaries and focused neighboring regressions. Do not claim SPI DV success from codegen alone.
 
 This file is a **backlog**, not an authorization to implement. Per
 `AGENTS.md`, only `.ai/ACTIVE_WORK.yaml` (status: `in_progress`, naming a

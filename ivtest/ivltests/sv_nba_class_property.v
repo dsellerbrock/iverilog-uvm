@@ -7,8 +7,10 @@
 // immediate invisibility, last-write-wins, #delay NBA, 2-state cast,
 // interleaving with plain-signal NBAs, null-handle no-op, and the clocked
 // driver pattern. Constant packed-field NBAs are covered separately by
-// sv_nba_property_field; dynamic/indexed residuals now fail compilation
-// instead of executing with blocking semantics. The null-handle case below
+// sv_nba_property_field; dynamic packed selects are covered by
+// sv_nba_vif_selected_bit_capture. Unsupported residual forms still fail
+// compilation instead of executing with blocking semantics. The null-handle
+// case below
 // is a legacy robustness check, not evidence that illegal null dereference is
 // IEEE-conformant. Self-checking.
 interface nba_if; logic [7:0] sig; endinterface

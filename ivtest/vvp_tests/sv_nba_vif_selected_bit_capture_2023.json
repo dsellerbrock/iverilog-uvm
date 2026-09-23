@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_nba_vif_selected_bit_capture.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "sv_nba_vif_selected_bit_capture"
+}

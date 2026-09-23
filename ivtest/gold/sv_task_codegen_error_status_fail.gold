@@ -1,0 +1,2 @@
+./ivltests/sv_task_codegen_error_status_fail.v:10: vvp.tgt error: a concatenated nonblocking assignment containing a class or interface property is not yet supported atomically in the NBA region.
+error: Code generation had 1 error(s).

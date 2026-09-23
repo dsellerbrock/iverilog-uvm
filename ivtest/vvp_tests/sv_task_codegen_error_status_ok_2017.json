@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_task_codegen_error_status_ok.v",
+    "iverilog-args" : [ "-g2017", "-s", "sv_task_codegen_error_status_ok" ],
+    "gold"          : "sv_task_codegen_error_status_ok"
+}

@@ -1,28 +1,34 @@
-status: COMMERCIAL_UNSAFE_FLAG_MERGED_VALIDATION_PENDING
-branch: docs/release-overlays-20260923
-authorization: Target-specific release overlay catalog and revision-scoped evidence update for the merged opt-in flag. Broader suite validation and remaining OpenTitan SPI codegen work are not complete.
-blocker: COMMERCIAL-SIM-UNSAFE-FLAG
-pull_request: https://github.com/dsellerbrock/iverilog-uvm/pull/326
-merge_commit: fa5ae6da5cf7d8402f431db8194d782e1e2468b8
-standards: IEEE 1800-2017/2023 7.6 strict type equivalence remains default; -gcommercial-unsafe is a nonstandard opt-in for equal-width/equal-signedness packed bit/logic value conversion in whole queue/dynamic-array assignments and native task/function value copies.
-source_commit: 9111127532c71fc4eeaf1bab68685ade3c61296f
-focused_validation:
-  legacy: 89/89
-  json: 82/82
-  full_suite_on_flag_head: NOT_RUN
-opentitan_spi:
-  strict: 4 type errors
-  flagged: 5 codegen errors remain (nonblocking property assignment form not yet supported)
-  dv: NOT_PASSED
+status: LOCAL_GATES_PASSED_PR_PENDING
+branch: agent/opentitan-nba-20260923
+baseline: origin/main 3be18e4b6448671ed2d1323a133d147ff851bb19
+source_test_commit: a1c94078b
+qualification: docs/conformance/session_logs/2026-09-23_opentitan_nba_codegen_focus.json
+authorization: Coordinator-authorized parallel OpenTitan codegen work after the merged flag's required local gates passed. The two mechanisms have disjoint source and fixture ownership; shared builds, installs, manifests, and test-output directories belong to the coordinator.
+blocker: TASK-CODEGEN-ERROR-DROPPED
+standards: IEEE 1800-2017/2023 10.4.2 for the provoking NBA; compiler must report unsupported target forms as unsuccessful compilation.
+status_before_fix: REPRODUCED
+current_status: LOCAL_GATES_PASSED_PR_PENDING
+failing_reproducer: evidence/opentitan-codegen-assessment-20260923/nba_task_drop_repro.sv emits a vvp.tgt error but exits 0 and writes an unusable image.
+expected: A task-body target error makes compilation fail; valid tasks still compile and run.
+root_cause_hypothesis: tgt-vvp/vvp_scope.c ignores draw_task_definition's returned show_statement error count while the adjacent function path accumulates it.
 allowed_scope:
-  - Documentation of current behavior and evidence.
+  - tgt-vvp/vvp_scope.c and a dedicated task-error regression fixture/gold.
 forbidden:
-  - Compiler or test-source edits in this documentation task.
-  - Claiming full-suite validation, OpenTitan compile success, OpenTitan DV success, IEEE qualification, or VCS equivalence.
-next: Run required broader gates on the merged flag revision, then coordinate the separately claimed OpenTitan nonblocking property assignment codegen fix after its exact patch or commit is available.
-evidence: docs/conformance/session_logs/2026-09-23_commercial_unsafe_flag.json
+  - Changing target diagnostics or suppressing unsupported behavior.
+  - Editing selected-bit NBA lowering/runtime files assigned to the second lane.
+  - Editing shared test manifests or invoking shared builds/installs without coordinator scheduling.
+acceptance: Nonzero compiler exit for a still-unsupported task-body form in both relevant editions; positive valid-task control; focused legacy/JSON checks; no diagnostics weakened.
 parallel_lanes:
-  - blocker: CALIPTRA-REJ-BOUNDED-RUNTIME
-    scope: Downstream Adams Bridge v2.0.3 testbench threshold/zeroize patch; pristine release remains unchanged.
-    observation: Same 100 vectors produce 64 underflows on pristine and 0 in the isolated patched copy.
-    status: Focused paired-release and current-upstream replays plus Icarus/Verilator scheduling probe pass; upstream Adams Bridge PR303 is open. Pristine release and full Caliptra DV remain failing/unqualified.
+  - blocker: VIF-NBA-SELECTED-BIT
+    status: LOCAL_GATES_PASSED_PR_PENDING
+    standards: IEEE 1800-2017/2023 10.4.2.
+    failing_reproducer: evidence/opentitan-codegen-assessment-20260923/vif_nba_selected_bit_pref_fix.sv currently emits unsupported-form error and no working NBA image.
+    expected: Capture VIF receiver, dynamic index, and four-state RHS at enqueue; update the selected bit in NBA, preserving neighbors and pre-NBA old value.
+    root_cause_hypothesis: tgt-vvp/stmt_assign.c rejects ivl_lval_idx for property NBA and runtime only schedules a constant bit offset.
+    allowed_scope: tgt-vvp/stmt_assign.c; tgt-vvp/vvp_process.c; necessary vvp opcode/parser/thread/scheduler files; dedicated selected-bit NBA regression fixtures/gold.
+    forbidden: tgt-vvp/vvp_scope.c; shared test manifests/build/install/output; unrelated assignment forms.
+    acceptance: Positive low/high-bit and four-state updates, receiver/index/RHS capture and pre-NBA old value in -g2017 and -g2023; focused negative/boundary controls and neighboring tests.
+dependency: Integrate diagnostic-integrity lane before judging SPI compile, but each implementation mechanism and source edit is independent.
+shared_validation: Focused paired 2017/2023, make check, legacy ivtest/VPI/negative/runtime invariants, full JSON, SVA NFA, and real-DPI UVM passed on source/test commit a1c94078b. SPI compile exits 0 with no target errors but five semantic degradation warnings; no OpenTitan or Caliptra DV claim.
+completed_baseline_gate: docs/conformance/session_logs/2026-09-23_pr326_postmerge_qualification.json
+application_followup: Caliptra Adams Bridge v2.0.3 rej_bounded patch is focused-tested; upstream PR303 open, pristine and full DV unqualified.
