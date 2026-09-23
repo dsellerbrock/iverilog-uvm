@@ -1738,6 +1738,11 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 		    ivl_stmt_lineno(net));
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after_warn);
 
+	/* The dispatch below only reads first_match_word, so drop the
+	   case expression now. A branch body can then leave the case
+	   through break/continue/return/disable without leaking it. */
+      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+
       lab_out = local_count++;
 
 	/* Pass 2: dispatch to the saved first matching item without
@@ -1792,7 +1797,6 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       }
 
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_out);
-      fprintf(vvp_out, "    %%pop/vec4 1;\n");
 
       free(body_label);
 
@@ -1871,6 +1875,11 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 	    }
       }
 
+	/* Every path out of the branch table pops the case expression
+	   before running a body, so a body that leaves the case through
+	   break/continue/return/disable leaves nothing on the stack. */
+      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+
 	/* Emit code for the default case. */
       if (default_case < count) {
 	    ivl_statement_t cst = ivl_stmt_case_stmt(net, default_case);
@@ -1907,6 +1916,7 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 		  continue;
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, local_base+idx);
+	    fprintf(vvp_out, "    %%pop/vec4 1;\n");
 	    rc += show_statement(cst, sscope);
 
 	      /* Statement is done, jump to the out of the case. */
@@ -1918,9 +1928,6 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
 
 	/* The out of the case. */
       fprintf(vvp_out, "T_%u.%u ;\n",  thread_count, local_base+count);
-	/* The case tests will leave the case expression on the top of
-	   the stack, but we are done with it now. Pop it. */
-      fprintf(vvp_out, "    %%pop/vec4 1;\n");
 
       return rc;
 }
@@ -1968,6 +1975,10 @@ static int show_stmt_case_r(ivl_statement_t net, ivl_scope_t sscope)
 
       }
 
+	/* Pop the reference value before any body runs (see
+	   show_stmt_case), so leaving a body early cannot leak it. */
+      fprintf(vvp_out, "    %%pop/real 1;\n");
+
 	/* Emit code for the case default. The above jump table will
 	   fall through to this statement. */
       if (default_case < count) {
@@ -1986,6 +1997,7 @@ static int show_stmt_case_r(ivl_statement_t net, ivl_scope_t sscope)
 		  continue;
 
 	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, local_base+idx);
+	    fprintf(vvp_out, "    %%pop/real 1;\n");
 	    rc += show_statement(cst, sscope);
 
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count,
@@ -1994,7 +2006,6 @@ static int show_stmt_case_r(ivl_statement_t net, ivl_scope_t sscope)
 
 	/* The out of the case. */
       fprintf(vvp_out, "T_%u.%u ;\n",  thread_count, local_base+count);
-      fprintf(vvp_out, "    %%pop/real 1;\n");
 
       return rc;
 }

@@ -1,0 +1,3 @@
+sv_case_exit_stack_balance vvp_tests/sv_case_exit_stack_balance.json
+sv_quality_if vvp_tests/sv_quality_if.json
+sv_case_inside_mixed_items vvp_tests/sv_case_inside_mixed_items.json

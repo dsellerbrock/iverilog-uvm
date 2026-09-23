@@ -1,0 +1,9 @@
+{
+    "type"   : "normal",
+    "source" : "sv_case_exit_stack_balance.v",
+    "iverilog-args" : [ "-g2012" ],
+    "gold"   : "sv_case_exit_stack_balance",
+    "vlog95" : {
+        "type" : "NI"
+    }
+}
