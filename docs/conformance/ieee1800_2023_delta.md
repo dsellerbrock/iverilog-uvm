@@ -5,6 +5,11 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The tested 2023 §§14.12/16.14.6 late module default-clocking rule shares the
+[2017 implementation and scoped evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--late-module-default-clocking-for-assertions); paired
+edition execution found no difference in this subset. Broader SVA qualification
+remains open.
+
 The direct zero-argument queue-pop method rule in §§5.13/7.10.2.4 shares the
 2017 implementation. [Paired focused evidence](session_logs/2026-09-23_opentitan_queue_pop_focus.json)
 shows no edition difference for the tested class-property subset; broader

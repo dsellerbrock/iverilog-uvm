@@ -1,0 +1,35 @@
+{
+  "date": "2026-09-23",
+  "blocker": "OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG",
+  "kind": "pinned-release compile-only assessment and failing reducer, before compiler patch",
+  "compiler_base_commit": "42f324c90294ed7356a467e8b6c95d94a9ba2c6e",
+  "installed_iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "release": {
+    "project": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "source_clean": true,
+    "core": "lowrisc:dv:adc_ctrl_sim:0.1",
+    "selected_test": "adc_ctrl_base_test",
+    "selected_sequence": "adc_ctrl_smoke_vseq",
+    "native_dependencies": [],
+    "dpi_dependencies": []
+  },
+  "target_setup": "FuseSoC setup exit 0; existing Root mapping warnings; generated source list used",
+  "target_compile": {
+    "mode": "-g2012 with UVM 1.2 source, target defines, and bind tops from the pinned core metadata",
+    "exit": 193,
+    "collected_syntax_diagnostics": 131,
+    "first": "adc_ctrl_filters_polled_vseq.sv:80 syntax error, following the line-76 adc_value_t'('1) cast within DV_CHECK_RANDOMIZE_WITH_FATAL",
+    "runtime": "not run because compile failed"
+  },
+  "reducer": {
+    "source": "evidence/opentitan-next-independent-20260923/adc_macro_cast_reducer.sv",
+    "command": "local-install/bin/iverilog -g<2012|2017> -s adc_macro_cast_reducer -o <image> <reducer>",
+    "baseline": "both editions exit 9 with syntax errors; preprocessed expansion ends WITH_C_ after adc_value_t'('1}, leaving the remaining constraints outside the macro",
+    "controls": "ordinary-literal macro constraint and procedural cast compile and run in both tested modes",
+    "root_cause": "ivlpp/lexor.lex MA_ADD apostrophe-plus-next-character rule consumes the cast's opening parenthesis without incrementing macro-argument nesting depth"
+  },
+  "separate_runtime_observation": "A direct nonmacro casted inline constraint compiles but gives ramp_max=1 with %ret/vec4 width mismatch (32 != 1), coercing; this is a separate, Claude-owned vvp/vthread.cc path, not evidence the macro scanner fix will make ADC smoke pass.",
+  "raw": "evidence/opentitan-next-independent-20260923/result.json, macro-controls.json, controls.json, adc_macro_cast_preprocessed.sv, and assessment.md",
+  "limits": "One ADC target only; no smoke runtime, no full OpenTitan DV, no commercial-simulator cross-check, and no compiler patch at this baseline."
+}

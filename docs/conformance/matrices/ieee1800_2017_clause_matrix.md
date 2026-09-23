@@ -5,6 +5,17 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — late module default clocking for assertions
+
+Under §§14.12 and 16.14.6, a module default clocking declared after a
+concurrent assertion supplies that assertion's clock in the tested subset.
+The [revision-scoped candidate](../session_logs/2026-09-23_caliptra_late_default_clocking_focus.json)
+executes direct, forward-named, generated, and `first_match` checks in both
+selected editions and both engines, with the NFA path engaged; procedural enclosing-event inference retains its
+own clock. No-default, invalid-reference, inactive-generate, and cross-module
+boundaries are preserved. This is a focused clause-14/16 refinement within
+PARTIAL support, not full SVA or Caliptra DV qualification.
+
 ### September 23, 2026 — selected-bit property NBA and target error accounting
 
 The [revision-scoped candidate record](../session_logs/2026-09-23_opentitan_nba_codegen_focus.json)

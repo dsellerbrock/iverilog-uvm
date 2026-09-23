@@ -1,0 +1,47 @@
+{
+  "date": "2026-09-23",
+  "blocker": "CALIPTRA-LATE-DEFAULT-CLOCKING",
+  "scope": "IEEE 1800-2017 and 1800-2023 clauses 14.12 and 16.14.6: an unclocked concurrent assertion before its containing module's default clocking declaration",
+  "baseline": {
+    "commit": "42f324c90294ed7356a467e8b6c95d94a9ba2c6e",
+    "installed_ivl_sha256": "1ddd808cd9ffda398dc316604c88835548b218ae18428e8cf7bc09672ca2de13",
+    "late_default_reducer": "-g2017 and -g2023 both reject a legal module assertion with a false missing-clock diagnostic; an early-default control compiles and a no-default control is correctly rejected",
+    "pinned_caliptra_ecc": "both editions exit 5 with five false missing-clock diagnostics at fv_ecc_dsa_sequencer.sv:91-95",
+    "raw": "evidence/caliptra-late-default-baseline-20260923/baseline.json"
+  },
+  "candidate": {
+    "source_test_commit": "342226068f741a0ec418ac3aa7eae66e20f20b5a",
+    "branch": "agent/caliptra-late-default-clocking-20260923",
+    "pform_sha256": "1fbeee04133ffa4dd3c252cfb479b25c2ec146811075c065dbca36c1a0390a60",
+    "fixture_sha256": "ba696a81471064d83c0062337ed3544ef27603bd7d61ef12a5b55bd7ca146723",
+    "installed_driver_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "installed_ivl_sha256": "6460085bb07160bc45806eab0af310c0437c936f5a4214bec8ce07fcbb4f3ef6",
+    "change": "retain owner module and lexical/generate context for parked assertions; validate the default clock reference and retry with that module active, without deferring unresolved named properties again"
+  },
+  "focused_execution": {
+    "command": "local-install/bin/iverilog -g<2017|2023> -gassertions -s late_default_clock_execution -o <image> tests/sva_nfa/late_default_clock_execution.sv; local-install/bin/vvp <image>, each with IVL_SVA_LEGACY=1 and IVL_SVA_NFA=1",
+    "results": "four compile exits 0; four runtime exits 0; each prints PASSED",
+    "checked": "direct pass/fail attempts, forward named property, generated-local property, inactive generate, first_match NFA cover count, implication failure count, and enclosing procedural negedge rather than module default posedge",
+    "raw": "evidence/caliptra-late-default-candidate-20260923/focus-committed.json"
+  },
+  "local_validation": [
+    {"command": "PATH=local-install/bin:$PATH bash tests/sva_nfa/run.sh", "result": "61 passed, 0 failed; new fixture has verdict parity and NFA engagement"},
+    {"command": "PATH=local-install/bin:$PATH bash tests/negative/run_negative.sh", "result": "150 passed, 0 failed; includes invalid default reference and cross-module negatives"},
+    {"command": "PATH=../local-install/bin:$PATH python3 vvp_reg.py regress-caliptra-late-default-focus-vvp.list regress-caliptra-sva-runtime-focus-vvp.list (working directory ivtest)", "result": "18 passed, 0 failed"},
+    {"command": "PATH=../local-install/bin:$PATH perl vvp_reg.pl regress-s03-focus-legacy.list (working directory ivtest)", "result": "55 passed, 0 failed"},
+    {"command": "make -j1 check", "result": "exit 0"},
+    {"command": "PATH=local-install/bin:$PATH bash .github/regression/run_uvm_subset.sh --group sva", "result": "30 passed, 0 failed, 0 skipped; real-DPI umbrella loaded"},
+    {"command": "PATH=local-install/bin:$PATH bash .github/regression/run_uvm_subset.sh --group clocking", "result": "15 passed, 0 failed, 0 skipped; real-DPI umbrella loaded"}
+  ],
+  "negative_boundaries": "-g2017 and -g2023 separately retain loud invalid-reference, absent-default, sibling-module, unrelated procedural event, and multiple-default diagnostics; full negative suite also ran at -g2012",
+  "pinned_application": {
+    "release": "Caliptra v2.1.2",
+    "revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "source_clean": true,
+    "formal_property_file_sha256": "4143a3996e438e29409f8d866ee31385efbdacbc0a74ab6b5614ea73fb9a5a57",
+    "command": "CALIPTRA_ROOT=<pinned release> CALIPTRA_PRIM_ROOT=<pinned release>/src/caliptra_prim_generic CALIPTRA_PRIM_MODULE_PREFIX=caliptra_prim_generic ADAMSBRIDGE_ROOT=<pinned Adams Bridge> local-install/bin/iverilog -g<2017|2023> -gassertions -tnull -s ecc_top -f <release>/src/ecc/config/ecc_top.vf <release>/src/ecc/formal/properties/fv_ecc_dsa_sequencer.sv",
+    "result": "both editions exit 1 with only an unresolved DSA_NOP at source line 121; the five false clock errors are absent",
+    "qualification": "neither formal-file compilation nor Caliptra DV passes"
+  },
+  "limits": "Focused implementation and local validation only. Full regression, exact-head CI, merge, full IEEE/SVA conformance, and Caliptra formal/DV qualification remain separate. The known tree-cover pass action is dropped by existing code, so this fixture checks its synthesized match counter instead."
+}
