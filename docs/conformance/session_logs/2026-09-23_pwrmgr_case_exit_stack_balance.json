@@ -1,0 +1,735 @@
+{
+  "date": "2026-09-23",
+  "status": "focused-tested compiler fix and patched released OpenTitan pwrmgr suite subset; PR and broad release DV remain open",
+  "compiler_source_commit": "5e9adb1d38edf5a0434f0e302bb725cbe694bbee",
+  "compiler_source_tree": "36cdf7b7c08ee4252ffaa3126aa901f5105c45b7",
+  "base_main_commit": "2f031bfbdd277d15278bf055d24beaa47e6bf0cd",
+  "standards": "IEEE 1800-2017/2023 sections 9.4, 12.5, 12.8; procedural case body exits must not leave VVP selector operands on the stack",
+  "root_cause": "show_stmt_case, show_stmt_case_unique, and show_stmt_case_r popped the selector only at their common case-out label; break/continue/return/disable from a body bypassed it. The runtime [CLEANUP-leak] diagnostic drained the leftover operand at thread destruction. The fix pops after dispatch and before branch bodies, including default/no-match, with real and vec4 stacks kept distinct.",
+  "baseline": {
+    "minimal_reproducer": "/tmp/case-break-leak-2JBl42/case_break.sv (local, not committed)",
+    "case_break": "compiled and ran on pre-fix target with one [CLEANUP-leak] stack_vec4 diagnostic; generated VVP showed break jumping past the sole %pop/vec4",
+    "no_case_control": "same task without case ran with no diagnostic",
+    "prior_released_pwrmgr_local_result": "evidence/opentitan-pwrmgr-release-named-sweep-20260923/result.json",
+    "prior_22_run_cleanup_diagnostics": 36,
+    "prior_22_run_scoreboard_tl_pairs": 3134
+  },
+  "focused_validation": {
+    "case_break_exit": 0,
+    "case_break_cleanup_diagnostics": 0,
+    "no_case_exit": 0,
+    "new_fixture_editions": [
+      "-g2012",
+      "-g2017",
+      "-g2023"
+    ],
+    "new_fixture_passed_each_edition": true,
+    "new_fixture_cleanup_diagnostics_each_edition": 0,
+    "legacy_focus": "5 passed, 0 failed",
+    "json_focus": "3 passed, 0 failed",
+    "make_check": "exit 0",
+    "new_test_registration": [
+      "ivtest/regress-sv.list",
+      "ivtest/regress-vvp.list"
+    ],
+    "git_diff_check": "pass"
+  },
+  "released_application": {
+    "source_release": "Earlgrey-PROD-M6",
+    "source_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "source_snapshot": "Frozen prior FuseSoC-generated source list from pinned release with one clock-activity checker overlay; not freshly regenerated on this head",
+    "source_list_sha256": "fe700dd7b012801dfb7206cc1f00f8182fb405f923a9e1246ed5b937c976f601",
+    "clock_activity_checker_sha256": "ff1a4385770643f26e9a9ef403364fc55409c4ac65a833b77eff77180287ec98",
+    "overlay_patch_sha256": "dc4c9b4be456a842e34c41cb002972762395ac0952bcef153d3bca7b4e9af8ec",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2012",
+      "-stb",
+      "-spwrmgr_bind",
+      "-spwrmgr_cov_bind",
+      "-spwrmgr_unit_only_bind",
+      "-ssec_cm_prim_count_bind",
+      "-ssec_cm_prim_double_lfsr_bind",
+      "-ssec_cm_prim_onehot_check_bind",
+      "-ssec_cm_prim_sparse_fsm_flop_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+      "-c",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-released-pwrmgr-current-20260923/absolute-sources-with-timescale.scr"
+    ],
+    "compile_exit": 0,
+    "compile_warning_lines": 12,
+    "compiled_image_sha256": "e3a5281ec9be1d16f08cea01dc4588f5324914a6b1683bd0648ff79b8b682ac3",
+    "run_count": 22,
+    "named_tests_at_seed1": 17,
+    "smoke_seeds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "passed_count": 22,
+    "total_scoreboard_tl_pairs": 3134,
+    "total_cleanup_diagnostics": 0,
+    "local_raw_evidence": "evidence/opentitan-pwrmgr-case-exit-20260923/result.json",
+    "runs": [
+      {
+        "test": "pwrmgr_smoke",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 4.33,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 25,
+        "scoreboard_tl_d": 25,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "d0a206d7ffea01d1b6883917a0843868725335ced7a50c7480011cff56f0593f"
+      },
+      {
+        "test": "pwrmgr_reset",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_reset_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 11.27,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 157,
+        "scoreboard_tl_d": 157,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "abc17bf619a9f83726b9065f0c59bad5af231fd8901ad12775a832d254518067"
+      },
+      {
+        "test": "pwrmgr_lowpower_wakeup_race",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_lowpower_wakeup_race_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 4.854,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 32,
+        "scoreboard_tl_d": 32,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "02ade6331a352055f085c3605d745d672b8233fec83e840a5d9aaace9dac3a79"
+      },
+      {
+        "test": "pwrmgr_wakeup",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_wakeup_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 12.551,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 161,
+        "scoreboard_tl_d": 161,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "05606b5be45c280bd4ebdc72f099c07ae1814d16d4ad8cac990cb66ee6df6f91"
+      },
+      {
+        "test": "pwrmgr_wakeup_reset",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_wakeup_reset_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 6.307,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 62,
+        "scoreboard_tl_d": 62,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "9860d7150b01c4a23821897b3a7cadef47d1152e4f729d0ecb95aa4c22fb0e4d"
+      },
+      {
+        "test": "pwrmgr_aborted_low_power",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_aborted_low_power_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 11.687,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 199,
+        "scoreboard_tl_d": 199,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "0c1de2335bc0db9bff9a77cad58f0ee6a92377d0df9f896d9591964facd5bc97"
+      },
+      {
+        "test": "pwrmgr_sec_cm_lc_ctrl_intersig_mubi",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=3000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_repeat_wakeup_reset_vseq",
+          "+pwrmgr_mubi_mode=PwrmgrMubiLcCtrl"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 56.931,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 858,
+        "scoreboard_tl_d": 858,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "07337dcfaf0fec4e9370d205841e524fecc445ac0fb4c684501aeea47e11e227"
+      },
+      {
+        "test": "pwrmgr_sec_cm_rom_ctrl_intersig_mubi",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=4000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_repeat_wakeup_reset_vseq",
+          "+pwrmgr_mubi_mode=PwrmgrMubiRomCtrl"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 60.715,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 858,
+        "scoreboard_tl_d": 858,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "f935c64a153f64c1593c824001578e8a7994e02ca41b2bc71f22570c04857fab"
+      },
+      {
+        "test": "pwrmgr_sec_cm_rstmgr_intersig_mubi",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_sw_reset_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 13.58,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 244,
+        "scoreboard_tl_d": 244,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "18503f417dbd67f9891cb4464d2fd0851ddf0baa33829982d5c23283941c1669"
+      },
+      {
+        "test": "pwrmgr_esc_clk_rst_malfunc",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_esc_clk_rst_malfunc_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 2.977,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 1,
+        "scoreboard_tl_d": 1,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "e28945db97249931d7b3bd872c6b4b7a779ff22e6b31be209e8801fb170d72c0"
+      },
+      {
+        "test": "pwrmgr_sec_cm_ctrl_config_regwen",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=50000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_sec_cm_ctrl_config_regwen_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 13.255,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 187,
+        "scoreboard_tl_d": 187,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "cbbb2f67d456b3b9ca7f2dcd1e0a2ab62f837e31128b512981376c4a194f1cfd"
+      },
+      {
+        "test": "pwrmgr_global_esc",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_global_esc_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 3.532,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 1,
+        "scoreboard_tl_d": 1,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "51980387575d1b0ac35fb426af92c374423fd644ce5e82235f37ffc6f8c13006"
+      },
+      {
+        "test": "pwrmgr_escalation_timeout",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_escalation_timeout_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 13.884,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 1,
+        "scoreboard_tl_d": 1,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "643688aa5bcc7ef55fd43cd3ba0e45e133936d0da815f1ba9414435bff973d31"
+      },
+      {
+        "test": "pwrmgr_glitch",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_glitch_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 3.34,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 1,
+        "scoreboard_tl_d": 1,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "5672b4289e490216b8e111f4b026b697f7d85cb05c3bb838c652ac913829b5cd"
+      },
+      {
+        "test": "pwrmgr_disable_rom_integrity_check",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_disable_rom_integrity_check_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 5.908,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 57,
+        "scoreboard_tl_d": 57,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "d2e3c3044b90b6bc921fc1f8158528c4efe5c3821a4a7eebd3e7815d26a4fff2"
+      },
+      {
+        "test": "pwrmgr_reset_invalid",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_reset_invalid_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 7.809,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 63,
+        "scoreboard_tl_d": 63,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "8fef19742243e16c31d00da155d8cc70b1a0f69ddbe5d7fb77e7df05daa0e88e"
+      },
+      {
+        "test": "pwrmgr_lowpower_invalid",
+        "seed": 1,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=1",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_lowpower_invalid_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 4.278,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 20,
+        "scoreboard_tl_d": 20,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "898f9bb40c550e0d639986b7869624187efc03b620b2ad8b7fdbda0c14b1b577"
+      },
+      {
+        "test": "pwrmgr_smoke_seed2",
+        "seed": 2,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=2",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 5.183,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 45,
+        "scoreboard_tl_d": 45,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "1ee25fb93c850066775e71a7937bcc003f818cbae59ea2915d7bdc42aabeaee5"
+      },
+      {
+        "test": "pwrmgr_smoke_seed3",
+        "seed": 3,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=3",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 4.812,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 38,
+        "scoreboard_tl_d": 38,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "2ecc13b8169fe9038e1a5bde571f6a98980063400622f74a60f83bbdd9770914"
+      },
+      {
+        "test": "pwrmgr_smoke_seed4",
+        "seed": 4,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=4",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 6.649,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 68,
+        "scoreboard_tl_d": 68,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "1d71ef9fd2a21188665125de88d8d9e7055f4f5a4841d5a2814456118639b9de"
+      },
+      {
+        "test": "pwrmgr_smoke_seed5",
+        "seed": 5,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=5",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 4.952,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 31,
+        "scoreboard_tl_d": 31,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "18b55c3446a99e74a56d9f6f779bd33eb83338b6a84079df10fbbe44fedf874c"
+      },
+      {
+        "test": "pwrmgr_smoke_seed6",
+        "seed": 6,
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "-n",
+          "/tmp/pwrmgr-case-stack-20260923/pwrmgr.vvp",
+          "+ntb_random_seed=6",
+          "+UVM_NO_RELNOTES",
+          "+UVM_VERBOSITY=UVM_HIGH",
+          "+cdc_instrumentation_enabled=1",
+          "+test_timeout_ns=1000000",
+          "+smoke_test=1",
+          "+UVM_TESTNAME=pwrmgr_base_test",
+          "+UVM_TEST_SEQ=pwrmgr_smoke_vseq"
+        ],
+        "exit": 0,
+        "elapsed_seconds": 4.343,
+        "pass_banner": true,
+        "uvm_counts": {
+          "UVM_WARNING": 0,
+          "UVM_ERROR": 0,
+          "UVM_FATAL": 0
+        },
+        "scoreboard_tl_a": 25,
+        "scoreboard_tl_d": 25,
+        "cleanup_leak_diagnostics": 0,
+        "raw_log_sha256": "60e416a6e165c7114f9704e191449a56d455368535b59da1dbc6802c30c2c5e8"
+      }
+    ]
+  },
+  "compiler_binaries_sha256": {
+    "iverilog": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl": "0ed28220f03f688386044eb8e66162da1609a98696092fea17957e94d510be3a",
+    "vvp_target": "faf10f4c9538d697df4ed4b87ad79270a10033ebff1688e67e3dfcb57ba5d377",
+    "vvp": "21e137aac21d7135bfbe4c795d157fa14e88c2bf4b21de27e2dda5af3d584c93"
+  },
+  "limits": "The source list is a frozen FuseSoC-generated snapshot from pinned Earlgrey-PROD-M6 with the documented clock-activity checker overlay, not fresh whole-application generation. Each named pwrmgr test ran one seed; only smoke ran six. Twelve compile warnings remain. This evidence is not a full OpenTitan DV suite, real-DPI, standards-clause, or Caliptra qualification. Raw logs stay in untracked local evidence."
+}

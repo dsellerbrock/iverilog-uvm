@@ -61,3 +61,7 @@ evidence.
 Current qualification and unresolved compiler blockers are in
 [CURRENT_WORK](../CURRENT_WORK.md) and [BLOCKERS](../BLOCKERS.md). No source
 overlay is an acceptable substitute for a missing compiler semantic fix.
+
+The latest scoped [pwrmgr case-exit replay](../session_logs/2026-09-23_pwrmgr_case_exit_stack_balance.json)
+uses the same selected checker overlay and run options; consult that
+revision-scoped record when comparing application results.

@@ -5,6 +5,15 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — case selector cleanup on early body exit
+
+For §§9.4, 12.5, and 12.8, a case selector is removed from VVP's evaluation
+stack before its body can `break`, `continue`, `return`, or `disable` an
+enclosing control flow. The [focused paired-edition record](../session_logs/2026-09-23_pwrmgr_case_exit_stack_balance.json)
+covers plain, priority, unique/unique0, nested, and real-selector paths with
+default/no-match boundaries. The released pwrmgr replay is a scoped application
+check; the rest of clause 12 and full OpenTitan DV remain unqualified.
+
 ### September 23, 2026 — cast delimiters inside macro actual arguments
 
 For §22.5.1, the [focused candidate](../session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json)

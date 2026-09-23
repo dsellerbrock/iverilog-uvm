@@ -1,0 +1,5 @@
+WARNING: ivltests/sv_case_exit_stack_balance.v:131: value is unhandled for priority or unique case statement
+         Time: 0  Scope: sv_case_exit_stack_balance
+WARNING: ivltests/sv_case_exit_stack_balance.v:165: multiple case items match for unique or unique0 case statement
+         Time: 0  Scope: sv_case_exit_stack_balance
+PASSED

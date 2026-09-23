@@ -5,6 +5,10 @@ dated refinements carry their own evidence and limits. Shared implementation
 updates live in the [2017 matrix](matrices/ieee1800_2017_clause_matrix.md);
 record only the edition relationship here rather than repeating entire fix logs.
 
+The tested 2023 §§9.4/12.5/12.8 case-exit stack correction shares the [2017
+implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--case-selector-cleanup-on-early-body-exit).
+No edition-specific behavior or full clause-12 qualification is asserted.
+
 The tested 2023 §22.5.1 macro-actual cast-delimiter rule shares the [2017
 implementation and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--cast-delimiters-inside-macro-actual-arguments).
 The 2023 text additionally names triple quotes as a matched delimiter; this
