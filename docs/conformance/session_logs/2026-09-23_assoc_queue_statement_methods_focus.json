@@ -1,0 +1,28 @@
+{
+  "id": "ASSOC-QUEUE-POP-STATEMENT",
+  "date_utc": "2026-09-23",
+  "source_commit": "d0560368ec94686bea76b20ac2677ec69b6e7833",
+  "branch": "agent/ot-scope-queue-assoc-pop-20260923",
+  "base": "PR341 head 5937223f24695eb66d54d7c2d07268067e3aa94b, stacked above PR340",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "81683b0fb8a46207f1d648509b5aca1069cedafd202961eb5ddaff05baa663c3",
+  "standards": ["IEEE 1800-2017 7.9/7.10", "IEEE 1800-2023 7.9/7.10"],
+  "baseline": "The direct associative pop_front statement compiled and vvp exited 139. In the same statement dispatch, associative push_front, push_back, and insert also compiled instead of producing errors.",
+  "fix": "The common statement-method dispatch rejects pop_front, pop_back, push_front, push_back, and insert when the receiver is an associative array; genuine queue receivers retain the existing paths.",
+  "reproducers": [
+    "evidence/assoc-queue-pop-statement-20260923/reducer.sv",
+    "evidence/assoc-queue-pop-statement-20260923/push_probe.sv"
+  ],
+  "focused": {
+    "legacy": "4/4 passed, paired 2017/2023 associative negative and queue positive cases",
+    "json_vvp": "4/4 passed, same cases",
+    "commands_from_ivtest": [
+      "PATH=$PWD/../local-install/bin:$PATH perl ./vvp_reg.pl regress-assoc-queue-stmt-focus-legacy.list",
+      "PATH=$PWD/../local-install/bin:$PATH python3 ./vvp_reg.py regress-assoc-queue-stmt-focus-vvp.list"
+    ],
+    "negative": "The existing associative-array fixture now requires 11 named compiler errors, including statement calls on direct and class-property receivers.",
+    "positive": "The existing class-property queue fixture runs through empty and nonempty pops, push_front, insert, and statement-position pops without changing its queue-value checks."
+  },
+  "post_fix_direct": "The former crashing reducer exits at compilation with one associative-method error in both editions; the push/insert probe exits at compilation with three errors.",
+  "limits": "Focused local compiler/runtime evidence only. No full ivtest, UVM, OpenTitan/Caliptra DV, formal, or CI qualification is claimed for this candidate. Released application and Verilator sources were not edited."
+}

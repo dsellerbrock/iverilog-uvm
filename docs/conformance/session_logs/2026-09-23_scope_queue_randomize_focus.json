@@ -1,0 +1,33 @@
+{
+  "id": "OT-SPI-STD-RANDOMIZE-QUEUE",
+  "date_utc": "2026-09-23",
+  "implementation_commit": "c44dc1dd4",
+  "compiler_build_source_commit": "8bf03c7e2",
+  "validated_head": "512d53539",
+  "standards": ["IEEE 1800-2017 18.12", "IEEE 1800-2023 18.12"],
+  "scope": "One-dimensional local integral queues with exactly constrained length, up to 65536 elements; declared queue maxima are honored.",
+  "behavior": "Constraints solve over every selected element. The queue is written back only after SAT; unsatisfiable solves preserve its prior value. Signed integral elements are covered. Nonexact and oversize requests diagnose and roll back.",
+  "former_red": {
+    "source": "evidence/ot-spi-std-randomize-queue-20260923/reducer.sv",
+    "result": "PASS with -g2017"
+  },
+  "focused": {
+    "legacy": "4/4 paired 2017/2023 scope queue tests passed",
+    "combined_json_vvp": "29/29 passed using regress-scope-queue-focus-vvp.list, regress-randomize-context-focus-vvp.list, and regress-l88-dynamic-neighbors-vvp.list",
+    "zero_size_foreach_vacuity": "Direct compile and runtime passed in both -g2017 and -g2023",
+    "manifests": [
+      "ivtest/regress-scope-queue-focus-legacy.list",
+      "ivtest/regress-scope-queue-focus-vvp.list",
+      "ivtest/regress-randomize-context-focus-vvp.list",
+      "ivtest/regress-l88-dynamic-neighbors-vvp.list"
+    ]
+  },
+  "pinned_application_compile": {
+    "source_list": "evidence/opentitan-spi-device-current-20260923/result.json",
+    "command_profile": "-g2017 -gcommercial-unsafe",
+    "result": "Compile exit status 1; no queue std::randomize rejection remains, followed by eight 'this expression (kind 26) cannot be evaluated in a vector context' diagnostics.",
+    "log": "evidence/ot-spi-std-randomize-queue-20260923/pinned-spi-device-compile-8bf03c7.log",
+    "log_sha256": "065e39347a006edc8123cbfd5497515e67194b211b822876797e3eb37d4c4b10"
+  },
+  "limits": "This is focused bounded implementation evidence, not arbitrary queue-size support, full IEEE clause qualification, a successful application compile, or OpenTitan DV qualification."
+}

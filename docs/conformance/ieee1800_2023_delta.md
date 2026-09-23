@@ -47,8 +47,8 @@ The direct zero-argument queue-pop method rule in §§5.13/7.10.2.4 shares the
 shows no edition difference for the tested class-property subset; broader
 queue-method qualification remains open.
 The [expression-context associative-array rejection boundary](session_logs/2026-09-23_queue_pop_assoc_boundary.json)
-is likewise paired across both editions; [statement-context acceptance](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
-remains a separate defect in both editions.
+is likewise paired across both editions. The [statement-method candidate](session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
+shares the 2017 fix and paired evidence; broad qualification remains open.
 
 The 2023 §16.7 finite-sequence naming correction shares the [2017 matrix
 scope](matrices/ieee1800_2017_clause_matrix.md#september-23-long-finite-sva-sequences)
@@ -175,6 +175,7 @@ not establish complete clause or edition qualification.
 | 2026-09-02 clauses 6.22, 7.4-7.10, 13.5, 15.4.5-15.4.9, and 25.5/25.7/25.9 | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-02-clauses-622-74-710-135-1545-1549-and-255257259-refinement) |
 | 2026-09-04 clauses 5.6.1, 8.20, 18.6.2-18.6.3, and 18.11 — root randomize callbacks | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-04-dynamic-root-randomization-callbacks) |
 | 2026-09-04 clauses 18.6.2-18.6.3, 18.8 and 18.11 — enabled member callbacks | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-04-enabled-random-member-callback-increment) |
+| 2026-09-23 clause 18.12 — exact-or-bounded-size local integral queue scope randomization | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-exact-or-bounded-size-scope-queue-randomization) |
 
 Associative-array assignment patterns do not implement the separate 2023
 associative-array-typed parameter feature in the scoping table.

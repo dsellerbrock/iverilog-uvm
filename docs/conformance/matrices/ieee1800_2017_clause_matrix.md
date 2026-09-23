@@ -1773,6 +1773,20 @@ includes bit-64 X/Z and adjacent PR323 function-capture checks. Known
 caller-state values wider than 64 bits remain a separate reproduced defect;
 this does not qualify clause 18.3 as a whole.
 
+### September 23 exact-size scope queue randomization
+
+The PARTIAL §18.12 implementation now covers `std::randomize` on a local
+one-dimensional integral queue when its inline constraints prove an exact
+length, through 65536 elements. Declared queue maxima are honored; nonexact
+and over-limit requests produce
+an explicit diagnostic and preserve the original queue. Paired focused tests
+and neighboring regressions are recorded in the
+[revision-scoped evidence](../session_logs/2026-09-23_scope_queue_randomize_focus.json).
+This does not qualify arbitrary queue sizing or clause 18.12 as a whole. The
+pinned SPI Device compile advances past the queue diagnostic but still fails
+on later vector-context diagnostics; no application compile or DV pass is
+claimed.
+
 ### September 23 class-property queue pops
 
 The PARTIAL §§5.13/7.10.2.4 subset now evaluates a terminal, unindexed
@@ -1784,9 +1798,11 @@ records focused tests and the pinned SPI compile; broader gates and OpenTitan
 DV remain open.
 The [review boundary](../session_logs/2026-09-23_queue_pop_assoc_boundary.json)
 also rejects queue pops on associative arrays (§7.9) in expression context
-while preserving pops on queue-valued associative elements. Statement-context
-calls still compile incorrectly; [paired evidence](../session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
-keeps that boundary open. Broad qualification remains open.
+while preserving pops on queue-valued associative elements. The
+[statement-method candidate](../session_logs/2026-09-23_assoc_queue_statement_methods_focus.json)
+now rejects queue-only pop/push/insert methods on associative receivers while
+positive queue controls retain their value and mutation checks in both editions.
+Broad qualification remains open.
 
 ### September 23 parameter-valued SVA consequent repetition
 

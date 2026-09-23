@@ -932,6 +932,7 @@ struct vthread_s {
 	   opcode parks the model here; following load opcodes feed ordinary
 	   signal stores without disturbing that result on the vec4 stack. */
       std::vector<vvp_vector4_t> std_randomize_results;
+      vvp_object_t std_randomize_queue_result;
 	/* This points to the children of the thread. */
       set<struct vthread_s*>children;
 	/* This points to the detached children of the thread. */
@@ -6256,6 +6257,80 @@ bool of_STD_RANDOMIZE_WITH(vthread_t thr, vvp_code_t code)
       vvp_vector4_t result(32, BIT4_0);
       result.set_bit(0, ok ? BIT4_1 : BIT4_0);
       thr->push_vec4(result);
+      return true;
+}
+
+bool of_STD_RANDOMIZE_QUEUE_WITH(vthread_t thr, vvp_code_t code)
+{
+      const unsigned n_vals = code->bit_idx[0];
+      const unsigned n_objs = code->bit_idx[1];
+      for (unsigned i = 0; i < n_objs; ++i) {
+	    vvp_object_t ignored;
+	    thr->pop_object(ignored);
+      }
+      vector<uint64_t> slot_vals(n_vals);
+      vector<bool> unknown(n_vals, false);
+      for (unsigned i = n_vals; i > 0; --i) {
+	    vvp_vector4_t word = thr->pop_vec4();
+	    uint64_t bits = 0;
+	    for (unsigned b = 0; b < word.size(); ++b) {
+		  if (word.value(b) == BIT4_1 && b < 64)
+			bits |= UINT64_C(1) << b;
+		  else if (word.value(b) != BIT4_0)
+			unknown[i - 1] = true;
+	    }
+	    slot_vals[i - 1] = bits;
+      }
+      vvp_object_t old;
+      thr->pop_object(old);
+      thr->std_randomize_queue_result = vvp_object_t();
+
+      const char*meta = code->text ? code->text : "";
+      char*end = nullptr;
+      unsigned long width = strtoul(meta, &end, 10);
+      bool meta_ok = end != meta && *end == '|';
+      const char*max_text = meta_ok ? end + 1 : meta;
+      uint64_t max_size = strtoull(max_text, &end, 10);
+      meta_ok = meta_ok && end != max_text && *end == '|';
+      string ir = meta_ok ? end + 1 : "";
+      if (meta_ok) ir = vvp_z3_mark_unknown_slots(ir, unknown);
+      vector<string> elements;
+      vthread_t rng_owner = logical_process_thread_(thr);
+      string rng_state = thread_rng_get_state_(rng_owner);
+      uint64_t seed = ((uint64_t)thread_rng_next_(rng_owner) << 32)
+	    | thread_rng_next_(rng_owner);
+      static const vector<vector<uint64_t> > no_objects;
+      static const vector<vector<bool> > no_known;
+      bool ok = meta_ok && width > 0 && width <= 65536 && n_objs == 0
+	    && vvp_z3_randomize_scope_queue(ir, (unsigned)width, max_size,
+		  slot_vals, no_objects, no_known, seed, elements);
+      if (!meta_ok || width == 0 || width > 65536 || n_objs != 0)
+	    fprintf(stderr, "ERROR: unsupported scope queue randomization metadata "
+		    "or object state operand.\n");
+      if (ok) {
+	    vvp_queue_vec4*queue = new vvp_queue_vec4;
+	    for (unsigned i = 0; i < elements.size(); ++i) {
+		  vvp_vector4_t word((unsigned)width, BIT4_0);
+		  const string&bits = elements[i];
+		  for (unsigned b = 0; b < width; ++b)
+			word.set_bit(b, b < bits.size()
+			  && bits[bits.size() - 1 - b] == '1'
+			  ? BIT4_1 : BIT4_0);
+		  queue->set_word_max(i, word, max_size);
+	    }
+	    thr->std_randomize_queue_result = vvp_object_t(queue);
+      } else {
+	    (void)thread_rng_set_state_(rng_owner, rng_state);
+      }
+      vvp_vector4_t result(32, BIT4_0);
+      result.set_bit(0, ok ? BIT4_1 : BIT4_0);
+      thr->push_vec4(result);
+      return true;
+}
+
+bool of_STD_RANDOMIZE_LOAD_OBJ(vthread_t thr, vvp_code_t)
+{
+      thr->push_object(thr->std_randomize_queue_result);
       return true;
 }
 

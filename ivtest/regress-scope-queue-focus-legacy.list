@@ -1,0 +1,4 @@
+sv_scope_randomize_local_queue_exact normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
+sv_scope_randomize_local_queue_exact_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
+sv_scope_randomize_local_queue_unsupported normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
+sv_scope_randomize_local_queue_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold

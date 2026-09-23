@@ -2647,6 +2647,12 @@ sv_randomize_global_container_history_2023 normal,-g2023,-s,main ivltests gold=s
 sv_randomize_global_queue_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_queue_fail.gold
 sv_randomize_global_queue_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_queue_fail.gold
 
+# Scope randomization of one local queue: exact sizing and explicit limits.
+sv_scope_randomize_local_queue_exact normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
+sv_scope_randomize_local_queue_exact_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_exact.gold
+sv_scope_randomize_local_queue_unsupported normal,-g2017,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
+sv_scope_randomize_local_queue_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_scope_randomize_local_queue_unsupported-legacy.gold
+
 # Typed handle identity and IEEE constraint guards.
 sv_constraint_handle_identity normal,-g2017,-s,main ivltests gold=sv_constraint_handle_identity.gold
 sv_constraint_handle_identity_2023 normal,-g2023,-s,main ivltests gold=sv_constraint_handle_identity.gold

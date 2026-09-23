@@ -672,6 +672,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%static/save/str",  of_STATIC_SAVE_STR,  1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%static/save/vec4", of_STATIC_SAVE_VEC4, 1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%std/randomize/load",of_STD_RANDOMIZE_LOAD,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%std/randomize/load/obj",of_STD_RANDOMIZE_LOAD_OBJ,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%std/randomize/queue/with",of_STD_RANDOMIZE_QUEUE_WITH,3,{OA_STRING,OA_BIT1,OA_BIT2} },
       { "%std/randomize/with",of_STD_RANDOMIZE_WITH,3,{OA_STRING,OA_BIT1,OA_BIT2} },
       { "%store/arr/dar", of_STORE_ARR_DAR, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%store/arr/dar/md",of_STORE_ARR_DAR_MD,2,{OA_ARR_PTR,OA_BIT1,OA_NONE} },

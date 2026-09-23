@@ -1,0 +1,87 @@
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_seq.sv:32: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_flash_seq.sv:73: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_flash_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_flash_seq.sv:73: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_flash_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_agent_0.1/seq_lib/spi_host_tpm_seq.sv:60: warning: Unable to bind wire/reg/memory `i' in `spi_agent_pkg.spi_host_tpm_seq.body' (compile-progress: unresolved reference).
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_env_cov.sv:123: warning: covergroup bin 'valids' has a value outside its effective unsigned 1-bit coverpoint type; the affected range is intersected with that type's domain.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_env_cov.sv:123: warning: covergroup bin 'valids' has a value outside its effective unsigned 1-bit coverpoint type; the affected range is intersected with that type's domain.
+sorry: cross 'cr_all' would generate 0 bins (limit 65536); the cross is dropped.
+sorry: cross 'cr_all' would generate 0 bins (limit 65536); the cross is dropped.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_scoreboard.sv:2747: warning: User function 'check_opcode_enable' is being called as a task.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_scoreboard.sv:1514: warning: User function 'uvm_hdl_read' is being called as a task.
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_mem_parity_vseq.sv:19: warning: Constraint item in 'flip_bits_c' of class spi_device_mem_parity_vseq is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_pass_base_vseq.sv:672: warning: User function 'uvm_hdl_read' is being called as a task.
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_pass_base_vseq.sv:548: warning: Net addr expects 0 index(es), but got 1 (compile-progress fallback).
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_pass_base_vseq.sv:548: warning: Net addr expects 0 index(es), but got 1 (compile-progress fallback).
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_pass_base_vseq.sv:548: warning: Net addr expects 0 index(es), but got 1 (compile-progress fallback).
+../src/lowrisc_dv_spi_device_sim_0.1/tb/tb.sv:48: warning: input port rst_n is coerced to inout.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:103: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:105: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:106: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:107: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:108: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:109: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:110: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:111: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:112: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:113: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:114: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:115: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:116: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:117: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:118: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:119: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:120: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:121: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:122: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:123: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:124: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:125: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:126: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:127: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:128: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:129: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:130: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:131: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:132: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:133: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:134: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:135: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:136: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:137: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:138: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:139: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:140: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:141: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:142: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:143: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:144: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:145: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:146: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:147: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:148: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:149: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:150: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_spi_device_csr_assert_0/spi_device_csr_assert_fpv.sv:152: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_env_cfg.sv:95: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_flash_mode_vseq.sv:16: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_intercept_vseq.sv:15: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_pass_base_vseq.sv:541: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/seq_lib/spi_device_read_buffer_direct_vseq.sv:94: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_scoreboard.sv:1976: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_scoreboard.sv:516: error: this expression (kind 26) cannot be evaluated in a vector context.
+../src/lowrisc_dv_spi_device_env_0.1/spi_device_scoreboard.sv:718: error: this expression (kind 26) cannot be evaluated in a vector context.
+iverilog: note: wrote DPI export C stubs to /tmp/ot-spi-device-queue-8bf03c7.dpiexport.c (compile it into your DPI object).
+error: Code generation had 8 error(s).

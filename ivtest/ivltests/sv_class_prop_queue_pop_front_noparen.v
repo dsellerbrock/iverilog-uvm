@@ -36,6 +36,16 @@ module test;
     if (empty !== 8'hxx || item.data.size() != 0)
       $fatal(1, "empty pop_front changed result or queue");
 
+    item.data.push_front(8'h12);
+    item.data.insert(1, 8'h34);
+    if (item.data.size() != 2 || item.data[0] !== 8'h12 ||
+        item.data[1] !== 8'h34)
+      $fatal(1, "queue statement push/insert changed element order");
+    item.data.pop_front();
+    item.data.pop_back();
+    if (item.data.size() != 0)
+      $fatal(1, "queue statement pop did not remove both elements");
+
     $display("PASSED");
   end
 endmodule

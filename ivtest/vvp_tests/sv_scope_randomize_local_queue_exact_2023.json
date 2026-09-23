@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_scope_randomize_local_queue_exact_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "test" ],
+    "gold"          : "sv_scope_randomize_local_queue_exact"
+}

@@ -15860,6 +15860,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       }
 
       if (const netqueue_t*obj_queue = dynamic_cast<const netqueue_t*>(obj_type)) {
+	    if (obj_queue->assoc_compat()
+		&& (method_name == "pop_front" || method_name == "pop_back"
+		    || method_name == "push_front" || method_name == "push_back"
+		    || method_name == "insert")) {
+		  cerr << get_fileline() << ": error: " << method_name
+		       << " is not an associative array method." << endl;
+		  des->errors += 1;
+		  delete obj_expr;
+		  return 0;
+	    }
 	    const netdarray_t*use_darray = obj_queue;
 	    if (!use_darray) {
 		  delete obj_expr;
@@ -28617,6 +28627,18 @@ static string constraint_class_container_size_ir_(
       return "s:" + to_string(idx) + ":" + ttext;
 }
 
+static string constraint_scope_queue_size_ir_(const pform_name_t&path)
+{
+      if (!scope_randomize_emit_ctx_ || path.size() != 2
+	  || path.back().name != perm_string::literal("size")
+	  || !path.back().index.empty() || !path.front().index.empty()
+	  || path.front().local_scope || path.back().local_scope)
+	    return "";
+      auto it = scope_randomize_emit_ctx_->find(path.front().name);
+      return it != scope_randomize_emit_ctx_->end()
+	    && it->second.compare(0, 2, "s:") == 0 ? it->second : "";
+}
+
 /* IEEE 1800-2017/2023 18.7.1: any target declaration shadows caller
  * state, including parameters, enum literals and methods. */
 /* IEEE 1800-2017/2023 8.18: lowering a state path must not bypass
@@ -30458,6 +30480,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& !id->has_scoped_type_prefix()) {
 		  string size_ir = constraint_class_container_size_ir_(
 			id->path().name, cls);
+		  if (size_ir.empty() && !cls)
+		    size_ir = constraint_scope_queue_size_ir_(id->path().name);
 		  if (!size_ir.empty()) return size_ir;
 	    }
 
@@ -30851,9 +30875,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			scope_randomize_emit_ctx_->find(name);
 		  if (it != scope_randomize_emit_ctx_->end()) {
 			if (id->path().back().index.empty())
-			      return it->second;
+			      return it->second.compare(0, 2, "s:") == 0
+				? "" : it->second;
 			if (id->path().back().index.size() != 1)
 			      return "";
+			if (it->second.compare(0, 2, "s:") == 0) {
+			      const netdarray_t*array = dynamic_cast<const netdarray_t*>(
+				scope_randomize_type_ctx_->at(name));
+			      ivl_type_t elem = array ? array->element_type() : nullptr;
+			      const index_component_t&select =
+				id->path().back().index.front();
+			      if (!elem || select.sel != index_component_t::SEL_BIT
+				  || !select.msb || select.lsb) return "";
+			      string index_ir = pexpr_to_constraint_ir(
+				select.msb, cls, value_slots, scope, loop_env);
+			      if (index_ir.empty()) return "";
+			      return "(delem 0:" + to_string(elem->packed_width())
+				+ (elem->get_signed() ? ":s" : "")
+				+ " " + index_ir + ")";
+			}
 			return scope_randomize_select_ir_(
 			      it->second, id->path().back().index.front(), cls,
 			      value_slots, scope, loop_env);
@@ -31871,6 +31911,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& !call_local_qualified && !call->path().package
 		&& !call->has_scoped_type_prefix()) {
 		  string size_ir = constraint_class_container_size_ir_(cpath, cls);
+		  if (size_ir.empty() && !cls)
+		    size_ir = constraint_scope_queue_size_ir_(cpath);
 		  if (!size_ir.empty()) return size_ir;
 	    }
 	      /* If target-property lookup did not claim an unqualified receiver,
@@ -32975,6 +33017,36 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (cfe->loop_vars().size() != 1
 		      || cfe->loop_vars()[0].nil()) return "";
 		  if (!scope_randomize_emit_ctx_) return "";
+		  auto random_queue = scope_randomize_emit_ctx_->find(
+			cfe->array_name());
+		  if (random_queue != scope_randomize_emit_ctx_->end()
+		      && random_queue->second.compare(0, 2, "s:") == 0) {
+			if (dynforeach_emit_ctx_ || !cfe->prefix_names().empty()
+			    || cfe->has_hierarchical_target()) return "";
+			const netdarray_t*array = dynamic_cast<const netdarray_t*>(
+			  scope_randomize_type_ctx_->at(cfe->array_name()));
+			ivl_type_t elem = array ? array->element_type() : nullptr;
+			if (!elem) return "";
+			dynforeach_emit_ctx_t dctx;
+			dctx.loop_var = cfe->loop_vars()[0];
+			dctx.prop_idx = 0;
+			dctx.elem_wid = elem->packed_width();
+			dctx.elem_signed = elem->get_signed();
+			dynforeach_emit_ctx_ = &dctx;
+			string body;
+			for (const PExpr*item : cfe->items()) {
+			      if (!item) continue;
+			      string part = pexpr_to_constraint_ir(
+				item, cls, value_slots, scope, loop_env);
+			      if (part.empty()) { dynforeach_emit_ctx_ = nullptr; return ""; }
+			      body = body.empty() ? part
+				: "(and " + body + " " + part + ")";
+			}
+			dynforeach_emit_ctx_ = nullptr;
+			return body.empty() ? "" : "(dynforeach 0:"
+			  + to_string(dctx.elem_wid)
+			  + (dctx.elem_signed ? ":s" : "") + " " + body + ")";
+		  }
 		  long range_lo = 0;
 		  unsigned long count = 0;
 		  map<perm_string,string>::const_iterator rit =
