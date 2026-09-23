@@ -1,3 +1,6 @@
 # Property-bearing nonblocking assignment boundaries (IEEE 1800-2017 10.4.2)
 sv_nba_concat_property_reject CE,-g2012 ivltests gold=sv_nba_concat_property_reject.gold
-sv_nba_property_dynamic_fail CE,-g2012 ivltests
+sv_nba_property_dynamic normal,-g2012 ivltests
+sv_nba_vif_selected_bit_capture normal,-g2017 ivltests
+sv_task_codegen_error_status_fail CE,-g2017 ivltests gold=sv_task_codegen_error_status_fail.gold
+sv_task_codegen_error_status_ok normal,-g2017 ivltests

@@ -29675,6 +29675,40 @@ bool of_ASSIGN_PROP_V_BITS(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* The offset and its validity flag were evaluated with the receiver before
+ * the RHS. Capture both now; an X/Z or overflowing selector is a no-op. */
+static bool assign_prop_v_bitsx_(vthread_t thr, vvp_code_t cp,
+                                 bool signed_offset)
+{
+      unsigned pid = cp->number;
+      unsigned delay = cp->bit_idx[0];
+      unsigned off_reg = cp->bit_idx[1];
+      if (off_reg >= vthread_s::WORDS_COUNT)
+            return false;
+
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil() || thr->flags[4] != BIT4_0)
+            return true;
+
+      schedule_assign_prop_vec4_bits(obj, pid, thr->words[off_reg].w_uint,
+                                    val, root_obj, delay,
+                                    vthread_is_reactive(thr), signed_offset);
+      return true;
+}
+
+bool of_ASSIGN_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      return assign_prop_v_bitsx_(thr, cp, true);
+}
+
+bool of_ASSIGN_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
+{
+      return assign_prop_v_bitsx_(thr, cp, false);
+}
+
 /*
  * %store/prop/v/bits/x  <pid>, <off_reg>, <wid>
  * %store/prop/v/bits/ux <pid>, <off_reg>, <wid>

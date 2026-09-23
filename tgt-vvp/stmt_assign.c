@@ -4929,7 +4929,7 @@ static void resize_property_vec4_wid(ivl_expr_t expr, unsigned wid)
 }
 
 /* Nonblocking assignment to a vec4 class-object / virtual-interface
-   property: `obj.prop <= [#d] value` or a constant packed field thereof
+   property: `obj.prop <= [#d] value` or a packed field thereof
    (IEEE 1800-2017 10.4.2). Evaluates the receiver and the r-value NOW and
    schedules the store in the NBA region via %assign/prop/v[/bits]. Returns
    0 on success and -1 when the l-value form is not supported here. The
@@ -4943,6 +4943,8 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
       unsigned lwid = ivl_lval_width(lval);
       int prop_idx = ivl_lval_property_idx(lval);
       unsigned bitoff = 0;
+      int off_reg = 0, off_flag = 0;
+      int dynamic_part_off = 0;
 
       if (ivl_stmt_lvals(net) != 1)
 	    return -1;
@@ -4951,10 +4953,10 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
       if (ivl_lval_idx(lval))
 	    return -1;
       if (part_off_ex) {
-	    if (!number_is_immediate(part_off_ex, 32, 0) ||
-	        number_is_unknown(part_off_ex))
-		  return -1;
-	    bitoff = (unsigned)ivl_expr_uvalue(part_off_ex);
+	    if (packed_property_offset_is_immediate_(part_off_ex))
+		  bitoff = (unsigned)ivl_expr_uvalue(part_off_ex);
+	    else
+		  dynamic_part_off = 1;
       }
       if (ivl_stmt_opcode(net) != 0)
 	    return -1;
@@ -4970,13 +4972,43 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	    return -1;
       }
 
+      if (dynamic_part_off) {
+	    uint64_t negative_bits;
+	    off_reg = allocate_word();
+	    off_flag = allocate_flag();
+	    if (packed_property_negative_offset_bits64_(part_off_ex,
+						 &negative_bits))
+		  emit_packed_property_negative_offset_(off_reg, negative_bits);
+	    else if ((ivl_expr_type(part_off_ex) == IVL_EX_NUMBER
+		      || ivl_expr_type(part_off_ex) == IVL_EX_ULONG)
+		     && !packed_property_offset_is_unknown_(part_off_ex)) {
+		  /* A defined constant beyond the packed offset range cannot
+		     overlap this property; do not truncate it to another bit. */
+		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", off_reg);
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 1;\n");
+	    }
+	    else
+		  draw_eval_expr_into_integer(part_off_ex, off_reg);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; capture NBA offset validity\n",
+		    off_flag);
+      }
+
       draw_eval_vec4(rval);
       resize_property_vec4_wid(rval, lwid);
       if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
 	  ivl_expr_value(rval) != IVL_VT_BOOL)
 	    fprintf(vvp_out, "    %%cast2;\n");
 
-      if (part_off_ex) {
+      if (dynamic_part_off) {
+	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", off_flag);
+	    fprintf(vvp_out, "    %%assign/prop/v/bits/%s %d, %lu, %d;"
+		    " NBA store to selected property %s\n",
+		    ivl_expr_signed(part_off_ex) ? "x" : "ux",
+		    prop_idx, (unsigned long)delay, off_reg,
+		    ivl_type_prop_name(sig_type, prop_idx));
+	    clr_word(off_reg);
+	    clr_flag(off_flag);
+      } else if (part_off_ex) {
 	    fprintf(vvp_out, "    %%assign/prop/v/bits %d, %lu, %u;"
 		    " NBA store to field [%u+:%u] of property %s\n",
 		    prop_idx, (unsigned long)delay, bitoff, bitoff, lwid,

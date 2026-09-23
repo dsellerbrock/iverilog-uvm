@@ -3458,7 +3458,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       }
 
       if (ivl_scope_type(net) == IVL_SCT_TASK)
-	    draw_task_definition(net);
+	    vvp_errors += draw_task_definition(net);
 
       if (ivl_scope_type(net) == IVL_SCT_FUNCTION)
 	    vvp_errors += draw_func_definition(net);

@@ -1448,8 +1448,8 @@ static int show_stmt_assign_nb(ivl_statement_t net)
 
 	/* Nonblocking store to a class-object / virtual-interface property
 	   (`obj.prop <= v`, `vif.sig <= v`): schedule it in the NBA region
-	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and constant packed
-	   fields are supported, including constant delays. Residual property
+	   (IEEE 1800-2017 10.4.2). Whole vec4 properties and packed fields
+	   are supported, including variable selectors and constant delays. Residual property
 	   forms are rejected below; executing them as blocking assignments
 	   would silently change their event-region semantics. */
 	if (ivl_lval_property_idx(lval) >= 0 || ivl_lval_nest(lval) ||
