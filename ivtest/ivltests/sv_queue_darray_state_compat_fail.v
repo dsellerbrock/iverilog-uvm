@@ -1,10 +1,10 @@
 // Near misses for the OpenTitan commercial-flow cross-kind bit/logic compatibility
-// extension. IEEE 1800-2017/2023 6.22.2 and 6.22.3 retain their matching- and
-// equivalent-type requirements, while 7.6 requires equivalent element types
-// for array assignment. The extension is therefore confined to ordinary
-// blocking assignment between a queue and a dynamic array: width, signedness,
-// enum identity, same-kind assignment, initialization and formal binding stay
-// strict.
+// extension. Without -gcommercial-unsafe, IEEE 1800-2017/2023 6.22.2 and
+// 6.22.3 retain matching- and equivalent-type requirements, while 7.6
+// requires equivalent element types for array assignment. Width, signedness,
+// enum identity, same-kind assignment, initialization, and formal binding
+// therefore stay strict by default.
+// The opt-in mode has separate positive and near-miss regressions.
 module sv_queue_darray_state_compat_fail;
   logic [7:0] width_q[$];
   bit [6:0] width_d[];

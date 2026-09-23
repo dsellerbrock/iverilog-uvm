@@ -67,12 +67,44 @@ module sv_queue_darray_state_compat;
   bit [7:0] bit_queue[$];
   byte_order_compat probe;
 
+  task automatic task_input(input bit [7:0] values[$]);
+    if (values.size() != 3 || values[0] != 8'h12
+        || values[1] != 8'h05 || values[2] != 8'h0a)
+      $fatal(1, "task input state conversion mismatch");
+  endtask
+
+  function automatic void function_input(input bit [7:0] values[$]);
+    if (values.size() != 3 || values[0] != 8'h12
+        || values[1] != 8'h05 || values[2] != 8'h0a)
+      $fatal(1, "function input state conversion mismatch");
+  endfunction
+
+  task automatic task_output(output logic [7:0] values[$]);
+    values = '{8'hx5, 8'hzA};
+  endtask
+
+  function automatic void function_output(output logic [7:0] values[$]);
+    values = '{8'hx5, 8'hzA};
+  endfunction
+
   initial begin
     bytes.push_back(8'h12);
     bytes.push_back(8'hx5);
     bytes.push_back(8'hzA);
 
     probe = new;
+
+    task_input(bytes);
+    function_input(bytes);
+    task_output(bit_queue);
+    probe.check_value(bit_queue.size() == 2
+                      && bit_queue[0] == 8'h05 && bit_queue[1] == 8'h0a,
+                      "task output maps X/Z into a bit queue");
+    function_output(bit_queue);
+    probe.check_value(bit_queue.size() == 2
+                      && bit_queue[0] == 8'h05 && bit_queue[1] == 8'h0a,
+                      "function output maps X/Z into a bit queue");
+
     probe.swap_byte_order(bytes);
 
     // Exercise the opposite state-converting direction as well. This reaches

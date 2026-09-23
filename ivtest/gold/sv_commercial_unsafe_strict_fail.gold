@@ -1,0 +1,9 @@
+./ivltests/sv_commercial_unsafe_strict_fail.v:21: error: the type of the variable 'logic_q' doesn't match the context type.
+./ivltests/sv_commercial_unsafe_strict_fail.v:21:      : variable type=queue of netvector_t:logic unsigned[7:0]
+./ivltests/sv_commercial_unsafe_strict_fail.v:21:      : context type=queue of netvector_t:bool unsigned[7:0]
+./ivltests/sv_commercial_unsafe_strict_fail.v:22: error: task output queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+./ivltests/sv_commercial_unsafe_strict_fail.v:23: error: the type of the variable 'logic_q' doesn't match the context type.
+./ivltests/sv_commercial_unsafe_strict_fail.v:23:      : variable type=queue of netvector_t:logic unsigned[7:0]
+./ivltests/sv_commercial_unsafe_strict_fail.v:23:      : context type=queue of netvector_t:bool unsigned[7:0]
+./ivltests/sv_commercial_unsafe_strict_fail.v:24: error: task output queue/dynamic-array formal and actual require equivalent element types (IEEE 1800-2017/2023 7.6).
+4 error(s) during elaboration.

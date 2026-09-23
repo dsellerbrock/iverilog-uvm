@@ -15954,6 +15954,11 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			bool positional_actual = false;
 			bool positional_compatible = positional_container_type_match(
 			      lval->net_type(), formal_type, positional_actual);
+			if (positional_actual && !positional_compatible
+			    && gn_commercial_unsafe_flag
+			    && formal->port_type() != NetNet::PREF)
+			      positional_compatible = commercial_unsafe_positional_container_type_match(
+				    lval->net_type(), formal_type, true);
 			if (positional_actual && !positional_compatible) {
 			      cerr << tmp->get_fileline() << ": error: function "
 				   << "output/inout queue/dynamic-array formal and "
@@ -16003,9 +16008,24 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			? (dpi_open_formal ? PExpr::DPI_OPEN_ARRAY_ARG
 					   : PExpr::NATIVE_ARRAY_FORMAL_ARG)
 			: PExpr::NO_FLAGS;
-		  parms[pidx] = elaborate_rval_expr(des, scope,
-				    argument_type, tmp, need_const, false,
-				    argument_flags);
+		  if (gn_commercial_unsafe_flag && !dpi_open_formal
+		      && formal->port_type() != NetNet::PREF) {
+			const PEIdent*actual = dynamic_cast<const PEIdent*>(tmp);
+			if (actual && !actual->leading_type_args()
+			    && actual->path().package == 0
+			    && actual->path().name.size() == 1
+			    && actual->path().name.front().index.empty()) {
+			      ivl_type_t actual_type = actual->test_type_of_ident(des, scope);
+			      if (commercial_unsafe_positional_container_type_match(
+				    argument_type, actual_type, true))
+				parms[pidx] = elaborate_rval_expr(des, scope, actual_type,
+							  tmp, need_const, false,
+							  argument_flags);
+			}
+		  }
+		  if (!parms[pidx]) parms[pidx] = elaborate_rval_expr(des, scope,
+			    argument_type, tmp, need_const, false,
+			    argument_flags);
 		  if (parms[pidx] == 0) {
 			parm_errors += 1;
 			continue;

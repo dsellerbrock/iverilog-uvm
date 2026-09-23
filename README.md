@@ -76,6 +76,12 @@ language edition with `-g2012`, `-g2017`, `-g2023`, or `-glatest`;
 selecting an edition does **not** mean it is fully implemented.
 Specify blocks and timing checks require `-gspecify`.
 
+`-gcommercial-unsafe` opts into nonstandard `bit`/`logic` element conversion
+for whole assignments between queues and dynamic arrays, and for native
+task/function value copies, when element width and signedness match.
+Same-kind whole assignments remain strict. This option is not IEEE
+conformance and does not claim to reproduce VCS behavior.
+
 ### Run UVM
 
 Add `-uvm` to compile with the bundled library and load its DPI backend,

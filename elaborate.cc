@@ -7375,6 +7375,9 @@ NetExpr* PAssign_::elaborate_direct_integral_container_rval_(
 {
       handled = false;
 
+      if (!gn_commercial_unsafe_flag)
+	    return nullptr;
+
 	/* Initializers, constant assignments, borrowed declaration defaults and
 	 * intra-assignment timing controls retain the general elaboration rules. */
       if (is_constant_ || is_init_ || !delete_rval_
@@ -7393,63 +7396,14 @@ NetExpr* PAssign_::elaborate_direct_integral_container_rval_(
 	  || !source_path.name.front().index.empty())
 	    return nullptr;
 
-      const netdarray_t*target_container =
-	    dynamic_cast<const netdarray_t*>(target_type);
-      if (!target_container)
-	    return nullptr;
-      if (const netqueue_t*target_queue =
-	    dynamic_cast<const netqueue_t*>(target_container)) {
-	    if (target_queue->assoc_compat())
-		  return nullptr;
-      }
-
       NetScope*rval_scope = elaborate_rval_scope_(des, scope);
       if (!rval_scope)
 	    return nullptr;
       ivl_type_t source_type =
 	    source_ident->test_type_of_ident(des, rval_scope);
-      const netdarray_t*source_container =
-	    dynamic_cast<const netdarray_t*>(source_type);
-      if (!source_container)
-	    return nullptr;
-
-	/* The compatibility extension is cross-kind only. Same-kind bit/logic
-	 * container assignment remains the IEEE type error pinned by the existing
-	 * sv_darray_assign_fail1 and sv_queue_assign_fail1 regressions. */
-      if (target_container->base_type() == source_container->base_type())
-	    return nullptr;
-
-      if (const netqueue_t*source_queue =
-	    dynamic_cast<const netqueue_t*>(source_container)) {
-	    if (source_queue->assoc_compat())
-		  return nullptr;
-      }
-
-      ivl_type_t target_element = target_container->element_type();
-      ivl_type_t source_element = source_container->element_type();
-      const netvector_t*target_vector =
-	    dynamic_cast<const netvector_t*>(target_element);
-      const netvector_t*source_vector =
-	    dynamic_cast<const netvector_t*>(source_element);
-      if (!target_vector || !source_vector
-	  || !target_vector->packed() || !source_vector->packed()
-	  || target_element == &netvector_t::chandle_type
-	  || source_element == &netvector_t::chandle_type
-	  || dynamic_cast<const netenum_t*>(target_element)
-	  || dynamic_cast<const netenum_t*>(source_element))
-	    return nullptr;
-
-      ivl_variable_type_t target_base = target_vector->base_type();
-      ivl_variable_type_t source_base = source_vector->base_type();
-      bool target_is_integral = target_base == IVL_VT_BOOL
-	    || target_base == IVL_VT_LOGIC;
-      bool source_is_integral = source_base == IVL_VT_BOOL
-	    || source_base == IVL_VT_LOGIC;
-      if (!target_is_integral || !source_is_integral
-	  || target_base == source_base
-	  || target_vector->packed_width() <= 0
-	  || target_vector->packed_width() != source_vector->packed_width()
-	  || target_vector->get_signed() != source_vector->get_signed())
+      /* Whole assignments keep the existing cross-kind-only extension. */
+      if (!commercial_unsafe_positional_container_type_match(
+	    target_type, source_type, false))
 	    return nullptr;
 
       handled = true;
@@ -17621,6 +17575,21 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			? (dpi_open_argument ? PExpr::DPI_OPEN_ARRAY_ARG
 					     : PExpr::NATIVE_ARRAY_FORMAL_ARG)
 			: PExpr::NO_FLAGS;
+		  if (gn_commercial_unsafe_flag && !dpi_open_argument
+		      && port->port_type() != NetNet::PREF) {
+			const PEIdent*actual = dynamic_cast<const PEIdent*>(args[parms_idx]);
+			if (actual && !actual->leading_type_args()
+			    && actual->path().package == 0
+			    && actual->path().name.size() == 1
+			    && actual->path().name.front().index.empty()) {
+			      ivl_type_t actual_type = actual->test_type_of_ident(des, scope);
+			      if (commercial_unsafe_positional_container_type_match(
+				    formal_type, actual_type, true))
+				rv = elaborate_rval_expr(des, scope, actual_type,
+						 args[parms_idx],
+						 false, false, argument_flags);
+			}
+		  }
 
 		    // The vvp target has no single whole-fixed-array store.
 		    // Lower copy-in to a fixed-array task formal exactly like a
@@ -17907,6 +17876,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    bool positional_copyback = false;
 	    bool positional_compatible = positional_container_type_match(
 		  lv->net_type(), copy_src_type, positional_copyback);
+	    if (positional_copyback && !positional_compatible
+		&& gn_commercial_unsafe_flag && port->port_type() != NetNet::PREF)
+		  positional_compatible = commercial_unsafe_positional_container_type_match(
+			lv->net_type(), copy_src_type, true);
 	    bool copies_back = port->port_type() == NetNet::POUTPUT
 		  || port->port_type() == NetNet::PINOUT;
 	    const netuarray_t*fixed_actual =
