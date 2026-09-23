@@ -2,7 +2,7 @@
 
 ### OT-PWRMGR-CASE-EXIT-STACK-BALANCE — case body exits bypassed selector cleanup
 
-- **State:** FOCUSED_TESTED at `5e9adb1d3`; PR and full release DV census pending.
+- **State:** Merged in [PR336](https://github.com/dsellerbrock/iverilog-uvm/pull/336) at `6ee647ca7` after a completed exact-head Ubuntu 24.04 CI success. Full release DV qualification remains open.
 - **Requirement:** IEEE 1800-2017/2023 §§9.4, 12.5, and 12.8 preserve procedural `case` and loop exit behavior without leaving a VM selector operand behind.
 - **Cause and closure:** Plain, unique, and real-selector codegen popped only at the common case exit; `break`, `continue`, `return`, and `disable` bypassed it. The selector now pops after dispatch and before each body. [Paired-edition and pinned pwrmgr evidence](session_logs/2026-09-23_pwrmgr_case_exit_stack_balance.json) records the focused checks and application replay. Other pwrmgr compile warnings and full OpenTitan DV qualification remain open.
 
