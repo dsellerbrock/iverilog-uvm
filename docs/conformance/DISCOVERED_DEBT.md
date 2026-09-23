@@ -3214,7 +3214,7 @@ Active blocker: OT-SPI-SELECTED-VIF-EDGE. After the selected-event crash is remo
 
 - Active blocker: OT-SPI-INLINE-CALLER-OBJECT-METHOD (negative-gate differential).
 - Observation: `tests/negative/m10_dpi_export_class_handle_argument.sv` and `m10_dpi_export_open_array_argument.sv` print `sorry: ... The export is dropped; calls from C will not link.`, then write stubs to `<output>.dpiexport.c` and exit 0. The negative suite passes in CI only because a non-root user cannot create `/dev/null.dpiexport.c`, which fails the run. As root, both tests report "accepted or no diagnostic". This is identical on a baseline `ivl` built from `1af223c8` `elaborate.cc`, so it is independent of the active patch.
-- Triage: reproduced. A dropped export is a semantic loss, so the compile should fail. The negative suite's pass is currently environment-dependent.
+- Triage: reproduced. A dropped export is a semantic loss, so the compile should fail. The negative suite's pass is currently environment-dependent. Selected as DPI-EXPORT-DROPPED-EXIT-STATUS (see BLOCKERS).
 
 ### 2026-09-22 vvp extended arguments rejected on glibc (compatibility regression)
 
