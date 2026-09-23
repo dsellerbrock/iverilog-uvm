@@ -1721,3 +1721,13 @@ The [revision-scoped evidence](../session_logs/2026-09-23_caliptra_param_consequ
 owns the paired executable tests and pinned Caliptra formal-file compile.
 Other symbolic consequent shapes, the separate literal-NFA failure-count debt,
 full SVA support, and Caliptra DV/formal qualification remain open.
+
+### September 23 long finite SVA sequences
+
+The PARTIAL §16.7 fixed-sequence checker now keeps its antecedent capture name
+distinct from indexed consequent-step registers. [Paired executable
+999/1000/1001-step evidence](../session_logs/2026-09-23_caliptra_long_sequence_register_focus.json)
+checks sampled pass and failure actions in both selected editions. The pinned
+Caliptra PM formal file loses its two duplicate-register errors, but the
+unintegrated late-default-clock fix is still required for that filelist.
+This narrow correction does not qualify general SVA or formal proof.

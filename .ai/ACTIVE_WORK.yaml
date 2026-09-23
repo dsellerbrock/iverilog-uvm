@@ -1,25 +1,34 @@
-status: published_pending_ci
-branch: agent/caliptra-param-consequent-repeat-20260923
-baseline: PR329 head 098080821454e9d2119141290cd2408fc76f3a6d; stacked while PR328 and PR329 await CI
-blocker: CALIPTRA-PARAM-CONSEQUENT-REPEAT
-goal: Execute parameter-valued consecutive repetition inside an implication consequent with the bound resolved per instance, without dropping the property or changing its match and failure timing.
-standards: IEEE 1800-2017 and IEEE 1800-2023 sequence repetition and implication semantics, including 16.9.2 and 16.12.7; confirm edition text before implementation.
-failing_reproducer: evidence/caliptra-param-repeat-20260923/consequent_repeat.sv has start |=> !ready[*W] ##1 ready with W=2 and W=3; both editions exit 1 and drop the property.
-positive_control: evidence/caliptra-param-repeat-20260923/literal_control.sv compiles with [*3] in both editions.
-application_evidence: Pinned clean Caliptra v2.1.2 file src/ecc/formal/properties/fv_ecc_hmac_drbg_interface_constraints.sv has two independent dropped properties at lines 53 and 98 in both editions; standalone bind-target error is separate.
-expected: Each true antecedent starts a distinct next-cycle consequent attempt; each of W repeat cycles must match !ready and the following cycle must match ready. Preserve false-antecedent vacuity, failures, overlapping attempts, four-state sampling, disable iff cancellation, per-instance overrides, and valid zero-bound behavior.
-root_cause: pform.cc retains symbolic repetition as rep_kind 4, but sva_parameter_repeat_try_assertion_ accepts it only in an antecedent with a one-step consequent; the NFA refuses rep_kind 4 and the fallback drops this consequent sequence.
+status: in_progress
+branch: agent/caliptra-sva-register-identity-20260923
+baseline: origin/main 42f324c90294ed7356a467e8b6c95d94a9ba2c6e
+blocker: CALIPTRA-SVA-LONG-SEQUENCE-REGISTER-COLLISION
+goal: Compile and execute legal finite SVA sequences with at least 1000 steps without colliding synthesized assertion registers.
+standards: IEEE 1800-2017 and IEEE 1800-2023 section 16.7, finite sequence concatenation; confirm exact edition clauses before patching.
+failing_reproducer: evidence/caliptra-pm-formal-elab-triage-20260923/long_sequence_1000.sv fails in both editions with duplicate _ivl_sva0_b999; the 999-step control compiles. The pinned clean Caliptra v2.1.2 fv_ecc_pm_sequencer.sv fails at lines 1898 and 2951 in its ECC filelist.
+expected: Every generated assertion register has a unique name for any legal finite sequence length; the 1000-step property compiles and gives the correct sampled pass/fail actions at runtime.
+current: pform.cc reserves b999 for antecedent capture and also uses b999 for consequent step index 999.
+root_cause_hypothesis: The fixed numeric sentinel in pform_make_assertion shares the indexed consequent-register namespace; use a distinct stable name for the antecedent capture without changing checker timing.
 allowed_scope:
-  - pform.cc focused instance-elaborated consequent lowering, reusing existing bound preflight and verdict/disable machinery.
-  - Dedicated paired-edition positive, negative, and boundary SVA fixtures and gold files.
+  - pform.cc generated assertion register naming only.
+  - Dedicated paired-edition 999/1000/1001 boundary, executable positive/failure, and negative regressions with manifests and golds.
 forbidden:
-  - Caliptra or OpenTitan source changes; parse-time substitution of a parameter default; assertion drops or approximate capped semantics.
-  - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc without a documented scope expansion and ownership handoff.
-  - Shared builds, installs, and regression output directories by an implementation agent; coordinator owns them.
-acceptance: Executable W=2 and W=3 instance overrides with exact pass/fail timing; early and terminal failure; overlapping attempts and vacuity; NBA and off-clock disable; W=0 and invalid-bound behavior; both -g2017 and -g2023; pinned Caliptra file reaches no parameter-repeat drop. Focused neighbors and required broad gates before qualification.
-dependency: PR328 merged at 4f66ed666; PR329 remains pending current-head CI. PR330 is stacked on PR329 head but pform.cc work is source-disjoint. Reconcile the stack after PR329 merges.
-evidence: docs/conformance/session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json
-parallel_lane: PR329 queue-pop source and focused evidence are preserved at pushed head 098080821454e9d2119141290cd2408fc76f3a6d while current-head CI runs.
-pr: https://github.com/dsellerbrock/iverilog-uvm/pull/330
-pr_head: f46696830c3056889ab42c72dc7475f89dc36204
-next: Merge PR329 after one completed passing exact-head CI job; retarget PR330 to main and merge only after its own completed passing exact-head CI job. Do not claim Caliptra DV or full SVA qualification. Select a new disjoint blocker after safe ownership handoff.
+  - OpenTitan, Caliptra, and Adams Bridge source edits; dropping or shortening sequence steps; compile-only completion claims.
+  - Claude-owned elaborate.cc, vvp/vthread.cc, vvp/vvp_z3.cc, and vvp/vvp_vinterface.cc.
+  - Shared builds, installations, and shared test-output directories by implementation agents; coordinator owns them.
+dependencies: This branch starts from clean origin/main while PR332, stacked PR333, and PR334 have exact-head CI in progress. Coordinator integrates after qualified merges; do not change those PR heads.
+acceptance: Baseline red; both editions compile the 999/1000/1001 boundary and execute a 1000-step property with exact pass and fail counts; pinned Caliptra ECC formal filelist loses the two duplicate-register errors; focused SVA/negative neighbors and make check pass. Full Caliptra DV/formal proof remain separate.
+implementation_lane:
+  owner: Codex + reused Sol
+  files: pform.cc and dedicated SVA fixtures/golds only
+  state: Source/tests committed at 4ff0581df; paired executable 6/6, negative 148/148, SVA dual-engine 60/60, and make check pass. Pinned PM source loses duplicate b999 but still has 16 separate late-clock errors until PR334 integrates.
+parallel_implementation_lane:
+  id: VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION
+  owner: Codex + reused Luna
+  goal: Reject cbForce and cbRelease registration on legacy variable bit-select handles while preserving legal whole-variable and net-bit registration.
+  standards: IEEE 1800-2017 and IEEE 1800-2023 section 38.36.1.
+  reproducer: evidence/vpi-variable-bit-callback-20260923/force_cb.c and force_cb.sv; current installed runtime accepts vpiRegBit cbForce registration in both editions.
+  root_cause: vvp/vpi_callback.cc make_force_release shares the legacy vpiNetBit/vpiRegBit parent path despite the variable-bit prohibition.
+  files: vvp/vpi_callback.cc and dedicated VPI regression files only; no pform.cc, Claude-owned vvp/vthread.cc, or application source edits.
+  acceptance: Paired editions reject cbForce and cbRelease registration on vpiRegBit; legal whole-variable/net-bit and part-select boundaries still register and fire. Focused VPI and relevant neighboring tests pass. Do not claim cb_data.obj statement-handle fidelity; that separate defect needs Claude-owned runtime work.
+  state: selected; implementation begins after PR334 conflict integration returns this shared worktree to this branch.
+stop_after_completion: Return to coordinator selection; do not expand scope into other SVA or application findings.

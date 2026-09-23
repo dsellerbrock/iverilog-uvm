@@ -13,6 +13,11 @@ The [expression-context associative-array rejection boundary](session_logs/2026-
 is likewise paired across both editions; [statement-context acceptance](session_logs/2026-09-23_assoc_queue_pop_statement_debt.json)
 remains a separate defect in both editions.
 
+The 2023 §16.7 finite-sequence naming correction shares the [2017 matrix
+scope](matrices/ieee1800_2017_clause_matrix.md#september-23-long-finite-sva-sequences)
+and has separate `-g2023` executable 999/1000/1001-step evidence. No edition
+difference or broader SVA/formal qualification is claimed.
+
 The September 23 selected-bit property NBA candidate has separate `-g2023`
 positive, negative, and boundary runs alongside its `-g2017` checks; see the
 [shared scope and evidence](session_logs/2026-09-23_opentitan_nba_codegen_focus.json).

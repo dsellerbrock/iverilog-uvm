@@ -1,8 +1,15 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### CALIPTRA-SVA-LONG-SEQUENCE-REGISTER-COLLISION — generated SVA names collide at step 1000
+
+- **State:** FOCUSED_TESTED on source/test commit `4ff0581df`; integration with PR334 and exact-head CI remain pending.
+- **Requirement:** IEEE 1800-2017/2023 §16.7 permits finite sequence concatenation without a 999-step naming limit. Each sampled check and action must remain observable; compilation alone is insufficient.
+- **Cause:** `pform_make_assertion` reserved `b999` for antecedent capture and reused `b999` for consequent step index 999. The [paired baseline and pinned Caliptra PM failure](../../evidence/caliptra-pm-formal-elab-triage-20260923/result.json) reproduce the collision.
+- **Evidence:** The [focused record](session_logs/2026-09-23_caliptra_long_sequence_register_focus.json) links executable 999/1000/1001-step 2017/2023 tests and local gates. The clean pinned PM file loses both duplicate-name errors but still reports 16 separate late-default-clock errors on this `origin/main`-based branch; PR334 addresses those. Full Caliptra DV and formal proof remain open.
+
 ### CALIPTRA-PARAM-CONSEQUENT-REPEAT — symbolic repetition in an SVA consequent
 
-- **State:** IN_PROGRESS on a separate implementation branch. The [local candidate](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json) executes the focused shape in both editions, removes the two dropped-property diagnostics from the clean Caliptra v2.1.2 formal file, and passes the required local gates. Publication/CI and full Caliptra DV/formal qualification remain separate.
+- **State:** MERGED in [PR330](https://github.com/dsellerbrock/iverilog-uvm/pull/330) at `d2820aac0`. The [revision-scoped evidence](session_logs/2026-09-23_caliptra_param_consequent_repeat_focus.json) executes the focused shape in both editions and removes the two dropped-property diagnostics from the clean Caliptra v2.1.2 formal file. Full Caliptra DV/formal qualification remains separate.
 - **Requirement:** IEEE 1800-2017/2023 §§16.9.2 and 16.12.7 require the consecutive repetition and implication to use each instance's bound with correct match, failure, vacuity, and disable behavior. Confirm exact edition wording before patching.
 - **Cause and evidence:** `pform.cc` retains the bound as `rep_kind 4`, but `sva_parameter_repeat_try_assertion_` accepts only an antecedent repetition and the NFA refuses this sentinel. The [paired pinned-source and minimal-reducer baseline](session_logs/2026-09-23_caliptra_param_consequent_repeat_baseline.json) shows the property drop; a literal-bound control compiles. A separate standalone bind-target error is not the SVA defect.
 - **Closure:** Reuse instance-sized bound and assertion dispatch machinery, prove executable W=2/W=3 timing, failure, overlap, vacuity, disable, and zero/invalid-bound behavior in both editions, then recompile the pinned source and run required gates. Never substitute the declaration default or count compilation alone as implementation.

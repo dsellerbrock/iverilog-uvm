@@ -1,0 +1,97 @@
+{
+  "scope": "Long fixed SVA sequence synthesized-register collision only; not full Caliptra DV or formal proof",
+  "recorded_utc": "2026-09-23T12:25:33.013611+00:00",
+  "origin_main_baseline": "42f324c90294ed7356a467e8b6c95d94a9ba2c6e",
+  "source_test_commit": "4ff0581df50377ac5d944327282e864c7a352a95",
+  "source_sha256": "9a8f2fc13f270416e2fb7e8128a9f38d93ddf8bfa0c065653032a0ca3ec0c2b7",
+  "installed_iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "installed_ivl_sha256": "79a5bb0947d7022bbcfbdea3869799ca596d1a8b2b91b3d6870c3a5c86d84dd6",
+  "baseline_reference": "evidence/caliptra-pm-formal-elab-triage-20260923/result.json (pre-patch installed compiler at PR334 head: 999-step compiles, 1000-step duplicate b999; both editions)",
+  "compact_test_shape": "Macro-doubled flat 999/1000/1001-term ##1 sequences; preprocessor token counts 999/1000/1001 keep and 998/999/1000 ##1",
+  "compact_test_prepatch_note": "Compact macro fixture was not run on pre-patch compiler; frozen literal 1000-step reducer is the red baseline",
+  "focused_tests": [
+    {
+      "command": "PATH=local-install/bin:$PATH perl ./vvp_reg.pl regress-caliptra-long-register-focus.list (cwd ivtest)",
+      "exit": 0,
+      "passed": 6,
+      "total": 6,
+      "log": "evidence/caliptra-sva-register-collision-20260923/ivtest_focus.log"
+    },
+    {
+      "command": "PATH=local-install/bin:$PATH bash tests/negative/run_negative.sh",
+      "exit": 0,
+      "passed": 148,
+      "total": 148,
+      "log": "evidence/caliptra-sva-register-collision-20260923/negative.log"
+    },
+    {
+      "command": "PATH=local-install/bin:$PATH bash tests/sva_nfa/run.sh",
+      "exit": 0,
+      "passed": 60,
+      "total": 60,
+      "log": "evidence/caliptra-sva-register-collision-20260923/sva_nfa.log"
+    },
+    {
+      "command": "make -j1 check",
+      "exit": 0,
+      "log": "evidence/caliptra-sva-register-collision-20260923/make_check.log"
+    }
+  ],
+  "pinned_application": {
+    "revision": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "property_sha256": "91622bb3516878883fa98765da85144291a3343573f0777ee1bfdb550ca8fe9c",
+    "filelist_sha256": "a1b22f20543ebdc0b732981c96554bd287e98d11236fa5d1860c8819aae95ef2",
+    "postfix": [
+      {
+        "edition": "2017",
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-gassertions",
+          "-tnull",
+          "-s",
+          "ecc_top",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/config/ecc_top.vf",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv"
+        ],
+        "environment": {
+          "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+          "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic",
+          "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic",
+          "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge"
+        },
+        "exit": 16,
+        "log": "evidence/caliptra-sva-register-collision-20260923/caliptra_pm_2017.log",
+        "duplicate_b999_errors": 0,
+        "remaining_missing_clock_errors": 16
+      },
+      {
+        "edition": "2023",
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-gassertions",
+          "-tnull",
+          "-s",
+          "ecc_top",
+          "-f",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/config/ecc_top.vf",
+          "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/ecc/formal/properties/fv_ecc_pm_sequencer.sv"
+        ],
+        "environment": {
+          "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl",
+          "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/src/caliptra_prim_generic",
+          "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic",
+          "ADAMSBRIDGE_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/caliptra-rtl/submodules/adams-bridge"
+        },
+        "exit": 16,
+        "log": "evidence/caliptra-sva-register-collision-20260923/caliptra_pm_2023.log",
+        "duplicate_b999_errors": 0,
+        "remaining_missing_clock_errors": 16
+      }
+    ]
+  },
+  "remaining_boundary": "PR334 late-default-clocking fix is absent from this origin/main-based branch. The 16 clock errors are separate; absence of duplicate b999 alone is not a pinned file compile pass.",
+  "broad_suites": "Not run for this one small fix; integration and exact-head CI pending"
+}
