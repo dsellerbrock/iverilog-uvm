@@ -5312,7 +5312,10 @@ static bool randomize_visit_object_value_(const vvp_object_t&obj,
                                          const randomize_object_visitor_t&visit)
 {
       if (obj.peek<vvp_cobject>()) return visit(obj);
-      if (vvp_darray*array = obj.peek<vvp_darray>()) {
+      // Only object-element containers can contain nested random objects.
+      vvp_darray*array = obj.peek<vvp_darray_object>();
+      if (!array) array = obj.peek<vvp_queue_object>();
+      if (array) {
             for (size_t idx = 0; idx < array->get_size(); ++idx) {
                   vvp_object_t elem;
                   array->get_word((unsigned)idx, elem);

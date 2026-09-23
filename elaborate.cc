@@ -28479,6 +28479,9 @@ static string constraint_class_container_size_ir_(
 	    ttext = (esigned ? "sb" : "b") + to_string(ewid);
       else
 	    ttext = (esigned ? "sv" : "v") + to_string(ewid);
+	// An outer dynamic array of dynamic arrays stores value containers,
+	// despite sharing the runtime object-array storage with class handles.
+	if (dynamic_cast<const netdarray_t*>(etype)) ttext = "D";
 	// Q<MAX>:<ENC> distinguishes queue construction from dynamic-array
 	// construction at solver write-back. MAX is the maximum element count
 	// (0 means unbounded).

@@ -8970,6 +8970,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             for (const auto&sv : builder.size_vars) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
                   if ((type != "Do" && type != "Qo")
+                      || sv.container_type == "D"
                       || !rand_size_active_(builder, prop_active, sv.idx)) continue;
                   uint64_t count = 0;
                   if (!z3_eval_uint64(ctx, model, sv.var, count)
@@ -9107,7 +9108,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    uint64_t new_size = 0;
             if (graph) {
                   const string&type = builder.type(sv.idx)->property_base_type(builder.local_index(sv.idx));
-                  if (type == "Do" || type == "Qo") continue;
+                  if ((type == "Do" || type == "Qo")
+                      && sv.container_type != "D") continue;
             }
 	    if (!z3_eval_uint64(ctx, model, sv.var, new_size))
 		  continue;
@@ -9119,7 +9121,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    vvp_object_t old_obj;
 	    builder.object(sv.idx)->get_object(builder.local_index(sv.idx), old_obj, 0);
 	    vvp_darray*old_array = old_obj.peek<vvp_darray>();
-	    vvp_darray*da = make_random_container_(desc, (size_t)new_size);
+	    vvp_darray*da = desc.elem_type == "D"
+		  ? static_cast<vvp_darray*>(new vvp_darray_object((size_t)new_size))
+		  : make_random_container_(desc, (size_t)new_size);
 	    bool is_randc = builder.type(sv.idx)->property_is_randc(builder.local_index(sv.idx));
 	    if (desc.is_queue) {
 		  vvp_queue*queue = dynamic_cast<vvp_queue*>(da);
@@ -9146,6 +9150,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				    nv.set_bit(b, (property_rng(sv.idx).next() & 1)
 						  ? BIT4_1 : BIT4_0);
 			queue->set_word_max((unsigned)adr, nv, queue_max);
+		  }
+	    } else if (desc.elem_type == "D") {
+		  // Retained inner arrays are values; new inner arrays start empty.
+		  for (uint64_t adr = 0; old_array && adr < new_size
+		       && adr < old_array->get_size(); ++adr) {
+		    vvp_object_t inner;
+		    old_array->get_word((unsigned)adr, inner);
+		    da->set_word((unsigned)adr, inner.value_copy_element());
 		  }
 	    } else {
 		  for (uint64_t adr = 0 ; adr < new_size ; adr += 1) {
