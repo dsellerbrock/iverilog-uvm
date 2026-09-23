@@ -61,7 +61,7 @@ parallel_spi_parameter_foreach_lane:
   evidence: evidence/opentitan-spi-package-param-foreach-20260923/reducer.sv is RED in both editions; released spi_device_env_cov.sv line 296 has the same package-parameter foreach.
   acceptance: Correct package constant array iteration inside class constructor, empty boundary, invalid target rejection, and paired-edition neighboring foreach checks.
   dependency: Independent of isolated Verilator DOE lane; ADC inner agent made no source edit and released elaborate.cc ownership. PR339 head stays fixed.
-  state: Candidate source locally built/installed; paired focused 10/10 pass and pinned SPI Device error count strict 12→11, commercial-unsafe 8→7. Coordinator still owns manifests and PR.
+  state: Committed a6b609d5a, focused and main-manifest tests pass; full local gate passes on repaired candidate. Pinned SPI Device still fails; PR339 new-head CI pending.
 parallel_spi_struct_queue_size_lane:
   id: OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE
   owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
@@ -69,7 +69,7 @@ parallel_spi_struct_queue_size_lane:
   evidence: evidence/opentitan-spi-queue-struct-size-20260923/reducer.sv and baseline.json RED in both editions; pinned spi_device_scoreboard.sv lines 1294 and 2235.
   acceptance: Live queue-of-packed-struct size is identical for `.size` and `.size()` at zero and multiple entries; genuine struct-member negative remains an error; paired focused checks and pinned compile replay.
   dependency: Independent of package-parameter foreach `elaborate.cc`; PR339 head fixed and coordinator owns shared integration.
-  state: Coordinator-authorized for a new lower-cost implementation agent.
+  state: Committed 5afbe4c7f, paired positive/negative queue-size tests and full local gate pass. Pinned SPI Device queue-size errors removed; PR339 new-head CI pending.
 parallel_adc_typed_fill_lane:
   id: OT-ADC-DIRECT-CAST-WIDTH
   owner: Reused lower-cost implementation agent; coordinator owns shared build, install, manifests, and review.
@@ -77,7 +77,7 @@ parallel_adc_typed_fill_lane:
   evidence: evidence/opentitan-adc-cast-width-triage-20260923 contains current paired RED, positive controls, contradiction control, and narrowed source trace.
   acceptance: 16/17-bit typed unbased fills remain all-ones in inline constraints; one-bit/sized operand, direct four-state casts, compatible/contradictory conjunctions and neighboring tests retain correct behavior in both editions.
   dependency: Claude's prior vvp/vthread ownership claim is stale; no active Claude process or open Claude PR was found. Independent of SPI queue elab_expr.cc lane.
-  state: Coordinator-authorized as the second compiler implementation lane; no ADC DV pass claim.
+  state: Committed 5afbe4c7f, paired cast-fill and unsupported-boundary tests plus full local gate pass. Indexed ADC inner sizing and PR339 new-head CI remain open.
 pr339_caller_queue_ci_repair_lane:
   id: PR339-CALLER-QUEUE-STATE-WIDTH
   owner: Reused lower-cost implementation agent; coordinator owns shared build/install, manifests and CI.
@@ -85,7 +85,7 @@ pr339_caller_queue_ci_repair_lane:
   evidence: PR339 Ubuntu 22.04 exact-head CI plus local six-case caller-queue focus, all runtime failures at state-width metadata check.
   acceptance: Paired existing caller-queue, boundary and rollback cases pass without dropped constraints; sparse-key SPI and ADC typed-fill controls remain passing.
   dependency: Disjoint from VPI force callback files; preserve current typed-fill candidate in elaborate.cc.
-  state: Coordinator-authorized repair before PR339 can merge on successful CI.
+  state: Committed 5afbe4c7f; caller-queue paired legacy/JSON checks and full local gate pass. PR339 new-head CI pending.
 pr339_vpi_ci_repair_lane:
   id: PR339-VPI-PACKED-FORCE-OVERLAP
   owner: Reused lower-cost implementation agent; coordinator owns shared build/install, manifests and CI.
@@ -93,7 +93,7 @@ pr339_vpi_ci_repair_lane:
   evidence: PR339 Ubuntu 22.04 exact-head CI plus local bundled VPI suite; only packed_force_overlap 2017/2023 fails.
   acceptance: Existing packed-overlap and new statement-object VPI regressions pass together with no test weakening.
   dependency: Disjoint from caller-queue state metadata lane; PR339 head remains fixed during diagnosis.
-  state: Coordinator-authorized repair before PR339 can merge on successful CI.
+  state: Committed e4e2f00ea; packed-overlap and source-statement callback controls plus full local VPI suite pass. PR339 new-head CI pending.
 parallel_doe_verilator_implementation_lane:
   id: CALIPTRA-L0-DOE-STATUS-SVA
   owner: Reused lower-cost implementation agent; coordinator owns isolated rebuild and pinned DOE replay.
@@ -140,4 +140,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Integrate the two authorized independent lanes after focused tests; monitor exact-head PR339 CI and merge after the first success. Preserve the Caliptra DOE failure until the intact assertion passes."
+next_command: "Push the locally gated PR339 repair head; monitor exact-head CI and merge after the first success. Preserve the Caliptra DOE failure and pinned release sources; select the next disjoint OpenTitan/Caliptra compiler lane after the PR baseline is established."

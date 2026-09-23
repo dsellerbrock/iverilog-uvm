@@ -6,6 +6,24 @@
 - **Evidence:** The [reset-window differential and fresh pinned v5.052 DOE replay](../../evidence/caliptra-doe-verilator-midwindow-20260923/assessment.md) preserve the assertion. The [follow-on source diagnosis and restored-binary recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json) show that a between-clock reset leaves both a defutured implication attempt and a longer NFA obligation pending. Clearing only NFA state fixes the longer reducer but leaves the direct implication failing; no partial patch was retained.
 - **Open work:** Invalidate pending implication history on asynchronous disable with correct overlapping-attempt and same-edge behavior, then rerun the intact pinned DOE test. This strongly implicates Verilator but does not prove it is the only DOE issue. The baseline failure and full DV qualification remain open.
 
+### OT-SPI-DEVICE-PACKAGE-PARAM-FOREACH — lexical package array bounds
+
+- **State:** Locally integrated at `a6b609d5a`; the [PR339 follow-on record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) covers paired focused tests and the pinned compile. New-head CI remains pending; full SPI Device DV remains open.
+- **Requirement:** IEEE 1800-2017 §18.5.8.1 and the paired 2023 `foreach` mode use the actual constant package array when it is referenced from a class method.
+- **Cause and boundary:** The bound resolver skipped lexical package parameters. It now finds the array before reporting a missing target; missing and scalar targets still fail. No general package-parameter or coverage qualification is claimed.
+
+### OT-SPI-DEVICE-STRUCT-QUEUE-PARENLESS-SIZE — packed-struct queue method lookup
+
+- **State:** Locally integrated at `5afbe4c7f`; [paired regression evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) and the pinned SPI Device compile show the `.size` errors removed. New-head CI and full DV remain open.
+- **Requirement:** IEEE 1800-2017/2023 §7.10.2.1 permits `q.size` as well as `q.size()` for an ordinary queue, including a queue of packed structs.
+- **Cause and boundary:** The parenthesis-free path treated `size` as a packed-struct element member before queue dispatch. It now selects the queue method; a missing member on a genuine packed struct still fails.
+
+### OT-ADC-DIRECT-CAST-WIDTH — unbased fill loses cast width in constraints
+
+- **State:** Locally integrated at `5afbe4c7f`; the [paired runtime and negative evidence](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) passes. Indexed ADC inner array sizing still blocks the pinned smoke, and new-head CI remains pending.
+- **Requirement:** IEEE 1800-2017/2023 §§5.7.1 and 6.24.1 fill the destination width of a direct typed cast before its value participates in a constraint.
+- **Cause and boundary:** Constraint IR encoded `'1` as a one-bit constant before knowing the cast width. The direct fill now has the cast width; sized `1'b1` and two-state X/Z conversion remain distinct. Four-state X/Z constraint casts and fills wider than the current 64-bit IR are explicit unsupported boundaries, not silently solved values.
+
 ### OT-PWRMGR-CASE-EXIT-STACK-BALANCE — case body exits bypassed selector cleanup
 
 - **State:** Merged in [PR336](https://github.com/dsellerbrock/iverilog-uvm/pull/336) at `6ee647ca7` after a completed exact-head Ubuntu 24.04 CI success. Full release DV qualification remains open.
@@ -52,9 +70,9 @@
 
 ### VPI-FORCE-RELEASE-CALLBACK-STMT-OBJECT — callback origin identity
 
-- **State:** Locally integrated at `d2d996419`; [paired focused evidence](session_logs/2026-09-23_parallel_compiler_followon_focus.json) covers source and VPI-originated operations. Broad VPI qualification remains open.
+- **State:** The HDL statement-object slice was locally integrated at `d2d996419`; a VPI API-origin callback regression was repaired at `e4e2f00ea`. The [follow-on local gates](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json) pass; new-head CI and broad VPI qualification remain open.
 - **Requirement:** IEEE 1800-2017/2023 §38.36.1 callback `obj` identifies the force or release statement, including a shared identity for concatenated LHS targets; registration still uses the affected signal.
-- **Boundary:** The tested handles expose type and source location. Other statement-handle relationships remain unqualified.
+- **Boundary:** Compiled HDL statements expose type and source location. A VPI `put_value` force/release has no HDL source statement; its callback retains the registered target handle as the established API extension behavior. Other statement-handle relationships remain unqualified.
 
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 

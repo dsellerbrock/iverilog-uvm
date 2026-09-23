@@ -5,6 +5,17 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — package `foreach`, queue size, and direct fill casts
+
+The [paired candidate and local gates](../session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
+cover lexical package-parameter array iteration in a class method under
+§18.5.8.1, parenthesis-free `.size` on a packed-struct queue under §7.10.2.1,
+and a direct typed cast of an unbased fill in constraint IR under §§5.7.1 and
+6.24.1. Missing/nonarray targets, genuine missing struct members, and sized
+one-bit casts retain their distinct behavior. Four-state X/Z constraint casts
+and fills beyond the 64-bit IR remain explicit unsupported boundaries. These
+are bounded PARTIAL subsets; OpenTitan SPI Device and ADC DV are not qualified.
+
 ### September 23, 2026 — nested outer resize and sparse-key constraint foreach
 
 The [paired local candidate](../session_logs/2026-09-23_parallel_compiler_followon_focus.json)

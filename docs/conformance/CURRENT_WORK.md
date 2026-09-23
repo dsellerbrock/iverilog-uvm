@@ -1,5 +1,11 @@
 # Current evidence and work
 
+The [PR339 compiler and VPI repair record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
+links the package-parameter `foreach`, packed-struct queue `.size`, direct
+unbased-fill cast, caller-queue, and VPI callback corrections to local gates
+and a fresh pinned SPI Device compile. The repaired PR head still needs CI;
+SPI Device, ADC, and full application DV remain unqualified.
+
 The [parallel compiler follow-on record](session_logs/2026-09-23_parallel_compiler_followon_focus.json)
 links locally integrated ADC outer resize, SPI Device sparse-key constraint
 `foreach`, and VPI force/release statement-object checks on the branch after
