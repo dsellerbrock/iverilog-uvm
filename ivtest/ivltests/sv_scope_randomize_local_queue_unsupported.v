@@ -18,6 +18,10 @@ module test;
     if (ok || bounded_q.size() != 2 || bounded_q[0] != 8'h12
         || bounded_q[1] != 8'h34)
       $fatal(1, "declared maximum changed the queue");
+
+    ok = std::randomize(q) with { q.size() == 1; q[2] == 8'hff; };
+    if (ok || q.size() != 2 || q[0] != 8'h12 || q[1] != 8'h34)
+      $fatal(1, "out-of-bounds element changed the queue");
     $display("PASSED");
   end
 endmodule
