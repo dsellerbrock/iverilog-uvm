@@ -1,9 +1,11 @@
 # Current evidence and work
 
-The [OpenTitan class-event `.triggered` focused record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
-is the latest compiler candidate on `81b3dc74d`; paired checks pass and the
-pinned SPI compile advances, but it still fails. PR publication, CI, and full
-OpenTitan DV qualification remain open.
+The [OpenTitan associative `find_index` and multi-object event focused record](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json)
+is the latest compiler candidate on `f681defc1`; paired checks pass and the
+pinned SPI compile has one remaining commercial-unsafe error. Its stacked PR,
+CI, and full OpenTitan DV qualification remain open. The preceding [class-event
+`.triggered` record](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json)
+is in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) with exact-head CI pending.
 
 The [PR339 compiler and VPI repair record](session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)
 links the package-parameter `foreach`, packed-struct queue `.size`, direct

@@ -1,6 +1,6 @@
-status: coordinator_authorized_parallel_implementation
+status: focused_validated_stacked_pr_pending
 branch: agent/ot-assoc-find-index-multi-event-20260923
-baseline: main 6fd804a39 plus PR340 head 5ebcab90b; PR340 CI is pending.
+baseline: main 6fd804a39 plus PR340 corrected head c40dce788; PR340 exact-head CI is pending.
 blocker: OT-SPI-ASSOC-FIND-INDEX and OT-CLASS-EVENT-MULTI-OBJECT-LIST
 goal: Advance unchanged released OpenTitan DV by implementing exact associative find_index keys and preserving per-object identity in explicit class-event lists.
 standards: IEEE 1800-2017 and 1800-2023 sections 7.12.1 and 15.5.
@@ -9,7 +9,7 @@ expected: find_index returns matching declared associative keys in index order; 
 root_cause: Associative locator lowering rejects keyed iteration despite existing VVP key traversal; the class-event list path merges distinct object events into one static event identity.
 allowed_scope: Two disjoint delegated Icarus lanes recorded below; coordinator owns manifests, shared build/install, pinned release replay, integration and review.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: PR340 source/test commit 81b3dc74d passes paired class-event focus 20/20 in each runner; pinned SPI compile has six strict or two commercial-unsafe errors. PR340 CI and full DV remain pending. Both new reducers are red in both editions. See docs/conformance/session_logs/2026-09-23_opentitan_class_event_triggered_focus.json.
+validation: Follow-on source commit f681defc1 and candidate 0c50c3403 pass the paired focused class-event and associative lists after a coordinator build/install. The pinned SPI compile has five strict or one commercial-unsafe error. See docs/conformance/session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json. PR340 and stacked PR CI, broad gates, and full DV remain pending.
 parallel_assoc_find_index_lane:
   id: OT-SPI-ASSOC-FIND-INDEX
   owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.
@@ -17,15 +17,15 @@ parallel_assoc_find_index_lane:
   reproducer: evidence/ot-spi-assoc-find-index-20260923/reducer.sv is a compile-time sorry in both editions on PR340 head.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated ivtest fixtures and gold only. No elaborate.cc or shared build outputs.
   acceptance: Sparse bit[7:0] keys return matching keys in index order, not ordinal positions; empty/no-match, string-key, negative unsupported locator, and receiver-preservation controls; paired edition focused checks and pinned SPI compile replay after integration.
-  state: Authorized; implementation pending. Keep other associative locator methods loud unless implemented and tested.
+  state: Integrated at f681defc1 and focused-tested in both editions; pinned SPI find_index error removed. Other associative locator methods remain loud.
 parallel_class_event_list_lane:
   id: OT-CLASS-EVENT-MULTI-OBJECT-LIST
   owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.
   standards: IEEE 1800-2017/2023 section 15.5 named-event controls preserve each class object identity.
   reproducer: evidence/ot-class-event-multi-object-list-triage-20260923/reducer.sv compiles but fatals at time 2 in both editions on PR340 head.
   files: elaborate.cc; class-event wait codegen/runtime only if necessary; dedicated ivtest fixtures and gold only. No elab_expr.cc or tgt-vvp/eval_object.c.
-  acceptance: Either object event wakes an explicit list once; same-object and static-event controls preserve behavior; null/rebound handles and repeated firing do not spin or miss events; paired edition focused checks after coordinator build.
-  state: Authorized; implementation pending. If overlap with the find_index lane appears, report it and stop rather than editing those files.
+  acceptance: Either object event wakes an explicit list once; same-object and static-event controls preserve behavior; repeated firing rearms cleanly; paired edition focused checks after coordinator build. Null/rebound handle semantics need a separate standards review.
+  state: Integrated at f681defc1 and focused-tested in both editions; no source overlap with the find_index lane.
 release_lane:
   id: CALIPTRA-EXACT-L0-52
   owner: Coordinator

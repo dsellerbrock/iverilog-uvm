@@ -2,9 +2,27 @@
 
 ### OT-SPI-CLASS-EVENT-TRIGGERED — per-instance event state in expressions
 
-- **State:** Locally fixed and focused-tested on `81b3dc74d`, pending PR/CI. The [paired-edition RED and ordinary-wait control](../../evidence/opentitan-spi-class-event-triggered-triage-20260923/README.md) and [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) show all three class-event errors removed from the pinned SPI compile; no SPI Device DV pass is claimed.
+- **State:** Focused-tested in [PR340](https://github.com/dsellerbrock/iverilog-uvm/pull/340) on `c40dce788`, exact-head CI pending. The [candidate evidence](session_logs/2026-09-23_opentitan_class_event_triggered_focus.json) shows all three class-event errors removed from the pinned SPI compile; no SPI Device DV pass is claimed.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps an event's triggered state true for the firing time step and lets `wait (obj.ev.triggered)` handle either same-time trigger order. Different class instances must remain independent.
-- **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls and multi-object `@(a.ev or b.ev)` remain separate debt; the pinned SPI compile still fails on other mechanisms.
+- **Cause and boundary:** Class-event reads fell into ordinary class-property lookup before per-object event lowering; `wait` also entered an unrelated direct-event fast path. The candidate reuses per-object VVP event opcodes and passes paired positive, negative, boundary, and instance-isolation checks. Explicit `triggered()` calls remain separate debt; the pinned SPI compile still fails on other mechanisms.
+
+### OT-SPI-ASSOC-FIND-INDEX — keyed associative locator
+
+- **State:** Locally fixed and focused-tested on `f681defc1`, pending stacked PR/CI. [Candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json) shows unchanged released SPI Device sources now reach one remaining `-gcommercial-unsafe` compile error.
+- **Requirement:** IEEE 1800-2017/2023 §7.12.1 `find_index()` returns matching associative keys with their declared type, rather than ordinal positions.
+- **Boundary:** Integral and string keys are tested; wildcard/object keys and other associative locators remain loud unsupported cases. Compilation still fails on a separate queue `std::randomize` use.
+
+### OT-CLASS-EVENT-MULTI-OBJECT-LIST — event controls lose object identity
+
+- **State:** Locally fixed and focused-tested on `f681defc1`, pending stacked PR/CI. The [paired RED reducer](../../evidence/ot-class-event-multi-object-list-triage-20260923/README.md) now passes at runtime in both editions; see the shared [candidate evidence](session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json).
+- **Requirement:** IEEE 1800-2017/2023 §15.5 `@(a.ev or b.ev)` wakes on either selected class object's event. The candidate gives each leaf its existing per-object waiter and joins them for a one-shot event control.
+- **Boundary:** Explicit `triggered()` call syntax remains DD-052; no full named-event or OpenTitan DV qualification is claimed.
+
+### OT-SPI-STD-RANDOMIZE-QUEUE — constrained scope queue argument
+
+- **State:** One remaining `-gcommercial-unsafe` compile error on the pinned SPI Device source list; implementation not selected yet.
+- **Requirement:** IEEE 1800-2017/2023 §18.12 scope `std::randomize` accepts its queue argument with an inline size constraint and preserves the queue on an unsatisfiable solve.
+- **Boundary:** Existing class queue solver machinery may be reusable, but scope-call size/element identities and atomic writeback need a dedicated reducer and design. A compile-only bypass would be incorrect.
 
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
