@@ -1,37 +1,43 @@
 # Blockers registry (Level 3 — operational backlog)
 
+### OT-PWRMGR-CASE-EXIT-STACK-BALANCE — case body exits bypassed selector cleanup
+
+- **State:** FOCUSED_TESTED at `5e9adb1d3`; PR and full release DV census pending.
+- **Requirement:** IEEE 1800-2017/2023 §§9.4, 12.5, and 12.8 preserve procedural `case` and loop exit behavior without leaving a VM selector operand behind.
+- **Cause and closure:** Plain, unique, and real-selector codegen popped only at the common case exit; `break`, `continue`, `return`, and `disable` bypassed it. The selector now pops after dispatch and before each body. [Paired-edition and pinned pwrmgr evidence](session_logs/2026-09-23_pwrmgr_case_exit_stack_balance.json) records the focused checks and application replay. Other pwrmgr compile warnings and full OpenTitan DV qualification remain open.
+
 ### SV-MACRO-MATCHED-BRACKET-ACTUALS — square-bracket macro actuals split at comma
 
-- **State:** FOCUSED_TESTED at `1db116f83`; exact-head CI remains pending.
+- **State:** Merged in [PR335](https://github.com/dsellerbrock/iverilog-uvm/pull/335); Ubuntu 24.04 exact-head CI passed after merge.
 - **Requirement:** IEEE 1800-2017/2023 §22.5.1 protects separators inside matched `()`, `[]`, and `{}` pairs. Mismatched pairs must not close another delimiter's nesting.
 - **Cause and closure:** The scanner counted only `()` and `{}` with one depth integer. A typed delimiter stack now handles matched `[]` and rejects mismatches while preserving strings, comments, and PR334's casted-literal handling. The [paired baseline](../../evidence/macro-bracket-assessment-20260923/README.md) and [integrated checks](session_logs/2026-09-23_vpi_macro_integrated_focus.json) bound this correction; 2023 triple quotes remain separate.
 
 ### VPI-LEGACY-VARIABLE-BIT-FORCE-CB-REGISTRATION — bit-select callbacks registered illegally
 
-- **State:** FOCUSED_TESTED at `48793f9e3`; exact-head CI remains pending.
+- **State:** Merged in [PR335](https://github.com/dsellerbrock/iverilog-uvm/pull/335); Ubuntu 24.04 exact-head CI passed after merge.
 - **Requirement:** IEEE 1800-2017/2023 §38.36.1 disallows `cbForce` and `cbRelease` registration on variable bit-selects while allowing the supported whole-variable and net-bit forms.
 - **Cause and closure:** The legacy `vpiRegBit` and `vpiNetBit` handles shared one registration path. Removing `vpiRegBit` from that path yields a diagnostic and null registration; [paired baseline and integrated VPI checks](session_logs/2026-09-23_vpi_macro_integrated_focus.json) cover the boundary. Callback statement-object identity is a separate open defect.
 
 ### CALIPTRA-SVA-LONG-SEQUENCE-REGISTER-COLLISION — generated SVA names collide at step 1000
 
-- **State:** FOCUSED_TESTED on source/test commit `4ff0581df`; integrated PR334-tree checks pass, with exact-head CI pending.
+- **State:** Merged in [PR335](https://github.com/dsellerbrock/iverilog-uvm/pull/335); the focused executable checks and integrated pinned-filelist compile passed locally. Ubuntu 24.04 exact-head CI passed after merge.
 - **Requirement:** IEEE 1800-2017/2023 §16.7 permits finite sequence concatenation without a 999-step naming limit. Each sampled check and action must remain observable; compilation alone is insufficient.
 - **Cause:** `pform_make_assertion` reserved `b999` for antecedent capture and reused `b999` for consequent step index 999. The [paired baseline and pinned Caliptra PM failure](../../evidence/caliptra-pm-formal-elab-triage-20260923/result.json) reproduce the collision.
 - **Evidence:** The [focused record](session_logs/2026-09-23_caliptra_long_sequence_register_focus.json) links executable 999/1000/1001-step 2017/2023 tests and local gates. On the [locally integrated PR334 tree](session_logs/2026-09-23_caliptra_pm_integrated_compile.json), the clean pinned PM formal filelist compiles without diagnostics in both editions. This is compile-only evidence; full Caliptra DV and formal proof remain open.
 
 ### OT-ADC-CASTED-UNBASED-INLINE-MACRO-ARG — cast splits a constraint macro actual
 
-- **State:** FOCUSED_TESTED on source/test commit `284a4c65d`, based on the clean pinned Earlgrey-PROD-M6 `adc_ctrl_sim` release target. [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) is open; merged-tree validation and fresh exact-head CI remain pending.
+- **State:** Merged in [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) after local checks and Ubuntu 24.04 exact-head CI passed; based on the clean pinned Earlgrey-PROD-M6 `adc_ctrl_sim` release target.
 - **Requirement:** IEEE 1800-2017/2023 §§22.5.1, 6.24.1, and 5.7.1 require cast delimiters and unbased unsized literals inside a macro actual to retain their nesting so an inner comma or right parenthesis does not end the actual.
 - **Cause and evidence:** The first ADC smoke compile diagnostic follows `adc_value_t'('1)` inside `DV_CHECK_RANDOMIZE_WITH_FATAL`; `ivlpp/lexor.lex` consumes the three-character `'('` sequence as one quoted-item token, leaving the inner `)` to end the macro argument. [Pinned target and reducer record](session_logs/2026-09-23_opentitan_adc_macro_arg_baseline.json) distinguishes the failing casted macro from ordinary-literal macro and procedural-cast controls.
-- **Closure:** The [candidate and local tests](session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json) preserve cast parentheses and assignment-pattern braces and pass the selected regression gates. The pinned ADC target now compiles but ignores a filter-size constraint, so this is semantic DEBT, not ADC DV success. The separate direct nonmacro cast-width runtime mismatch also remains. Finish PR/CI/merge without broadening this fix.
+- **Closure:** The [candidate and local tests](session_logs/2026-09-23_opentitan_adc_macro_arg_focus.json) preserve cast parentheses and assignment-pattern braces and pass the selected regression gates. The pinned ADC target now compiles but ignores a filter-size constraint, so this is semantic DEBT, not ADC DV success. The separate direct nonmacro cast-width runtime mismatch also remains.
 
 ### CALIPTRA-LATE-DEFAULT-CLOCKING — assertions before their module default clock
 
-- **State:** FOCUSED_TESTED on source/test commit `342226068`, based on `origin/main` `42f324c90`; selected in `.ai/ACTIVE_WORK.yaml`. [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) is open; merged-tree validation and fresh exact-head CI remain pending. PR332 and PR333 have merged.
+- **State:** Merged in [PR334](https://github.com/dsellerbrock/iverilog-uvm/pull/334) after local checks and Ubuntu 24.04 exact-head CI passed; source/test commit `342226068` was based on `origin/main` `42f324c90`.
 - **Requirement:** IEEE 1800-2017/2023 §§14.12 and 16.14.6 scope a default clocking to its containing module and permit it to supply an otherwise unclocked concurrent assertion. The declaration's later textual position must not turn earlier module assertions into missing-clock errors.
 - **Cause and evidence:** The pinned clean Caliptra v2.1.2 `fv_ecc_dsa_sequencer.sv` has five assertions at lines 91–95 before its default clocking at line 97. [The revision-scoped baseline and candidate record](session_logs/2026-09-23_caliptra_late_default_clocking_focus.json) captures the five false missing-clock errors and their removal. `pform_make_assertion` parked the earlier assertions, then `pform_endmodule` popped their module before the pending-procedural flush rejected them.
-- **Closure:** The candidate retries parked assertions while the validated module default clock and generate scope remain in place; paired execution and rejection boundaries are tested. Finish publication, exact-head CI, and merge. The pristine pinned formal file still fails on an upstream `DSA_NOP` name mismatch; a [test-specific disposable-copy overlay](session_logs/2026-09-23_caliptra_ecc_nop_overlay.json) compiles it without that mismatch. No formal proof or Caliptra DV qualification follows.
+- **Closure:** The fix retries parked assertions while the validated module default clock and generate scope remain in place; paired execution and rejection boundaries are tested. The pristine pinned formal file still fails on an upstream `DSA_NOP` name mismatch; a [test-specific disposable-copy overlay](session_logs/2026-09-23_caliptra_ecc_nop_overlay.json) compiles it without that mismatch. No formal proof or Caliptra DV qualification follows.
 
 ### CALIPTRA-NAMED-SEQUENCE-PARAM-CONSEQUENT — named antecedent captured as a function
 
