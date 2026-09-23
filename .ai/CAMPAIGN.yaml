@@ -1,9 +1,13 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-assoc-find-index-multi-event-20260923
-baseline: main 6fd804a39e803152bd39a3ee4c96b15d30532001 plus PR340 corrected head c40dce788cd5375e3dcbb41e28237a91326ed1a1; exact-head CI pending.
+branch: agent/ot-scope-queue-assoc-pop-20260923
+baseline: main 6fd804a39e803152bd39a3ee4c96b15d30532001 plus PR340 corrected head c40dce788cd5375e3dcbb41e28237a91326ed1a1 and PR341 head 5937223f24695eb66d54d7c2d07268067e3aa94b; exact-head CI pending.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
+current_parallel_lanes:
+  scope_queue: OT-SPI-STD-RANDOMIZE-QUEUE; lower-cost agent owns elab_expr.cc, target scope-randomize codegen, vvp scope solver/runtime, and dedicated tests; coordinator owns shared builds/manifests; RED reducer in evidence/ot-spi-std-randomize-queue-20260923.
+  assoc_pop: ASSOC-QUEUE-POP-STATEMENT; lower-cost agent owns elaborate.cc and dedicated tests; coordinator owns shared builds/manifests; evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles then vvp exits 139.
+  isolation: No Verilator implementation or pinned application-source edits; queues are distinct source lanes on a branch stacked above PR341.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
