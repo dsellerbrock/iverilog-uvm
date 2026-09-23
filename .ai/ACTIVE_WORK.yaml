@@ -7,7 +7,7 @@ standards: IEEE 1800-2017 and 1800-2023 sections 18.12 and 7.10/7.9.
 failing_reproducer: evidence/ot-spi-std-randomize-queue-20260923/reducer.sv fails elaboration in both editions; evidence/assoc-queue-pop-statement-20260923/reducer.sv compiles but vvp exits 139 on the current local build.
 expected: Scope-randomize a direct local integral queue with exact size/element constraints and success-only writeback; reject queue-only pop/push/insert methods on associative arrays at compile time.
 root_cause: Scope std::randomize currently admits scalar destinations only; statement-position method dispatch treats associative storage as a queue. A follow-on direct probe shows push_front/push_back/insert share the same invalid dispatch as pop_front/pop_back.
-allowed_scope: Two disjoint delegated Icarus lanes recorded below; coordinator owns manifests, shared build/install, pinned release replay, integration and review.
+allowed_scope: Associative-array statement-method lane is committed at d0560368e and released elaborate.cc ownership; the scope-queue lane is re-scoped to the exact-size solver adapter below. Coordinator owns manifests, shared build/install, pinned release replay, integration and review.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
 validation: New reducers are RED. PR340/PR341 prior focused validation is recorded in docs/conformance/session_logs/2026-09-23_opentitan_assoc_find_index_multi_object_focus.json. PR340 and PR341 CI, broad gates, and full DV remain pending.
 parallel_scope_queue_lane:
@@ -15,10 +15,10 @@ parallel_scope_queue_lane:
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, review, and pinned release replay.
   standards: IEEE 1800-2017/2023 section 18.12 scope randomization of variables; section 7.10 queue size and element semantics.
   reproducer: evidence/ot-spi-std-randomize-queue-20260923/reducer.sv; released SPI Device byte_q[$] call.
-  files: elab_expr.cc; tgt-vvp/eval_vec4.c; tgt-vvp/vvp_process.c; vvp/compile.cc; vvp/vthread.cc; vvp/vvp_z3.cc; dedicated ivtest fixtures/golds. No elaborate.cc, manifests, application, or Verilator edits.
-  acceptance: Direct local integral queue with size 3 and size 0 constraints; element/foreach constraints; prefilled resize and UNSAT preserve size/values; unsupported types remain loud; paired 2017/2023 checks. Report if elaborate.cc is genuinely required rather than editing the other lane's file.
-  dependency: PR341 source is committed; do not modify PR340/PR341 branches. The associative-pop lane owns elaborate.cc. Coordinator owns build/install and any cross-file integration.
-  state: Authorized on this stacked branch; RED baseline at the current installed compiler is an elaboration diagnostic.
+  files: elab_expr.cc; elaborate.cc; tgt-vvp/eval_vec4.c; tgt-vvp/vvp_process.c; vvp/compile.cc; vvp/vthread.cc/h; vvp/vvp_z3.cc/h; dedicated ivtest fixtures/golds. No manifests, application, or Verilator edits.
+  acceptance: Direct local integral queue whose length is proven exactly from captured state; size 3 and size 0; element/foreach constraints at that length; prefilled resize and UNSAT preserve size/values; reject unsupported or nonexact size, out-of-bounds, oversize, and unsupported element forms loudly; paired 2017/2023 checks. Never silently clamp or report success without complete writeback.
+  dependency: PR341 source and associative-pop d0560368e are committed; elaborate.cc ownership is released. Coordinator owns build/install and cross-file integration.
+  state: RED baseline is an elaboration diagnostic. Initial Luna implementation lane stopped without source edits because the scope solver is scalar-only across all stages. Sol design review identified reuse of Z3Builder size/element IR and an exact-length adapter; authorized to implement that bounded path after the associative-pop commit.
 parallel_assoc_pop_statement_lane:
   id: ASSOC-QUEUE-POP-STATEMENT
   owner: Delegated lower-cost implementation agent; coordinator owns shared builds, manifests, integration, and review.
@@ -27,7 +27,7 @@ parallel_assoc_pop_statement_lane:
   files: elaborate.cc; dedicated ivtest fixtures/golds only. No elab_expr.cc, target/VVP source, shared manifests, application, or Verilator edits.
   acceptance: Associative pop_front/pop_back/push_front/push_back/insert statements fail compilation with a clear diagnostic; valid queue methods still run; empty/nonempty queue boundaries and paired 2017/2023 checks.
   dependency: Disjoint from scope-queue lane. Coordinator owns build/install and integration.
-  state: Authorized on this stacked branch; cheap RED runtime crash and same-dispatch push/insert compile acceptance confirmed. Scope broadened within the same root cause before further source edits.
+  state: Integrated at d0560368e. Former runtime-crashing reducer and push probe now fail compilation; positive queue behavior passes. Four focused tests pass in each legacy and JSON runner across 2017/2023; PR/CI and broad qualification remain pending.
 parallel_assoc_find_index_lane:
   id: OT-SPI-ASSOC-FIND-INDEX
   owner: Delegated lower-cost implementation agent; coordinator owns integration, shared build/install, manifests, and pinned release replay.

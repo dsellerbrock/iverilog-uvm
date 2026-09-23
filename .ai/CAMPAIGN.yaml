@@ -5,9 +5,9 @@ baseline: main 6fd804a39e803152bd39a3ee4c96b15d30532001 plus PR340 corrected hea
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
-  scope_queue: OT-SPI-STD-RANDOMIZE-QUEUE; lower-cost agent owns elab_expr.cc, target scope-randomize codegen, vvp scope solver/runtime, and dedicated tests; coordinator owns shared builds/manifests; RED reducer in evidence/ot-spi-std-randomize-queue-20260923.
-  assoc_pop: ASSOC-QUEUE-POP-STATEMENT; lower-cost agent owns elaborate.cc and dedicated tests; coordinator owns shared builds/manifests; reducer.sv compiles then vvp exits 139 and push_probe.sv accepts invalid queue-only methods in evidence/assoc-queue-pop-statement-20260923.
-  isolation: No Verilator implementation or pinned application-source edits; queues are distinct source lanes on a branch stacked above PR341.
+  scope_queue: OT-SPI-STD-RANDOMIZE-QUEUE; Sol design escalation identified an exact-size local queue adapter using existing size/element IR and Z3Builder. It now owns elab_expr.cc; elaborate.cc; target scope-randomize codegen; vvp scope solver/runtime; dedicated tests. Coordinator owns shared builds/manifests. RED reducer in evidence/ot-spi-std-randomize-queue-20260923.
+  assoc_pop: ASSOC-QUEUE-POP-STATEMENT; d0560368e commits the same-dispatch guard for five queue-only methods in elaborate.cc. Paired focus passes in both test runners; elaborate.cc ownership released to queue lane.
+  isolation: No Verilator implementation or pinned application-source edits; branch remains stacked above PR341.
 recent_merges:
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
   pr335: 2f031bfbdd277d15278bf055d24beaa47e6bf0cd; Ubuntu 24.04 exact-head CI passed after merge. Merge preceded all completed exact-head jobs and must not be described as CI-gated.
