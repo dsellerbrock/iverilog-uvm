@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_cast_unbased_fill_wide_fail.v:11: error: Constraint cast of an unbased fill literal wider than 64 bits is not supported.
+1 error(s) during elaboration.

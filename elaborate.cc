@@ -30089,7 +30089,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                                     ? fe->array_name() : fe->source_path()[pos];
                               selected_collection = selected_collection
                                     && component.name == expected
-                                    && !component.local_scope
+                                    // local:: on the root explicitly names the
+                                    // captured caller collection (18.7.1).
+                                    && (pos == 0 || !component.local_scope)
                                     && component.index.size()
                                           == (pos + 1 == path.size() ? 1 : 0);
                               ++pos;
@@ -31076,6 +31078,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
             if (!des || !cast_scope) return "";
             unsigned width = 0;
             unsigned sign = 2; // inherit for a size cast
+            bool two_state_target = false;
             if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
                   ivl_type_t type = cast->resolve_target_type(des, cast_scope);
                   if (!type) return "";
@@ -31088,6 +31091,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   }
                   width = type->packed_width();
                   sign = type->get_signed() ? 1 : 0;
+                  two_state_target = type->base_type() == IVL_VT_BOOL;
             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
                   unique_ptr<NetExpr>size(elab_and_eval(
                         des, cast_scope, cast->cast_size(), -1, true));
@@ -31105,6 +31109,43 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   width = constant->value().as_ulong64();
             } else {
                   sign = expr->has_sign() ? 1 : 0;
+            }
+            /* IEEE 1800-2017/2023 5.7.1 and 6.24.1: an unbased
+             * unsized literal fills the cast destination, unlike a sized
+             * 1'b1, which is zero-extended. Materialize only a direct
+             * fill operand here, after the cast width is known. The IR's
+             * ordinary c:1:1 loses the fill identity irreversibly. */
+            if (width) {
+                  if (const PENumber*num = dynamic_cast<const PENumber*>(base)) {
+                        const verinum&fill = num->value();
+                        if (fill.is_single()) {
+                              if (width > 64) {
+                                    cerr << expr->get_fileline()
+                                         << ": error: Constraint cast of an unbased fill literal"
+                                         << " wider than 64 bits is not supported."
+                                         << endl;
+                                    des->errors += 1;
+                                    return "";
+                              }
+                              verinum::V bit = fill.get(0);
+                              if (bit == verinum::V0 || bit == verinum::V1
+                                  || two_state_target) {
+                                    uint64_t value = bit == verinum::V1
+                                          ? width == 64 ? UINT64_MAX
+                                                : (UINT64_C(1) << width) - 1
+                                          : 0;
+                                    ir = "c:" + to_string(value) + ":"
+                                          + to_string(width);
+                              } else {
+                                    cerr << expr->get_fileline()
+                                         << ": error: Four-state unbased fill cast"
+                                         << " is not supported in two-state constraints."
+                                         << endl;
+                                    des->errors += 1;
+                                    return "";
+                              }
+                        }
+                  }
             }
             return "(cast c:" + to_string(width) + " c:" + to_string(sign)
                   + " " + ir + ")";

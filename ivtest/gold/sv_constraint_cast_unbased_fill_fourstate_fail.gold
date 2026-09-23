@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_cast_unbased_fill_fourstate_fail.v:10: error: Four-state unbased fill cast is not supported in two-state constraints.
+1 error(s) during elaboration.
