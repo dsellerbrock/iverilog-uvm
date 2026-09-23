@@ -1,4 +1,4 @@
-status: locally_qualified_pending_publication
+status: pr_open_ci_pending
 branch: agent/sva-overlap-failure-count-20260923
 baseline: PR331 head 3566335a5bc02148d17b940670cceb05e7888563 now merged as 42f324c90294ed7356a467e8b6c95d94a9ba2c6e; feature branch remains based on that source head.
 blocker: SVA-LITERAL-OVERLAP-FAILURE-COUNT
@@ -18,7 +18,7 @@ acceptance: Met locally at e54b76124 for the stated fixed-linear subset; paired 
 implementation_lane:
   owner: Codex + Sol
   files: pform.cc legacy linear checker; dedicated SVA tests and gold files only
-  handoff: Implementation integrated locally; PR publication and CI pending.
+  handoff: Implementation integrated locally and published in PR332; exact-head CI pending.
 parallel_assessment_lane:
   id: OT-SPI-DEVICE-CONSTRAINT-FOREACH-PATH
   owner: Codex + Luna
@@ -32,7 +32,7 @@ integration_blocker:
   standard: IEEE 1800-2017 and 2023 39.4.2 requires cbAssertionFailure attemptStartTime to identify the actual attempt.
   evidence: Resolved for fixed non-negated linear checkers at e54b76124. Distinct t25 callbacks now report start25/start5; VPI 127/127, full real-DPI UVM 358/358, and required local gates pass. See docs/conformance/session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json.
   allowed_scope: pform.cc fixed linear checker; vpi/sys_sva.c and vpi/libvpi.c; vvp/vpi_scope.cc and vvp/vpi_priv.cc; internal callback API declarations in vpi_user.h; focused VPI tests/gold. Preserve unrelated checker behavior and Claude-owned files.
-  acceptance: Met locally for this subset; PR publication and CI pending. Other checker families retain the two-argument path and remain separate.
-pending_prs: PR329, PR330, and PR331 merged after exact-head CI success; this feature PR is pending publication.
+  acceptance: Met locally for this subset; PR332 exact-head CI pending. Other checker families retain the two-argument path and remain separate.
+pending_prs: PR329, PR330, and PR331 merged after exact-head CI success; PR332 is open against main.
 failed_attempt: The first candidate changed the NFA engine, but the generated literal image contains legacy t-stage registers and no NFA slot registers. Both paired-edition reducers remained red; evidence/sva-literal-overlap-candidate-20260923/focus.json. Revert that ineffective patch before the legacy correction.
-next: Review the final diff and publish the locally qualified fixed-linear SVA/VPI change against main; then track exact-head CI before merge. Do not infer full assertion, formal, or application qualification.
+next: Track PR332 exact-head CI and merge after one current-head success if still ready and mergeable. Do not infer full assertion, formal, or application qualification.

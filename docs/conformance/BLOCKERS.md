@@ -2,7 +2,7 @@
 
 ### SVA-LITERAL-OVERLAP-FAILURE-COUNT — fixed-linear same-edge verdicts
 
-- **State:** The fixed non-negated linear-checker subset is locally validated on `e54b76124`; PR publication and CI are pending. See the [revision-scoped baseline and qualification record](session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
+- **State:** The fixed non-negated linear-checker subset is locally validated on `e54b76124` and open as [PR332](https://github.com/dsellerbrock/iverilog-uvm/pull/332); CI is pending. See the [revision-scoped baseline and qualification record](session_logs/2026-09-23_sva_literal_overlap_attempt_identity.json).
 - **Requirement:** IEEE 1800-2017/2023 §§16.12.7 and 16.14.1 require a separate verdict and failure action for each distinct antecedent match; §39.4.2 requires callback metadata to retain the actual attempt start.
 - **Cause and correction:** A one-bit failure flag collapsed simultaneous fixed-offset failures, and X/Z checks did not become definite nonmatches. The legacy linear checker now counts distinct failed tokens and carries each start time through the VPI report. The first NFA-only attempt was ineffective and reverted.
 - **Remaining boundary:** Window, unbounded, negated, and other checker families retain their earlier VPI metadata path. Full SVA and formal qualification remain open.

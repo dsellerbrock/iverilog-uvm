@@ -1,7 +1,7 @@
 {
   "id": "SVA-LITERAL-OVERLAP-FAILURE-COUNT",
   "date_utc": "2026-09-23",
-  "status": "required local gates passed; publication and CI pending",
+  "status": "required local gates passed; PR332 open, CI pending",
   "branch": "agent/sva-overlap-failure-count-20260923",
   "semantic_revision": "e54b76124",
   "baseline": {
