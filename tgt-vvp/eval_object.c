@@ -3130,6 +3130,18 @@ static int container_pattern_operand_is_collection_(ivl_expr_t expr,
       return type_is_object_like_(source_element);
 }
 
+/* A whole one-dimensional fixed array is exported as IVL_EX_ARRAY with a
+ * scalar signal net type. Its elements, rather than that scalar type, form
+ * one queue-concatenation collection operand (IEEE 1800-2017/2023 10.10). */
+static int queue_pattern_operand_is_fixed_array_(ivl_expr_t expr,
+                                                 ivl_type_t element_type)
+{
+      ivl_signal_t sig = expr && ivl_expr_type(expr) == IVL_EX_ARRAY
+            ? ivl_expr_signal(expr) : 0;
+      return sig && ivl_signal_dimensions(sig) == 1
+            && !type_is_object_like_(element_type);
+}
+
 static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 {
       unsigned nparm = ivl_expr_parms(expr);
@@ -3175,7 +3187,8 @@ static int eval_object_container_pattern_(ivl_expr_t expr, ivl_type_t agg_type)
 	       * queue-built literals support this; a darray literal
 	       * with a runtime-sized operand cannot be pre-sized. */
 	    if (!is_darray
-		&& container_pattern_operand_is_collection_(parm, etype)) {
+		&& (queue_pattern_operand_is_fixed_array_(parm, etype)
+		    || container_pattern_operand_is_collection_(parm, etype))) {
 		  fprintf(vvp_out, "    %%dup/obj/ref;\n");
 		  errors += draw_eval_object(parm);
 		  switch (etype ? ivl_type_base(etype) : IVL_VT_LOGIC) {

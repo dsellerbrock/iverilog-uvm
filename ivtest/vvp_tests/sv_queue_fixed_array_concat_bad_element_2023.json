@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_queue_fixed_array_concat_bad_element_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_queue_fixed_array_concat_bad_element"]
+}

@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "sv_queue_fixed_array_concat_bad_assoc.v",
+  "iverilog-args": ["-g2017", "-s", "sv_queue_fixed_array_concat_bad_assoc"]
+}
