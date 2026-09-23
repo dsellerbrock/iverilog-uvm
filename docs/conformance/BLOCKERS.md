@@ -9,7 +9,7 @@
 
 ### COMMERCIAL-SIM-UNSAFE-FLAG — opt-in packed bit/logic container conversion
 
-- **State:** The compatibility flag is implemented at `9111127532c71fc4eeaf1bab68685ade3c61296f`; strict IEEE type checking remains the default. Focused regression evidence passes, but no full suite was run on this revision.
+- **State:** The compatibility flag is implemented at `9111127532c71fc4eeaf1bab68685ade3c61296f` in [PR326](https://github.com/dsellerbrock/iverilog-uvm/pull/326); strict IEEE type checking remains the default. Focused regression evidence passes, but no full suite was run on this revision.
 - **Requirement:** IEEE 1800-2017/2023 §7.6 array element type equivalence remains strict by default. `-gcommercial-unsafe` is an explicitly nonstandard compatibility extension limited to equal-width, equal-signedness packed `bit`/`logic` value conversion in whole queue/dynamic-array assignment and native task/function value copies.
 - **Evidence:** [Revision-scoped record](session_logs/2026-09-23_commercial_unsafe_flag.json) records the focused tests and exact OpenTitan SPI compile. Enabling the flag clears its strict type errors but leaves nonblocking property assignment codegen errors. OpenTitan DV has not passed.
 - **Open work:** Complete the applicable broader compiler gates and separately resolve the remaining nonblocking property assignment lowering errors before claiming SPI compile or DV success. Do not count flag acceptance as IEEE qualification or VCS equivalence.

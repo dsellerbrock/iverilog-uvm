@@ -7,6 +7,8 @@ active_blocker:
   id: COMMERCIAL-SIM-UNSAFE-FLAG
   phase: FOCUSED_VALIDATION
   source_commit: 9111127532c71fc4eeaf1bab68685ade3c61296f
+  pull_request: https://github.com/dsellerbrock/iverilog-uvm/pull/326
+  dependency: PR325 scalar caller-state X/Z port
   requirement: Strict IEEE array element type equivalence remains default. The opt-in compatibility extension is limited to equal-width/equal-signedness packed bit/logic conversions for whole queue/dynamic-array assignment and native task/function value copies.
   evidence: docs/conformance/session_logs/2026-09-23_commercial_unsafe_flag.json
   completed: Focused validation 89/89 legacy and 82/82 JSON.

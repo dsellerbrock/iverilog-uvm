@@ -2,6 +2,7 @@ status: COMMERCIAL_UNSAFE_FLAG_FOCUSED_VALIDATION
 branch: agent/commercial-unsafe-20260923
 authorization: Documentation and revision-scoped evidence update for the committed opt-in flag. Compiler implementation is present; broader suite validation and remaining OpenTitan SPI codegen work are not complete.
 blocker: COMMERCIAL-SIM-UNSAFE-FLAG
+pull_request: https://github.com/dsellerbrock/iverilog-uvm/pull/326
 standards: IEEE 1800-2017/2023 7.6 strict type equivalence remains default; -gcommercial-unsafe is a nonstandard opt-in for equal-width/equal-signedness packed bit/logic value conversion in whole queue/dynamic-array assignments and native task/function value copies.
 source_commit: 9111127532c71fc4eeaf1bab68685ade3c61296f
 focused_validation:
