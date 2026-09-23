@@ -1,6 +1,6 @@
 {
     "type"          : "normal",
     "source"        : "sv_class_event_triggered.v",
-    "iverilog-args" : [ "-g2012", "-s", "sv_class_event_triggered" ],
+    "iverilog-args" : [ "-g2017", "-s", "sv_class_event_triggered" ],
     "gold"          : "sv_class_event_triggered"
 }
