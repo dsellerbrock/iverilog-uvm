@@ -2541,6 +2541,7 @@ sv_foreach_package_scoped_target normal,-g2017,-s,main ivltests gold=sv_foreach_
 sv_foreach_package_scoped_target_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_package_scoped_target.gold
 sv_foreach_package_param_array normal,-g2017,-s,main ivltests gold=sv_foreach_package_param_array.gold
 sv_foreach_package_param_array_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_package_param_array.gold
+sv_array_parameter_typedef_pattern normal,-g2012,-s,main ivltests gold=sv_array_parameter_typedef_pattern.gold
 sv_foreach_package_param_missing CE,-g2017,-s,main ivltests gold=sv_foreach_package_param_missing.gold
 sv_foreach_package_param_missing_2023 CE,-g2023,-s,main ivltests gold=sv_foreach_package_param_missing.gold
 sv_foreach_package_param_nonarray CE,-g2017,-s,main ivltests gold=sv_foreach_package_param_nonarray.gold
