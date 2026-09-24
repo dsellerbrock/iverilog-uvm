@@ -18,8 +18,11 @@ qualification. A [post-scheduler AON runtime replay](../../evidence/opentitan-ao
 passes using the earlier pinned image and current installed VVP; it is one
 selected smoke, not a fresh compile or full DV. Full OpenTitan DV remains open.
 The [merged-branch legacy gate](../../evidence/ivtest-broad-gate-20260923/merged-gate-result.json)
-passes after focused test-oracle repairs; the full JSON runner is still in
-progress at this checkpoint.
+and [full JSON VVP regression](../../evidence/ivtest-broad-gate-20260923/merged-json-result.json)
+pass after focused test-oracle repairs: 6,458 legacy tests with no unexplained
+failures, 131/131 VPI, 155/155 negative, and 3,388/3,388 JSON. The real-DPI
+UVM umbrella passed 358/358 on the pre-merge candidate; it still requires
+exact-head CI confirmation for the combined branch.
 
 The preceding focused integration was at `0a902ee9f`, following constant
 unpacked-array membership support at `88f0e9044`. Its revision-scoped

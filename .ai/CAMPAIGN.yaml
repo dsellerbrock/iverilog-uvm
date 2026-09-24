@@ -18,6 +18,7 @@ current_parallel_lanes:
   csrng_packed_tri_feedback_implementation: OT-CSRNG-PACKED-TRI-FEEDBACK-CONVERGENCE; reused Sol owns only vvp/vvp_net_sig.cc vec8 signal filter and dedicated paired tests after a faithful 2017/2023 time-zero RED; coordinator owns shared builds and release replay.
   csrng_timezero_scheduler_implementation: OT-CSRNG-TIMEZERO-INIT-SCHEDULER; reused Sol owns only vvp/schedule.cc and schedule.h if necessary plus dedicated paired tests after exact RED proves pre-start init-queue starvation; restore unaccepted vec8 filter candidate.
   caliptra_l0_full_dv_assessment: CALIPTRA-PINNED-L0-52-AND-FULL-DV-GAPS; delegated Luna owns only isolated Caliptra evidence and exact release replay; Verilator remains read-only and 52/52 requires zero assertion errors.
+  caliptra_doe_root_cause: CALIPTRA-DOE-RESET-WINDOW-ROOT-CAUSE; reused Sol owns only isolated read-only DOE trace evidence, while Luna owns the full L0 and full-DV assessment; coordinator owns qualification.
   spi_constraint_inside: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY integrated at b7551af50; source ownership released.
   aon_mixed_vif_event: OT-AON-MIXED-VIF-EVENT-WAIT integrated at 07d8ba6df; source ownership released and unchanged released AON smoke passes.
   spi_queue_concat: OT-SPI-QUEUE-ARRAY-CONCAT integrated at 2e648c7ec; source ownership released.
@@ -45,7 +46,7 @@ active_blocker:
   standards: IEEE 1800-2017/2023 section 18.6.3 constraint randomization; sections 3.13 and 28.3.5 interface type/instance naming and array references.
   checkpoint: PR346 merged after exact-head Ubuntu 24.04 success. JEDEC solver, CSRNG parser, pinned-release width overlay, and VVP forward-driver loader fix are committed locally. Revised exact coupled dist candidate passes paired focus but released SPI still stalls after UVM PRE_START in sparse wide-scalar enumeration. The vec8 false green was invalidated and unaccepted; a standards-grounded time-zero scheduler candidate passes faithful paired focus and advances pinned CSRNG to UVM, where cfg.randomize() fails on a distinct joint-dist restriction. AON smoke remains a separate pass. Full DV remains open.
   evidence: docs/conformance/session_logs/2026-09-23_opentitan_spi_csrng_next.json; evidence/opentitan-csrng-array-crash-triage-20260923/README.md; evidence/opentitan-csrng-post-load-triage-20260923/README.md; evidence/opentitan-spi-pass-large-dist-triage-20260923/baseline.json.
-  next: Finish broad local gates for the unpublished parser/solver/loader/scheduler batch, then publish a coherent PR. Triangulate the SPI sparse wide-scalar enumeration cost and CSRNG cfg joint-dist legality with cheap independent REDs. Caliptra full 52-case L0 and full-DV dependency inventory remain separate. Verilator stays read-only.
+  next: Broad local legacy and full JSON gates pass for the unpublished parser/solver/loader/scheduler batch; publish a coherent PR and seek exact-head CI. Triangulate the SPI sparse wide-scalar enumeration cost and CSRNG cfg joint-dist legality with cheap independent REDs. Caliptra full 52-case L0 and full-DV dependency inventory remain separate. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.

@@ -1,5 +1,9 @@
 # Eight legacy ivtest gate failures, 2026-09-23
 
+The full JSON VVP regression also passed on `8c88d069c`: 3,388 run,
+zero failed, exit 0. Its exact result and compressed raw output are in
+`merged-json-result.json` and `merged-json.log.gz`.
+
 Source HEAD at triage: `6e1af2425869f078e91689a2e3972e45429451e5`.
 Installed compiler SHA-256: `1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2`.
 Installed VVP SHA-256: `f2a05ce45cdb2271af25dee78f62203926a34844cd202192e5af4c69ab3829ab`.

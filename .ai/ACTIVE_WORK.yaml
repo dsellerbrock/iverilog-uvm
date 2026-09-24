@@ -51,7 +51,7 @@ parallel_legacy_gate_failure_triage:
   files: evidence/ivtest-broad-gate-20260923 and only the eight identified ivtest source/gold fixtures; no compiler source or shared manifests. Coordinator owns build/install and integration.
   acceptance: Preserve time-zero primitive checks after Active via #0; update only exact changed diagnostics; replace obsolete 256-coordinate negative limits with above-16384 negative controls and add a supported 301-coordinate positive check in both editions. Focused legacy and JSON checks must pass; no expected-failure entries or removed assertions.
   dependency: Disjoint from Luna CSRNG cfg joint-dist evidence and Caliptra release replay.
-  state: Test-only repair integrated at fea3f1203 after isolated legacy and JSON focus; the full merged-branch legacy gate now passes. See evidence/ivtest-broad-gate-20260923/merged-gate-result.json. Full JSON runner remains active.
+  state: Test-only repair integrated at fea3f1203 after isolated legacy and JSON focus; the full merged-branch legacy gate and 3388/3388 JSON regression pass. See evidence/ivtest-broad-gate-20260923/merged-gate-result.json and merged-json-result.json.
 parallel_csrng_blklen_triage:
   id: OT-CSRNG-BLKLEN-PARTSELECT-TRIAGE
   owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
@@ -118,6 +118,13 @@ parallel_caliptra_l0_gap_assessment:
   files: evidence/caliptra-l0-52-and-full-dv-gap-20260923 only; read existing exact L0 runners, overlays, and full-DV inventory without editing any tool or pinned application source.
   acceptance: Reconcile strict 49/52 L0 baseline with two already focused-tested firmware overlays and the DOE SVA error; run reproducible selected replays and a full 52-case patched-copy L0 pass if feasible. Count an assertion error as failure regardless of exit/banner. Inventory full DV targets, dependencies, and first runnable Icarus blocker separately from L0. Never claim 52/52 by hiding assertions or editing Verilator.
   dependency: Independent from OpenTitan SPI vvp/vvp_z3.cc and CSRNG time-zero evidence lanes. Use isolated output roots and coordinate CPU-heavy runs; no shared build/install.
+parallel_caliptra_doe_root_cause:
+  id: CALIPTRA-DOE-RESET-WINDOW-ROOT-CAUSE
+  owner: Reused GPT-6 Sol agent; coordinator owns qualification and shared builds.
+  scope: Read-only pinned Caliptra v2.1.2 DOE status assertion and reset/clock trace under evidence/caliptra-doe-root-cause-20260923 only.
+  reproducer: Full patched-copy L0 replay has 51/52 strict passes; smoke_test_doe_scan emits one intact DOE STATUS SVA error despite exit zero and a pass banner. Existing disable_midwindow.sv differential reports control=1 disabled=0 on Icarus and control=1 disabled=1 on Verilator 5.050/5.052.
+  acceptance: Trace the exact antecedent, reset pulse, gated clock, and consequent in the released source and replay. Verify IEEE 1800-2017/2023 disable iff semantics and determine whether the reduced differential explains the application error or leaves another cause. Preserve a bounded, reproducible trace and distinguish a simulator defect from an application assertion defect. Do not edit Verilator, Icarus, pinned application source, or the assertion to force a pass.
+  dependency: Disjoint from Luna Caliptra L0/full-DV evidence and its isolated outputs. No shared build/install or concurrent edits to the same files.
 parallel_csrng_interface_name_lane:
   id: OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION
   owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared builds and integration.

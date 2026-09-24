@@ -1,0 +1,10 @@
+{
+  "tested_head": "8c88d069c92f86947bdd6d9315fb8e11ada6dd63",
+  "command": "cd ivtest && python3 vvp_reg.py regress-vvp.list",
+  "exit_code": 0,
+  "duration_seconds": 462.0,
+  "total": 3388,
+  "failed": 0,
+  "log_sha256": "507b89d3d440ef2d28e594fa07c1ed4104d4f7198e1f2baec8af09fdf713f8aa",
+  "log": "merged-json.log.gz"
+}
