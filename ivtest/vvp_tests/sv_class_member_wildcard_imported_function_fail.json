@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_class_member_wildcard_imported_function_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_class_member_wildcard_imported_function_fail"
+}

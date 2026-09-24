@@ -1,0 +1,205 @@
+{
+  "candidate_ivl_sha256": "37f1af94081d8a3042ad4f8bb11e61705c24a74c73f3748e9c82dbe59c9287b8",
+  "rows": [
+    {
+      "edition": "2017",
+      "case": "inherited",
+      "tool": "installed",
+      "source_sha256": "06c66bb11e910bdcbd8cb63cda38846231ee24a99d54858308461029b269c203",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "inherited",
+      "tool": "direct_candidate",
+      "source_sha256": "06c66bb11e910bdcbd8cb63cda38846231ee24a99d54858308461029b269c203",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "inherited_local_fail",
+      "tool": "installed",
+      "source_sha256": "a819d1ed2a35a08504bcac824b7ce63972c37454bec191f603b68a55a2910371",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited_local_fail.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "inherited_local_fail",
+      "tool": "direct_candidate",
+      "source_sha256": "a819d1ed2a35a08504bcac824b7ce63972c37454bec191f603b68a55a2910371",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited_local_fail.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "scoped_base",
+      "tool": "installed",
+      "source_sha256": "c4ea289558df702006674916452b9c7327b618e6d5218d15da8e7e53d16194cd",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "scoped_base",
+      "tool": "direct_candidate",
+      "source_sha256": "c4ea289558df702006674916452b9c7327b618e6d5218d15da8e7e53d16194cd",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "scoped_base_local_fail",
+      "tool": "installed",
+      "source_sha256": "3f0c64b24cda6fb31730c57ab0c5bd56c63492090cef3e7bf5cf4ff256d5bcfc",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base_local_fail.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "scoped_base_local_fail",
+      "tool": "direct_candidate",
+      "source_sha256": "3f0c64b24cda6fb31730c57ab0c5bd56c63492090cef3e7bf5cf4ff256d5bcfc",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base_local_fail.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "inherited",
+      "tool": "installed",
+      "source_sha256": "06c66bb11e910bdcbd8cb63cda38846231ee24a99d54858308461029b269c203",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "inherited",
+      "tool": "direct_candidate",
+      "source_sha256": "06c66bb11e910bdcbd8cb63cda38846231ee24a99d54858308461029b269c203",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "inherited_local_fail",
+      "tool": "installed",
+      "source_sha256": "a819d1ed2a35a08504bcac824b7ce63972c37454bec191f603b68a55a2910371",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited_local_fail.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "inherited_local_fail",
+      "tool": "direct_candidate",
+      "source_sha256": "a819d1ed2a35a08504bcac824b7ce63972c37454bec191f603b68a55a2910371",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/inherited_local_fail.sv:10: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "scoped_base",
+      "tool": "installed",
+      "source_sha256": "c4ea289558df702006674916452b9c7327b618e6d5218d15da8e7e53d16194cd",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "scoped_base",
+      "tool": "direct_candidate",
+      "source_sha256": "c4ea289558df702006674916452b9c7327b618e6d5218d15da8e7e53d16194cd",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "scoped_base_local_fail",
+      "tool": "installed",
+      "source_sha256": "3f0c64b24cda6fb31730c57ab0c5bd56c63492090cef3e7bf5cf4ff256d5bcfc",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base_local_fail.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "scoped_base_local_fail",
+      "tool": "direct_candidate",
+      "source_sha256": "3f0c64b24cda6fb31730c57ab0c5bd56c63492090cef3e7bf5cf4ff256d5bcfc",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/scoped_base_local_fail.sv:15: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "late_direct_property",
+      "tool": "installed",
+      "source_sha256": "598fa91dc8fb2fec1f3747be694b930859ed1fde634116b7c4aa99d364bc4c1e",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/late_direct_property.sv:7: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "late_direct_property_control",
+      "tool": "installed",
+      "source_sha256": "781dc04aaa7d15966205430e7bc5a9cb30672f7db9ae8b0c202ed9576bf2c1f1",
+      "compile_exit": 0,
+      "diagnostics": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED"
+    },
+    {
+      "edition": "2017",
+      "case": "late_direct_property",
+      "tool": "direct_candidate",
+      "source_sha256": "598fa91dc8fb2fec1f3747be694b930859ed1fde634116b7c4aa99d364bc4c1e",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/late_direct_property.sv:7: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2017",
+      "case": "late_direct_property_control",
+      "tool": "direct_candidate",
+      "source_sha256": "781dc04aaa7d15966205430e7bc5a9cb30672f7db9ae8b0c202ed9576bf2c1f1",
+      "compile_exit": 0,
+      "diagnostics": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED"
+    },
+    {
+      "edition": "2023",
+      "case": "late_direct_property",
+      "tool": "installed",
+      "source_sha256": "598fa91dc8fb2fec1f3747be694b930859ed1fde634116b7c4aa99d364bc4c1e",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/late_direct_property.sv:7: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "late_direct_property_control",
+      "tool": "installed",
+      "source_sha256": "781dc04aaa7d15966205430e7bc5a9cb30672f7db9ae8b0c202ed9576bf2c1f1",
+      "compile_exit": 0,
+      "diagnostics": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED"
+    },
+    {
+      "edition": "2023",
+      "case": "late_direct_property",
+      "tool": "direct_candidate",
+      "source_sha256": "598fa91dc8fb2fec1f3747be694b930859ed1fde634116b7c4aa99d364bc4c1e",
+      "compile_exit": 1,
+      "diagnostics": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-class-member-wildcard-20260924/late_direct_property.sv:7: error: Ambiguous use of 'path'. It is exported by both 'p1' and by 'p2'."
+    },
+    {
+      "edition": "2023",
+      "case": "late_direct_property_control",
+      "tool": "direct_candidate",
+      "source_sha256": "781dc04aaa7d15966205430e7bc5a9cb30672f7db9ae8b0c202ed9576bf2c1f1",
+      "compile_exit": 0,
+      "diagnostics": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED"
+    }
+  ]
+}

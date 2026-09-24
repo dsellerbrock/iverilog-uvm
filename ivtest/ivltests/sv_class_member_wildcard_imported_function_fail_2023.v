@@ -1,0 +1,1 @@
+`include "ivltests/sv_class_member_wildcard_imported_function_fail.v"

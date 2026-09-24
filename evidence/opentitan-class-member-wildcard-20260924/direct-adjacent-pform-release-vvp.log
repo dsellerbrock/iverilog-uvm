@@ -1,0 +1,28 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): regress-pform-release-focus-vvp.list
+----------------------------------------------------------------------------
+                               analog2: Not Implemented.
+                            br_gh1143a: Passed.
+                            br_gh1143c: Passed.
+                            br_gh1143d: Passed.
+                                 case1: Passed.
+            sv_case_inside_mixed_items: Passed.
+       sv_class_const_constructor_init: Passed.
+                   sv_class_prop_logic: Passed.
+            sv_class_prop_nest_darray1: Passed.
+               sv_class_prop_nest_obj1: Passed.
+              sv_class_prop_nest_real1: Passed.
+               sv_class_prop_nest_str1: Passed.
+               sv_class_prop_nest_vec1: Passed.
+            sv_class_static_const_init: Passed.
+             sv_event_array_llp64_pack: Passed.
+            sv_function_fork_join_none: Passed.
+sv_interface_member_select_sensitivity: Passed.
+           sv_nettype_class_scope_scan: Passed.
+                    sv_nettype_package: Passed.
+   sv_param_class_virtual_override_tlm: Passed.
+            sv_task_localparam_untyped: Passed.
+                 sv_type_operator_case: Passed.
+  sv_uarray_func_return_queue_property: Passed.
+============================================================================
+Test results: Ran 23, Failed 0.

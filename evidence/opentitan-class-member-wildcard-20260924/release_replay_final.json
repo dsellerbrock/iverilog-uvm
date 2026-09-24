@@ -1,0 +1,44 @@
+{
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "candidate_ivl_sha256": "37f1af94081d8a3042ad4f8bb11e61705c24a74c73f3748e9c82dbe59c9287b8",
+  "rows": [
+    {
+      "core": "lowrisc:dv:otp_ctrl_sim:0.1",
+      "pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "pinned_clean": true,
+      "compiler_engine_sha256": "37f1af94081d8a3042ad4f8bb11e61705c24a74c73f3748e9c82dbe59c9287b8",
+      "setup_returncode": 0,
+      "compile_returncode": 28,
+      "hard_error_count": 26,
+      "old_path_ambiguity_count": 0,
+      "dynamic_array_indexed_slice_hard_errors": [
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:332: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.",
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:334: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.",
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:278: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.",
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:280: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported."
+      ],
+      "runtime_returncode": null,
+      "status": "FAIL",
+      "full_local_result": "/tmp/ot-class-member-replay-20260924/otp/results.json"
+    },
+    {
+      "core": "lowrisc:dv:chip_sim:0.1",
+      "pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+      "pinned_clean": true,
+      "compiler_engine_sha256": "37f1af94081d8a3042ad4f8bb11e61705c24a74c73f3748e9c82dbe59c9287b8",
+      "setup_returncode": 0,
+      "compile_returncode": 134,
+      "hard_error_count": 64,
+      "old_path_ambiguity_count": 0,
+      "dynamic_array_indexed_slice_hard_errors": [
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:332: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.",
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:334: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.",
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:278: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.",
+        "../src/lowrisc_dv_mem_bkdr_util_0/sram_scrambler_pkg.sv:280: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported."
+      ],
+      "runtime_returncode": null,
+      "status": "FAIL",
+      "full_local_result": "/tmp/ot-class-member-replay-20260924/chip/results.json"
+    }
+  ]
+}
