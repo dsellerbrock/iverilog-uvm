@@ -1,7 +1,7 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-sram-indexed-darray-slice-20260924
-checkpoint_head: b02c91670
+branch: agent/ot-fixed-uarray-stream-20260924
+checkpoint_head: 5b8927fce
 active_icarus_runs:
   selected_52:
     output: evidence/caliptra-icarus-l0-patched-long-52-20260924/
@@ -72,15 +72,15 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-SRAM-INDEXED-DARRAY-SLICE
-  phase: REVIEWED_PRIVATE_GATES_PASS_PR_PENDING
-  owner: Reused OpenTitan triage agent owns paired 2017/2023 dedicated reducers and bounded evidence only; coordinator owns compiler source, shared manifests/build/install, pinned release replay, and review.
-  reproducer: Prior private OTP/chip replay reached four indexed dynamic-array slice errors at sram_scrambler_pkg.sv:278/280/332/334; paired reduced REDs and the old negative gold record the installed compiler's unsupported runtime-indexed rvalues.
-  expected: Runtime-position, constant-width unpacked dynamic-array slices read/write the right elements in order, keep element types and OOB semantics, and snapshot overlap writes. Invalid slice forms still reject and packed element part-selects remain distinct.
-  root_cause: Direct indexed dynamic-array rvalues bypass the partially supported colon-slice specialization and reach elab_expr.cc's unsupported path; elab_lval.cc classifies indexed unpacked lvalues as packed element part-selects. The candidate lowers through typed aggregate reads, a complete RHS snapshot, a count check, and guarded element stores.
-  source_scope: Implicated elaboration source plus paired tests and evidence only; no pinned source, Caliptra driver, active runner, or installed-binary changes while Caliptra jobs run.
-  validation: The reviewed private ivl SHA-256 81f96cc9dbece51afa77c53c763526aeecec2afae8af392ee3bf936864e1a332 passes paired 2017/2023 focus 16/16, full legacy with 6556 ordinary passes of 6561 total and zero failures, full JSON 3548/3548, negatives 155/155, VPI 131/131, and real-DPI UVM 358/358 with zero failed/skipped and both VIF smokes. The older first private image bea4a909c61157dcd8b0ba8539b5b857b549c69e0b30e1fa3154815f7a70042e remains historical evidence only because it rejected legal >64-bit bases. Exact reviewed-image pinned OTP/chip compile diagnostics retain the older candidate body except the chip assertion source-line shift; all four SRAM slice errors remain gone, but OTP exits 24 and chip aborts 134 before DV runtime. The installed ivl SHA-256 6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10 remains unchanged for Caliptra. See evidence/opentitan-sram-indexed-darray-slice-20260924/reviewed_candidate_result.json.
-  next: Commit and open a new PR for the locally qualified indexed-slice fix because PR #350 merged. Preserve the live Caliptra fingerprints, and keep the seven separate OTP streaming fixed-slice errors for the next selected blocker; do not poll CI or run GPU/Verilator.
+  id: OT-OTP-STREAM-FIXED-UARRAY-SLICE
+  phase: LOCAL_QUALIFIED_PR_PENDING
+  owner: Delegated implementation and independent semantics/review agents completed their narrow work; coordinator owns shared builds, final private image, pinned replay, broad gates, docs, and PR.
+  reproducer: Installed and preceding-private Icarus reject the seven pinned otp_ctrl_scoreboard.sv:168/175/198/200/201/227/238 class-property slices, all {<<32 {otp_a[constant +:constant]}}. Paired restricted-modport slice and whole-array controls also proved a pre-existing visibility bypass. Five slice-to-queue errors at lines 1373-1377 are separate.
+  expected: Pack a direct one-dimensional fixed unpacked-array slice in selected left-to-right order; <<32 reverses chunks and >>32 preserves them. Illegal reverse direction remains loud and restricted-modport member reads reject for sliced and whole-array streaming. Constant out-of-range selection remains a documented support limit.
+  root_cause: The whole-array stream resolver rejected indexed operands, while OTP's selected class property cannot use the direct-signal slice decoder. Streamed class-property reads also skipped ordinary modport visibility validation. The current fix uses the existing type-based decoder and shared visibility guard.
+  source_scope: elab_expr.cc and dedicated paired tests/evidence only; no installed compiler, pinned source, Caliptra unsafe logic, or active runner edit.
+  validation: Final private ivl SHA-256 16ea00bf6706be70e185a77d05dcdd0a3f4722da76da4c4dcf25cef4936916c5 passes paired manual focus 12/12, registered JSON focus 10/10, legacy Total=6561 Passed=6556 Failed=0 NI=2 XF=3, JSON 3558/3558, negatives 155/155, isolated VPI 131/131, and real-DPI UVM 358/358. Pinned OTP loses all seven target errors but still has 16 explicit compile errors; pinned chip retains 48 errors and its entropy-source assertion. No OpenTitan DV runtime. See evidence/opentitan-otp-stream-fixed-slice-20260924/result.json.
+  next: Publish the separate stacked PR, then select the independently reduced packed-parameter foreach blocker. Do not install over live Caliptra tools, poll CI, or run GPU/Verilator.
 completed_ot_class_member_wildcard:
   phase: COMMITTED_AND_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_PASS
   commit: b58b430cc
@@ -268,4 +268,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Commit and publish the locally qualified indexed-slice fix from agent/ot-sram-indexed-darray-slice-20260924; reviewed-image paired focus 16/16, full legacy/JSON/negative/VPI/real-DPI UVM gates all pass, and exact pinned OTP/chip replays clear four SRAM sites without OpenTitan DV runtime. The next separate OTP blocker is fixed-array slices in streaming operands at seven scoreboard sites. The Caliptra exact-52 wrapper PID 86052 is stopped after four completed diagnostic cases (one pass, three ERR_HWIF_IN failures), with two already-launched children still running; sampled-HWIF diagnostic VVP PID 98013 also runs outside the numerator. Keep installed binaries and pinned sources unchanged, collect final per-case and probe verdicts, and keep pristine, copied-source, and IEEE denominators separate; no Verilator, GPU, or CI polling."
+next_command: "Publish the locally qualified OT-OTP-STREAM-FIXED-UARRAY-SLICE fix as a stacked PR over PR351: legacy 6561 total/0 failed, JSON 3558/0 failed, negatives 155/155, VPI 131/131, real-DPI UVM 358/358; pinned OTP clears seven errors but still cannot start DV. Then take the paired-RED packed-parameter foreach blocker, followed by fixed class-property slice-to-queue. The selected-52 Caliptra wrapper remains stopped after four completed diagnostic cases (one pass, three ERR_HWIF_IN failures); two child cases and sampled-HWIF probe VVP PID 98013 remain active outside any aggregate. Keep installed tools, pinned sources, and L0 checks intact; report compatibility and IEEE results separately, and do not run Verilator/GPU or poll CI."

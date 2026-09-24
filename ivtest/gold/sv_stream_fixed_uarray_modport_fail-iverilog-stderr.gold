@@ -1,0 +1,2 @@
+ivltests/sv_stream_fixed_uarray_modport.v:12: error: cannot access 'hidden' through modport 'restricted' of interface 'stream_slice_if' — it is not listed in that modport (IEEE 1800-2017 25.5).
+1 error(s) during elaboration.

@@ -3787,3 +3787,9 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Status:** Committed directly to `main` as `c7b2a8267`; local regressions pass and main CI is separate.
 - **Root cause:** `tgt-vvp/vvp_scope.c` reports `sorry: ... The export is dropped` but did not count an error, so code generation succeeded. The negative tests passed in CI only because a non-root user cannot create `/dev/null.dpiexport.c`.
 - **Fix:** Count the dropped export in `vvp_errors`. The existing negative tests `m10_dpi_export_class_handle_argument` and `m10_dpi_export_open_array_argument` now pass independently of the environment.
+
+### OT-OTP-STREAM-FIXED-UARRAY-SLICE — focused fix, release compile still blocked
+
+- **Scope:** A direct constant slice of a one-dimensional fixed unpacked array now streams its selected words in declared direction. Class-property offsets use the declared array origin. An unlisted virtual-interface modport member is rejected for both sliced and whole-array streaming, matching ordinary reads (IEEE 1800-2017/2023 §§11.4.14, 25.5).
+- **Evidence:** [Paired reducers and pinned replay](../../evidence/opentitan-otp-stream-fixed-slice-20260924/README.md). The seven `otp_ctrl_scoreboard.sv:168/175/198/200/201/227/238` errors disappear; pinned `otp_ctrl_sim` still exits 17 with 16 explicit errors. `chip_sim` retains its existing entropy-source assertion abort. Neither has DV runtime evidence from this compile.
+- **Boundary:** Fixed class-property slice-to-queue assignments at scoreboard lines 1373–1377, packed-parameter `foreach` at line 294, virtual-interface array marshalling, and strict mixed-driver overlaps remain separate blockers. Multiple ordinary stream operands containing a slice and a pre-sliced operand followed by `with` remain outside this increment.

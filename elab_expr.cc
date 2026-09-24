@@ -6545,68 +6545,203 @@ struct stream_uarray_op_info_t {
       const netuarray_t*ua = 0;
       ivl_type_t elem_type = 0;
       unsigned elem_count = 0;
+      long left = 0;
+      long right = 0;
 };
 
-static bool stream_whole_uarray_operand_(Design*des, NetScope*scope,
+static bool stream_property_readable_(Design*des, NetScope*scope,
+				      PEIdent*inner, NetNet*receiver,
+				      const netclass_t*ct, int pidx,
+				      perm_string member, bool quiet)
+{
+      if (quiet)
+	    return true;
+      if (ct->get_prop_qual(pidx).test_local()
+	  && !ct->test_scope_is_method(scope)) {
+	    cerr << inner->get_fileline() << ": error: Local property "
+		 << ct->get_prop_name(pidx)
+		 << " is not accessible in this context." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      if (ct->is_interface()) {
+	    verinum mp_attr = receiver->attribute(
+		  perm_string::literal("ivl_modport"));
+	    if (mp_attr != verinum()) {
+		  perm_string mp_name = lex_strings.make(
+			mp_attr.as_string().c_str());
+		  if (!validate_interface_modport_access(
+			des, inner, ct, mp_name, member,
+			inner->clocking_access(), false))
+			return false;
+	    }
+      }
+      return true;
+}
+
+static int stream_whole_uarray_operand_(Design*des, NetScope*scope,
 					 PExpr*inner,
-					 stream_uarray_op_info_t&info)
+					 stream_uarray_op_info_t&info,
+					 bool quiet = false)
 {
       PEIdent*id = dynamic_cast<PEIdent*>(inner);
       if (!id)
-	    return false;
+	    return 0;
       if (!id->path().back().index.empty())
-	    return false;
+	    return 0;
       symbol_search_results sr;
       symbol_search(id, des, scope, id->path(), UINT_MAX, &sr);
       if (!sr.net)
-	    return false;
+	    return 0;
 
       const netuarray_t*ua = 0;
       if (sr.path_tail.empty()) {
 	    ua = dynamic_cast<const netuarray_t*>(sr.net->array_type());
 	    if (!ua)
-		  return false;
+		  return 0;
 	    info.net = sr.net;
       } else if (sr.path_tail.size() == 1
 		 && sr.path_tail.front().index.empty()) {
 	    const netclass_t*ct =
 		  dynamic_cast<const netclass_t*>(sr.net->net_type());
 	    if (!ct)
-		  return false;
+		  return 0;
 	    int pidx = ct->property_idx_from_name(sr.path_tail.front().name);
 	    if (pidx < 0)
-		  return false;
+		  return 0;
 	    ua = dynamic_cast<const netuarray_t*>(ct->get_prop_type(pidx));
 	    if (!ua)
-		  return false;
+		  return 0;
+	    if (!stream_property_readable_(des, scope, id, sr.net,
+					   ct, pidx,
+					   sr.path_tail.front().name, quiet))
+		  return -1;
 	    info.base = sr.net;
 	    info.pidx = pidx;
       } else {
-	    return false;
+	    return 0;
       }
 
       if (ua->static_dimensions().size() != 1)
-	    return false;
+	    return 0;
       ivl_type_t et = ua->element_type();
       if (!et || !et->packed() || et->packed_width() <= 0)
-	    return false;
+	    return 0;
       info.ua = ua;
       info.elem_type = et;
       info.elem_count = (unsigned)ua->static_dimensions()[0].width();
-      return true;
+      info.left = ua->static_dimensions()[0].get_msb();
+      info.right = ua->static_dimensions()[0].get_lsb();
+      return 1;
 }
 
-/* Pack a whole fixed unpacked array operand: concatenation of the
- * elements in DECLARED order (left bound first), which is the stream
- * order of 11.4.14. */
+/* Return -1 for an invalid slice, 0 for another operand, 1 for a fixed
+ * one-dimensional unpacked-array slice.  Reuse the range decoder so the
+ * direction, constant-bound and out-of-bounds rules stay identical to
+ * ordinary fixed-array slices. */
+static int stream_fixed_uarray_slice_operand_(Design*des, NetScope*scope,
+					       PExpr*inner,
+					       stream_uarray_op_info_t&info,
+					       bool quiet = false)
+{
+      PEIdent*id = dynamic_cast<PEIdent*>(inner);
+      if (!id || id->path().back().index.empty())
+	    return 0;
+      fixed_uarray_slice_t slice;
+      int rc = decode_fixed_uarray_slice(des, scope, *inner, inner,
+					 false, slice, quiet);
+      if (rc < 0)
+	    return rc;
+      const netuarray_t*ua = nullptr;
+      if (rc > 0) {
+	    ua = dynamic_cast<const netuarray_t*>(slice.signal->array_type());
+	    info.net = slice.signal;
+      } else {
+	    symbol_search_results sr;
+	    if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+		|| !sr.net || sr.path_tail.size() != 1
+		|| (!sr.path_head.empty()
+		    && !sr.path_head.back().index.empty()))
+		  return 0;
+	    const netclass_t*ct = dynamic_cast<const netclass_t*>(
+		  sr.net->net_type());
+	    if (!ct)
+		  return 0;
+	    int pidx = ct->property_idx_from_name(sr.path_tail.front().name);
+	    if (pidx < 0 || ct->get_prop_qual(pidx).test_static())
+		  return 0;
+	    if (!stream_property_readable_(des, scope, id, sr.net, ct,
+					   pidx, sr.path_tail.front().name,
+					   quiet))
+		  return -1;
+	    ua = dynamic_cast<const netuarray_t*>(ct->get_prop_type(pidx));
+	    if (!ua)
+		  return 0;
+	    rc = decode_fixed_uarray_slice_select(
+		  des, scope, *inner, sr.path_tail.front().index, ua,
+		  slice, quiet);
+	    if (rc <= 0)
+		  return rc;
+	    info.base = sr.net;
+	    info.pidx = pidx;
+      }
+      ivl_type_t et = slice.element_type;
+      if (!ua || !et || !et->packed() || et->packed_width() <= 0)
+	    return 0;
+      if (info.base) {
+	    const netrange_t&declared = ua->static_dimensions()[0];
+	    long high = std::max(slice.selected_range.get_msb(),
+				 slice.selected_range.get_lsb());
+	    long low = std::min(declared.get_msb(), declared.get_lsb());
+	    if ((unsigned long)high - (unsigned long)low > UINT_MAX) {
+		  if (!quiet) {
+			cerr << inner->get_fileline() << ": sorry: fixed unpacked-array "
+			     << "property slice exceeds the 32-bit word-index limit."
+			     << endl;
+			des->errors += 1;
+		  }
+		  return -1;
+	    }
+      }
+      if (slice.count > UINT_MAX / (unsigned long)et->packed_width()) {
+	    if (!quiet) {
+		  cerr << inner->get_fileline() << ": sorry: fixed unpacked-array "
+		       << "slice stream exceeds the 32-bit width limit." << endl;
+		  des->errors += 1;
+	    }
+	    return -1;
+      }
+      info.ua = ua;
+      info.elem_type = et;
+      info.elem_count = (unsigned)slice.count;
+      info.left = slice.selected_range.get_msb();
+      info.right = slice.selected_range.get_lsb();
+      return 1;
+}
+
+static int stream_uarray_operand_(Design*des, NetScope*scope, PExpr*inner,
+				  stream_uarray_op_info_t&info,
+				  bool quiet = false)
+{
+      int rc = stream_fixed_uarray_slice_operand_(des, scope, inner, info,
+							 quiet);
+      if (rc != 0)
+	    return rc;
+      return stream_whole_uarray_operand_(des, scope, inner, info, quiet);
+}
+
+/* Pack a whole fixed unpacked array or selected slice: concatenation of
+ * elements from the selected left bound, in stream order (11.4.14). */
 static NetExpr* stream_uarray_concat_(const LineInfo*li,
 				      const stream_uarray_op_info_t&info)
 {
-      const netranges_t&dims = info.ua->static_dimensions();
-      long left = dims[0].get_msb();
-      long right = dims[0].get_lsb();
+      long left = info.left;
+      long right = info.right;
       long step = (left <= right) ? 1 : -1;
-      long lo = (left <= right) ? left : right;
+      long declared_left = info.ua->static_dimensions()[0].get_msb();
+      long declared_right = info.ua->static_dimensions()[0].get_lsb();
+      long lo = (declared_left <= declared_right)
+	    ? declared_left : declared_right;
 
       NetEConcat*cat = new NetEConcat(info.elem_count, 1, IVL_VT_LOGIC);
       cat->set_line(*li);
@@ -6642,7 +6777,11 @@ static NetExpr* stream_uarray_concat_(const LineInfo*li,
 unsigned PEStreaming::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
       stream_uarray_op_info_t s_info;
-      if (inner_ && stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+      int s_have = inner_ ? stream_uarray_operand_(des, scope, inner_,
+							    s_info, true) : 0;
+      if (s_have < 0) {
+	    expr_width_ = 0;
+      } else if (s_have > 0) {
 	    expr_width_ = (unsigned)s_info.elem_type->packed_width()
 		  * s_info.elem_count;
       } else {
@@ -6788,9 +6927,11 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 		  unsigned w;
 		  NetExpr*body = 0;
 		  stream_uarray_op_info_t s_info;
-		  bool s_have = stream_whole_uarray_operand_(des, scope,
-							     inner_, s_info);
-		  if (s_have)
+		  int s_have = stream_uarray_operand_(des, scope, inner_,
+							 s_info);
+		  if (s_have < 0)
+			return nullptr;
+		  if (s_have > 0)
 			w = (unsigned)s_info.elem_type->packed_width()
 			      * s_info.elem_count;
 		  else
@@ -6807,7 +6948,7 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 		  unsigned slice = resolve_slice_(des, scope);
 		  if (slice == 0)
 			return nullptr;
-		  if (s_have)
+		  if (s_have > 0)
 			body = stream_uarray_concat_(this, s_info);
 		  else
 			body = inner_->elaborate_expr(des, scope, w, flags);
@@ -6957,7 +7098,11 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
       NetExpr*body;
       {
 	    stream_uarray_op_info_t s_info;
-	    if (stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+	    int s_have = stream_uarray_operand_(des, scope, inner_,
+							 s_info);
+	    if (s_have < 0)
+		  return nullptr;
+	    if (s_have > 0) {
 		  w = (unsigned)s_info.elem_type->packed_width()
 			* s_info.elem_count;
 		  body = stream_uarray_concat_(this, s_info);
@@ -7007,7 +7152,11 @@ NetExpr* PEStreaming::elaborate_pack_into(Design*des, NetScope*scope,
       unsigned w;
       {
 	    stream_uarray_op_info_t s_info;
-	    if (stream_whole_uarray_operand_(des, scope, inner_, s_info)) {
+	    int s_have = stream_uarray_operand_(des, scope, inner_,
+							 s_info);
+	    if (s_have < 0)
+		  return nullptr;
+	    if (s_have > 0) {
 		  w = (unsigned)s_info.elem_type->packed_width()
 			* s_info.elem_count;
 	    } else {
@@ -7147,6 +7296,10 @@ static bool stream_operand_is_dynamic_(Design*des, NetScope*scope, PExpr*op)
       if (PEStreaming*sub = dynamic_cast<PEStreaming*>(op))
 	    return sub->stream_is_dynamic(des, scope);
 
+      stream_uarray_op_info_t fixed_info;
+      if (stream_uarray_operand_(des, scope, op, fixed_info, true) != 0)
+	    return false;
+
       PExpr::width_mode_t mode = PExpr::SIZED;
       op->test_width(des, scope, mode);
       switch (op->expr_type()) {
@@ -7181,8 +7334,11 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 {
       if (PEStreamWith*with = dynamic_cast<PEStreamWith*>(op)) {
 	    stream_uarray_op_info_t fixed_info;
-	    bool fixed_have = stream_whole_uarray_operand_(
+	    int fixed_rc = stream_whole_uarray_operand_(
 		  des, scope, with->base(), fixed_info);
+	    if (fixed_rc < 0)
+		  return nullptr;
+	    bool fixed_have = fixed_rc > 0;
 	    NetExpr*base = fixed_have
 		  ? stream_uarray_concat_(with, fixed_info)
 		  : elaborate_stream_operand_(des, scope, with->base(), li);
@@ -7294,6 +7450,13 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 	    if (sub->stream_is_dynamic(des, scope))
 		  return sub->elaborate_stream_sfunc(des, scope, 0, 0);
       }
+
+      stream_uarray_op_info_t fixed_info;
+      int fixed_have = stream_uarray_operand_(des, scope, op, fixed_info);
+      if (fixed_have < 0)
+	    return nullptr;
+      if (fixed_have > 0)
+	    return stream_uarray_concat_(li, fixed_info);
 
       PExpr::width_mode_t mode = PExpr::SIZED;
       unsigned w = op->test_width(des, scope, mode);
