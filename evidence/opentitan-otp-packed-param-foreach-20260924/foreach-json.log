@@ -1,0 +1,42 @@
+Running compiler/VVP tests for Icarus Verilog version: 13
+Using list(s): packed-foreach-focus.list
+----------------------------------------------------------------------------
+                             sv_foreach10: Passed.
+                              sv_foreach9: Passed.
+         sv_foreach_hierarchical_dual_dim: Passed.
+           sv_foreach_package_param_array: Passed.
+      sv_foreach_package_param_array_2023: Passed.
+         sv_foreach_package_param_missing: Passed - CE.
+    sv_foreach_package_param_missing_2023: Passed - CE.
+        sv_foreach_package_param_nonarray: Passed - CE.
+   sv_foreach_package_param_nonarray_2023: Passed - CE.
+         sv_foreach_package_scoped_target: Passed.
+    sv_foreach_package_scoped_target_2023: Passed.
+              sv_foreach_packed_parameter: Passed.
+         sv_foreach_packed_parameter_2023: Passed.
+       sv_foreach_packed_parameter_scalar: Passed - CE.
+  sv_foreach_packed_parameter_scalar_2023: Passed - CE.
+                sv_foreach_selected_comma: Passed - CE.
+           sv_foreach_selected_comma_2023: Passed - CE.
+               sv_foreach_selected_member: Passed.
+          sv_foreach_selected_member_2023: Passed.
+     sv_foreach_selected_member_inherited: Passed.
+sv_foreach_selected_member_inherited_2023: Passed.
+          sv_foreach_selected_member_keys: Passed.
+     sv_foreach_selected_member_keys_2023: Passed.
+      sv_foreach_selected_member_lifetime: Passed.
+ sv_foreach_selected_member_lifetime_2023: Passed.
+        sv_foreach_selected_member_shadow: Passed.
+   sv_foreach_selected_member_shadow_2023: Passed.
+        sv_foreach_selected_member_string: Passed.
+   sv_foreach_selected_member_string_2023: Passed.
+              sv_foreach_selected_missing: Passed - CE.
+         sv_foreach_selected_missing_2023: Passed - CE.
+           sv_foreach_selector_evaluation: Passed.
+      sv_foreach_selector_evaluation_2023: Passed.
+                 sv_foreach_selector_real: Passed - CE.
+            sv_foreach_selector_real_2023: Passed - CE.
+           sv_foreach_selector_unresolved: Passed - CE.
+      sv_foreach_selector_unresolved_2023: Passed - CE.
+============================================================================
+Test results: Ran 37, Failed 0.

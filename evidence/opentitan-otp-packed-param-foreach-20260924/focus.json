@@ -1,0 +1,111 @@
+{
+  "private_ivl_sha256": "390ba9430dcbe1ee9584e89f89de1f58ff49f405a27c436eee70f1f6985995df",
+  "passed": 10,
+  "total": 10,
+  "rows": [
+    {
+      "case": "packed-positive",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "case": "packed-negative",
+      "edition": "2017",
+      "compile_exit": 2,
+      "compile_stderr": "ivltests/sv_foreach_packed_parameter_scalar.v:6: error: Foreach target STATUS is not an unpacked array parameter.\nivltests/sv_foreach_packed_parameter_scalar.v:7: error: Foreach target COUNT is not an unpacked array parameter.\n2 error(s) during elaboration.\n",
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "case": "unpacked-control",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "case": "atom-control",
+      "edition": "2017",
+      "compile_exit": 1,
+      "compile_stderr": "ivltests/sv_foreach_package_param_nonarray.v:5: error: Foreach target SCALAR is not an unpacked array parameter.\n1 error(s) during elaboration.\n",
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "case": "packed-variable-control",
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED packed variable foreach count=3 order=321 set_bits=2\n",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "case": "packed-positive",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "case": "packed-negative",
+      "edition": "2023",
+      "compile_exit": 2,
+      "compile_stderr": "ivltests/sv_foreach_packed_parameter_scalar.v:6: error: Foreach target STATUS is not an unpacked array parameter.\nivltests/sv_foreach_packed_parameter_scalar.v:7: error: Foreach target COUNT is not an unpacked array parameter.\n2 error(s) during elaboration.\n",
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "case": "unpacked-control",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      },
+      "ok": true
+    },
+    {
+      "case": "atom-control",
+      "edition": "2023",
+      "compile_exit": 1,
+      "compile_stderr": "ivltests/sv_foreach_package_param_nonarray.v:5: error: Foreach target SCALAR is not an unpacked array parameter.\n1 error(s) during elaboration.\n",
+      "runtime": null,
+      "ok": true
+    },
+    {
+      "case": "packed-variable-control",
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime": {
+        "exit": 0,
+        "stdout": "PASSED packed variable foreach count=3 order=321 set_bits=2\n",
+        "stderr": ""
+      },
+      "ok": true
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+ivltests/sv_foreach_packed_parameter_scalar.v:6: error: Foreach target STATUS is not an unpacked array parameter.
+ivltests/sv_foreach_packed_parameter_scalar.v:7: error: Foreach target COUNT is not an unpacked array parameter.
+2 error(s) during elaboration.
