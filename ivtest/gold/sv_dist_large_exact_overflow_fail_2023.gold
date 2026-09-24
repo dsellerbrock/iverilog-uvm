@@ -1,2 +1,2 @@
-ERROR: exact dist sampling failed: a large range requires one direct or provably singleton <=64-bit subject with an isolated ground hard-constraint factor.
+ERROR: exact dist sampling failed: the large-range feasible set cannot be resolved exactly for this subject and constraint shape.
 PASSED

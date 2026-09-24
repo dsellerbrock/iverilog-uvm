@@ -77,18 +77,19 @@ class overflow_weight_multi;
 endclass
 
 class wide_leaf;
-  rand bit [9:0] value;
+  rand bit [14:0] value;
 endclass
 
 class range_cap_multi;
   rand wide_leaf child;
-  rand bit [9:0] value;
+  rand bit [14:0] value;
   function new(); child = new; value = 1; child.value = 1; endfunction
-  constraint c {
+  constraint relation_c {
     child.value == value;
     value dist {0 := 1, 1 := 1};
-    child.value dist {[0:300] :/ 1};
   }
+  constraint large_c { child.value dist {[0:20000] :/ 1}; }
+  constraint mid_c { child.value dist {[0:300] :/ 1}; }
 endclass
 
 class guarded_multi;
@@ -110,6 +111,7 @@ module main;
   x_weight_multi xitem = new;
   overflow_weight_multi overflow = new;
   range_cap_multi range_cap = new;
+  range_cap_multi range_control = new;
   guarded_multi guarded = new;
   string root_state, child_state;
   string cap_state, cap_child_state;
@@ -164,6 +166,7 @@ module main;
 
     range_cap.srandom(32'h52414e47);
     range_cap.child.srandom(32'h52414348);
+    range_cap.mid_c.constraint_mode(0);
     root_state = range_cap.get_randstate();
     child_state = range_cap.child.get_randstate();
     if (range_cap.randomize() || range_cap.value != 1
@@ -172,6 +175,13 @@ module main;
     if (range_cap.get_randstate() != root_state
         || range_cap.child.get_randstate() != child_state)
       $fatal(1, "range-cap multi-dist changed RNG state");
+
+    // The former 301-value cap case is now exactly supported. Keep it as a
+    // positive control, independent of the failed object's RNG stream.
+    range_control.large_c.constraint_mode(0);
+    if (!range_control.randomize() || range_control.value > 1
+        || range_control.child.value != range_control.value)
+      $fatal(1, "301-value multi-dist control failed");
 
     guarded.srandom(32'h47554152);
     guarded.child.srandom(32'h47554348);
