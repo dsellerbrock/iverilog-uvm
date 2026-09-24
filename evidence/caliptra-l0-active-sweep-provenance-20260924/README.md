@@ -40,3 +40,14 @@ requested port-0 substitution. The script also checks each named result points
 to its own copy. Its focused `test_attest.py` accepts the exact copied top and
 rejects a tampered one. The old snapshots remain specific to the stopped
 sequential run.
+
+The later three-job, 14,400-second-per-case diagnostic wrapper was stopped
+after four completed cases because three long cases failed on the unchanged
+`ERR_HWIF_IN` assertion and a separate sampled-value probe was needed. Its
+[`long52_checkpoint.json`](long52_checkpoint.json) records one completed pass,
+three completed failures, two already-launched cases still running, and 46
+not started. The wrapper cannot launch more cases. Every completed per-case
+record passed pinned-source and tool-fingerprint checks, but there is no
+52-case aggregate. This copied-source `-gcommercial-unsafe` result is
+nonstandard compatibility evidence, separate from the pristine and IEEE
+lanes.

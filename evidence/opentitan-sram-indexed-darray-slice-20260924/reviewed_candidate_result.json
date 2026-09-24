@@ -1,0 +1,77 @@
+{
+  "blocker": "OT-SRAM-INDEXED-DARRAY-SLICE",
+  "generated_at_utc": "2026-09-24T21:06:28.173522+00:00",
+  "candidate_base_commit": "b02c91670c907851453eedf59b08dfbbf80ccdaf",
+  "reviewed_private_ivl_sha256": "81f96cc9dbece51afa77c53c763526aeecec2afae8af392ee3bf936864e1a332",
+  "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+  "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_sram_scrambler_sha256": "c2ac433e6bd4d097e148a424dc440d6c7a6fe6dd9f617c839b3877866e788f61",
+  "focused_paired_2017_2023": "16/16",
+  "focused_runner_sha256": "0bddcbc99eb0ad5abe55d125af379b7c3508bec1507ee210579ef03b3f567444",
+  "fixture_sha256": {
+    "control": "fc62ca571501f181476811f8844a3375bdb0d27db7ff5324d6c6d8c6aba4dec1",
+    "invalid": "aa420dd521fa7d33b07194fcbb3364dfb21da75b7462071d1befff0be15dfaa6",
+    "overlap": "7c4eaa1c5c426ebec3058e3a0a74cb27ffcb4e717849d1b3d965d833520f0925",
+    "read": "85d82ab3e24f0135c93f5c6cd4b6c7d82397fcb84a4f45c8c83528135ad357d1",
+    "size_mismatch": "7553c118665010e6570ee760af29f37d0f950b44faa1dc71bbd13482221b8578",
+    "too_wide": "c3d17791cb414250c991a35cbb0b81d08df5d392aa4674cd370ec18bd34fdd01",
+    "too_wide_base": "b866d98c8b36826af0caf7f8b055c75f726f1f4ad04de78ed3424a4f67ee9555",
+    "write": "d819e21f5e4cdba7261a1a2043fa9309069ba9b40eb55e9a7deaf30502f2ffdd"
+  },
+  "regressions": {
+    "full_legacy": {
+      "summary": "Total=6561, Passed=6556, Failed=0, Not Implemented=2, Expected Fail=3",
+      "log": "/tmp/ot-indexed-slice-wide-20260924/full-legacy.log",
+      "log_sha256": "61658235d89c34550d51c160369124738bd3c7ac58c60d0761b36bfade841438"
+    },
+    "full_json": {
+      "summary": "Test results: Ran 3548, Failed 0.",
+      "log": "/tmp/ot-indexed-slice-wide-20260924/full-json.log",
+      "log_sha256": "58fe6c007148e8abc23142af963ccd901ded3b8a981e7a008d6ad246b67fc3c3"
+    },
+    "negative": {
+      "summary": "Negative tests: 155 passed, 0 failed",
+      "log": "/tmp/ot-indexed-slice-wide-20260924/negative.log",
+      "log_sha256": "f9635f3fdf2c910a23e5a14f42d962c882b5565383afe429aa655a328f0e2587"
+    },
+    "vpi": {
+      "summary": "Test results: Total=131, Passed=131, Failed=0, Not Implemented=0",
+      "log": "/tmp/ot-indexed-slice-wide-20260924/vpi.log",
+      "log_sha256": "04a980bf7866fdc13bbbd546bfb8744faaadcaf64ea809224fac7712aa6cade4"
+    },
+    "real_dpi_uvm": {
+      "summary": "UVM regression: 358 passed, 0 failed, 0 skipped",
+      "log": "/tmp/ot-indexed-slice-wide-20260924/real-dpi-uvm.log",
+      "log_sha256": "851496b50714b4bd78fc8b95f6c2b84923041d2489dc113b6fcb96d7a2530d12",
+      "mode": "REAL DPI umbrella loaded",
+      "vif_smoke": "PASS",
+      "vif_smoke_v2": "PASS"
+    }
+  },
+  "pinned_replays": [
+    {
+      "name": "otp_ctrl_sim",
+      "result": "/tmp/ot-indexed-slice-wide-20260924/pinned-replay/otp-final/result.json",
+      "compile_log": "/tmp/ot-indexed-slice-wide-20260924/pinned-replay/otp-final/compile.log",
+      "compile_log_sha256": "020dd813775c15ebc2da184ade50bd76bc58bb6687ba5141eb73ce723bde1ca5",
+      "compile_returncode": 24,
+      "classified_hard_error_count": 22,
+      "remaining_sram_slice_diagnostics": 0,
+      "runtime_returncode": null
+    },
+    {
+      "name": "chip_sim",
+      "result": "/tmp/ot-indexed-slice-wide-20260924/pinned-replay/chip/result.json",
+      "compile_log": "/tmp/ot-indexed-slice-wide-20260924/pinned-replay/chip/compile.log",
+      "compile_log_sha256": "6b26f4ad2c3e334ffa2137bb9abb68cf7b2ec47eb6f39ba0a4972ed1be178ce1",
+      "compile_returncode": 134,
+      "classified_hard_error_count": 60,
+      "remaining_sram_slice_diagnostics": 0,
+      "runtime_returncode": null,
+      "compiler_abort_assertion": "entropy_src_core.sv:3324: elaborate.cc:21130: base < vwid"
+    }
+  ],
+  "qualification": "Compiler blocker advanced; neither pinned OpenTitan application compiles cleanly or reaches DV runtime.",
+  "resource_boundary": "Direct one-dimensional blocking indexed dynamic-array slices only; legal width >65536 and integral base >127 bits loudly unsupported; NBA/timed, property/nested, multidimensional forms unclaimed."
+}

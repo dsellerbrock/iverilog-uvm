@@ -1,7 +1,7 @@
 // IEEE 1800-2017/2023 7.4.5 makes a dynamic-array slice a fixed-size
-// unpacked-array expression. Pin the supported direct constant-colon form,
-// the intentionally loud indexed/nested boundaries, and required diagnostics
-// for illegal forms; never silently model the result as another dynamic array.
+// unpacked-array expression. Pin direct constant-colon and indexed-variable
+// base forms, the loud nested boundary, and required illegal diagnostics;
+// never silently model the result as another dynamic array.
 module top;
   class holder;
     int data[];
@@ -17,7 +17,7 @@ module top;
   initial begin
     result = data[1:2]; // Supported direct constant-colon slice.
     upper = 2;
-    result = data[upper +: 2]; // Legal variable position, same boundary.
+    result = data[upper +: 2]; // Legal variable position, now supported.
     result = data[0:upper];    // Colon bounds must be constant.
     result = data[0:$];        // `$' is a queue-only endpoint.
     result = data[2:1];        // Dynamic arrays have ascending direction.

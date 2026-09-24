@@ -1,0 +1,440 @@
+{
+  "blocker": "OT-SRAM-INDEXED-DARRAY-SLICE",
+  "generated_at_utc": "2026-09-24T19:10:59.127512+00:00",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pinned_source": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/dv/sv/mem_bkdr_util/sram_scrambler_pkg.sv",
+  "pinned_source_sha256": "c2ac433e6bd4d097e148a424dc440d6c7a6fe6dd9f617c839b3877866e788f61",
+  "tools": {
+    "iverilog_path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+    "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+    "ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+    "vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "slang_version": "slang version 11.0.448+e222e7dc0"
+  },
+  "standards": {
+    "2017": {
+      "clause": "7.4.6 and 7.6",
+      "pdf_sha256": "12e3dc7bafafca28af2b89ebc2761fb7a606d68716cf04c2d93c8617c78eebec"
+    },
+    "2023": {
+      "clause": "7.4.5 and 7.6",
+      "pdf_sha256": "2280eb7f39532ca990b9bbd2e4226ae5c89910b51f42b2eb0e972df4403c9597"
+    }
+  },
+  "cases": [
+    {
+      "case": "read",
+      "edition": "2017",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v",
+      "source_sha256": "72d4d7411620be9c4da9fcbe663f1ea88f7aa69bb4c00a7cd36b77b55ab44baf",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-8ken3tcz/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v"
+        ],
+        "returncode": 4,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:19: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:27: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:34: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:41: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n4 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "read",
+      "edition": "2023",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v",
+      "source_sha256": "72d4d7411620be9c4da9fcbe663f1ea88f7aa69bb4c00a7cd36b77b55ab44baf",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-_9at708_/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v"
+        ],
+        "returncode": 4,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:19: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:27: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:34: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v:41: sorry: dynamic-array slice r-values are not yet supported as fixed-size unpacked-array expressions.\n4 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_read.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "write",
+      "edition": "2017",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v",
+      "source_sha256": "27b03037c6e95a59a095c291757a7cc00ce42b2bde96ebe4477ea0bed265b150",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-3dmz87b7/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v"
+        ],
+        "returncode": 3,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v:24: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v:34: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v:45: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n3 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "write",
+      "edition": "2023",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v",
+      "source_sha256": "27b03037c6e95a59a095c291757a7cc00ce42b2bde96ebe4477ea0bed265b150",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-fhl65mdk/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v"
+        ],
+        "returncode": 3,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v:24: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v:34: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v:45: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n3 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_write.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "overlap",
+      "edition": "2017",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v",
+      "source_sha256": "7c4eaa1c5c426ebec3058e3a0a74cb27ffcb4e717849d1b3d965d833520f0925",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-4exuadhn/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v"
+        ],
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v:12: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n1 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "overlap",
+      "edition": "2023",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v",
+      "source_sha256": "7c4eaa1c5c426ebec3058e3a0a74cb27ffcb4e717849d1b3d965d833520f0925",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-043mxt_9/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v"
+        ],
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v:12: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n1 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_overlap.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "invalid",
+      "edition": "2017",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v",
+      "source_sha256": "c53887a4829f97dacf9ae1ac30cd4454c50740acce40f7d05d2c49f268d26951",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-7vq2eatd/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v"
+        ],
+        "returncode": 5,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:11: error: indexed unpacked-array slice width must be a positive constant integral expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:12: error: indexed unpacked-array slice width must be a positive constant integral expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:13: error: indexed unpacked-array slice base must be an integral expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:14: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:15: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n5 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v"
+        ],
+        "returncode": 1,
+        "stdout": "Top level design units:\n    test\n\n\nBuild failed: 5 errors, 0 warnings\n",
+        "stderr": "ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:11:26: error: reference to non-constant variable 'variable_width' is not allowed in a constant expression\n    selected = data[0 +: variable_width];\n                         ^~~~~~~~~~~~~~\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:6:7: note: declared here\n  int variable_width;\n      ^\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:12:26: error: value must be positive\n    selected = data[0 +: 0];\n                         ^\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:13:21: error: expression type 'real' is not integral\n    selected = data[nonintegral_base +: 2];\n                    ^~~~~~~~~~~~~~~~\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:14:15: error: reference to non-constant variable 'variable_width' is not allowed in a constant expression\n    data[0 +: variable_width] = selected;\n              ^~~~~~~~~~~~~~\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:6:7: note: declared here\n  int variable_width;\n      ^\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:15:10: error: expression type 'real' is not integral\n    data[nonintegral_base +: 2] = selected;\n         ^~~~~~~~~~~~~~~~\n"
+      }
+    },
+    {
+      "case": "invalid",
+      "edition": "2023",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v",
+      "source_sha256": "c53887a4829f97dacf9ae1ac30cd4454c50740acce40f7d05d2c49f268d26951",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-b534_a3b/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v"
+        ],
+        "returncode": 5,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:11: error: indexed unpacked-array slice width must be a positive constant integral expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:12: error: indexed unpacked-array slice width must be a positive constant integral expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:13: error: indexed unpacked-array slice base must be an integral expression.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:14: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:15: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n5 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v"
+        ],
+        "returncode": 1,
+        "stdout": "Top level design units:\n    test\n\n\nBuild failed: 5 errors, 0 warnings\n",
+        "stderr": "ivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:11:26: error: reference to non-constant variable 'variable_width' is not allowed in a constant expression\n    selected = data[0 +: variable_width];\n                         ^~~~~~~~~~~~~~\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:6:7: note: declared here\n  int variable_width;\n      ^\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:12:26: error: value must be positive\n    selected = data[0 +: 0];\n                         ^\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:13:21: error: expression type 'real' is not integral\n    selected = data[nonintegral_base +: 2];\n                    ^~~~~~~~~~~~~~~~\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:14:15: error: reference to non-constant variable 'variable_width' is not allowed in a constant expression\n    data[0 +: variable_width] = selected;\n              ^~~~~~~~~~~~~~\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:6:7: note: declared here\n  int variable_width;\n      ^\nivtest/ivltests/sv_dynamic_array_indexed_slice_invalid.v:15:10: error: expression type 'real' is not integral\n    data[nonintegral_base +: 2] = selected;\n         ^~~~~~~~~~~~~~~~\n"
+      }
+    },
+    {
+      "case": "control",
+      "edition": "2017",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_control.v",
+      "source_sha256": "fc62ca571501f181476811f8844a3375bdb0d27db7ff5324d6c6d8c6aba4dec1",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-3xzt9ezq/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_control.v"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-3xzt9ezq/test.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PASS dynamic-array slice control\n",
+        "stderr": ""
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_control.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "control",
+      "edition": "2023",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_control.v",
+      "source_sha256": "fc62ca571501f181476811f8844a3375bdb0d27db7ff5324d6c6d8c6aba4dec1",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-rpx82q5j/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_control.v"
+        ],
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "vvp": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-rpx82q5j/test.vvp"
+        ],
+        "returncode": 0,
+        "stdout": "PASS dynamic-array slice control\n",
+        "stderr": ""
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_control.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "size_mismatch",
+      "edition": "2017",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v",
+      "source_sha256": "7553c118665010e6570ee760af29f37d0f950b44faa1dc71bbd13482221b8578",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-7ed46vlh/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v"
+        ],
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v:15: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n1 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2017",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    },
+    {
+      "case": "size_mismatch",
+      "edition": "2023",
+      "source": "ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v",
+      "source_sha256": "7553c118665010e6570ee760af29f37d0f950b44faa1dc71bbd13482221b8578",
+      "iverilog": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-s",
+          "test",
+          "-o",
+          "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/ot-indexed-slice-12twomtm/test.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v"
+        ],
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v:15: sorry: assignment to an indexed part-select of a dynamic-array element is not yet supported.\n1 error(s) during elaboration.\n"
+      },
+      "slang": {
+        "command": [
+          "slang",
+          "--std",
+          "1800-2023",
+          "--top",
+          "test",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/sv_dynamic_array_indexed_slice_size_mismatch.v"
+        ],
+        "returncode": 0,
+        "stdout": "Top level design units:\n    test\n\n\nBuild succeeded: 0 errors, 0 warnings\n",
+        "stderr": ""
+      }
+    }
+  ]
+}

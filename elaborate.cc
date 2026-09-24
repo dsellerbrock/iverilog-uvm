@@ -9134,11 +9134,103 @@ static NetEConst* make_direct_darray_slice_index_(int64_t value,
       return result;
 }
 
+/* An indexed unpacked slice has a fixed element count but a run-time base.
+ * Keep the base wider than a 64-bit array index while adding an offset, so
+ * overflow remains out of range instead of wrapping onto element zero. */
+NetExpr* elaborate_direct_darray_indexed_base_(
+      Design*des, NetScope*scope, const LineInfo&loc,
+      const index_component_t&index, unsigned&count)
+{
+      NetExpr*base = elab_and_eval(des, scope, index.msb, -1, false);
+      NetExpr*width = elab_and_eval(des, scope, index.lsb, -1, false);
+      if (!base || !width) {
+	delete base;
+	delete width;
+	return nullptr;
+      }
+      if (base->expr_type() != IVL_VT_BOOL
+	  && base->expr_type() != IVL_VT_LOGIC) {
+	cerr << loc.get_fileline() << ": error: indexed dynamic-array slice "
+	     << "base must be an integral expression."
+	     << endl;
+	des->errors += 1;
+	delete base;
+	delete width;
+	return nullptr;
+      }
+	// ponytail: a 128-bit index carrier plus a 16-bit offset is safe for
+	// at most 127 source bits; widen the carrier if larger bases matter.
+	if (base->expr_width() > 127) {
+	cerr << loc.get_fileline() << ": sorry: indexed dynamic-array slice "
+	     << "base wider than 127 bits is not yet supported."
+	     << endl;
+	des->errors += 1;
+	delete base;
+	delete width;
+	return nullptr;
+	}
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(width);
+      bool negative = false;
+      uint64_t magnitude = constant && constant->value().is_defined()
+	? verinum_signed_magnitude(constant->value(), negative) : 0;
+      if ((width->expr_type() != IVL_VT_BOOL
+	   && width->expr_type() != IVL_VT_LOGIC)
+	  || !constant || !constant->value().is_defined()
+	  || negative || magnitude == 0 || magnitude > INT_MAX
+	  || magnitude - 1 > static_cast<unsigned long>(LONG_MAX)) {
+	cerr << loc.get_fileline() << ": error: indexed dynamic-array slice "
+	     << "width must be a positive constant integral expression "
+	     << "with a representable fixed result." << endl;
+	des->errors += 1;
+	delete base;
+	delete width;
+	return nullptr;
+      }
+	// ponytail: cap eager element lowering; use a runtime slice opcode if
+	// workloads need wider slices.
+	if (magnitude > 65536) {
+	cerr << loc.get_fileline() << ": sorry: indexed dynamic-array slice "
+	     << "width exceeds the 65536-element lowering limit." << endl;
+	des->errors += 1;
+	delete base;
+	delete width;
+	return nullptr;
+	}
+      count = static_cast<unsigned>(magnitude);
+      delete width;
+
+      NetExpr*low = pad_to_width(base, 128, loc);
+      if (index.sel == index_component_t::SEL_IDX_DO && count > 1) {
+	NetEConst*offset = new NetEConst(verinum(
+	  static_cast<uint64_t>(count - 1), 128));
+	offset->set_line(loc);
+	NetEBAdd*down = new NetEBAdd('-', low, offset, 128, true);
+	down->set_line(loc);
+	low = down;
+      }
+      return low;
+}
+
+static NetExpr* make_direct_darray_indexed_word_(
+      NetNet*base, unsigned offset, const LineInfo&loc)
+{
+      NetESignal*first = new NetESignal(base);
+      first->set_line(loc);
+      if (offset == 0) return first;
+      NetEConst*delta = new NetEConst(verinum(
+	static_cast<uint64_t>(offset), 128));
+      delta->set_line(loc);
+      NetEBAdd*word = new NetEBAdd('+', first, delta, 128, true);
+      word->set_line(loc);
+      return word;
+}
+
 static NetExpr* elaborate_direct_darray_slice_rval_(
       Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pexpr,
-      const netdarray_t*target_type, bool&handled)
+      const netdarray_t*target_type, bool&handled, NetProc*&prelude)
 {
       handled = false;
+      prelude = nullptr;
       if (!target_type || dynamic_cast<const netqueue_t*>(target_type))
 	    return nullptr;
 
@@ -9152,7 +9244,10 @@ static NetExpr* elaborate_direct_darray_slice_rval_(
 	    return nullptr;
       const index_component_t&index = indices.front();
       if (index.sel != index_component_t::SEL_PART
-	  || !index.msb || !index.lsb)
+	  && index.sel != index_component_t::SEL_IDX_UP
+	  && index.sel != index_component_t::SEL_IDX_DO)
+	    return nullptr;
+      if (!index.msb || !index.lsb)
 	    return nullptr;
 
       symbol_search_results sr;
@@ -9198,6 +9293,45 @@ static NetExpr* elaborate_direct_darray_slice_rval_(
 		 << endl;
 	    des->errors += 1;
 	    return nullptr;
+      }
+
+      if (index.sel == index_component_t::SEL_IDX_UP
+	  || index.sel == index_component_t::SEL_IDX_DO) {
+	unsigned count = 0;
+	NetExpr*low = elaborate_direct_darray_indexed_base_(
+	  des, scope, loc, index, count);
+	if (!low) return nullptr;
+
+	NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+	  new netvector_t(IVL_VT_LOGIC, 127, 0, true));
+	base->local_flag(true);
+	base->set_line(loc);
+	if (scope->is_auto()) base->lifetime_override(IVL_VLT_AUTOMATIC);
+	NetAssign*save = new NetAssign(new NetAssign_(base), low);
+	save->set_line(loc);
+	save->synth_generated_snapshot();
+	prelude = save;
+
+	netranges_t dimensions;
+	dimensions.push_back(netrange_t(0, static_cast<long>(count - 1)));
+	netuarray_t*result_type = new netuarray_t(dimensions, source_element);
+	vector<NetExpr*>items(count);
+	long packed_width = source_element->packed_width();
+	unsigned element_width = packed_width > 0
+	  && static_cast<unsigned long>(packed_width) <= UINT_MAX
+	  ? static_cast<unsigned>(packed_width) : 1;
+	for (unsigned offset = 0; offset < count; offset += 1) {
+	    NetESignal*receiver = new NetESignal(sr.net);
+	    receiver->set_line(loc);
+	    NetESelect*element = new NetESelect(receiver,
+	      make_direct_darray_indexed_word_(base, offset, loc),
+	      element_width, source_element);
+	    element->set_line(loc);
+	    items[offset] = element;
+	}
+	NetEArrayPattern*result = new NetEArrayPattern(result_type, items);
+	result->set_line(loc);
+	return result;
       }
 
       NetExpr*left_expr = elab_and_eval(des, scope, index.msb, -1, false);
@@ -9307,6 +9441,122 @@ static NetExpr* elaborate_direct_darray_slice_rval_(
       NetEArrayPattern*result = new NetEArrayPattern(result_type, items);
       result->set_line(loc);
       return result;
+}
+
+/* Lower a direct indexed dynamic-array slice store through ordinary typed
+ * element operations. A complete destination-typed RHS snapshot and its
+ * live size check precede every store; each selected index is then guarded
+ * so unknown/out-of-range positions are no-ops without mutating neighbors. */
+static NetProc* make_direct_darray_indexed_slice_store_(
+      NetScope*scope, const LineInfo&loc, NetAssign_*slice,
+      NetExpr*value, NetProc*rhs_prelude, unsigned count)
+{
+      NetNet*dst = slice->sig();
+      const netdarray_t*dst_type = dst->darray_type();
+      ivl_type_t element_type = dst_type->element_type();
+      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+      block->set_line(loc);
+      if (rhs_prelude) block->append(rhs_prelude);
+
+      NetNet*rhs = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      dst_type);
+      rhs->local_flag(true);
+      rhs->set_line(loc);
+      if (scope->is_auto()) rhs->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*save_rhs = new NetAssign(new NetAssign_(rhs), value);
+      save_rhs->set_line(loc);
+      save_rhs->synth_generated_snapshot();
+      block->append(save_rhs);
+
+      NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+	new netvector_t(IVL_VT_LOGIC, 127, 0, true));
+      base->local_flag(true);
+      base->set_line(loc);
+      if (scope->is_auto()) base->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*save_base = new NetAssign(new NetAssign_(base),
+					 slice->word()->dup_expr());
+      save_base->set_line(loc);
+      save_base->synth_generated_snapshot();
+      block->append(save_base);
+      delete slice;
+
+      NetESFunc*size = new NetESFunc("$ivl_array_query$size",
+					   &netvector_t::atom2s32, 2);
+      size->set_line(loc);
+      size->parm(0, new NetESignal(rhs));
+      size->parm(1, make_const_val(1));
+      NetEBComp*same_count = new NetEBComp('E', size,
+					       make_const_val_s(count));
+      same_count->set_line(loc);
+
+      NetNet*ordinal = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+	new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+      ordinal->local_flag(true);
+      ordinal->set_line(loc);
+      if (scope->is_auto()) ordinal->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetESignal*ordinal_test = new NetESignal(ordinal);
+      ordinal_test->set_line(loc);
+      NetEBComp*continue_loop = new NetEBComp('<', ordinal_test,
+						make_const_val_s(count));
+      continue_loop->set_line(loc);
+      NetAssign*step = new NetAssign(new NetAssign_(ordinal), '+',
+					    make_const_val_s(1));
+      step->set_line(loc);
+
+      NetESignal*base_read = new NetESignal(base);
+      base_read->set_line(loc);
+      NetESignal*offset = new NetESignal(ordinal);
+      offset->set_line(loc);
+      NetEBAdd*word = new NetEBAdd('+', base_read,
+			   pad_to_width(offset, 128, loc), 128, true);
+      word->set_line(loc);
+      NetAssign_*store_lval = new NetAssign_(dst);
+      store_lval->set_word(word->dup_expr());
+      NetESignal*rhs_read = new NetESignal(rhs);
+      rhs_read->set_line(loc);
+      NetESignal*rhs_index = new NetESignal(ordinal);
+      rhs_index->set_line(loc);
+      long packed_width = element_type->packed_width();
+      unsigned element_width = packed_width > 0
+	&& static_cast<unsigned long>(packed_width) <= UINT_MAX
+	? static_cast<unsigned>(packed_width) : 1;
+      NetESelect*selected = new NetESelect(rhs_read, rhs_index,
+					 element_width, element_type);
+      selected->set_line(loc);
+      NetAssign*store = new NetAssign(store_lval, selected);
+      store->set_line(loc);
+
+      NetESFunc*dst_size = new NetESFunc("$ivl_array_query$size",
+					       &netvector_t::atom2s32, 2);
+      dst_size->set_line(loc);
+      dst_size->parm(0, new NetESignal(dst));
+      dst_size->parm(1, make_const_val(1));
+      NetEBComp*nonnegative = new NetEBComp('G', word->dup_expr(),
+						pad_to_width(make_const_val_s(0),
+						             128, loc));
+      nonnegative->set_line(loc);
+      NetEBComp*in_range = new NetEBComp('<', word,
+					     pad_to_width(dst_size, 128, loc));
+      in_range->set_line(loc);
+      NetEBLogic*valid = new NetEBLogic('a', nonnegative, in_range);
+      valid->set_line(loc);
+      NetCondit*guarded_store = new NetCondit(valid, store, nullptr);
+      guarded_store->set_line(loc);
+      NetForLoop*loop = new NetForLoop(ordinal, make_const_val_s(0),
+					   continue_loop, guarded_store, step);
+      loop->set_line(loc);
+
+      vector<NetExpr*>error_args;
+      error_args.push_back(new NetECString(
+	"indexed dynamic-array slice source size does not match its width; "
+	"destination is unchanged"));
+      NetSTask*error = new NetSTask("$error", IVL_SFUNC_AS_TASK_IGNORE,
+				   error_args);
+      error->set_line(loc);
+      NetCondit*check = new NetCondit(same_count, loop, error);
+      check->set_line(loc);
+      block->append(check);
+      return block;
 }
 
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
@@ -9554,6 +9804,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    delay = elaborate_delay_expr(delay_, des, scope);
 
       NetExpr*rv;
+      NetProc*indexed_slice_prelude = nullptr;
       const ivl_type_s*lv_net_type = lv->net_type();
 
       const PEStreaming*stream_rval =
@@ -9649,7 +9900,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		rv = direct_plain_target
 		      ? elaborate_direct_darray_slice_rval_(
 			    des, scope, *this, rval(), target_darray,
-			    slice_handled)
+			    slice_handled, indexed_slice_prelude)
 		      : nullptr;
 		specialized_handled = slice_handled;
 	    }
@@ -9658,6 +9909,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    else if (!rv) {
 		  delete lv;
 		  delete delay;
+		  delete indexed_slice_prelude;
 		  return 0;
 	    }
 
@@ -9671,6 +9923,73 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  else
 			cerr << get_fileline() << ": PAssign::elaborate: "
 			     << "lv->word() = <nil>" << endl;
+	    }
+
+	    /* An indexed slice of a plain dynamic array presents a fixed
+	     * unpacked-array type, but its storage is still the original
+	     * dynamic array. Snapshot the complete RHS and check its live
+	     * cardinality before writing any selected element. */
+	    const netdarray_t*slice_darray = lv->is_array_slice() && lv->sig()
+	      ? lv->sig()->darray_type() : nullptr;
+	    if (slice_darray && !lv->sig()->queue_type()) {
+		if (delay_ || event_ || count_ || lv->more || lv->nest()) {
+		    cerr << get_fileline() << ": sorry: indexed dynamic-array "
+			 << "slice assignment requires a simple blocking form."
+			 << endl;
+		    des->errors += 1;
+		    delete lv;
+		    delete delay;
+		    return nullptr;
+		}
+		unsigned slice_count = static_cast<unsigned>(
+		  lv_uarray->static_dimensions()[0].width());
+		NetProc*rhs_prelude = nullptr;
+		bool slice_handled = false;
+		NetExpr*slice_value = elaborate_direct_darray_slice_rval_(
+		  des, scope, *this, rval(), slice_darray,
+		  slice_handled, rhs_prelude);
+		if (!slice_handled)
+		    slice_value = elaborate_rval_(des, scope, slice_darray);
+		if (!slice_value) {
+		    delete lv;
+		    delete rhs_prelude;
+		    return nullptr;
+		}
+		const netdarray_t*rhs_darray =
+		  dynamic_cast<const netdarray_t*>(slice_value->net_type());
+		const netuarray_t*rhs_fixed =
+		  dynamic_cast<const netuarray_t*>(slice_value->net_type());
+		if (!rhs_fixed) {
+		    const NetESignal*source =
+		      dynamic_cast<const NetESignal*>(slice_value);
+		    if (source && source->sig())
+		      rhs_fixed = dynamic_cast<const netuarray_t*>(
+			source->sig()->array_type());
+		}
+		ivl_type_t rhs_element = rhs_darray
+		  ? rhs_darray->element_type()
+		  : rhs_fixed ? rhs_fixed->element_type() : nullptr;
+		ivl_type_t dst_element = slice_darray->element_type();
+		bool source_ok = rhs_element && dst_element
+		  && (rhs_element == dst_element
+		      || (rhs_element->type_equivalent(dst_element)
+			  && dst_element->type_equivalent(rhs_element)))
+		  && (!rhs_fixed
+		      || (rhs_fixed->static_dimensions().size() == 1
+			  && rhs_fixed->static_dimensions()[0].width()
+			      == slice_count));
+		if (!source_ok || dynamic_cast<const netqueue_t*>(rhs_darray)) {
+		    cerr << get_fileline() << ": error: indexed dynamic-array "
+			 << "slice source must have an equivalent element type "
+			 << "and the selected element count." << endl;
+		    des->errors += 1;
+		    delete lv;
+		    delete slice_value;
+		    delete rhs_prelude;
+		    return nullptr;
+		}
+		return make_direct_darray_indexed_slice_store_(
+		  scope, *this, lv, slice_value, rhs_prelude, slice_count);
 	    }
 
 	      // Whole and fixed-prefix static-array copies (IEEE 1800-2017
@@ -9926,6 +10245,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
       if (rv == 0) {
 	    delete lv;
+	    delete indexed_slice_prelude;
 	    return 0;
       }
       ivl_assert(*this, rv);
@@ -10046,6 +10366,14 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
       NetAssign*cur = new NetAssign(lv, rv);
       cur->set_line(*this);
+
+      if (indexed_slice_prelude) {
+	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	block->set_line(*this);
+	block->append(indexed_slice_prelude);
+	block->append(cur);
+	return block;
+      }
 
       /* Phase 63b/B7: tagged-union write — also update companion tag. */
       if (NetProc*tag_set = build_tagged_union_companion_set_(des, scope,
@@ -10641,6 +10969,16 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    des->errors += 1;
 	    delete lv;
 	    return 0;
+      }
+
+      if (lv->is_array_slice() && lv->sig()
+	  && lv->sig()->darray_type() && !lv->sig()->queue_type()) {
+	cerr << get_fileline() << ": sorry: non-blocking assignment to an "
+	     << "indexed dynamic-array slice is not yet supported."
+	     << endl;
+	des->errors += 1;
+	delete lv;
+	return nullptr;
       }
 
       if (const PEStreaming*stream =
