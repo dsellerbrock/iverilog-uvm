@@ -8121,6 +8121,14 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (var_ref_active(ref)) return true;
 	    return false;
       };
+      if (exact_joint) {
+            // A random-dependent weight was evaluated from prefill while
+            // building base; its approximate hard clause cannot prove even
+            // another distribution's guard inactive.
+            for (const auto&spec : builder.dist_specs)
+                  if (!dist_disabled(spec) && !spec.state_weights)
+                        return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
+      }
       auto install_dist_fallback = [&](Z3_optimize target,
 					 size_t spec_index) {
 	    const Z3Builder::DistSpec&spec = builder.dist_specs[spec_index];
@@ -8544,11 +8552,38 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   unsigned stage;
             };
             vector<vector<JointDistBinding> > distributions(components.size());
-            for (const auto&spec : builder.dist_specs) {
+            for (auto&spec : builder.dist_specs) {
                   if (dist_disabled(spec)) continue;
                   // IEEE 1800-2017 18.5.4; IEEE 1800-2023 18.5.3.
-                  // A discarded soft owner, conditional activation, or active
-                  // weight needs more metadata before exact marginal sampling.
+                  // Conditional constraints are implications (2017 18.5.7;
+                  // 2023 18.5.6). Their dist has no preference when its
+                  // enclosing guards are false. Prove activation against the
+                  // complete hard constraint set before any joint draw; a
+                  // variable guard needs conditional-fiber sampling and must
+                  // not be treated as an unconditional preference.
+                  if (!spec.guards.empty()) {
+                        Z3_ast active = spec.guards.size() == 1
+                              ? spec.guards.front()
+                              : Z3_mk_and(ctx, (unsigned)spec.guards.size(),
+                                    spec.guards.data());
+                        Z3_ast inactive = Z3_mk_not(ctx, active);
+                        Z3_lbool can_activate = Z3_solver_check_assumptions(
+                              ctx, base, 1, &active);
+                        Z3_lbool can_deactivate = Z3_solver_check_assumptions(
+                              ctx, base, 1, &inactive);
+                        if (can_activate == Z3_L_UNDEF
+                            || can_deactivate == Z3_L_UNDEF)
+                              return fail_joint("the joint distribution guard proof returned UNKNOWN");
+                        if (can_activate == Z3_L_FALSE
+                            && can_deactivate == Z3_L_FALSE)
+                              return fail_joint(nullptr);
+                        if (can_activate == Z3_L_FALSE) continue;
+                        if (can_deactivate != Z3_L_FALSE)
+                              return fail_joint("a joint distribution has an unresolved random guard");
+                        spec.exact_supported = spec.exact_supported_without_guard;
+                  }
+                  // A discarded soft owner, non-ground item, or active
+                  // weight still lacks an exact joint interpretation.
                   if (spec.disableable || !spec.exact_supported || !spec.state_weights)
                         return fail_joint("joint dist requires an unconditional hard distribution with state-only weights and ground items");
                   if (!dist_active(spec)) continue;

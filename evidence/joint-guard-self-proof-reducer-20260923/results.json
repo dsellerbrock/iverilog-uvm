@@ -1,0 +1,24 @@
+[
+  {
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "run": {
+      "exit_code": 0,
+      "stdout": "UNEXPECTED_SUCCESS gate=0 value=0 weight=0\n",
+      "stderr": ""
+    }
+  },
+  {
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "run": {
+      "exit_code": 0,
+      "stdout": "UNEXPECTED_SUCCESS gate=0 value=0 weight=0\n",
+      "stderr": ""
+    }
+  }
+]

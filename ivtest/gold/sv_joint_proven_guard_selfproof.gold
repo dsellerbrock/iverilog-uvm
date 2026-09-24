@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.
+PASSED

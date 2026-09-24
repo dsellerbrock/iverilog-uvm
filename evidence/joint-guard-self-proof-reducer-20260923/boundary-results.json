@@ -1,0 +1,24 @@
+[
+  {
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "run": {
+      "exit_code": 0,
+      "stdout": "EXPECTED_BOUNDARIES\n",
+      "stderr": "Warning: dist item is outside the ground <=64-bit common-order exact-sampling subset; using the weighted-soft fallback (further similar warnings suppressed).\nERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.\n"
+    }
+  },
+  {
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "run": {
+      "exit_code": 0,
+      "stdout": "EXPECTED_BOUNDARIES\n",
+      "stderr": "Warning: dist item is outside the ground <=64-bit common-order exact-sampling subset; using the weighted-soft fallback (further similar warnings suppressed).\nERROR: global constraint sampling failed: joint dist requires an unconditional hard distribution with state-only weights and ground items.\n"
+    }
+  }
+]

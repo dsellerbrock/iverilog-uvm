@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_joint_proven_guard_conjunction.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sv_joint_proven_guard_conjunction"
+}

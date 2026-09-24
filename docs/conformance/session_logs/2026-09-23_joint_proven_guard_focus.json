@@ -1,0 +1,84 @@
+{
+  "date": "2026-09-23",
+  "revision": "e75f26091be94e55e1c30c3c6783ee596f3a755f",
+  "worktree": "agent/ot-csrng-caliptra-next-20260923 (uncommitted candidate)",
+  "compiler_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "runtime_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+  "standards": {
+    "2017": [
+      "18.5.4",
+      "18.5.7"
+    ],
+    "2023": [
+      "18.5.3",
+      "18.5.6"
+    ]
+  },
+  "baseline_red": {
+    "paired_macro_positive_conjunction_failed": 6,
+    "paired_self_proof_wrong_success": 2,
+    "paired_unrelated_large_range_diagnostic_preexisting": 2
+  },
+  "focused": {
+    "legacy": {
+      "total": 22,
+      "passed": 22,
+      "log": "evidence/joint-guard-legacy-selfproof-20260923.log"
+    },
+    "json_vvp": {
+      "total": 22,
+      "passed": 22,
+      "log": "evidence/joint-guard-json-selfproof-20260923.log"
+    },
+    "checks": [
+      "constant and hard-pinned guards",
+      "jointly impossible nested guard",
+      "9:1 weighted active distributions",
+      "one active 9:1 distribution coupled to an unweighted peer, with a two-sided 240..292/300 count in each mode; rejects always-favored and accidentally multiplied weights",
+      "unresolved variable guard diagnostic and RNG rollback",
+      "random-dependent weight cannot prove its own guard inactive; paired value, callback, and RNG rollback",
+      "neighbor multiple-dist and large-range controls"
+    ],
+    "negative": {
+      "total": 155,
+      "passed": 155,
+      "log": "evidence/joint-guard-full-ivtest-gate-final-20260923.log"
+    }
+  },
+  "broad": {
+    "legacy": {"total": 6469, "passed": 6464, "failed": 0, "not_implemented": 2, "expected_fail": 3, "log": "evidence/joint-guard-full-ivtest-gate-final-20260923.log"},
+    "vpi": {"total": 131, "passed": 131},
+    "negative": {"total": 155, "passed": 155},
+    "json_vvp": {"total": 3398, "failed": 0, "log": "evidence/joint-guard-full-json-final-20260923.log"}
+  },
+  "pinned_csrng": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+      "+UVM_NO_RELNOTES",
+      "+UVM_VERBOSITY=UVM_LOW",
+      "+cdc_instrumentation_enabled=1",
+      "+smoke_test=1",
+      "+UVM_TESTNAME=csrng_smoke_test",
+      "+UVM_TEST_SEQ=csrng_smoke_vseq"
+    ],
+    "image_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+    "exit_code": 0,
+    "error": "a joint distribution has an unresolved random guard",
+    "uvm_fatal": true,
+    "uvm_error": true,
+    "dv_pass": false,
+    "evidence": "evidence/opentitan-csrng-proven-guard-replay-20260923/final-vvp-e9b7-result.json"
+  },
+  "limitations": [
+    "Variable guards whose truth differs among feasible assignments need exact conditional-fiber sampling; they remain a loud failure.",
+    "Random-dependent distribution weights remain loudly unsupported, including when the current subject is inactive, because a prefilled weight can otherwise contaminate the guard proof.",
+    "Process exit zero with UVM_FATAL and assertion errors is not a DV pass.",
+    "These broad regressions precede the separate Caliptra commercial-unsafe compiler candidate; rerun required after integration."
+  ],
+  "review": {
+    "result": "No material soundness defect found in the proven-guard scope; exact unresolved variable guards remain unsupported.",
+    "uncertainty": "A separate wide inactive-only paired reducer passes; no wider sampler claim follows."
+  }
+}

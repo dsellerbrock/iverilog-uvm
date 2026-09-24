@@ -1,0 +1,2 @@
+ERROR: global constraint sampling failed: a joint distribution has an unresolved random guard.
+PASSED
