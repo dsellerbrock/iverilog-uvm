@@ -34,6 +34,9 @@ CHECKER_PATCH = RELEASE_PATCHES / "l0_pure_checker_functions.patch"
 CHECKER_SOURCE_SHA256 = "6bd2ade137a90c0701aab28951ba6f8918724e0467c21756b0c308e6e9081c89"
 CHECKER_PATCH_SHA256 = "b3cdf87a5c819820fbb02d8b183e6209ab7f5fdb062228046ba27cdaae9dbd19"
 CHECKER_PATCHED_SHA256 = "6e67d67966b030931ec222aacfd0863086c7d35b5e916acd5f358a90ed538654"
+JTAG_TOP = SOURCE / "src/integration/tb/caliptra_top_tb.sv"
+JTAG_TOP_SHA256 = "c212c32da99e90cd3991da65e653998cac3e945d7479abfd640b9d82f47659f9"
+JTAG_EPHEMERAL_TOP_SHA256 = "df8d51cc7ad84000288f5d7c19641f433d59ae213314fa81b9d9e5f8a6b76c6e"
 FIRMWARE_PATCHES = {
     "smoke_test_hw_config": ("hw_config_inline_c11.patch",
                              "src/integration/test_suites/smoke_test_hw_config/caliptra_isr.h"),
@@ -65,6 +68,7 @@ FINISH = re.compile(r"Finished : minstret = (\d+), mcycle = (\d+)")
 TRACE = re.compile(r"^\s*\d+\s*:\s*#\d+", re.MULTILINE)
 BAD = re.compile(r"\b(?:UVM_)?(?:ERROR|FATAL)\b|\bassert(?:ion)?\b[^\n]*\b(?:fail(?:ed|ure)?|error)\b", re.IGNORECASE)
 MISSING_DPI = re.compile(r"DPI error: symbol '.+' not found in any loaded DPI library", re.IGNORECASE)
+JTAG_SERVER_ERROR = re.compile(r"(?m)^jtag0: (?:Failed to|Unable to|Socket read failed|Error while|Client disappeared)")
 SAMPLING_WARNING = re.compile(r"cannot be sampled in the Preponed region")
 VECTOR_OUTPUTS = {
     "ecc_secp384r1.exe": "ecc_secp384r1.exe",
@@ -79,6 +83,10 @@ VECTOR_OUTPUTS = {
 
 def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def runtime_diagnostics_ok(sim):
+    return not (BAD.search(sim) or MISSING_DPI.search(sim) or JTAG_SERVER_ERROR.search(sim))
 
 
 def git(*args):
@@ -180,6 +188,34 @@ def prepare_checker_source_overlay(profile):
     overlay_profile = overlay_dir / profile.name
     overlay_profile.write_text(source_list.replace(original_entry, str(patched)))
     return overlay_profile, patched
+
+
+def prepare_ephemeral_jtag_port(profile):
+    if sha256(JTAG_TOP) != JTAG_TOP_SHA256:
+        raise RuntimeError("Pinned JTAG top source hash mismatch")
+    source = JTAG_TOP.read_bytes()
+    old = b".ListenPort     (63224)"
+    if source.count(old) != 1:
+        raise RuntimeError("Expected exactly one pinned JTAG ListenPort setting")
+    overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-jtag-port-", dir="/tmp"))
+    copied = overlay_dir / "caliptra_top_tb.sv"
+    copied.write_bytes(source.replace(old, b".ListenPort     (0)"))
+    if sha256(copied) != JTAG_EPHEMERAL_TOP_SHA256:
+        raise RuntimeError("Ephemeral JTAG port overlay produced unexpected source")
+    original_entry = "${CALIPTRA_ROOT}/src/integration/tb/caliptra_top_tb.sv"
+    source_list = profile.read_text()
+    if source_list.splitlines().count(original_entry) != 1:
+        raise RuntimeError("JTAG top source must occur exactly once in the compile profile")
+    overlay_profile = overlay_dir / profile.name
+    overlay_profile.write_text(source_list.replace(original_entry, str(copied)))
+    provenance = {
+        "source": str(JTAG_TOP), "source_sha256_before": JTAG_TOP_SHA256,
+        "copied_source": str(copied), "source_sha256_after": sha256(copied),
+        "listen_port_before": 63224, "listen_port_after": 0,
+        "profile_before": str(profile), "profile_sha256_before": sha256(profile),
+        "profile_after": str(overlay_profile), "profile_sha256_after": sha256(overlay_profile),
+    }
+    return overlay_profile, copied, provenance
 
 
 def verify_jtagdpi():
@@ -344,6 +380,8 @@ def main():
                         help="use a hash-guarded copied BFM to diagnose the time-zero reset race")
     parser.add_argument("--checker-source-overlay", action="store_true",
                         help="use a hash-guarded copied checker with pure KV/MLDSA predicates")
+    parser.add_argument("--ephemeral-jtag-port", action="store_true",
+                        help="use a hash-guarded copied top with JTAG ListenPort 0")
     parser.add_argument("--output", type=Path, help="new isolated results directory")
     parser.add_argument("--timeout", type=int, default=900, help="seconds per command")
     args = parser.parse_args()
@@ -368,9 +406,13 @@ def main():
         parser.error("--reset-overlay requires --commercial-unsafe")
     if args.checker_source_overlay and not args.commercial_unsafe:
         parser.error("--checker-source-overlay requires --commercial-unsafe")
+    if args.ephemeral_jtag_port and not args.commercial_unsafe:
+        parser.error("--ephemeral-jtag-port requires --commercial-unsafe")
     profile = PROFILE
     bfm_overlay = None
     checker_overlay = None
+    jtag_top_overlay = None
+    jtag_port_provenance = None
     if args.reset_overlay:
         overlay_dir = Path(tempfile.mkdtemp(prefix="caliptra-l0-reset-", dir="/tmp"))
         subprocess.run([sys.executable, str(RESET_OVERLAY), str(overlay_dir)],
@@ -379,6 +421,8 @@ def main():
         bfm_overlay = overlay_dir / "caliptra_top_tb_soc_bfm.sv"
     if args.checker_source_overlay:
         profile, checker_overlay = prepare_checker_source_overlay(profile)
+    if args.ephemeral_jtag_port:
+        profile, jtag_top_overlay, jtag_port_provenance = prepare_ephemeral_jtag_port(profile)
     checker_overlay_provenance = ({
         "source": str(CHECKER_SOURCE),
         "source_sha256_before": sha256(CHECKER_SOURCE),
@@ -396,6 +440,10 @@ def main():
     if checker_overlay:
         fingerprints_before["checker_sva_overlay"] = sha256(checker_overlay)
         fingerprints_before["checker_patch"] = sha256(CHECKER_PATCH)
+    if jtag_top_overlay:
+        fingerprints_before["jtag_top_source"] = sha256(JTAG_TOP)
+        fingerprints_before["jtag_top_overlay"] = sha256(jtag_top_overlay)
+        fingerprints_before["jtag_profile_input"] = sha256(Path(jtag_port_provenance["profile_before"]))
     output = args.output.resolve()
     if SOURCE.resolve() == output or SOURCE.resolve() in output.parents:
         raise RuntimeError("Output directory must not be inside the pinned Caliptra source")
@@ -410,10 +458,13 @@ def main():
     compiler += ["-s", "caliptra_top_tb", "-D", "RV_OPENSOURCE", "-D", "CLP_ASSERT_ON",
                  "-D", "CALIPTRA_INTERNAL_TRNG",
                  "-f", str(profile), "-o", str(output / "caliptra_top_tb.vvp")]
-    qualification = ("diagnostic_reset_checker_source_overlay"
-                     if args.reset_overlay and args.checker_source_overlay else
-                     "diagnostic_checker_source_overlay" if args.checker_source_overlay else
-                     "diagnostic_reset_overlay" if args.reset_overlay else
+    diagnostic_overlays = [name for enabled, name in (
+        (args.reset_overlay, "reset"),
+        (args.checker_source_overlay, "checker_source"),
+        (args.ephemeral_jtag_port, "ephemeral_jtag_port"),
+    ) if enabled]
+    qualification = (f"diagnostic_{'_'.join(diagnostic_overlays)}_overlay"
+                     if diagnostic_overlays else
                      "nonstandard_compatibility" if args.commercial_unsafe else "strict")
     compiler_flags = compiler[1:]
     (output / "compile.command.json").write_text(json.dumps({
@@ -422,6 +473,8 @@ def main():
         "reset_overlay": args.reset_overlay,
         "checker_source_overlay": args.checker_source_overlay,
         "checker_overlay_provenance": checker_overlay_provenance,
+        "ephemeral_jtag_port": args.ephemeral_jtag_port,
+        "jtag_port_provenance": jtag_port_provenance,
         "qualification": qualification, "compiler_flags": compiler_flags,
         "expected_smoke_readmemh_sha256": SEED_HASHES, "jtagdpi_bundle_sha256": jtagdpi_hash,
         "vector_preflight": vector_preflight,
@@ -444,6 +497,8 @@ def main():
             "reset_overlay": args.reset_overlay,
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
+            "ephemeral_jtag_port": args.ephemeral_jtag_port,
+            "jtag_port_provenance": jtag_port_provenance,
             "compiler_flags": compiler_flags, "selected": 52, "attempted": 0,
             "passed": 0, "failed": 0, "unrun": 52, "status": "BLOCKED",
             "blocker": "top compile timed out" if compile_timeout else "top compile failed",
@@ -464,6 +519,8 @@ def main():
             "reset_overlay": args.reset_overlay,
             "checker_source_overlay": args.checker_source_overlay,
             "checker_overlay_provenance": checker_overlay_provenance,
+            "ephemeral_jtag_port": args.ephemeral_jtag_port,
+            "jtag_port_provenance": jtag_port_provenance,
             "selected": 52, "attempted": 0, "passed": 0, "failed": 0, "unrun": 52,
             "status": "BLOCKED", "blocker": f"run preparation failed: {exc}",
             "source_integrity_before": source_before,
@@ -511,10 +568,12 @@ def main():
         cycles = int(finish.group(2)) if finish else 0
         commits = len(TRACE.findall(trace))
         missing_dpi = len(MISSING_DPI.findall(sim))
+        jtag_server_errors = len(JTAG_SERVER_ERROR.findall(sim))
         passed = (firmware_code == 0 and image_ok and sim_code == 0 and not sim_timeout
                   and vector_integrity_ok
                   and sim.count("* TESTCASE PASSED") == 1 and "TESTCASE FAILED" not in sim
-                  and not BAD.search(sim) and missing_dpi == 0 and sampling_warnings == 0
+                  and runtime_diagnostics_ok(sim)
+                  and sampling_warnings == 0
                   and retired > 0 and cycles > 0 and commits > 0)
         result = {"test": name, "passed": passed, "firmware_command": firmware_command,
                   "firmware_source": str(firmware_root),
@@ -524,6 +583,8 @@ def main():
                   "reset_overlay": args.reset_overlay,
                   "checker_source_overlay": args.checker_source_overlay,
                   "checker_overlay_provenance": checker_overlay_provenance,
+                  "ephemeral_jtag_port": args.ephemeral_jtag_port,
+                  "jtag_port_provenance": jtag_port_provenance,
                   "compiler_flags": compiler_flags, "jtagdpi_bundle_sha256": jtagdpi_hash,
                   "firmware_exit": firmware_code, "firmware_timeout": firmware_timeout,
                   "readmemh_sha256": image_hashes, "missing_readmemh": missing_images,
@@ -537,6 +598,7 @@ def main():
                   "failed_markers": sim.count("TESTCASE FAILED"),
                   "bad_diagnostics": len(BAD.findall(sim)),
                   "missing_dpi_symbols": missing_dpi,
+                  "jtag_server_errors": jtag_server_errors,
                   "compile_sampling_warnings": sampling_warnings,
                   "retired_instructions": retired, "cycles": cycles, "trace_commits": commits}
         (run / "result.json").write_text(json.dumps(result, indent=2) + "\n")
@@ -557,6 +619,10 @@ def main():
     if checker_overlay:
         fingerprints_after["checker_sva_overlay"] = sha256(checker_overlay)
         fingerprints_after["checker_patch"] = sha256(CHECKER_PATCH)
+    if jtag_top_overlay:
+        fingerprints_after["jtag_top_source"] = sha256(JTAG_TOP)
+        fingerprints_after["jtag_top_overlay"] = sha256(jtag_top_overlay)
+        fingerprints_after["jtag_profile_input"] = sha256(Path(jtag_port_provenance["profile_before"]))
     fingerprint_error = ("Tool, profile, or DPI bundle changed during run"
                          if fingerprints_after != fingerprints_before else None)
     try:
@@ -595,6 +661,8 @@ def main():
                                                        "reset_overlay": args.reset_overlay,
                                                        "checker_source_overlay": args.checker_source_overlay,
                                                        "checker_overlay_provenance": checker_overlay_provenance,
+                                                       "ephemeral_jtag_port": args.ephemeral_jtag_port,
+                                                       "jtag_port_provenance": jtag_port_provenance,
                                                        "firmware_sources": {name: str(root) for name, root in firmware_roots.items()},
                                                        "selected_firmware_overlays": firmware_overlays,
                                                        "compiler_flags": compiler_flags,
