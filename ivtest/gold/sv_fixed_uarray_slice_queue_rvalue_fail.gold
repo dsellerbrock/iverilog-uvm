@@ -1,0 +1,8 @@
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:15: error: unpacked-array slice [4:6] has the opposite direction from declared range [8:1].
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:16: error: unpacked-array slice [9:8] is outside declared range [8:1].
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:17: sorry: a run-time indexed unpacked-array slice is not yet supported; its base must currently be constant.
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:18: error: indexed unpacked-array slice width must be a positive constant integral expression.
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:19: error: fixed unpacked-array slice element type is not assignment compatible with the queue element type.
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:20: error: packed part-select cannot be assigned to a queue.
+./ivltests/sv_fixed_uarray_slice_queue_rvalue_fail.v:21: error: Local property hidden is not accessible in this context.
+7 error(s) during elaboration.

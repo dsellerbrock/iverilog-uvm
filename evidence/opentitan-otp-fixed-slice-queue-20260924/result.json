@@ -1,0 +1,134 @@
+{
+  "blocker": "OT-OTP-FIXED-SLICE-TO-QUEUE",
+  "generated_at_utc": "2026-09-24T23:02:43.157315+00:00",
+  "qualification": "IEEE-focused private-compiler checks; neither OpenTitan target reaches DV runtime",
+  "pinned_opentitan_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "compiler": {
+    "private_ivl_sha256": "8b3a0c4058efb6fbee73d0f9c56d6da94f4c0818a9b87e8374b4166267286d00",
+    "installed_ivl_sha256": "6ec92c4825dc51e3810d1cb22405071f033015626d39cf3db92c319aeb9d3b10",
+    "installed_vvp_sha256": "e9b7a64a8643973c9bc6597ca604285bbd718cf733e45181f6155390d9fdc8c6",
+    "installed_binaries_modified": false
+  },
+  "red": {
+    "source": "/tmp/ot-otp-slice-queue-20260924/result.json",
+    "installed_private_before_fix_sha256": "82e3f907fe67f6c3b24753987b21b149d24218d29f0192f12c0576c03b571121",
+    "editions": [
+      "2017",
+      "2023"
+    ],
+    "legal_class_direct_slice_compile_failures": 6,
+    "scalar_packed_slice_false_acceptances": 2
+  },
+  "checks": {
+    "paired_core": {
+      "passed": 18,
+      "total": 18,
+      "evidence": "core-focus.json",
+      "sha256": "9f6797f835755e7c4380efd102b16d743d244493b951a76891855835a2e4d99e"
+    },
+    "registered_dedicated": {
+      "passed": 10,
+      "total": 10,
+      "evidence": "dedicated-json.log",
+      "sha256": "d7c3a8e80915226f106c148d7281c714554ae5304afa14ef553902fa2bcc6c39"
+    },
+    "neighboring_json": {
+      "passed": 37,
+      "total": 37,
+      "evidence": "neighbor-json.log",
+      "sha256": "c01177f062612c9f2140b69469cd0dcea0da70d2dec852984d735127d30bed4a"
+    },
+    "negative": {
+      "passed": 155,
+      "total": 155,
+      "evidence": "negative.log",
+      "sha256": "f9635f3fdf2c910a23e5a14f42d962c882b5565383afe429aa655a328f0e2587"
+    }
+  },
+  "pinned_compile": {
+    "otp_ctrl_sim": {
+      "prior_explicit_errors": 15,
+      "current_explicit_errors": 10,
+      "prior_exit": 16,
+      "compile_exit": 11,
+      "cleared_sites": "otp_ctrl_scoreboard.sv:1373-1377",
+      "target_slice_errors": 0,
+      "dv_runtime_started": false,
+      "evidence": "otp-compile.log",
+      "log_sha256": "98e03454c3b81880d9c920650a0b3ddbcd554da171a4aae7f76898524c51af91",
+      "command": [
+        "/tmp/ot-fixed-slice-queue-20260924/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-sotp_ctrl_bind",
+        "-sotp_ctrl_cov_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/tmp/ot-fixed-slice-queue-20260924/pinned-final-otp/matrix-uvm.vvp",
+        "-c",
+        "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/matrix-iverilog.scr"
+      ],
+      "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/otp-final/work/uvm/lowrisc_dv_otp_ctrl_sim_0.1/sim-icarus"
+    },
+    "chip_sim": {
+      "prior_explicit_errors": 48,
+      "current_explicit_errors": 48,
+      "compile_exit": 134,
+      "compiler_abort": "../src/lowrisc_ip_entropy_src_0.1/rtl/entropy_src_core.sv:3324: assert: elaborate.cc:21359: failed assertion base < vwid",
+      "dv_runtime_started": false,
+      "evidence": "chip-compile.log",
+      "log_sha256": "c8d9697e7a0ef5d335ef1833a43896f3d04197097eb8c5898735847c5b66f5d7",
+      "command": [
+        "/tmp/ot-fixed-slice-queue-20260924/bin/iverilog",
+        "-g2012",
+        "-stb",
+        "-sclkmgr_bind",
+        "-spwrmgr_bind",
+        "-srstmgr_bind",
+        "-ssec_cm_prim_count_bind",
+        "-ssec_cm_prim_double_lfsr_bind",
+        "-ssec_cm_prim_onehot_check_bind",
+        "-ssec_cm_prim_sparse_fsm_flop_bind",
+        "-sspi_host_bind",
+        "-stop_earlgrey_bind",
+        "-stop_earlgrey_error_injection_ifs_bind",
+        "-sxbar_main_bind",
+        "-sxbar_peri_bind",
+        "-uvm",
+        "-DUVM",
+        "-DUVM_NO_DEPRECATED",
+        "-DUVM_REG_ADDR_WIDTH=32",
+        "-DUVM_REG_DATA_WIDTH=32",
+        "-DUVM_REG_BYTENABLE_WIDTH=4",
+        "-DUVM_REGEX_NO_DPI",
+        "-DSIMULATION",
+        "-DDUT_HIER=tb.dut",
+        "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+        "-o",
+        "/tmp/ot-fixed-slice-queue-20260924/pinned-final-chip/matrix-uvm.vvp",
+        "-c",
+        "/private/tmp/ot-indexed-slice-replay-20260924/chip/work/uvm/lowrisc_dv_chip_sim_0.1/matrix-iverilog.scr"
+      ],
+      "cwd": "/private/tmp/ot-indexed-slice-replay-20260924/chip/work/uvm/lowrisc_dv_chip_sim_0.1/sim-icarus"
+    }
+  },
+  "independent_review": {
+    "private_ivl_sha256": "8b3a0c4058efb6fbee73d0f9c56d6da94f4c0818a9b87e8374b4166267286d00",
+    "paired_original_protected_local_reds_reject": 4,
+    "paired_same_class_local_derived_protected_positive_pass": 2,
+    "finding": "Initial candidate accepted external protected and derived-class inherited local slices; revised helper checks declaring-class identity and both illegal forms now reject. Existing scalar and whole-array property reads remain separate visibility debt."
+  }
+}

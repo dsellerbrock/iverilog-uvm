@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_fixed_uarray_slice_queue_visibility_fail.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "sv_fixed_uarray_slice_queue_visibility_fail"
+}

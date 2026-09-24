@@ -1,0 +1,39 @@
+sorry: covergroup bin 'unbuffered_digests' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'hw_digests' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'secret_digests' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'direct_access_rdata' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'status' has a runtime range expression that cannot be represented; the bin is dropped.
+sorry: covergroup bin 'error_code' has a runtime range expression that cannot be represented; the bin is dropped.
+../src/lowrisc_dv_otp_ctrl_env_0.1/seq_lib/otp_ctrl_base_vseq.sv:411: sorry: virtual-interface method input argument 1 ('forced_part_access_sel') is a fixed unpacked array; dynamic-dispatch array marshalling is not yet supported.
+../src/lowrisc_dv_otp_ctrl_env_0.1/seq_lib/otp_ctrl_smoke_vseq.sv:34: warning: Constraint item in 'dai_wr_legal_addr_c' of class otp_ctrl_smoke_vseq is not representable in the constraint solver and is ignored (further similar warnings suppressed).
+../src/lowrisc_dv_otp_ctrl_sim_0.1/tb.sv:69: warning: input port rst_n is coerced to inout.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:93: error: Variable 'alert_tx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:95: error: Variable 'alert_rx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:93: error: Variable 'alert_tx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:95: error: Variable 'alert_rx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:93: error: Variable 'alert_tx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:95: error: Variable 'alert_rx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:93: error: Variable 'alert_tx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:95: error: Variable 'alert_rx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:93: error: Variable 'alert_tx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_dv_alert_esc_agent_0/alert_esc_if.sv:95: error: Variable 'alert_rx_final' cannot have continuous and procedural drivers on the same bits.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:91: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:92: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:93: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:94: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:95: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:96: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:97: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:98: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:99: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:100: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:101: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:102: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:103: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:104: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:105: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:106: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:107: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:108: warning: A non-blocking assignment should not be used in an always_comb process.
+../src/lowrisc_fpv_otp_ctrl_csr_assert_0/otp_ctrl_core_csr_assert_fpv.sv:110: warning: A non-blocking assignment should not be used in an always_comb process.
+11 error(s) during elaboration.

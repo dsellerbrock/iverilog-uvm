@@ -1,0 +1,2 @@
+./ivltests/sv_fixed_uarray_slice_queue_unsupported.v:7: sorry: fixed unpacked-array slice queue assignment currently supports packed integral elements only.
+Elaboration failed
