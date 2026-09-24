@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-09-23T22:41:33.528611+00:00",
+  "source": "unchanged released OpenTitan AON wait_for_interrupt shape; synthetic reduced fixture",
+  "reducer_sha256": "25b1c1fec934518f9482078084e6dce196441c37e79a7a1f8b86aea55c8be74f",
+  "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "1a88fd1701b46009f59d96065c9c92c0a4b5a2e8fce978b57c15f8aa8c0149a0",
+  "git_head": "a977d8bc2e8900bc64640f4c66374d77c58fdce4",
+  "working_tree_note": "installed compiler includes uncommitted constraint-inside draft in separate source; AON mixed wait path remains unchanged",
+  "results": [
+    {
+      "edition": "2017",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 1,
+      "runtime_output": "SINGLE_VIF_WAKE pins=10 time=10000\nCONCRETE_WAKE pins=10 time=10000\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-aon-mixed-vif-event-20260923/reducer.sv:70: RED mixed=0 single=1 concrete=1 pins=10\n       Time: 100000  Scope: top\n"
+    },
+    {
+      "edition": "2023",
+      "compile_returncode": 0,
+      "compile_output": "",
+      "runtime_returncode": 1,
+      "runtime_output": "SINGLE_VIF_WAKE pins=10 time=10000\nCONCRETE_WAKE pins=10 time=10000\nFATAL: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-aon-mixed-vif-event-20260923/reducer.sv:70: RED mixed=0 single=1 concrete=1 pins=10\n       Time: 100000  Scope: top\n"
+    }
+  ],
+  "qualification": "RED reducer only; no OpenTitan DV verdict"
+}

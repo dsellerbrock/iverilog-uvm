@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_constraint_inside_param_array_bad_type.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sv_constraint_inside_param_array_bad_type_2017"
+}

@@ -811,15 +811,7 @@ void vvp_fun_edge_sa::run_multi_waiting_threads_()
       for (std::set<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur) {
             vthread_t thread = *cur;
-            std::map<vthread_t, std::set<vvp_fun_edge_sa*> >::iterator found =
-                  vif_multi_wait_edges_.find(thread);
-            if (found != vif_multi_wait_edges_.end()) {
-                  std::set<vvp_fun_edge_sa*> siblings = found->second;
-                  vif_multi_wait_edges_.erase(found);
-                  for (std::set<vvp_fun_edge_sa*>::const_iterator edge =
-                       siblings.begin(); edge != siblings.end(); ++edge)
-                        (*edge)->multi_threads_.erase(thread);
-            }
+            vvp_cancel_multi_waiting_thread(thread);
             vthread_schedule_mutation_waiter(thread);
       }
 }
@@ -1354,15 +1346,7 @@ void vvp_fun_anyedge_sa::run_multi_waiting_threads_()
       for (std::set<vthread_t>::const_iterator cur = waiters.begin();
            cur != waiters.end(); ++cur) {
             vthread_t thread = *cur;
-            std::map<vthread_t, std::set<vvp_fun_anyedge_sa*> >::iterator found =
-                  vif_multi_wait_anyedges_.find(thread);
-            if (found != vif_multi_wait_anyedges_.end()) {
-                  std::set<vvp_fun_anyedge_sa*> siblings = found->second;
-                  vif_multi_wait_anyedges_.erase(found);
-                  for (std::set<vvp_fun_anyedge_sa*>::const_iterator edge =
-                       siblings.begin(); edge != siblings.end(); ++edge)
-                        (*edge)->multi_threads_.erase(thread);
-            }
+            vvp_cancel_multi_waiting_thread(thread);
             vthread_schedule_mutation_waiter(thread);
       }
 }

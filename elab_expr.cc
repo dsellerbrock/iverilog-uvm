@@ -19348,7 +19348,8 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 		    // elements of the expression and elaborate each as if they
 		    // are element_type expressions.
 		  ivl_type_t elem_type = array_type->element_type();
-		  vector<NetExpr*> elem_exprs (parms_.size());
+		  vector<NetExpr*> elem_exprs;
+		  elem_exprs.reserve(parms_.size());
 		  for (size_t idx = 0 ; idx < parms_.size() ; idx += 1) {
 			ivl_type_t want_type = elem_type;
 			unsigned item_flags = flags;
@@ -19367,6 +19368,26 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      const netuarray_t*fixed =
 				    dynamic_cast<const netuarray_t*>(declared);
 			      if (fixed
+				  && fixed->static_dimensions().size() == 1
+				  && !unpacked_concat_value_type_matches_(
+				       elem_type, declared)) {
+				    if (!unpacked_concat_value_type_matches_(
+					  elem_type, fixed->element_type())) {
+					  cerr << parms_[idx]->get_fileline()
+					       << ": error: fixed unpacked array "
+					          "concatenation operand has elements "
+					          "incompatible with the destination "
+					          "queue element (IEEE 1800-2017/2023 "
+					          "10.10)." << endl;
+					  des->errors += 1;
+					  for (size_t prev = 0; prev < idx; prev += 1)
+						delete elem_exprs[prev];
+					  return nullptr;
+				    }
+				    want_type = ntype;
+				    item_flags |= PExpr::CONTAINER_SPLICE_ARG;
+			      }
+			      if (fixed
 				  && fixed->static_dimensions().size() > 1) {
 				    want_type = ntype;
 				    item_flags |= PExpr::CONTAINER_SPLICE_ARG;
@@ -19381,6 +19402,45 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			}
 			NetExpr*tmp = parms_[idx]->elaborate_expr(
 			      des, scope, want_type, item_flags);
+			/* Array parameters materialize as a fixed-typed pattern,
+			 * rather than as an IVL_EX_ARRAY signal. The pattern stores
+			 * words in numeric-index order; splice duplicates in the
+			 * declared left-to-right order before queue construction. */
+			if (const NetEArrayPattern*pattern =
+			      dynamic_cast<const NetEArrayPattern*>(tmp)) {
+			      const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(
+				    pattern->net_type());
+			      if (fixed && fixed->static_dimensions().size() == 1
+				  && !unpacked_concat_value_type_matches_(
+				       elem_type, fixed)) {
+				    if (!unpacked_concat_value_type_matches_(
+					  elem_type, fixed->element_type())) {
+					  cerr << parms_[idx]->get_fileline()
+					       << ": error: fixed unpacked array "
+					          "concatenation operand has incompatible "
+					          "elements (IEEE 1800-2017/2023 10.10)."
+					       << endl;
+					  des->errors += 1;
+					  delete tmp;
+					  for (NetExpr*previous : elem_exprs)
+						delete previous;
+					  return nullptr;
+				    }
+				    bool descending = fixed->static_dimensions()[0]
+					  .get_msb() > fixed->static_dimensions()[0]
+					  .get_lsb();
+				    for (size_t word = 0; word < pattern->item_size();
+					 word += 1) {
+					  size_t canonical = descending
+						? pattern->item_size() - 1 - word
+						: word;
+					  elem_exprs.push_back(
+						pattern->item(canonical)->dup_expr());
+				    }
+				    delete tmp;
+				    continue;
+			      }
+			}
 			if (tmp && dynamic_cast<const netdarray_t*>(elem_type)
 			    && !unpacked_concat_item_type_matches_(elem_type, tmp)) {
 			      cerr << parms_[idx]->get_fileline()
@@ -19390,11 +19450,11 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 				      "(IEEE 1800-2017/2023 10.10)." << endl;
 			      des->errors += 1;
 			      delete tmp;
-			      for (size_t prev = 0 ; prev < idx ; prev += 1)
-				    delete elem_exprs[prev];
+			      for (NetExpr*previous : elem_exprs)
+				    delete previous;
 			      return nullptr;
 			}
-			elem_exprs[idx] = tmp;
+			elem_exprs.push_back(tmp);
 		  }
 
 		  NetEArrayPattern*res = new NetEArrayPattern(array_type, elem_exprs);

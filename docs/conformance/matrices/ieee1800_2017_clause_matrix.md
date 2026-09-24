@@ -5,6 +5,27 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — SPI queue concatenation, constraint membership, and mixed VIF waits
+
+The PARTIAL §10.10/§7.10.4 subset now accepts a one-dimensional fixed-array
+operand in a queue array concatenation, preserving declared order and a fresh
+destination snapshot. The separate PARTIAL §11.4.13 constraint path
+expands constant unpacked-array `inside` members for the tested SPI Device
+form. The unchanged pinned SPI Device fileset now compiles under `-g2017
+-gcommercial-unsafe` without the earlier kind-26 diagnostics, while its
+configured flash-mode smoke fails at a separate JEDEC global-sampling
+enumeration ceiling. Compile exit 0 does not establish complete constraint or
+coverage semantics.
+
+The PARTIAL §§9.4.2/25.9 mixed virtual-interface event-list subset now arms
+each selected member with its own posedge, negedge, or value-change mode and
+cancels sibling registrations on the first wake. This clears the observed
+AON timer `@(negedge cfg.aon_clk_rst_vif.rst_n or cfg.aon_intr_vif.pins)`
+stall. One unchanged pinned AON smoke passes; the earlier bounded timeout
+remains historical, and full AON DV is unqualified. The [revision-scoped
+record](../session_logs/2026-09-23_opentitan_spi_aon_postfix.json) owns exact
+paired totals, release provenance, replay logs, and remaining boundaries.
+
 ### September 23, 2026 — package `foreach`, queue size, and direct fill casts
 
 The [paired candidate and local gates](../session_logs/2026-09-23_spi_adc_pr339_repair_focus.json)

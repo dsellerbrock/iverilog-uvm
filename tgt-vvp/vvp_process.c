@@ -3870,15 +3870,19 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 
       } else {
 	    unsigned idx;
+	    int all_vif_edges = 1;
 	    int all_vif_anyedge = 1;
 	    for (idx = 0 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
-		  if (!ivl_event_is_vif_anyedge(ivl_stmt_events(net, idx))) {
+		  ivl_event_t ev = ivl_stmt_events(net, idx);
+		  if (!ivl_event_is_vif_anyedge(ev)) {
 			all_vif_anyedge = 0;
-			break;
+			if (!ivl_event_is_vif_posedge(ev)
+			    && !ivl_event_is_vif_negedge(ev))
+			      all_vif_edges = 0;
 		  }
 	    }
 
-	    if (all_vif_anyedge) {
+	    if (all_vif_edges) {
 		  /* A compound expression such as @(cfg.vif.a || cfg.vif.b)
 		   * produces one dynamic VIF event per member. Load every
 		   * runtime VIF object and pair it with its member index and
@@ -3886,10 +3890,21 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 		   * the multi wait resumes on the first edge and unregisters
 		   * the thread from all sibling edge functors. */
 		  for (idx = 0 ; idx < ivl_stmt_nevent(net) ; idx += 1) {
-			ivl_event_t ev = ivl_stmt_events(net, idx);
-			unsigned root_pin = ivl_event_vif_root_pin(ev);
-			ivl_nexus_t this_nex = ivl_event_nany(ev) > root_pin
-			      ? ivl_event_any(ev, root_pin) : 0;
+		  ivl_event_t ev = ivl_stmt_events(net, idx);
+		  unsigned root_pin = ivl_event_vif_root_pin(ev);
+		  ivl_nexus_t this_nex = 0;
+		  if (ivl_event_nany(ev) > root_pin)
+			this_nex = ivl_event_any(ev, root_pin);
+		  else if (ivl_event_npos(ev) > root_pin)
+			this_nex = ivl_event_pos(ev, root_pin);
+		  else if (ivl_event_nneg(ev) > root_pin)
+			this_nex = ivl_event_neg(ev, root_pin);
+		  if (!this_nex) {
+			fprintf(stderr,
+			      "error: virtual-interface event %s has no root nexus\n",
+			      ivl_event_basename(ev));
+			return 1;
+		  }
 			unsigned path_count = ivl_event_vif_path_count(ev);
 			draw_object_from_net(this_nex, ivl_event_scope(ev));
 			if (path_count > 0) {
@@ -3909,11 +3924,16 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			}
 			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
 			      ivl_event_vif_M(ev));
-			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
-			      ivl_event_vif_member_word(ev));
+		  fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 32;\n",
+			ivl_event_vif_member_word(ev));
+		  if (!all_vif_anyedge)
+			fprintf(vvp_out, "    %%pushi/vec4 %u, 0, 2;\n",
+			      ivl_event_is_vif_posedge(ev) ? 1U
+			      : ivl_event_is_vif_negedge(ev) ? 2U : 0U);
 		  }
 		  assert(ivl_stmt_needs_t0_trigger(net) == 0);
-		  fprintf(vvp_out, "    %%wait/vif/anyedge/multi %u;\n",
+		  fprintf(vvp_out, "    %%wait/vif/%s %u;\n",
+			all_vif_anyedge ? "anyedge/multi" : "multi",
 			ivl_stmt_nevent(net));
 	    } else {
 		  ivl_event_t ev = ivl_stmt_events(net, 0);

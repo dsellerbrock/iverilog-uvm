@@ -33483,11 +33483,120 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if ((r.lo && lo.empty()) || (r.hi && hi.empty())) return "";
 			range_ir = "[" + lo + "," + hi + "]";
 		  } else {
+			  /* A bare unpacked constant-array parameter denotes its
+			   * elements in an inside set (IEEE 1800-2017/2023 11.4.13).
+			   * Materialize and recursively flatten its pattern here; the
+			   * solver receives one sized scalar member per leaf. */
+			  bool array_param_membership = false;
+			  if (!is_dist) {
+				const PEIdent*aid =
+				      dynamic_cast<const PEIdent*>(r.hi);
+				if (aid && constraint_ir_design_ctx_) {
+				      symbol_search_results sr;
+				      bool found = symbol_search(aid, constraint_ir_design_ctx_,
+					    const_cast<NetScope*>(scope), aid->path(),
+					    aid->lexical_pos(), &sr);
+				      bool exact_array_parameter = found && sr.par_val
+					    && sr.scope && sr.path_tail.empty()
+					    && !sr.path_head.empty()
+					    && sr.path_head.back().index.empty()
+					    && sr.scope->is_array_parameter(
+						  sr.path_head.back().name);
+				      if (exact_array_parameter) {
+					array_param_membership = true;
+					unsigned errors_before =
+					      constraint_ir_design_ctx_->errors;
+					NetExpr*value = aid->elaborate_expr(
+					      constraint_ir_design_ctx_,
+					      const_cast<NetScope*>(scope),
+					      static_cast<ivl_type_t>(nullptr), PExpr::NEED_CONST);
+					NetEArrayPattern*pattern =
+					      dynamic_cast<NetEArrayPattern*>(value);
+					if (!pattern) {
+					      delete value;
+					      if (constraint_ir_design_ctx_->errors
+						  == errors_before) {
+						cerr << aid->get_fileline() << ": error: Could not "
+						     << "materialize unpacked array parameter in "
+						     << "constraint inside expression." << endl;
+						constraint_ir_design_ctx_->errors += 1;
+					      }
+					      return "";
+					}
+					vector<const NetEConst*>leaves;
+					bool valid_leaves = true;
+					function<void(const NetExpr*)>flatten =
+					      [&](const NetExpr*item) {
+						const NetEArrayPattern*subarray =
+						      dynamic_cast<const NetEArrayPattern*>(item);
+						if (subarray) {
+						      for (size_t k = 0 ;
+							   k < subarray->item_size(); k += 1)
+							flatten(subarray->item(k));
+						      return;
+						}
+						const NetEConst*constant =
+						      dynamic_cast<const NetEConst*>(item);
+						ivl_type_t type = item ? item->net_type() : nullptr;
+						ivl_variable_type_t base = type
+						      ? type->base_type() : (item
+							? item->expr_type() : IVL_VT_NO_TYPE);
+						if (!constant || (base != IVL_VT_BOOL
+						      && base != IVL_VT_LOGIC)) {
+						      valid_leaves = false;
+						      return;
+						}
+						leaves.push_back(constant);
+				      };
+					flatten(pattern);
+					if (!valid_leaves) {
+					      delete pattern;
+					      cerr << aid->get_fileline() << ": sorry: Constraint "
+						   << "inside array parameters must contain only "
+						   << "integral constant elements." << endl;
+					      constraint_ir_design_ctx_->errors += 1;
+					      return "";
+					}
+					for (const NetEConst*leaf : leaves) {
+					      ivl_type_t type = leaf->net_type();
+					      unsigned width = type && type->packed_width()
+						    ? type->packed_width() : leaf->expr_width();
+					      if (width == 0) width = 32;
+					      if (width > 64) {
+						    delete pattern;
+						    cerr << aid->get_fileline() << ": sorry: Constraint "
+							 << "inside array parameter elements wider "
+							 << "than 64 bits are not yet supported." << endl;
+						    constraint_ir_design_ctx_->errors += 1;
+						    return "";
+					      }
+					      verinum bits = cast_to_width(leaf->value(), width);
+					      uint64_t value_bits = 0, known_mask = 0;
+					      for (unsigned bit = 0; bit < width; bit += 1) {
+						    verinum::V v = bits.get(bit);
+						    if (v == verinum::V1)
+							  value_bits |= UINT64_C(1) << bit;
+						    if (v == verinum::V0 || v == verinum::V1)
+							  known_mask |= UINT64_C(1) << bit;
+					      }
+					      string token = "cw:" + to_string(value_bits)
+						    + ":" + to_string(known_mask)
+						    + ":" + to_string(width)
+						    + ((type ? type->get_signed()
+							   : leaf->has_sign()) ? ":s" : "");
+					      if (!range_ir.empty()) range_ir += " ";
+					      range_ir += token;
+					}
+					if (leaves.empty()) range_ir = "qempty";
+					delete pattern;
+				}
+			  }
+			  }
 			  /* Scope-randomization membership in a live queue or
 			     dynamic array. Carry the container object to the
 			     runtime as qv:N:W; it is expanded into the exact set
 			     of current element values before the Z3 parse. */
-			if (!cls && scope_randomize_design_ctx_
+			if (!array_param_membership && !cls && scope_randomize_design_ctx_
 			    && scope_randomize_object_slots_) {
 			      const PEIdent*sid =
 				    dynamic_cast<const PEIdent*>(r.hi);
@@ -33558,7 +33667,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  + (et->get_signed() ? ":s" : "");
 			      }
 			}
-			if (range_ir.empty()) {
+			if (!array_param_membership && range_ir.empty()) {
 			      string v = payload_ir(r.hi, true);
 			      if (v.empty()) return "";
 			      range_ir = v;

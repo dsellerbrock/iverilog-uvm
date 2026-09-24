@@ -8,9 +8,15 @@
 
 ### OT-AON-EVENT-TRIGGERED-SENSITIVITY — named-event property changes
 
-- **State:** Integrated at `0a902ee9f`; the [revision-scoped replay](session_logs/2026-09-23_inside_array_named_event_integration.json) records paired static and automatic checks and a zero-error released AON compile. The bounded smoke produced no UVM verdict; its time trace advanced to about 416 us, so a zero-time spin is not established.
+- **State:** Integrated at `0a902ee9f`; the [revision-scoped replay](session_logs/2026-09-23_inside_array_named_event_integration.json) records paired static and automatic checks and a zero-error released AON compile. Its bounded smoke produced no UVM verdict; the later [mixed-VIF repair checkpoint](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) records one passing unchanged AON smoke.
 - **Requirement:** IEEE 1800-2017/2023 §15.5.3 keeps `e.triggered` true through the firing time step. `@(e.triggered)` observes its value changes, including the reset at the next real time advance, with independent state per automatic activation.
-- **Next:** Resolve the AON smoke runtime outcome before claiming a DV pass. Mixed event-control expressions remain a diagnosed unsupported subset.
+- **Boundary:** The earlier timeout is superseded for the observed smoke sequence by the mixed-VIF event-wait repair below. Full AON DV remains unqualified.
+
+### OT-AON-MIXED-VIF-EVENT-WAIT — edge-qualified virtual-interface event list
+
+- **State:** Integrated at `07d8ba6df`; [paired focus and neighboring tests plus the unchanged AON smoke](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) pass. This covers the observed smoke only.
+- **Requirement:** IEEE 1800-2017/2023 §§9.4.2 and 25.9 wake an event-OR control on the first selected virtual-interface member edge, respecting each leaf's edge qualifier and cancelling sibling waits.
+- **Cause and boundary:** The target lowered mixed negedge/anyedge VIF lists to static events even though single-VIF waits were dynamic. A new per-leaf edge-mode wait handles the tested reset and pin branches, same-slot wake, rearm, rebinding, cancellation, and null-VIF rejection. Full event-control and AON DV qualification remain open.
 
 ### OT-SPI-ASSOC-FIND-INDEX — keyed associative locator
 
@@ -33,13 +39,18 @@
 
 ### OT-SPI-INSIDE-CONST-ARRAY — unpacked parameter array in an `inside` set
 
-- **State:** The ordinary-expression constant-parameter-array path is implemented at `88f0e9044`; paired 2017/2023 focused evidence is in the [integration record](session_logs/2026-09-23_inside_array_named_event_integration.json). One separate constraint-context `inside` kind-26 error remains in the pinned SPI Device compile; this subset does not resolve constraint lowering.
+- **State:** The ordinary-expression path was implemented at `88f0e9044`; [earlier paired evidence](session_logs/2026-09-23_inside_array_named_event_integration.json) preserves that scope. The separate constraint-context path is integrated at `b7551af50`; the [postfix record](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) shows the pinned SPI Device fileset now compiles without the kind-26 error. Its configured smoke still fails at an independent solver enumeration limit.
 - **Requirement:** IEEE 1800-2017/2023 §11.4.13 recursively traverses an unpacked array in an `inside` set to its singular elements and applies asymmetric wildcard equality to integral comparisons. The independent queue-concatenation form remains tracked under [OT-SPI-QUEUE-ARRAY-CONCAT](#ot-spi-queue-array-concat).
 
 ### OT-SPI-QUEUE-ARRAY-CONCAT — unpacked array concatenation assigned to a queue
 
-- **State:** RED in both editions at two released SPI Device sites; the same target error is reached through a distinct assignment path. [Two-form reducer and diagnosis](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md).
-- **Requirement:** IEEE 1800-2017/2023 §10.10 permits an unpacked array concatenation in an assignment-like context; queue conversion must preserve element order and length. Neither compile nor DV success is claimed.
+- **State:** Integrated at `2e648c7ec`; the [paired focus, neighbor, and pinned compile record](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) shows both released SPI Device queue-concatenation sites clear. The [original two-form reducer and diagnosis](../../evidence/opentitan-spi-device-array-pattern-vector-20260923/README.md) remains historical.
+- **Requirement:** IEEE 1800-2017/2023 §10.10 permits an unpacked array concatenation in an assignment-like context; queue conversion must preserve element order and length. The pinned fileset compiles, but DV does not pass.
+
+### OT-SPI-JEDEC-SAMPLING-LIMIT — configured flash-mode smoke solver ceiling
+
+- **State:** Open after the pinned SPI Device fileset reaches compile exit 0. The [configured smoke and raw log](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) show `ral.jedec_id.randomize()` failing at the complete-joint-solution enumeration limit. VVP process exit 0 follows UVM_FATAL and is not a test pass. The attempted abstract base sequence is not an application defect.
+- **Boundary:** This is a solver runtime failure in one unchanged flash-mode smoke. The compile still reports an ignored constraint item and dropped coverage crosses, so neither compile exit 0 nor this smoke establishes SPI Device DV qualification.
 
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 

@@ -1,0 +1,3 @@
+./ivltests/sv_constraint_inside_param_array_bad_type.v:5: sorry: Constraint inside array parameters must contain only integral constant elements.
+./ivltests/sv_constraint_inside_param_array_bad_type.v:5: sorry: constraint form in std::randomize() with-clause is not representable by the solver; the call was not weakened.
+Elaboration failed
