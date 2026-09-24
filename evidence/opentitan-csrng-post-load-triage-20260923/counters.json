@@ -1,0 +1,70 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "exit": -15,
+  "records": [
+    {
+      "elapsed": 3.514,
+      "command": [
+        "lldb",
+        "-p",
+        "20867",
+        "--batch",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "expr -- count_gen_events",
+        "-o",
+        "expr -- count_time_events"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 20867\nProcess 20867 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x0000000104bf33dc vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 28\nvvp`vvp_vector4_t::set_bit:\n->  0x104bf33dc <+28>: lsr    w9, w1, #6\n    0x104bf33e0 <+32>: cmp    w2, #0x1\n    0x104bf33e4 <+36>: b.gt   0x104bf3428               ; <+104>\n    0x104bf33e8 <+40>: cbz    w2, 0x104bf346c           ; <+172>\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $0 = 0\n(lldb) expr -- count_gen_events\n(void *) $1 = 0x000000000094fed3\n(lldb) expr -- count_time_events\n(void *) $2 = 0x0000000000000001\n",
+      "stderr": ""
+    },
+    {
+      "elapsed": 6.965,
+      "command": [
+        "lldb",
+        "-p",
+        "20867",
+        "--batch",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "expr -- count_gen_events",
+        "-o",
+        "expr -- count_time_events"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 20867\nProcess 20867 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x0000000104d5ac84 vvp`reduce4(vvp_vector8_t const&) + 276\nvvp`reduce4:\n->  0x104d5ac84 <+276>: ldr    w8, [x20]\n    0x104d5ac88 <+280>: cmp    x21, x8\n    0x104d5ac8c <+284>: b.hs   0x104d5ad00               ; <+400>\n    0x104d5ac90 <+288>: mov    x9, x20\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $0 = 0\n(lldb) expr -- count_gen_events\n(void *) $1 = 0x0000000001f407ce\n(lldb) expr -- count_time_events\n(void *) $2 = 0x0000000000000001\n",
+      "stderr": ""
+    },
+    {
+      "elapsed": 10.41,
+      "command": [
+        "lldb",
+        "-p",
+        "20867",
+        "--batch",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "expr -- count_gen_events",
+        "-o",
+        "expr -- count_time_events"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 20867\nProcess 20867 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x0000000104d5acc4 vvp`reduce4(vvp_vector8_t const&) + 340\nvvp`reduce4:\n->  0x104d5acc4 <+340>: csel   w2, wzr, w9, eq\n    0x104d5acc8 <+344>: b      0x104d5acd0               ; <+352>\n    0x104d5accc <+348>: mov    w2, #0x2                  ; =2 \n    0x104d5acd0 <+352>: mov    x0, x19\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $0 = 0\n(lldb) expr -- count_gen_events\n(void *) $1 = 0x0000000003587b5e\n(lldb) expr -- count_time_events\n(void *) $2 = 0x0000000000000001\n",
+      "stderr": ""
+    }
+  ]
+}

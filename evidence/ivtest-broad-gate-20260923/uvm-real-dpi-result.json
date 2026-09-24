@@ -1,0 +1,12 @@
+{
+  "source_snapshot": "candidate source under 6e1af2425 with uncommitted solver and scheduler patch; before merging origin/main",
+  "installed_iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "installed_vvp_sha256": "f2a05ce45cdb2271af25dee78f62203926a34844cd202192e5af4c69ab3829ab",
+  "command": "bash .github/uvm_test.sh with PATH prepended by local-install/bin",
+  "exit_code": 0,
+  "dpi_mode": "REAL DPI umbrella loaded",
+  "passed": 358,
+  "failed": 0,
+  "skipped": 0,
+  "scope": "pre-merge candidate; final combined HEAD relies on exact-head CI for UVM"
+}

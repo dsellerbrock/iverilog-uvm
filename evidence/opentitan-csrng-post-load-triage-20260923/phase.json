@@ -1,0 +1,30 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "lldb_command": [
+    "lldb",
+    "-p",
+    "21312",
+    "--batch",
+    "-o",
+    "expr -- sim_started",
+    "-o",
+    "expr -- schedule_init_list",
+    "-o",
+    "expr -- schedule_simtime()",
+    "-o",
+    "thread backtrace"
+  ],
+  "lldb_exit": 1,
+  "vvp_pid": 21312,
+  "elapsed_before_attach_seconds": 3
+}

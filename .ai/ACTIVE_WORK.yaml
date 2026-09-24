@@ -1,15 +1,123 @@
-status: coordinator_authorized_parallel_implementation
-branch: agent/ot-spi-constraint-inside-queue-concat-20260923
-baseline: PR344 exact head db4f447dd0ba88d9980fa4af5e31ae44e3e36118; PR342 and PR343 merged after exact-head CI success.
-blocker: OT-SPI-JEDEC-SAMPLING-LIMIT and OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION
-goal: Preserve the passing unchanged released AON timer smoke, advance SPI Device runtime past false constraint-randomization failure, and repair independent CSRNG parser rejection.
+status: focused_integrated_publication_pending
+branch: agent/ot-spi-dist-csrng-forward-20260923
+baseline: PR346 merged at 2899542be0a117d24e6d3ea4a3ca82ddf4c107d1 after exact-head Ubuntu 24.04 success; canonical main checkout and shared graph updated. Local parser, solver, overlay, and forward-driver fixes remain unpublished.
+blocker: OT-SPI-LARGE-EXACT-DIST-SAMPLING and OT-CSRNG-POST-LOAD-NO-UVM-TRIAGE
+goal: Preserve the passing unchanged released AON timer smoke, advance SPI Device through exact coupled distribution sampling, and resolve CSRNG time-zero initialization propagation after repairing its parser and loader.
 standards: IEEE 1800-2017/2023 section 18.6.3 randomization; sections 3.13 and 28.3.5 interface naming and array instance references.
 failing_reproducer: evidence/opentitan-spi-jedec-sampling-limit-20260923/reducer.sv fails satisfiable nested-field randomization in both editions; evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv fails continuous-assignment parsing in both editions when an interface type and instance array share a name.
 expected: Sample a satisfiable joint constraint solution without reporting failure due to a cap; parse an indexed interface-array member even when its type and instance share a spelling.
 root_cause: vvp/vvp_z3.cc converts complete-joint enumeration cap exhaustion into randomize failure; lexor/pform classifies the indexed same-name interface instance as a type identifier rather than a module-scope instance.
 allowed_scope: Two delegated implementation lanes below with disjoint source ownership. Coordinator owns manifests, shared build/install and outputs, integration, PR review, and pinned release replay.
 forbidden: Verilator implementation changes, edits to pinned OpenTitan/Caliptra sources, unrelated compiler mechanisms, fallback success, or application DV pass claims from compile alone.
-validation: Queue concatenation, constraint-context inside, and mixed virtual-interface event fixes are integrated at 2e648c7ec, b7551af50, and 07d8ba6df with paired focused checks. Unchanged released SPI Device compiles without hard errors; its configured flash-mode smoke fails at 8.676568us on the solver cap. Unchanged released AON timer smoke passes at 348420188ps with zero UVM warnings/errors/fatals. The JEDEC and CSRNG reducers are RED in both editions; Verilator 5.050 accepts the CSRNG reducer read-only. No full DV suite qualification claim.
+validation: CSRNG name classification 6410b956c and nested full-power-two sampling df9f167f4 are locally integrated with paired 2017/2023 focus 10/10 legacy and JSON each, solver neighbor 10/10 each, interface neighbor 11/11 legacy and 13/13 JSON. Unchanged released AON smoke still passes; SPI flash smoke advances past JEDEC to a separate large-range dist failure at 319526568ps. Pristine CSRNG compile clears tb.sv:85 but fails on BlkLen widths; the exact pinned-release two-width overlay compiles with zero errors, then configured smoke aborts before UVM at vvp/array.cc:483. Evidence is docs/conformance/session_logs/2026-09-23_opentitan_spi_csrng_next.json and evidence/opentitan-csrng-blklen-overlay-20260923/smoke-replay.json. No full DV suite qualification claim.
+parallel_spi_large_dist_triage:
+  id: OT-SPI-PASS-LARGE-DIST-TRIAGE
+  owner: Reused GPT-6 Luna agent; coordinator owns shared builds and integration.
+  scope: Read-only released SPI pass-sequence diagnosis and independent cheap paired IEEE 1800-2017/2023 RED under evidence/opentitan-spi-pass-large-dist-triage-20260923 only; no compiler or application source edits yet.
+  boundary: Unchanged released flash smoke fails at spi_device_pass_base_vseq.sv:146 at 319526568ps with exact large-range dist sampling diagnostic.
+  acceptance: Confirm applicable distribution and randomize clauses, derive a reduced failing case plus legal controls, and identify narrow Icarus source ownership without implementing. Stop if the released call is not standards-valid.
+  dependency: Disjoint from CSRNG BlkLen triage; no shared test-output directory or Verilator implementation.
+parallel_spi_large_dist_implementation:
+  id: OT-SPI-LARGE-EXACT-DIST-SAMPLING
+  owner: Reused GPT-6 Luna agent; coordinator owns shared builds and integration.
+  standards: IEEE 1800-2017 section 18.5.4 and 18.6.3; IEEE 1800-2023 section 18.5.3 and 18.6.3; preserve exact :/ range weighting over legal assignments and rollback on failure.
+  reproducer: evidence/opentitan-spi-pass-large-dist-triage-20260923/reducer.sv and baseline.json; paired RED satisfiable coupled 3001-value range after smaller and impossible controls pass.
+  files: vvp/vvp_z3.cc and dedicated paired constraint ivtest fixtures/golds only; coordinator owns manifests, shared builds/install, release replay, and publication.
+  acceptance: Paired coupled large range succeeds with all hard constraints and exact range-item weighting; isolated large, span-257 and span-256 boundaries, endpoints, impossible rollback, and neighboring dist/solve-before tests remain green. No approximation, fallback success, application source edit, or broad selector.
+  dependency: Disjoint from Sol pinned CSRNG release overlay files; no Verilator implementation.
+  state: Revised weighted-item candidate passes paired legacy and JSON focus 14/14 each. Pinned SPI flash reaches UVM PRE_START but still times out at 120 seconds; bounded sample locates the current work in sparse wide-scalar feasible-domain enumeration before the dist resolver, a separate performance blocker. No DV pass. See evidence/opentitan-spi-lazy-item-20260923/result.json.
+parallel_spi_sparse_wide_domain_triage:
+  id: OT-SPI-SPARSE-WIDE-DOMAIN-ENUM
+  owner: Reused GPT-6 Luna read-only agent; coordinator owns shared builds, release replay, and source selection.
+  standards: IEEE 1800-2017/2023 sections 18.5.10 and 18.6.3 uniform sampling over feasible legal solutions; preserve width, solve order, and owner RNG.
+  reproducer: Pinned released SPI flash smoke with exact runtime arguments in evidence/opentitan-spi-lazy-item-20260923/result.json; bounded sample shows z3_enumerate_sparse_wide_domain_ active after UVM PRE_START before dist resolution.
+  files: evidence/opentitan-spi-sparse-wide-domain-20260923 only; read-only source inspection of vvp/vvp_z3.cc and paired cheap reducer. No source/build/install or application edits until scope reviewed.
+  acceptance: Locate exact caller and condition, paired 2017/2023 RED plus passing boundary, and prove any proposed speedup preserves uniform sampling and four-state/width semantics. Do not infer a DV pass from a profile.
+  dependency: Disjoint from Sol scheduler source and Caliptra release evidence; future solver implementation would reuse Luna ownership only after coordinator approval.
+  state: Paired wide and six-bit probes pass, but a bounded release profile shows repeated 65-model sparse probes on soft-only 32-bit CIP TL item fields. The proposed skip has no paired failing RED yet, so no source change is authorized; solver ownership is released for CSRNG joint-dist triage. See evidence/opentitan-spi-sparse-wide-domain-20260923/.
+parallel_csrng_cfg_joint_dist_triage:
+  id: OT-CSRNG-CFG-JOINT-DIST
+  owner: Reused GPT-6 Luna agent; coordinator owns shared builds, integration, and release replay.
+  standards: IEEE 1800-2017/2023 distribution constraints and randomize semantics; preserve weighted legal sampling and rollback.
+  reproducer: Pinned released CSRNG smoke fails at dv_base_test.sv:41 after reaching UVM; exact log in evidence/opentitan-csrng-timezero-scheduler-20260923/result.json.
+  files: evidence/opentitan-csrng-cfg-joint-dist-20260923 only for read-only triage; vvp/vvp_z3.cc reserved for a later selected implementation if paired RED proves a narrow defect. No shared build/install or pinned application edits.
+  acceptance: Identify which spec property triggers the diagnostic, confirm IEEE legality, produce paired 2017/2023 failing RED and positive/negative boundaries, and propose the smallest complete fix without implementing until coordinator review.
+  dependency: SPI sparse-wide lane released vvp/vvp_z3.cc; disjoint from Caliptra release evidence and scheduler source.
+  state: Paired 2017/2023 nested guarded-dist RED reproduces the joint-sampler diagnostic; standalone guarded and nested unconditional controls plus UNSAT rollback pass. Pinned dynamic cfg solve fails after a preliminary solve succeeds. Exact triggering DistSpec remains uninstrumented; no source fix yet. See evidence/opentitan-csrng-cfg-joint-dist-20260923/README.md.
+parallel_legacy_gate_failure_triage:
+  id: OT-LEGACY-GATE-EIGHT-FAILURES
+  owner: Reused GPT-6 Sol agent; coordinator owns shared build/install, source edits, and integration.
+  reproducer: Full .github/ivtest_gate.sh after local solver and scheduler candidates reports 8 unexplained legacy failures out of 6457; VPI 131/131 and negative 153/153 pass. Log at /tmp/ivl-focus-20260923/ivtest-gate-current.log.
+  files: evidence/ivtest-broad-gate-20260923 and only the eight identified ivtest source/gold fixtures; no compiler source or shared manifests. Coordinator owns build/install and integration.
+  acceptance: Preserve time-zero primitive checks after Active via #0; update only exact changed diagnostics; replace obsolete 256-coordinate negative limits with above-16384 negative controls and add a supported 301-coordinate positive check in both editions. Focused legacy and JSON checks must pass; no expected-failure entries or removed assertions.
+  dependency: Disjoint from Luna CSRNG cfg joint-dist evidence and Caliptra release replay.
+  state: Test-only repair integrated at fea3f1203 after isolated legacy and JSON focus; the full merged-branch legacy gate now passes. See evidence/ivtest-broad-gate-20260923/merged-gate-result.json. Full JSON runner remains active.
+parallel_csrng_blklen_triage:
+  id: OT-CSRNG-BLKLEN-PARTSELECT-TRIAGE
+  owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
+  scope: Read-only released CSRNG constant-width diagnosis and independent cheap paired IEEE 1800-2017/2023 RED under evidence/opentitan-csrng-blklen-triage-20260923 only; no compiler or application source edits yet.
+  boundary: Unchanged released CSRNG compile advances past tb.sv:85 but fails at :152/:162 on hierarchical BlkLen indexed part-select widths.
+  acceptance: Determine whether the source is strict IEEE-valid or commercial leniency, derive a reduced failing case plus legal controls, and identify narrow Icarus source ownership or minimal downstream overlay if strictly necessary. Do not implement before coordinator selection.
+  dependency: Disjoint from SPI solver triage; no shared test-output directory or Verilator implementation.
+parallel_csrng_blklen_overlay_lane:
+  id: OT-CSRNG-BLKLEN-PINNED-OVERLAY
+  owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
+  standards: IEEE 1800-2017/2023 section 11.5.1 and Annex A constant-expression grammar; the released module-instance parameter width is outside the strict grammar.
+  reproducer: evidence/opentitan-csrng-blklen-triage-20260923/FINDING.md and results.json; paired instance-path width fails while local constant width passes.
+  files: docs/conformance/release_overlays/opentitan/csrng_blklen_width.patch; owning release_overlays/README.md entry; evidence/opentitan-csrng-blklen-overlay-20260923 only.
+  acceptance: Exact pinned-release patch changes only two indexed part-select width operands plus a local constant if needed; dry-run and apply only to disposable copy; byte-compare untouched source; paired local RED remains strict-failing; fresh released CSRNG compile advances without suppressing assertions or changing widths.
+  dependency: No Icarus compiler or pristine application source edits; disjoint from Luna SPI evidence lane; coordinator reviews and publishes.
+  state: Focused pinned-release overlay compile passes with zero errors, but configured smoke aborts before UVM at vvp/array.cc:483; publication pending.
+parallel_csrng_array_crash_triage:
+  id: OT-CSRNG-ARRAY-WORD-SIZE-CRASH-TRIAGE
+  owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
+  reproducer: evidence/opentitan-csrng-blklen-overlay-20260923/smoke-replay.json; patched pinned CSRNG configured smoke aborts before UVM at vvp/array.cc:483 get_word_size assertion.
+  files: evidence/opentitan-csrng-array-crash-triage-20260923 only; no compiler or application source edit until a cheap paired RED and root-cause scope are reviewed.
+  acceptance: Preserve the pinned crash trace and derive cheap positive/negative/boundary controls; identify exact array representation and caller without masking assertions, then request coordinator implementation selection.
+  dependency: Disjoint from Luna vvp/vvp_z3.cc solver lane; no shared test-output directory or Verilator implementation.
+  state: Paired 2017/2023 RED and direct-driver controls reproduced the pre-UVM load-order assertion; LLDB traces eager packed-dimension metadata resolution before a forward concat net driver is attached. Evidence in evidence/opentitan-csrng-array-crash-triage-20260923/.
+parallel_csrng_array_crash_implementation:
+  id: OT-CSRNG-PACKED-NET-ARRAY-FORWARD-DRIVER
+  owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
+  standards: IEEE 1800-2017/2023 packed dimensions and net-array continuous assignments; valid elaboration must not depend on VVP driver definition order.
+  reproducer: evidence/opentitan-csrng-array-crash-triage-20260923/concat_driver_candidate.sv; paired VVP abort at vvp/array.cc:483 before UVM starts.
+  files: vvp/words.cc and dedicated paired ivtest fixtures/JSON/golds only; coordinator owns shared manifests, builds/install, release replay, and publication.
+  acceptance: Forward concat-driven packed net array loads and runs in both editions; direct driver and one-dimensional controls remain green; unresolved or nonintegral word references fail with a hard diagnostic, never an assertion or false pass.
+  dependency: Disjoint from Luna vvp/vvp_z3.cc SPI solver lane. No pinned application or Verilator source edits.
+  state: Candidate vvp/words.cc built and installed locally; paired legacy and JSON 4/4 each. Configured pinned CSRNG replay no longer aborts but reaches no UVM report in 120 seconds, so full smoke remains unqualified.
+parallel_csrng_post_load_triage:
+  id: OT-CSRNG-POST-LOAD-NO-UVM-TRIAGE
+  owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
+  reproducer: The same selected pinned CSRNG overlay image and command in evidence/opentitan-csrng-blklen-overlay-20260923/smoke-replay.json run on the locally installed forward-driver candidate; no UVM report after 120 seconds.
+  files: evidence/opentitan-csrng-post-load-triage-20260923 only; read-only runtime investigation and no compiler or application source edits.
+  acceptance: Sample the actual Icarus runtime stack/progress, distinguish loading from simulation and output buffering, derive a cheap paired RED or name an exact remaining dependency; preserve the timeout and binary fingerprints without claiming DV pass.
+  dependency: Disjoint from SPI solver vvp/vvp_z3.cc lane. No shared build/install, pinned application, or Verilator edits.
+  state: Completed read-only triage. The paired packed_tri_feedback.sv RED times out before time one in 2017 and 2023; disabling the feedback edge passes. LLDB maps repeating X/Z values to packed interface cmd_req and related concat nodes before sim_started. See evidence/opentitan-csrng-post-load-triage-20260923/README.md.
+parallel_csrng_packed_tri_feedback_implementation:
+  id: OT-CSRNG-PACKED-TRI-FEEDBACK-CONVERGENCE
+  owner: Reused GPT-6 Sol implementation agent; coordinator owns shared builds, manifests, pinned replay, and integration.
+  standards: IEEE 1800-2017/2023 net resolution, continuous-assignment propagation, and packed-struct field semantics; preserve four-state values and driver behavior.
+  reproducer: evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv and packed_tri_feedback.json; paired RED stalls in initialization while the control reaches time one.
+  files: vvp/vvp_net_sig.cc vec8 signal filter and dedicated paired ivtest fixtures/golds only; no vvp/vvp_z3.cc, vvp/words.cc, application source, shared build/install, or manifests. Request coordinator scope review before touching any other compiler mechanism.
+  acceptance: Paired RED reaches time one with the expected resolved value; FEEDBACK=0, scalar, packed-field X/Z, two-driver and field-width boundaries remain correct; reject a dropped-event/watchdog workaround; pinned configured CSRNG replay must advance beyond the former time-zero loop without false DV pass.
+  dependency: Disjoint from Luna SPI solver vvp/vvp_z3.cc lane and Caliptra release evidence lane.
+  state: Candidate vvp/vvp_net_sig.cc is unaccepted. Its initial paired 4/4 focus was a false green because the new condition simplified the frozen RED; the exact RED and pinned CSRNG overlay smoke still loop in pre-start initialization. Agent is correcting the test and tracing the real X/Z feedback root cause. Preserve invalidated evidence in evidence/opentitan-dist-vec8-followon-20260923/result.json and postfix profile in evidence/opentitan-csrng-post-load-triage-20260923/.
+parallel_csrng_timezero_scheduler_implementation:
+  id: OT-CSRNG-TIMEZERO-INIT-SCHEDULER
+  owner: Reused GPT-6 Sol implementation agent; coordinator owns shared builds, manifests, pinned replay, and integration.
+  standards: IEEE 1800-2017/2023 sections 4.5 and 4.9.1 initialize values and schedule startup events into the time-zero slot; continuous assignments evaluate there alongside procedural startup.
+  reproducer: evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv and postfix_mode_matrix.json; faithful paired RED stalls before sim_started while constant-mode controls pass.
+  files: vvp/schedule.cc and vvp/schedule.h only if essential plus dedicated paired ivtest fixtures/golds; restore unaccepted vvp/vvp_net_sig.cc candidate. No vvp/vvp_z3.cc, vvp/words.cc, application source, shared build/install, or manifests.
+  acceptance: Faithful paired RED and released CSRNG image advance past pre-start without forcing application pass; startup callback and VPI ordering, initial net delivery, region order, X/Z resolution, and truly oscillatory nets remain correct. No arbitrary CSRNG-specific scheduling preference or watchdog workaround.
+  dependency: Disjoint from Luna SPI solver vvp/vvp_z3.cc lane and Caliptra release evidence lane.
+  state: Local candidate vvp/schedule.cc passes faithful paired RED/control, legacy and JSON focus 6/6 each, startup VPI 2/2, initial delivery controls, and make check. Pinned CSRNG reaches UVM then fails at cfg.randomize() on a separate joint-dist restriction; no DV pass. Broad gates and publication pending. See evidence/opentitan-csrng-timezero-scheduler-20260923/result.json.
+parallel_caliptra_l0_gap_assessment:
+  id: CALIPTRA-PINNED-L0-52-AND-FULL-DV-GAPS
+  owner: Delegated GPT-6 Luna assessment agent; coordinator retains implementation selection and shared Icarus builds.
+  pinned_release: Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e and Adams Bridge v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0.
+  files: evidence/caliptra-l0-52-and-full-dv-gap-20260923 only; read existing exact L0 runners, overlays, and full-DV inventory without editing any tool or pinned application source.
+  acceptance: Reconcile strict 49/52 L0 baseline with two already focused-tested firmware overlays and the DOE SVA error; run reproducible selected replays and a full 52-case patched-copy L0 pass if feasible. Count an assertion error as failure regardless of exit/banner. Inventory full DV targets, dependencies, and first runnable Icarus blocker separately from L0. Never claim 52/52 by hiding assertions or editing Verilator.
+  dependency: Independent from OpenTitan SPI vvp/vvp_z3.cc and CSRNG time-zero evidence lanes. Use isolated output roots and coordinate CPU-heavy runs; no shared build/install.
 parallel_csrng_interface_name_lane:
   id: OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION
   owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared builds and integration.
@@ -17,7 +125,7 @@ parallel_csrng_interface_name_lane:
   reproducer: evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv and baseline.json; unchanged released CSRNG tb.sv line 85 has the same parse error with -g2017 -gcommercial-unsafe.
   files: lexor.lex; pform.cc; parse.y only as necessary for root-cause name classification; dedicated ivtest fixtures/golds. No vvp/vvp_z3.cc, other runtime files, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
   acceptance: Paired 2017/2023 RED minimal and typed release-shaped cases become runtime/compile green; renamed-instance, typed noncollision, scalar same-name, ordinary type-name and invalid member controls retain correct behavior; fresh unchanged released CSRNG compile advances past tb.sv line 85 without accepting invalid syntax. Coordinator owns focused runner and release replay.
-  state: Coordinator-authorized after paired RED and read-only Verilator comparison at 537c19454; implementation pending.
+  state: Integrated locally at 6410b956c; paired focused and neighboring checks pass; released CSRNG clears tb.sv:85 and stops on separate BlkLen elaboration errors. Publication pending after PR346.
 parallel_spi_jedec_solver_lane:
   id: OT-SPI-JEDEC-SAMPLING-LIMIT
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared builds and integration.
@@ -25,7 +133,7 @@ parallel_spi_jedec_solver_lane:
   reproducer: evidence/opentitan-spi-jedec-sampling-limit-20260923/reducer.sv and baseline.json; unchanged released SPI Device flash-mode smoke fails at 8.676568us on the same enumeration-cap diagnostic.
   files: vvp/vvp_z3.cc and dedicated ivtest constraint fixtures/golds only. No elaborate.cc, event target/runtime code, shared manifests/builds, application source, or Verilator edits. Stop if another source path is required.
   acceptance: Paired 2017/2023 satisfiable nested 16/8-bit fields, size-10 and size-11 boundary, truly UNSAT prior-value rollback, hard dist/soft/preference behavior preserved, and neighboring constraint tests; no false success from sampling a forbidden assignment. Coordinator reruns pinned SPI flash-mode smoke after integration.
-  state: Coordinator-authorized after paired RED baseline at 07d8ba6df; implementation pending.
+  state: Integrated locally at df9f167f4; paired focused and neighboring checks pass; released SPI flash smoke clears JEDEC and stops on separate large-range exact dist blocker at 319526568ps. Publication pending after PR346.
 parallel_spi_constraint_inside_lane:
   id: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY
   owner: Delegated GPT-6 Luna implementation agent; coordinator owns shared builds and integration.

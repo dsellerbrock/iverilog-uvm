@@ -1,0 +1,56 @@
+{
+  "source_head": "6e1af2425869f078e91689a2e3972e45429451e5",
+  "scheduler_source_sha256": "f083f1147392c2ce4deb59cdad52e17d98dfaadb6eac30409eea5db73f40b398",
+  "focused": {
+    "faithful_paired_reducer": "4/4 run pass",
+    "paired_legacy": "6/6",
+    "paired_json": "6/6",
+    "startup_vpi": "2/2",
+    "init_delivery_legacy": "1/1",
+    "init_delivery_json": "2/2",
+    "make_check": "pass"
+  },
+  "release": {
+    "profile": "OpenTitan Earlgrey-PROD-M6 pinned CSRNG with selected two-width overlay and -gcommercial-unsafe",
+    "outcome": "TEST FAILED CHECKS after UVM_FATAL at cfg.randomize(); separate joint dist restriction; no DV pass",
+    "smoke_result": "csrng-timezero-smoke.result.json"
+  },
+  "watchdog": {
+    "outcome": "explicit 10000-event time-zero diagnostic with no #1 success marker in both editions; VVP exit 0 is not a test pass",
+    "result": "csrng-true-oscillator.result.json"
+  },
+  "logs": {
+    "build-csrng-timezero-snapshot.log": {
+      "sha256": "8abead03f39e725abf49a71276cfed2d9443eec0c014dbfdbe9e5bf442ee81f9",
+      "bytes": 3655
+    },
+    "install-csrng-timezero-snapshot.log": {
+      "sha256": "533a38e063d6972defaeb44468f26eef8a661e3a4341a8846169db77b37ad9fd",
+      "bytes": 15539
+    },
+    "csrng-timezero-legacy.log": {
+      "sha256": "4e464c3f09138d9ff4b1f748ba79782550a3368088cb0ed9ac744267d6262647",
+      "bytes": 581
+    },
+    "csrng-timezero-json.log": {
+      "sha256": "ed9260b8046621f2095e759eb0f3d08d0585f090eed8ed4779eb794181e89925",
+      "bytes": 580
+    },
+    "csrng-timezero-init-delivery-legacy.log": {
+      "sha256": "15776ba3dbc574af7a749a77f00064b111675ff7cf30aede78e22d8a11396122",
+      "bytes": 334
+    },
+    "csrng-timezero-init-delivery-json.log": {
+      "sha256": "ad3f39c753bda4fa9fed935ecf24e7512cc3eae4f37a56ffb48d764d8daeb6b9",
+      "bytes": 387
+    },
+    "check-csrng-timezero-solver.log": {
+      "sha256": "6995092a7ffb289173058e0402ed7175949cbfb637f9dec0cc051ac9224aca6f",
+      "bytes": 3705
+    },
+    "csrng-timezero-smoke.pty.log": {
+      "sha256": "4529d1ca644d2f37f964bd4c80a129267f5f76659a18f78feb3c7549afdf811a",
+      "bytes": 25736
+    }
+  }
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "case": "all_compare",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "timed_out": true,
+    "duration_seconds": 1.004
+  },
+  {
+    "case": "mode_bang",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "timed_out": false,
+    "duration_seconds": 0.01
+  },
+  {
+    "case": "pin_direct",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "timed_out": true,
+    "duration_seconds": 1.002
+  },
+  {
+    "case": "only_mode_eq0",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASSED\n",
+    "timed_out": false,
+    "duration_seconds": 0.008
+  },
+  {
+    "case": "only_mode_eq1",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "timed_out": true,
+    "duration_seconds": 1.004
+  }
+]

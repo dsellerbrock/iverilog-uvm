@@ -5,17 +5,45 @@ matrix: an older row is not a newer qualification claim. Operational blocker
 status lives in [BLOCKERS](../BLOCKERS.md); latest compiler qualification is
 linked from [CURRENT_WORK](../CURRENT_WORK.md). Preserve exact subset boundaries.
 
+### September 23, 2026 — time-zero propagation and coupled distribution follow-on
+
+The local PARTIAL §§4.5/4.9.1 scheduler candidate executes only the original
+compiled initialization events before StartOfSim; fanout they generate joins
+the time-zero active slot with procedural startup. This lets a packed-field
+conditional tri-state feedback cone settle after its mode assignment instead
+of starving that assignment. The faithful paired reducer, callback order,
+initial delivery, and a true zero-time oscillator have focused evidence in
+the [CSRNG scheduler record](../../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json).
+The selected released CSRNG smoke advances to UVM but fails on a separate
+joint-distribution restriction. Full scheduling and CSRNG DV remain open.
+The paired [guarded-`dist` reducer](../../../evidence/opentitan-csrng-cfg-joint-dist-20260923/README.md)
+shows that legal §18.5.7 conditional hard distributions in nested joint
+randomization remain unsupported by the exact joint sampler; standalone
+guarded distributions and nested unconditional controls pass.
+
+The local PARTIAL §§18.5.4/18.6.3 solver candidate projects a direct unsigned
+coupled distribution subject over a bounded integral range and samples active
+items by their declared weights, then uniformly samples feasible values of
+the chosen item. Infeasible items are excluded only after a hard SAT proof;
+sparse fallback enumerates the same selected item. [Focused evidence and the
+remaining released SPI profile](../../../evidence/opentitan-spi-pass-large-dist-profile-20260923/followup.md)
+bound this subset. The released flash sequence still stalls in a separate
+wide-scalar feasible-domain enumeration before its distribution call; full
+randomization and SPI DV remain open.
+
 ### September 23, 2026 — SPI queue concatenation, constraint membership, and mixed VIF waits
 
 The PARTIAL §10.10/§7.10.4 subset now accepts a one-dimensional fixed-array
 operand in a queue array concatenation, preserving declared order and a fresh
 destination snapshot. The separate PARTIAL §11.4.13 constraint path
 expands constant unpacked-array `inside` members for the tested SPI Device
-form. The unchanged pinned SPI Device fileset now compiles under `-g2017
--gcommercial-unsafe` without the earlier kind-26 diagnostics, while its
-configured flash-mode smoke fails at a separate JEDEC global-sampling
-enumeration ceiling. Compile exit 0 does not establish complete constraint or
-coverage semantics.
+form. At the preceding checkpoint the unchanged pinned SPI Device fileset compiles
+under `-g2017 -gcommercial-unsafe` without the earlier kind-26 diagnostics,
+while its configured flash-mode smoke fails at the JEDEC global-sampling
+enumeration ceiling. The later [paired solver follow-up](../session_logs/2026-09-23_opentitan_spi_csrng_next.json)
+advances past that ceiling but reaches a separate large-range exact-`dist`
+failure. Compile exit 0 does not establish complete constraint or coverage
+semantics.
 
 The PARTIAL §§9.4.2/25.9 mixed virtual-interface event-list subset now arms
 each selected member with its own posedge, negedge, or value-change mode and
@@ -1913,6 +1941,28 @@ Wildcard/object keys and other associative locators remain loud unsupported
 boundaries. The §15.5 candidate gives each class-event leaf in an explicit
 multi-object event list its own per-instance waiter and joins the one-shot
 waits; first/second object, duplicate, repeated, and static-event controls
-share the same evidence. Both candidates still need PR/CI and broad gates;
-the pinned OpenTitan SPI compile still fails on constrained queue
-`std::randomize`, and neither full clause nor application DV is qualified.
+share the same evidence. Both fixes merged in PR341; broader clause and
+application qualification remain open.
+
+### September 23 CSRNG interface arrays and nested power-of-two constraint sampling
+
+The parser now accepts the pinned CSRNG same-name interface-array declaration
+and indexed interface reference shape under §§3.13 and 28.3.5. The focused
+parser fix is locally committed at `6410b956c` and awaits publication; the
+unchanged CSRNG source now advances past its
+former `tb.sv:85` syntax error but still fails elaboration on a separate
+hierarchical `BlkLen` indexed-part-select width use. A narrowly selected
+[pinned-release overlay](../release_overlays/README.md) preserves the 128-bit
+assertion width and compiles, but its configured smoke aborts at
+`vvp/array.cc:483` before UVM. This is parser and compile evidence, not broad
+interface or CSRNG qualification.
+
+The PARTIAL §§18.5.10/18.6.3 solver subset samples isolated nested constraint domains
+whose complete legal cardinality is a power of two, including a full 64-bit
+domain. The [revision-scoped evidence](../session_logs/2026-09-23_opentitan_spi_csrng_next.json)
+records the bounds, over-cap and irregular-domain controls, unsatisfiable
+rollback, and pinned replays. The fix is locally committed at `df9f167f4` and
+awaits publication. The SPI flash
+smoke advances past its former JEDEC 1024-tuple cap but fails later on a
+separate large-range exact-`dist` call; arbitrary uniform sampling and full
+clause or OpenTitan DV qualification remain open.

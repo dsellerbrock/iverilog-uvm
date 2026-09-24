@@ -1,0 +1,1 @@
+evidence/opentitan-csrng-cfg-joint-dist-20260923/csrng_macro_guard_single_control.sv:25: warning: Static variable initialization requires explicit lifetime in this context.

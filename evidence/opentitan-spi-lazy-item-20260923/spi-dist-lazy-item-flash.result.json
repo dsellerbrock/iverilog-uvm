@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/tmp/ivl-focus-20260923/spi-07d8ba6.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=spi_device_base_test",
+    "+UVM_TEST_SEQ=spi_device_flash_mode_vseq"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-spi-device-current-20260923/matrix/runtime/lowrisc_dv_spi_device_sim_0.1/sim-icarus",
+  "binary_sha256": "b56c64248f0ec4bcd6a2901492c88521f30002765c15694d9ad3b6d36b0890ee",
+  "image_sha256": "0ce4ed3f7c7505160d7329806d12ed6516cb1244a2197f9fdab0fcd652ec2883",
+  "exit_code": null,
+  "timed_out": true,
+  "duration_seconds": 120.32,
+  "log": "/tmp/ivl-focus-20260923/spi-dist-lazy-item-flash.pty.log"
+}

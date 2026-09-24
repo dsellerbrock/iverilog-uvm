@@ -1,0 +1,5 @@
+PASS wide_scalar
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-spi-sparse-wide-domain-20260923/wide_reducer.sv:19: $finish called at 0 (1s)
+real 0.06
+user 0.05
+sys 0.00

@@ -1,0 +1,24 @@
+(lldb) command script import /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/trace_lldb.py
+(lldb) target create /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp
+Current executable set to '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp' (arm64).
+(lldb) breakpoint set -n compile_concat8 -R 220
+Breakpoint 1: where = vvp`compile_concat8(char*, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, symb_s*) + 220, address = 0x00000001000284b4
+(lldb) breakpoint command add 1 -s python -F trace_lldb.on_compile
+(lldb) breakpoint set -n vvp_fun_concat8::run_run
+Breakpoint 2: where = vvp`vvp_fun_concat8::run_run(), address = 0x0000000100028304
+(lldb) breakpoint command add 2 -s python -F trace_lldb.on_run
+(lldb) run -n /var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=csrng_smoke_test +UVM_TEST_SEQ=csrng_smoke_vseq
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored.
+Process 25002 launched: '/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp' (arm64)
+Process 25002 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 2.1
+       frame #0: 0x0000000100028304 vvp`vvp_fun_concat8::run_run()
+vvp`vvp_fun_concat8::run_run:
+->  0x100028304 <+0>:  sub    sp, sp, #0x30
+    0x100028308 <+4>:  stp    x20, x19, [sp, #0x10]
+    0x10002830c <+8>:  stp    x29, x30, [sp, #0x20]
+    0x100028310 <+12>: add    x29, sp, #0x20
+Target 0: (vvp) stopped.
+(lldb) process kill
+Process 25002 exited with status = 9 (0x00000009) killed

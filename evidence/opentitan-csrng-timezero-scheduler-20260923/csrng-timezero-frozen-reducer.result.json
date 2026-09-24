@@ -1,0 +1,46 @@
+[
+  {
+    "edition": "2017",
+    "top": "packed_tri_red",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "runtime_seconds": 0.115
+  },
+  {
+    "edition": "2017",
+    "top": "packed_tri_control",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS control reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "runtime_seconds": 0.008
+  },
+  {
+    "edition": "2023",
+    "top": "packed_tri_red",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "runtime_seconds": 0.008
+  },
+  {
+    "edition": "2023",
+    "top": "packed_tri_control",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS control reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "runtime_seconds": 0.008
+  }
+]

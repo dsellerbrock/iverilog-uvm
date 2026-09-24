@@ -1,0 +1,35 @@
+{
+  "source_head": "6e1af2425869f078e91689a2e3972e45429451e5",
+  "solver_source_sha256": "2c47ff0c905635a31031d85e78576e94067138f6996cf236b10744fcba611be8",
+  "focused": {
+    "legacy": "14/14",
+    "json": "14/14"
+  },
+  "pinned_release": {
+    "outcome": "UVM PRE_START reached; timed out at 120s without DV verdict",
+    "runtime_result": "spi-dist-lazy-item-flash.result.json"
+  },
+  "profile": "../opentitan-spi-pass-large-dist-profile-20260923/followup.md",
+  "logs": {
+    "build-spi-dist-lazy-item.log": {
+      "sha256": "3e73c2a264145738edecc9837a5b6ad37b80acd5ce9a5ba61dca31ea87366529",
+      "bytes": 3998
+    },
+    "install-spi-dist-lazy-item.log": {
+      "sha256": "533a38e063d6972defaeb44468f26eef8a661e3a4341a8846169db77b37ad9fd",
+      "bytes": 15539
+    },
+    "spi-dist-lazy-item-legacy.log": {
+      "sha256": "0bcb65920b1d2672f9f03a992e540f3a29a9151d973bd3410cfce4f0d9f5db87",
+      "bytes": 1023
+    },
+    "spi-dist-lazy-item-json.log": {
+      "sha256": "56f1ecb5053df793d54f451568a71a9624f3b581e6449e2653c52db89eaf8cf0",
+      "bytes": 1021
+    },
+    "spi-dist-lazy-item-flash.pty.log": {
+      "sha256": "25aa8545b26ccff1de033d343d86a969683ad358607530693e77047baa20c04e",
+      "bytes": 512
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "lldb",
+    "--batch",
+    "-o",
+    "command script import /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/trace_lldb.py",
+    "-o",
+    "target create /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-o",
+    "breakpoint set -n compile_concat8 -R 220",
+    "-o",
+    "breakpoint command add 1 -s python -F trace_lldb.on_compile",
+    "-o",
+    "breakpoint set -n vvp_fun_concat8::run_run",
+    "-o",
+    "breakpoint command add 2 -s python -F trace_lldb.on_run",
+    "-o",
+    "run -n /var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=csrng_smoke_test +UVM_TEST_SEQ=csrng_smoke_vseq",
+    "-o",
+    "process kill"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "exit": 0,
+  "timed_out": false,
+  "duration_seconds": 10.118
+}

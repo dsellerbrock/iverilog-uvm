@@ -1,0 +1,27 @@
+{
+  "branch_head": "2d7319d371cf4f946e82e0ea751821e8318419ed",
+  "image": "preexisting pinned OpenTitan AON image from earlier 07d8ba6 smoke; not recompiled at this HEAD",
+  "image_path": "/tmp/ivl-focus-20260923/aon-mixed-candidate.vvp",
+  "image_sha256": "f644d73db92050be0c67381c113a9239d773c96b501ad23fd0508cfb4cf78ea1",
+  "vvp_sha256": "f2a05ce45cdb2271af25dee78f62203926a34844cd202192e5af4c69ab3829ab",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "/tmp/ivl-focus-20260923/aon-mixed-candidate.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=aon_timer_base_test",
+    "+UVM_TEST_SEQ=aon_timer_smoke_vseq"
+  ],
+  "exit_code": 0,
+  "pass_banner_count": 1,
+  "fail_banner_count": 0,
+  "uvm_summary": {
+    "UVM_WARNING": 0,
+    "UVM_ERROR": 0,
+    "UVM_FATAL": 0
+  },
+  "finish_time_ps": 348420188,
+  "qualification": "one selected AON runtime replay; not full DV"
+}

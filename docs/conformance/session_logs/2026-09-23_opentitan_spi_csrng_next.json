@@ -1,0 +1,95 @@
+{
+  "date_utc": "2026-09-23",
+  "source_head": "df9f167f45e2aa7c4555e5d64192487cb00ed739",
+  "implementation_commits": {
+    "csrng_same_name_interface_array": "6410b956c21c411c6a2dbc3c2a3dbe092b3ba464",
+    "nested_full_power_two_constraint_domain": "df9f167f45e2aa7c4555e5d64192487cb00ed739"
+  },
+  "release": {
+    "name": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "uvm": "1.2",
+    "source_policy": "Pinned generated application sources unchanged; no Verilator implementation changes",
+    "compiler_mode": "-g2017 -gcommercial-unsafe"
+  },
+  "candidate_binary_sha256": {
+    "compiler_engine": "5b753e444b1de01117fa312246047ddf93e56d423f4a21fe8cc28481f1fc7efc",
+    "vvp_runtime": "db6f7715560d5084799c5c6eb41b850fa9a3e03df2aa65167546c80f1c6f4a9c"
+  },
+  "focused_validation": {
+    "new_csrng_and_solver_cases": {
+      "legacy": "10/10 passed",
+      "json_vvp": "10/10 passed",
+      "editions": [
+        "2017",
+        "2023"
+      ]
+    },
+    "solver_neighbor": {
+      "legacy": "10/10 passed",
+      "json_vvp": "10/10 passed"
+    },
+    "interface_array_neighbor": {
+      "legacy": "11/11 passed",
+      "json_vvp": "13/13 passed"
+    },
+    "coherent_build_install": "root ivl/vvp built and installed; bison conflicts unchanged at 572 SR/1122 RR",
+    "solver_controls": "Nested 16/8-bit, 10-bit cap, 11-bit over-cap, 64-bit full domain, irregular exact domain, over-cap holed negative, UNSAT and rollback",
+    "parser_controls": "Array and scalar same-name positive; missing member and missing instance negatives"
+  },
+  "pinned_application_replay": {
+    "aon_timer": {
+      "smoke_sequence": "aon_timer_smoke_vseq",
+      "process_exit": 0,
+      "test_result": "TEST PASSED CHECKS at 348420188 ps",
+      "uvm_report_summary": {
+        "warnings": 0,
+        "errors": 0,
+        "fatals": 0
+      },
+      "log": "evidence/opentitan-spi-csrng-next-20260923/aon-smoke.log.gz"
+    },
+    "spi_device": {
+      "configured_smoke_sequence_flag": "+UVM_TEST_SEQ=spi_device_flash_mode_vseq",
+      "process_exit": 0,
+      "test_result": "TEST FAILED CHECKS; UVM_FATAL 1 at 319526568 ps",
+      "advanced_past": "Previously failed ral.jedec_id.randomize() at 8676568 ps on 1024-tuple cap",
+      "next_blocker": "this.randomize(opcode, valid_op, read_start_addr, read_end_addr, payload_size, read_addr_size_type) at spi_device_pass_base_vseq.sv:146; large-range exact dist sampling is unsupported",
+      "log": "evidence/opentitan-spi-csrng-next-20260923/spi-flash-smoke.log.gz"
+    },
+    "csrng": {
+      "compile_exit": 12,
+      "advanced_past": "Prior syntax error at tb.sv:85 for indexed same-name interface instance",
+      "next_blocker": "12 elaboration errors; tb.sv:152/162 hierarchical BlkLen rejected as constant indexed part-select width",
+      "log": "evidence/opentitan-spi-csrng-next-20260923/csrng-compile.log.gz"
+    }
+  },
+  "read_only_differential": "Verilator 5.050 accepted the paired same-name interface array reducer during read-only lint; this establishes syntax plausibility, not Icarus DV qualification.",
+  "baseline_references": [
+    "evidence/opentitan-spi-jedec-sampling-limit-20260923/baseline.json",
+    "evidence/opentitan-csrng-interface-array-assign-20260923/baseline.json"
+  ],
+  "raw_logs": {
+    "spi-flash-smoke.log.gz": {
+      "path": "evidence/opentitan-spi-csrng-next-20260923/spi-flash-smoke.log.gz",
+      "raw_sha256": "782ecc9088e4bfd1aefb74c469deee74784c1c7fb1f6ee2e27187fffd36f45ae"
+    },
+    "csrng-compile.log.gz": {
+      "path": "evidence/opentitan-spi-csrng-next-20260923/csrng-compile.log.gz",
+      "raw_sha256": "cf110db32ad6b1323e5b807107cb014eb08f90f23887805bce7ebc25790fd9dc"
+    },
+    "aon-smoke.log.gz": {
+      "path": "evidence/opentitan-spi-csrng-next-20260923/aon-smoke.log.gz",
+      "raw_sha256": "4bfeff5888bb135645c5a9a9bd454ff4a438528e9f1db0f853dfeb19e9bc094f"
+    },
+    "jedec-reducer-2017.log.gz": {
+      "path": "evidence/opentitan-spi-csrng-next-20260923/jedec-reducer-2017.log.gz",
+      "raw_sha256": "4667a4d4dfa7a5272b1082b03fcabdf55354e1ed1f654be97acaa86a3d9aa061"
+    },
+    "jedec-reducer-2023.log.gz": {
+      "path": "evidence/opentitan-spi-csrng-next-20260923/jedec-reducer-2023.log.gz",
+      "raw_sha256": "4667a4d4dfa7a5272b1082b03fcabdf55354e1ed1f654be97acaa86a3d9aa061"
+    }
+  },
+  "qualification_limit": "One AON smoke passed; SPI Device smoke and CSRNG compilation remain failed. No OpenTitan full DV suite or Caliptra DV qualification follows from these results."
+}

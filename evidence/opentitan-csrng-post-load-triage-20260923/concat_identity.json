@@ -1,0 +1,327 @@
+{
+  "limit": 5000,
+  "compiled_concat8": 449,
+  "unique_runtime_concat8": 177,
+  "top": [
+    {
+      "functor_pointer": "0x7c470354f8",
+      "hits": 1193,
+      "compile_record": {
+        "label": "L_0x7636d62e90",
+        "net": 533800249248
+      }
+    },
+    {
+      "functor_pointer": "0x7c47094be8",
+      "hits": 1193,
+      "compile_record": {
+        "label": "L_0x7636d59470",
+        "net": 533800368808
+      }
+    },
+    {
+      "functor_pointer": "0x7c47013958",
+      "hits": 1192,
+      "compile_record": {
+        "label": "L_0x7636d407e0",
+        "net": 533800156064
+      }
+    },
+    {
+      "functor_pointer": "0x7c46dd94d8",
+      "hits": 1191,
+      "compile_record": {
+        "label": "L_0x7636e84880",
+        "net": 533769638128
+      }
+    },
+    {
+      "functor_pointer": "0x7c470352a8",
+      "hits": 6,
+      "compile_record": {
+        "label": "LS_0x7636d62aa0_0_4",
+        "net": 533800248744
+      }
+    },
+    {
+      "functor_pointer": "0x7c47094998",
+      "hits": 6,
+      "compile_record": {
+        "label": "LS_0x7636d59080_0_4",
+        "net": 533800368304
+      }
+    },
+    {
+      "functor_pointer": "0x7c47035268",
+      "hits": 5,
+      "compile_record": {
+        "label": "LS_0x7636d62aa0_0_0",
+        "net": 533800248688
+      }
+    },
+    {
+      "functor_pointer": "0x7c47094958",
+      "hits": 5,
+      "compile_record": {
+        "label": "LS_0x7636d59080_0_0",
+        "net": 533800368248
+      }
+    },
+    {
+      "functor_pointer": "0x7c470352e8",
+      "hits": 5,
+      "compile_record": {
+        "label": "L_0x7636d62aa0",
+        "net": 533800248800
+      }
+    },
+    {
+      "functor_pointer": "0x7c470949d8",
+      "hits": 5,
+      "compile_record": {
+        "label": "L_0x7636d59080",
+        "net": 533800368360
+      }
+    },
+    {
+      "functor_pointer": "0x7c47013898",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d40630",
+        "net": 533800155896
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c702b8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_0",
+        "net": 533751583608
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c702f8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_4",
+        "net": 533751583664
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70338",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_8",
+        "net": 533751583720
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70378",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_12",
+        "net": 533751583776
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c703b8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_16",
+        "net": 533751583832
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c703f8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_20",
+        "net": 533751583888
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70438",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_24",
+        "net": 533751583944
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70478",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_0_28",
+        "net": 533751584000
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c707b8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4ba30_0_28",
+        "net": 533751584728
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c74cd0",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d4f6f0",
+        "net": 533751606624
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c74d90",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d4f930",
+        "net": 533751606792
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c76888",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4e190_0_0",
+        "net": 533751612392
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c768c8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4e190_0_4",
+        "net": 533751612448
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c76a08",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4e3d0_0_4",
+        "net": 533751612728
+      }
+    },
+    {
+      "functor_pointer": "0x7c46de3b08",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636daf570",
+        "net": 533769674080
+      }
+    },
+    {
+      "functor_pointer": "0x7c46df8960",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dba730",
+        "net": 533769738872
+      }
+    },
+    {
+      "functor_pointer": "0x7c46e0d7b8",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dc58f0",
+        "net": 533769803664
+      }
+    },
+    {
+      "functor_pointer": "0x7c46060200",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636ef5350",
+        "net": 533770317576
+      }
+    },
+    {
+      "functor_pointer": "0x7c4607f040",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636e9dbd0",
+        "net": 533751096912
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c704b8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_1_0",
+        "net": 533751584056
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c704f8",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4b7f0_1_4",
+        "net": 533751584112
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70838",
+      "hits": 2,
+      "compile_record": {
+        "label": "LS_0x7636d4ba30_1_4",
+        "net": 533751584840
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c76908",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d4e190",
+        "net": 533751612504
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c76a48",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d4e3d0",
+        "net": 533751612784
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70538",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d4b7f0",
+        "net": 533751584168
+      }
+    },
+    {
+      "functor_pointer": "0x7c45c70878",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d4ba30",
+        "net": 533751584896
+      }
+    },
+    {
+      "functor_pointer": "0x7c46de3c30",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636daf840",
+        "net": 533769674360
+      }
+    },
+    {
+      "functor_pointer": "0x7c46df8a88",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dbaa00",
+        "net": 533769739152
+      }
+    },
+    {
+      "functor_pointer": "0x7c46e0d8e0",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dc5bc0",
+        "net": 533769803944
+      }
+    }
+  ]
+}

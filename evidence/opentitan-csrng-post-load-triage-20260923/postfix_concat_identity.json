@@ -1,0 +1,723 @@
+{
+  "limit": 1000,
+  "compiled_concat8": 449,
+  "unique_runtime_concat8": 177,
+  "top": [
+    {
+      "functor_pointer": "0x777d8354f8",
+      "hits": 198,
+      "compile_record": {
+        "label": "L_0x7636d62e90",
+        "net": 513189439392
+      },
+      "distinct_values": 3,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          99
+        ],
+        [
+          "00e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600",
+          98
+        ],
+        [
+          "00000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d894be8",
+      "hits": 198,
+      "compile_record": {
+        "label": "L_0x7636d59470",
+        "net": 513189558952
+      },
+      "distinct_values": 3,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          99
+        ],
+        [
+          "00e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600",
+          98
+        ],
+        [
+          "00000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d813958",
+      "hits": 197,
+      "compile_record": {
+        "label": "L_0x7636d407e0",
+        "net": 513189346208
+      },
+      "distinct_values": 4,
+      "top_values": [
+        [
+          "00e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e60000e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600",
+          98
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          97
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "00e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd94d8",
+      "hits": 197,
+      "compile_record": {
+        "label": "L_0x7636e84880",
+        "net": 513209159920
+      },
+      "distinct_values": 4,
+      "top_values": [
+        [
+          "0000e6",
+          98
+        ],
+        [
+          "e6e6e6",
+          97
+        ],
+        [
+          "e600e6",
+          1
+        ],
+        [
+          "00e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d8352a8",
+      "hits": 6,
+      "compile_record": {
+        "label": "LS_0x7636d62aa0_0_4",
+        "net": 513189438888
+      },
+      "distinct_values": 3,
+      "top_values": [
+        [
+          "e6e6",
+          3
+        ],
+        [
+          "e600",
+          2
+        ],
+        [
+          "0000",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d894998",
+      "hits": 6,
+      "compile_record": {
+        "label": "LS_0x7636d59080_0_4",
+        "net": 513189558448
+      },
+      "distinct_values": 3,
+      "top_values": [
+        [
+          "e6e6",
+          3
+        ],
+        [
+          "e600",
+          2
+        ],
+        [
+          "0000",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d835268",
+      "hits": 5,
+      "compile_record": {
+        "label": "LS_0x7636d62aa0_0_0",
+        "net": 513189438832
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          3
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600e6e6e6",
+          2
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d894958",
+      "hits": 5,
+      "compile_record": {
+        "label": "LS_0x7636d59080_0_0",
+        "net": 513189558392
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          3
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600e6e6e6",
+          2
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d8352e8",
+      "hits": 5,
+      "compile_record": {
+        "label": "L_0x7636d62aa0",
+        "net": 513189438944
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          3
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600e6e6e6e600",
+          2
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d8949d8",
+      "hits": 5,
+      "compile_record": {
+        "label": "L_0x7636d59080",
+        "net": 513189558504
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          3
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e600e6e6e6e600",
+          2
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777d813898",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636d40630",
+        "net": 513189346040
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "00000000e6e6e6e6",
+          1
+        ],
+        [
+          "0000000000000000",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777dde3b08",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636daf570",
+        "net": 513209195872
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddf8960",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dba730",
+        "net": 513209260664
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777de0d7b8",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dc58f0",
+        "net": 513209325456
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777e614200",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636ef5350",
+        "net": 513209839368
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777e633040",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636e9dbd0",
+        "net": 513221764688
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777dde3c30",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636daf840",
+        "net": 513209196152
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddf8a88",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dbaa00",
+        "net": 513209260944
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777de0d8e0",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636dc5bc0",
+        "net": 513209325736
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777e614328",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636ef5620",
+        "net": 513209839648
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777e633168",
+      "hits": 2,
+      "compile_record": {
+        "label": "L_0x7636e9dea0",
+        "net": 513221764968
+      },
+      "distinct_values": 2,
+      "top_values": [
+        [
+          "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+          1
+        ],
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777dddbe00",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636f69290",
+        "net": 513209168880
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777dde3d30",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dafa80",
+        "net": 513209196376
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddf8b88",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dbac40",
+        "net": 513209261168
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5900",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc4f0",
+        "net": 513209144184
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5940",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc580",
+        "net": 513209144240
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5800",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc2b0",
+        "net": 513209143960
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd57c0",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc220",
+        "net": 513209143904
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5740",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc100",
+        "net": 513209143792
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5780",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc190",
+        "net": 513209143848
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5b00",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc970",
+        "net": 513209144632
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5700",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc070",
+        "net": 513209143736
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd56c0",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcbfe0",
+        "net": 513209143680
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5680",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcbf50",
+        "net": 513209143624
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5ac0",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcc8e0",
+        "net": 513209144576
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777de0d9e0",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dc5e00",
+        "net": 513209325960
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777ddd5600",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636dcbe30",
+        "net": 513209143512
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777df3f728",
+      "hits": 1,
+      "compile_record": {
+        "label": "L_0x7636ec4cc0",
+        "net": 513209399992
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777df53cb0",
+      "hits": 1,
+      "compile_record": {
+        "label": "LS_0x7636ee70a0_0_0",
+        "net": 513209468256
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6e6",
+          1
+        ]
+      ]
+    },
+    {
+      "functor_pointer": "0x777df53cf0",
+      "hits": 1,
+      "compile_record": {
+        "label": "LS_0x7636ee70a0_0_4",
+        "net": 513209468312
+      },
+      "distinct_values": 1,
+      "top_values": [
+        [
+          "e6e6e6e6",
+          1
+        ]
+      ]
+    }
+  ]
+}

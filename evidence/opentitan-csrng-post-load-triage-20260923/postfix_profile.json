@@ -1,0 +1,92 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "binary_sha256": "6f85134f9ed5b7609a2bedc2bae9e1a926966932acf63485e0ebeabeed5ad111",
+  "image_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+  "duration_seconds": 8.615,
+  "process_exit": -15,
+  "records": [
+    {
+      "elapsed_seconds": 3.681,
+      "lldb_command": [
+        "lldb",
+        "-p",
+        "35621",
+        "--batch",
+        "-o",
+        "expr -- sim_started",
+        "-o",
+        "expr -- schedule_init_list",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "expr -- count_gen_events",
+        "-o",
+        "expr -- count_time_events",
+        "-o",
+        "thread backtrace"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 35621\nProcess 35621 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x000000019b4a90f0 libsystem_platform.dylib`_platform_strcmp$VARIANT$Base\nlibsystem_platform.dylib`_platform_strcmp$VARIANT$Base:\n->  0x19b4a90f0 <+0>:  tst    x0, #0xf\n    0x19b4a90f4 <+4>:  b.eq   0x19b4a9114               ; <+36>\n    0x19b4a90f8 <+8>:  ldrb   w4, [x0], #0x1\n    0x19b4a90fc <+12>: ldrb   w5, [x1], #0x1\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- sim_started\n(void *) $0 = 0x0000000000000000\n(lldb) expr -- schedule_init_list\n(void *) $1 = 0x0000007a31c5c400\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $2 = 0\n(lldb) expr -- count_gen_events\n(void *) $3 = 0x0000000000000000\n(lldb) expr -- count_time_events\n(void *) $4 = 0x0000000000000001\n(lldb) thread backtrace\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n   * frame #0: 0x000000019b4a90f0 libsystem_platform.dylib`_platform_strcmp$VARIANT$Base\n     frame #1: 0x00000001001b1f78 vvp`compile_resolve_pending_label(char const*) + 100\n     frame #2: 0x00000001001a9928 vvp`compile_net_array(char*, char*, int, int, int) + 172\n     frame #3: 0x0000000100194b84 vvp`yyparse() + 10116\n     frame #4: 0x000000010019605c vvp`compile_design(char const*) + 80\n     frame #5: 0x0000000100191cb4 vvp`vvp_run + 132\n     frame #6: 0x0000000100190dcc vvp`main + 1188\n     frame #7: 0x000000019b0c7e80 dyld`start + 6688\n",
+      "stderr": ""
+    },
+    {
+      "elapsed_seconds": 5.57,
+      "lldb_command": [
+        "lldb",
+        "-p",
+        "35621",
+        "--batch",
+        "-o",
+        "expr -- sim_started",
+        "-o",
+        "expr -- schedule_init_list",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "expr -- count_gen_events",
+        "-o",
+        "expr -- count_time_events",
+        "-o",
+        "thread backtrace"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 35621\nProcess 35621 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x000000010019b450 vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 144\nvvp`vvp_vector4_t::set_bit:\n->  0x10019b450 <+144>: cmp    w2, #0x3\n    0x10019b454 <+148>: b.ne   0x10019b4dc               ; <+284>\n    0x10019b458 <+152>: ldur   q0, [x0, #0x8]\n    0x10019b45c <+156>: dup.2d v1, x8\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- sim_started\n(void *) $0 = 0x0000000000000000\n(lldb) expr -- schedule_init_list\n(void *) $1 = 0x00000001005f1c98\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $2 = 0\n(lldb) expr -- count_gen_events\n(void *) $3 = 0x0000000000152d89\n(lldb) expr -- count_time_events\n(void *) $4 = 0x0000000000000001\n(lldb) thread backtrace\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n   * frame #0: 0x000000010019b450 vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 144\n     frame #1: 0x0000000100302cdc vvp`reduce4(vvp_vector8_t const&) + 364\n     frame #2: 0x0000000100302b08 vvp`vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 36\n     frame #3: 0x00000001002fa07c vvp`vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 76\n     frame #4: 0x00000001001b836c vvp`vvp_fun_concat8::run_run() + 104\n     frame #5: 0x00000001002f0bbc vvp`generic_event_s::run_run() + 52\n     frame #6: 0x00000001002f35a8 vvp`schedule_simulate() + 144\n     frame #7: 0x0000000100192014 vvp`vvp_run + 996\n     frame #8: 0x0000000100190dcc vvp`main + 1188\n     frame #9: 0x000000019b0c7e80 dyld`start + 6688\n",
+      "stderr": ""
+    },
+    {
+      "elapsed_seconds": 8.566,
+      "lldb_command": [
+        "lldb",
+        "-p",
+        "35621",
+        "--batch",
+        "-o",
+        "expr -- sim_started",
+        "-o",
+        "expr -- schedule_init_list",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "expr -- count_gen_events",
+        "-o",
+        "expr -- count_time_events",
+        "-o",
+        "thread backtrace"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 35621\nProcess 35621 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x000000010019b464 vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 164\nvvp`vvp_vector4_t::set_bit:\n->  0x10019b464 <+164>: stur   q0, [x0, #0x8]\n    0x10019b468 <+168>: ret    \n    0x10019b46c <+172>: ldr    x10, [x0, #0x8]\n    0x10019b470 <+176>: ldr    x11, [x10, w9, uxtw #3]\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- sim_started\n(void *) $0 = 0x0000000000000000\n(lldb) expr -- schedule_init_list\n(void *) $1 = 0x00000001005fcaf8\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $2 = 0\n(lldb) expr -- count_gen_events\n(void *) $3 = 0x0000000001077689\n(lldb) expr -- count_time_events\n(void *) $4 = 0x0000000000000001\n(lldb) thread backtrace\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n   * frame #0: 0x000000010019b464 vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 164\n     frame #1: 0x0000000100302cdc vvp`reduce4(vvp_vector8_t const&) + 364\n     frame #2: 0x0000000100302b08 vvp`vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 36\n     frame #3: 0x00000001002fa07c vvp`vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 76\n     frame #4: 0x00000001001b836c vvp`vvp_fun_concat8::run_run() + 104\n     frame #5: 0x00000001002f0bbc vvp`generic_event_s::run_run() + 52\n     frame #6: 0x00000001002f35a8 vvp`schedule_simulate() + 144\n     frame #7: 0x0000000100192014 vvp`vvp_run + 996\n     frame #8: 0x0000000100190dcc vvp`main + 1188\n     frame #9: 0x000000019b0c7e80 dyld`start + 6688\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "f2a05ce45cdb2271af25dee78f62203926a34844cd202192e5af4c69ab3829ab",
+  "cases": [
+    {
+      "name": "pr-original",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/pr-original.vvp",
+          "-D__ICARUS_UNSIZED__",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/pr1787423b.v"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/pr-original.vvp"
+        ],
+        "exit": 0,
+        "stdout": "Buffer failed, expected 2'bxx, got zz\nInverter (not) failed, expected 2'bxx, got zz\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "pr-std",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/pr-std.vvp",
+          "-D__ICARUS_UNSIZED__",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/ivtest/ivltests/pr1787423b_std.v"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/pr-std.vvp"
+        ],
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "pr-after-active",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/pr-after-active.vvp",
+          "-D__ICARUS_UNSIZED__",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/ivtest-broad-gate-20260923/pr1787423b_after_active.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/pr-after-active.vvp"
+        ],
+        "exit": 0,
+        "stdout": "PASSED\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "probe_multiple-2017",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_multiple-2017.vvp",
+          "-g2017",
+          "-s",
+          "probe_multiple",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/ivtest-broad-gate-20260923/joint_range_probe.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_multiple-2017.vvp"
+        ],
+        "exit": 0,
+        "stdout": "multiple rc=1 value=1 child=1\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "probe_ordered-2017",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_ordered-2017.vvp",
+          "-g2017",
+          "-s",
+          "probe_ordered",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/ivtest-broad-gate-20260923/joint_range_probe.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_ordered-2017.vvp"
+        ],
+        "exit": 0,
+        "stdout": "ordered rc=1 cycle=1 early=1 first=1 second=1 child=1 posts=1\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "probe_multiple-2023",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_multiple-2023.vvp",
+          "-g2023",
+          "-s",
+          "probe_multiple",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/ivtest-broad-gate-20260923/joint_range_probe.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_multiple-2023.vvp"
+        ],
+        "exit": 0,
+        "stdout": "multiple rc=1 value=1 child=1\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "probe_ordered-2023",
+      "compile": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-o",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_ordered-2023.vvp",
+          "-g2023",
+          "-s",
+          "probe_ordered",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/ivtest-broad-gate-20260923/joint_range_probe.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "cmd": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/ivl-broad-gate-agent-20260923/probe_ordered-2023.vvp"
+        ],
+        "exit": 0,
+        "stdout": "ordered rc=1 cycle=1 early=1 first=1 second=1 child=1 posts=1\n",
+        "stderr": ""
+      }
+    }
+  ]
+}

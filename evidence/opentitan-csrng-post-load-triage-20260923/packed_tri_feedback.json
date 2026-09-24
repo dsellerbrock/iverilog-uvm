@@ -1,0 +1,106 @@
+[
+  {
+    "edition": "2017",
+    "top": "packed_tri_red",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "packed_tri_red",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_red-2017-sfol5o27.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_red-2017-sfol5o27.vvp"
+    ],
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "runtime_timed_out": true,
+    "duration_seconds": 2.005
+  },
+  {
+    "edition": "2017",
+    "top": "packed_tri_control",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "packed_tri_control",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_control-2017-vkhwya17.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_control-2017-vkhwya17.vvp"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS control reached time one: 1\n",
+    "runtime_stderr": "",
+    "runtime_timed_out": false,
+    "duration_seconds": 0.014
+  },
+  {
+    "edition": "2023",
+    "top": "packed_tri_red",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "packed_tri_red",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_red-2023-9ar53usl.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_red-2023-9ar53usl.vvp"
+    ],
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "runtime_timed_out": true,
+    "duration_seconds": 2.006
+  },
+  {
+    "edition": "2023",
+    "top": "packed_tri_control",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "packed_tri_control",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_control-2023-nis3vp42.vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv"
+    ],
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-packed_tri_control-2023-nis3vp42.vvp"
+    ],
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS control reached time one: 1\n",
+    "runtime_stderr": "",
+    "runtime_timed_out": false,
+    "duration_seconds": 0.016
+  }
+]
