@@ -17,16 +17,18 @@ event, as a host scheduler would before inspecting new event work. GPU timings
 include command submission and synchronization; shader compilation and buffer
 allocation are outside timing. Warm-up dispatches precede timing. Each output
 is checked against the CPU reference. `runs.txt` has seven full runs;
-`medians.json` has their medians (milliseconds).
+`medians.json` has their medians (milliseconds). An earlier trial was
+discarded because the dependent-chain launch included idle GPU threads;
+these runs launch one thread for that chain.
 
 | Case | CPU | Metal | Result |
 | --- | ---: | ---: | --- |
-| 4,096 independent | 0.0032 | 0.1951 | match |
-| 65,536 independent | 0.0496 | 0.1946 | match |
-| 1,048,576 independent | 0.8201 | 0.7247 | match |
-| 1,024 dependent | 0.0030 | 0.4151 | match |
-| 65,536 dependent | 0.1915 | 11.8881 | match |
-| 256 dependent with host feedback | not measured | 61.7055 | match |
+| 4,096 independent | 0.0032 | 0.1937 | match |
+| 65,536 independent | 0.0496 | 0.1750 | match |
+| 1,048,576 independent | 0.8363 | 0.8447 | match |
+| 1,024 dependent | 0.0029 | 0.3865 | match |
+| 65,536 dependent | 0.1916 | 11.8456 | match |
+| 256 dependent with host feedback | not measured | 64.6853 | match |
 
 The probe does not run VVP bytecode, callbacks, force/release, or Caliptra.
 It establishes a lower-bound behavior for GPU submission on this host and

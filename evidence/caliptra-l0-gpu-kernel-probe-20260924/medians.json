@@ -1,25 +1,25 @@
 {
   "batch n=4096": {
     "cpu_ms": 0.0032,
-    "metal_submit_sync_ms": 0.1951
+    "metal_submit_sync_ms": 0.1937
   },
   "batch n=65536": {
     "cpu_ms": 0.0496,
-    "metal_submit_sync_ms": 0.1946
+    "metal_submit_sync_ms": 0.175
   },
   "batch n=1048576": {
-    "cpu_ms": 0.8201,
-    "metal_submit_sync_ms": 0.7247
+    "cpu_ms": 0.8363,
+    "metal_submit_sync_ms": 0.8447
   },
   "chain n=1024": {
-    "cpu_ms": 0.003,
-    "metal_single_thread_ms": 0.4151
+    "cpu_ms": 0.0029,
+    "metal_single_thread_ms": 0.3865
   },
   "chain n=65536": {
-    "cpu_ms": 0.1915,
-    "metal_single_thread_ms": 11.8881
+    "cpu_ms": 0.1916,
+    "metal_single_thread_ms": 11.8456
   },
   "feedback n=256": {
-    "metal_submit_sync_each_ms": 61.7055
+    "metal_submit_sync_each_ms": 64.6853
   }
 }
