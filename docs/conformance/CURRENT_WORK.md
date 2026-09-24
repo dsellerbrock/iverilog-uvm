@@ -2,8 +2,9 @@
 
 [PR346](https://github.com/dsellerbrock/iverilog-uvm/pull/346) merged after
 exact-head CI success. The later CSRNG parser, solver, pinned-release overlay,
-and VVP loader fixes are committed locally; exact coupled distribution and
-time-zero scheduler candidates remain unpublished. The latest
+VVP loader, exact coupled distribution, and time-zero scheduler fixes are
+merged in [PR348](https://github.com/dsellerbrock/iverilog-uvm/pull/348) at
+`398bf5c65`. The latest
 [SPI solver evidence](../../evidence/opentitan-spi-lazy-item-20260923/result.json)
 records a bounded runtime stall after UVM startup. The
 [CSRNG scheduler evidence](../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json)
@@ -69,13 +70,21 @@ links locally integrated ADC outer resize, SPI Device sparse-key constraint
 ADC inner sizes, full SPI Device DV, broad suites, and this branch's CI remain
 open.
 
-The [pinned Caliptra 52-case Verilator L0 evidence](../../evidence/caliptra-exact-l0-20260923/README.md)
-records the full exact-toolchain baseline and two focused, test-specific
-downstream firmware overlay replays. The DOE scan assertion remains failing;
-these results do not qualify the full Caliptra DV suite.
+The [latest pinned Caliptra L0 replay](../../evidence/caliptra-l0-52-and-full-dv-gap-20260923/full_l0_summary.json)
+records 51/52 selected passes with the two test-specific firmware overlays;
+DOE scan alone remains failed on an intact assertion. The earlier
+[exact-toolchain baseline](../../evidence/caliptra-exact-l0-20260923/README.md)
+was 49/52. A [single CSRNG unit runtime](../../evidence/caliptra-csrng-unit-runtime-20260923/README.md)
+passes its explicit checks after a disposable filelist-order and include-path
+correction, while emitting unique-case warnings; the full DV suite remains
+unqualified.
 
-The [DOE source diagnosis and restored Verilator recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json)
-records the unresolved reset-window failure; the intact test remains unqualified.
+The [DOE passive timing trace](../../evidence/caliptra-doe-root-cause-20260923/assessment.md)
+confirms that Verilator retains a pre-reset `|=>` attempt that IEEE `disable iff`
+requires it to abort; no fresh post-reset antecedent was sampled. The earlier
+[source diagnosis and restored Verilator recheck](session_logs/2026-09-23_caliptra_doe_verilator_defuture_blocker.json)
+identify the defutured implication mechanism. The intact DOE test remains a
+strict L0 failure until a corrected simulator passes it without SVA errors.
 
 The [Caliptra KV SVA diagnostic overlay replay](session_logs/2026-09-23_caliptra_kv_sva_overlay_l0.json)
 is scoped to pinned Caliptra `v2.1.2` and Verilator. It removes false-antecedent

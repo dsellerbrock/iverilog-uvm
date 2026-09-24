@@ -1,0 +1,61 @@
+{
+  "source_sha256": "a1a52ab4fabb0006090321d30a75e0f07b17ef0ef057207cf7bfd82f6b27f48e",
+  "iverilog_sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2",
+  "vvp_sha256": "f2a05ce45cdb2271af25dee78f62203926a34844cd202192e5af4c69ab3829ab",
+  "runs": [
+    {
+      "edition": "2017",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2017",
+          "-gassertions",
+          "-s",
+          "doe_reset_causality",
+          "-o",
+          "/tmp/caliptra-doe-root-cause-2017.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-doe-root-cause-20260923/doe_reset_causality.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/caliptra-doe-root-cause-2017.vvp"
+        ],
+        "exit": 0,
+        "stdout": "RESULT pre=0 post=1 control=1\n",
+        "stderr": ""
+      }
+    },
+    {
+      "edition": "2023",
+      "compile": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+          "-g2023",
+          "-gassertions",
+          "-s",
+          "doe_reset_causality",
+          "-o",
+          "/tmp/caliptra-doe-root-cause-2023.vvp",
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-doe-root-cause-20260923/doe_reset_causality.sv"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "run": {
+        "command": [
+          "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+          "/tmp/caliptra-doe-root-cause-2023.vvp"
+        ],
+        "exit": 0,
+        "stdout": "RESULT pre=0 post=1 control=1\n",
+        "stderr": ""
+      }
+    }
+  ]
+}

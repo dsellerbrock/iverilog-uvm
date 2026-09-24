@@ -1,0 +1,4 @@
+WARNING: /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/unique_case_pair.sv:6: value is unhandled for priority or unique case statement
+         Time: 0  Scope: unique_case_pair
+PAIR x=xx match=01
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/unique_case_pair.sv:22: $finish called at 1 (1s)

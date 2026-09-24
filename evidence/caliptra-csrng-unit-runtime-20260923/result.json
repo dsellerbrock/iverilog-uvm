@@ -1,0 +1,44 @@
+{
+  "scope": "One bounded standalone CSRNG unit-test runtime using Icarus/VVP; not full DV qualification",
+  "pinned_release": {
+    "caliptra": "v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams_bridge": "v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0"
+  },
+  "official_release_invocation": "VCS per pinned Caliptra README Unit Test VCS Steps: compile with src/csrng/config/csrng_tb.vf and top csrng_tb, then simulate.",
+  "runtime_command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-header-closure-20260923/csrng_tb.vvp"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unit-runtime-20260923",
+  "runtime_timeout_seconds": 60,
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 7.497,
+  "tools": {
+    "iverilog": "Icarus Verilog 13.0 (devel)",
+    "runtime": "VVP 13.0 (devel), matching Icarus Verilog installation"
+  },
+  "compile_artifact_sha256": "c8c0535609bf822e6285ff9c65598a52d9c6511fa45e55d108008d1d84fa6596",
+  "source_sha256": {
+    "src/csrng/tb/csrng_tb.sv": "e51850a531a54c3daef0f5fb5b397f0886957bd1149b9cc5677586b2df38583a",
+    "src/csrng/config/csrng_tb.vf": "78614e6aa69492f44feadd10d8f2243e88e1143bf0cb08ac9dbbc965b9236bc6",
+    "src/csrng/stimulus/tests/directed/csrng_test.yml": "4c31b5c01f348ff9fa784a554ae3d292375dc7d60d0ada237ef22205aac75c73"
+  },
+  "stimulus_inputs": "No external vector/readmem inputs found; directed stimulus and expected values are embedded in csrng_tb.sv. The source calls run_entropy_source_seed_test() and run_smoke_test().",
+  "checkers": {
+    "testcase_passed_markers": 1,
+    "testcase_failed_markers": 0,
+    "got_want_mismatch_lines": 0,
+    "expected_GENBITS_reads_in_source": 36,
+    "observed_GENBITS_reads": 36,
+    "unique_case_unhandled_warnings": 252,
+    "checker_counters_caveat": "The pass path checks error_ctr == 0, but tc_ctr is only initialized (never incremented), yielding the literal summary \u201cAll 00 test cases completed successfully.\u201d"
+  },
+  "first_runtime_issue": "No mismatch or testbench failure was observed. The first non-pass diagnostic is a simulator warning at csrng_reg_top.sv:2386 about an unhandled priority/unique-case value; 252 such warnings occurred.",
+  "raw_logs": {
+    "stdout_sha256": "bbaa8044919fcd94491fb96155596d8dbf4d3b63c501b1f539cd6b9fbffa5e9d",
+    "stdout_bytes": 60731,
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_bytes": 0
+  }
+}

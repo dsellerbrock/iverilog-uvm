@@ -1,0 +1,971 @@
+{
+  "recorded_utc": "2026-09-23T16:38:51.431997+00:00",
+  "scope": "Pinned-release Verilator L0 with selected KV SVA overlay; not full VCS/UVMF DV",
+  "release": {
+    "caliptra": "v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams_bridge": "v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0"
+  },
+  "toolchain": {
+    "name": "xPack GNU RISC-V Embedded GCC 15.2.0-1 darwin-arm64",
+    "official_archive_sha256": "6588e8351455fad8aca37551f0e5a5543f3346bfa9a837cf03cbd3bdd4989f8f",
+    "multilib": "rv32imc/ilp32"
+  },
+  "options": {
+    "BUILD_CFLAGS": "-std=gnu11 -O2",
+    "CALIPTRA_INTERNAL_TRNG": "1",
+    "PLAYBOOK_RANDOM_SEED": "1",
+    "VERILATOR": "verilator -Wno-MISINDENT",
+    "sim_plusarg": "+CLP_REGRESSION",
+    "command_timeout_seconds": 600
+  },
+  "runner_sha256": "8ac8a0d620bf8ae025fdaa407256b52f46531c591bd5ba22e31c0c00a556ef83",
+  "source_file_sha256": {
+    "src/integration/asserts/caliptra_top_sva.sv": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+    "src/integration/test_suites/smoke_test_hw_config/caliptra_isr.h": "db796220e45fd7bfcb21906bd167ee49d89611d83d2db4d8d41f764e5898b1c8",
+    "src/integration/test_suites/smoke_test_hmac_errortrigger/smoke_test_hmac_errortrigger.c": "c5c056fbbc10950f61bb5295e73f2c410ff32bdea1350d73db6e82d590623edb"
+  },
+  "result": {
+    "selected": 52,
+    "passed": 49,
+    "failed": 3,
+    "firmware_build_failures": 2,
+    "sva_failures": 1,
+    "timed_out": 0,
+    "passed_elf_with_A_extension": 0,
+    "runner_exit_code": 1
+  },
+  "tests": [
+    {
+      "test": "smoke_test_veer",
+      "classification": "pass",
+      "result_sha256": "0ac281d99e4b63359b529afb79e7182a52b0e05078090dfb13f361edcd0bb04c",
+      "sim_log_sha256": "3b7375554f74ad6cc2c8f8ab76c812c987a9f23666664c711c92e3ab5d5a8d41",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mbox",
+      "classification": "pass",
+      "result_sha256": "4f996df122549e3ad6ad23a828d325a8048b1f664b69f3e90d74803b25ce076a",
+      "sim_log_sha256": "1a054872794bad9d42c5644564860dfeb321ef8fe166202d9958591515e25e9d",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mbox_byte_read",
+      "classification": "pass",
+      "result_sha256": "6b6bfa6b8b9bd9d0a6d1c7dee1126bafca240cb778024d06936b3f1a759771ef",
+      "sim_log_sha256": "6daf4d554211726f4574cf84f944578e37891430170192f5812fda7c49858f0a",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha512",
+      "classification": "pass",
+      "result_sha256": "6460142dfd0305cb6a019b6d1291c7a3849d5bb2407c087ca96a45c1a8e00790",
+      "sim_log_sha256": "99aa00f1d77b6fbf1a0c051e391563bbfeab724cb676acd5a24095501a942546",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha512_restore",
+      "classification": "pass",
+      "result_sha256": "b834e0ed829d03058a66ef8472946f1602af64ec2b9de333308d1846dce53741",
+      "sim_log_sha256": "6cdac669ae973ee1f47a9a6e324b0f65da9f4c5a943f870b8c7a7a0fb9e686f8",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha256",
+      "classification": "pass",
+      "result_sha256": "fb8bb90d970de443a0739d993d6e12f98b01af4355920cdefe91d9f6ddd0644a",
+      "sim_log_sha256": "cab204452a03bc556dd5928370c40888279b5dc060f62268285dd0d1bca83b93",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha256_wntz",
+      "classification": "pass",
+      "result_sha256": "1f1707ca2630d023e4482017cd656bc11d870bf379be5b6d9d7e2491255616df",
+      "sim_log_sha256": "799f58c737af9809c13b33cabb3d9b23ca8edad7ea400ea80c54b1ecc3ac522a",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha256_wntz_rand",
+      "classification": "pass",
+      "result_sha256": "80088001209fc98fb342d2d5005a1385803508c700886db234d1bd3b564f2ae2",
+      "sim_log_sha256": "dd966ba5181ac8b7fd7c8bab38d03ee26f11b6ce06a887faf8349e731fcbd364",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha3",
+      "classification": "pass",
+      "result_sha256": "6551e80a54fd0d8aa32cdd4f1a8505a9cc06b94da8ee15a527d75905266afb5c",
+      "sim_log_sha256": "d7d90ce6e398b49560d5c792b8cb165c443cf1a5f032ee53f7e10ac2d844105c",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha3_interrupt",
+      "classification": "pass",
+      "result_sha256": "a319a82071dd1b2a10a3bc044c6dc70d31d9ad0b3db82dac93fc62c527a03478",
+      "sim_log_sha256": "d5ac92b4179324f7045dd3624bf23aa72c793f42fa9bbc990403aa2c6de004f5",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha3_regs",
+      "classification": "pass",
+      "result_sha256": "8e364a0add8157549493b7eb38619bf8d26f766d6039bdad1f9189811ebe3742",
+      "sim_log_sha256": "ae15b7a6f94433595738601c6c53fb408780e32c9d98b864249c185aff55e88a",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_cshake",
+      "classification": "pass",
+      "result_sha256": "65b0f6b11008e77853430ad2d72207beb5ea079bdd051e864bcec40276389770",
+      "sim_log_sha256": "f43c3354e7126f8fb1287c8700b68cc5c976173c75bafc26dcf06cd11f493c24",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sha_accel",
+      "classification": "pass",
+      "result_sha256": "ceb0844be9a5e5b1b309a66efd68906a4a02787e21ee4544f79309a60348bf4e",
+      "sim_log_sha256": "1d33a586e2e9a4c6e98a0aca779d77e2f29f1d89d2b6552f72797d76b13c194d",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "memCpy_ROM_to_dccm",
+      "classification": "pass",
+      "result_sha256": "a6ceecce478deba11f297a2da2fd2b8befbe0aaf47fc479a64cdc985b3c65062",
+      "sim_log_sha256": "cebdd020f1be4f84313776667684e4957be6614e804a890c0c8915873e853a94",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "memCpy_dccm_to_iccm",
+      "classification": "pass",
+      "result_sha256": "cf42258a8bd3e7002afdf0687cab8614e3977ff7fbdd8b37e104cb7cca1769a4",
+      "sim_log_sha256": "cebdd020f1be4f84313776667684e4957be6614e804a890c0c8915873e853a94",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "hello_world_iccm",
+      "classification": "pass",
+      "result_sha256": "32bc222737db2b2a92886cdbdd33097ae4fe9e52936f7bbded3a5f55154d1bee",
+      "sim_log_sha256": "f7e0edfe31b61837e9d17a25b8b476b4ee248a3d124afbc2ee828ca3e0631f14",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "iccm_lock",
+      "classification": "pass",
+      "result_sha256": "8595ae6b2c3a0d731a339c0a4df00b7cca7b4eb862b576a0393f3718d7c54b7b",
+      "sim_log_sha256": "da17501029a925459ffa61e380b3b19abc50521667062d845eb17f0e3d1ade28",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "c_intr_handler",
+      "classification": "pass",
+      "result_sha256": "66829276a7cffbe698d7d70ab8b4019b9d8d9cef8471be1a76fad59562d75470",
+      "sim_log_sha256": "490025ffb155d4d3d66a4f33ceee6f226dfa92bfe617ebba3eeefcfe824ded8a",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_hmac",
+      "classification": "pass",
+      "result_sha256": "056ea608e9ec87f6423be4595b9fe9ceac9548ecaf3820ee2884f753c65b4449",
+      "sim_log_sha256": "4e3c8b77f36fce6088955f7378e5c4deb18bcb3b4bd65bed43be40673ee1134a",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_aes_gcm",
+      "classification": "pass",
+      "result_sha256": "6099957c8e678b3364adc62fdbdfcc06039461585196d022fe9086f9d3251ceb",
+      "sim_log_sha256": "b403f4a0cfba5d9a113b72542247d1b852c6dc4f95e501c9e33c29a29a632e35",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_aes_kv_rand",
+      "classification": "pass",
+      "result_sha256": "94dc5335ead1fc4b857c4ff8cbc9d5486e6fba254ec6093442fe75aa4d138828",
+      "sim_log_sha256": "706f64f6a21ce8c6b8bfef9b6b58e83687245fe0e65a591211c3c752f68faf97",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mldsa_edge",
+      "classification": "pass",
+      "result_sha256": "9a9f623bdfc4d22b0a9126bc43ed7d55da3500e75e80d057f067b9563b87440a",
+      "sim_log_sha256": "1517c65ed9d734bce290092c792b037b3f9ca8bac31f056a19d8d77c6115a624",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv",
+      "classification": "pass",
+      "result_sha256": "d3b4c5f7d3a87e70e951575f17b6c405b8a571a69c587432a43c4de6097d634a",
+      "sim_log_sha256": "e51446118261981de9cfd86f1f34a41845dabf2979926bcce8bb12712c6c688f",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_sram_ecc",
+      "classification": "pass",
+      "result_sha256": "a2c16ba3a01dff7936afee8328c84d1ec530998625bdb45cecc3cdeb2f8845f0",
+      "sim_log_sha256": "7b0f7a21f92a2dde735049c81d945803710b8d02a6337c38817ea63151a067af",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_trng",
+      "classification": "pass",
+      "result_sha256": "2faf201e54582bf36bed95a29236313e7d81a20a4182954098b493adc6e75e92",
+      "sim_log_sha256": "9fd0ef3885a3c3b53b1d810ce1e33b2816d2975198128d1f5a302a4e127a4666",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_hw_config",
+      "classification": "firmware_build",
+      "result_sha256": "a56fdd86d68268fa9472b0fab3c3a737c806ce41a97e16f8a7fadc41b0745997",
+      "sim_log_sha256": null,
+      "command_exit_codes": [
+        2
+      ],
+      "pass_banners": 0,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false
+      ],
+      "elf_arch": null
+    },
+    {
+      "test": "smoke_test_strap",
+      "classification": "pass",
+      "result_sha256": "73d97df3d4b62c0359bcb232ea9cdfc0aaf2436d28d52d6aedbaa20eeb6731fd",
+      "sim_log_sha256": "eb87d68330fbe5c4e907a002b8650afb7dea1a9e30b8f210400838bda098f466",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_uds_reset",
+      "classification": "pass",
+      "result_sha256": "f3a443a6cdd14541f53e898d92a93795d546e2e0e08835b87e95afec7b6b4ca5",
+      "sim_log_sha256": "4c02f0066cc6d7224f9b182ca08780ebcc3a8a35693aa460f0b898f7096bb7b5",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_securitystate",
+      "classification": "pass",
+      "result_sha256": "f4c247372e2338ed73e7c36a6e8070c8319da6a5be156eb078ff932c260d6273",
+      "sim_log_sha256": "505c3268de325570d17157e39fc5663c581454f3f14dd734fb779409cd9af1e3",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_hmac_flow",
+      "classification": "pass",
+      "result_sha256": "313908692b64e21ee92f160b197c13f66d0a90cd7708cf735ce7614065a62c4f",
+      "sim_log_sha256": "6ed648e5454b0e7262eae70302f68c23bb60b75dd06bfe47bc517bac0de66560",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_doe",
+      "classification": "pass",
+      "result_sha256": "426f8079663cd07c7947839a954710b2b15aa3df450dd938d50c2050d7ac6671",
+      "sim_log_sha256": "e2c5aa7e554ac33de8b87fe17bc7d4d48203177c20dbd62d5d7592e2abe0d96b",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mlkem_locked_api",
+      "classification": "pass",
+      "result_sha256": "07912b5a1b55fc722131bc481e6209b1f7fefa66f6792986acbc6fe650864619",
+      "sim_log_sha256": "1e60879e0175907b62a29cb3e19e8b90f40f774da6152997b7017644c8a4c59c",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_mldsa",
+      "classification": "pass",
+      "result_sha256": "fd74b8a2a9e1f8f40f967c20158f4da172417b151f64cba9c7dd496723f963fb",
+      "sim_log_sha256": "081e6a3a992f578d3b95397079e0ef0275bc2ed2b670601ec6c43acc8a0198cb",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "pv_hash_zeroize",
+      "classification": "pass",
+      "result_sha256": "eea5dc702c16ce60e08ced8807003f26771bb34b1bbf97618406b25151276932",
+      "sim_log_sha256": "8d2d2610c30cf0131c02f28f26c39e90150981ecf6ca67f01c0417a90b4cc0e2",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_fw_kv_backtoback_hmac",
+      "classification": "pass",
+      "result_sha256": "be15b58fe4d3beaa6082e582adefdba708ec58a0dcf9c26fad6f256a10f272b9",
+      "sim_log_sha256": "5d6dac17fd95536d21dcc0092011c7da215397199ac2c83a3f3d29817083713b",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_hmac_errortrigger",
+      "classification": "firmware_build",
+      "result_sha256": "40b12a62dd09882822d8032f31b92840238b95101b5eb4a659b65818f65c8a84",
+      "sim_log_sha256": null,
+      "command_exit_codes": [
+        2
+      ],
+      "pass_banners": 0,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false
+      ],
+      "elf_arch": null
+    },
+    {
+      "test": "smoke_test_mldsa_zeroize",
+      "classification": "pass",
+      "result_sha256": "8703424d6f1199d488ddba46b7d832c45ee4f934d1354bcebed7f7b25d3fb60e",
+      "sim_log_sha256": "43cfe949f8cfd4e7ebad8f81464fea5519dfc7efc8c15b711c55bebeee289cff",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_pcr_zeroize",
+      "classification": "pass",
+      "result_sha256": "188305a4c7d9dca23c9e03cf7e9dc6a9b14171fff0ba1853365ad17705ed428e",
+      "sim_log_sha256": "0ea7bfccd5401ef6dafb46ed75d3422b5298f55d907cdc3374a72291d051843a",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_ahb_mux",
+      "classification": "pass",
+      "result_sha256": "fe730d3489d4031482e73000d12534cb19b8d7b130ce43fe2dc755cb2a50c741",
+      "sim_log_sha256": "188503a258b5c23eadd632ffbab9f40f241cadf5bbe4e09e24b691bfb559218b",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_doe_rand",
+      "classification": "pass",
+      "result_sha256": "e5ac353d59067f10d2cc297bf22a8086f111a7d1b18495acb2678d24a73db1b0",
+      "sim_log_sha256": "472b6475c9d05b4c73978af0168ec91cbdd8d48e4437ea99661cd5ebcf18a791",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_doe_scan",
+      "classification": "sva_failure",
+      "result_sha256": "80e953044263d3954f53fed0da61d30681cf3cf8bbbe9cbf715dd62bc5403f01",
+      "sim_log_sha256": "7117cbc4e8a7e2669fe246c14de82e679005aca1ad86f65079a99658aa6181b7",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 1,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_zeroize_crypto",
+      "classification": "pass",
+      "result_sha256": "7cba3269ae620ad387a7a829507fc2f3d2dc0601740e7d22bae020cee52823d9",
+      "sim_log_sha256": "06417ea6a8e117b6faa9961db0a09d73cd81b1acda837e3d8a8b21c450500003",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_rules_ocp_lock",
+      "classification": "pass",
+      "result_sha256": "e9c194d374b277f9afba958810db4224591854c299ed41ec9162a147ad19b99b",
+      "sim_log_sha256": "1165b343e539f1d8c925e2f502027d9b3bd317441407fc9802a1e97d31884a21",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_hek_flow",
+      "classification": "pass",
+      "result_sha256": "c52b26d2195700b4fe3d52b519a94b332e2af942b71bef3d41d4ef3f4eae5e41",
+      "sim_log_sha256": "28a9e37e587f6381c1a64b25791ccebc557d3ff6694e8832fcec3f48b3e2642f",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_datavault_basic",
+      "classification": "pass",
+      "result_sha256": "35524d94186327fad4400343db10f43e6653a47ea7bd79c0bf681e57ab82fbff",
+      "sim_log_sha256": "76de2a788cabab7ea19295abfc24741950a07d5157abe4d3ab8eb954305c73a6",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_wdt",
+      "classification": "pass",
+      "result_sha256": "daaadfa306448a502b2328c4c7981bba636442729c3855af65d477f78dbb8e27",
+      "sim_log_sha256": "ea6dd2fde233cc4edd72c0371b248f8890dec020d34ff491d99b288d49cb4fdc",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_iccm_reset",
+      "classification": "pass",
+      "result_sha256": "0ae553167b79cd5b61a7e5e092efc267138474343557e79311085e08eb3f872f",
+      "sim_log_sha256": "40799b54245ff70d74aa3fbd9103bda3e8b75842883d8cec34408cbf87a0cd5d",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mlkem",
+      "classification": "pass",
+      "result_sha256": "d61093944a2418dfbac79a4e7789a15263928bc2cf5429fbdd564c232a2436b8",
+      "sim_log_sha256": "51d41a1b97845406b7383b01516821b2ec68486353a5af78d815ba83a3d8ea96",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mlkem_kv",
+      "classification": "pass",
+      "result_sha256": "b0ae0826bc58d807f285065f643f8a71322f2fe1dc5d09ff40b4bd8194395119",
+      "sim_log_sha256": "3b9af5e899ba959330967693bcb752c4b79c1ec27ae661f8e4dd600f188abdc9",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mlkem_shared_key",
+      "classification": "pass",
+      "result_sha256": "a0fb4c9829eefa18564b5a8fb3564cf88432dacbbc6354322482a47dd9b10512",
+      "sim_log_sha256": "0bcd45e88d2b6465371d8224aac4effd48111dc6235505e6132a4841ad48a576",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_kv_lock_use_mid_read",
+      "classification": "pass",
+      "result_sha256": "d3fe4c235afd60aa932e52b4d9108564e93ee790401e83ac9057d6f127149e42",
+      "sim_log_sha256": "cc55039b93b3f4da1a098c123027b8a4e7c678b8734bb2da60f775db3ce34d42",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    },
+    {
+      "test": "smoke_test_mlkem_kv_endian",
+      "classification": "pass",
+      "result_sha256": "899eb67850812922525d4d134f3c09722200e2594f6a3df075e6939d88be1146",
+      "sim_log_sha256": "f598d9fdf72b26a7944d75d0ffdcb50655d4ef5126fd5c48c64ca40860bacbb9",
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "timed_out": [
+        false,
+        false
+      ],
+      "elf_arch": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\""
+    }
+  ]
+}

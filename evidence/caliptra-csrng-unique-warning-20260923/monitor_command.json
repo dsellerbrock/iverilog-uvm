@@ -1,0 +1,10 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/monitor.vvp"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923",
+  "timeout_seconds": 60,
+  "exit_code": 0,
+  "elapsed_seconds": 7.184
+}
