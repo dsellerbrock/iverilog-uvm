@@ -73,14 +73,15 @@ recent_merges:
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
   id: OT-OTP-FIXED-SLICE-TO-QUEUE
-  phase: PRIVATE_QUALIFIED_PR_PENDING_NO_DV_RUNTIME
+  phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME
+  pr: https://github.com/dsellerbrock/iverilog-uvm/pull/354
   owner: Delegated implementation agent owns implicated elaboration source and dedicated paired 2017/2023 tests; coordinator owns shared lists, builds, private compiler image, pinned release replay, broad gates, docs, and PR.
   reproducer: Pinned otp_ctrl_scoreboard.sv:1373-1377 assigns five fixed class-property slices to a queue. Paired class/direct fixed-slice REDs and a packed scalar part-select false acceptance are in /tmp/ot-otp-slice-queue-20260924/result.json; whole-array and pattern controls pass.
   expected: Queue receives the selected fixed unpacked elements in declared order as an independent copy. Preserve bounds, direction, type, receiver, and scalar-source legality.
   root_cause: Fixed unpacked range RHS reaches scalar property/direct indexing rather than a fixed-slice-to-container path; existing decoders can validate a selected range before typed queue assignment conversion.
   source_scope: Implicated elaboration source and dedicated paired tests only for implementation; no installed compiler, pinned source, Caliptra unsafe logic, or live runner edit.
   validation: Independently re-reviewed private ivl SHA-256 8b3a0c4058efb6fbee73d0f9c56d6da94f4c0818a9b87e8374b4166267286d00 closes the new-path visibility false acceptance and passes paired core 18/18, dedicated JSON 10/10, neighboring JSON 37/37, and negatives 155/155. Pinned OTP explicit errors fall 15 to 10 and exit 16 to 11; chip remains at 48 errors and its sensitivity assertion. Neither reaches DV runtime. See evidence/opentitan-otp-fixed-slice-queue-20260924/result.json.
-  next: Publish the narrow fix as a PR stacked on PR353. Do not install over live Caliptra tools, poll CI, or run GPU/Verilator.
+  next: Reduce the remaining alert_esc_if clocking-input mixed-driver diagnostics with paired 2017/2023 proof. Do not install over live Caliptra tools, poll CI, or run GPU/Verilator.
 completed_ot_packed_param_foreach:
   id: OT-OTP-PACKED-PARAM-FOREACH
   phase: PR_PUBLISHED_PINNED_COMPILE_ADVANCED_NO_DV_RUNTIME
@@ -283,4 +284,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Publish the independently reviewed fixed-slice-to-queue candidate as a separate PR stacked on PR353, then reduce the remaining alert_esc_if clocking-input mixed-driver diagnostics. The selected-52 Caliptra wrapper remains stopped after four completed diagnostic cases (one pass, three ERR_HWIF_IN failures); two child cases and sampled-HWIF probe VVP PID 98013 remain active outside any aggregate. Identify the sampled unknown field before another release run. Keep installed tools, pinned sources, and L0 checks intact; report compatibility and IEEE results separately, and do not run Verilator/GPU or poll CI."
+next_command: "PR354 is published stacked on PR353. Reduce the remaining alert_esc_if clocking-input mixed-driver diagnostics using paired 2017/2023 proof. The selected-52 Caliptra wrapper remains stopped after four completed diagnostic cases (one pass, three ERR_HWIF_IN failures); two child cases and sampled-HWIF probe VVP PID 98013 remain active outside any aggregate. Identify the sampled unknown field before another release run. Keep installed tools, pinned sources, and L0 checks intact; report compatibility and IEEE results separately, and do not run Verilator/GPU or poll CI."
