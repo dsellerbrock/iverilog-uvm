@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "pinned_revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+  "pristine_source": "/Users/danielellerbrock/projects/iverilog_uvm/clean-corpora/opentitan-7a3ad34/hw/ip/csrng/dv/tb.sv",
+  "pristine_sha256_before": "57cd498fa284ce107553050c17bbca22797030c30e643b2e3562877e5742ff52",
+  "pristine_sha256_after": "57cd498fa284ce107553050c17bbca22797030c30e643b2e3562877e5742ff52",
+  "disposable_root": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-blklen-overlay-xed0r3k6",
+  "patch_sha256": "04dd45643a684aa69ce1a94e67275c9ad0695a7251958ea893579a441901772d",
+  "dry_run": {
+    "command": [
+      "patch",
+      "--dry-run",
+      "-p1",
+      "-d",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-blklen-overlay-xed0r3k6/app",
+      "-i",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/release_overlays/opentitan/csrng_blklen_width.patch"
+    ],
+    "exit": 0,
+    "stdout": "patching file 'hw/ip/csrng/dv/tb.sv'\n",
+    "stderr": ""
+  },
+  "apply": {
+    "command": [
+      "patch",
+      "-p1",
+      "-d",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-blklen-overlay-xed0r3k6/app",
+      "-i",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/docs/conformance/release_overlays/opentitan/csrng_blklen_width.patch"
+    ],
+    "exit": 0,
+    "stdout": "patching file 'hw/ip/csrng/dv/tb.sv'\n",
+    "stderr": ""
+  },
+  "patched_sha256": "4e8ac42c67dbf7927538819a8447c2db670cbc08adff8b7eb35c131f0376fd93",
+  "compiler": {
+    "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-blklen-overlay-xed0r3k6/setup/sim-icarus",
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2017",
+      "-gcommercial-unsafe",
+      "-stb",
+      "-scsrng_cov_bind",
+      "-uvm",
+      "-DUVM",
+      "-DUVM_NO_DEPRECATED",
+      "-DUVM_REG_ADDR_WIDTH=32",
+      "-DUVM_REG_DATA_WIDTH=32",
+      "-DUVM_REG_BYTENABLE_WIDTH=4",
+      "-DUVM_REGEX_NO_DPI",
+      "-DSIMULATION",
+      "-DDUT_HIER=tb.dut",
+      "--uvm-home=/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/third_party/uvm-releases/sources/1.2/uvm-1.2/src",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-blklen-overlay-xed0r3k6/csrng.vvp",
+      "-c",
+      "lowrisc_dv_csrng_sim_0.1.scr"
+    ],
+    "exit": 0,
+    "error_lines": [],
+    "warnings": 20,
+    "stderr_log": "compile.stderr.log.gz",
+    "stdout_log": "compile.stdout.log.gz"
+  },
+  "preliminary_without_cov_bind_root": {
+    "exit": 1,
+    "error": "tb.sv:117: Unable to bind dut.u_csrng_cov_if; corrected by selecting csrng_cov_bind root"
+  },
+  "compiler_source_head": "df9f167f45e2aa7c4555e5d64192487cb00ed739"
+}

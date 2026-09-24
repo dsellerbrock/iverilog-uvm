@@ -1,24 +1,28 @@
 # Current evidence and work
 
-The current SPI Device/AON checkpoint is source `07d8ba6df`. Its
-[revision-scoped record](session_logs/2026-09-23_opentitan_spi_aon_postfix.json)
-owns the paired focus and neighbor totals. On unchanged pinned OpenTitan
-Earlgrey-PROD-M6 revision `a78922f14a8cc20c7ee569f322a04626f2ac6127`,
-the SPI Device fileset compiles with `-g2017 -gcommercial-unsafe` and no
-kind-26 errors after queue concatenation and constraint-context `inside`
-repairs. The configured `+UVM_TEST_SEQ=spi_device_flash_mode_vseq` smoke still
-fails at the JEDEC randomization enumeration limit. VVP exits 0 after the
-UVM_FATAL, which is not a test pass; an earlier attempt to run an abstract
-base sequence is excluded from application failure evidence. The released AON
-timer smoke passes at 348420188 ps with no UVM warnings, errors, or fatals
-after the mixed-VIF event-wait repair. These are one SPI fileset compile and
-one AON smoke, not full OpenTitan DV qualification. The raw [exact-source SPI
-compile](../../evidence/opentitan-spi-aon-postfix-20260923/spi-07d8ba6-compile.log.gz),
-[configured SPI smoke](../../evidence/opentitan-spi-aon-postfix-20260923/spi-07d8ba6-flash-smoke.log.gz),
-[AON compile](../../evidence/opentitan-spi-aon-postfix-20260923/aon-mixed-candidate-compile.log.gz),
-and [AON smoke](../../evidence/opentitan-spi-aon-postfix-20260923/aon-mixed-candidate-smoke.log.gz)
-are preserved. PR342 and PR343 are merged; PR344 CI remains pending at this
-checkpoint.
+[PR346](https://github.com/dsellerbrock/iverilog-uvm/pull/346) merged after
+exact-head CI success. The later CSRNG parser, solver, pinned-release overlay,
+and VVP loader fixes are committed locally; exact coupled distribution and
+time-zero scheduler candidates remain unpublished. The latest
+[SPI solver evidence](../../evidence/opentitan-spi-lazy-item-20260923/result.json)
+records a bounded runtime stall after UVM startup. The
+[CSRNG scheduler evidence](../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json)
+records a repaired pre-start stall and a separate UVM_FATAL at
+`cfg.randomize()`; the [paired guarded-`dist` reducer](../../evidence/opentitan-csrng-cfg-joint-dist-20260923/README.md)
+isolates the next solver restriction. Neither is a DV pass. The
+[post-load CSRNG reducer](../../evidence/opentitan-csrng-post-load-triage-20260923/README.md)
+and [pinned overlay guide](release_overlays/README.md) bound those attempts.
+The earlier [revision-scoped record](session_logs/2026-09-23_opentitan_spi_csrng_next.json)
+preserves the preceding `df9f167f4` observations; it is not current
+qualification. A [post-scheduler AON runtime replay](../../evidence/opentitan-aon-merged-scheduler-20260923/result.json)
+passes using the earlier pinned image and current installed VVP; it is one
+selected smoke, not a fresh compile or full DV. Full OpenTitan DV remains open.
+The [merged-branch legacy gate](../../evidence/ivtest-broad-gate-20260923/merged-gate-result.json)
+and [full JSON VVP regression](../../evidence/ivtest-broad-gate-20260923/merged-json-result.json)
+pass after focused test-oracle repairs: 6,458 legacy tests with no unexplained
+failures, 131/131 VPI, 155/155 negative, and 3,388/3,388 JSON. The real-DPI
+UVM umbrella passed 358/358 on the pre-merge candidate; it still requires
+exact-head CI confirmation for the combined branch.
 
 The preceding focused integration was at `0a902ee9f`, following constant
 unpacked-array membership support at `88f0e9044`. Its revision-scoped

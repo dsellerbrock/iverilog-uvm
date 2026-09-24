@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "sv_csrng_interface_array_missing_instance_fail.v",
+  "iverilog-args": ["-g2017", "-s", "sv_csrng_interface_array_missing_instance_fail"],
+  "gold": "sv_csrng_interface_array_missing_instance_fail"
+}

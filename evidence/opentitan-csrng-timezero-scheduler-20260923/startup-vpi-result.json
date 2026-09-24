@@ -1,0 +1,21 @@
+{
+  "vpi_build_exit": 0,
+  "runs": [
+    {
+      "edition": "2017",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED\n",
+      "runtime_stderr": ""
+    },
+    {
+      "edition": "2023",
+      "compile_exit": 0,
+      "compile_stderr": "",
+      "runtime_exit": 0,
+      "runtime_stdout": "PASSED\n",
+      "runtime_stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS scalar reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false
+  },
+  {
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS scalar reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false
+  }
+]

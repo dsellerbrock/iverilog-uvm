@@ -1,0 +1,20 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "binary_sha256": "f2a05ce45cdb2271af25dee78f62203926a34844cd202192e5af4c69ab3829ab",
+  "image_sha256": "932928e71a04af7f8be2a08eabecf6f96da81226bdf0c394033db0ed566d576c",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_seconds": 3.41,
+  "log": "/tmp/ivl-focus-20260923/csrng-timezero-smoke.pty.log"
+}

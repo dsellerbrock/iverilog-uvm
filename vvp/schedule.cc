@@ -1429,6 +1429,7 @@ void schedule_post_final(vvp_gen_event_t obj)
 }
 
 static bool sim_started;
+static bool init_events_running;
 
 bool schedule_simulation_started(void)
 {
@@ -1447,7 +1448,7 @@ void schedule_functor(vvp_gen_event_t obj)
 
       cur->obj = obj;
       cur->delete_obj_when_done = false;
-      if (!sim_started) {
+      if (!sim_started && !init_events_running) {
             schedule_init_event(cur);
       } else {
             schedule_event_(cur, 0, SEQ_ACTIVE);
@@ -1460,7 +1461,7 @@ void schedule_at_active_sync(vvp_gen_event_t obj)
 
       cur->obj = obj;
       cur->delete_obj_when_done = false;
-      if (!sim_started) {
+      if (!sim_started && !init_events_running) {
             schedule_init_event(cur);
       } else {
             schedule_event_(cur, 0, SEQ_ACTIVE_SYNC);
@@ -1691,7 +1692,28 @@ void schedule_simulate(void)
 	    vpi_mcd_printf(1, " ...propagate initialization events\n");
       }
 
-	// Execute initialization events.
+      // Execute the events queued while loading the design. Fanout produced
+      // by these events belongs to the time-zero slot, where it can run
+      // alongside procedural initial blocks. Draining newly generated
+      // events here could otherwise starve those blocks indefinitely if a
+      // continuous-assignment cone has feedback.
+      struct event_s*initial_events = schedule_init_list;
+      schedule_init_list = 0;
+      init_events_running = true;
+      while (initial_events) {
+	    struct event_s*cur = initial_events->next;
+	    if (cur->next == cur) {
+		  initial_events = 0;
+	    } else {
+		  initial_events->next = cur->next;
+	    }
+	    cur->run_run();
+	    delete cur;
+      }
+      init_events_running = false;
+
+      // Initialization requests made while executing the original list are
+      // also time-zero events, not another pre-simulation propagation pass.
       while (schedule_init_list) {
 	    struct event_s*cur = schedule_init_list->next;
 	    if (cur->next == cur) {
@@ -1699,8 +1721,7 @@ void schedule_simulate(void)
 	    } else {
 		  schedule_init_list->next = cur->next;
 	    }
-	    cur->run_run();
-	    delete cur;
+	    schedule_event_(cur, 0, SEQ_ACTIVE);
       }
 
       sim_started = true;

@@ -6471,13 +6471,12 @@ static void z3_flatten_conjunction_(Z3_context ctx, Z3_ast value,
       clauses.push_back(value);
 }
 
-/* Build the exact hard factor for one direct distribution subject. State and
+/* Build the isolated hard factor for one direct distribution subject. State and
  * earlier-stage pins are usable only when the solver contains a direct
  * equality that proves their ground value. Substitute those equalities to a
  * fixed point before selecting the subject clauses. A retained subject clause
- * with any other free constant is a coupled factor and is outside this exact
- * sampler; in particular, merely marking a property inactive is not proof that
- * it remains fixed under the negated-factor queries below. */
+ * with any other free constant is not usable by the interval/negated-factor
+ * fast path below. */
 static bool z3_isolated_subject_factor_(Z3_context ctx, Z3_solver base,
                                         Z3_ast subject, Z3_ast&factor)
 {
@@ -6555,9 +6554,16 @@ static bool z3_isolated_subject_factor_(Z3_context ctx, Z3_solver base,
  * merging their equal values prematurely.
  *
  * Ranges up to RANGE_EXPAND_CAP retain the bounded enumerator. Larger ranges
- * use exact interval discovery after proving either that the direct subject's
- * local hard factor contains no other free constant or that a compound subject
- * has exactly one value in the complete hard-constraint solution set.
+ * use exact interval discovery for isolated factors or singleton compound
+ * subjects. A direct unsigned subject with a coupled factor selects among
+ * weighted items, proves each selected item feasible before accepting it,
+ * and rejection-samples uniformly within it. Proven-infeasible items are
+ * removed before the next weighted draw; a bounded member miss falls back to
+ * exhaustive exact sampling of that same item. If item feasibility is
+ * indeterminate, the existing exhaustive projection checks each source range
+ * against the complete hard constraints. Rejection draws come only from the
+ * caller-supplied owner RNG stream, keeping seeded runs reproducible without
+ * advancing any other object's stream.
  * Unsupported large-range
  * shapes fail explicitly instead of silently using the probability-inexact
  * weighted-soft fallback. On success the winning value is pinned as a hard
@@ -6610,10 +6616,11 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
 
             Z3_ast sampling_subject = spec.subject;
             Z3_ast factor = nullptr;
+            bool coupled_projection = false;
             if (z3_direct_constant_(ctx, spec.subject)) {
                   if (!z3_isolated_subject_factor_(ctx, base, spec.subject,
                                                    factor))
-                        return unsupported();
+                        coupled_projection = true;
             } else {
                   Z3_sort subject_sort = Z3_get_sort(ctx, spec.subject);
                   if (Z3_get_sort_kind(ctx, subject_sort) != Z3_BV_SORT
@@ -6641,17 +6648,21 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                   factor = Z3_mk_eq(ctx, sampling_subject, value);
             }
 
-            Z3_solver positive = Z3_mk_simple_solver(ctx);
-            Z3_solver_inc_ref(ctx, positive);
-            Z3_solver negative = Z3_mk_simple_solver(ctx);
-            Z3_solver_inc_ref(ctx, negative);
-            Z3_solver_assert(ctx, positive, factor);
-            Z3_solver_assert(ctx, negative, Z3_mk_not(ctx, factor));
+            Z3_solver positive = nullptr;
+            Z3_solver negative = nullptr;
+            if (!coupled_projection) {
+                  positive = Z3_mk_simple_solver(ctx);
+                  Z3_solver_inc_ref(ctx, positive);
+                  negative = Z3_mk_simple_solver(ctx);
+                  Z3_solver_inc_ref(ctx, negative);
+                  Z3_solver_assert(ctx, positive, factor);
+                  Z3_solver_assert(ctx, negative, Z3_mk_not(ctx, factor));
+            }
             unsigned physical_width = Z3_get_bv_sort_size(ctx,
                   Z3_get_sort(ctx, sampling_subject));
             auto finish = [&](bool result) -> bool {
-                  Z3_solver_dec_ref(ctx, negative);
-                  Z3_solver_dec_ref(ctx, positive);
+                  if (negative) Z3_solver_dec_ref(ctx, negative);
+                  if (positive) Z3_solver_dec_ref(ctx, positive);
                   return result;
             };
             auto subject_coordinate = [&](const Z3Builder::DistBranch&br)
@@ -6689,6 +6700,176 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                   return result;
             };
 
+            // For large coupled ranges, select an item among the remaining
+            // positive-weight branches, prove its range is feasible, then
+            // rejection-sample uniformly within that item. Remove only items
+            // proven infeasible and redraw by aggregate weight; this is
+            // equivalent to choosing among feasible items by weight. A
+            // bounded sampling miss enumerates only the selected item, so it
+            // preserves that ticket and exactness. This path is limited to
+            // unsigned direct subjects and ranges that the exhaustive
+            // coupled path can already represent.
+            static const uint64_t COUPLED_DIST_ENUM_CAP = 16384;
+            if (coupled_projection && !validate_only
+                && !require_complete_ranges) {
+                  struct FastItem {
+                        const Z3Builder::DistBranch* branch;
+                        uint64_t first;
+                        uint64_t last;
+                        uint64_t aggregate_weight;
+                  };
+                  vector<FastItem> fast_items;
+                  uint64_t fast_weight_bound = 0;
+                  uint64_t fast_total_span = 0;
+                  bool fast_eligible = true;
+                  for (const auto&fast_branch : spec.branches) {
+                        if (!fast_branch.weight) continue;
+                        if (fast_branch.value_width == 0
+                            || fast_branch.value_width > 64
+                            || physical_width > fast_branch.value_width
+                            || fast_branch.comparison_signed) {
+                              fast_eligible = false;
+                              break;
+                        }
+                        uint64_t declared_span = 1;
+                        if (fast_branch.is_range) {
+                              if (fast_branch.hi < fast_branch.lo) continue;
+                              declared_span = fast_branch.hi
+                                    - fast_branch.lo + 1;
+                              if (!declared_span) {
+                                    fast_eligible = false;
+                                    break;
+                              }
+                        }
+                        uint64_t fast_weight =
+                              (uint64_t)fast_branch.weight;
+                        if (fast_branch.range_weight_per_value) {
+                              if (declared_span
+                                  > UINT64_MAX / fast_weight) {
+                                    fast_eligible = false;
+                                    break;
+                              }
+                              fast_weight *= declared_span;
+                        }
+                        uint64_t first = fast_branch.lo;
+                        uint64_t last = fast_branch.is_range
+                              ? fast_branch.hi : fast_branch.lo;
+                        uint64_t image_hi = physical_width == 64
+                              ? UINT64_MAX
+                              : (((uint64_t)1 << physical_width) - 1);
+                        if (last > image_hi) last = image_hi;
+                        if (first > last) continue;
+                        uint64_t span = last - first + 1;
+                        if (!span || span > COUPLED_DIST_ENUM_CAP
+                            - fast_total_span) {
+                              fast_eligible = false;
+                              break;
+                        }
+                        fast_total_span += span;
+                        if (fast_weight_bound
+                            > UINT64_MAX - fast_weight) {
+                              fast_eligible = false;
+                              break;
+                        }
+                        fast_items.push_back({&fast_branch, first, last,
+                                              fast_weight});
+                        fast_weight_bound += fast_weight;
+                  }
+                  if (fast_eligible && !fast_items.empty()
+                      && fast_weight_bound) {
+                        while (!fast_items.empty()) {
+                              uint64_t fast_total_weight = 0;
+                              for (const auto&fast_item : fast_items)
+                                    fast_total_weight +=
+                                          fast_item.aggregate_weight;
+                              uint64_t item_ticket =
+                                    rng.uniform_u64(fast_total_weight);
+                              size_t selected_index = fast_items.size() - 1;
+                              for (size_t i = 0; i < fast_items.size(); ++i) {
+                                    if (item_ticket
+                                        < fast_items[i].aggregate_weight) {
+                                          selected_index = i;
+                                          break;
+                                    }
+                                    item_ticket -=
+                                          fast_items[i].aggregate_weight;
+                              }
+                              FastItem fast_selected =
+                                    fast_items[selected_index];
+                              Z3_lbool fast_active = exists_in(base,
+                                    *fast_selected.branch,
+                                    fast_selected.first, fast_selected.last);
+                              if (fast_active == Z3_L_UNDEF) {
+                                    fast_eligible = false;
+                                    break;
+                              }
+                              if (fast_active == Z3_L_FALSE) {
+                                    fast_items.erase(fast_items.begin()
+                                          + selected_index);
+                                    continue;
+                              }
+
+                              uint64_t fast_span = fast_selected.last
+                                    - fast_selected.first + 1;
+                              for (unsigned attempt = 0; attempt < 32;
+                                   ++attempt) {
+                                    uint64_t coordinate = fast_span == 1
+                                          ? fast_selected.first
+                                          : fast_selected.first
+                                                + rng.uniform_u64(fast_span);
+                                    Z3_ast pin = candidate_pin(coordinate,
+                                          fast_selected.branch->value_width,
+                                          false);
+                                    Z3_lbool feasible =
+                                          Z3_solver_check_assumptions(
+                                                ctx, base, 1, &pin);
+                                    if (feasible == Z3_L_UNDEF)
+                                          return finish(unsupported());
+                                    if (feasible != Z3_L_TRUE) continue;
+                                    Z3_solver_assert(ctx, base, pin);
+                                    Z3_optimize_assert(ctx, opt, pin);
+                                    chosen = coordinate;
+                                    return finish(true);
+                              }
+
+                              // Keep the same item ticket for exact fallback.
+                              vector<uint64_t> fast_values;
+                              for (uint64_t coordinate = fast_selected.first;;
+                                   ++coordinate) {
+                                    Z3_ast pin = candidate_pin(coordinate,
+                                          fast_selected.branch->value_width,
+                                          false);
+                                    Z3_lbool feasible =
+                                          Z3_solver_check_assumptions(
+                                                ctx, base, 1, &pin);
+                                    if (feasible == Z3_L_UNDEF)
+                                          return finish(unsupported());
+                                    if (feasible == Z3_L_TRUE)
+                                          fast_values.push_back(coordinate);
+                                    if (coordinate == fast_selected.last) break;
+                              }
+                              if (!fast_values.empty()) {
+                                    uint64_t coordinate =
+                                          fast_values.size() == 1
+                                                ? fast_values.front()
+                                                : fast_values[rng.uniform_index(
+                                                      fast_values.size())];
+                                    Z3_ast pin = candidate_pin(coordinate,
+                                          fast_selected.branch->value_width,
+                                          false);
+                                    Z3_solver_assert(ctx, base, pin);
+                                    Z3_optimize_assert(ctx, opt, pin);
+                                    chosen = coordinate;
+                                    return finish(true);
+                              }
+                              fast_eligible = false;
+                              break;
+                        }
+                        if (fast_eligible && fast_items.empty())
+                              return finish(false);
+                  }
+            }
+
             struct ExactInterval { uint64_t lo, hi; };
             struct ExactItem {
                   uint64_t aggregate_weight;
@@ -6699,6 +6880,13 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
             };
             vector<ExactItem> items;
             static const unsigned MAX_EXACT_INTERVALS = 64;
+            // With other random fields free, a subject value is feasible if
+            // some assignment to those fields completes the whole hard
+            // constraint set. Probe that existential projection directly
+            // with equality assumptions. Keep this exact path bounded;
+            // larger coupled ranges still fail instead of falling back to a
+            // biased approximation.
+            uint64_t coupled_probe_budget = COUPLED_DIST_ENUM_CAP;
             for (const auto&br : spec.branches) {
                   if (br.value_width == 0 || br.value_width > 64)
                         return finish(unsupported());
@@ -6739,6 +6927,49 @@ static bool z3_resolve_dist_exact(Z3_context ctx, Z3_solver base,
                   if (first < image_lo) first = image_lo;
                   if (last > image_hi) last = image_hi;
                   if (first > last) continue;
+                  if (coupled_projection) {
+                        // This projection path covers unsigned direct
+                        // properties. candidate_pin() applies the branch's
+                        // normal zero-extension when an unsized range is
+                        // wider than its subject; signed mappings stay on the
+                        // proven isolated path.
+                        if (br.comparison_signed)
+                              return finish(unsupported());
+                        uint64_t span = last - first + 1;
+                        if (span == 0 || span > coupled_probe_budget)
+                              return finish(unsupported());
+                        coupled_probe_budget -= span;
+                        bool in_run = false;
+                        uint64_t run_start = 0;
+                        for (uint64_t coordinate = first;; ++coordinate) {
+                              Z3_ast pin = candidate_pin(coordinate,
+                                    br.value_width, br.comparison_signed);
+                              Z3_lbool feasible = Z3_solver_check_assumptions(
+                                    ctx, base, 1, &pin);
+                              if (feasible == Z3_L_UNDEF)
+                                    return finish(unsupported());
+                              if (feasible == Z3_L_TRUE) {
+                                    if (!in_run) {
+                                          run_start = coordinate;
+                                          in_run = true;
+                                    }
+                                    ++item.feasible_count;
+                              } else if (in_run) {
+                                    item.intervals.push_back(
+                                          {run_start, coordinate - 1});
+                                    in_run = false;
+                              }
+                              if (coordinate == last) break;
+                        }
+                        if (in_run)
+                              item.intervals.push_back({run_start, last});
+                        if (require_complete_ranges && br.is_range
+                            && item.feasible_count != declared_span)
+                              return finish(false);
+                        if (item.feasible_count && item.aggregate_weight)
+                              items.push_back(std::move(item));
+                        continue;
+                  }
                   uint64_t cur = first;
                   for (;;) {
                         Z3_lbool any = exists_in(positive, br, cur, last);
@@ -7004,6 +7235,83 @@ static Z3_lbool z3_enumerate_joint_(Z3_context ctx, Z3_solver base,
             return Z3_L_TRUE;
       }
       return result;
+}
+
+/* Prove that a one-variable factor admits exactly [0, 2^bits).  This
+ * narrowly replaces complete tuple enumeration for bounded nested fields
+ * whose entire legal set is a power-of-two prefix.  The proof is semantic:
+ * isolate clauses containing `var`, find their greatest feasible value,
+ * then prove there is no hole below it.  Coupled/auxiliary factors and
+ * non-power-of-two sets are deliberately left to the exact enumerator. */
+static bool z3_full_power_two_domain_(Z3_context ctx, Z3_solver base,
+                                     Z3_ast var, unsigned&bits)
+{
+      bits = 0;
+      Z3_sort sort = Z3_get_sort(ctx, var);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
+          || Z3_get_bv_sort_size(ctx, sort) == 0
+          || Z3_get_bv_sort_size(ctx, sort) > 64)
+            return false;
+      unsigned width = Z3_get_bv_sort_size(ctx, sort);
+      Z3_ast factor = nullptr;
+      if (!z3_isolated_subject_factor_(ctx, base, var, factor)) return false;
+
+      Z3_solver proof = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, proof);
+      Z3_solver_assert(ctx, proof, factor);
+      if (Z3_solver_check(ctx, proof) != Z3_L_TRUE) {
+            Z3_solver_dec_ref(ctx, proof);
+            return false;
+      }
+
+      const uint64_t domain_max = width == 64 ? UINT64_MAX
+            : (((uint64_t)1 << width) - 1);
+      auto exists_at_or_above = [&](uint64_t lower, Z3_lbool&result) {
+            Z3_ast value = Z3_mk_unsigned_int64(ctx, lower, sort);
+            Z3_solver_push(ctx, proof);
+            Z3_solver_assert(ctx, proof, Z3_mk_bvuge(ctx, var, value));
+            result = Z3_solver_check(ctx, proof);
+            Z3_solver_pop(ctx, proof, 1);
+      };
+      uint64_t low = 0, high = domain_max;
+      while (low < high) {
+            uint64_t diff = high - low;
+            uint64_t mid = low + diff / 2 + diff % 2;
+            Z3_lbool result;
+            exists_at_or_above(mid, result);
+            if (result == Z3_L_TRUE) low = mid;
+            else if (result == Z3_L_FALSE) high = mid - 1;
+            else {
+                  Z3_solver_dec_ref(ctx, proof);
+                  return false;
+            }
+      }
+
+      uint64_t cardinality = 0;
+      if (low == UINT64_MAX) {
+            bits = 64;
+      } else {
+            cardinality = low + 1;
+            if (cardinality & (cardinality - 1)) {
+                  Z3_solver_dec_ref(ctx, proof);
+                  return false;
+            }
+            while (cardinality > 1) {
+                  ++bits;
+                  cardinality >>= 1;
+            }
+      }
+
+      Z3_ast maximum = Z3_mk_unsigned_int64(ctx, low, sort);
+      Z3_ast in_prefix = Z3_mk_bvule(ctx, var, maximum);
+      Z3_solver holes = Z3_mk_simple_solver(ctx);
+      Z3_solver_inc_ref(ctx, holes);
+      Z3_solver_assert(ctx, holes, Z3_mk_not(ctx, factor));
+      Z3_solver_assert(ctx, holes, in_prefix);
+      Z3_lbool hole = Z3_solver_check(ctx, holes);
+      Z3_solver_dec_ref(ctx, holes);
+      Z3_solver_dec_ref(ctx, proof);
+      return hole == Z3_L_FALSE;
 }
 
 /* IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9:
@@ -7895,9 +8203,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		  if (resolved) dist_resolved_vars.insert(spec.subject);
 	    }
 	    if (!resolved && spec.requires_large_exact && indeterminate) {
-		  fprintf(stderr, "ERROR: exact dist sampling failed: a large range "
-			  "requires one direct or provably singleton <=64-bit "
-			  "subject with an isolated ground hard-constraint factor.\n");
+		  fprintf(stderr, "ERROR: exact dist sampling failed: the large-range "
+			  "feasible set cannot be resolved exactly for this subject "
+			  "and constraint shape.\n");
 		  return false;
 	    }
 	    if (!resolved) {
@@ -8265,6 +8573,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             // Prove every complete factor before drawing. A cap/UNKNOWN after
             // choosing a weighted value could otherwise bias successful calls.
             vector<vector<vector<uint64_t> > > tables(components.size());
+            vector<bool> full_power_component(components.size(), false);
+            vector<unsigned> full_power_bits(components.size(), 0);
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   bool component_has_randc = any_of(components[ci].begin(),
                         components[ci].end(), active_randc_var);
@@ -8272,8 +8582,38 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                       && !(defer_ordered_joint_randc
                            && component_has_randc)) continue;
                   const char*reason = nullptr;
-                  if (z3_enumerate_joint_(ctx, base, components[ci], ENUM_DOMAIN_CAP, tables[ci], reason) != Z3_L_TRUE)
+                  Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
+                        components[ci], ENUM_DOMAIN_CAP, tables[ci], reason);
+                  if (enumerated != Z3_L_TRUE) {
+                        bool ordered_component = false;
+                        bool component_has_dist_spec = false;
+                        for (Z3_ast var : components[ci])
+                              ordered_component |= stages.count(var) != 0;
+                        for (const auto&spec : builder.dist_specs)
+                              component_has_dist_spec |= find(
+                                    components[ci].begin(),
+                                    components[ci].end(), spec.subject)
+                                    != components[ci].end();
+                        bool simple_component = components[ci].size() == 1
+                              && distributions[ci].empty()
+                              && !component_has_dist_spec
+                              && !component_has_randc
+                              && !ordered_component;
+                        if (enumerated == Z3_L_UNDEF && reason
+                            && strcmp(reason,
+                               "the complete joint solution set exceeds the enumeration limit") == 0
+                            && simple_component
+                            && z3_full_power_two_domain_(ctx, base,
+                                  components[ci][0], full_power_bits[ci])) {
+                              // The proof establishes a complete power-of-two
+                              // prefix, so uniform direct sampling is exactly
+                              // the same distribution as choosing uniformly
+                              // from its fully enumerated tuple table.
+                              full_power_component[ci] = true;
+                              continue;
+                        }
                         return fail_joint(reason);
+                  }
             }
             // IEEE 1800-2017 18.5.4 and IEEE 1800-2023 18.5.3 do
             // not define product weights (or any other combination rule) for
@@ -8553,6 +8893,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         Z3_solver_assert(ctx, base, pin);
                         Z3_optimize_assert(ctx, opt, pin);
                   };
+                  if (full_power_component[ci]) {
+                        unsigned bits = full_power_bits[ci];
+                        uint64_t chosen = 0;
+                        if (bits == 64) {
+                              chosen = ((uint64_t)root_rng.next() << 32)
+                                    | root_rng.next();
+                        } else if (bits != 0) {
+                              chosen = root_rng.uniform_u64((uint64_t)1 << bits);
+                        }
+                        pin_column(0, chosen);
+                        continue;
+                  }
                   if (bindings.size() > 1) {
                         set<Z3_ast> weighted;
                         for (const auto&binding : bindings)

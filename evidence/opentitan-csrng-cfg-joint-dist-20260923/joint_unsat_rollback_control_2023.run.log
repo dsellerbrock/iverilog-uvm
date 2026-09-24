@@ -1,0 +1,2 @@
+PASS joint UNSAT rollback
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-cfg-joint-dist-20260923/joint_unsat_rollback_control.sv:25: $finish called at 0 (1s)

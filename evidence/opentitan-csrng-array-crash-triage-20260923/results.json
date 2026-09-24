@@ -1,0 +1,327 @@
+{
+  "schema": 1,
+  "scratch": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o",
+  "tools": {
+    "iverilog": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "sha256": "1590b064aee694d390f8e18b1ca3469a5a47405397db9b8e385b6c5b41f1a5a2"
+    },
+    "vvp": {
+      "path": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "sha256": "db6f7715560d5084799c5c6eb41b850fa9a3e03df2aa65167546c80f1c6f4a9c"
+    }
+  },
+  "results": [
+    {
+      "case": "concat_driver_candidate",
+      "edition": "2017",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/concat_driver_candidate.sv",
+      "source_sha256": "c1d0553ef77e61e3cac428f21cb3a9b8f75584d97a540f6117e0a804fc522ece",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "concat_driver_candidate",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/concat_driver_candidate-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/concat_driver_candidate.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/concat_driver_candidate-2017.vvp"
+      ],
+      "runtime_exit": -6,
+      "runtime_stdout": "",
+      "runtime_stderr": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "runtime_timed_out": false,
+      "ir_array_line": 18,
+      "ir_array_excerpt": "v0x7cd2880060 .array \"words\", 0 0;\nv0x7cd2880060_0 .net v0x7cd2880060 0, 7 0, L_0x7cd28c0120; 1 drivers\n .packed_dims v0x7cd2880060_0, \"1:0,3:0\";\n .packed_dims v0x7cd2880060, \"1:0,3:0\";\nL_0x7cd28c0000 .part v0x7cd2880040_0, 0, 4;"
+    },
+    {
+      "case": "concat_driver_candidate",
+      "edition": "2023",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/concat_driver_candidate.sv",
+      "source_sha256": "c1d0553ef77e61e3cac428f21cb3a9b8f75584d97a540f6117e0a804fc522ece",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "concat_driver_candidate",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/concat_driver_candidate-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/concat_driver_candidate.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/concat_driver_candidate-2023.vvp"
+      ],
+      "runtime_exit": -6,
+      "runtime_stdout": "",
+      "runtime_stderr": "Assertion failed: (vsig), function get_word_size, file array.cc, line 483.\n",
+      "runtime_timed_out": false,
+      "ir_array_line": 18,
+      "ir_array_excerpt": "v0x7994880060 .array \"words\", 0 0;\nv0x7994880060_0 .net v0x7994880060 0, 7 0, L_0x79948c0120; 1 drivers\n .packed_dims v0x7994880060_0, \"1:0,3:0\";\n .packed_dims v0x7994880060, \"1:0,3:0\";\nL_0x79948c0000 .part v0x7994880040_0, 0, 4;"
+    },
+    {
+      "case": "net_array_candidate",
+      "edition": "2017",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_candidate.sv",
+      "source_sha256": "2a44a79dd11dd559af3bcfecdc30cb1c3d824086862695bc4335ac2707838470",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "net_array_candidate",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_candidate-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_candidate.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_candidate-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS net array word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "net_array_candidate",
+      "edition": "2023",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_candidate.sv",
+      "source_sha256": "2a44a79dd11dd559af3bcfecdc30cb1c3d824086862695bc4335ac2707838470",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "net_array_candidate",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_candidate-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_candidate.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_candidate-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS net array word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "net_array_port_candidate",
+      "edition": "2017",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_port_candidate.sv",
+      "source_sha256": "8f22170b9b56ae6ec4705b952ef7f6a491d80c4c797eba74a96f9c883e6bdfb7",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "net_array_port_candidate",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_port_candidate-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_port_candidate.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_port_candidate-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS net array port word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "net_array_port_candidate",
+      "edition": "2023",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_port_candidate.sv",
+      "source_sha256": "8f22170b9b56ae6ec4705b952ef7f6a491d80c4c797eba74a96f9c883e6bdfb7",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "net_array_port_candidate",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_port_candidate-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_port_candidate.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_port_candidate-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS net array port word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "variable_array_control",
+      "edition": "2017",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/variable_array_control.sv",
+      "source_sha256": "0ce8c423da6c4b60427d14c76c4bf5c0e378f273440f73935dd0ca8999e2c613",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "variable_array_control",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/variable_array_control-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/variable_array_control.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/variable_array_control-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS variable array word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "variable_array_control",
+      "edition": "2023",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/variable_array_control.sv",
+      "source_sha256": "0ce8c423da6c4b60427d14c76c4bf5c0e378f273440f73935dd0ca8999e2c613",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "variable_array_control",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/variable_array_control-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/variable_array_control.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/variable_array_control-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS variable array word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "single_packed_boundary",
+      "edition": "2017",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/single_packed_boundary.sv",
+      "source_sha256": "dfc25c96d5c3735006027c70a2bbb63c4932848109467b5513205dcc2592b7ae",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "single_packed_boundary",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/single_packed_boundary-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/single_packed_boundary.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/single_packed_boundary-2017.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS single-packed net array word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "single_packed_boundary",
+      "edition": "2023",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/single_packed_boundary.sv",
+      "source_sha256": "dfc25c96d5c3735006027c70a2bbb63c4932848109467b5513205dcc2592b7ae",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "single_packed_boundary",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/single_packed_boundary-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/single_packed_boundary.sv"
+      ],
+      "compile_exit": 0,
+      "compile_stdout": "",
+      "compile_stderr": "",
+      "runtime_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+        "-n",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/single_packed_boundary-2023.vvp"
+      ],
+      "runtime_exit": 0,
+      "runtime_stdout": "PASS single-packed net array word\n",
+      "runtime_stderr": "",
+      "runtime_timed_out": false
+    },
+    {
+      "case": "net_array_invalid_procedural",
+      "edition": "2017",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv",
+      "source_sha256": "c6a1fa8f7875c51d5c093493dae03716b079568f8bf49f0463bc81d33581b483",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2017",
+        "-s",
+        "net_array_invalid_procedural",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_invalid_procedural-2017.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv:3: error: 'words['sd0]' is not a valid l-value for a procedural assignment.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv:2:      : 'words['sd0]' is declared here as a wire.\nElaboration failed\n"
+    },
+    {
+      "case": "net_array_invalid_procedural",
+      "edition": "2023",
+      "source": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv",
+      "source_sha256": "c6a1fa8f7875c51d5c093493dae03716b079568f8bf49f0463bc81d33581b483",
+      "compile_command": [
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+        "-g2023",
+        "-s",
+        "net_array_invalid_procedural",
+        "-o",
+        "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-array-reducers-pvunqe3o/net_array_invalid_procedural-2023.vvp",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv"
+      ],
+      "compile_exit": 1,
+      "compile_stdout": "",
+      "compile_stderr": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv:3: error: 'words['sd0]' is not a valid l-value for a procedural assignment.\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-array-crash-triage-20260923/net_array_invalid_procedural.sv:2:      : 'words['sd0]' is declared here as a wire.\nElaboration failed\n"
+    }
+  ],
+  "source_head": "df9f167f45e2aa7c4555e5d64192487cb00ed739"
+}

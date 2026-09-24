@@ -1,0 +1,20 @@
+[
+  {
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "stdout": "",
+    "stderr": "Watchdog: 10000 events at sim time 0 ps -- bailing out\n",
+    "timed_out": false
+  },
+  {
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "stdout": "",
+    "stderr": "Watchdog: 10000 events at sim time 0 ps -- bailing out\n",
+    "timed_out": false
+  }
+]

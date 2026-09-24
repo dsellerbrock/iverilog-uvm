@@ -1,0 +1,50 @@
+[
+  {
+    "source": "packed_tri_feedback.sv",
+    "top": "packed_tri_red",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 2.004
+  },
+  {
+    "source": "packed_tri_feedback.sv",
+    "top": "packed_tri_red",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 2.002
+  },
+  {
+    "source": "tri_state_interface_feedback.sv",
+    "top": "tri_state_interface_feedback",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 2.004
+  },
+  {
+    "source": "tri_state_interface_feedback.sv",
+    "top": "tri_state_interface_feedback",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 2.002
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "source_head": "89eb21a3b4422471ac3a36cb3931e629ebc33599",
+  "vvp_sha256": "62e43683f9756f6180209f17827ed34d853757ec2a4ccd44a7e0a91078ca5855",
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-v",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "cwd": "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/setup/sim-icarus",
+  "pid": 20440,
+  "exit": -15,
+  "duration_seconds": 13.285,
+  "samples": [
+    {
+      "elapsed": 5.158,
+      "ps": "  PID ELAPSED  %CPU    RSS STAT COMMAND\n20440   00:04 100.0 295728 R    /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp -v -n /var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=csrng_smoke_test +UVM_TEST_SEQ=csrng_smoke_vseq\n",
+      "sample_command": [
+        "/usr/bin/sample",
+        "20440",
+        "1",
+        "-file",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/sample-5s.txt"
+      ],
+      "sample_exit": 0,
+      "sample_stdout": "",
+      "sample_stderr": "Sampling process 20440 for 1 second with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 20440 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/sample-4s.txt\n"
+    },
+    {
+      "elapsed": 13.28,
+      "ps": "  PID ELAPSED  %CPU    RSS STAT COMMAND\n20440   00:13  99.6 295728 R    /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp -v -n /var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp +UVM_NO_RELNOTES +UVM_VERBOSITY=UVM_LOW +cdc_instrumentation_enabled=1 +smoke_test=1 +UVM_TESTNAME=csrng_smoke_test +UVM_TEST_SEQ=csrng_smoke_vseq\n",
+      "sample_command": [
+        "/usr/bin/sample",
+        "20440",
+        "1",
+        "-file",
+        "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/sample-13s.txt"
+      ],
+      "sample_exit": 0,
+      "sample_stdout": "",
+      "sample_stderr": "Sampling process 20440 for 1 second with 1 millisecond of run time between samples\nSampling completed, processing symbols...\nSample analysis of process 20440 written to file /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/sample-12s.txt\n"
+    }
+  ],
+  "stdout_log": "verbose.stdout.log",
+  "stderr_log": "verbose.stderr.log"
+}

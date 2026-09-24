@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_csrng_interface_array_same_name.v",
+  "iverilog-args": ["-g2017", "-s", "sv_csrng_interface_array_same_name"],
+  "gold": "sv_csrng_interface_array_same_name"
+}

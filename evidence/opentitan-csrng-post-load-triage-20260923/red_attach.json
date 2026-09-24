@@ -1,0 +1,26 @@
+{
+  "compile_command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+    "-g2017",
+    "-s",
+    "packed_tri_red",
+    "-o",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-red-attach-kdi8bgys.vvp",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-post-load-triage-20260923/packed_tri_feedback.sv"
+  ],
+  "lldb_command": [
+    "lldb",
+    "-p",
+    "30073",
+    "--batch",
+    "-o",
+    "expr -- sim_started",
+    "-o",
+    "expr -- (unsigned long long)schedule_simtime()",
+    "-o",
+    "expr -- count_gen_events",
+    "-o",
+    "thread backtrace"
+  ],
+  "lldb_exit": 0
+}

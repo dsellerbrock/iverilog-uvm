@@ -1,0 +1,30 @@
+--- a/hw/ip/csrng/dv/tb.sv
++++ b/hw/ip/csrng/dv/tb.sv
+@@ -9,6 +9,9 @@
+   import csrng_env_pkg::*;
+   import csrng_test_pkg::*;
+   import prim_mubi_pkg::*;
++
++  // Matches csrng_core.BlkLen for the pinned Earlgrey-PROD-M6 release.
++  localparam int CsrngDrbgBlkLen = 128;
+ 
+   // macro includes
+   `include "uvm_macros.svh"
+@@ -147,7 +150,7 @@
+       $past(`CTR_DRBG_GEN_FIFO.fifo_incr_wptr) &&
+       `BLOCK_ENCRYPT_PATH.block_encrypt_aes_cipher_sm_err_o |=>
+       $past(`CTR_DRBG_GEN_FIFO.storage[0]
+-          [`CTR_DRBG_GEN.BlkEncAckFifoWidth-1 -: `CTR_DRBG_GEN.BlkLen]) !=
++          [`CTR_DRBG_GEN.BlkEncAckFifoWidth-1 -: CsrngDrbgBlkLen]) !=
+       $past(`BLOCK_ENCRYPT_PATH.cipher_data_out, 2), clk, !rst_n)
+ 
+   `define CTR_DRBG_UPD tb.dut.u_csrng_core.u_csrng_ctr_drbg_upd
+@@ -157,7 +160,7 @@
+       $past(`CTR_DRBG_UPD_FIFO.fifo_incr_wptr) &&
+       `BLOCK_ENCRYPT_PATH.block_encrypt_aes_cipher_sm_err_o |=>
+       $past(`CTR_DRBG_UPD_FIFO.storage[0]
+-          [`CTR_DRBG_UPD.BlkEncAckFifoWidth-1 -: `CTR_DRBG_UPD.BlkLen]) !=
++          [`CTR_DRBG_UPD.BlkEncAckFifoWidth-1 -: CsrngDrbgBlkLen]) !=
+       $past(`BLOCK_ENCRYPT_PATH.cipher_data_out, 2), clk, !rst_n)
+ 
+   // Assertion controls

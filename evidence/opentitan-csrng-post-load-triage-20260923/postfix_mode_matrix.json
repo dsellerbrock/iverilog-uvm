@@ -1,0 +1,112 @@
+[
+  {
+    "case": "packed_tri_feedback",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 1.504
+  },
+  {
+    "case": "packed_tri_feedback",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 1.504
+  },
+  {
+    "case": "mode_decl_init_control",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 1.504
+  },
+  {
+    "case": "mode_decl_init_control",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 1.504
+  },
+  {
+    "case": "mode_const0_control",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: z\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "duration_seconds": 0.007
+  },
+  {
+    "case": "mode_const0_control",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: z\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "duration_seconds": 0.007
+  },
+  {
+    "case": "mode_const1_control",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "duration_seconds": 0.007
+  },
+  {
+    "case": "mode_const1_control",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "duration_seconds": 0.007
+  },
+  {
+    "case": "mode_decl_all_control",
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "duration_seconds": 0.007
+  },
+  {
+    "case": "mode_decl_all_control",
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS red reached time one: 1\n",
+    "runtime_stderr": "",
+    "timed_out": false,
+    "duration_seconds": 0.007
+  }
+]

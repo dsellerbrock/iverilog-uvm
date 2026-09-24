@@ -1,0 +1,46 @@
+{
+  "runtime_command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "-n",
+    "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-smoke-overlay-rbv76ojq/csrng-smoke.vvp",
+    "+UVM_NO_RELNOTES",
+    "+UVM_VERBOSITY=UVM_LOW",
+    "+cdc_instrumentation_enabled=1",
+    "+smoke_test=1",
+    "+UVM_TESTNAME=csrng_smoke_test",
+    "+UVM_TEST_SEQ=csrng_smoke_vseq"
+  ],
+  "runtime_exit": -15,
+  "attempts": [
+    {
+      "command": [
+        "lldb",
+        "-p",
+        "20625",
+        "--batch",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "thread backtrace"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 20625\nProcess 20625 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x000000010484b450 vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 144\nvvp`vvp_vector4_t::set_bit:\n->  0x10484b450 <+144>: cmp    w2, #0x3\n    0x10484b454 <+148>: b.ne   0x10484b4dc               ; <+284>\n    0x10484b458 <+152>: ldur   q0, [x0, #0x8]\n    0x10484b45c <+156>: dup.2d v1, x8\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $0 = 0\n(lldb) thread backtrace\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n   * frame #0: 0x000000010484b450 vvp`vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t) + 144\n     frame #1: 0x00000001049b2cdc vvp`reduce4(vvp_vector8_t const&) + 364\n     frame #2: 0x00000001049b2b08 vvp`vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 36\n     frame #3: 0x00000001049aa07c vvp`vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 76\n     frame #4: 0x000000010486836c vvp`vvp_fun_concat8::run_run() + 104\n     frame #5: 0x00000001049a0bbc vvp`generic_event_s::run_run() + 52\n     frame #6: 0x00000001049a35a8 vvp`schedule_simulate() + 144\n     frame #7: 0x0000000104842014 vvp`vvp_run + 996\n     frame #8: 0x0000000104840dcc vvp`main + 1188\n     frame #9: 0x000000019b0c7e80 dyld`start + 6688\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "lldb",
+        "-p",
+        "20625",
+        "--batch",
+        "-o",
+        "expr -- (unsigned long long)schedule_simtime()",
+        "-o",
+        "thread backtrace"
+      ],
+      "exit": 0,
+      "stdout": "(lldb) process attach --pid 20625\nProcess 20625 stopped\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n       frame #0: 0x00000001049ab100 vvp`vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int) + 672\nvvp`vvp_vector4_t::vvp_vector4_t:\n->  0x1049ab100 <+672>: sub    w11, w21, w9\n    0x1049ab104 <+676>: ldr    x14, [x20, #0x8]\n    0x1049ab108 <+680>: add    w8, w8, #0x1\n    0x1049ab10c <+684>: ldr    x14, [x14, w8, uxtw #3]\nTarget 0: (vvp) stopped.\nExecutable binary set to \"/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp\".\nArchitecture set to: arm64-apple-macosx-.\n(lldb) expr -- (unsigned long long)schedule_simtime()\n(unsigned long long) $0 = 0\n(lldb) thread backtrace\n* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP\n   * frame #0: 0x00000001049ab100 vvp`vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int) + 672\n     frame #1: 0x00000001048a29ac vvp`vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**) + 296\n     frame #2: 0x00000001049b2b24 vvp`vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 64\n     frame #3: 0x00000001049aa07c vvp`vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&) + 76\n     frame #4: 0x000000010486836c vvp`vvp_fun_concat8::run_run() + 104\n     frame #5: 0x00000001049a0bbc vvp`generic_event_s::run_run() + 52\n     frame #6: 0x00000001049a35a8 vvp`schedule_simulate() + 144\n     frame #7: 0x0000000104842014 vvp`vvp_run + 996\n     frame #8: 0x0000000104840dcc vvp`main + 1188\n     frame #9: 0x000000019b0c7e80 dyld`start + 6688\n",
+      "stderr": ""
+    }
+  ]
+}

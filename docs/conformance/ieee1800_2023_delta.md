@@ -197,6 +197,14 @@ not establish complete clause or edition qualification.
 | 2026-09-04 clauses 5.6.1, 8.20, 18.6.2-18.6.3, and 18.11 — root randomize callbacks | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-04-dynamic-root-randomization-callbacks) |
 | 2026-09-04 clauses 18.6.2-18.6.3, 18.8 and 18.11 — enabled member callbacks | [Scope and evidence](matrices/ieee1800_2017_clause_matrix.md#2026-09-04-enabled-random-member-callback-increment) |
 | 2026-09-23 clause 18.12 — exact-or-bounded-size local integral queue scope randomization | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-exact-or-bounded-size-scope-queue-randomization) |
+| 2026-09-23 §§3.13/28.3.5 and 18.5.9/18.6.3 — CSRNG interface arrays and nested power-of-two sampling | [Shared scope and paired evidence](matrices/ieee1800_2017_clause_matrix.md#september-23-csrng-interface-arrays-and-nested-power-of-two-constraint-sampling) |
+
+For the CSRNG declaration/reference shape and isolated nested power-of-two
+solver domains, paired 2017/2023 runs found no edition-specific behavior in
+the tested subset. The common implementation and boundaries are owned by the
+2017 matrix; 2023 §18.5.9 corresponds to 2017 §18.5.10, with §18.6.3
+covered in the paired randomization checks. Broader interface,
+uniform-sampling, and application qualification remain open.
 
 Associative-array assignment patterns do not implement the separate 2023
 associative-array-typed parameter feature in the scoping table.
@@ -386,6 +394,10 @@ The [descendant automatic VIF event checkpoint](matrices/ieee1800_2017_clause_ma
 #### 2026-09-21: §18.5.3 large distribution range evidence
 
 The paired large-range tests retain original declared range mass after hard exclusions, as specified explicitly in 2023. See [shared revision-scoped evidence](session_logs/2026-09-21_exact_large_dist_focus.json) for implementation boundaries and passing local gates; the 2017 record does not assume identical normative wording.
+
+The later paired 2023 time-zero scheduler and bounded coupled-distribution
+checks share the [2017 common implementation scope](matrices/ieee1800_2017_clause_matrix.md#september-23-2026--time-zero-propagation-and-coupled-distribution-follow-on).
+No edition-specific behavior or full-clause qualification is claimed.
 
 #### 2026-09-21: §9.4.2 synchronous mixed event evidence
 

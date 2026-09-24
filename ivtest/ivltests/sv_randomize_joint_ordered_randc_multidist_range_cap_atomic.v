@@ -5,7 +5,7 @@ endclass
 class cap_item;
   randc bit cycle;
   rand bit early;
-  rand bit [8:0] first;
+  rand bit [14:0] first;
   rand bit second;
   rand cap_leaf child;
   int posts;
@@ -25,9 +25,10 @@ class cap_item;
     second == cycle;
     child.value == second;
   }
-  // The exact distribution resolver deliberately caps one expanded range at
-  // 256 values.  This 301-value range must reject the call before any draw.
-  constraint large_c { first dist {[0:300] := 1}; }
+  // This range exceeds the bounded coupled projection and must reject the
+  // call before any draw. The 301-value case remains a positive control.
+  constraint large_c { first dist {[0:20000] := 1}; }
+  constraint mid_c { first dist {[0:300] := 1}; }
   constraint small_c { first dist {0 := 1, 1 := 1}; }
   constraint second_c { second dist {0 := 1, 1 := 1}; }
 endclass
@@ -35,13 +36,14 @@ endclass
 module test;
   cap_item subject = new;
   cap_item control = new;
+  cap_item mid_control = new;
   string root_rng, child_rng;
   bit old_cycle, old_early, old_second;
-  bit [8:0] old_first;
+  bit [14:0] old_first;
   bit [7:0] old_child;
 
   initial begin
-    subject.cycle = 1; subject.early = 1; subject.first = 9'h1ff;
+    subject.cycle = 1; subject.early = 1; subject.first = 15'h7fff;
     subject.second = 1; subject.child.value = 8'hff;
     control.cycle = subject.cycle; control.early = subject.early;
     control.first = subject.first; control.second = subject.second;
@@ -50,7 +52,9 @@ module test;
     control.srandom(32'h52414e47); control.child.srandom(32'h52414e43);
 
     subject.small_c.constraint_mode(0);
+    subject.mid_c.constraint_mode(0);
     control.large_c.constraint_mode(0);
+    control.mid_c.constraint_mode(0);
     old_cycle = subject.cycle; old_early = subject.early;
     old_first = subject.first; old_second = subject.second;
     old_child = subject.child.value;
@@ -66,6 +70,16 @@ module test;
     if (subject.get_randstate() != root_rng
         || subject.child.get_randstate() != child_rng)
       $fatal(1, "range-cap failure changed RNG");
+
+    mid_control.large_c.constraint_mode(0);
+    mid_control.small_c.constraint_mode(0);
+    if (!mid_control.randomize() || mid_control.first > 300
+        || mid_control.early != mid_control.cycle
+        || mid_control.first != mid_control.cycle
+        || mid_control.second != mid_control.cycle
+        || mid_control.child.value != mid_control.second
+        || mid_control.posts != 1)
+      $fatal(1, "301-value ordered multi-dist control failed");
 
     subject.large_c.constraint_mode(0);
     subject.small_c.constraint_mode(1);

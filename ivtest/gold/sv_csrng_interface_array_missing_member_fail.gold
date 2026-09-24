@@ -1,0 +1,3 @@
+./ivltests/sv_csrng_interface_array_missing_member_fail.v:8: warning: Unable to bind wire/reg/memory `csrng_missing_member_if['sd0].absent' in `sv_csrng_interface_array_missing_member_fail' (compile-progress: unresolved reference).
+./ivltests/sv_csrng_interface_array_missing_member_fail.v:8: error: Unable to elaborate r-value: csrng_missing_member_if['sd0].absent
+1 error(s) during elaboration.

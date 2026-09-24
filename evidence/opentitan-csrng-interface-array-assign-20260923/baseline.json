@@ -1,0 +1,184 @@
+{
+  "schema": 1,
+  "source_head": "537c194542f2310ee3d3885008bf34dbbbdd8066",
+  "release": {
+    "name": "OpenTitan Earlgrey-PROD-M6",
+    "revision": "a78922f14a8cc20c7ee569f322a04626f2ac6127",
+    "source_modified": false
+  },
+  "compiler": "local-install/bin/iverilog",
+  "editions": {
+    "minimal_red": {
+      "sha256": "019af5776d7e9fd76472354f4234245e45addec4f3f9a5ed97e9dcdd4ccc52df",
+      "results": {
+        "2017": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2017",
+            "-s",
+            "minimal_red",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/minimal_red-2017.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv"
+          ],
+          "compile_exit": 2,
+          "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv:9: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv:9: error: Syntax error in continuous assignment\n"
+        },
+        "2023": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2023",
+            "-s",
+            "minimal_red",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/minimal_red-2023.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv"
+          ],
+          "compile_exit": 2,
+          "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv:9: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/minimal_red.sv:9: error: Syntax error in continuous assignment\n"
+        }
+      }
+    },
+    "name_collision": {
+      "sha256": "c061744dc5e4eab0ac010fb14c65665aca08d3fca25210bad8f06cdd5992abb2",
+      "results": {
+        "2017": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2017",
+            "-s",
+            "name_collision",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/name_collision-2017.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/name_collision.sv"
+          ],
+          "compile_exit": 2,
+          "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/name_collision.sv:20: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/name_collision.sv:20: error: Syntax error in continuous assignment\n"
+        },
+        "2023": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2023",
+            "-s",
+            "name_collision",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/name_collision-2023.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/name_collision.sv"
+          ],
+          "compile_exit": 2,
+          "compile_output": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/name_collision.sv:20: syntax error\n/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/name_collision.sv:20: error: Syntax error in continuous assignment\n"
+        }
+      }
+    },
+    "renamed_instance_control": {
+      "sha256": "5e88e27e1f0f2cc368a2ea5346b76f1124deaa5facdeb8d54448f6fe19631ecb",
+      "results": {
+        "2017": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2017",
+            "-s",
+            "renamed_instance_control",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/renamed_instance_control-2017.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/renamed_instance_control.sv"
+          ],
+          "compile_exit": 0,
+          "compile_output": ""
+        },
+        "2023": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2023",
+            "-s",
+            "renamed_instance_control",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/renamed_instance_control-2023.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/renamed_instance_control.sv"
+          ],
+          "compile_exit": 0,
+          "compile_output": ""
+        }
+      }
+    },
+    "scalar_collision_control": {
+      "sha256": "f3569f575fdb343248d2982df345f5d8c6d63ae2d6d07dfd79d19cb2bc226fb8",
+      "results": {
+        "2017": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2017",
+            "-s",
+            "scalar_collision_control",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/scalar_collision_control-2017.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/scalar_collision_control.sv"
+          ],
+          "compile_exit": 0,
+          "compile_output": ""
+        },
+        "2023": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2023",
+            "-s",
+            "scalar_collision_control",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/scalar_collision_control-2023.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/scalar_collision_control.sv"
+          ],
+          "compile_exit": 0,
+          "compile_output": ""
+        }
+      }
+    },
+    "typed_control": {
+      "sha256": "93360c88c753f5a0fea089a808173225bf88fcc56d8e952d3727c75182d94fc0",
+      "results": {
+        "2017": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2017",
+            "-s",
+            "typed_control",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/typed_control-2017.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/typed_control.sv"
+          ],
+          "compile_exit": 0,
+          "compile_output": ""
+        },
+        "2023": {
+          "command": [
+            "local-install/bin/iverilog",
+            "-g2023",
+            "-s",
+            "typed_control",
+            "-o",
+            "/tmp/ivl-focus-20260923/csrng-reducers/typed_control-2023.vvp",
+            "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-interface-array-assign-20260923/typed_control.sv"
+          ],
+          "compile_exit": 0,
+          "compile_output": ""
+        }
+      }
+    }
+  },
+  "verilator_reference": {
+    "role": "read-only comparator, no edits",
+    "identity": "Verilator 5.050 2026-07-01 rev vUNKNOWN-built20260701",
+    "command_template": "verilator --lint-only --sv --timing -Wno-fatal --top-module NAME NAME.sv",
+    "observed_exit": {
+      "minimal_red": 0,
+      "name_collision": 0,
+      "renamed_instance_control": 0
+    }
+  },
+  "real_fileset": {
+    "setup": "fusesoc --target=sim --tool=icarus --setup with pinned released cores and Python 3.13 venv on PATH, isolated /tmp/ivl-focus-20260923/csrng-setup build root",
+    "compiler_flags": "-g2017 -gcommercial-unsafe -uvm with pinned UVM 1.2",
+    "compile_exit": 2,
+    "diagnostic": "tb.sv:85: Syntax error in continuous assignment",
+    "compile_log": "/tmp/ivl-focus-20260923/csrng-current-compile.log"
+  }
+}

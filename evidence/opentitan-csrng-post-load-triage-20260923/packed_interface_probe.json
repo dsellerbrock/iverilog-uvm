@@ -1,0 +1,22 @@
+[
+  {
+    "edition": "2017",
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS packed interface: 01\n",
+    "runtime_stderr": "",
+    "timed_out": false
+  },
+  {
+    "edition": "2023",
+    "compile_exit": 0,
+    "compile_stdout": "",
+    "compile_stderr": "",
+    "runtime_exit": 0,
+    "runtime_stdout": "PASS packed interface: 01\n",
+    "runtime_stderr": "",
+    "timed_out": false
+  }
+]

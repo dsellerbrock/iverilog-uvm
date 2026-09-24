@@ -39,7 +39,7 @@
 
 ### OT-SPI-INSIDE-CONST-ARRAY — unpacked parameter array in an `inside` set
 
-- **State:** The ordinary-expression path was implemented at `88f0e9044`; [earlier paired evidence](session_logs/2026-09-23_inside_array_named_event_integration.json) preserves that scope. The separate constraint-context path is integrated at `b7551af50`; the [postfix record](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) shows the pinned SPI Device fileset now compiles without the kind-26 error. Its configured smoke still fails at an independent solver enumeration limit.
+- **State:** The ordinary-expression path was implemented at `88f0e9044`; [earlier paired evidence](session_logs/2026-09-23_inside_array_named_event_integration.json) preserves that scope. The separate constraint-context path is integrated at `b7551af50`; the [postfix record](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) shows the pinned SPI Device fileset now compiles without the kind-26 error. The later [solver replay](session_logs/2026-09-23_opentitan_spi_csrng_next.json) advances past the JEDEC sampling cap but still fails at a separate large-range exact-`dist` call.
 - **Requirement:** IEEE 1800-2017/2023 §11.4.13 recursively traverses an unpacked array in an `inside` set to its singular elements and applies asymmetric wildcard equality to integral comparisons. The independent queue-concatenation form remains tracked under [OT-SPI-QUEUE-ARRAY-CONCAT](#ot-spi-queue-array-concat).
 
 ### OT-SPI-QUEUE-ARRAY-CONCAT — unpacked array concatenation assigned to a queue
@@ -49,8 +49,36 @@
 
 ### OT-SPI-JEDEC-SAMPLING-LIMIT — configured flash-mode smoke solver ceiling
 
-- **State:** Open after the pinned SPI Device fileset reaches compile exit 0. The [configured smoke and raw log](session_logs/2026-09-23_opentitan_spi_aon_postfix.json) show `ral.jedec_id.randomize()` failing at the complete-joint-solution enumeration limit. VVP process exit 0 follows UVM_FATAL and is not a test pass. The attempted abstract base sequence is not an application defect.
-- **Boundary:** This is a solver runtime failure in one unchanged flash-mode smoke. The compile still reports an ignored constraint item and dropped coverage crosses, so neither compile exit 0 nor this smoke establishes SPI Device DV qualification.
+- **State:** The previous `ral.jedec_id.randomize()` 1024-tuple enumeration-limit failure is cleared by the locally committed, unpublished isolated full power-of-two nested-domain sampler at `df9f167f4`. The unchanged configured SPI smoke now reaches a later, separate exact-`dist` failure at `spi_device_pass_base_vseq.sv:146`; see [OT-SPI-LARGE-EXACT-DIST-SAMPLING](#ot-spi-large-exact-dist-sampling).
+- **Evidence:** The [paired revision-scoped record](session_logs/2026-09-23_opentitan_spi_csrng_next.json) preserves the reducer and application replay. Neither the former focused pass nor reaching a later smoke failure qualifies SPI Device DV.
+
+### OT-SPI-LARGE-EXACT-DIST-SAMPLING — large-range exact `dist` in flash-mode sequence
+
+- **State:** The local coupled-range candidate passes its paired focus, but the unchanged released flash smoke still stalls after UVM `PRE_START`. A bounded profile now finds wide-scalar feasible-domain enumeration before the distribution call; that is the next performance blocker, and SPI DV remains open.
+- **Requirement:** IEEE 1800-2017 §18.5.10 and 1800-2023 §18.5.9 require uniform distribution over legal value combinations; exact `dist` weights must be respected.
+- **Evidence:** [Original RED and replay](session_logs/2026-09-23_opentitan_spi_csrng_next.json), [current focused candidate and released replay](../../evidence/opentitan-spi-lazy-item-20260923/result.json), and [solver profile](../../evidence/opentitan-spi-pass-large-dist-profile-20260923/followup.md). Do not infer a pass from compiler tests or a running UVM sequence.
+
+### OT-CSRNG-BLKLEN-CONSTANT-PART-SELECT — instance-hierarchical width in CSRNG
+
+- **State:** The same-name interface-array parser error at pinned `tb.sv:85` is cleared by locally committed, unpublished `6410b956c`; compilation now stops with 12 elaboration errors, including hierarchical `BlkLen` used as a constant indexed part-select width at `tb.sv:152/162`.
+- **Requirement:** IEEE 1800-2017/2023 §11.5.1 requires a positive constant indexed width; the released module-instance path is outside Annex A's constant-primary grammar. Keep Icarus strict. A revision-bound [two-width overlay](release_overlays/opentitan/csrng_blklen_width.patch) substitutes the pinned 128-bit value without disabling the assertions.
+- **Evidence:** [Paired legality triage](../../evidence/opentitan-csrng-blklen-triage-20260923/FINDING.md), [pristine failure](session_logs/2026-09-23_opentitan_spi_csrng_next.json), and [selected overlay](release_overlays/README.md). The configured smoke now reaches UVM after the local loader and scheduler fixes, then fails on a separate constraint-solver restriction. DV is unqualified.
+
+### OT-CSRNG-ARRAY-WORD-SIZE-CRASH — forward net-array driver metadata
+
+- **State:** Locally fixed at `6e1af2425`: VVP now resolves forward concat-driven packed net-array metadata after driver attachment. Paired 2017/2023 positive and invalid-driver controls pass. This is unpublished; later CSRNG blockers remain.
+- **Evidence:** [Pre-fix crash and reducer](../../evidence/opentitan-csrng-array-crash-triage-20260923/README.md) and [current released replay](../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json).
+
+### OT-CSRNG-TIMEZERO-INIT-SCHEDULER — startup propagation starves procedural mode assignment
+
+- **State:** Local scheduler candidate moves generated initialization fanout into the time-zero active slot. The faithful packed-tri reducer and startup boundaries pass in both editions; the released CSRNG smoke now reaches UVM but fails at a separate solver restriction. Broad gates and publication remain pending.
+- **Requirement:** IEEE 1800-2017/2023 §§4.5 and 4.9.1 schedule initialization and continuous-assignment events in the time-zero slot with procedural startup; an unbounded pre-start drain must not starve time-zero processes.
+- **Evidence:** [Reducer, invalidated false green, and trace](../../evidence/opentitan-csrng-post-load-triage-20260923/README.md) and [current paired/release result](../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json).
+
+### OT-CSRNG-CFG-JOINT-DIST — configured UVM smoke rejects legal randomization shape
+
+- **State:** After the scheduler fix, `csrng_smoke_test` reaches UVM and fails at `dv_base_test.sv:41` on `cfg.randomize()` with `joint dist requires an unconditional hard distribution with state-only weights and ground items`. Paired 2017/2023 nested guarded-`dist` reducers reproduce the Icarus joint-sampler restriction while standalone guarded and nested unconditional controls pass. Such conditional hard distributions are legal under §§18.5.4/18.5.7 (2017) and §§18.5.3/18.5.7 (2023). The first CSRNG macro expansion is a leading candidate, but the current diagnostic does not name its `DistSpec`; exact pinned-source attribution remains open.
+- **Evidence:** [Exact released replay and raw log](../../evidence/opentitan-csrng-timezero-scheduler-20260923/result.json) and [paired reducer/trace](../../evidence/opentitan-csrng-cfg-joint-dist-20260923/README.md). `TEST FAILED CHECKS` and EndOfSimulation assertion errors make the exit-0 process a failure. A solver fix must preserve conditional activation and exact weights.
 
 ### CALIPTRA-L0-DOE-STATUS-SVA — scan test fails a reset-window status assertion
 
@@ -3672,6 +3700,7 @@ Direct caller-owned integral queue/dynamic-array iteration now has paired focuse
 - **Requirement:** IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9: "The solver shall assure that the random values are selected to give a uniform value distribution over legal value combinations."
 - **Reproducer:** `evidence/solve-before-array/ieee_table_18_2_uniformity.sv`, the standard's class B (`s -> d == 0`, 32-bit `d`). The current build gives `s == 1` in 251 of 1000 unordered draws, where IEEE expects about 1/(1+2^32). With `solve s before d` it gives 489 of 1000, matching Table 18-2. The same bias appears with dynamic arrays (103 of 400 against about 0).
 - **Root cause (assessed):** exact joint enumeration (`z3_enumerate_joint_`) is used only for bounded coupled components with distributions or ordering. The default path steers Z3 optimize toward random soft targets per variable, which gives per-variable diversity but not uniform complete combinations.
+- **Scoped implementation:** Locally committed, unpublished `df9f167f4` implements uniform sampling for the isolated nested-domain case whose complete legal cardinality is a power of two, including the full 64-bit domain. The [paired evidence](session_logs/2026-09-23_opentitan_spi_csrng_next.json) covers this subset. General coupled domains and the separate large-range exact-`dist` smoke failure remain unresolved.
 - **Closure bar:** uniform sampling over legal combinations for coupled components beyond the enumeration cap (for example exact counting per case split, or a proven uniform-hashing sampler), paired statistical oracles, deterministic seeds, unchanged RNG ownership. Raising the enumeration cap is not a fix.
 
 ### SOLVE-BEFORE-FIXED-ARRAY — whole fixed rand arrays in solve...before

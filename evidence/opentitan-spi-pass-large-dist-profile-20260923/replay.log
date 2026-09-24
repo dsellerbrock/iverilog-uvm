@@ -1,0 +1,6 @@
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored.
+UVM_INFO @ 0 ps: reporter [RNTST] Running test spi_device_base_test...
+SRAM ingress start = 0xc2187e00
+** VVP Stop(0) **
+** Flushing output streams.

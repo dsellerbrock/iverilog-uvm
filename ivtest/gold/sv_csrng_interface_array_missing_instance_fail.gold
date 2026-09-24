@@ -1,0 +1,2 @@
+./ivltests/sv_csrng_interface_array_missing_instance_fail.v:7: syntax error
+./ivltests/sv_csrng_interface_array_missing_instance_fail.v:7: error: Syntax error in continuous assignment

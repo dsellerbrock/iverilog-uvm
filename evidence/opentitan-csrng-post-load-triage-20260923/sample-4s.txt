@@ -1,0 +1,546 @@
+Analysis of sampling vvp (pid 20440) every 1 millisecond
+Process:         vvp [20440]
+Path:            /Users/USER/*/vvp
+Load Address:    0x102650000
+Identifier:      vvp
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [20432]
+Target Type:     live task
+
+Date/Time:       2026-09-23 18:13:14.955 -0600
+Launch Time:     2026-09-23 18:13:10.874 -0600
+OS Version:      macOS 27.0 (26A428)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         265.3M
+Physical footprint (peak):  265.3M
+Idle exit:                  untracked
+----
+
+Call graph:
+    767 Thread_11167211   DispatchQueue_1: com.apple.main-thread  (serial)
+      767 start  (in dyld) + 6688  [0x19b0c7e80]
+        767 main  (in vvp) + 1188  [0x102650dcc]
+          767 vvp_run  (in vvp) + 996  [0x102652014]
+            760 schedule_simulate()  (in vvp) + 144  [0x1027b35a8]
+            + 756 generic_event_s::run_run()  (in vvp) + 52  [0x1027b0bbc]
+            + ! 361 vvp_fun_concat8::run_run()  (in vvp) + 104  [0x10267836c]
+            + ! : 354 vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 76  [0x1027ba07c]
+            + ! : | 270 vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 36  [0x1027c2b08]
+            + ! : | + 173 reduce4(vvp_vector8_t const&)  (in vvp) + 276,340,...  [0x1027c2c84,0x1027c2cc4,...]
+            + ! : | + 86 reduce4(vvp_vector8_t const&)  (in vvp) + 364  [0x1027c2cdc]
+            + ! : | + ! 86 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 260,68,...  [0x10265b4c4,0x10265b404,...]
+            + ! : | + 10 reduce4(vvp_vector8_t const&)  (in vvp) + 60  [0x1027c2bac]
+            + ! : | + ! 10 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+            + ! : | + !   7 malloc_type_malloc  (in libsystem_malloc.dylib) + 16  [0x19b2a374c]
+            + ! : | + !   2 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 244,832  [0x19b2b8b40,0x19b2b8d8c]
+            + ! : | + !   1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 92  [0x19b2bf864]
+            + ! : | + 1 ???  (in <unknown binary>)  [0x1a2cf05cc]
+            + ! : | 74 vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 64  [0x1027c2b24]
+            + ! : | + 40 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 356  [0x10265b9c0]
+            + ! : | + ! 21 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 44  [0x10267812c]
+            + ! : | + ! : 18 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 500,380,...  [0x1027c1ce8,0x1027c1c70,...]
+            + ! : | + ! : 3 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 276  [0x1027c1c08]
+            + ! : | + ! :   3 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+            + ! : | + ! :     2 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 244,672  [0x19b2b8b40,0x19b2b8cec]
+            + ! : | + ! :     1 malloc_type_malloc  (in libsystem_malloc.dylib) + 16  [0x19b2a374c]
+            + ! : | + ! 16 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 68  [0x102678144]
+            + ! : | + ! : 12 vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)  (in vvp) + 108  [0x1026781fc]
+            + ! : | + ! : | 12 vvp_vector8_t::set_vec(unsigned int, vvp_vector8_t const&)  (in vvp) + 56,96,...  [0x1027c2224,0x1027c224c,...]
+            + ! : | + ! : 3 vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)  (in vvp) + 124,56  [0x10267820c,0x1026781c8]
+            + ! : | + ! : 1 schedule_functor(vvp_gen_event_s*)  (in vvp) + 20  [0x1027b2ca8]
+            + ! : | + ! 2 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 92  [0x10267815c]
+            + ! : | + ! : 2 _free  (in libsystem_malloc.dylib) + 0  [0x19b2c5110]
+            + ! : | + ! 1 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 68  [0x102678144]
+            + ! : | + 12 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 96  [0x10265b8bc]
+            + ! : | + ! 12 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 1060  [0x1027d4020]
+            + ! : | + !   6 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 72  [0x1027d40c8]
+            + ! : | + !   : 3 vvp_event_callback_begin()  (in vvp) + 168  [0x10285d308]
+            + ! : | + !   : | 3 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 116,148,...  [0x10285d550,0x10285d570,...]
+            + ! : | + !   : 1 vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+            + ! : | + !   : | 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 248  [0x10285d5d4]
+            + ! : | + !   : 1 vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+            + ! : | + !   : | 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | + !   : 1 vvp_event_callback_begin()  (in vvp) + 332  [0x10285d3ac]
+            + ! : | + !   6 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 84  [0x1027d40d4]
+            + ! : | + !     3 vvp_event_callback_end()  (in vvp) + 188,300  [0x10285d7f8,0x10285d868]
+            + ! : | + !     2 vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+            + ! : | + !     | 2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 8,248  [0x10285d4e4,0x10285d5d4]
+            + ! : | + !     1 std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp) + 1304  [0x10286b958]
+            + ! : | + 6 vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 504,52,...  [0x1026b2a7c,0x1026b28b8,...]
+            + ! : | + 5 vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 296  [0x1026b29ac]
+            + ! : | + ! 5 vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 40,168  [0x1027bae88,0x1027baf08]
+            + ! : | + 4 vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 312  [0x1026b29bc]
+            + ! : | + ! 4 vvp_vector4_t::eeq(vvp_vector4_t const&) const  (in vvp) + 52  [0x1027bc648]
+            + ! : | + 2 vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 796,800  [0x1027bb17c,0x1027bb180]
+            + ! : | + 1 schedule_functor(vvp_gen_event_s*)  (in vvp) + 292  [0x1027b2db8]
+            + ! : | + 1 vvp_fun_bufz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 0  [0x10286f6e0]
+            + ! : | + 1 vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 484  [0x1026b2a68]
+            + ! : | + ! 1 schedule_functor(vvp_gen_event_s*)  (in vvp) + 20  [0x1027b2ca8]
+            + ! : | + 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 64  [0x10265b89c]
+            + ! : | + ! 1 vvp_vector4_t::allocate_words_(unsigned long, unsigned long)  (in vvp) + 32  [0x1027ba714]
+            + ! : | + 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 312  [0x10265b994]
+            + ! : | 3 ???  (in <unknown binary>)  [0x1a2cec3dc]
+            + ! : | 3 vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 88  [0x1027c2b3c]
+            + ! : | + 2 _xzm_free_main  (in libsystem_malloc.dylib) + 184,684  [0x19b2c0f74,0x19b2c1168]
+            + ! : | + 1 _free  (in libsystem_malloc.dylib) + 0  [0x19b2c5110]
+            + ! : | 1 ???  (in <unknown binary>)  [0x1a2cf052c]
+            + ! : | 1 _xzm_free_main  (in libsystem_malloc.dylib) + 1080  [0x19b2c12f4]
+            + ! : | 1 reduce4(vvp_vector8_t const&)  (in vvp) + 392  [0x1027c2cf8]
+            + ! : | 1 vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 564  [0x1026b2ab8]
+            + ! : 7 vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 80,52,...  [0x1027ba080,0x1027ba064,...]
+            + ! 104 vvp_fun_concat8::run_run()  (in vvp) + 72  [0x10267834c]
+            + ! : 57 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 76  [0x1027d42b8]
+            + ! : | 41 reduce4(vvp_vector8_t const&)  (in vvp) + 312,276,...  [0x1027c2ca8,0x1027c2c84,...]
+            + ! : | 14 reduce4(vvp_vector8_t const&)  (in vvp) + 364  [0x1027c2cdc]
+            + ! : | + 14 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 260,0,...  [0x10265b4c4,0x10265b3c0,...]
+            + ! : | 2 reduce4(vvp_vector8_t const&)  (in vvp) + 60  [0x1027c2bac]
+            + ! : |   2 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+            + ! : |     2 malloc_type_malloc  (in libsystem_malloc.dylib) + 16,72  [0x19b2a374c,0x19b2a3784]
+            + ! : 28 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 524  [0x1027d4478]
+            + ! : | 18 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 68  [0x1027d4570]
+            + ! : | + 3 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 584  [0x10285d724]
+            + ! : | + 3 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 352  [0x10285c758]
+            + ! : | + 3 vvp_event_callback_begin()  (in vvp) + 168  [0x10285d308]
+            + ! : | + ! 3 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 20,184,...  [0x10285d4f0,0x10285d594,...]
+            + ! : | + 3 vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+            + ! : | + ! 2 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + !   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + 3 vvp_event_callback_begin()  (in vvp) + 144,192  [0x10285d2f0,0x10285d320]
+            + ! : | + 2 vvp_event_callback_begin()  (in vvp) + 568  [0x10285d498]
+            + ! : | + ! 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + ! 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + 1 vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+            + ! : | +   1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | 8 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 80  [0x1027d457c]
+            + ! : | + 2 vvp_event_callback_end()  (in vvp) + 392  [0x10285d8c4]
+            + ! : | + ! 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + ! 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + 2 vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 12  [0x10285d4e8]
+            + ! : | + 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 352  [0x10285c758]
+            + ! : | + 1 vvp_event_callback_end()  (in vvp) + 528  [0x10285d94c]
+            + ! : | + ! 1 std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp) + 16  [0x10286b450]
+            + ! : | + 1 vvp_event_callback_end()  (in vvp) + 536  [0x10285d954]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+            + ! : | + !   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + 1 vvp_event_callback_end()  (in vvp) + 76  [0x10285d788]
+            + ! : | 1 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 76  [0x1027d4578]
+            + ! : | + 1 vvp_vpi_callback::run_vpi_callbacks()  (in vvp) + 32  [0x10287ee74]
+            + ! : | 1 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 28  [0x1027d4548]
+            + ! : 5 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 104  [0x1027d42d4]
+            + ! : | 5 vvp_vector4_t::eeq(vvp_vector4_t const&) const  (in vvp) + 4,0  [0x1027bc618,0x1027bc614]
+            + ! : 3 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 592  [0x1027d44bc]
+            + ! : | 3 _free  (in libsystem_malloc.dylib) + 0  [0x19b2c5110]
+            + ! : 2 ???  (in <unknown binary>)  [0x1a2cec3d0]
+            + ! : 2 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 76,572  [0x1027d42b8,0x1027d44a8]
+            + ! : 1 _xzm_free_main  (in libsystem_malloc.dylib) + 1080  [0x19b2c12f4]
+            + ! : 1 reduce4(vvp_vector8_t const&)  (in vvp) + 392  [0x1027c2cf8]
+            + ! : 1 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 100  [0x1027d4590]
+            + ! : 1 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 524  [0x1027c1d00]
+            + ! : 1 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 436  [0x1027d4420]
+            + ! : | 1 _free  (in libsystem_malloc.dylib) + 0  [0x19b2c5110]
+            + ! : 1 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 476  [0x1027d4448]
+            + ! : | 1 vvp_vector4_t::copy_from_big_(vvp_vector4_t const&)  (in vvp) + 52  [0x1027ba414]
+            + ! : |   1 operator new(unsigned long)  (in libc++abi.dylib) + 52  [0x19b4543c0]
+            + ! : |     1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 144  [0x19b2bf898]
+            + ! : 1 vvp_wire_vec4::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 500  [0x1027d4460]
+            + ! :   1 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 20  [0x1027c1b08]
+            + ! 103 vvp_fun_muxz::send_output(vvp_net_t*, void**)  (in vvp) + 708  [0x1028708a4]
+            + ! : 58 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 244  [0x10265b950]
+            + ! : | 55 resolv_tri::recv_vec4_(unsigned int, vvp_vector4_t const&)  (in vvp) + 68  [0x1026b7294]
+            + ! : | + 32 resolv_tri::recv_vec8_(unsigned int, vvp_vector8_t const&)  (in vvp) + 760  [0x1026b75d8]
+            + ! : | + ! 32 vvp_wire_vec8::filter_vec8(vvp_vector8_t const&, vvp_vector8_t&, unsigned int, unsigned int)  (in vvp) + 392  [0x1027d5758]
+            + ! : | + !   16 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 80  [0x1027d457c]
+            + ! : | + !   : 5 vvp_event_callback_end()  (in vvp) + 536  [0x10285d954]
+            + ! : | + !   : | 2 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + !   : | 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 316  [0x10285c734]
+            + ! : | + !   : | + 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + !   : | 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | + !   : | 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + !   : 5 vvp_event_callback_end()  (in vvp) + 144,52,...  [0x10285d7cc,0x10285d770,...]
+            + ! : | + !   : 2 vvp_event_callback_end()  (in vvp) + 392  [0x10285d8c4]
+            + ! : | + !   : | 2 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28,340  [0x10285c614,0x10285c74c]
+            + ! : | + !   : 2 vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+            + ! : | + !   : | 2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 184,248  [0x10285d594,0x10285d5d4]
+            + ! : | + !   : 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 572  [0x10285d718]
+            + ! : | + !   : 1 vvp_event_callback_end()  (in vvp) + 528  [0x10285d94c]
+            + ! : | + !   :   1 std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp) + 16  [0x10286b450]
+            + ! : | + !   15 vvp_net_fil_t::filter_mask_<vvp_vector8_t>(vvp_vector8_t const&, vvp_vector8_t const&, vvp_vector8_t&, unsigned int)  (in vvp) + 68  [0x1027d4570]
+            + ! : | + !   : 5 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 572,584,...  [0x10285d718,0x10285d724,...]
+            + ! : | + !   : 4 vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+            + ! : | + !   : | 3 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 0,248,...  [0x10285d4dc,0x10285d5d4,...]
+            + ! : | + !   : | 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + !   : |   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + !   : 4 vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+            + ! : | + !   : | 2 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+            + ! : | + !   : | + 2 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + !   : | 2 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | + !   : 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 352  [0x10285c758]
+            + ! : | + !   : 1 vvp_event_callback_begin()  (in vvp) + 232  [0x10285d348]
+            + ! : | + !   1 vvp_event_callback_end()  (in vvp) + 688  [0x10285d9ec]
+            + ! : | + 12 resolv_tri::recv_vec8_(unsigned int, vvp_vector8_t const&)  (in vvp) + 792  [0x1026b75f8]
+            + ! : | + ! 11 vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 76  [0x1027ba07c]
+            + ! : | + ! : 9 vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 36  [0x1027c2b08]
+            + ! : | + ! : | 8 reduce4(vvp_vector8_t const&)  (in vvp) + 324,348,...  [0x1027c2cb4,0x1027c2ccc,...]
+            + ! : | + ! : | 1 reduce4(vvp_vector8_t const&)  (in vvp) + 364  [0x1027c2cdc]
+            + ! : | + ! : |   1 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 136  [0x10265b448]
+            + ! : | + ! : 1 reduce4(vvp_vector8_t const&)  (in vvp) + 392  [0x1027c2cf8]
+            + ! : | + ! : 1 vvp_net_fun_t::recv_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 64  [0x1027c2b24]
+            + ! : | + ! :   1 vvp_fun_muxz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 776  [0x102870194]
+            + ! : | + ! :     1 schedule_functor(vvp_gen_event_s*)  (in vvp) + 224  [0x1027b2d74]
+            + ! : | + ! 1 vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 32  [0x1027ba050]
+            + ! : | + 5 resolv_tri::recv_vec8_(unsigned int, vvp_vector8_t const&)  (in vvp) + 200,252,...  [0x1026b73a8,0x1026b73dc,...]
+            + ! : | + 2 resolv_tri::recv_vec8_(unsigned int, vvp_vector8_t const&)  (in vvp) + 412  [0x1026b747c]
+            + ! : | + ! 2 vvp_vector8_t::operator=(vvp_vector8_t const&)  (in vvp) + 0,44  [0x1027c1ff4,0x1027c2020]
+            + ! : | + 2 vvp_vector8_t::operator=(vvp_vector8_t const&)  (in vvp) + 196  [0x1027c20b8]
+            + ! : | + 1 resolv_tri::recv_vec8_(unsigned int, vvp_vector8_t const&)  (in vvp) + 220  [0x1026b73bc]
+            + ! : | + ! 1 vvp_vector8_t::vvp_vector8_t(vvp_vector8_t const&)  (in vvp) + 28  [0x1027c1ab0]
+            + ! : | + 1 vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp) + 84  [0x1027ba084]
+            + ! : | 2 resolv_tri::recv_vec4_(unsigned int, vvp_vector4_t const&)  (in vvp) + 44  [0x1026b727c]
+            + ! : | + 2 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 116  [0x1027c1b68]
+            + ! : | 1 resolv_core::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 4  [0x1026b8874]
+            + ! : 20 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 96  [0x10265b8bc]
+            + ! : | 18 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 1060  [0x1027d4020]
+            + ! : | + 11 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 72  [0x1027d40c8]
+            + ! : | + ! 2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 584  [0x10285d724]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 168  [0x10285d308]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + ! : | 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 184  [0x10285d594]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+            + ! : | + ! : | 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 568  [0x10285d498]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 316  [0x10285c734]
+            + ! : | + ! : | 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 192,328  [0x10285d320,0x10285d3a8]
+            + ! : | + ! 1 vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+            + ! : | + !   1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 248  [0x10285d5d4]
+            + ! : | + 5 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 84  [0x1027d40d4]
+            + ! : | + ! 3 vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+            + ! : | + ! : 2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 116,184  [0x10285d550,0x10285d594]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + ! :   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 352  [0x10285c758]
+            + ! : | + ! 1 vvp_event_callback_end()  (in vvp) + 188  [0x10285d7f8]
+            + ! : | + 1 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 32  [0x1027d40a0]
+            + ! : | + 1 vvp_vpi_callback::run_vpi_callbacks()  (in vvp) + 472  [0x10287f02c]
+            + ! : | 1 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 320  [0x1027d3d3c]
+            + ! : | + 1 vvp_vector4_t::eeq(vvp_vector4_t const&) const  (in vvp) + 236  [0x1027bc700]
+            + ! : | 1 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 988  [0x1027d3fd8]
+            + ! : 10 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 356  [0x10265b9c0]
+            + ! : | 3 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 44  [0x10267812c]
+            + ! : | + 3 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 28,156,...  [0x1027c1b10,0x1027c1b90,...]
+            + ! : | 3 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 520,524  [0x1027c1cfc,0x1027c1d00]
+            + ! : | 2 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 68  [0x102678144]
+            + ! : | + 2 vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)  (in vvp) + 72,96  [0x1026781d8,0x1026781f0]
+            + ! : | 2 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 0  [0x102678100]
+            + ! : 8 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 288  [0x10265b97c]
+            + ! : | 5 vvp_event_source_end()  (in vvp) + 712  [0x10285cb38]
+            + ! : | + 4 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 36,428  [0x10285ce8c,0x10285d014]
+            + ! : | + 1 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 816  [0x10285d198]
+            + ! : | +   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | 2 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 836  [0x10285d1ac]
+            + ! : | 1 vvp_event_source_end()  (in vvp) + 224  [0x10285c950]
+            + ! : |   1 schedule_in_nba_update_region()  (in vvp) + 4  [0x1027b2c80]
+            + ! : 3 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 36  [0x10265b880]
+            + ! : | 3 vvp_event_source_begin()  (in vvp) + 4,0  [0x10285c81c,0x10285c818]
+            + ! : 3 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 180,308  [0x10265b910,0x10265b990]
+            + ! : 1 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 96  [0x102678160]
+            + ! 77 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 96  [0x10265b8bc]
+            + ! : 69 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 1060  [0x1027d4020]
+            + ! : | 40 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 72  [0x1027d40c8]
+            + ! : | + 11 vvp_event_callback_begin()  (in vvp) + 148,192,...  [0x10285d2f4,0x10285d320,...]
+            + ! : | + 10 vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+            + ! : | + ! 8 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 436,0,...  [0x10285d690,0x10285d4dc,...]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + 6 vvp_event_callback_begin()  (in vvp) + 168  [0x10285d308]
+            + ! : | + ! 3 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + ! : 3 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 3 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + 5 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 584,572  [0x10285d724,0x10285d718]
+            + ! : | + 3 vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+            + ! : | + ! 2 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | + 3 vvp_event_callback_begin()  (in vvp) + 568  [0x10285d498]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 316  [0x10285c734]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | + 2 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 352  [0x10285c758]
+            + ! : | 23 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 84  [0x1027d40d4]
+            + ! : | + 6 vvp_event_callback_end()  (in vvp) + 392  [0x10285d8c4]
+            + ! : | + ! 2 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 316  [0x10285c734]
+            + ! : | + ! : 2 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 2 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 12,28  [0x10285c604,0x10285c614]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + ! 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + 5 vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+            + ! : | + ! 4 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 8,184,...  [0x10285d4e4,0x10285d594,...]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+            + ! : | + !   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + 3 std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp) + 1304,1296  [0x10286b958,0x10286b950]
+            + ! : | + 3 vvp_event_callback_end()  (in vvp) + 300,144  [0x10285d868,0x10285d7cc]
+            + ! : | + 2 vvp_event_callback_end()  (in vvp) + 528  [0x10285d94c]
+            + ! : | + ! 2 std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp) + 16,20  [0x10286b450,0x10286b454]
+            + ! : | + 2 vvp_event_callback_end()  (in vvp) + 536  [0x10285d954]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 296  [0x10285c720]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868394]
+            + ! : | + ! 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+            + ! : | + !   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | + 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 584  [0x10285d724]
+            + ! : | + 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 352  [0x10285c758]
+            + ! : | 5 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 32,12,...  [0x1027d40a0,0x1027d408c,...]
+            + ! : | 1 vvp_event_callback_end()  (in vvp) + 688  [0x10285d9ec]
+            + ! : 5 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 952,988,...  [0x1027d3fb4,0x1027d3fd8,...]
+            + ! : 3 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 320  [0x1027d3d3c]
+            + ! :   3 vvp_vector4_t::eeq(vvp_vector4_t const&) const  (in vvp) + 236,40  [0x1027bc700,0x1027bc63c]
+            + ! 57 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 356  [0x10265b9c0]
+            + ! : 22 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 96  [0x10265b8bc]
+            + ! : | 20 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 1060  [0x1027d4020]
+            + ! : | + 12 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 72  [0x1027d40c8]
+            + ! : | + ! 3 vvp_event_callback_begin()  (in vvp) + 168  [0x10285d308]
+            + ! : | + ! : 2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 148,216  [0x10285d570,0x10285d5b4]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + ! 2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 576,584  [0x10285d71c,0x10285d724]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+            + ! : | + ! : 1 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 436  [0x10285d690]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 568  [0x10285d498]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + ! : 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x102868488]
+            + ! : | + ! 2 vvp_event_callback_begin()  (in vvp) + 192,280  [0x10285d320,0x10285d378]
+            + ! : | + ! 1 vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+            + ! : | + !   1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 120  [0x10286840c]
+            + ! : | + 8 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 84  [0x1027d40d4]
+            + ! : | +   4 vvp_event_callback_end()  (in vvp) + 188,244,...  [0x10285d7f8,0x10285d830,...]
+            + ! : | +   2 vvp_event_callback_end()  (in vvp) + 392  [0x10285d8c4]
+            + ! : | +   : 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 316  [0x10285c734]
+            + ! : | +   : | 1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : | +   : 1 (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 28  [0x10285c614]
+            + ! : | +   2 vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+            + ! : | +     2 (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 248  [0x10285d5d4]
+            + ! : | 1 vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp) + 112  [0x1027d40f0]
+            + ! : | 1 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 952  [0x1027d3fb4]
+            + ! : 9 vvp_fun_bufz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 0  [0x10286f6e0]
+            + ! : 9 vvp_fun_muxz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 0,16  [0x10286fe8c,0x10286fe9c]
+            + ! : 7 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 68  [0x102678144]
+            + ! : | 5 vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)  (in vvp) + 136,56,...  [0x102678218,0x1026781c8,...]
+            + ! : | 2 vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)  (in vvp) + 108  [0x1026781fc]
+            + ! : |   2 vvp_vector8_t::set_vec(unsigned int, vvp_vector8_t const&)  (in vvp) + 56,120  [0x1027c2224,0x1027c2264]
+            + ! : 4 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 260  [0x10265b960]
+            + ! : 3 vvp_fun_concat8::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 44  [0x10267812c]
+            + ! : | 3 vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 156,172,...  [0x1027c1b90,0x1027c1ba0,...]
+            + ! : 1 vvp_fun_boolean_::receive(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**, unsigned int, bool)  (in vvp) + 1176  [0x10286e56c]
+            + ! : | 1 schedule_functor(vvp_gen_event_s*)  (in vvp) + 256  [0x1027b2d94]
+            + ! : 1 vvp_fun_boolean_::receive(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**, unsigned int, bool)  (in vvp) + 1428  [0x10286e668]
+            + ! : 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 36  [0x10265b880]
+            + ! :   1 vvp_event_source_begin()  (in vvp) + 4  [0x10285c81c]
+            + ! 12 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 288  [0x10265b97c]
+            + ! : 5 vvp_event_source_end()  (in vvp) + 712  [0x10285cb38]
+            + ! : | 2 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 800  [0x10285d188]
+            + ! : | + 2 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868394]
+            + ! : | 2 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 124,560  [0x10285cee4,0x10285d098]
+            + ! : | 1 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 816  [0x10285d198]
+            + ! : |   1 std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+            + ! : 4 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 840,836  [0x10285d1b0,0x10285d1ac]
+            + ! : 2 vvp_event_source_end()  (in vvp) + 32,224  [0x10285c890,0x10285c950]
+            + ! : 1 vvp_event_source_end()  (in vvp) + 224  [0x10285c950]
+            + ! :   1 schedule_in_nba_update_region()  (in vvp) + 4  [0x1027b2c80]
+            + ! 8 vvp_fun_part_sa::run_run()  (in vvp) + 0  [0x1026b2c60]
+            + ! 7 vvp_fun_concat8::run_run()  (in vvp) + 0  [0x1026783d0]
+            + ! 4 vvp_fun_boolean_::run_run()  (in vvp) + 200  [0x10286e864]
+            + ! : 2 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 96  [0x10265b8bc]
+            + ! : | 2 vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp) + 292  [0x1027d3d20]
+            + ! : 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 288  [0x10265b97c]
+            + ! : | 1 vvp_event_source_end()  (in vvp) + 712  [0x10285cb38]
+            + ! : |   1 (anonymous namespace)::flush_event_source_transaction_()  (in vvp) + 800  [0x10285d188]
+            + ! : |     1 std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868394]
+            + ! : 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 260  [0x10265b960]
+            + ! 4 vvp_fun_muxz::run_run()  (in vvp) + 0  [0x102870958]
+            + ! 4 vvp_fun_muxz::send_output(vvp_net_t*, void**)  (in vvp) + 320,24,...  [0x102870720,0x1028705f8,...]
+            + ! 4 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 36  [0x10265b880]
+            + ! : 4 vvp_event_source_begin()  (in vvp) + 4,0,...  [0x10285c81c,0x10285c818,...]
+            + ! 2 vvp_fun_boolean_::receive(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**, unsigned int, bool)  (in vvp) + 1460  [0x10286e688]
+            + ! 2 vvp_fun_boolean_::run_run()  (in vvp) + 184  [0x10286e854]
+            + ! : 1 vvp_fun_and::calculate(vvp_vector4_t const*) const  (in vvp) + 484  [0x10286ec4c]
+            + ! : | 1 vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp) + 164  [0x10265b464]
+            + ! : 1 vvp_fun_and::calculate(vvp_vector4_t const*) const  (in vvp) + 180  [0x10286eb1c]
+            + ! 1 vvp_event_source_end()  (in vvp) + 728  [0x10285cb48]
+            + ! 1 vvp_fun_boolean_::run_run()  (in vvp) + 200  [0x10286e864]
+            + ! 1 vvp_fun_muxz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp) + 832  [0x1028701cc]
+            + ! 1 vvp_fun_muxz::send_output(vvp_net_t*, void**)  (in vvp) + 148  [0x102870674]
+            + ! : 1 vvp_vector4_t::allocate_words_(unsigned long, unsigned long)  (in vvp) + 32  [0x1027ba714]
+            + ! 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 64  [0x10265b89c]
+            + ! : 1 vvp_vector4_t::allocate_words_(unsigned long, unsigned long)  (in vvp) + 32  [0x1027ba714]
+            + ! 1 vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 248  [0x10265b954]
+            + ! 1 vvp_vector4_t::allocate_words_(unsigned long, unsigned long)  (in vvp) + 148  [0x1027ba788]
+            + 3 generic_event_s::run_run()  (in vvp) + 32,52  [0x1027b0ba8,0x1027b0bbc]
+            + 1 vvp_fun_muxz::send_output(vvp_net_t*, void**)  (in vvp) + 752  [0x1028708d0]
+            4 schedule_simulate()  (in vvp) + 132,148  [0x1027b359c,0x1027b35ac]
+            2 schedule_simulate()  (in vvp) + 160  [0x1027b35b8]
+            + 2 generic_event_s::~generic_event_s()  (in vvp) + 12  [0x1027b4478]
+            1 generic_event_s::run_run()  (in vvp) + 96  [0x1027b0be8]
+
+Total number in stack (recursive counted multiple, when >=5):
+        31       std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868410]
+        22       (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 0  [0x10285d4dc]
+        16       (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 0  [0x10285c5f8]
+        10       std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp) + 0  [0x102868394]
+        8       (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp) + 56  [0x10285d514]
+        8       vvp_event_callback_end()  (in vvp) + 0  [0x10285d73c]
+        7       vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp) + 0  [0x1027c1af4]
+        6       (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 336  [0x10285c748]
+        6       reduce4(vvp_vector8_t const&)  (in vvp) + 0  [0x1027c2b70]
+        6       vvp_event_callback_begin()  (in vvp) + 0  [0x10285d260]
+        6       vvp_event_callback_begin()  (in vvp) + 552  [0x10285d488]
+        6       vvp_event_callback_begin()  (in vvp) + 560  [0x10285d490]
+        6       vvp_event_callback_end()  (in vvp) + 480  [0x10285d91c]
+        5       (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp) + 316  [0x10285c734]
+        5       schedule_functor(vvp_gen_event_s*)  (in vvp) + 0  [0x1027b2c94]
+        5       std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp) + 0  [0x10286b440]
+        5       vvp_event_callback_begin()  (in vvp) + 168  [0x10285d308]
+        5       vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 0  [0x10265b85c]
+        5       vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp) + 96  [0x10265b8bc]
+
+Sort by top of stack, same collapsed (when >= 5):
+        reduce4(vvp_vector8_t const&)  (in vvp)        225
+        vvp_vector4_t::set_bit(unsigned int, vvp_bit4_t)  (in vvp)        102
+        (anonymous namespace)::event_source_transaction_s::operator=((anonymous namespace)::event_source_transaction_s&&)  (in vvp)        55
+        std::__tree<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, std::__map_value_compare<std::pair<void*, void**>, std::pair<std::pair<void*, void**> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<void*, void**>, std::function<void ()>>, void*>*)  (in vvp)        40
+        vvp_vector8_t::vvp_vector8_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp)        31
+        (anonymous namespace)::event_source_transaction_s::~event_source_transaction_s()  (in vvp)        22
+        vvp_event_callback_begin()  (in vvp)        20
+        vvp_event_callback_end()  (in vvp)        19
+        vvp_vector8_t::set_vec(unsigned int, vvp_vector8_t const&)  (in vvp)        14
+        vvp_vector4_t::eeq(vvp_vector4_t const&) const  (in vvp)        13
+        (anonymous namespace)::flush_event_source_transaction_()  (in vvp)        12
+        std::__tree<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, std::__map_value_compare<std::pair<std::pair<void*, void**>, unsigned int>, std::pair<std::pair<std::pair<void*, void**>, unsigned int> const, std::function<void ()>>>>::__tree_deleter::operator()[abi:nqe220106](std::__tree_node<std::__value_type<std::pair<std::pair<void*, void**>, unsigned int>, std::function<void ()>>, void*>*)  (in vvp)        11
+        malloc_type_malloc  (in libsystem_malloc.dylib)        10
+        vvp_fun_bufz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp)        10
+        vvp_fun_concat8::recv_vec8_pv(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&, unsigned int, unsigned int)  (in vvp)        10
+        vvp_fun_muxz::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp)        10
+        vvp_net_t::send_vec4(vvp_vector4_t const&, void**)  (in vvp)        10
+        vvp_send_vec8(vvp_sub_pointer_t<vvp_net_t>, vvp_vector8_t const&)  (in vvp)        9
+        vvp_wire_vec4::filter_vec4(vvp_vector4_t const&, vvp_vector4_t&, unsigned int, unsigned int)  (in vvp)        9
+        std::vector<std::vector<std::function<void ()>>>::__insert_with_size[abi:nqe220106]<std::_ClassicAlgPolicy, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>>(std::__wrap_iter<std::vector<std::function<void ()>> const*>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, std::move_iterator<std::__wrap_iter<std::vector<std::function<void ()>>*>>, long)  (in vvp)        8
+        vvp_event_source_begin()  (in vvp)        8
+        vvp_fun_part_sa::run_run()  (in vvp)        8
+        _free  (in libsystem_malloc.dylib)        7
+        vvp_fun_concat8::run_run()  (in vvp)        7
+        vvp_fun_part_sa::recv_vec4(vvp_sub_pointer_t<vvp_net_t>, vvp_vector4_t const&, void**)  (in vvp)        7
+        vvp_net_fil_t::filter_mask_<vvp_vector4_t>(vvp_vector4_t const&, vvp_vector4_t const&, vvp_vector4_t&, unsigned int)  (in vvp)        7
+        vvp_vector4_t::vvp_vector4_t(vvp_vector4_t const&, unsigned int, unsigned int)  (in vvp)        7
+        resolv_tri::recv_vec8_(unsigned int, vvp_vector8_t const&)  (in vvp)        5
+        schedule_functor(vvp_gen_event_s*)  (in vvp)        5
+        vvp_fun_muxz::send_output(vvp_net_t*, void**)  (in vvp)        5
+
+Binary Images:
+       0x102650000 -        0x1029061e7 +vvp (0) <6CE359D8-243E-3652-B2F1-7012119E59B3> /Users/*/vvp
+       0x102c44000 -        0x102c54557 +libffi.8.dylib (0) <B9483517-EE77-37A2-AEC0-5B6D32ED34D0> /opt/homebrew/*/libffi.8.dylib
+       0x102c64000 -        0x102c66977 +vhdl_sys.vpi (0) <66591C30-B4A1-3D30-A0F3-3AE55F262BDC> /Users/*/vhdl_sys.vpi
+       0x102c7c000 -        0x102c840d7 +uvm_dpi.vpi (0) <4E8719FE-81AF-38B2-B3EC-00115CFD7F90> /Users/*/uvm_dpi.vpi
+       0x102c94000 -        0x102c9591f +v2005_math.vpi (0) <5EC4D4BD-6350-3C15-A08A-19081072DC27> /Users/*/v2005_math.vpi
+       0x102ca8000 -        0x102cac4c7 +vhdl_textio.vpi (0) <0E6CDA13-9C1E-32AD-82A9-A336839E9851> /Users/*/vhdl_textio.vpi
+       0x102cbc000 -        0x102cbd373 +va_math.vpi (0) <29DD9CB3-2350-3399-93F6-CD39C921ED28> /Users/*/va_math.vpi
+       0x102ce0000 -        0x102ce6723 +v2009.vpi (0) <82951491-DA86-3EDD-BC80-2FA812B13B58> /Users/*/v2009.vpi
+       0x1038ec000 -        0x10394dadb +system.vpi (0) <7A83A950-1304-3D26-8BB6-021557F1BAA5> /Users/*/system.vpi
+       0x103e74000 -        0x1049f21fb +libz3.5.1.0.0.dylib (0) <EEC282D4-133C-3CC9-8328-7FEFDC4DD713> /opt/homebrew/*/libz3.5.1.0.0.dylib
+       0x19b014000 -        0x19b0635f7  libobjc.A.dylib (973.1) <C0680DF6-9900-3C29-A071-95A031686EF8> /usr/lib/libobjc.A.dylib
+       0x19b064000 -        0x19b06e23f  libsharedcache.dylib (0) <117C1ED6-AE11-3D9E-B05B-844F35395552> /usr/lib/libsharedcache.dylib
+       0x19b06f000 -        0x19b095d3b  libdyld.dylib (27062) <62863BCA-DD60-3D32-A9DB-89099BA6F3D7> /usr/lib/system/libdyld.dylib
+       0x19b096000 -        0x19b1556e3  dyld (1.0.0 - 27062) <D341DDCB-7969-3A9C-8E03-0CF4751398A9> /usr/lib/dyld
+       0x19b156000 -        0x19b15901f  libsystem_blocks.dylib (98.1) <6F304731-D95D-3501-B4AD-F2934F7F2446> /usr/lib/system/libsystem_blocks.dylib
+       0x19b15a000 -        0x19b1af0df  libxpc.dylib (3298.1.1) <0791121F-B5FC-3F84-BF04-115E86D2D882> /usr/lib/system/libxpc.dylib
+       0x19b1b0000 -        0x19b1cfc13  libsystem_trace.dylib (1966.1.1) <B48A8E3E-A12A-3342-8321-428B555E965E> /usr/lib/system/libsystem_trace.dylib
+       0x19b1d0000 -        0x19b284f27  libcorecrypto.dylib (2109.0.22) <807AA6C9-5D8A-3CA5-B4CE-FACE5296EF6A> /usr/lib/system/libcorecrypto.dylib
+       0x19b285000 -        0x19b2dac5f  libsystem_malloc.dylib (886.0.8) <2339CB57-FE5A-3154-A206-A76059C749EB> /usr/lib/system/libsystem_malloc.dylib
+       0x19b2db000 -        0x19b32119f  libdispatch.dylib (1605.0.2) <022BF08F-0B3A-3225-9E65-16D1553CE90D> /usr/lib/system/libdispatch.dylib
+       0x19b322000 -        0x19b324d2b  libsystem_featureflags.dylib (108) <20C1CAB2-1F13-3426-8146-9CAE9FF2A33D> /usr/lib/system/libsystem_featureflags.dylib
+       0x19b325000 -        0x19b3a7ca3  libsystem_c.dylib (1786.0.3) <FBA7B23E-AA60-3A90-9AA4-A7A2E0AD63EE> /usr/lib/system/libsystem_c.dylib
+       0x19b3a8000 -        0x19b43d033  libc++.1.dylib (2200.27) <1E9BA4AA-B5DA-3CF3-80AC-4B880049573F> /usr/lib/libc++.1.dylib
+       0x19b43e000 -        0x19b457eff  libc++abi.dylib (2200.27) <A21743EE-6E1C-3E74-97EA-7AF793DE4BDF> /usr/lib/libc++abi.dylib
+       0x19b458000 -        0x19b4969ab  libsystem_kernel.dylib (13432.1.9) <F63BF418-8F75-34A4-AAF1-8CAF2B9B6A05> /usr/lib/system/libsystem_kernel.dylib
+       0x19b497000 -        0x19b4a391b  libsystem_pthread.dylib (553.0.1) <5A1828C3-CBC2-3B85-BD07-C8ED10021A41> /usr/lib/system/libsystem_pthread.dylib
+       0x19b4a4000 -        0x19b4ad4f3  libsystem_platform.dylib (402.0.1.0.1) <080E4444-A0FB-3913-9756-4E470015F32F> /usr/lib/system/libsystem_platform.dylib
+       0x19b4ae000 -        0x19b4dc903  libsystem_info.dylib (603) <BC387AEB-1CEF-3513-92D7-D7F913596711> /usr/lib/system/libsystem_info.dylib
+       0x19f606000 -        0x19f60fb13  libsystem_darwin.dylib (1786.0.3) <4E66C888-993C-3E6A-A8DA-A949C01C5B67> /usr/lib/system/libsystem_darwin.dylib
+       0x19fa60000 -        0x19fa71b8b  libsystem_notify.dylib (368) <58FD36D8-37A7-311C-80F2-8E64DD8710CF> /usr/lib/system/libsystem_notify.dylib
+       0x1a1bbd000 -        0x1a1bd7d93  libsystem_networkextension.dylib (2340.1.2) <22E1D190-486F-324F-ABA4-F36AB841BFE9> /usr/lib/system/libsystem_networkextension.dylib
+       0x1a1c65000 -        0x1a1c7c247  libsystem_asl.dylib (409) <B4D449B7-A821-3A9A-8019-E917B291F10A> /usr/lib/system/libsystem_asl.dylib
+       0x1a2c10000 -        0x1a2c10f2f  libobjcMsgSend.dylib (973.1) <41179EDE-DC97-3BBE-8848-6400D12C1436> /usr/lib/objc/libobjcMsgSend.dylib
+       0x1a3d5c000 -        0x1a3d63edf  libsystem_symptoms.dylib (2394.0.4) <60EE7884-9F4E-3184-A6AC-FA40A7A0297D> /usr/lib/system/libsystem_symptoms.dylib
+       0x1a80f4000 -        0x1a812eaeb  libsystem_containermanager.dylib (833.0.8.0.1) <08A57205-555D-3792-8931-9D5B585AF326> /usr/lib/system/libsystem_containermanager.dylib
+       0x1a9747000 -        0x1a974b317  libsystem_configuration.dylib (1446) <F3EB66A7-7A24-3AE5-B6E8-9A37BB00F119> /usr/lib/system/libsystem_configuration.dylib
+       0x1a974c000 -        0x1a9752e03  libsystem_sandbox.dylib (3051.0.52) <1E892B56-092E-3832-BDE3-DCE356D7A4FA> /usr/lib/system/libsystem_sandbox.dylib
+       0x1aac10000 -        0x1aac10f2f  libobjcMsgSend1.dylib (973.1) <B40D9B2A-E1EE-37ED-8004-711A1F263DE1> /usr/lib/objc/libobjcMsgSend1.dylib
+       0x1ab330000 -        0x1ab332f93  libquarantine.dylib (217.0.4) <7FD4AE22-86EF-382B-83F5-ADF9336C1160> /usr/lib/system/libquarantine.dylib
+       0x1aba35000 -        0x1aba4148b  libbz2.1.0.dylib (49) <C53E464D-6E83-37EE-8454-ACC2C20EF446> /usr/lib/libbz2.1.0.dylib
+       0x1aba42000 -        0x1aba481e7  libsystem_coreservices.dylib (203) <57248E07-11A5-3857-918E-4A3A63B69FE8> /usr/lib/system/libsystem_coreservices.dylib
+       0x1abffb000 -        0x1ac009b87  libz.1.dylib (105) <09881E57-159D-3E5F-B9EB-B708249AC31E> /usr/lib/libz.1.dylib
+       0x1ac00a000 -        0x1ac047b27  libsystem_m.dylib (3326.0.1) <A3FB340F-3ED5-30F4-8B64-9D5860F64D35> /usr/lib/system/libsystem_m.dylib
+       0x1ac049000 -        0x1ac04c4f7  libmacho.dylib (27062) <50DEADEC-3E99-3519-AFC3-4A3FEB3F14C3> /usr/lib/system/libmacho.dylib
+       0x1ac066000 -        0x1ac072707  libcommonCrypto.dylib (600041) <41C99F45-C5E6-39DB-B1F2-A1BEA9D242A4> /usr/lib/system/libcommonCrypto.dylib
+       0x1ac073000 -        0x1ac07cc87  libunwind.dylib (2200.5) <3070AB81-B082-39E8-8A00-EF88DDE9AC47> /usr/lib/system/libunwind.dylib
+       0x1ac084000 -        0x1ac08e7eb  libcopyfile.dylib (260.0.3) <72D95AF9-BF5E-3A84-81A6-BCC5BDB99857> /usr/lib/system/libcopyfile.dylib
+       0x1ac08f000 -        0x1ac0928bf  libcompiler_rt.dylib (103.4) <DFB5CE7F-A36E-36AA-BECE-1392D3D43607> /usr/lib/system/libcompiler_rt.dylib
+       0x1ac093000 -        0x1ac098077  libsystem_collections.dylib (1786.0.3) <1E8022D4-5A37-3A7A-8936-603E6FA88358> /usr/lib/system/libsystem_collections.dylib
+       0x1ac099000 -        0x1ac09bf1f  libsystem_secinit.dylib (182) <DE037464-4C5D-3E96-A33F-2A4557CC6A20> /usr/lib/system/libsystem_secinit.dylib
+       0x1ac09c000 -        0x1ac09e97f  libremovefile.dylib (96) <E6E6DFCF-6B2C-3F30-A59D-816CAB1190CE> /usr/lib/system/libremovefile.dylib
+       0x1ac09f000 -        0x1ac09fe27  libkeymgr.dylib (31) <5EC997EF-3ADA-360B-9FCD-5F940C83FA4E> /usr/lib/system/libkeymgr.dylib
+       0x1ac0a0000 -        0x1ac0a8af7  libsystem_dnssd.dylib (3111.0.5.0.1) <DE22096F-1E5B-3D6E-8164-771582DD6391> /usr/lib/system/libsystem_dnssd.dylib
+       0x1ac0a9000 -        0x1ac0adf1b  libcache.dylib (95) <80BAE197-E285-3F6E-A1EE-B77FE37D7E5D> /usr/lib/system/libcache.dylib
+       0x1ac0ae000 -        0x1ac0af8f3  libSystem.B.dylib (1359) <4FDC9AA6-B344-37FE-B8C6-A4C94A038F57> /usr/lib/libSystem.B.dylib
+       0x1b2c10000 -        0x1b2c10f2f  libobjcMsgSend2.dylib (973.1) <BD27A84B-C9AE-3282-BBEA-3B6119837B5A> /usr/lib/objc/libobjcMsgSend2.dylib
+       0x1bac10000 -        0x1bac10f2f  libobjcMsgSend3.dylib (973.1) <C0860D68-DDFC-3BD7-8B06-DB0645CBBED4> /usr/lib/objc/libobjcMsgSend3.dylib
+       0x1c2c10000 -        0x1c2c10f2f  libobjcMsgSend4.dylib (973.1) <A6153BF5-622B-3B01-81B6-F64A365EF613> /usr/lib/objc/libobjcMsgSend4.dylib
+       0x1cac10000 -        0x1cac10f2f  libobjcMsgSend5.dylib (973.1) <3913A71C-B29A-3AEA-820B-BEC40AC1861A> /usr/lib/objc/libobjcMsgSend5.dylib
+       0x1d0cb6000 -        0x1d0cf277b  libncurses.5.4.dylib (81) <0DF50E07-5220-3B89-BBC1-967D9225A75F> /usr/lib/libncurses.5.4.dylib
+       0x1d2c10000 -        0x1d2c10f2f  libobjcMsgSend6.dylib (973.1) <9BC523A3-E167-3F6C-8CAE-0F3EBA671791> /usr/lib/objc/libobjcMsgSend6.dylib
+       0x1dac10000 -        0x1dac10f2f  libobjcMsgSend7.dylib (973.1) <248B7BCE-5B4C-34C7-A340-43D5228628C5> /usr/lib/objc/libobjcMsgSend7.dylib
+       0x1e2c10000 -        0x1e2c10f2f  libobjcMsgSend8.dylib (973.1) <3E041BAD-A8E8-3069-B741-78CD1A45B176> /usr/lib/objc/libobjcMsgSend8.dylib
+       0x1eac10000 -        0x1eac10f2f  libobjcMsgSend9.dylib (973.1) <34A67969-21A0-39D6-BB81-8FDA5A2409DB> /usr/lib/objc/libobjcMsgSend9.dylib
+       0x1f2c10000 -        0x1f2c10f2f  libobjcMsgSend10.dylib (973.1) <678186C0-8EAD-3B35-8CBB-00285B41E4A0> /usr/lib/objc/libobjcMsgSend10.dylib
+       0x1f972d000 -        0x1f974a987  libedit.3.dylib (65) <9FB32838-0CCE-3870-97EE-B704D6CD28DD> /usr/lib/libedit.3.dylib
+       0x1fac10000 -        0x1fac10f2f  libobjcMsgSend11.dylib (973.1) <E05CB08C-E956-36FA-8967-AE8E346A8D2C> /usr/lib/objc/libobjcMsgSend11.dylib
+       0x222c10000 -        0x222c10f2f  libobjcMsgSend12.dylib (973.1) <10AB03AA-FF1F-3FDC-9DFB-BFC40042C501> /usr/lib/objc/libobjcMsgSend12.dylib
+       0x22ac10000 -        0x22ac10f2f  libobjcMsgSend13.dylib (973.1) <ABF53427-FA6F-3D0D-8F9D-7AD795CA5C92> /usr/lib/objc/libobjcMsgSend13.dylib
+       0x232c10000 -        0x232c10f2f  libobjcMsgSend14.dylib (973.1) <9A844C46-A6DA-34D4-8EBF-2AD775C30684> /usr/lib/objc/libobjcMsgSend14.dylib
+       0x23ac10000 -        0x23ac10f2f  libobjcMsgSend15.dylib (973.1) <7C995666-2B2D-3284-AA0A-EBF7C922838E> /usr/lib/objc/libobjcMsgSend15.dylib
+       0x242c10000 -        0x242c10f2f  libobjcMsgSend16.dylib (973.1) <B6C0E14B-53AE-3E22-9ED5-1729C49F46F2> /usr/lib/objc/libobjcMsgSend16.dylib
+       0x24ac10000 -        0x24ac10f2f  libobjcMsgSend17.dylib (973.1) <07B4CF85-251B-301B-832B-20B315A59E19> /usr/lib/objc/libobjcMsgSend17.dylib
+       0x252c10000 -        0x252c10f2f  libobjcMsgSend18.dylib (973.1) <43E575B7-04DB-3999-A633-1A3B638BA6E3> /usr/lib/objc/libobjcMsgSend18.dylib
+       0x25ac10000 -        0x25ac10f2f  libobjcMsgSend19.dylib (973.1) <736F4D85-76F7-3B28-8D87-C07E8F7A0EF4> /usr/lib/objc/libobjcMsgSend19.dylib
+       0x262c10000 -        0x262c10f2f  libobjcMsgSend20.dylib (973.1) <74E67C8B-6BCA-3184-A18E-A97F370052C6> /usr/lib/objc/libobjcMsgSend20.dylib
+       0x26ac10000 -        0x26ac10f2f  libobjcMsgSend21.dylib (973.1) <CC0D732F-98E7-3888-9E15-70984DA2FB04> /usr/lib/objc/libobjcMsgSend21.dylib
+       0x272c10000 -        0x272c10f2f  libobjcMsgSend22.dylib (973.1) <85A60286-5DE3-32BA-B18C-2A498B065C88> /usr/lib/objc/libobjcMsgSend22.dylib
+       0x27ac10000 -        0x27ac10f2f  libobjcMsgSend23.dylib (973.1) <5452A0D2-6B19-39BE-ADDD-80B7BCDE3A98> /usr/lib/objc/libobjcMsgSend23.dylib
+       0x282c10000 -        0x282c10f2f  libobjcMsgSend24.dylib (973.1) <94BBF2D6-722B-350D-8557-4D25A8E8D53A> /usr/lib/objc/libobjcMsgSend24.dylib
+       0x28ac10000 -        0x28ac10f2f  libobjcMsgSend25.dylib (973.1) <35481387-5A8E-3AE4-86A6-94CEB3CC8726> /usr/lib/objc/libobjcMsgSend25.dylib
+       0x2a2c10000 -        0x2a2c10f2f  libobjcMsgSend26.dylib (973.1) <9E0C8664-E7F4-39D1-AAFC-BD92B255E4E8> /usr/lib/objc/libobjcMsgSend26.dylib
+       0x2aac10000 -        0x2aac10f2f  libobjcMsgSend27.dylib (973.1) <FD424935-55A9-3650-955A-EED3441A1D19> /usr/lib/objc/libobjcMsgSend27.dylib
+       0x2b2c10000 -        0x2b2c10f2f  libobjcMsgSend28.dylib (973.1) <09BA7B97-7DF7-3C7F-932A-B6847662FC49> /usr/lib/objc/libobjcMsgSend28.dylib
+       0x2bac10000 -        0x2bac10f2f  libobjcMsgSend29.dylib (973.1) <36D5BA3F-2139-30B0-8558-556764BE9813> /usr/lib/objc/libobjcMsgSend29.dylib
+       0x2c2c10000 -        0x2c2c10f2f  libobjcMsgSend30.dylib (973.1) <9F05564A-9D12-372C-98FC-E9F0E6BE4F04> /usr/lib/objc/libobjcMsgSend30.dylib
+       0x2c792a000 -        0x2c7930fe5  libRosetta.dylib (385) <E359944B-D230-33F9-A04E-0C3B17C3326E> /usr/lib/libRosetta.dylib
+       0x2c8319000 -        0x2c831c75b  libsystem_darwindirectory.dylib (129.0.1) <61264923-2AA5-3658-B8C4-550C71E9D4B3> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x2c831d000 -        0x2c8327d9b  libsystem_eligibility.dylib (446.1.3) <EDDE8E9C-A2CF-3931-BBB3-321CB852EB30> /usr/lib/system/libsystem_eligibility.dylib
+       0x2c8328000 -        0x2c833142b  libsystem_sanitizers.dylib (32) <7138ED99-7AA0-34EA-B35B-20EF6ADB1EED> /usr/lib/system/libsystem_sanitizers.dylib
+       0x2c8332000 -        0x2c8332a13  libsystem_trial.dylib (511) <6AE48824-EC44-3A8C-B501-BE57DBE892E7> /usr/lib/system/libsystem_trial.dylib
+       0x2cac10000 -        0x2cac10f2f  libobjcMsgSend31.dylib (973.1) <0985E20F-78C3-3466-A2B2-DBB95F7104A3> /usr/lib/objc/libobjcMsgSend31.dylib
+       0x2d2c10000 -        0x2d2c10f2f  libobjcMsgSend32.dylib (973.1) <0D309D58-D576-3E5D-AD4B-6D55AB491702> /usr/lib/objc/libobjcMsgSend32.dylib
+       0x2dac10000 -        0x2dac10f2f  libobjcMsgSend33.dylib (973.1) <346E0484-48FA-369B-8A64-93B5F5341CFE> /usr/lib/objc/libobjcMsgSend33.dylib
+       0x2e2c10000 -        0x2e2c10f2f  libobjcMsgSend34.dylib (973.1) <6A31F809-BCBE-3E01-A367-E91FDACCE324> /usr/lib/objc/libobjcMsgSend34.dylib

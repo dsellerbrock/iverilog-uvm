@@ -1,0 +1,5 @@
+PASS narrow_boundary
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-spi-sparse-wide-domain-20260923/narrow_boundary.sv:18: $finish called at 0 (1s)
+real 0.05
+user 0.04
+sys 0.00

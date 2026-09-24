@@ -1,0 +1,5 @@
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205: Warning: Calling system function $system() as a task.
+../src/lowrisc_dv_dv_utils_0/dv_utils_pkg.sv:205:          The functions return value will be ignored.
+UVM_INFO @ 0 ps: reporter [RNTST] Running test spi_device_base_test...
+SRAM ingress start = 0xc2187e00
+UVM_INFO @   5026568 ps: (spi_device_base_vseq.sv:127) uvm_test_top.env.virtual_sequencer [uvm_test_top.env.virtual_sequencer.spi_device_flash_mode_vseq] [PRE_START] - Test will run: num_trans = 8

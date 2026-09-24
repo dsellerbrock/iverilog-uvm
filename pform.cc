@@ -1666,6 +1666,18 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 	      // bare references to the name a variable, not a type.
 	    if (cur_scope->wires.find(name) != cur_scope->wires.end())
 		  return 0;
+	      // Interface definitions live in the global definitions namespace,
+	      // but an instance of that interface is a local module symbol
+	      // (IEEE 1800-2017 3.13). If both have the same name, lex later
+	      // references to the instance as identifiers, including indexed
+	      // `iface[i].member` paths. Do not hide a type merely because an
+	      // unrelated local symbol happens to share its spelling.
+	    {
+		  auto local = cur_scope->local_symbols.find(name);
+		  if (local != cur_scope->local_symbols.end()
+		      && dynamic_cast<PGModule*>(local->second))
+			return 0;
+	    }
 	    if (PClass*shadow_class = dynamic_cast<PClass*>(cur_scope)) {
 		  if (shadow_class->type
 		      && shadow_class->type->properties.find(name)

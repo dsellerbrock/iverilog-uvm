@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_packed_tri_startup_slot_2023.v",
+  "iverilog-args": ["-g2023", "-s", "sv_packed_tri_startup_slot"],
+  "gold": "sv_packed_tri_startup_slot_2023"
+}

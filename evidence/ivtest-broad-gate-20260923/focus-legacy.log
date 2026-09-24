@@ -1,0 +1,13 @@
+Running compiler/VVP tests for Icarus Verilog version: 13.
+----------------------------------------------------------------------------
+                                                      pr1787423b: Passed.
+                              sv_constraint_dist_boolean_subject: Passed.
+                           sv_randomize_joint_multiple_dist_fail: Passed.
+                      sv_randomize_joint_multiple_dist_fail_2023: Passed.
+     sv_randomize_joint_ordered_randc_multidist_range_cap_atomic: Passed.
+sv_randomize_joint_ordered_randc_multidist_range_cap_atomic_2023: Passed.
+                sv_dist_large_exact_nonsingleton_expression_fail: Passed.
+           sv_dist_large_exact_nonsingleton_expression_fail_2023: Passed.
+============================================================================
+Test results:
+  Total=8, Passed=8, Failed=0, Not Implemented=0, Expected Fail=0

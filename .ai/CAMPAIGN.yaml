@@ -1,16 +1,33 @@
 campaign: IEEE1800-UVM-continuous
 mission: IEEE 1800-2017 and 2023 separately, IEEE 1800.2/UVM separately, pinned released OpenTitan and Caliptra DV with selected overlays, and a sound formal foundation.
-branch: agent/ot-spi-constraint-inside-queue-concat-20260923
-baseline: PR344 exact head db4f447dd0ba88d9980fa4af5e31ae44e3e36118; PR342 and PR343 merged after exact-head CI success.
+branch: agent/ot-spi-dist-csrng-forward-20260923
+baseline: PR346 merged at 2899542be0a117d24e6d3ea4a3ca82ddf4c107d1 after exact-head Ubuntu 24.04 success; local follow-on work remains unpublished.
 active: .ai/ACTIVE_WORK.yaml
 checkout_ledger: .ai/ISSUE_CHECKOUT.csv
 current_parallel_lanes:
+  spi_large_dist_triage: OT-SPI-PASS-LARGE-DIST-TRIAGE; reused Luna evidence-only lane; release call at spi_device_pass_base_vseq.sv:146 requires paired RED and standards check before implementation.
+  spi_large_dist_implementation: OT-SPI-LARGE-EXACT-DIST-SAMPLING; reused Luna owns only vvp/vvp_z3.cc and dedicated paired tests; baseline paired RED frozen in evidence/opentitan-spi-pass-large-dist-triage-20260923.
+  spi_sparse_wide_domain_triage: OT-SPI-SPARSE-WIDE-DOMAIN-ENUM; reused Luna read-only evidence lane found repeated 65-model probes on soft-only wide scalars but no paired failing RED; source ownership released without an implementation.
+  csrng_cfg_joint_dist_triage: OT-CSRNG-CFG-JOINT-DIST; reused Luna read-only evidence lane isolates the released cfg.randomize distribution restriction with paired IEEE 2017/2023 RED before any source change.
+  legacy_gate_failure_triage: OT-LEGACY-GATE-EIGHT-FAILURES; reused Sol read-only lane classifies eight unexplained legacy failures from the full gate while coordinator retains source and shared build ownership.
+  csrng_blklen_triage: OT-CSRNG-BLKLEN-PARTSELECT-TRIAGE; reused Sol evidence-only lane; hierarchical BlkLen indexed width at tb.sv:152/162 requires legality check and paired RED before implementation.
+  csrng_blklen_overlay: OT-CSRNG-BLKLEN-PINNED-OVERLAY; reused Sol lane owns one pinned-release patch and its owning release guide entry; strict Icarus compiler behavior remains unchanged.
+  csrng_array_crash_triage: OT-CSRNG-ARRAY-WORD-SIZE-CRASH-TRIAGE; reused Sol evidence-only lane; patched released CSRNG configured smoke aborts in vvp/array.cc:483 before UVM, requiring cheap paired RED before implementation.
+  csrng_array_crash_implementation: OT-CSRNG-PACKED-NET-ARRAY-FORWARD-DRIVER; reused Sol owns only vvp/words.cc and dedicated paired tests after reproduced forward-concat metadata load-order RED; coordinator owns shared builds/replay.
+  csrng_post_load_triage: OT-CSRNG-POST-LOAD-NO-UVM-TRIAGE; reused Sol evidence-only lane investigates the bounded 120-second configured smoke with no UVM report after the load-order assertion is repaired.
+  csrng_packed_tri_feedback_implementation: OT-CSRNG-PACKED-TRI-FEEDBACK-CONVERGENCE; reused Sol owns only vvp/vvp_net_sig.cc vec8 signal filter and dedicated paired tests after a faithful 2017/2023 time-zero RED; coordinator owns shared builds and release replay.
+  csrng_timezero_scheduler_implementation: OT-CSRNG-TIMEZERO-INIT-SCHEDULER; reused Sol owns only vvp/schedule.cc and schedule.h if necessary plus dedicated paired tests after exact RED proves pre-start init-queue starvation; restore unaccepted vec8 filter candidate.
+  caliptra_l0_full_dv_assessment: CALIPTRA-PINNED-L0-52-AND-FULL-DV-GAPS; delegated Luna owns only isolated Caliptra evidence and exact release replay; Verilator remains read-only and 52/52 requires zero assertion errors.
+  caliptra_doe_root_cause: CALIPTRA-DOE-RESET-WINDOW-ROOT-CAUSE; reused Sol owns only isolated read-only DOE trace evidence, while Luna owns the full L0 and full-DV assessment; coordinator owns qualification.
   spi_constraint_inside: OT-SPI-CONSTRAINT-INSIDE-CONST-ARRAY integrated at b7551af50; source ownership released.
   aon_mixed_vif_event: OT-AON-MIXED-VIF-EVENT-WAIT integrated at 07d8ba6df; source ownership released and unchanged released AON smoke passes.
   spi_queue_concat: OT-SPI-QUEUE-ARRAY-CONCAT integrated at 2e648c7ec; source ownership released.
-  spi_jedec_sampling: OT-SPI-JEDEC-SAMPLING-LIMIT; GPT-6 Luna owns vvp/vvp_z3.cc and dedicated tests only. Paired RED baseline frozen.
-  isolation: Source ownership is disjoint; coordinator owns shared builds/manifests. No Verilator implementation or pinned application-source edits. PR344 head remains fixed for CI.
+  spi_jedec_sampling: OT-SPI-JEDEC-SAMPLING-LIMIT integrated locally at df9f167f4; source ownership released after focused validation.
+  csrng_interface_name: OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION integrated locally at 6410b956c; source ownership released after focused validation.
+  isolation: Coordinator owns shared builds/manifests and PR integration. No Verilator implementation or pinned application-source edits. PR346 merged; subsequent local work is unpublished.
 recent_merges:
+  pr346: 2899542be0a117d24e6d3ea4a3ca82ddf4c107d1; merged after exact-head Ubuntu 24.04 success. Canonical main and shared graph refreshed.
+  pr344: b1eb7c038ec23ae9210f911724addf58b8b69cd6; merged after exact-head Ubuntu 22.04 success. PR346 retargeted to main.
   pr343: b1963b391b8bf477eb542c80c82d106150335e5f; scope queue and associative statement methods merged after exact-head Ubuntu 22.04 success.
   pr342: 7d6f0a8dd97a4c206ab5887aff735caa76ed50ba; Caliptra typedef array parameter fix merged after exact-head Ubuntu 22.04 success. Other CI remains observable.
   pr334: bf3c859e194144e2c71916100ae3b5bf02eaa0f4; Ubuntu 24.04 exact-head CI passed before merge.
@@ -22,14 +39,14 @@ recent_merges:
   pr340: 909e3f314f0b2ca748cafa3389e578eb0b67feaa; class-event triggered expression merged after Ubuntu 22.04 exact-head CI success.
   pr341: 7943dffd1a426418cd975883753af7cdb2e18e46; associative find_index and multi-object event list merged after Ubuntu 24.04 exact-head CI success. UCRT64 failed checkout certificate trust before compiler execution.
 active_blocker:
-  id: OT-SPI-JEDEC-SAMPLING-LIMIT
-  phase: SPI_COMPILE_CLEAN_AON_SMOKE_PASS_SPI_SOLVER_RUNTIME_RED
+  id: OT-SPI-LARGE-EXACT-DIST-SAMPLING and OT-CSRNG-POST-LOAD-NO-UVM-TRIAGE
+  phase: SPI_EXACT_DIST_FOCUSED_GREEN_RELEASE_RUNTIME_BOUNDED_CSRNG_LOAD_CRASH_FIXED_TIME_ZERO_INIT_STALL
   owner: Coordinator
   source: Released OpenTitan Earlgrey-PROD-M6 a78922f14a8cc20c7ee569f322a04626f2ac6127; no application source edits.
-  standards: IEEE 1800-2017/2023 section 18.6.3 constraint randomization success and rollback.
-  checkpoint: Queue concatenation, constraint-context inside, and mixed-VIF wait fixes integrated with paired focused checks; unchanged released SPI Device compile has zero hard errors and configured flash-mode smoke fails on solver enumeration cap; unchanged released AON timer smoke passes one real test.
-  evidence: evidence/opentitan-spi-jedec-sampling-limit-20260923/baseline.json; evidence/opentitan-aon-mixed-vif-event-20260923/baseline.json.
-  next: Fix solver cap without violating distributions or rollback; publish current integrated fixes in a coherent PR after focused local checks. Merge PR344 after one exact-head CI success and retarget follow-on PR. Verilator stays read-only.
+  standards: IEEE 1800-2017/2023 section 18.6.3 constraint randomization; sections 3.13 and 28.3.5 interface type/instance naming and array references.
+  checkpoint: PR346 merged after exact-head Ubuntu 24.04 success. JEDEC solver, CSRNG parser, pinned-release width overlay, and VVP forward-driver loader fix are committed locally. Revised exact coupled dist candidate passes paired focus but released SPI still stalls after UVM PRE_START in sparse wide-scalar enumeration. The vec8 false green was invalidated and unaccepted; a standards-grounded time-zero scheduler candidate passes faithful paired focus and advances pinned CSRNG to UVM, where cfg.randomize() fails on a distinct joint-dist restriction. AON smoke remains a separate pass. Full DV remains open.
+  evidence: docs/conformance/session_logs/2026-09-23_opentitan_spi_csrng_next.json; evidence/opentitan-csrng-array-crash-triage-20260923/README.md; evidence/opentitan-csrng-post-load-triage-20260923/README.md; evidence/opentitan-spi-pass-large-dist-triage-20260923/baseline.json.
+  next: Broad local legacy and full JSON gates pass for the unpublished parser/solver/loader/scheduler batch; publish a coherent PR and seek exact-head CI. Triangulate the SPI sparse wide-scalar enumeration cost and CSRNG cfg joint-dist legality with cheap independent REDs. Caliptra full 52-case L0 and full-DV dependency inventory remain separate. Verilator stays read-only.
 parallel_assoc_find_index_lane:
   owner: Lower-cost implementation agent.
   files: elab_expr.cc; tgt-vvp/eval_object.c; dedicated tests only.
@@ -162,4 +179,4 @@ preservation:
   application_sources: Pinned OpenTitan and Caliptra sources remain unmodified.
   graph: Shared canonical graph queried first; no feature-worktree graph created.
   old_pr_branch: agent/caliptra-sva-register-identity-20260923 preserved after PR335 merge; worktree switched to the new branch from main.
-next_command: "Implement the authorized constant-array inside and AON triggered event-control lanes in disjoint files; coordinator integrates focused tests and merges PR343 after one exact-head CI success. Keep Verilator read-only and pinned application sources unchanged."
+next_command: "Wait for PR346 exact-head CI success and merge; publish the locally integrated JEDEC solver and CSRNG parser fixes in a follow-on PR. Reduce the separate SPI large-range dist and CSRNG BlkLen blockers before new disjoint implementation lanes. Keep Verilator read-only and pinned application sources unchanged."

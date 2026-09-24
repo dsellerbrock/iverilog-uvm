@@ -1,0 +1,24 @@
+{
+  "branch_head": "2d7319d371cf4f946e82e0ea751821e8318419ed",
+  "legacy_gate_exit_code": 0,
+  "legacy_ivtest": {
+    "total": 6458,
+    "passed": 6453,
+    "failed": 0,
+    "not_implemented": 2,
+    "expected_fail": 3
+  },
+  "vpi": {
+    "total": 131,
+    "passed": 131,
+    "failed": 0,
+    "not_implemented": 0
+  },
+  "negative": {
+    "passed": 155,
+    "failed": 0
+  },
+  "runtime_invariants": "PASS state foreach runtime invariants (15/15)",
+  "first_gate": "8 unexplained failures before test-oracle repair; see first-fail.log.gz",
+  "merged_gate": "0 unexplained failures; see merged-pass.log.gz"
+}

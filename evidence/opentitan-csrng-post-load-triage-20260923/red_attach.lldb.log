@@ -1,0 +1,28 @@
+(lldb) process attach --pid 30073
+Process 30073 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+       frame #0: 0x0000000102d75014 vvp`(anonymous namespace)::flush_event_source_transaction_() + 428
+vvp`(anonymous namespace)::flush_event_source_transaction_:
+->  0x102d75014 <+428>: str    x9, [sp, #0x50]
+    0x102d75018 <+432>: cbz    x9, 0x102d75084           ; <+540>
+    0x102d7501c <+436>: str    x24, [x8, #0x10]
+    0x102d75020 <+440>: add    x8, x26, #0x8
+Target 0: (vvp) stopped.
+Executable binary set to "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp".
+Architecture set to: arm64-apple-macosx-.
+(lldb) expr -- sim_started
+(void *) $0 = 0x0000000000000000
+(lldb) expr -- (unsigned long long)schedule_simtime()
+(unsigned long long) $1 = 0
+(lldb) expr -- count_gen_events
+(void *) $2 = 0x0000000000b3d3ca
+(lldb) thread backtrace
+* thread #1, queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+   * frame #0: 0x0000000102d75014 vvp`(anonymous namespace)::flush_event_source_transaction_() + 428
+     frame #1: 0x0000000102d74b38 vvp`vvp_event_source_end() + 712
+     frame #2: 0x0000000102b7397c vvp`vvp_net_t::send_vec4(vvp_vector4_t const&, void**) + 288
+     frame #3: 0x0000000102cc8bbc vvp`generic_event_s::run_run() + 52
+     frame #4: 0x0000000102ccb5a8 vvp`schedule_simulate() + 144
+     frame #5: 0x0000000102b6a014 vvp`vvp_run + 996
+     frame #6: 0x0000000102b68dcc vvp`main + 1188
+     frame #7: 0x000000019b0c7e80 dyld`start + 6688

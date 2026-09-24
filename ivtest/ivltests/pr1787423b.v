@@ -5,6 +5,7 @@ module top;
 
   initial begin
     // $monitor(bf1, bf2,, nt1, nt2,, pd1, pd2,, pu1, pu2,, in);
+    #0; // Observe after time-zero Active primitive propagation.
     if (bf1 !== 1'bx && bf2 !== 1'bx) begin
       $display("Buffer failed, expected 2'bxx, got %b%b", bf1, bf2);
       pass = 1'b0;

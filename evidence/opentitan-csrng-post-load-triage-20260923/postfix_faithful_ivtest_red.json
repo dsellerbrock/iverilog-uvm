@@ -1,0 +1,50 @@
+[
+  {
+    "edition": "2017",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2017",
+      "-s",
+      "sv_packed_tri_feedback_converge",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-faithful-2017-yztu6pap.vvp",
+      "ivltests/sv_packed_tri_feedback_converge.v"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-faithful-2017-yztu6pap.vvp"
+    ],
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 2.004
+  },
+  {
+    "edition": "2023",
+    "compile_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+      "-g2023",
+      "-s",
+      "sv_packed_tri_feedback_converge",
+      "-o",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-faithful-2023-fdk6n3i9.vvp",
+      "ivltests/sv_packed_tri_feedback_converge_2023.v"
+    ],
+    "compile_exit": 0,
+    "compile_stderr": "",
+    "runtime_command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "-n",
+      "/var/folders/kt/49lpgwld33s6v4r2xn718tkh0000gn/T/csrng-faithful-2023-fdk6n3i9.vvp"
+    ],
+    "runtime_exit": null,
+    "runtime_stdout": "",
+    "runtime_stderr": "",
+    "timed_out": true,
+    "duration_seconds": 2.002
+  }
+]

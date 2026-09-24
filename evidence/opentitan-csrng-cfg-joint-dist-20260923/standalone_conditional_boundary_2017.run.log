@@ -1,0 +1,2 @@
+PASS standalone conditional dist boundary
+/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/opentitan-csrng-cfg-joint-dist-20260923/standalone_conditional_boundary.sv:23: $finish called at 0 (1s)

@@ -71,6 +71,25 @@ class packed_dims_resolv_t : public resolv_list_s {
                         sig->lsb.set_value(ranges_[0].right);
                   }
             } else if (__vpiArray*array = dynamic_cast<__vpiArray*>(obj_)) {
+                  /* A net array may be declared before the source of its
+                     first word.  In that case compile_netw queues the word
+                     attachment, so the array exists but nets[0] is null.
+                     Leave this resolver pending until linking attaches it. */
+                  if (array->nets && array->get_size() && !array->nets[0]) {
+                        if (!message_flag) return false;
+                        yyerror("packed array dimension metadata word unresolved");
+                        compile_errors += 1;
+                        return true;
+                  }
+                  if (array->get_size() == 0 ||
+                      (array->nets && !dynamic_cast<__vpiSignal*>(array->nets[0])) ||
+                      (!array->nets && !array->vals4 && !array->vals) ||
+                      (array->vals && array->value_kind !=
+                            __vpiArray::ARRAY_VALUE_INTEGRAL)) {
+                        yyerror("packed array dimension metadata target is not integral storage");
+                        compile_errors += 1;
+                        return true;
+                  }
                   if (width_ != static_cast<unsigned>(array->get_word_size())) {
                         yyerror("packed array dimension metadata width mismatch");
                         compile_errors += 1;
