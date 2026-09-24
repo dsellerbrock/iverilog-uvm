@@ -103,6 +103,30 @@ elif ! awk '
 fi
 
 echo ""
+echo "=== stub optional for clauses ==="
+if ! iverilog -g2012 -tstub -s test -o "$WORK/stub_for.out" \
+    "$ROOT/ivtest/ivltests/sv_stub_optional_for.v"; then
+    echo "GATE FAIL: stub optional for test did not compile."
+    status=1
+elif ! awk '
+    /FOR-LOOP$/ { loop++; next }
+    loop && /<"<" width=/ { condition[loop]++ }
+    loop && /\/\* noop \*\// { noop[loop]++ }
+    loop && /ASSIGN <lwidth=32> opcode=\+/ { increment[loop]++ }
+    loop && /ASSIGN <lwidth=32> opcode= $/ { assignment[loop]++ }
+    loop && /break;/ { break_stmt[loop]++ }
+    END {
+        exit !(loop == 3 &&
+               condition[1] == 1 && noop[1] == 1 && increment[1] == 1 &&
+               condition[2] == 1 && assignment[2] == 1 && increment[2] == 1 &&
+               break_stmt[3] == 1 && condition[3] == 0)
+    }
+' "$WORK/stub_for.out"; then
+    echo "GATE FAIL: stub output lost an optional for clause or body."
+    status=1
+fi
+
+echo ""
 echo "=== bundled VPI suite ==="
 perl vpi_reg.pl > "$WORK/vpi.log" 2>&1
 tail -1 "$WORK/vpi.log"
