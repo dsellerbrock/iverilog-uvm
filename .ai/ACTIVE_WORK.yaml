@@ -1,6 +1,6 @@
-status: focused_integrated_publication_pending
-branch: agent/ot-spi-dist-csrng-forward-20260923
-baseline: PR346 merged at 2899542be0a117d24e6d3ea4a3ca82ddf4c107d1 after exact-head Ubuntu 24.04 success; canonical main checkout and shared graph updated. Local parser, solver, overlay, and forward-driver fixes remain unpublished.
+status: pr348_merged_caliptra_evidence_publication_pending
+branch: agent/caliptra-doe-l0-followup-20260923
+baseline: PR348 merged at 398bf5c65118ac64ca11a68de9e970dc0ae2ec91; canonical main checkout refreshed. Exact-head CI qualification is tracked separately. Caliptra L0 and DOE causal evidence remain local follow-up work.
 blocker: OT-SPI-LARGE-EXACT-DIST-SAMPLING and OT-CSRNG-POST-LOAD-NO-UVM-TRIAGE
 goal: Preserve the passing unchanged released AON timer smoke, advance SPI Device through exact coupled distribution sampling, and resolve CSRNG time-zero initialization propagation after repairing its parser and loader.
 standards: IEEE 1800-2017/2023 section 18.6.3 randomization; sections 3.13 and 28.3.5 interface naming and array instance references.
@@ -51,7 +51,7 @@ parallel_legacy_gate_failure_triage:
   files: evidence/ivtest-broad-gate-20260923 and only the eight identified ivtest source/gold fixtures; no compiler source or shared manifests. Coordinator owns build/install and integration.
   acceptance: Preserve time-zero primitive checks after Active via #0; update only exact changed diagnostics; replace obsolete 256-coordinate negative limits with above-16384 negative controls and add a supported 301-coordinate positive check in both editions. Focused legacy and JSON checks must pass; no expected-failure entries or removed assertions.
   dependency: Disjoint from Luna CSRNG cfg joint-dist evidence and Caliptra release replay.
-  state: Test-only repair integrated at fea3f1203 after isolated legacy and JSON focus; the full merged-branch legacy gate and 3388/3388 JSON regression pass. See evidence/ivtest-broad-gate-20260923/merged-gate-result.json and merged-json-result.json.
+  state: Test-only repair integrated at fea3f1203 after isolated legacy and JSON focus; the full merged-branch legacy gate and 3388/3388 JSON regression pass. Published in PR348; exact-head CI is in progress. See evidence/ivtest-broad-gate-20260923/merged-gate-result.json and merged-json-result.json.
 parallel_csrng_blklen_triage:
   id: OT-CSRNG-BLKLEN-PARTSELECT-TRIAGE
   owner: Reused GPT-6 Sol agent; coordinator owns shared builds and integration.
@@ -118,13 +118,39 @@ parallel_caliptra_l0_gap_assessment:
   files: evidence/caliptra-l0-52-and-full-dv-gap-20260923 only; read existing exact L0 runners, overlays, and full-DV inventory without editing any tool or pinned application source.
   acceptance: Reconcile strict 49/52 L0 baseline with two already focused-tested firmware overlays and the DOE SVA error; run reproducible selected replays and a full 52-case patched-copy L0 pass if feasible. Count an assertion error as failure regardless of exit/banner. Inventory full DV targets, dependencies, and first runnable Icarus blocker separately from L0. Never claim 52/52 by hiding assertions or editing Verilator.
   dependency: Independent from OpenTitan SPI vvp/vvp_z3.cc and CSRNG time-zero evidence lanes. Use isolated output roots and coordinate CPU-heavy runs; no shared build/install.
+  state: Completed full selected patched-copy replay at 51/52 passes and zero timeouts; DOE scan alone fails on one intact SVA error despite exit zero and pass banner. Exact case hashes and full-DV gap inventory are in evidence/caliptra-l0-52-and-full-dv-gap-20260923/. No full UVM DV claim.
 parallel_caliptra_doe_root_cause:
   id: CALIPTRA-DOE-RESET-WINDOW-ROOT-CAUSE
   owner: Reused GPT-6 Sol agent; coordinator owns qualification and shared builds.
-  scope: Read-only pinned Caliptra v2.1.2 DOE status assertion and reset/clock trace under evidence/caliptra-doe-root-cause-20260923 only.
+  scope: Read-only pinned Caliptra v2.1.2 DOE status assertion and reset/clock trace under evidence/caliptra-doe-root-cause-20260923 only; one disposable passive monitor may be used solely to time the existing property signals.
   reproducer: Full patched-copy L0 replay has 51/52 strict passes; smoke_test_doe_scan emits one intact DOE STATUS SVA error despite exit zero and a pass banner. Existing disable_midwindow.sv differential reports control=1 disabled=0 on Icarus and control=1 disabled=1 on Verilator 5.050/5.052.
-  acceptance: Trace the exact antecedent, reset pulse, gated clock, and consequent in the released source and replay. Verify IEEE 1800-2017/2023 disable iff semantics and determine whether the reduced differential explains the application error or leaves another cause. Preserve a bounded, reproducible trace and distinguish a simulator defect from an application assertion defect. Do not edit Verilator, Icarus, pinned application source, or the assertion to force a pass.
+  acceptance: Trace the exact antecedent, reset pulse, gated clock, and consequent in the released source and replay. Verify IEEE 1800-2017/2023 disable iff semantics and determine whether the reduced differential explains the application error or leaves another cause. Preserve a bounded, reproducible trace and distinguish a simulator defect from an application assertion defect. A disposable passive monitor must leave the assertion/action intact and cannot qualify the original L0 test. Do not edit Verilator, Icarus, or pinned application source to force a pass.
   dependency: Disjoint from Luna Caliptra L0/full-DV evidence and its isolated outputs. No shared build/install or concurrent edits to the same files.
+  state: Completed causal passive trace. Pre-reset RDC edges sample clear=1; DOE reset pulses low; first resumed RDC edge samples clear=0 and status=0, yet the original SVA fires. IEEE section 16.12 requires abort of that stale attempt; existing Verilator 5.050/5.052 reducer shows the same direct implication defect. See evidence/caliptra-doe-root-cause-20260923/assessment.md. Intact L0 remains failed; no source edits.
+parallel_caliptra_csrng_header_closure:
+  id: CALIPTRA-CSRNG-GENERATED-HEADER-CLOSURE
+  owner: Reused GPT-6 Luna agent; coordinator owns compiler selection and shared builds.
+  scope: Pinned-release read-only investigation and isolated evidence/caliptra-csrng-header-closure-20260923 only.
+  reproducer: Package-first disposable CSRNG filelist clears the IEEE 1800 section 26.3 ordering error, then Icarus compilation stops at aes_clp_wrapper.sv:26 because caliptra_reg_field_defines.svh is missing.
+  acceptance: Locate the release-owned header or its generator, identify the exact official prerequisite and include path, and run one cheap isolated compile probe if all inputs are available. Preserve distinct source, generated-input, and compiler errors. Do not edit pinned application source or add placeholder definitions.
+  dependency: Disjoint from Sol DOE trace evidence and outputs; no shared installation or source edits.
+  state: The header is tracked in the pinned release; the unit filelist omits its caliptra_reg include directory. A disposable filelist with this include path and package-first order compiles csrng_tb on Icarus 13.0 with zero diagnostics in 0.27 seconds. Compile-only; no DV pass. See evidence/caliptra-csrng-header-closure-20260923/README.md.
+parallel_caliptra_csrng_unit_runtime:
+  id: CALIPTRA-CSRNG-UNIT-RUNTIME-PROBE
+  owner: Reused GPT-6 Luna agent; coordinator owns release qualification and shared installation.
+  scope: Official pinned CSRNG unit invocation discovery plus one bounded isolated VVP run under evidence/caliptra-csrng-unit-runtime-20260923 only.
+  reproducer: The corrected disposable CSRNG unit filelist compiles in Icarus 13.0; runtime behavior has not been checked.
+  acceptance: Find the release's documented or Makefile-defined csrng_tb test invocation and real runtime inputs. If runnable, execute one bounded focus and report exit, time, checker verdicts, and first failure; otherwise identify the exact setup gate. Do not interpret compilation alone or a banner alone as DV success; no placeholder files or pinned-source edits.
+  dependency: Disjoint from Sol DOE passive trace; separate output directory and no shared build/install.
+  state: One bounded Icarus 13.0 csrng_tb run exited zero in 7.497 seconds, with one pass marker, all 36 expected GENBITS reads, no mismatches, and 252 unhandled unique-case warnings. The testbench's printed 00 case count is not coverage. See evidence/caliptra-csrng-unit-runtime-20260923/README.md; no full-DV claim.
+parallel_caliptra_csrng_unique_warning_triage:
+  id: CALIPTRA-CSRNG-UNIQUE-CASE-WARNINGS
+  owner: Reused GPT-6 Luna agent; coordinator owns compiler selection and shared builds.
+  scope: Read-only classification under evidence/caliptra-csrng-unique-warning-20260923 only.
+  reproducer: Bounded pinned csrng_tb runtime passes explicit checks but reports 252 unhandled unique-case warnings at csrng_reg_top.sv:2386 starting at time zero.
+  acceptance: Identify value/timing and caller context for the first warning, determine whether the warnings imply a missed check or legitimate X startup, and produce a cheap paired reducer only if it reveals an Icarus semantic defect. Keep all warnings visible; do not suppress or alter pinned source.
+  dependency: Disjoint from Sol DOE passive trace and outputs; no shared build/install or source edits.
+  state: Completed classification. First time-zero address decode is X under reset; later intentional idle Z bus addresses make addr_hit X while read/write enables and addrmiss are zero. Known stable selectors are one-hot. Paired reducer confirms Icarus warns on unknown unmatched unique case and not a known match. Instrumented runtime retains explicit pass checks and 252 warnings; no source change. See evidence/caliptra-csrng-unique-warning-20260923/README.md.
 parallel_csrng_interface_name_lane:
   id: OT-CSRNG-INTERFACE-ARRAY-NAME-COLLISION
   owner: Delegated GPT-6 Sol implementation agent; coordinator owns shared builds and integration.
@@ -221,8 +247,8 @@ release_lane:
   source: Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e; Adams Bridge v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0.
   toolchain: Official xPack GCC 15.2; RV32IMC/ILP32 multilib.
   options: Pinned release Verilator L0 configuration with xPack GCC 15.2 rv32imc/ilp32, BUILD_CFLAGS=-std=gnu11 -O2, CALIPTRA_INTERNAL_TRNG=1, PLAYBOOK_RANDOM_SEED=1, Verilator -Wno-MISINDENT, and +CLP_REGRESSION.
-  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json and focused patched-copy replay results in the same directory.
-  checkpoint: Full 5.050 baseline complete at 49/52; two test-specific firmware overlays pass focused replays; DOE remains a genuine SVA failure on both 5.050 and a fresh v5.052 replay. Standalone reset-window differential supports a Verilator issue. No combined 52-case patched rerun yet.
+  evidence: evidence/caliptra-exact-l0-20260923/baseline_summary.json for the 49/52 initial baseline; evidence/caliptra-l0-52-and-full-dv-gap-20260923/full_l0_summary.json for the latest full selected replay.
+  checkpoint: Full selected 5.050 replay is 51/52 after two test-specific firmware overlays; DOE scan alone still emits one intact SVA error. Passive 5.052 timing trace confirms a stale pre-reset implication survives the reset pulse in Verilator; no new post-reset antecedent was sampled. No full DV qualification.
   selected_downstream_overlays:
     - "smoke_test_hw_config only: docs/conformance/release_overlays/caliptra/hw_config_inline_c11.patch, focused build and simulation passed."
     - "smoke_test_hmac_errortrigger only: docs/conformance/release_overlays/caliptra/hmac_errortrigger_stdlib.patch, focused build and simulation passed."

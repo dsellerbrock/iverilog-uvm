@@ -1,0 +1,74 @@
+{
+  "scope": "Classification of pinned CSRNG unique-case warnings; no source changes",
+  "release_head": "49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "warning_site": "src/csrng/rtl/csrng_reg_top.sv:2386, unconditional always_comb unique case (addr_hit) in csrng_tb.dut.u_reg",
+  "runtime_replay": {
+    "command": [
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+      "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/monitor.vvp"
+    ],
+    "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923",
+    "timeout_seconds": 60,
+    "exit_code": 0,
+    "elapsed_seconds": 7.184
+  },
+  "source_hashes": {
+    "csrng_reg_top.sv": "aae64658d7a0d0fa6217817d1092584c195a5e738fe33c3864e80efca99eb162",
+    "csrng_tb.sv": "e51850a531a54c3daef0f5fb5b397f0886957bd1149b9cc5677586b2df38583a",
+    "csrng_tb.vf": "78614e6aa69492f44feadd10d8f2243e88e1143bf0cb08ac9dbbc965b9236bc6"
+  },
+  "monitor_counts": {
+    "unique_case_warnings": 252,
+    "traced_addr_hit_changes": 210,
+    "trace_values": {
+      "xxxxxx": 105,
+      "000001": 1,
+      "000020": 1,
+      "000040": 18,
+      "001000": 39,
+      "002000": 36,
+      "000800": 10
+    },
+    "traced_x_states": 105,
+    "x_states_with_haddr_z": 104,
+    "idle_x_states_with_reg_read_and_write_low": 104
+  },
+  "first_warning": {
+    "time": "0",
+    "case_selector_hex": "xxxxxx (24-bit all-X)",
+    "reset_n": "0",
+    "reg_addr": "xx",
+    "reg_re": "x",
+    "reg_we": "x",
+    "addrmiss": "x",
+    "scope": "csrng_addr_hit_monitor.tb.dut.u_reg",
+    "source": "src/csrng/rtl/csrng_reg_top.sv:2386"
+  },
+  "steady_idle_evidence": "104 later traced X states correspond to haddr_tb=zzzzzzzz / reg_addr=zz with reg_re=0, reg_we=0, addrmiss=0; CSRNG testbench transaction tasks intentionally assign haddr_i_tb=Z after transfers.",
+  "paired_reducer": {
+    "source_sha256": "4c8cc49c95e13cc2929ff6f401f7488043ba8cd58a4f34d5e447cea74af83e6c",
+    "compile_exit": 0,
+    "runtime_exit": 0,
+    "warnings": 1,
+    "known_matching_selector": "01",
+    "unknown_selector": "xx",
+    "interpretation": "Icarus emits a unique-case no-match warning for xx; no warning is emitted for selector 01 that matches an item."
+  },
+  "verdict": "Warnings are caused by real unknown selector values, first during time-zero initialization and then primarily by the TB leaving the bus address high-impedance between transfers. They are not reports of a stable known address with no decode. The generated reg read mux evaluates unconditionally, while addrmiss is separately gated by reg_re/reg_we. Runtime testbench checker still passes with 36/36 expected GENBITS values and no mismatch; this does not make warnings harmless for every target.",
+  "monitor_artifacts": {
+    "csrng_addr_hit_monitor.sv": "6a3d8970251a89287fa8d12f1c5bd5fb071bab9d0fad52172d161c4ec2deac42",
+    "csrng_tb_monitor.vf": "1a4cb39568ccb4b73b051de2f430ed35ed7efec41ea2d0dcc6a0016e5045b8d1",
+    "monitor.vvp": "7a322483615d73fba2ba659b92a021249a0fd682f3dbb404070d3c64e0d17ae6",
+    "monitor.stdout": "711b61e3132c622988864c476d719f52f165e5abbf3604162fcc3a671365e62b",
+    "monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "paired_reducer_artifacts": {
+    "unique_case_pair.sv": "4c8cc49c95e13cc2929ff6f401f7488043ba8cd58a4f34d5e447cea74af83e6c",
+    "pair.stdout": "5d790f75e06a63b015a888b41328f1fca29352182d7623cc684ba4b932dcd43e",
+    "pair.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pair.vvp": "bc01210c1061dea6029264e8e825339d984035749880002bd437afb8b8288602"
+  },
+  "original_uninstrumented_runtime_stdout_sha256": "bbaa8044919fcd94491fb96155596d8dbf4d3b63c501b1f539cd6b9fbffa5e9d",
+  "instrumented_runtime_same_warning_count_as_original": true
+}

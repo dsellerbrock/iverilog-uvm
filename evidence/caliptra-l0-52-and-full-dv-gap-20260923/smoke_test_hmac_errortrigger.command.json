@@ -1,0 +1,30 @@
+{
+  "argv": [
+    "/usr/bin/make",
+    "-C",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/runs/smoke_test_hmac_errortrigger",
+    "-f",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/source/tools/scripts/Makefile",
+    "TESTNAME=smoke_test_hmac_errortrigger",
+    "CALIPTRA_INTERNAL_TRNG=1",
+    "PLAYBOOK_RANDOM_SEED=1",
+    "BUILD_CFLAGS=-std=gnu11 -O2",
+    "VERILATOR=verilator -Wno-MISINDENT",
+    "VERILATOR_RUN_ARGS=+CLP_REGRESSION",
+    "verilator"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923",
+  "environment_overrides": {
+    "CALIPTRA_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/source",
+    "CALIPTRA_WORKSPACE": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923",
+    "CALIPTRA_PRIM_ROOT": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/source/src/caliptra_prim_generic",
+    "CALIPTRA_PRIM_MODULE_PREFIX": "caliptra_prim_generic",
+    "CALIPTRA_AXI4PC_DIR": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/source/src/integration/tb"
+  },
+  "path_prefix": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/aliases",
+  "pinned_release": "Caliptra v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+  "selected_overlay_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+  "selected_test_patch_sha256": "ed5e27f4b6806a22373943030d31b84396535f21b8d6ef96b8d527ef4efed621",
+  "selected_test_source_sha256": "c56c7d49ce280090e20bfccdc58cbc4170c39d843d728d889f6e5f7c4210ff12",
+  "toolchain": "xPack GNU RISC-V Embedded GCC 15.2.0-1 darwin-arm64"
+}

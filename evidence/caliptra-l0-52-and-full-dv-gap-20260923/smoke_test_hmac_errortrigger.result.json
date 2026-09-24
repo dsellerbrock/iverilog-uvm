@@ -1,0 +1,18 @@
+{
+  "test": "smoke_test_hmac_errortrigger",
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 192.99,
+  "sim_log_exists": true,
+  "testcase_passed_markers": 1,
+  "testcase_failed_markers": 0,
+  "sva_error_lines": 0,
+  "firmware_elf_sha256": "2b254f4b84470c39bda96508f4b35e6cb09f5c26a73d81aef47418bb24a8b549",
+  "firmware_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+  "sim_log_sha256": "141284fdd6b954917f1370b2d539a08516de7f723d2e9afefbcce026fd619323",
+  "stdout_sha256": "7d9ccd30bf54486394b6409040e9c970d1e9c0de26873f29f44b4598276cb44d",
+  "stderr_sha256": "929f069809677c0b2d1ff402c692a46cdb8529cef4bd46044602afecd065fee0",
+  "selected_test_patch_sha256": "ed5e27f4b6806a22373943030d31b84396535f21b8d6ef96b8d527ef4efed621",
+  "selected_test_source_sha256": "c56c7d49ce280090e20bfccdc58cbc4170c39d843d728d889f6e5f7c4210ff12",
+  "passed": true
+}

@@ -1,0 +1,16 @@
+{
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 198.6,
+  "sim_log_sha256": "21096fc3f99d33bdcb2c47b865f9605a1363f40adcb0908da40894625d2950af",
+  "pass_banners": 1,
+  "sva_error_count": 1,
+  "probe_lines": [
+    "DOE_SCAN_PROBE antecedent sample: clear=1 rst_b=1 hard_rst_b=1",
+    "DOE_SCAN_PROBE consequent sample: clear=0 rst_b=1 hard_rst_b=1 valid=0 deobf_cleared=0",
+    "DOE_SCAN_PROBE consequent settled: clear=0 rst_b=1 hard_rst_b=1 valid=0 deobf_cleared=0"
+  ],
+  "source_sva_sha256": "fe6e365e7d1660b86bf89875f1224c8317b3d112e405b319ed838c042faa51a1",
+  "probe_patch_sha256": "e505d627bba3ee224d04596323fbd3883577ea6f34b9251e11c15c13d6f6e18b",
+  "passed": false
+}

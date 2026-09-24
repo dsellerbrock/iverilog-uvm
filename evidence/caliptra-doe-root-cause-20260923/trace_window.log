@@ -1,0 +1,23 @@
+DOE_EDGE_TRACE rdc time=24394250 rst_b=1 hard_rst_b=1 clear=1 valid=1 cleared=1 pending=1
+DOE_EDGE_TRACE rdc time=24394350 rst_b=1 hard_rst_b=1 clear=1 valid=1 cleared=1 pending=1
+DOE_EDGE_TRACE rdc time=24394450 rst_b=1 hard_rst_b=1 clear=1 valid=1 cleared=1 pending=1
+DOE_EDGE_TRACE rdc time=24394550 rst_b=1 hard_rst_b=1 clear=1 valid=1 cleared=1 pending=1
+DOE_EDGE_TRACE rdc time=24394650 rst_b=1 hard_rst_b=1 clear=1 valid=1 cleared=1 pending=1
+DOE_EDGE_TRACE rdc time=24394750 rst_b=1 hard_rst_b=1 clear=1 valid=1 cleared=1 pending=1
+CLP: Observed cptra_rst_b assertion
+
+DOE_EDGE_TRACE reset time=24394750 rst_b=0 hard_rst_b=0 clear=1 pending=1
+SoC: Asserting cptra_pwrgood and breakpoint. cycleCnt [     243956] deassert_hard_rst_flag[1]
+
+SoC: De-Asserting cptra_rst_b. cycleCnt [     243966] deassert_rst_flag[1]
+
+CLP: Observed cptra_rst_b deassertion
+
+DOE_EDGE_TRACE reset time=24396650 rst_b=1 hard_rst_b=1 clear=0 pending=1
+SVA ERROR: DOE STATUS valid bit not set after clear obf secrets cmd
+DOE_EDGE_TRACE rdc time=24397250 rst_b=1 hard_rst_b=1 clear=0 valid=0 cleared=0 pending=1
+CLP: Ready for fuse download
+
+SoC: Writing obfuscated UDS to fuse bank
+
+SoC: Writing obfuscated Field Entropy to fuse bank

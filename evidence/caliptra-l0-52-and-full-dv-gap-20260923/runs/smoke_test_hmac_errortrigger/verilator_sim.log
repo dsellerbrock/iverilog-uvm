@@ -1,0 +1,154 @@
+
+VerilatorTB: Start of sim
+
+DCCM pre-load from 50000000 to 5003ffff
+DCCM pre-load completed
+ICCM pre-load from 40000000 to 4003ffff
+ICCM pre-load completed
+MBOX pre-load from 00000000 to 00010000
+MBOX pre-load completed
+Randomized mode to mode_not_empty
+
+JTAG: Virtual JTAG interface jtag0 is listening on port 63224. Use
+OpenOCD and the following configuration to connect:
+  interface remote_bitbang
+  remote_bitbang_host localhost
+  remote_bitbang_port 63224
+STRAP_SS_KEY_RELEASE_KEY_SIZE set to default value 0x0040
+STRAP_SS_KEY_RELEASE_BASE_ADDR set to default value 0x0000000123440000
+
+
+
+
+
+
+
+CLP: Waiting for cptra_rst_b deassertion
+
+SoC: Asserting cptra_pwrgood and breakpoint. cycleCnt [         15] deassert_hard_rst_flag[0]
+
+SoC: De-Asserting cptra_rst_b. cycleCnt [         20] deassert_rst_flag[0]
+
+CLP: Observed cptra_rst_b deassertion
+
+CLP: Ready for fuse download
+
+SoC: Writing obfuscated UDS to fuse bank
+
+SoC: Writing obfuscated Field Entropy to fuse bank
+
+SoC: Writing obfuscated HEK seed to fuse bank
+
+SoC: Writing SOC Stepping ID to fuse bank
+
+SoC: Writing fuse done register
+
+SoC: Breakpoint not set; skipping BOOTFSM_GO step
+
+CLP: ROM Flow in progress...
+
+5720300 - ----------------------------------
+5804500 -  HMAC error_trigger smoke test !!
+5887700 - ----------------------------------
+5983400 - Key KV ID: 9
+6030900 -  ***** HMAC512 key_zero_error !!
+6148900 - HMAC flow in progress...
+6215700 - Received HMAC notif/err intr with status = 0/ 3
+6337900 - HMAC zeroize flow.
+CLP: Observed cptra_rst_b assertion
+
+SoC: De-Asserting cptra_rst_b. cycleCnt [      63859] deassert_rst_flag[1]
+
+CLP: Observed cptra_rst_b deassertion
+
+CLP: Ready for fuse download
+
+SoC: Writing obfuscated UDS to fuse bank
+
+SoC: Writing obfuscated Field Entropy to fuse bank
+
+SoC: Writing obfuscated HEK seed to fuse bank
+
+SoC: Writing SOC Stepping ID to fuse bank
+
+SoC: Writing fuse done register
+
+SoC: Breakpoint not set; skipping BOOTFSM_GO step
+
+CLP: ROM Flow in progress...
+
+12104200 - ----------------------------------
+12188400 -  HMAC error_trigger smoke test !!
+12271600 - ----------------------------------
+12367300 - Key KV ID: 9
+12417000 -  ***** HMAC384 key_zero_error !!
+12533500 - HMAC flow in progress...
+12600300 - Received HMAC notif/err intr with status = 0/ 2
+12723900 - HMAC zeroize flow.
+CLP: Observed cptra_rst_b assertion
+
+SoC: De-Asserting cptra_rst_b. cycleCnt [     127719] deassert_rst_flag[1]
+
+CLP: Observed cptra_rst_b deassertion
+
+CLP: Ready for fuse download
+
+SoC: Writing obfuscated UDS to fuse bank
+
+SoC: Writing obfuscated Field Entropy to fuse bank
+
+SoC: Writing obfuscated HEK seed to fuse bank
+
+SoC: Writing SOC Stepping ID to fuse bank
+
+SoC: Writing fuse done register
+
+SoC: Breakpoint not set; skipping BOOTFSM_GO step
+
+CLP: ROM Flow in progress...
+
+18490200 - ----------------------------------
+18574400 -  HMAC error_trigger smoke test !!
+18657600 - ----------------------------------
+18753300 - Key KV ID: 9
+18805600 -  ***** HMAC key_mode_error !!
+18915000 - HMAC flow in progress...
+18981800 - Received HMAC notif/err intr with status = 0/ 3
+19104000 - HMAC zeroize flow.
+CLP: Observed cptra_rst_b assertion
+
+SoC: De-Asserting cptra_rst_b. cycleCnt [     191532] deassert_rst_flag[1]
+
+CLP: Observed cptra_rst_b deassertion
+
+CLP: Ready for fuse download
+
+SoC: Writing obfuscated UDS to fuse bank
+
+SoC: Writing obfuscated Field Entropy to fuse bank
+
+SoC: Writing obfuscated HEK seed to fuse bank
+
+SoC: Writing SOC Stepping ID to fuse bank
+
+SoC: Writing fuse done register
+
+SoC: Breakpoint not set; skipping BOOTFSM_GO step
+
+CLP: ROM Flow in progress...
+
+24871500 - ----------------------------------
+24955700 -  HMAC error_trigger smoke test !!
+25038900 - ----------------------------------
+25134600 - Key KV ID: 9
+25187100 -  ***** HMAC ZEROIZE !!
+25255800 - Load TAG data from HMAC
+25380800 - Load TAG data from HMAC
+* TESTCASE PASSED
+
+Finished : minstret = 20078, mcycle = 63195
+See "exec.log" for execution trace with register updates..
+
+- /Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-l0-52-and-full-dv-gap-20260923/source/src/integration/tb/caliptra_top_tb_services.sv:2445: Verilog $finish
+
+VerilatorTB: End of sim

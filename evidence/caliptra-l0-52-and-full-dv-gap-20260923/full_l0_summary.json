@@ -1,0 +1,2081 @@
+{
+  "scope": "Pinned Caliptra v2.1.2 Verilator L0 replay; not official VCS/UVM full-DV qualification",
+  "release": {
+    "caliptra": "v2.1.2 49370266d12cb0c4a8f71b3a0ff7e54ba7d4866e",
+    "adams_bridge": "v2.0.3 b77e3d899e828d626cfc2a0d26a6b5704cc121e0"
+  },
+  "run_command": "python3 run_all.py --timeout 900 > full_l0.run.log 2>&1",
+  "runner_sha256": "8ac8a0d620bf8ae025fdaa407256b52f46531c591bd5ba22e31c0c00a556ef83",
+  "run_all_log_sha256": "1d85bc08ba9b83a4aa1c01ad2d0c631a175a27ce983b5ac0ba6be8cf5f94f84b",
+  "case_artifact_archive": "runs_batch.tar.gz",
+  "case_artifact_archive_sha256": "f2c74644c4afe3782f359e3944128fa305ce44f0bbdce9f70c836bc6682371ba",
+  "verilator_binary_sha256": "fb2cc573b1055cf096c90e1efc9966fe56bdb4b265c83590cf2a49f7a0defcdf",
+  "riscv_gcc_binary_sha256": "d21f58713e7f2f9a9ef9de8762b2c2d1995cd4cdeda724d5fe4834f3af4737b2",
+  "overlays": [
+    {
+      "purpose": "KV assertion compatibility overlay",
+      "patch_sha256": "f9c2673783665cd4c6f0d174f63823f935642bad50a9a62772a949420ad7a7e8",
+      "resulting_top_sva_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6"
+    },
+    {
+      "purpose": "smoke_test_hw_config C build compatibility overlay",
+      "patch_sha256": "36aa05fef48b9358556ffd67bcfa9c6f6e62dcbeee20607ef3fb8cb36f664a9c",
+      "resulting_file_sha256": "aab3df95a2619a006022c229681777412bcb0ff2a7bc6e279bae299a51469c0a"
+    },
+    {
+      "purpose": "smoke_test_hmac_errortrigger C build compatibility overlay",
+      "patch_sha256": "ed5e27f4b6806a22373943030d31b84396535f21b8d6ef96b8d527ef4efed621",
+      "resulting_file_sha256": "c56c7d49ce280090e20bfccdc58cbc4170c39d843d728d889f6e5f7c4210ff12"
+    }
+  ],
+  "counts": {
+    "selected": 52,
+    "passed": 51,
+    "failed": 1,
+    "timeouts": 0,
+    "sva_errors": 1
+  },
+  "failure_cases": [
+    {
+      "test": "smoke_test_doe_scan",
+      "exit_codes": [
+        0,
+        0
+      ],
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 1,
+      "sim_log_sha256": "7117cbc4e8a7e2669fe246c14de82e679005aca1ad86f65079a99658aa6181b7"
+    }
+  ],
+  "cases": [
+    {
+      "test": "c_intr_handler",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 77.44,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 512648,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "cddf7fec689ce4fb2a4896a118861391567f8a8b63ac9ec60d93ce745f4eb25c",
+      "command_json_sha256": "58fc8ae5b5a0d30e1bcbba94217ab400b65f6ea5689e3912649e982be20ac3e7",
+      "firmware_elf_sha256": "823f4488ba2607e9364e8b46bf26c061026b9296e07f5758cadb195c4e8fdaeb",
+      "logs": {
+        "make_stdout": {
+          "sha256": "c8553d66b8e1dfb20b1425968c342b6d17f808e1c95bf92a8ea4bdae0bde513f",
+          "bytes": 100859,
+          "path": "runs_batch/c_intr_handler.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "1d7d47d48359de3e5b4637d6d7241f9ef56f90d66279f42c3b770aa41d368498",
+          "bytes": 3626,
+          "path": "runs_batch/c_intr_handler.make.stderr"
+        },
+        "sim": {
+          "sha256": "490025ffb155d4d3d66a4f33ceee6f226dfa92bfe617ebba3eeefcfe824ded8a",
+          "bytes": 1614,
+          "path": "runs_batch/c_intr_handler/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "hello_world_iccm",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 4.16,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 500108,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "00868f64ef5e7415ede97ea9743376a4ae01311021ff3fc59ba4f53e04a4a6c6",
+      "command_json_sha256": "d56854b633744c73108bf7676d745d26a2b100e41f60f232c96639cc5a6a1432",
+      "firmware_elf_sha256": "8508bcef439daea805ab387ec93367653c7d3e0a9f3948288219d29e30455528",
+      "logs": {
+        "make_stdout": {
+          "sha256": "aa085937a270cdcea53d386b9254761745bee3e786760765bf30b90fb5655ba9",
+          "bytes": 95810,
+          "path": "runs_batch/hello_world_iccm.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "6bb6b2f3a6738b5d0c2bb55b4ac263d7dce41ed45a25f231a5397d34781a2650",
+          "bytes": 2242,
+          "path": "runs_batch/hello_world_iccm.make.stderr"
+        },
+        "sim": {
+          "sha256": "f7e0edfe31b61837e9d17a25b8b476b4ee248a3d124afbc2ee828ca3e0631f14",
+          "bytes": 1628,
+          "path": "runs_batch/hello_world_iccm/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "iccm_lock",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 66.85,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 523020,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "6f602f8a2a4b4931336396e42a6c197c290b130b9a2708b1e7866dc83483a46e",
+      "command_json_sha256": "7346881bddac8d1371b12448b33a0b6a9de51942d3c88597a80667c828ca4878",
+      "firmware_elf_sha256": "8c2a573f9d636e8a00da31d41257351b386b4f98da50951b1c5e2363cffdb4dd",
+      "logs": {
+        "make_stdout": {
+          "sha256": "23954941418603687f3e12a673dfbd21dcfd724eff78f758ca88017a6676b803",
+          "bytes": 100484,
+          "path": "runs_batch/iccm_lock.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "bb589006f828e13457c0137213d9fad86d30a6dfea98da00891569b5de3687c2",
+          "bytes": 2446,
+          "path": "runs_batch/iccm_lock.make.stderr"
+        },
+        "sim": {
+          "sha256": "da17501029a925459ffa61e380b3b19abc50521667062d845eb17f0e3d1ade28",
+          "bytes": 2724,
+          "path": "runs_batch/iccm_lock/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "memCpy_ROM_to_dccm",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 4.18,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 498056,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "818839cce82f6dddf5db21bf5c8c7b9e4b49211035c102e77feb2580b27f608c",
+      "command_json_sha256": "9000d56074e7792a7248ce17e4e0932fed15da1631be249e7f7e9becc80e8b79",
+      "firmware_elf_sha256": "027a52204a2a5f7b80c2d2ecf2e265a7160630c51fa644efdf85ff21b9b9c7e0",
+      "logs": {
+        "make_stdout": {
+          "sha256": "9d037f673a94c17cc345b67b91a4aaf65611ddf4104186d68dba9c115d95c107",
+          "bytes": 95958,
+          "path": "runs_batch/memCpy_ROM_to_dccm.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "72e4f89ede1bf06ef73c2c005f7d2bbe78a164b4265a7eb4806170558e6188e6",
+          "bytes": 2242,
+          "path": "runs_batch/memCpy_ROM_to_dccm.make.stderr"
+        },
+        "sim": {
+          "sha256": "cebdd020f1be4f84313776667684e4957be6614e804a890c0c8915873e853a94",
+          "bytes": 1482,
+          "path": "runs_batch/memCpy_ROM_to_dccm/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "memCpy_dccm_to_iccm",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 4.28,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 498060,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "a0195fb9ece297549ddee72b94440ea874fb9ef6b8b812e16d1737a822e6a199",
+      "command_json_sha256": "ada5d5a2f8b79ffc429f3556c29688601cb855e4b9679227029f3e45cee97080",
+      "firmware_elf_sha256": "33b14b028fdcb7afc9e1a92a4be116d02d7882115285f080ff53cacb43459f67",
+      "logs": {
+        "make_stdout": {
+          "sha256": "e5b9aa3a7ecc4577129b310150ccc18b804d2bd4870426d4a729150845a9ee13",
+          "bytes": 96032,
+          "path": "runs_batch/memCpy_dccm_to_iccm.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "8c6f3aaa0cd24c1ba481c499bbac33ca21f905224fca7ed1050ae887c6c69ce7",
+          "bytes": 2242,
+          "path": "runs_batch/memCpy_dccm_to_iccm.make.stderr"
+        },
+        "sim": {
+          "sha256": "cebdd020f1be4f84313776667684e4957be6614e804a890c0c8915873e853a94",
+          "bytes": 1482,
+          "path": "runs_batch/memCpy_dccm_to_iccm/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "pv_hash_zeroize",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 38.69,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 505924,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "a625cdf8385c2b82553871bdee89898c62d1182ac25d487f6eaa21176570e9b1",
+      "command_json_sha256": "2e74dac271b571d4a36c75c9a8ec2ef2e725530695ee3504e191bc869187af32",
+      "firmware_elf_sha256": "cdc0f518e79618583d41e202fb1ce438c5d5d7f5542c7d8561a9388941b7f3cf",
+      "logs": {
+        "make_stdout": {
+          "sha256": "7fe0d747142f6d301d05fcb2dcb5123008266adcb49cfc956becd77d1074514d",
+          "bytes": 100934,
+          "path": "runs_batch/pv_hash_zeroize.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "8f195a051f114fb20b64af7d8e2ba5b1924531d8825260716a8c2a7ad3a77bea",
+          "bytes": 2445,
+          "path": "runs_batch/pv_hash_zeroize.make.stderr"
+        },
+        "sim": {
+          "sha256": "8d2d2610c30cf0131c02f28f26c39e90150981ecf6ca67f01c0417a90b4cc0e2",
+          "bytes": 1899,
+          "path": "runs_batch/pv_hash_zeroize/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_aes_gcm",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 68.11,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 511748,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "8eec6c9facdc1c1fd46207428ff0eeceb9412fad98592af354d61b9f542e836a",
+      "command_json_sha256": "1645ed2260f775303d22413332ce6dab8c86118ccf869482f14ab2b77f357d6f",
+      "firmware_elf_sha256": "f9a8f9192c6cdf8dd809a7aa5767695b14839e595cb08bcb08e5fae7c44cf795",
+      "logs": {
+        "make_stdout": {
+          "sha256": "d8551eb3faea7c6e1c3c0bc86a030c44e5f6ca7234bb2a4468eb805f3b8d34a5",
+          "bytes": 101159,
+          "path": "runs_batch/smoke_test_aes_gcm.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "46d50c68bc4f4e14289b2e4afc3f29b3f30d838846e3ebc8c3d75ae2327f17da",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_aes_gcm.make.stderr"
+        },
+        "sim": {
+          "sha256": "b403f4a0cfba5d9a113b72542247d1b852c6dc4f95e501c9e33c29a29a632e35",
+          "bytes": 3367,
+          "path": "runs_batch/smoke_test_aes_gcm/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_aes_kv_rand",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 200.2,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 519960,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "9b23aa405863a471e496502d777a72ec0efac6efba5ef2bd04b864ecec5177aa",
+      "command_json_sha256": "9f8f09776cabad5838c35f020d486b084383ed3ab1bd5687900e36634a52f159",
+      "firmware_elf_sha256": "767dfb542a579e53d3fa0add5d02c14ecef645ebd8fbba3964943148da05c257",
+      "logs": {
+        "make_stdout": {
+          "sha256": "736753c8fe6a09fea048a28442987aaa9633fb7d6a3b330f0a810b4f62db2c09",
+          "bytes": 101459,
+          "path": "runs_batch/smoke_test_aes_kv_rand.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "ee63646801f90de42456a105dd7e6ffd4218d274cf5a2817157279a725e67cd2",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_aes_kv_rand.make.stderr"
+        },
+        "sim": {
+          "sha256": "706f64f6a21ce8c6b8bfef9b6b58e83687245fe0e65a591211c3c752f68faf97",
+          "bytes": 10611,
+          "path": "runs_batch/smoke_test_aes_kv_rand/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_ahb_mux",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 4.61,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 498348,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "82bc64786b36a8ae294cabfd09a563c0365bc4231c0d85b8d46cd7291c0e3bb9",
+      "command_json_sha256": "67704c2aae6d29cafd3701770011e6b87dc6b9883eb652f24ba0d8aac173e429",
+      "firmware_elf_sha256": "895958f644a0e5cc4fa9eb81307111b5ae4b7674d7df2a14c5479e723a196ffa",
+      "logs": {
+        "make_stdout": {
+          "sha256": "c97032dca6376d80c9d9a10360e2f0abf9f6ba0cd1289adc215f7bacd7c96182",
+          "bytes": 95958,
+          "path": "runs_batch/smoke_test_ahb_mux.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "284b4d1c971411785d9cc754d0927964e5516c1d1e6cd3f45421611e8e46b13e",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_ahb_mux.make.stderr"
+        },
+        "sim": {
+          "sha256": "188503a258b5c23eadd632ffbab9f40f241cadf5bbe4e09e24b691bfb559218b",
+          "bytes": 1623,
+          "path": "runs_batch/smoke_test_ahb_mux/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_cshake",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 30.49,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 508864,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "67f8eb4ce55a25942462a3e072a3d89a005cc1a103091169cabcda1a4d847d8c",
+      "command_json_sha256": "51379fb48e035b478f7acac71695db98d790ce01afafb6489653c9f37cb9dd8e",
+      "firmware_elf_sha256": "cb6c715c50aebffa97a04bba0bdd6fd2913c1c30f657731b557bec00c71bca68",
+      "logs": {
+        "make_stdout": {
+          "sha256": "19c8f87f25fbe2bbf71b6d2df358f20afd7c3630924e743ce3c01cbebd5f936a",
+          "bytes": 101084,
+          "path": "runs_batch/smoke_test_cshake.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "b59c93e713e8e8717f76aa884518655d13e59ab5256f7fb0d0d06f5335496a59",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_cshake.make.stderr"
+        },
+        "sim": {
+          "sha256": "f43c3354e7126f8fb1287c8700b68cc5c976173c75bafc26dcf06cd11f493c24",
+          "bytes": 1777,
+          "path": "runs_batch/smoke_test_cshake/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_datavault_basic",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 156.78,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 506356,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "337d091d223f021615b59fe6d46512c3129b788dac079a3a39d3bbf6f89e92bf",
+      "command_json_sha256": "e035ae4c7e0ff68a1896c81a9d7ea6c17884645d4af64a4d08be0470c30921e9",
+      "firmware_elf_sha256": "9f831d9b23ae8592d8268fde5144d3b3cedaa39a4ea7afc25a5062a1688d209c",
+      "logs": {
+        "make_stdout": {
+          "sha256": "5b36546f6b9e5167816207ee884b4146c539a7548df6c39e01f2c1396e035f14",
+          "bytes": 101759,
+          "path": "runs_batch/smoke_test_datavault_basic.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "6cceccb8193e2662e7e2785487695e3aa9e71cf8d84fbd3f73f876271777516f",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_datavault_basic.make.stderr"
+        },
+        "sim": {
+          "sha256": "76de2a788cabab7ea19295abfc24741950a07d5157abe4d3ab8eb954305c73a6",
+          "bytes": 8380,
+          "path": "runs_batch/smoke_test_datavault_basic/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_doe_rand",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 34.51,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 503628,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "bb26a700a4adf6802f6f8f218fb471fac220dcc57c92363c24453fb8433b1f92",
+      "command_json_sha256": "63b490e687889986dcd3689e7c6c39b50d68229972d604a0385b7057a44ccd91",
+      "firmware_elf_sha256": "524b93becd509ee76ec74384501d47571fbd503c5c4a457ba5dcc2946a74b5e3",
+      "logs": {
+        "make_stdout": {
+          "sha256": "35e58b3d915d295f354adb951979d64229c0cde55c0d01d14152e05e4a375e5b",
+          "bytes": 101234,
+          "path": "runs_batch/smoke_test_doe_rand.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "295e0211b864f1c750d7ca16cafb414910b26a171697e52d50337f3db09a1ea5",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_doe_rand.make.stderr"
+        },
+        "sim": {
+          "sha256": "472b6475c9d05b4c73978af0168ec91cbdd8d48e4437ea99661cd5ebcf18a791",
+          "bytes": 1626,
+          "path": "runs_batch/smoke_test_doe_rand/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_doe_scan",
+      "complete": true,
+      "passed": false,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 163.2,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 1,
+      "firmware_elf_size_bytes": 508480,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "0eac55e26d91b2fe2abdf5155fc13b2012e7e4b772897ae56b9fb767edb8d2d3",
+      "command_json_sha256": "e876d15bdf940f3f1f24c4530267e8dacd98fa0d11b7277e11a8e86526ed3a95",
+      "firmware_elf_sha256": "66ce7cac6e02295be43d15fd0058634e9ef3bedac4b547eef8d510ff0905d9a0",
+      "logs": {
+        "make_stdout": {
+          "sha256": "3fe5d2e262b10bae9c3f06630b20e5bf8a938097864f3950a089962eddcc0b0e",
+          "bytes": 101234,
+          "path": "runs_batch/smoke_test_doe_scan.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "708ddea2107df0492a8167b1889f5a190160c9b414a68931e25b5bdf9a5b0f64",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_doe_scan.make.stderr"
+        },
+        "sim": {
+          "sha256": "7117cbc4e8a7e2669fe246c14de82e679005aca1ad86f65079a99658aa6181b7",
+          "bytes": 5242,
+          "path": "runs_batch/smoke_test_doe_scan/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_fw_kv_backtoback_hmac",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 37.34,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 505664,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "fe7979d9f537138904d923e760b7e2082b813dce4ac42b06b57a640e759dc7d6",
+      "command_json_sha256": "cfd5e6598fefd4a5f30613c8871965dee73a2350e762f68671c51f4d8022bc46",
+      "firmware_elf_sha256": "dcc2ce2590d027647f118bf739573c5d4a1df53374b714a0520c0ea587820a8e",
+      "logs": {
+        "make_stdout": {
+          "sha256": "1909b6f962bb0ec1c9467156ffb11880e385ee38a978d85ff9ddef6561ed0c90",
+          "bytes": 102209,
+          "path": "runs_batch/smoke_test_fw_kv_backtoback_hmac.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "69ad4bb52add24f20bf4646ab64a7a8cddf55acded1ae89406fa7b6b1a65c989",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_fw_kv_backtoback_hmac.make.stderr"
+        },
+        "sim": {
+          "sha256": "5d6dac17fd95536d21dcc0092011c7da215397199ac2c83a3f3d29817083713b",
+          "bytes": 2033,
+          "path": "runs_batch/smoke_test_fw_kv_backtoback_hmac/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_hek_flow",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 40.49,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 505292,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "f2bc6b6e4e18e8310db6210d85b95ef6cdab59f1b70b2cf42974f8c2e9ac2bc9",
+      "command_json_sha256": "cbf088c3b6cc1637ee4b49862ab193897376b3591fd79ada89a2b86c3a708e95",
+      "firmware_elf_sha256": "e492576a4d130e9994bb2b1734cc55abfe1d06a487897fe4d33d8cbad7fb4795",
+      "logs": {
+        "make_stdout": {
+          "sha256": "a8809621fda7d991e117d31b46c680a697f0ee42e75493445ad16f19c6dfc000",
+          "bytes": 101234,
+          "path": "runs_batch/smoke_test_hek_flow.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "077caa9f8fa239922c5b99ad6e894ae236e30ca79db352e533cb2e33f1ec73b3",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_hek_flow.make.stderr"
+        },
+        "sim": {
+          "sha256": "28a9e37e587f6381c1a64b25791ccebc557d3ff6694e8832fcec3f48b3e2642f",
+          "bytes": 2013,
+          "path": "runs_batch/smoke_test_hek_flow/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_hmac",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 39.24,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 505032,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "98d2a7a134e4581d6032b350438686eec76ccf44037ab8297c15dc5c8d221c0e",
+      "command_json_sha256": "3d94b76932b091ce7bd316dcda51325c4b9f293b498c83a9ad9879aad152bf06",
+      "firmware_elf_sha256": "7aa7f4e3f689f65acbb023341c0aa8f525d5e21e5bb82ca430c783958b184a40",
+      "logs": {
+        "make_stdout": {
+          "sha256": "5aa3e1c8c33cba6173f97eebecc1310af404eb562951d3a975069e251f498434",
+          "bytes": 100934,
+          "path": "runs_batch/smoke_test_hmac.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "ce93c3e50a3b6ec628c4df98f3b697e5445628f244cb7ff26c92c88ac57674fa",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_hmac.make.stderr"
+        },
+        "sim": {
+          "sha256": "4e3c8b77f36fce6088955f7378e5c4deb18bcb3b4bd65bed43be40673ee1134a",
+          "bytes": 2574,
+          "path": "runs_batch/smoke_test_hmac/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_hmac_errortrigger",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 141.0,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 511332,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "9db57a682575b789265acf418c5396b4f193049384f046521b214742dbf765a9",
+      "command_json_sha256": "9c241159db1ab3d507a2c100051950a6fecc3865421675b501a764e113d4e1a5",
+      "firmware_elf_sha256": "1e41296cb09efbaa8186094dff282e6bbbf7c5ddef573a94794387b26de18f83",
+      "logs": {
+        "make_stdout": {
+          "sha256": "dffd407c318e83d28d5db5bdec71b1ddc9f45130777b81d466a680a0e0fc657b",
+          "bytes": 101909,
+          "path": "runs_batch/smoke_test_hmac_errortrigger.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "ddacac09dc7309b26e80659ed30f2b354087df0f1ef3074d57e85e290a7d72e1",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_hmac_errortrigger.make.stderr"
+        },
+        "sim": {
+          "sha256": "312831deef6812907515fc88406153c9bda55926c1d098cb6d1b9744868985eb",
+          "bytes": 4169,
+          "path": "runs_batch/smoke_test_hmac_errortrigger/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_hw_config",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 26.39,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 500904,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "9173481cdac0416403cb4b20159b253416b5a681165e51c0404add05a072ac51",
+      "command_json_sha256": "d44e4fafe7d6255def618379bf368f980c3059f1b60e8bb6081be832f5129f89",
+      "firmware_elf_sha256": "437a18222440e5547404b78c9a6041514cf0c1632f1867162b967bf8254b7a32",
+      "logs": {
+        "make_stdout": {
+          "sha256": "65219891bd41225036fe4e80c6ba0ad4c73f3d9173c6f8f620f46e35894cdb1d",
+          "bytes": 101309,
+          "path": "runs_batch/smoke_test_hw_config.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "d7c27656b9cbe7ff3d2be2a95815c2439bfe958521611307c3daf54ad275416e",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_hw_config.make.stderr"
+        },
+        "sim": {
+          "sha256": "6eb6ea190ec68e296afa834ab64a6feac7243a4295e2431427778ec2bb57931f",
+          "bytes": 1624,
+          "path": "runs_batch/smoke_test_hw_config/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_iccm_reset",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 146.57,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 505964,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "78a3da5ca2d31df16c7d1be13d61c779d76c08089715b6164c8ff425bf6c3324",
+      "command_json_sha256": "2b4074208361bcebb260d369eed08a7af5ab33a1ce12b3dfa019287659160c37",
+      "firmware_elf_sha256": "3b272128da69a14a55098ea08211f2dcd1af247c2cae99ef6b719f46674fed6f",
+      "logs": {
+        "make_stdout": {
+          "sha256": "fd805d52cefe197dc455b52b1ee969cb5ac4bb32b1181cdd3b6e3b56aaf64d82",
+          "bytes": 101384,
+          "path": "runs_batch/smoke_test_iccm_reset.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "9ff7e432c5b0e8c68f6c07d236fd9e8e78655691e533071dc75409eb1079882c",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_iccm_reset.make.stderr"
+        },
+        "sim": {
+          "sha256": "40799b54245ff70d74aa3fbd9103bda3e8b75842883d8cec34408cbf87a0cd5d",
+          "bytes": 3841,
+          "path": "runs_batch/smoke_test_iccm_reset/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 4.43,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 499080,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "ebe5fd3e94dd33598989041ab0b8cac7e11959248f9f406e456c419fb0027cdc",
+      "command_json_sha256": "ca5bc8f3f162d3c86c770afb6ade64d49ef70ba5ce15f5077e7f459ece78221c",
+      "firmware_elf_sha256": "1c43fd3a4dcbfed7eb04de361f633132a9c3325ad144219b96ba94078ac195ba",
+      "logs": {
+        "make_stdout": {
+          "sha256": "6d2902de5e5ee3e893e1e292b1809e3b3325228ae657bb4ba1ab76c9b029d640",
+          "bytes": 95588,
+          "path": "runs_batch/smoke_test_kv.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "59cc41257424fa77bc647235787cdb470ccf4462656861ddcd672d0953fead2f",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_kv.make.stderr"
+        },
+        "sim": {
+          "sha256": "e51446118261981de9cfd86f1f34a41845dabf2979926bcce8bb12712c6c688f",
+          "bytes": 1614,
+          "path": "runs_batch/smoke_test_kv/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_doe",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 226.23,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 525352,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "5bc56e21b1ee5a104ae950e1b50a258494a8d5364cd2fab7d59f351831641a80",
+      "command_json_sha256": "760b266e70db6f7ddcc0701fd3eec9d7a9c9183cf18d03b4839c47730666d4a6",
+      "firmware_elf_sha256": "62ca178832a0a6838be8e42e34eac5687335dab93e8453b8d693880ac5a40577",
+      "logs": {
+        "make_stdout": {
+          "sha256": "52d4628d33f47eee82130819b10d327bc3fc47bfa538a5b6a30f9d57d2dfd948",
+          "bytes": 101084,
+          "path": "runs_batch/smoke_test_kv_doe.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "ff6736c452b507ee62013a446d67745a2c94878fdb111c5eb35235f2247580f8",
+          "bytes": 5922,
+          "path": "runs_batch/smoke_test_kv_doe.make.stderr"
+        },
+        "sim": {
+          "sha256": "e2c5aa7e554ac33de8b87fe17bc7d4d48203177c20dbd62d5d7592e2abe0d96b",
+          "bytes": 4262,
+          "path": "runs_batch/smoke_test_kv_doe/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_hmac_flow",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 168.49,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 509176,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "2d0dff2722c0e103cba19e2cc69907b5b7a8aa9572c6467c137ca25e8a96767f",
+      "command_json_sha256": "dd47678d5eb7741ee7d1372dbfab33d277c5a941d569eac3a8fea713aa5a54a0",
+      "firmware_elf_sha256": "ec160faf99e1eb7c9b42b64bf4c0c73d1a0a4ad42ec864f9b411811653af363c",
+      "logs": {
+        "make_stdout": {
+          "sha256": "1813ae6fb4cd3a8192f091de3e596f9289defa3403baecfdbe638b7b504a2e1d",
+          "bytes": 101534,
+          "path": "runs_batch/smoke_test_kv_hmac_flow.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "b4f59025ee4609ba180cc7551837afa6de0f48a6f4502c3243b2aedb24d4c939",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_kv_hmac_flow.make.stderr"
+        },
+        "sim": {
+          "sha256": "6ed648e5454b0e7262eae70302f68c23bb60b75dd06bfe47bc517bac0de66560",
+          "bytes": 9226,
+          "path": "runs_batch/smoke_test_kv_hmac_flow/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_lock_use_mid_read",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 47.91,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 500880,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "5e8410d33df8963211dd013359e8e1ed44e49b1830a961fb3590f2e2e740c4c8",
+      "command_json_sha256": "723db622ea82b04d890331afcf56f5dde1f148618869d378549ffcc97a57ebf2",
+      "firmware_elf_sha256": "8986a9a5327be422762c9db65c6deaee444bcde606e68ee623cef6ea832fad75",
+      "logs": {
+        "make_stdout": {
+          "sha256": "c18b565009c38ee5b7ba3737288661cfcc3c542a797b820873fcd6cc9251f7bb",
+          "bytes": 102134,
+          "path": "runs_batch/smoke_test_kv_lock_use_mid_read.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "b87ef3bff1ed214a5973808688cc59f903bb44a19484094b33de4cfa7022dfa7",
+          "bytes": 2444,
+          "path": "runs_batch/smoke_test_kv_lock_use_mid_read.make.stderr"
+        },
+        "sim": {
+          "sha256": "cc55039b93b3f4da1a098c123027b8a4e7c678b8734bb2da60f775db3ce34d42",
+          "bytes": 2217,
+          "path": "runs_batch/smoke_test_kv_lock_use_mid_read/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_mldsa",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 114.94,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 510904,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "5c12c6b2c1c9fb0c3c49fb09c5b16c5ca5da0d46a0edeedd8945ac6e9e7f9343",
+      "command_json_sha256": "3e9652504aa66e388b86c037ecb25fa96593ccbe040a2fa90e0f7f6aae7d566c",
+      "firmware_elf_sha256": "cceae6befb916fb0f4503f9ad1135440879a8ca63618fa9a4b67fe5db04ee72e",
+      "logs": {
+        "make_stdout": {
+          "sha256": "175d6e2ba0de01ad602c7eb765653ade7bda596b24b0940aec7f32644103219d",
+          "bytes": 101252,
+          "path": "runs_batch/smoke_test_kv_mldsa.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "5733013b448f0f188caed80d2e0927f59e85a1bbe428343a3a677a920e22cfa2",
+          "bytes": 2241,
+          "path": "runs_batch/smoke_test_kv_mldsa.make.stderr"
+        },
+        "sim": {
+          "sha256": "081e6a3a992f578d3b95397079e0ef0275bc2ed2b670601ec6c43acc8a0198cb",
+          "bytes": 2078,
+          "path": "runs_batch/smoke_test_kv_mldsa/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_rules_ocp_lock",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 33.45,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 513188,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "8a14e0866af75cc593eb16a6f841bf5e38f2118c9e8ef4991dc7e8f75a9d8139",
+      "command_json_sha256": "46d0c705c64f5350f9ea29b0989b93cae4852c1eea3f5f8a416c14d04cd73964",
+      "firmware_elf_sha256": "342c2b2927327e7557f227f966b6e3be92df573f8f4d4697098fa2629e3b7030",
+      "logs": {
+        "make_stdout": {
+          "sha256": "36cb179bed88c04036b979c52af722de54e8dc75535472a5fbe5236b3ea5ba78",
+          "bytes": 101909,
+          "path": "runs_batch/smoke_test_kv_rules_ocp_lock.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "ea46c41eff1b1b65015fd6dfd5970fbc095c9b105712eb92b447171568bfebde",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_kv_rules_ocp_lock.make.stderr"
+        },
+        "sim": {
+          "sha256": "1165b343e539f1d8c925e2f502027d9b3bd317441407fc9802a1e97d31884a21",
+          "bytes": 1689,
+          "path": "runs_batch/smoke_test_kv_rules_ocp_lock/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_securitystate",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 255.79,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 504580,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "2932192659e070d19b2f11cc31a0770e8e2ab751e8aa825565f90def35574dca",
+      "command_json_sha256": "da5d1a0886bc2e7e4615d1a4fde96aa663c5157df8c9b774ddb60fb7eff68123",
+      "firmware_elf_sha256": "d22c4752d4b8325788a78f48969b1b528beb4e3d493205946daca6884677be14",
+      "logs": {
+        "make_stdout": {
+          "sha256": "6c4a977abe34b75433bc6438b5ddfc39119aa8b409d047e5d524a1b8353a5b31",
+          "bytes": 101834,
+          "path": "runs_batch/smoke_test_kv_securitystate.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "7d8651661ff07f44d8f189cf0861ef043e9ae79afd7613fcb789041f7418c541",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_kv_securitystate.make.stderr"
+        },
+        "sim": {
+          "sha256": "505c3268de325570d17157e39fc5663c581454f3f14dd734fb779409cd9af1e3",
+          "bytes": 6223,
+          "path": "runs_batch/smoke_test_kv_securitystate/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_kv_uds_reset",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 160.03,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 505692,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "4c24c2362825e086fa5c3c27ed3876013e9dbe71211f68bfaddc0a6241ae2ee4",
+      "command_json_sha256": "f14096af531d6201cf1c7e19993f83313e833b506ee67392b15000ca07b89aef",
+      "firmware_elf_sha256": "9371cd8f35f903957e29361602bb0ec7469b19e8645779e228539a464fc18a2e",
+      "logs": {
+        "make_stdout": {
+          "sha256": "3ac6dd4df43202a396f2811408c1921e3be3471d960e494afbda50abdafc920b",
+          "bytes": 101534,
+          "path": "runs_batch/smoke_test_kv_uds_reset.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "03e64829f41339a781f7f3ec2d4d070d29defd1dd4935c2106859abc6a715f15",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_kv_uds_reset.make.stderr"
+        },
+        "sim": {
+          "sha256": "4c02f0066cc6d7224f9b182ca08780ebcc3a8a35693aa460f0b898f7096bb7b5",
+          "bytes": 4433,
+          "path": "runs_batch/smoke_test_kv_uds_reset/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mbox",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 33.39,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 508540,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "ad3343a08c6f122d731dfd650e0b7c8980198272f047d4494937a40248deda62",
+      "command_json_sha256": "83aef9567cab755abefb6353967833270454c009a48c040ff3423a74f09b9912",
+      "firmware_elf_sha256": "9d02e93f99d632cbabe50947126a4f795e3c0e34c09dde4bbabf46b4f8721fce",
+      "logs": {
+        "make_stdout": {
+          "sha256": "e70de20ac51e669ad2220127a8a799388dfa85761fe59ae61ce7a9ddae11039f",
+          "bytes": 100934,
+          "path": "runs_batch/smoke_test_mbox.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "1d51487b11ce5f1a98ee22d68b4a35a9d7afc80e629bf0d952ceb3805197206e",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_mbox.make.stderr"
+        },
+        "sim": {
+          "sha256": "1a054872794bad9d42c5644564860dfeb321ef8fe166202d9958591515e25e9d",
+          "bytes": 2589,
+          "path": "runs_batch/smoke_test_mbox/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mbox_byte_read",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 58.62,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 506352,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "2815bf14b51951ff3527afb6988cc68bcc482e3657490cd9e882ccb3c2b9a1ed",
+      "command_json_sha256": "ca8b20253ee1df0f4f90e97c02331771305f62a06c400160071948d7d8750fce",
+      "firmware_elf_sha256": "a8e02992d21acaab706d54652fb16605d43e1998e908856034114830bb3e1889",
+      "logs": {
+        "make_stdout": {
+          "sha256": "807780c8aca368c63e649f63c04360d83c5d32d6c9f50bccfa881fe517f929a1",
+          "bytes": 101684,
+          "path": "runs_batch/smoke_test_mbox_byte_read.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "22d17df1b33b780979406496c2abe5465ea73c1823d0545daf109cca9ad5eba2",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_mbox_byte_read.make.stderr"
+        },
+        "sim": {
+          "sha256": "6daf4d554211726f4574cf84f944578e37891430170192f5812fda7c49858f0a",
+          "bytes": 3123,
+          "path": "runs_batch/smoke_test_mbox_byte_read/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mldsa_edge",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 170.94,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 515252,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "3a5f95e49c403650480c140747f587d1600be733b812dde08bc0f6b70d6534b2",
+      "command_json_sha256": "5edbc87a0813b051adb1d0d57a3dd8b2ffa333e1bc0179a5055f48414154a567",
+      "firmware_elf_sha256": "a845805fd6169098396923107080fa2b6daecd859da5eabff7bde91ef188de53",
+      "logs": {
+        "make_stdout": {
+          "sha256": "88c3d0f1eeb5a2c3ab34bb78732c27cf85ca23a689f4fde3d2b6daee3f3e05c9",
+          "bytes": 101406,
+          "path": "runs_batch/smoke_test_mldsa_edge.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "1dc4c4f65af5294c3a33c2a7e48a10181d3f42ea498d606e6da0657b9480c24e",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_mldsa_edge.make.stderr"
+        },
+        "sim": {
+          "sha256": "1517c65ed9d734bce290092c792b037b3f9ca8bac31f056a19d8d77c6115a624",
+          "bytes": 2366,
+          "path": "runs_batch/smoke_test_mldsa_edge/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mldsa_zeroize",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 86.01,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 504332,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "aa3f45639ac32537d280df435c778459f0942f6e53bcfa220237bd3212faa6cc",
+      "command_json_sha256": "f4931958c9058d0539d22c4383f846e28b7eb45e58ab248d87091b60cf9be298",
+      "firmware_elf_sha256": "dba126fbb5519b0d7b3b743784954225d58075c84692bf206008fc96efea464d",
+      "logs": {
+        "make_stdout": {
+          "sha256": "11b4b0f5fd11b3872d9a9bed117862ec40144ac0ee2f2fcf265bbd9bfc9e2382",
+          "bytes": 101637,
+          "path": "runs_batch/smoke_test_mldsa_zeroize.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "75f55a5cc3ba02f21871cc1d7dd12124a1ff87ad6439d1d6a882d27f1fbdf0c2",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_mldsa_zeroize.make.stderr"
+        },
+        "sim": {
+          "sha256": "43cfe949f8cfd4e7ebad8f81464fea5519dfc7efc8c15b711c55bebeee289cff",
+          "bytes": 2590,
+          "path": "runs_batch/smoke_test_mldsa_zeroize/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mlkem",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 182.1,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 508612,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "b65b15b16e44c6bcac6f8b3e72c221a453c34d2f5379564274c01e1499a80ee6",
+      "command_json_sha256": "aa7207c9a4c18c3cfe722915b1d0490aee3ad49998cdf54112e3759b8a406fc6",
+      "firmware_elf_sha256": "3659d74f229e0bc7bde1ac303cb53da6a35869ae4350fd0c4635b7268a1f73e3",
+      "logs": {
+        "make_stdout": {
+          "sha256": "ae484b186df8f800941f3475e7033f5528d488f728cc65da3b8bdef36332dc08",
+          "bytes": 101009,
+          "path": "runs_batch/smoke_test_mlkem.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "8129bc74f9bfce4d0e746bbfc85c7999a2068b9eb076e971f4f25342375cb07e",
+          "bytes": 2241,
+          "path": "runs_batch/smoke_test_mlkem.make.stderr"
+        },
+        "sim": {
+          "sha256": "51d41a1b97845406b7383b01516821b2ec68486353a5af78d815ba83a3d8ea96",
+          "bytes": 4016,
+          "path": "runs_batch/smoke_test_mlkem/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mlkem_kv",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 213.09,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 498532,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "84814842f5a9efa8016c8f71fbce0022c4283e855d7000a3f18ffb294b25ddd4",
+      "command_json_sha256": "b45ce4089488827d2f3e1dd23018bd1bd06a790fcdbccdbeaf3c8c3d4eaeece7",
+      "firmware_elf_sha256": "d36c653c0d02a2c6765132e287229d3be63431b3910332d49715b5ab739a6e54",
+      "logs": {
+        "make_stdout": {
+          "sha256": "13422b27b459df32a71f37daae3a1b0b4885e964d7c0b340b7b5333a87cd2f96",
+          "bytes": 101234,
+          "path": "runs_batch/smoke_test_mlkem_kv.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "00f83621a01b2570420b32c6955b2d3db73f1699efeebefb9eeafd2f78f7e9af",
+          "bytes": 2444,
+          "path": "runs_batch/smoke_test_mlkem_kv.make.stderr"
+        },
+        "sim": {
+          "sha256": "3b9af5e899ba959330967693bcb752c4b79c1ec27ae661f8e4dd600f188abdc9",
+          "bytes": 7035,
+          "path": "runs_batch/smoke_test_mlkem_kv/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mlkem_kv_endian",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 137.67,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 506200,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "354591eba5c48afc79776db265f08fc4bf31c4cddb271c0ea08795d04f6092e1",
+      "command_json_sha256": "20712ce29cf5dde5c20d7ac4b30b4602aa03f5f372382c0dfd4b29c45b943d68",
+      "firmware_elf_sha256": "a3c9f5a424cf02251938e6c2d3d764e04b099e8fb3467ffd1421bdcf440afb08",
+      "logs": {
+        "make_stdout": {
+          "sha256": "e1440d619bfb906b8235c4cc053249324ccca270bd3152f4868ed07cf641093f",
+          "bytes": 101759,
+          "path": "runs_batch/smoke_test_mlkem_kv_endian.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "31306a50aaa3b317c8663db21a8ccf1c8ab2634f73049c84e1cec41bf612712f",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_mlkem_kv_endian.make.stderr"
+        },
+        "sim": {
+          "sha256": "f598d9fdf72b26a7944d75d0ffdcb50655d4ef5126fd5c48c64ca40860bacbb9",
+          "bytes": 5768,
+          "path": "runs_batch/smoke_test_mlkem_kv_endian/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mlkem_locked_api",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 88.73,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 506180,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "7e83d76a467c0f6ae8be74380a7b90311ffbf86f7ac270797da9e24980fcd627",
+      "command_json_sha256": "903e2a84a8158b10bdea6dc3db21e23476898eddd854cca0a152c4a265ec01f7",
+      "firmware_elf_sha256": "1a6b10aabccaae84724a18a6c32266438de4e35e8ba3d427e9c45113b1656c82",
+      "logs": {
+        "make_stdout": {
+          "sha256": "0c7e041c9f334de26d11fdbee4a94f73c0b2dbddb2dfb3d2c8b7f8ce06354a39",
+          "bytes": 101868,
+          "path": "runs_batch/smoke_test_mlkem_locked_api.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "2c09aa47015b8175299725d69c38d1f629ce58fcc29c66ce06bd0ecbc45e4330",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_mlkem_locked_api.make.stderr"
+        },
+        "sim": {
+          "sha256": "1e60879e0175907b62a29cb3e19e8b90f40f774da6152997b7017644c8a4c59c",
+          "bytes": 3797,
+          "path": "runs_batch/smoke_test_mlkem_locked_api/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_mlkem_shared_key",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 132.23,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 503608,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "61b868a7e217c203bb10de4e273af8adf2217b437eb09050d9cb15242b6d537f",
+      "command_json_sha256": "8134672116727b94bda8ae914ebf02ae0f5789a1c967441b5c360453f0e89a82",
+      "firmware_elf_sha256": "8e01b627f177c7ca37e5d2490d4bbc933265f96a209fec72f8b92ed8911e507f",
+      "logs": {
+        "make_stdout": {
+          "sha256": "6d988c625ad2c982fc44b5e4f1a73e635278201a483f0c7f9329250f5f9cfebf",
+          "bytes": 101834,
+          "path": "runs_batch/smoke_test_mlkem_shared_key.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "f23d133f42fcbed419d2e6fe1219db592bc257d49eb120e38dcb374b2afab90e",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_mlkem_shared_key.make.stderr"
+        },
+        "sim": {
+          "sha256": "0bcd45e88d2b6465371d8224aac4effd48111dc6235505e6132a4841ad48a576",
+          "bytes": 4406,
+          "path": "runs_batch/smoke_test_mlkem_shared_key/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_pcr_zeroize",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 41.15,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 510328,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "8f4d1a0bd838e9c70a4450ba7e37758e5c56430b040c5802ae0f3a9d93ffcc8b",
+      "command_json_sha256": "08cf708f94550f0a2476dac013eaed5f777533a6c86bdc978f49e9fb6b9cbc92",
+      "firmware_elf_sha256": "43528e9ce86baa6426ad7b063049de33d4aede28657b3b90dd5d5fc22409689f",
+      "logs": {
+        "make_stdout": {
+          "sha256": "dd077400b729fe39ff293467c1819816ea4c9dc16fed3926adc523c5015160f8",
+          "bytes": 101459,
+          "path": "runs_batch/smoke_test_pcr_zeroize.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "2e55eec954e0f3145ca64a55a5a8e8a49d6e88a529f92ade545fa353803280f0",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_pcr_zeroize.make.stderr"
+        },
+        "sim": {
+          "sha256": "0ea7bfccd5401ef6dafb46ed75d3422b5298f55d907cdc3374a72291d051843a",
+          "bytes": 2400,
+          "path": "runs_batch/smoke_test_pcr_zeroize/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha256",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 30.57,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 502572,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "e02a5559fda9787a3a5d0b40601ec1cba389928e4b2d6d95a88c766baa223b97",
+      "command_json_sha256": "801b751e450c6bfd60b43134f5aa5c683acb327e0d23cf48b6f908e2fb282368",
+      "firmware_elf_sha256": "61525653092d455f8c290dadca31acc0e9d16138eefac3d1e0501aa13c83edbe",
+      "logs": {
+        "make_stdout": {
+          "sha256": "ec2839ea0c7d22476cf353527dc4a8ce5232405fd9ae37de3d17c7356ca955e1",
+          "bytes": 101084,
+          "path": "runs_batch/smoke_test_sha256.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "8d1731fbc70810f51dc057f25d800dd306fcb9c30700f1af3f11f4dd03a86e46",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha256.make.stderr"
+        },
+        "sim": {
+          "sha256": "cab204452a03bc556dd5928370c40888279b5dc060f62268285dd0d1bca83b93",
+          "bytes": 1791,
+          "path": "runs_batch/smoke_test_sha256/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha256_wntz",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 76.35,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 506712,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "877be2b465ad8a809f410d2489b1a8d633b91b5cd5e3ad91233a4229e9700c0b",
+      "command_json_sha256": "8d7f4d704f1d2f7b07f42ea03351252101429bb2f9a394b273848c400384dbb3",
+      "firmware_elf_sha256": "b31f639bbb52e46f28c1732dd851c78b9c49debd16451d9b3d894f7d794e3a12",
+      "logs": {
+        "make_stdout": {
+          "sha256": "8428e8f196f62bc44c53190b47e3409fe3a72e69b66fb3bc765a30317fd0f301",
+          "bytes": 101459,
+          "path": "runs_batch/smoke_test_sha256_wntz.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "69742b32764cf4e6deaf02fe3a4c394890653ad1a100d3a69ef6edd7a68b0b81",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha256_wntz.make.stderr"
+        },
+        "sim": {
+          "sha256": "799f58c737af9809c13b33cabb3d9b23ca8edad7ea400ea80c54b1ecc3ac522a",
+          "bytes": 3558,
+          "path": "runs_batch/smoke_test_sha256_wntz/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha256_wntz_rand",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 27.3,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 501204,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "7bc95e9be6dcbceb8d63d762bb12b6bd3a120b08f4b6d9f7bdbc4e9243ceee18",
+      "command_json_sha256": "a5b3e2b9cb7e5e162e01260c6ebbca949103134aa9589484d2da1ce549e89b49",
+      "firmware_elf_sha256": "f8ead20169562b6cb1791adf23124457c98721072ed50e250578e51614144e66",
+      "logs": {
+        "make_stdout": {
+          "sha256": "e092fdb52bc5694fe5c95e561d8ab796a60bd024de3987d5fe195b9cd28bb9c6",
+          "bytes": 101834,
+          "path": "runs_batch/smoke_test_sha256_wntz_rand.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "a9868c19b49117926aa4f5a29a834c89b88d96248bbe305af32ba31f4abb9ab8",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha256_wntz_rand.make.stderr"
+        },
+        "sim": {
+          "sha256": "dd966ba5181ac8b7fd7c8bab38d03ee26f11b6ce06a887faf8349e731fcbd364",
+          "bytes": 1762,
+          "path": "runs_batch/smoke_test_sha256_wntz_rand/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha3",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 51.24,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 513972,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "c8bc6f848400e29867a55913894cf1bb2fdf4487bcfe5a04689b67c7df4f5e02",
+      "command_json_sha256": "057d0c66ad44ee9a66a2c8b6e5d29e4c2615e4475cf55f9612556731f9460930",
+      "firmware_elf_sha256": "9fb9c9e79c0748d3161208b179f900bcd8fda04b54c10153c976575f3b9e0e87",
+      "logs": {
+        "make_stdout": {
+          "sha256": "71ee21b39e49b2e7022d3d3de52b79ff0905643f92cfaaf515a4c0117d8071f5",
+          "bytes": 100934,
+          "path": "runs_batch/smoke_test_sha3.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "632bf079c6dca87cc75a8452da68ed92d8f7fe0315dbc72c638923bdd6918e04",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_sha3.make.stderr"
+        },
+        "sim": {
+          "sha256": "d7d90ce6e398b49560d5c792b8cb165c443cf1a5f032ee53f7e10ac2d844105c",
+          "bytes": 2300,
+          "path": "runs_batch/smoke_test_sha3/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha3_interrupt",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 28.81,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 508408,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "6915ae5f406a90c2c241cbe6bddd02830fb59e8e6c705b410d4494ef488d8d01",
+      "command_json_sha256": "7ec740e8fcca9553e3b2e8f478b3ca17df1878401a0c7c7bc319d3fd7c37d14c",
+      "firmware_elf_sha256": "2cbff1fb92d29f350f7c5b711118edbda84c52b799ea2f08c311ce000c268d79",
+      "logs": {
+        "make_stdout": {
+          "sha256": "aafda9d5fb937adfc6ae179b52715bda9bc2085f5e15f9eb9cb7f158216b596e",
+          "bytes": 101684,
+          "path": "runs_batch/smoke_test_sha3_interrupt.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "d62b0e5203f3dfdf67944176c33e1bcce922dfff017d34216da45d00f138f25f",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha3_interrupt.make.stderr"
+        },
+        "sim": {
+          "sha256": "d5ac92b4179324f7045dd3624bf23aa72c793f42fa9bbc990403aa2c6de004f5",
+          "bytes": 1825,
+          "path": "runs_batch/smoke_test_sha3_interrupt/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha3_regs",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 28.86,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 518980,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "28cd4c51216d5c207814d9d5d2108ea4c94faceb55459c85bff663c5050ab673",
+      "command_json_sha256": "ecc8c79693a846eedd2843635a40e65637b92a495dda70f0de3e3c6b3639f198",
+      "firmware_elf_sha256": "a281d63887a000f79f53b4435a9a02027c6eb71408648b26fcddd82cf9c17e22",
+      "logs": {
+        "make_stdout": {
+          "sha256": "fd8e55cafdd25219b986b5276107c6d4ad7f7dac70a5e5e9dc962fa127076832",
+          "bytes": 101309,
+          "path": "runs_batch/smoke_test_sha3_regs.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "78ed37a95b1ea24cdc4d3a4908046ed5081dcb2151fcaf1495a238be23e1a981",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha3_regs.make.stderr"
+        },
+        "sim": {
+          "sha256": "ae15b7a6f94433595738601c6c53fb408780e32c9d98b864249c185aff55e88a",
+          "bytes": 1704,
+          "path": "runs_batch/smoke_test_sha3_regs/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha512",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 28.1,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 503924,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "3eaa0b50742278e8c675a2d6e4942cb97511aa68c4ab28ac5aee75c56c0de4c2",
+      "command_json_sha256": "9a0a737d903ea58f40996e343cdf093e21baf0621021c569add1236bd1a31df3",
+      "firmware_elf_sha256": "b8abfc6aa9c3d6890adae1fa8cf37ce0ba1a57baf8ae4d02b35fb9ee11777d76",
+      "logs": {
+        "make_stdout": {
+          "sha256": "8987675c64ad8a6b741493493bc0f74ef5ecf6a9f032024080bd01c81d190cdf",
+          "bytes": 101084,
+          "path": "runs_batch/smoke_test_sha512.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "071402c1f03a31d9c8f921a053479e11e6b9020dd58ce4d18d732f226d282e67",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha512.make.stderr"
+        },
+        "sim": {
+          "sha256": "99aa00f1d77b6fbf1a0c051e391563bbfeab724cb676acd5a24095501a942546",
+          "bytes": 1853,
+          "path": "runs_batch/smoke_test_sha512/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha512_restore",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 33.01,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 502916,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "345d65dfcf99c720eacff86010d729fb84b4aac0c3ff642d484835db08715587",
+      "command_json_sha256": "028f04c365b6ea8fc893020ed2c777ab3a893c6b2237f70b1e7cc922af93c7a3",
+      "firmware_elf_sha256": "de7236cfcc8ba70223579394675192f376823f2960cce286d9d6df0d0df64689",
+      "logs": {
+        "make_stdout": {
+          "sha256": "f95e9bf04eb3435d1c58a8ad5cd6da00ccaab839c08fd487af8c0a21bfd5dff1",
+          "bytes": 101684,
+          "path": "runs_batch/smoke_test_sha512_restore.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "4517f05fc5b344460908cd7ef61a4788fe32e00035306de8d53e94200923545e",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha512_restore.make.stderr"
+        },
+        "sim": {
+          "sha256": "6cdac669ae973ee1f47a9a6e324b0f65da9f4c5a943f870b8c7a7a0fb9e686f8",
+          "bytes": 2136,
+          "path": "runs_batch/smoke_test_sha512_restore/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sha_accel",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 10.55,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 510920,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "3985dda58eb1e5f459f4b84028eaa9f5b2e6cfe507c394bfe2bc8168e1439a32",
+      "command_json_sha256": "618bcccf3b4b9e0d739ef2bbab8f0c27e5f33d571b89b455a9548a65e3eeee6a",
+      "firmware_elf_sha256": "0773410d4a047f253c09fd9c4025f1ce819907e72540d1b900f897890090ca8f",
+      "logs": {
+        "make_stdout": {
+          "sha256": "89650c37d1f919cb81d4bf569bef4b6b85dcf6f4fe81b1588ebb117af022504b",
+          "bytes": 96106,
+          "path": "runs_batch/smoke_test_sha_accel.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "c9a2b75f1e7fe57184900e05b8af9b004365ce84322cda7f3ea93b37529c1f47",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_sha_accel.make.stderr"
+        },
+        "sim": {
+          "sha256": "1d33a586e2e9a4c6e98a0aca779d77e2f29f1d89d2b6552f72797d76b13c194d",
+          "bytes": 1633,
+          "path": "runs_batch/smoke_test_sha_accel/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_sram_ecc",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 75.81,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 506376,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "c364e3f1901cf554567b7e49faf31e1a7169ca021a4ff1a0ee983e9bc3c46ea5",
+      "command_json_sha256": "62c43a07efa0beb84054fbb018c02b33b39c415fc7b6e0d76f6aa16c2f561708",
+      "firmware_elf_sha256": "bf0a26e11701d58aa7fee73a9931ce431f6e431a53bf246464756fc36130cbe5",
+      "logs": {
+        "make_stdout": {
+          "sha256": "93c1c6a40802ecd8e38d9c48a2e54fb4f3bd45a47e0e4e28d97c431645e28349",
+          "bytes": 101234,
+          "path": "runs_batch/smoke_test_sram_ecc.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "cfd82c9bd32387247387af2fa3514fa6ac24c49e9b8874b2e0cfa4438d41ed2e",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_sram_ecc.make.stderr"
+        },
+        "sim": {
+          "sha256": "7b0f7a21f92a2dde735049c81d945803710b8d02a6337c38817ea63151a067af",
+          "bytes": 5005,
+          "path": "runs_batch/smoke_test_sram_ecc/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_strap",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 25.54,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 501692,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "d3a4c227757d02bbf22e20e6b4f002db94a008edf3c718093d7040bca0d3e466",
+      "command_json_sha256": "a433b8e4ec7d881bc8471b0591a0a67088963f5cb193a443bd67309a21fab7b3",
+      "firmware_elf_sha256": "2e47585d482de547d005b7d2d474cdffd44f0d6f01bd8367e7a4a4785bc6a04c",
+      "logs": {
+        "make_stdout": {
+          "sha256": "fba806988021e77f9739d579e3e4eee8a1b990d9342422bc05a237bca30fc283",
+          "bytes": 101009,
+          "path": "runs_batch/smoke_test_strap.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "5bec5d7fc95a9a2af987e00306e197e81c6ee6a2dd5842f4442a1643127ae767",
+          "bytes": 3105,
+          "path": "runs_batch/smoke_test_strap.make.stderr"
+        },
+        "sim": {
+          "sha256": "eb87d68330fbe5c4e907a002b8650afb7dea1a9e30b8f210400838bda098f466",
+          "bytes": 1592,
+          "path": "runs_batch/smoke_test_strap/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_trng",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 64.11,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 546980,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "0cdab4764e272f4810a50d4418c4c6b083fd4cdef29f6d89d88625c563c19d4f",
+      "command_json_sha256": "d4b95461e81875e66153bfc001c0291ebf553494eddccb669574a5432a06f395",
+      "firmware_elf_sha256": "e9036e27bea31a44cfa4d496bbe76aa9fb9430b1bba33903988707702fa1e2b1",
+      "logs": {
+        "make_stdout": {
+          "sha256": "7eaa25cf3fd1d628824306b068b5d4f5954b042d4dbba4e68db8db0390ca7f75",
+          "bytes": 100934,
+          "path": "runs_batch/smoke_test_trng.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "6198f7ea1d9644e2f9288b84f6a0df8b0e3030a9a6aa4d1642bdddec2adef592",
+          "bytes": 2446,
+          "path": "runs_batch/smoke_test_trng.make.stderr"
+        },
+        "sim": {
+          "sha256": "9fd0ef3885a3c3b53b1d810ce1e33b2816d2975198128d1f5a302a4e127a4666",
+          "bytes": 2938,
+          "path": "runs_batch/smoke_test_trng/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_veer",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 5.39,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 498052,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "25f05ac1e0f38dc56bda37f444271da87594a304018ae39518cdf6558d04fdf1",
+      "command_json_sha256": "b3863e4a49e877a13a258ad84f38f0b9d50f6d3ceed9856ce37162b4e70764e1",
+      "firmware_elf_sha256": "54ef1d6d9cbcf19aa8147ff407caddd55f49b423f6af441accc379ccd8a74ce6",
+      "logs": {
+        "make_stdout": {
+          "sha256": "6e53b044642e427bd11dad43c8074d047028cfc55e686e4f73315853620a9638",
+          "bytes": 95736,
+          "path": "runs_batch/smoke_test_veer.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "cd03da082d4be5fae6a4d62b0b55db051691dc9adadb718c17c23b783b72b63e",
+          "bytes": 2242,
+          "path": "runs_batch/smoke_test_veer.make.stderr"
+        },
+        "sim": {
+          "sha256": "3b7375554f74ad6cc2c8f8ab76c812c987a9f23666664c711c92e3ab5d5a8d41",
+          "bytes": 1610,
+          "path": "runs_batch/smoke_test_veer/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_wdt",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 110.15,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 502972,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "3a4262dbc2f34eaa3a4a3ebf97beb32df4bfcd3dfad201a25bdc9efe9114bc7c",
+      "command_json_sha256": "c0600a38224635d40473a9292be505d577dfb0c7f352c8cf10788b1b51e5520a",
+      "firmware_elf_sha256": "345ba11831b8cd8039898bfd68a160f2676912527496025a4ffeeeca95efae74",
+      "logs": {
+        "make_stdout": {
+          "sha256": "f60fd4d7490f4f6363d7739b2718513925efc3c6e7ec566f440a56f3e89d8a69",
+          "bytes": 100859,
+          "path": "runs_batch/smoke_test_wdt.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "6478c76cb3bc0d6e28093e8cd59432426a928b36083471590377f151acfe4c2b",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_wdt.make.stderr"
+        },
+        "sim": {
+          "sha256": "ea6dd2fde233cc4edd72c0371b248f8890dec020d34ff491d99b288d49cb4fdc",
+          "bytes": 2719,
+          "path": "runs_batch/smoke_test_wdt/verilator_sim.log"
+        }
+      }
+    },
+    {
+      "test": "smoke_test_zeroize_crypto",
+      "complete": true,
+      "passed": true,
+      "command_exit_codes": [
+        0,
+        0
+      ],
+      "timed_out": [
+        false,
+        false
+      ],
+      "elapsed_seconds": 34.93,
+      "pass_banners": 1,
+      "fail_banners": 0,
+      "sva_error_count": 0,
+      "firmware_elf_size_bytes": 504176,
+      "firmware_elf_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+      "result_json_sha256": "1568fd6a8364a8735691940683ee02dc48e96060e49d45aae1983725765078d9",
+      "command_json_sha256": "3b4b1e7fde78d6c05907e7378e3aed18b068deba228923f1f017a15093bd3c9e",
+      "firmware_elf_sha256": "c4c5ad91eb55ea308ba3ffcd72df9ea7f25ef5099aac9a7f988f6b6f5525edb2",
+      "logs": {
+        "make_stdout": {
+          "sha256": "1f3d734b9c78bf9776f858e1068d49e088c4df426a47f31dee6703ddac6e2ddf",
+          "bytes": 101684,
+          "path": "runs_batch/smoke_test_zeroize_crypto.make.stdout"
+        },
+        "make_stderr": {
+          "sha256": "bab081020a10ddc760a45995d3b47f39121f436f41dd9f97bc18f87f7c6c032f",
+          "bytes": 2445,
+          "path": "runs_batch/smoke_test_zeroize_crypto.make.stderr"
+        },
+        "sim": {
+          "sha256": "06417ea6a8e117b6faa9961db0a09d73cd81b1acda837e3d8a8b21c450500003",
+          "bytes": 1620,
+          "path": "runs_batch/smoke_test_zeroize_crypto/verilator_sim.log"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-doe-root-cause-20260923/disposable/run/obj_dir/Vcaliptra_top_tb",
+    "+CLP_REGRESSION"
+  ],
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-doe-root-cause-20260923/disposable/run",
+  "exit": 0,
+  "timeout": false,
+  "elapsed_seconds": 116.893,
+  "trace_sha256": "6aa9a31fd825334137e7309db6a5a91c96ff1c0480b3f8300a2086d984d803a5",
+  "sva_errors": 1,
+  "pass_banners": 1,
+  "trace_lines": 1016,
+  "pristine_sva_sha256": "7e832e09d1b95785db47226cc3dfaf1064771c14e413e354e7f66fd69938cac6",
+  "monitor_sva_sha256": "ae72d8fdf6149453f7adfcba0bbc17465b702eace906c8ac099c384e70a222be",
+  "monitor_patch_sha256": "d9d4460a57fddbd1b4881d5c5768b1a61ba2667acbcfb9cee2100bc080307bf6",
+  "verilator": "5.052 isolated install /Users/danielellerbrock/projects/iverilog_uvm/evidence/verilator-midwindow-doe-20260923/install-5052/bin/verilator",
+  "build": "Copied isolated pinned source and prior DOE scan run tree; ran run-build.sh with the path overrides in that script, then make -j1 -C disposable/run/obj_dir -f Vcaliptra_top_tb.mk OPT_FAST=-Os VM_PARALLEL_BUILDS=1 CFG_CXXFLAGS_PCH_I=-include-pch CFG_GCH_IF_CLANG=.gch; executed obj_dir/Vcaliptra_top_tb +CLP_REGRESSION with 300s timeout."
+}

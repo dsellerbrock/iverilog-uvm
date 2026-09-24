@@ -1,0 +1,20 @@
+{
+  "compile_command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/iverilog",
+    "-g2012",
+    "-gassertions",
+    "-s",
+    "unique_case_pair",
+    "-o",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/pair.vvp",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/unique_case_pair.sv"
+  ],
+  "compile_exit": 0,
+  "runtime_command": [
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/local-install/bin/vvp",
+    "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923/pair.vvp"
+  ],
+  "runtime_exit": 0,
+  "runtime_elapsed_seconds": 0.006,
+  "cwd": "/Users/danielellerbrock/projects/iverilog_uvm/iverilog-uvm-campaign-20260908/evidence/caliptra-csrng-unique-warning-20260923"
+}

@@ -1,0 +1,18 @@
+{
+  "test": "smoke_test_hw_config",
+  "exit_code": 0,
+  "timed_out": false,
+  "elapsed_seconds": 102.44,
+  "sim_log_exists": true,
+  "testcase_passed_markers": 1,
+  "testcase_failed_markers": 0,
+  "sva_error_lines": 0,
+  "firmware_elf_sha256": "ab9e0a7ece5020bfae1cc38dfa4c517f5143084e9f38e7f8ad2b902eea00409b",
+  "firmware_arch_attribute": "Tag_RISCV_arch: \"rv32i2p1_m2p0_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zca1p0\"",
+  "sim_log_sha256": "e7a038d2fc7020081bb948abd79f11475828393f2475a0caf72ded5562dad79f",
+  "stdout_sha256": "d2b5cad1edd5f3d676270a3367c732cf4347657a7886706afff736ac5807c562",
+  "stderr_sha256": "90ba89e0b43b21fa3f2a856e8aa2ddcc2cc515bdd8d95efb3005e5a3204ba782",
+  "selected_test_patch_sha256": "36aa05fef48b9358556ffd67bcfa9c6f6e62dcbeee20607ef3fb8cb36f664a9c",
+  "selected_test_source_sha256": "aab3df95a2619a006022c229681777412bcb0ff2a7bc6e279bae299a51469c0a",
+  "passed": true
+}
